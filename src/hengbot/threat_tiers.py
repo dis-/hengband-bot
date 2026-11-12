@@ -527,23 +527,73 @@ def sensed_t1_destruction_key(policy, snapshot) -> str | None:
     _, strong = _sensed_strong(policy, snapshot)
     if not strong:
         return None
-    if approach_owns(policy, snapshot, strong):
+    approaching = approach_owns(policy, snapshot, strong)
+    if approaching:
         targets = _approach_targets(policy, snapshot, strong)
+        leaving = destruction_leaving(policy, snapshot, targets)
     elif _upstairs_underfoot(policy, snapshot):
         return None
     else:
-        targets = strong
+        targets = leaving = strong
     # ``usable`` first: a failed or untaken use's fallback is the leave's own ask to consume
     # (destruction_use ``_falls_back``: its next answer, the scroll), not this one's.
-    if not destruction_use.usable(policy, snapshot, leaving=targets):
+    if not destruction_use.usable(policy, snapshot, leaving=leaving):
         return None
-    used = destruction_use.key(policy, snapshot, leaving=targets)
-    if used is not None and targets is not strong:
+    used = destruction_use.key(policy, snapshot, leaving=leaving)
+    if used is not None and approaching and _reached(snapshot, targets):
         forget_approach(policy)
     return used
 
 
 APPROACH_REASON = SENSED_LEAVE_PREFIX + "approach-destruction"
+# The tiers of a 強敵 met on the way (``on_the_way``): T1, or T2 (beaten only with supplies).
+STRONG_ON_THE_WAY = (T1, T2)
+
+
+def on_the_way(policy, snapshot, targets) -> list:
+    """The strong monsters the approach meets on its way: awake, not one of ``targets``, within
+    *Destruction*'s sure radius, and T1 or T2 on their own from contact (or ``cannot_win``).
+
+    Owner 2026-11-12 (the n1-b life-377 question, verbatim): 「近づく過程で強敵に接触するので
+    あれば、先にそちらを*破壊*で排除するべき。より近い敵をなぜ放置したか確認。」  On life-377's
+    80F the approach toward 世紀末覇者『ラオウ』 used *Destruction* only for the T1s it walked to;
+    混沌の王族 (T2 alone: supplies win, a reward race) closed from 17 to
+    5 cells beside the dug pocket and was in no rung's *Destruction* set.  Now such a monster in
+    the sure radius is destroyed first, with every target the same circle covers.  Spared as
+    destruction_use spares them: the floor's guardian and the active quest's target."""
+    here = snapshot.player.position
+    radius = destruction_use.GUARANTEED_RADIUS
+    walked_to = {(monster.index, monster.race_id) for monster in targets}
+    spared = {destruction_use._guardian_race(policy, snapshot),
+              destruction_use._target_race(policy, snapshot)}
+    met = []
+    for monster in engagement(policy, snapshot):
+        if (monster.asleep or (monster.index, monster.race_id) in walked_to
+                or monster.race_id in spared or game_distance(here, monster.position) > radius):
+            continue
+        reading = tiered(policy, snapshot, [monster], contact=True)
+        if reading.tier in STRONG_ON_THE_WAY or cannot_win(reading, snapshot.player.hp):
+            met.append(monster)
+    return met
+
+
+def destruction_leaving(policy, snapshot, targets) -> list:
+    """The hostiles the approach's *Destruction* leaves (destruction_use ``key``'s ``leaving``):
+    with a strong monster met on the way (``on_the_way``), it and the targets inside the sure
+    radius (``_threat_in_reach`` asks whether the worst of them is in it); else the targets."""
+    met = on_the_way(policy, snapshot, targets)
+    if not met:
+        return list(targets)
+    here = snapshot.player.position
+    radius = destruction_use.GUARANTEED_RADIUS
+    return [monster for monster in targets if game_distance(here, monster.position) <= radius] + met
+
+
+def _reached(snapshot, targets) -> bool:
+    """A target is inside the sure radius: the use covers it, and the approach ends."""
+    here = snapshot.player.position
+    return any(game_distance(here, monster.position) <= destruction_use.GUARANTEED_RADIUS
+               for monster in targets)
 
 
 def _in_view(policy, snapshot, monster) -> bool:
@@ -607,9 +657,13 @@ def approach_key(policy, snapshot, strong) -> str | None:
     targets = _approach_targets(policy, snapshot, strong)
     if not targets:
         return None
-    used = destruction_use.key(policy, snapshot, leaving=targets)
+    used = destruction_use.key(policy, snapshot, leaving=destruction_leaving(policy, snapshot, targets))
     if used is not None:
-        forget_approach(policy)
+        if _reached(snapshot, targets):
+            forget_approach(policy)
+        else:
+            # A strong monster on the way was the use's subject: the targets are still gone to.
+            setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
         return used
     radius = destruction_use.GUARANTEED_RADIUS
     step = policy._nearest_goal_step(snapshot, lambda grid: any(
@@ -660,8 +714,10 @@ def remembered_approach_key(policy, snapshot) -> str | None:
              for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
     current = tuple(shown.get((monster.index, monster.race_id), monster) for monster in targets)
     seen = [monster for monster in current if (monster.index, monster.race_id) in shown]
-    if seen and (used := destruction_use.key(policy, snapshot, leaving=seen)) is not None:
-        forget_approach(policy)
+    leaving = destruction_leaving(policy, snapshot, seen)
+    if leaving and (used := destruction_use.key(policy, snapshot, leaving=leaving)) is not None:
+        if _reached(snapshot, seen):
+            forget_approach(policy)
         return used
     here = snapshot.player.position
     radius = destruction_use.GUARANTEED_RADIUS

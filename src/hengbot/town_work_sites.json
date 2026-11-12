@@ -13246,12 +13246,26 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:destruction_leaving": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "threat_tiers.py:instant_death_key": {
     "classification": "producer",
     "rows": [
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_tiers.py:on_the_way": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:remembered_approach_key": {
     "classification": "producer",

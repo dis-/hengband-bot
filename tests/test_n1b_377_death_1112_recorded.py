@@ -31,6 +31,12 @@ sensed leave's *Destruction* (absorbed, 97%) was due on every board until the st
 5. 混沌の王族 alone reads T2 from contact, not T1: four Healing potions win (supply margin
    101, the game's spell choice and failure rate of main cf3ae5189f) and it is a reward race (DROP_4D2); the sensed leave reads T1 alone, as
    the owner's rule of 2026-11-08 says.  Not changed (pinned as it reads).
+6. Owner 2026-11-12 「近づく過程で強敵に接触するのであれば、先にそちらを*破壊*で排除するべき。」:
+   the approach's *Destruction* named only the T1s it walked to (ラオウ), so 混沌の王族 (T2)
+   coming within the sure radius from 7969 (11 cells, 5 by 7972) was in no use's set.  Now a
+   T1 or T2 met within the radius is destroyed first (threat_tiers ``on_the_way``).  On the
+   recorded boards ラオウ is itself in reach, so the answer is the same *Destruction*; the
+   DECLARED CONSTRUCTED variant moves ラオウ's detected cell 22 cells off (40, 50) on 7970.
 
 DECLARED CONSTRUCTED boards (policy_fixtures) for 4: an all-rock 21 x 21 floor, the player at
 (10, 10), a corridor down x = 9 (y 2-9) ending beside the player (the rock at (9, 10) and
@@ -42,13 +48,14 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import lzma
 import pickle
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot import me_powers, threat_tiers
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
-from hengbot.model import Position, Snapshot
+from hengbot.model import Position, Snapshot, game_distance
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.monster_ranged_evaluator import maximum_ability_hp_damage
 from hengbot.policy import HengbotPolicy
@@ -181,6 +188,35 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
         self.assertGreater(result.supply_margin, 0)
         entry = next(iter(result.per_monster.values()))
         self.assertEqual((entry.selected, entry.worsens_with_time), (("reward",), ("summon",)))
+
+    def test_the_strong_monster_on_the_way_is_in_the_set(self):
+        """6: from 7969 混沌の王族 is within the sure radius and met on the way to ラオウ."""
+        for sequence in range(7965, 7969):
+            with self.subTest(sequence=sequence):
+                policy, board, _, _ = self.decided[sequence]
+                self.assertEqual(threat_tiers.on_the_way(policy, board, [shown(board, RAOH)]), [])
+        for sequence in range(7969, 7975):
+            with self.subTest(sequence=sequence):
+                policy, board, _, _ = self.decided[sequence]
+                met = threat_tiers.on_the_way(policy, board, [shown(board, RAOH)])
+                self.assertEqual([monster.race_id for monster in met], [CHAOS_LORD])
+
+    def test_the_strong_monster_on_the_way_is_destroyed_first(self):
+        """6, DECLARED CONSTRUCTED: ラオウ's detected cell moved 22 cells off on 7970; the walk
+        toward it was the answer without the rule, *Destruction* on 混沌の王族 (9 off) is now."""
+        policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoints"][7970])
+        with TemporaryDirectory() as scratch:
+            _, boards = _consume_response_sequence(
+                SEGMENTS[7970]["lines"], policy, lambda _key: True, policy._monrace_knowledge,
+                knowledge_ledger_path=Path(scratch) / "k.jsonl")
+        board = policy.with_known_skill_exp(boards[-1])
+        far = Position(40, 50)
+        board = replace(board, detected_monsters=tuple(
+            replace(monster, position=far) if monster.race_id == RAOH else monster
+            for monster in board.detected_monsters))
+        self.assertEqual(game_distance(board.player.position, far), 22)
+        self.assertEqual(str(policy.choose_key(board)), DESTRUCTION[0])
+        self.assertEqual(policy.last_reason, DESTRUCTION[1])
 
     @staticmethod
     def _ball(policy, board, lord):

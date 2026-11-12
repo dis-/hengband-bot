@@ -17279,6 +17279,28 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "n1-b life-377 (2026-11-12, death at 80F); owner 2026-11-09 B 「即死でない強敵は *破壊* 優先」: the sensed T1 leave's *Destruction* alone (destruction_use.key leaving the T1s, or the approach's targets), asked in the emergency layer above the Magic-Eater's THREAT powers; None where the leave would read the stairs underfoot first or the use is not usable (its fallback stays the leave's own)."
   },
+  "threat_tiers.py:destruction_leaving": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: asked from threat_tiers approach_key, remembered_approach_key and sensed_t1_destruction_key after leave_decided_here (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. The hostiles the approach's *Destruction* leaves (destruction_use.key leaving): with a strong monster met on the way, it and the targets inside the sure radius; else the targets."
+  },
+  "threat_tiers.py:on_the_way": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: asked from threat_tiers approach_key, remembered_approach_key and sensed_t1_destruction_key after leave_decided_here (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. Owner 2026-11-12 「近づく過程で強敵に接触するのであれば、先にそちらを*破壊*で排除するべき。」: the awake T1/T2 (alone, from contact) hostiles within *Destruction*'s sure radius other than the approach's targets, the guardian and the quest target."
+  },
   "threat_tiers.py:remembered_approach_key": {
     "classification": "producer",
     "rows": [
