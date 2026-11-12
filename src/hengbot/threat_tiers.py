@@ -444,7 +444,9 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     strong = [monster for monster in sensing
               if cannot_win(tiered(policy, snapshot, [monster], contact=True), snapshot.player.hp)]
     if not strong:
-        return None
+        # A T1 the approach walked toward and lost from detection is still gone to (n1-b
+        # life-377, the remembered approach below).
+        return remembered_approach_key(policy, snapshot)
     # Owner 2026-11-10 (the n1-b life-367 report's P2, verbatim 「積極的に*破壊*で消しにいく」):
     # a T1 known only by detection is gone to and destroyed, not left (``approach_key``).
     if approach_owns(policy, snapshot, strong):
@@ -547,12 +549,69 @@ def approach_key(policy, snapshot, strong) -> str | None:
         return None
     used = destruction_use.key(policy, snapshot, leaving=targets)
     if used is not None:
+        forget_approach(policy)
         return used
     radius = destruction_use.GUARANTEED_RADIUS
     step = policy._nearest_goal_step(snapshot, lambda grid: any(
         game_distance(grid.position, monster.position) <= radius for monster in targets))
     if step is None:
         return None
+    setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
+    policy.last_reason = APPROACH_REASON
+    return policy._step_toward(snapshot, step)
+
+
+# n1-b life-377 (Angband 80F, 2026-11-12 11:24, loop-detected): the ヴェノム・ワーム detected by
+# telepathy 18 cells off was approached by the walk toward its sure radius, whose first step
+# west put it 19 off, out of the telepathy's range; on that board no T1 was sensed, seek-loot
+# stepped back east, the wyrm showed again and the approach stepped west: 20 alternations.
+# Owner 2026-11-10 「積極的に*破壊*で消しにいく」: once the walk starts it goes on toward the
+# targets' last detected cells while they are not shown (a target shown again is judged as
+# shown), for as long as a hostile unseen is still where it was seen (monster_memory's window,
+# owner 2026-11-02 「1,000ゲームターン」), until the player stands within the sure radius of
+# every remembered cell (where it is known not to be), or the floor changes.  The gates of the
+# approach (the means, a clear head, a floor *Destruction* touches) still apply; the use needs
+# the target shown again (destruction_use's own gates).
+APPROACH_MEMORY = "_sensed_approach_memory"
+
+
+def forget_approach(policy) -> None:
+    setattr(policy, APPROACH_MEMORY, None)
+
+
+def remembered_approach_key(policy, snapshot) -> str | None:
+    """The remembered approach (n1-b life-377, above): *Destruction* once a target shown again
+    is within reach of its use, else the next step toward the targets not yet within the sure
+    radius (a shown one at its cell, a lost one at its last detected cell); else None, and the
+    memory is dropped."""
+    from hengbot.monster_memory import UNSEEN_GAME_TURNS
+
+    memory = getattr(policy, APPROACH_MEMORY, None)
+    if memory is None:
+        return None
+    floor, turn, targets = memory
+    if (floor != snapshot.floor_key or snapshot.turn - turn > UNSEEN_GAME_TURNS
+            or not destruction_use.holds_means(policy, snapshot)
+            or not destruction_use._clear_headed(snapshot.player)
+            or not destruction_use._floor_destroyed(policy, snapshot)):
+        forget_approach(policy)
+        return None
+    shown = {(monster.index, monster.race_id): monster
+             for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
+    current = tuple(shown.get((monster.index, monster.race_id), monster) for monster in targets)
+    seen = [monster for monster in current if (monster.index, monster.race_id) in shown]
+    if seen and (used := destruction_use.key(policy, snapshot, leaving=seen)) is not None:
+        forget_approach(policy)
+        return used
+    here = snapshot.player.position
+    radius = destruction_use.GUARANTEED_RADIUS
+    pending = [monster for monster in current if game_distance(here, monster.position) > radius]
+    step = None if not pending else policy._nearest_goal_step(snapshot, lambda grid: any(
+        game_distance(grid.position, monster.position) <= radius for monster in pending))
+    if step is None:
+        forget_approach(policy)
+        return None
+    setattr(policy, APPROACH_MEMORY, (floor, snapshot.turn if seen else turn, current))
     policy.last_reason = APPROACH_REASON
     return policy._step_toward(snapshot, step)
 
