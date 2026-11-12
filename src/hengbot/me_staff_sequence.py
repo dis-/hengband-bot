@@ -140,6 +140,7 @@ DETECT_REASON = "fundraise:me-detect-treasure"
 BUY_RUNG = "me-staff:buy"
 STAPLE = "staple"  # the Wand of Wonder's key in attempts / pending
 STOCKOUT_WHY = "staff-stockout"
+TRIP_PHASES = frozenset({"rumor", "travel", "recharge"})
 
 
 @dataclass
@@ -267,6 +268,26 @@ def read_powers(policy, snapshot) -> bool:
                                    key: max(1, int(row.get("max") or row.get("current") or 0))}
         record.powers_read = True
     return record.powers_read
+
+
+def _unread_extra_kind(policy, snapshot) -> str | None:
+    """The kind of a carried extra whose power list this process has not read.
+
+    ``charge_first`` counts an ``absorb_after_charge`` kind's power from the
+    displayed list, else from the absorption record: a lower bound that
+    lives in the process only.  n1-b life-370 (2026-11-12 02:20): the
+    restarted bot read the staff list alone, so its two Wands of Stone to Mud
+    (the power at 168, above the cap) looked below the cap and started a
+    Morivant expedition the previous process had no reason for.  Browsing
+    takes no game time (me_powers_refresh); each kind is asked
+    ``ATTEMPT_LIMIT`` times at most, then the lower bound stands.
+    """
+    lists = getattr(policy, "_me_device_lists", None) or {}
+    for key in carried_extras(policy, snapshot):
+        kind = key.split(":", 1)[0]
+        if kind in KIND_LETTER and kind not in lists and _attempt(policy, "read-powers", kind):
+            return kind
+    return None
 
 
 def _absorbed(policy, sval: int) -> bool:
@@ -1056,6 +1077,14 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         return _stop(policy, record.failure)
     _note_searched(policy, snapshot)
     phase = _phase(policy, snapshot)
+    if (phase in TRIP_PHASES and not policy._physical_hostiles(snapshot)
+            and not _quest_holds_town(policy, snapshot)):
+        # A Tower trip the extras may start: their counts are read first (a
+        # quest errand holding the town keeps the board, _travel).
+        unread = _unread_extra_kind(policy, snapshot)
+        if unread is not None:
+            policy.last_reason = SEQUENCE_READ_REASON
+            return _stage(policy, "b" + KIND_LETTER[unread], (("read-powers", unread),))
     if phase == "done":
         return None
     gold = snapshot.player.gold

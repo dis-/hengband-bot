@@ -3671,6 +3671,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_staff_sequence.py:_unread_extra_kind": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_staff_sequence.py:buy_target": {
     "classification": "data",
     "rows": [
@@ -12995,6 +13002,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_pack_budget.py:permits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_pack_budget.py:pile_fits": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_pack_budget.py:pile_slots": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_pack_budget.py:relief_key": {
     "classification": "adapter",
     "rows": [
@@ -13002,6 +13030,13 @@
       "sale",
       "stat-recovery",
       "store-approach"
+    ],
+    "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "town_pack_budget.py:stacking_pile_objects": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success."
   },

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from hengbot.policy_constants import MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY
-from hengbot.model import STORE_HOME, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, TVAL_CAPTURE, TVAL_GOLD, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
+from hengbot.model import Position, STORE_HOME, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, TVAL_CAPTURE, TVAL_GOLD, TVAL_ROD, TVAL_WAND, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL
 
 
 _ROOM_ASSUMED = ContextVar("town_pack_room_assumed", default=False)
@@ -152,10 +152,76 @@ def stacking_pile_objects(snapshot, grid) -> int:
 
 
 def floor_step_fits(snapshot, position) -> bool:
+    if pile_fits(snapshot, position):
+        return True
+    return position in sealed_pile_exits(snapshot)
+
+
+def pile_fits(snapshot, position) -> bool:
+    """The budget alone: a walk onto ``position`` keeps the terminal reserve."""
     if not getattr(snapshot, "in_town", False) or position in _EXPLICIT_PICKUP_CELLS.get():
         return True
     grid = snapshot.grids.get(position)
     return grid is None or permits(snapshot, pile_slots(grid, snapshot))
+
+
+_SEALED_CACHE: list = [None, frozenset()]
+
+
+def sealed_pile_exits(snapshot) -> frozenset:
+    """Refused piles that are the only way out of the player's cell or into an entrance.
+
+    The budget keeps a walk off a pile whose pickup would eat the terminal
+    reserve; it must not wall the player or a shop in.  n1-b life-370
+    (2026-11-12 02:19, Outpost Home): with 19 of 23 slots used, the town
+    chest pass dropped a carried chest on the Home entrance (an entrance
+    holds no object, so it landed on the cell beside it) and opened it
+    there; its two items scattered onto the entrance's other two approach
+    cells.  Every way out of the Home pocket now carried a refused pile: the
+    entrance step-off had no step (no-key-exhausted) and, after the restart,
+    the inn route had no path (quest:blocked:me-staff
+    travel-morivant-unavailable).  Where every passable non-entrance
+    neighbour of the player's cell, or of a town entrance, is such a pile,
+    those piles are walkable: the pickup is the cost, and the town's own
+    disposal and deposit flows restore the reserve afterwards.
+    """
+    if not getattr(snapshot, "in_town", False):
+        return frozenset()
+    cached_board, cached = _SEALED_CACHE
+    if cached_board is snapshot:
+        return cached
+    grids = snapshot.grids
+    refused = {grid.position for grid in grids.values()
+               if grid.object_count > 0 and not pile_fits(snapshot, grid.position)}
+    exits: set = set()
+    if refused:
+        centres = {snapshot.player.position}
+        for position in refused:
+            for dy, dx in _OFFSETS:
+                around = grids.get(Position(position.y + dy, position.x + dx))
+                if around is not None and _entrance(around):
+                    centres.add(around.position)
+        for centre in centres:
+            ways = []
+            for dy, dx in _OFFSETS:
+                cell = grids.get(Position(centre.y + dy, centre.x + dx))
+                if (cell is None or not (cell.passable or cell.is_door)
+                        or _entrance(cell)):
+                    continue
+                ways.append(cell.position)
+            if ways and all(way in refused for way in ways):
+                exits.update(ways)
+    result = frozenset(exits)
+    _SEALED_CACHE[0], _SEALED_CACHE[1] = snapshot, result
+    return result
+
+
+_OFFSETS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
+
+
+def _entrance(grid) -> bool:
+    """A cell whose step enters a shop, building or dungeon rather than leading on."""
+    return grid.store_number >= 0 or grid.building_special >= 0 or grid.has_entrance
 
 
 def native_travel_fits(snapshot) -> bool:
