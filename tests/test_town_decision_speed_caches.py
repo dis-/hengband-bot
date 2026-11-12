@@ -15,6 +15,7 @@ from hengbot.item_reservation import decision_caches_disabled
 from hengbot.latch_onset_capture import checkpoint
 from hengbot.model import parse_snapshot
 from hengbot.policy import ConservativePolicy
+from hengbot.terrain_knowledge import load_damaging_terrain_ids
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +27,7 @@ CAPTURES = ("A", "B")
 def build_policy():
     monrace = cli.load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
     costs = cli.load_baseitem_costs(EDIT / "BaseitemDefinitions.jsonc")
-    damaging = cli.load_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc")
+    damaging = load_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc")
     town_maps = {}
     outpost = cli.parse_town_map(EDIT / "towns" / "01_Outpost_Full.jsonc")
     town_maps[0] = outpost

@@ -42,9 +42,7 @@ from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
-from hengbot.terrain_knowledge import (
-    load_damaging_terrain_elements, load_damaging_terrain_ids, load_deep_damaging_terrain_ids,
-    load_los_only_terrain_ids)
+from hengbot.terrain_knowledge import load_terrain_facts
 from hengbot.town_maps import find_town_map, parse_town_map
 from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_map
 
@@ -73,10 +71,7 @@ def _policy(directory: Path, monrace) -> HengbotPolicy:
         wilderness_map=load_wilderness_map(find_wilderness_definition(GAME_ROOT)),
         dungeon_knowledge=load_dungeon_knowledge(EDIT / "DungeonDefinitions.jsonc"),
         monrace_knowledge=monrace,
-        damaging_terrain_ids=load_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
-        damaging_terrain_elements=load_damaging_terrain_elements(EDIT / "TerrainDefinitions.jsonc"),
-        deep_damaging_terrain_ids=load_deep_damaging_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
-        los_only_terrain_ids=load_los_only_terrain_ids(EDIT / "TerrainDefinitions.jsonc"),
+        **load_terrain_facts(EDIT / "TerrainDefinitions.jsonc"),
         quest_knowledge=load_quest_knowledge(
             find_quest_definitions(GAME_ROOT / "bot-client" / "state.jsonl")
         ),

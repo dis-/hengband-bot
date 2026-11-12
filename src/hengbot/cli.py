@@ -33,13 +33,7 @@ from hengbot.model import (
 from hengbot.protocol import NON_BOARD_SNAPSHOT_TYPES, snapshot_protocol_version
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.baseitem_knowledge import load_baseitem_costs
-from hengbot.terrain_knowledge import (
-    find_terrain_definitions,
-    load_damaging_terrain_elements,
-    load_deep_damaging_terrain_ids,
-    load_damaging_terrain_ids,
-    load_los_only_terrain_ids,
-)
+from hengbot.terrain_knowledge import find_terrain_definitions, load_terrain_facts
 from hengbot.dungeon_knowledge import find_dungeon_definitions, load_dungeon_knowledge
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import find_quest_strategies, load_quest_strategies
@@ -4241,17 +4235,11 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"could not load base-item definitions ({baseitem_path}): {exc}", file=sys.stderr)
 
-    damaging_terrain_ids: frozenset[int] = frozenset()
-    damaging_terrain_elements: dict[int, str] = {}
-    deep_damaging_terrain_ids: frozenset[int] = frozenset()
-    los_only_terrain_ids: frozenset[int] = frozenset()
+    terrain_facts: dict[str, object] = {}
     terrain_path = find_terrain_definitions(args.state_file)
     if terrain_path is not None:
         try:
-            damaging_terrain_ids = load_damaging_terrain_ids(terrain_path)
-            damaging_terrain_elements = load_damaging_terrain_elements(terrain_path)
-            deep_damaging_terrain_ids = load_deep_damaging_terrain_ids(terrain_path)
-            los_only_terrain_ids = load_los_only_terrain_ids(terrain_path)
+            terrain_facts = load_terrain_facts(terrain_path)
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             print(f"invalid terrain definitions: {exc}", file=sys.stderr)
             return 2
@@ -4334,10 +4322,7 @@ def main(argv: list[str] | None = None) -> int:
         wilderness_map=wilderness_map,
         dungeon_knowledge=dungeon_knowledge,
         monrace_knowledge=monrace_knowledge,
-        damaging_terrain_ids=damaging_terrain_ids,
-        damaging_terrain_elements=damaging_terrain_elements,
-        deep_damaging_terrain_ids=deep_damaging_terrain_ids,
-        los_only_terrain_ids=los_only_terrain_ids,
+        **terrain_facts,
         quest_knowledge=quest_knowledge,
         quest_strategies=quest_strategies,
         exploration_ledger_path=runtime_path(EXPLORATION_LEDGER_PATH.name),

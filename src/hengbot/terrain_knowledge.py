@@ -68,6 +68,17 @@ def load_deep_damaging_terrain_ids(path: Path) -> frozenset[int]:
     )
 
 
+def load_terrain_facts(path: Path) -> dict[str, object]:
+    """Every HengbotPolicy keyword argument the terrain definitions give, by name: the
+    live cli and the recorded-board harness build the policy from this one call."""
+    return {
+        "damaging_terrain_ids": load_damaging_terrain_ids(path),
+        "damaging_terrain_elements": load_damaging_terrain_elements(path),
+        "deep_damaging_terrain_ids": load_deep_damaging_terrain_ids(path),
+        "los_only_terrain_ids": load_los_only_terrain_ids(path),
+    }
+
+
 def find_terrain_definitions(state_file: Path) -> Path | None:
     configured = os.environ.get("HENGBAND_TERRAIN_DEFINITIONS")
     if configured:
