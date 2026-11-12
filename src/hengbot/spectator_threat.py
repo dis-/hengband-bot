@@ -62,6 +62,7 @@ def monster_judgement(assessment, index) -> dict:
         "instant_death": assessment.instant_death,
         "instant_death_reasons": list(assessment.instant_death_reasons),
         "skipped": assessment.skipped,
+        "t2_withheld": list(assessment.t2_withheld),
     }
     if row is not None:
         judgement.update({
@@ -80,6 +81,7 @@ def engagement_judgement(facts: dict) -> dict:
         "tier": facts.get("tier"),
         "instant_death": bool(facts.get("instant_death")),
         "skipped": facts.get("skipped"),
+        "t2_withheld": list(facts.get("t2_withheld", ())),
         "hostiles": len(facts.get("monsters", ())),
     }
 

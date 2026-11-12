@@ -140,6 +140,7 @@ from hengbot.policy_types import (
     ProcurementHomeGate,
 )
 from hengbot.policy_constants import (
+    PROJECTILE_REASON_PREFIXES,
     ADJ_STR_WEIGHT_LIMIT,
     AMMO_CARRY_TARGET,
     DESCEND_MIN_HP_RATIO,
@@ -480,6 +481,7 @@ from hengbot.quest_strategies import (
 )
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.monster_ranged_evaluator import (
+    BREATH,
     SpellSelectionContext,
     aggregate_ranged_damage_percentile,
     ability_selection_probabilities,
@@ -9846,7 +9848,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             ranged = self._ranged_attack_key(snapshot, [target], [])
             if ranged is not None:
-                self.last_reason = "summoner:ranged-kill"
+                # Only a projectile's reason is renamed: the executor runs an absorbed power,
+                # the absorbed Magic Missile and a carried wand by their own reasons (the
+                # Magic-Eater's answer the rung may choose over the shot, owner 2026-11-12).
+                # n1-c life-196 2026-11-12 04:05: 'mCz@1,39' renamed here went out as raw keys
+                # and the power prompt stayed open (stuck-prompt:summoner:ranged-kill).
+                if (self.last_reason or "").startswith(PROJECTILE_REASON_PREFIXES):
+                    self.last_reason = "summoner:ranged-kill"
                 return ranged
         return None
 
@@ -16352,6 +16360,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         player_hp: int,
         blind: bool,
         saving_skill: int,
+        monster_hp: int | None = None,
     ):
         """Value-keyed, cross-decision cache around aggregate_ranged_damage_percentile.
 
@@ -16363,7 +16372,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         saving skill. player_hp feeds ONLY HAND_DOOM, so it joins the key just
         for races that have it. A standoff or kiting fight therefore pays for
         one computation and reuses it for the rest of the engagement.
+        monster_hp (the caster's health-band estimate) feeds only the breaths
+        and the rocket, so it joins the key just for races that have one.
         """
+        hp_scaled = any(ability in BREATH or ability == "ROCKET"
+                        for ability in knowledge.abilities)
         key = (
             knowledge,
             actions,
@@ -16372,6 +16385,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             blind,
             saving_skill,
             player_hp if "HAND_DOOM" in knowledge.abilities else None,
+            monster_hp if hp_scaled else None,
         )
         cached = self._aggregate_ranged_cache.get(key)
         if cached is None:
@@ -16383,6 +16397,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 player_hp=player_hp,
                 blind=blind,
                 saving_skill=saving_skill,
+                monster_hp=monster_hp if hp_scaled else None,
             )
             if len(self._aggregate_ranged_cache) >= AGGREGATE_RANGED_CACHE_LIMIT:
                 self._aggregate_ranged_cache.clear()
@@ -16411,10 +16426,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             damage = damage * 34 // 100
         if resistance in abilities:
             damage = damage * 34 // 100
-        elif effect == "POISON" and "resist_pois" in abilities:
-            damage = damage * 40 // 100
-        elif effect == "DISEASE" and "resist_pois" in abilities:
-            damage = damage * 8 // 9
+        elif effect in {"POISON", "DISEASE"}:
+            # The resistance and the opposition each make one layer (owner 2026-11-11 「毒の打撃
+            # の軽減」): calc_blow_poison takes calc_nuke_damage_rate, (2 * per + 2) / 5 per
+            # layer (100 -> 40 -> 16; monster-attack-switcher.cpp:55, player-status-resist.cpp:
+            # 208-219); calc_blow_disease multiplies by (1d4 + 4) / 9 per layer, at most 8/9
+            # (monster-attack-lose.cpp:23-29).
+            layers = ("resist_pois" in abilities) + (OPPOSITION_ABILITY in abilities)
+            if effect == "POISON":
+                rate = 100
+                for _ in range(layers):
+                    rate = (2 * rate + 2) // 5
+                damage = damage * rate // 100
+            else:
+                for _ in range(layers):
+                    damage = damage * 8 // 9
         return max(0, damage)
 
 

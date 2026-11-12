@@ -137,6 +137,9 @@ from hengbot.threat_projection import (  # noqa: F401
     _resistance_after,
     CostExceeded,
     Projection,
+    plan_reserve,
+    heal_credit,
+    _heal_doses,
     _plan,
     _supplies_held,
     _path_memo,
@@ -568,7 +571,10 @@ def decided(policy, snapshot, hostiles, raw: Assessment) -> Assessment:
     keys = [(monster.index, monster.race_id) for monster in hostiles]
     entries = [memory.decided.get(key) for key in keys]
     known = [entry for entry in entries if entry is not None]
-    overridden = raw.instant_death or supply_fight_stopped(snapshot, hostiles)
+    # A withheld T2 (``fear_cover.withheld``) is a hard override too: its margin is the winning
+    # plan's, which the band would read as T2 (owner 2026-11-11 「T2 にしない」).
+    overridden = (raw.instant_death or bool(raw.t2_withheld)
+                  or supply_fight_stopped(snapshot, hostiles))
     tier = raw.tier
     if known and not overridden:
         here = set(keys)

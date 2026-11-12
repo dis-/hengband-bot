@@ -137,6 +137,13 @@ class CasterShotTest(_test_me_nokey_1031_recorded.PostedKey):
             caster["index"] = 9999  # off the grid map, so the exported cell is its position
             self.assertEqual(max(abs(caster["y"] - here["y"]), abs(caster["x"] - here["x"])), 2)
         policy, _raw, key = replay(WORSHIPPER_SPAN, until=CASTER_PAST_THE_ADJACENT, change=change)
+        # Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する」:
+        # the carried launcher's shot out-damages the absorbed Magic Missile here.
+        self.assertEqual(key[:2], "fq", policy.last_reason)
+        self.assertTrue(policy.last_reason.startswith("summoner:ranged-kill"), policy.last_reason)
+        # DECLARED CONSTRUCTED: without the ammunition the absorbed Magic Missile answers.
+        policy, _raw, key = replay(WORSHIPPER_SPAN, until=CASTER_PAST_THE_ADJACENT,
+                                   change=lambda raw: (change(raw), without_ammo(raw)))
         self.assertEqual(key[:3], "mBp", policy.last_reason)
 
     @staticmethod
@@ -150,6 +157,11 @@ class CasterShotTest(_test_me_nokey_1031_recorded.PostedKey):
                    and (cell.y, cell.x) not in occupied for cell in cells):
                 return cells[1].y, cells[1].x
         raise AssertionError("no clear ray")
+
+
+def without_ammo(raw):
+    """The pack without shots, arrows and bolts (tval 16-18)."""
+    raw["inventory"] = [item for item in raw["inventory"] if item["tval"] not in (16, 17, 18)]
 
 
 class LeaveTest(d57.PostedDeathKey):
@@ -235,6 +247,12 @@ class LeaveTest(d57.PostedDeathKey):
             raw["player"]["class_id"] = 16
             raw["magic_eater_wand_charges"] = 5
         policy, _raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST, change=change)
+        # Owner 2026-11-12: the stronger launcher shot over the absorbed Magic Missile.
+        self.assertEqual(key[:2], "fq", policy.last_reason)
+        self.assertTrue(policy.last_reason.startswith("summoner:ranged-kill"), policy.last_reason)
+        # DECLARED CONSTRUCTED: without the ammunition the absorbed Magic Missile answers.
+        policy, _raw, key = replay(UNSEEN_DEMONS_SPAN, until=SECOND_UNSEEN_CAST,
+                                   change=lambda raw: (change(raw), without_ammo(raw)))
         self.assertEqual(key[:3], "mBp", policy.last_reason)
 
     def test_blind_sound_counts_as_unseen(self):
