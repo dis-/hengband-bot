@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_safe_now, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -987,7 +987,8 @@ AGGREGATE_RANGED_CACHE_LIMIT = 4096
 # Being forced into these repeatedly is the signature of a too-deep floor.
 
 # Descending / healing: DESCEND_MIN_HP_RATIO and REST_TARGET_HP_RATIO (policy_constants).
-REST_CAP = 25  # bound consecutive rest commands as a safety valve
+# REST_CAP bounds consecutive rest commands as a safety valve (the rest layer, ladder_rest).
+from hengbot.ladder_rest import REST_CAP  # noqa: E402
 
 # Hunting (opportunistic XP while no downstairs is known)
 
@@ -8450,54 +8451,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return self._town_producer_entry("_recall_restock_key", lambda: self._recall_restock_key(snapshot), family="departure")
 
         here = snapshot.grid_at(player.position)
-        # 4. Recover between fights: with nothing hostile in sight and HP down
-        #    (and not bleeding, and not being hit by something unseen), rest until
-        #    healed. This is our main way to stay survivable without healing items.
-        if (
-            player.hp_ratio < REST_TARGET_HP_RATIO
-            and not self._physical_hostiles(snapshot)
-            and not self._took_damage
-            and not player.poisoned
-            and not player.cut
-            and not player.confused
-            and player.food_state in {"normal", "full", "gorged"}
-            and self._rest_count < REST_CAP
-        ):
-            # Awake monsters known only by telepathy/detection interrupt every
-            # rest (live Angband 41F loop, 2026-09-21): the user-confirmed
-            # tiers hunt, keep exploring, or leave the floor instead.
-            suppress_rest, esp_threat = self._town_producer_entry("_esp_threat_rest_key", lambda: self._esp_threat_rest_key(
-                snapshot, strategic_hostiles
-            ))
-            if esp_threat is not None:
-                return esp_threat
-            # S2b.1b, for the town hold: the slot passed without a hunt.
-            assessment = self._esp_threat_assessment
-            self._release_esp_threat_rest_hunt(
-                "esp-threat:rest-"
-                + str(
-                    assessment.get("action")
-                    if isinstance(assessment, dict)
-                    else "no-assessment"
-                )
-            )
-            if not suppress_rest and (power := me_powers.power_key(self, snapshot, me_powers.REST)):
-                return power
-            if not suppress_rest:
-                # Note: resting burns many turns (= food). Skip it when hungry
-                # so we don't starve — bot-test died of starvation partly from
-                # over-resting.
-                self._rest_count += 1
-                self.last_reason = "rest"
-                self._offer_execution(
-                    REST_MACRO, producer="survival", work_id="rest",
-                    next_step="player.rest", expected_effect="hp/mp-recovered",
-                )
-                return REST_MACRO
-        else:
-            # S2b.1b, for the town hold: the rest gate is closed, so the rest slot's
-            # hunt is not asked for this board.
-            self._release_esp_threat_rest_hunt("esp-threat:rest-gate-closed")
+        # The rest layer: recover between fights (ladder_rest).
+        rest = ladder_rest.key(self, snapshot, strategic_hostiles=strategic_hostiles)
+        if rest is not PASS:
+            return rest
 
         # The descent layer: descend while healthy, else walk to the way down (ladder_descent).
         descent = ladder_descent.key(

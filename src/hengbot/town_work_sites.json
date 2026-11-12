@@ -2886,6 +2886,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_rest.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "quest-service"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_safe_now.py:key": {
     "classification": "adapter",
     "rows": [
