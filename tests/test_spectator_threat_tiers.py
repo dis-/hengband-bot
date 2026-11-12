@@ -3,22 +3,28 @@
 Owner 2026-11-08: 「脅威度の判定が入ったなら、観戦UIの見えているモンスター一覧にその判断を追記して。
 脅威度順に色分けと、脅威度でのソートも入れて」.
 
-Each listed hostile among the nearest ``SPECTATE_THREAT_MONSTERS`` is judged alone and from
-contact (``threat_tiers.tiered([monster], contact=True)``, the judgement ``sensed_t1_leave_key``
-uses); the board's engagement line is the decision row's own ``threat_tiers`` facts.  The list
-is ordered 即死, T1, T2, T3, unknown, omitted, none, then by distance.
+Each listed hostile among the ``SPECTATE_THREAT_MONSTERS`` of the highest race level (the nearer
+first among equal levels; owner 2026-11-13 「群れの脅威度判定だが、距離順でなくレベル順にならないか？」)
+is judged alone and from contact (``threat_tiers.tiered([monster], contact=True)``, the
+judgement ``sensed_t1_leave_key`` uses); the board's engagement line is the decision row's own
+``threat_tiers`` facts.  The list is ordered 即死, T1, T2, T3, unknown, omitted, none, then by
+distance.
 
 Recorded boards (the threat-tier tests' fixtures, tests/test_threat_tiers_recorded.py):
-- summon-response-n1a-475-1104 at 2038858 (49F, nine hostiles): three T1 summoners, then T3.
-- death-n1c-099-1102 at 691696 (Quest 31, fifteen hostiles): seven T1 before a T3 two cells away.
-- death-n1a-475-1104 at 2039000 (49F, twenty listed): the bound of eight.
-- n1b-325-low-hp-escape-1106 at 2100397 (Castle 33F): 智天使 alone is T1 (summon), jackals T3.
+- summon-response-n1a-475-1104 at 2038858 (49F, nine hostiles): three T1 summoners, then T3;
+  the lowest-level giant, two cells away, is the one omitted.
+- death-n1c-099-1102 at 691696 (Quest 31, fifteen hostiles): eight T1 judged, the T3 bunny two
+  cells away omitted.
+- death-n1a-475-1104 at 2039000 (49F, twenty listed): the bound of eight, by level.
+- n1b-325-low-hp-escape-1106 at 2100397 (Castle 33F): 智天使 alone is T1 (summon), jackals T3;
+  with its ten jackals near and 智天使 moved past them, 智天使 is still judged.
 - q25-summons-n1b-312-1105 at 11653365 (Quest 25, nothing in view): no hostile.
 - town-end-purchase-only-1102 (town): outside the design, no judgement.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import json
 import tempfile
 import time
@@ -54,6 +60,20 @@ def tiers(monsters):
     return [(m.get("threat") or {}).get("tier") for m in monsters]
 
 
+def by_level(test, policy, board, judgement):
+    """The judged hostiles are the eight first in (highest race level, nearest) order."""
+    hostiles = {m.index: m for m in (*board.visible_monsters, *board.detected_monsters)
+                if m.hostile}
+    rows = judgement["monsters"]
+    judged = [hostiles[i] for i, row in rows.items() if not row.get("omitted")]
+    omitted = [hostiles[i] for i, row in rows.items() if row.get("omitted")]
+    test.assertEqual(len(judged), min(len(hostiles), spectator_threat.SPECTATE_THREAT_MONSTERS))
+    order = lambda m: spectator_threat.judging_order(policy, m)  # noqa: E731
+    if omitted:
+        test.assertLessEqual(max(map(order, judged)), min(map(order, omitted)))
+    return judged, omitted
+
+
 class RecordedBoardsTest(unittest.TestCase):
     def test_summoners_first_n1a_475(self):
         _policy, _board, _raw, details = recorded("summon-response-n1a-475-1104.json.gz", 2038858)
@@ -64,7 +84,9 @@ class RecordedBoardsTest(unittest.TestCase):
                           "hostiles": 8})
         monsters = details["monsters"]
         self.assertEqual(tiers(monsters), [T1, T1, T1, T3, T3, T3, T3, T3, None])
-        self.assertEqual([m["distance"] for m in monsters], [1, 1, 2, 2, 2, 3, 12, 15, 15])
+        # The nine hostiles by distance were 1, 1, 2, 2, 2, 3, 12, 15, 15; the giant two cells
+        # away has the lowest level and is the one omitted (distance order omitted a far one).
+        self.assertEqual([m["distance"] for m in monsters], [1, 1, 2, 2, 3, 12, 15, 15, 2])
         for row in monsters[:3]:
             self.assertEqual(row["threat"]["worsens_with_time"], ["summon"])
             self.assertIn("reward", row["threat"]["selected"])
@@ -75,22 +97,75 @@ class RecordedBoardsTest(unittest.TestCase):
     def test_a_far_t1_goes_before_a_near_t3_n1c_099(self):
         _policy, _board, _raw, details = recorded("death-n1c-099-1102.json.gz", 691696)
         monsters = details["monsters"]
-        self.assertEqual(tiers(monsters)[:8], [T1] * 7 + [T3])
-        self.assertEqual(monsters[7]["distance"], 2)
-        self.assertGreater(monsters[6]["distance"], monsters[7]["distance"])
+        # Eight T1 judged (the two 17 cells away among them); the T3 bunny two cells away has a
+        # lower level and is omitted, so it goes after the far T1s.
+        self.assertEqual(tiers(monsters)[:8], [T1] * 8)
+        self.assertEqual(monsters[7]["distance"], 17)
+        self.assertEqual(monsters[8]["distance"], 2)
+        self.assertEqual(monsters[8]["threat"], {"omitted": "bound"})
         ordered(self, monsters)
 
-    def test_the_bound_is_the_nearest_eight_n1a_475(self):
-        _policy, _board, raw, details = recorded("death-n1a-475-1104.json.gz", 2039000)
+    def test_the_bound_is_the_highest_level_eight_n1a_475(self):
+        policy, board, raw, details = recorded("death-n1a-475-1104.json.gz", 2039000)
         monsters = details["monsters"]
         judged = [m for m in monsters if m.get("threat") and not m["threat"].get("omitted")]
         omitted = [m for m in monsters if (m.get("threat") or {}).get("omitted")]
         self.assertEqual(len(judged), spectator_threat.SPECTATE_THREAT_MONSTERS)
         self.assertEqual(len(judged) + len(omitted), 20)
-        self.assertLessEqual(max(m["distance"] for m in judged),
-                             min(m["distance"] for m in omitted))
+        by_level(self, policy, board, _spectator_threat(policy, board))
+        # A level-ordered bound: a judged one is farther than an omitted one (the nearest-eight
+        # bound never did that).
+        self.assertGreater(max(m["distance"] for m in judged),
+                           min(m["distance"] for m in omitted))
         self.assertEqual(details["threat_engagement"]["tier"], T1)
         self.assertEqual(details["threat_engagement"]["hostiles"], 18)
+
+    def test_a_strong_monster_behind_a_weak_pack(self):
+        """A pack of ten weak monsters near, one high-level monster farther than all of them:
+        the high-level one is judged and the three farthest of the pack are omitted (eleven
+        hostiles, eight judged)."""
+        name, turn = "n1b-325-low-hp-escape-1106.json.gz", 2100397
+        policy, _board = replay_to(name, turn)
+        raw = copy.deepcopy(next(raw for raw in boards(CASES[name]) if raw["turn"] == turn))
+        knowledge = policy._monrace_knowledge
+        pack = [m for m in raw["visible_monsters"] if m["race_id"] != 511
+                and knowledge[m["race_id"]].level < knowledge[511].level]
+        jackal = pack[0]["race_id"]
+        pack = [m for m in pack if m["race_id"] == jackal]
+        self.assertEqual(len(pack), 10)
+        cherub = next(m for m in raw["visible_monsters"] if m["race_id"] == 511)
+        raw["visible_monsters"] = [*pack, cherub]
+        board = parse_snapshot(raw, knowledge)
+        # Move 智天使 (8 cells away) to a free floor cell past every jackal (the farthest is 9).
+        player = board.player.position
+        old = next(m for m in board.visible_monsters if m.index == cherub["index"])
+        cell = min((p for p, g in board.grids.items()
+                    if g.passable and not g.monster_index and player.distance_to(p) >= 12),
+                   key=lambda p: (player.distance_to(p), p))
+        moved = dataclasses.replace(old, position=cell, distance=player.distance_to(cell))
+        grids = dict(board.grids)
+        grids[old.position] = dataclasses.replace(grids[old.position], monster_index=0,
+                                                       has_monster=False)
+        grids[cell] = dataclasses.replace(grids[cell], monster_index=old.index, has_monster=True)
+        board = dataclasses.replace(
+            board, grids=grids,
+            visible_monsters=[moved if m is old else m for m in board.visible_monsters])
+        judgement = _spectator_threat(policy, board)
+        distance = {m.index: m.distance for m in board.visible_monsters}
+        self.assertGreater(distance[cherub["index"]],
+                           max(distance[m["index"]] for m in pack))
+        self.assertNotIn("omitted", judgement["monsters"][cherub["index"]])
+        self.assertEqual(judgement["monsters"][cherub["index"]]["tier"], T1)
+        judged, omitted = by_level(self, policy, board, judgement)
+        self.assertEqual(len(omitted), 3)
+        self.assertEqual({m.race_id for m in omitted}, {jackal})
+        self.assertEqual(sorted(m.distance for m in omitted),
+                         sorted(distance[m["index"]] for m in pack)[-3:])
+
+    def test_a_race_the_data_lacks_is_level_zero(self):
+        policy, board = replay_to("n1b-325-low-hp-escape-1106.json.gz", 2100397)
+        monster = dataclasses.replace(board.visible_monsters[0], race_id=-1)
+        self.assertEqual(spectator_threat.race_level(policy, monster), 0)
 
     def test_each_monster_alone_n1b_325(self):
         _policy, board, _raw, details = recorded("n1b-325-low-hp-escape-1106.json.gz", 2100397)
@@ -104,7 +179,9 @@ class RecordedBoardsTest(unittest.TestCase):
         self.assertEqual(first["threat"]["worsens_with_time"], ["summon"])
         cherub = next(m for m in board.visible_monsters if names[m.index] == 511)
         self.assertEqual(first["name"], cherub.name)
-        self.assertEqual(tiers(details["monsters"][1:8]), [T3] * 7)
+        # The second T1 (ten cells away) is judged since the level order (2026-11-13); the
+        # nearest-eight bound left it omitted behind the jackals.
+        self.assertEqual(tiers(details["monsters"][1:8]), [T1] + [T3] * 6)
         ordered(self, details["monsters"])
 
     def test_the_engagement_is_the_decision_rows(self):
