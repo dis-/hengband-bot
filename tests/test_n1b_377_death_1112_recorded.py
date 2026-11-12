@@ -22,9 +22,20 @@ sensed leave's *Destruction* (absorbed, 97%) was due on every board until the st
    player-stun.cpp:135-153) failed, though a Teleportation scroll (no penalty at this stun,
    player-stun.cpp:162-178) was in the pack.  Now a stunned THREAT power gives way to the
    surer scroll (me_powers ``_stunned_scroll_first``).
-4. 混沌の王族 (race 737) alone reads T2 from contact, not T1: four Healing potions win (supply margin
+4. 混沌の王族 (race 737, speed +20, BA_CHAO / PSY_SPEAR / MIND_BLAST, invisible, known by
+   telepathy) killed the player from behind the pocket's wall, while ``threat_prediction`` read
+   its ranged damage 0 on every board: no projectable line to the player, but the game casts at
+   a projectable grid beside the player (mspell-lite.cpp:208-230), where a chaos ball still
+   reaches it.  Now that reach counts (policy_combat ``_offset_spell_reach``), and a fast monster
+   that can first walk to such a cast (DECLARED CONSTRUCTED boards below).
+5. 混沌の王族 alone reads T2 from contact, not T1: four Healing potions win (supply margin
    101, the game's spell choice and failure rate of main cf3ae5189f) and it is a reward race (DROP_4D2); the sensed leave reads T1 alone, as
    the owner's rule of 2026-11-08 says.  Not changed (pinned as it reads).
+
+DECLARED CONSTRUCTED boards (policy_fixtures) for 4: an all-rock 21 x 21 floor, the player at
+(10, 10), a corridor down x = 9 (y 2-9) ending beside the player (the rock at (9, 10) and
+(8, 10) closes the straight line), optionally a corridor along y = 2 (x 3-8) bending into it;
+the caster is the real race 737 (or 370, BO_ELEC only), awake, HP 2475.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -37,10 +48,16 @@ from tempfile import TemporaryDirectory
 from hengbot import me_powers, threat_tiers
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
+from hengbot.model import Position, Snapshot
+from hengbot.monrace_knowledge import load_monrace_knowledge
+from hengbot.monster_ranged_evaluator import maximum_ability_hp_damage
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import RESIST_FLAG_BY_ABILITY
+from policy_fixtures import grid, hostile, player
+from tests.support.recorded import EDIT
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-377-death-1112.pkl.xz"
-CHAOS_LORD, RAOH = 737, 1018
+CHAOS_LORD, RAOH, ELECTRIC_BOLTER = 737, 1018, 370
 DESTRUCTION = ("mA3", "emergency:destruction:absorbed-power")
 SCROLL_LEAVE = ("re", "sensed-t1:teleport")
 TELEPORT_AWAY = ("mCn7", "me-power:unbeatable-in-range:teleport-away")
@@ -132,6 +149,28 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
         self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 87)
         self.assertEqual((key, reason), SCROLL_LEAVE)
 
+    def test_chaos_lord_ranged_reach_behind_the_pocket_wall(self):
+        """7972-7976: no projectable line, a chaos ball at the grid beside the player."""
+        for sequence in range(7972, 7977):
+            with self.subTest(sequence=sequence):
+                policy, board, _, _ = self.decided[sequence]
+                lord = shown(board, CHAOS_LORD)
+                self.assertFalse(policy._may_project(board, lord.position, board.player.position))
+                self.assertEqual(policy._offset_spell_reach(board, lord), (0, False))
+                row = policy.threat_prediction(board, [lord], 1)["monsters"][0]
+                self.assertGreater(row["operational_ranged_prediction"], 0)
+                self.assertEqual(row["ranged_prediction"], row["actions"] * self._ball(policy, board, lord))
+
+    def test_chaos_lord_walks_then_casts(self):
+        """7970: three actions a turn, two spent walking to a grid it can cast from."""
+        policy, board, _, _ = self.decided[7970]
+        lord = shown(board, CHAOS_LORD)
+        self.assertEqual(lord.distance, 8)
+        self.assertEqual(policy._offset_spell_reach(board, lord), (2, False))
+        row = policy.threat_prediction(board, [lord], 1)["monsters"][0]
+        self.assertEqual((row["actions"], row["ranged_prediction"]),
+                         (3, self._ball(policy, board, lord)))
+
     def test_chaos_lord_alone_reads_t2(self):
         """5: the reading as it stands (not changed): T2 by four Healing potions,
         a reward race, its summons a worsening (the leave_due / summoner rules, not T1)."""
@@ -143,6 +182,71 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
         entry = next(iter(result.per_monster.values()))
         self.assertEqual((entry.selected, entry.worsens_with_time), (("reward",), ("summon",)))
 
+    @staticmethod
+    def _ball(policy, board, lord):
+        """The chaos ball's largest hit on this player (its resistances as the prediction reads
+        them): PSY_SPEAR and MIND_BLAST need the player's own grid (check_thrown_mspell)."""
+        flags = frozenset(flag for ability, flag in RESIST_FLAG_BY_ABILITY.items()
+                          if ability in board.player.abilities)
+        return maximum_ability_hp_damage(
+            "BA_CHAO", policy._monrace_knowledge[CHAOS_LORD], flags=flags,
+            player_hp=board.player.hp, blind=board.player.blind, monster_hp=lord.hp)
+
+
+def _floor(caster, opens, *, speed, race):
+    grids = {Position(y, x): grid(y, x, passable=False) for y in range(21) for x in range(21)}
+    for cell in (*opens, Position(10, 10), caster):
+        grids[cell] = grid(cell.y, cell.x)
+    grids[caster] = grid(caster.y, caster.x, monster=True)
+    monster = hostile(1, caster.y, caster.x, hp=2475, max_hp=2475,
+                      distance=Position(10, 10).distance_to(caster), speed=speed,
+                      max_ranged_damage=300, race_id=race)
+    return Snapshot(player(10, 10, hp=600, max_hp=600), grids, [monster], floor_key=(1, 80, 0)), monster
+
+
+CORRIDOR = tuple(Position(y, 9) for y in range(2, 10))
+BEND = CORRIDOR + tuple(Position(2, x) for x in range(3, 9))
+
+
+class OffsetSpellReachConstructedTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.races = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
+
+    def predict(self, board, monster):
+        policy = HengbotPolicy(monrace_knowledge=self.races)
+        return policy, policy.threat_prediction(board, [monster], 1)["monsters"][0]
+
+    def test_ball_at_the_grid_beside_the_player(self):
+        board, lord = _floor(Position(7, 9), CORRIDOR, speed=130, race=CHAOS_LORD)
+        policy, row = self.predict(board, lord)
+        self.assertFalse(policy._may_project(board, lord.position, Position(10, 10)))
+        self.assertEqual(policy._offset_spell_reach(board, lord), (0, False))
+        ball = maximum_ability_hp_damage("BA_CHAO", self.races[CHAOS_LORD], player_hp=600,
+                                         blind=False, monster_hp=2475)
+        # PSY_SPEAR and MIND_BLAST need the player's own grid (check_thrown_mspell): the ball only.
+        self.assertEqual(row["ranged_prediction"], row["actions"] * ball)
+        self.assertGreater(row["operational_ranged_prediction"], 0)
+
+    def test_bolts_do_not_reach_from_the_grid_beside(self):
+        board, bolter = _floor(Position(7, 9), CORRIDOR, speed=130, race=ELECTRIC_BOLTER)
+        policy, row = self.predict(board, bolter)
+        self.assertEqual(sorted(self.races[ELECTRIC_BOLTER].abilities), ["BO_ELEC"])
+        self.assertEqual(policy._offset_spell_reach(board, bolter), (0, False))
+        self.assertEqual((row["ranged_prediction"], row["operational_ranged_prediction"]), (0, 0))
+
+    def test_a_fast_caster_walks_round_the_bend_then_casts(self):
+        board, lord = _floor(Position(2, 7), BEND, speed=120, race=CHAOS_LORD)
+        policy, row = self.predict(board, lord)
+        self.assertEqual(policy._offset_spell_reach(board, lord), (2, False))
+        self.assertEqual(row["actions"], 3)
+        self.assertGreater(row["ranged_prediction"], 0)
+
+    def test_a_slow_caster_cannot_walk_round_the_bend_in_time(self):
+        board, lord = _floor(Position(2, 7), BEND, speed=110, race=CHAOS_LORD)
+        policy, row = self.predict(board, lord)
+        self.assertIsNone(policy._offset_spell_reach(board, lord))
+        self.assertEqual(row["ranged_prediction"], 0)
 
 
 if __name__ == "__main__":

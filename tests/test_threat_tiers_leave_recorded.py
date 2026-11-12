@@ -108,7 +108,9 @@ class LeaveRecordedTest(unittest.TestCase):
             1186736: ("return:recall", "flee"),
             1186984: (MISSILE, "flee"),
             1187014: (MISSILE, "flee:scroll"),
-            1187020: (MISSILE, "flee:scroll"),
+            # 1187020: the same Teleportation scroll with or without the tiers since n1-b
+            # life-377, read as emergency:teleport (the casters that step into a line count,
+            # policy_combat ``_offset_spell_reach``).
         })
         changed = decided_with_and_without("d57-me-combat-083-1101.json.gz", OFF)
         self.assertEqual({turn: (before[1], after[1]) for turn, (before, after) in changed.items()},

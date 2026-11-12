@@ -11,6 +11,7 @@ from math import ceil
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.loop_detection import LOOP_MAX_DISTINCT
 from hengbot.monster_ranged_evaluator import (
+    DIRECT_ONLY_ABILITIES,
     SpellSelectionContext,
     ability_cast_success,
     ability_selection_probabilities,
@@ -3610,7 +3611,7 @@ class CombatMixin:
             # (mspell-attack.cpp:318-321).  A NEVER_MOVE monster cannot close
             # that distance by walking, so in this window it neither teleports
             # the player to it nor reaches the player with a spell.
-            spell_reach = in_line_of_fire and not (
+            direct_reach = in_line_of_fire and not (
                 not contact
                 and never_moves
                 and self._monster_cast_distance(
@@ -3620,10 +3621,24 @@ class CombatMixin:
                     self, "_summoner_counter_targets", frozenset()
                 )
             )
+            # Without that line an awake caster still reaches the player: at a projectable
+            # grid beside it (its balls and breaths), or once a fast one has moved
+            # (``_offset_spell_reach``).  n1-b life-377 (80F): 混沌の王族 (speed +20) read 0
+            # on every board while its chaos balls and light swords reached the player.
+            offset_reach = (
+                None
+                if direct_reach or contact or monster.asleep or monster.max_ranged_damage <= 0
+                else self._offset_spell_reach(snapshot, monster)
+            )
+            spell_reach = direct_reach or offset_reach is not None
+            ranged_actions = (
+                actions if offset_reach is None else max(0, actions - offset_reach[0])
+            )
+            offset_target = offset_reach is not None and not offset_reach[1]
             can_teleport_player_to = bool(
                 knowledge is not None
                 and "TELE_TO" in knowledge.abilities
-                and spell_reach
+                and direct_reach
             )
             teleport_to_probability = 0.0
             if can_teleport_player_to and knowledge is not None:
@@ -3709,7 +3724,8 @@ class CombatMixin:
                     maximum_by_ability = {
                         ability: damage
                         for ability in knowledge.abilities
-                        if (
+                        if not (offset_target and ability in DIRECT_ONLY_ABILITIES)
+                        and (
                             damage := maximum_ability_hp_damage(
                                 ability,
                                 knowledge,
@@ -3720,9 +3736,9 @@ class CombatMixin:
                             )
                         ) is not None
                     }
-                    ranged = actions * max(maximum_by_ability.values(), default=0)
+                    ranged = ranged_actions * max(maximum_by_ability.values(), default=0)
                     selection_context = SpellSelectionContext(
-                        distance=max(1, distance)
+                        distance=max(1, distance), offset_target=offset_target
                     )
                     selection = ability_selection_probabilities(
                         knowledge, selection_context
@@ -3732,7 +3748,7 @@ class CombatMixin:
                             cause = cause_damage_percentile(
                                 ability,
                                 knowledge,
-                                actions=actions,
+                                actions=ranged_actions,
                                 selection_probability=selection.get(ability, 0.0),
                                 saving_skill=snapshot.player.saving_skill,
                             )
@@ -3747,7 +3763,7 @@ class CombatMixin:
                             )
                     aggregate_ranged = self._aggregate_ranged_percentile(
                         knowledge,
-                        actions=actions,
+                        actions=ranged_actions,
                         selection_context=selection_context,
                         selection_probabilities=selection,
                         flags=flags,
@@ -3775,10 +3791,10 @@ class CombatMixin:
                         for ability, probability in selection.items()
                     )
                     expected_ranged = (
-                        actions * knowledge.spell_frequency / 100.0 * expected_per_spell
+                        ranged_actions * knowledge.spell_frequency / 100.0 * expected_per_spell
                     )
                 else:
-                    ranged = actions * monster.max_ranged_damage
+                    ranged = ranged_actions * monster.max_ranged_damage
                     operational_ranged = ranged
                     expected_ranged = float(ranged)
             contribution = max(melee, ranged)
@@ -4843,6 +4859,73 @@ class CombatMixin:
             lambda position: self._may_block_projection(snapshot, position),
         )
         return bool(path) and path[-1] == target
+
+    def _offset_spell_reach(
+        self, snapshot: Snapshot, monster: MonsterState
+    ) -> tuple[int, bool] | None:
+        """(moves, direct) of the first cast an awake monster without a projectable line
+        to the player can aim at it within the player's next turn, else None.
+
+        The game, as the summoner reach below (``_summoner_may_summon_at``): within cast
+        range (cdis at most get_max_range(), mspell-attack.cpp:318-321) a monster casts at
+        the player's grid when it is projectable, else at a grid next to the player that
+        has PROJECTION and is projectable from it (decide_lite_projection and
+        adjacent_grid_check, mspell-lite.cpp:38-88 and 208-230), where its balls and
+        breaths still reach the player and the spells check_thrown_mspell drops do not
+        (``direct`` False: monster_ranged_evaluator.DIRECT_ONLY_ABILITIES).  A monster with
+        more than one action per player turn may first walk (unknown grids and doors open;
+        PASS_WALL / KILL_WALL through anything; NEVER_MOVE not at all): ``moves`` actions
+        spent walking are not casts.  A counter-attack target is the summoner reach's own
+        rule and is not read here."""
+        player = snapshot.player.position
+        neighbours = [
+            cell
+            for dy, dx in NEIGHBOR_OFFSETS
+            if not self._may_block_projection(
+                snapshot, cell := Position(player.y + dy, player.x + dx)
+            )
+        ]
+        knowledge = self._monrace_knowledge.get(monster.race_id)
+        flags = knowledge.flags if knowledge is not None else frozenset()
+        steps = (
+            0
+            if "NEVER_MOVE" in flags
+            else self._monster_actions(monster.speed, snapshot.player.speed, 1) - 1
+        )
+        through_walls = bool({"PASS_WALL", "KILL_WALL"} & set(flags))
+        frontier = [monster.position]
+        seen = {monster.position}
+        for depth in range(steps + 1):
+            offset = False
+            for origin in frontier:
+                if self._monster_cast_distance(origin, player) > MONSTER_SPELL_MAX_RANGE:
+                    continue
+                if depth > 0 and self._may_project(snapshot, origin, player):
+                    return depth, True
+                offset = offset or any(
+                    self._may_project(snapshot, origin, cell) for cell in neighbours)
+            if offset:
+                return depth, False
+            if depth == steps:
+                break
+            following = []
+            for origin in frontier:
+                for dy, dx in NEIGHBOR_OFFSETS:
+                    cell = Position(origin.y + dy, origin.x + dx)
+                    if cell in seen or cell == player:
+                        continue
+                    grid = snapshot.grid_at(cell)
+                    if (
+                        through_walls
+                        or grid is None
+                        or not grid.known
+                        or grid.passable
+                        or grid.is_door
+                    ):
+                        seen.add(cell)
+                        following.append(cell)
+            frontier = following
+        return None
 
     def _summoner_may_summon_next_turn(
         self, snapshot: Snapshot, monster: MonsterState

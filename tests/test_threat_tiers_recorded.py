@@ -98,24 +98,28 @@ class RecordedTiersTest(unittest.TestCase):
     def test_q25_blind_casters_keep_it_t1(self):
         """Owner 2026-11-11 「恐怖・盲目の呪文を持つ相手で耐性が無い時は T2 にしない」: race 748
         (SCARE, BLIND) and race 508 (BLIND) are in the engagement and n1-c life-159 has rFear
-        but no rBlind: the Speed plan still wins on HP (margin kept), the tier is T1."""
+        but no rBlind.  Since n1-b life-377 (2026-11-12) the casters two or three cells off
+        that step into a line before casting count (policy_combat ``_offset_spell_reach``:
+        705 and three 665s), and the Speed plan no longer wins on HP (margin -47): T1 by the
+        projection itself, so the blindness rule withholds nothing here."""
         policy, board = self._q25_274()
         result = assess(policy, board)
-        self.assertEqual((result.tier, result.t2_withheld), (threat_tiers.T1, ("blind-spell",)))
+        self.assertEqual((result.tier, result.t2_withheld), (threat_tiers.T1, ()))
         self.assertIsNone(result.supply_plan)
-        self.assertGreater(result.supply_margin, 0)
+        self.assertLess(result.supply_margin, 0)
 
     def test_t2_q25_speed_first(self):
-        """DECLARED CONSTRUCTED: rBlind added to the board (see the test above)."""
+        """DECLARED CONSTRUCTED: rBlind added to the board (see the test above).  Before n1-b
+        life-377 (2026-11-12) the Speed plan won here (T2, Speed first); with the casters that
+        step into a line counted (``_offset_spell_reach``) no supply wins: T1 with nothing
+        withheld."""
         policy, board = self._q25_274()
         board = replace(board, player=replace(
             board.player, abilities=board.player.abilities | {"resist_blind"}))
         result = assess(policy, board)
-        self.assertEqual(result.tier, threat_tiers.T2)
-        self.assertEqual(result.supply_plan.categories, ("speed",))
-        self.assertGreater(result.supply_plan.speed_doses, 0)
-        self.assertEqual(result.supply_plan.heals, ())
-        self.assertGreaterEqual(result.free_incoming, board.player.hp)
+        self.assertEqual((result.tier, result.t2_withheld), (threat_tiers.T1, ()))
+        self.assertIsNone(result.supply_plan)
+        self.assertLess(result.supply_margin, 0)
 
     def test_t3_and_the_paralyser_n1a_450(self):
         policy, board = replay_to("death-n1a-450-1101.json.gz", 1268495)
