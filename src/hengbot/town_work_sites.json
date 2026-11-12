@@ -2749,6 +2749,17 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_combat.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "departure",
+      "survival",
+      "fundraising",
+      "positioning",
+      "combat"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_emergency.py:key": {
     "classification": "adapter",
     "rows": [
