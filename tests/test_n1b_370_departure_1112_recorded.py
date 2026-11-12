@@ -20,6 +20,8 @@ are driven), so the boards and the pending deposit are the live ones.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+from dataclasses import replace
+
 import base64
 import gzip
 import json
@@ -105,6 +107,31 @@ class N1b370Departure1112RecordedTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason),
                          (HOME_KNOWLEDGE_MACRO, "home:request-knowledge-scan"))
         self.assertNotEqual(policy._home_visit.state.name, "EXIT_PENDING")
+
+    def test_prepare_departure_minimum_counts_recall_as_the_ledger(self):
+        """The departure minimum's Recall check agrees with the ledger in a set.
+
+        DECLARED CONSTRUCTED: row 6's board (fundraising mode prepare) with the
+        carried Word of Recall stack at ten.  The ledger asks the standing ten
+        during a set (the departure's read is added only with no set,
+        _compute_supply_ledger); the minimum added that read anyway and asked
+        eleven, the disagreement that stopped n1-a life-512 at the town end
+        (2026-11-11 18:39, then with a Rod of Recall).
+        """
+        policy, recorded, steps = self.load()
+        self.drive_recorded(policy, recorded, steps[:REFUSED_ROW])
+        board = steps[REFUSED_ROW][1]()
+        self.assertEqual(policy._fundraising_mode, "prepare")
+        board = replace(board, inventory=[
+            replace(item, count=10) if item.is_recall_scroll else item
+            for item in board.inventory])
+        self.assertEqual(policy._count_recall_scrolls(board), 10)
+        recall = policy._supply_ledger(board, policy._planned_depth())["recall"]
+        self.assertEqual((recall.count, recall.required_departure), (10, 10))
+        self.assertTrue(policy._recall_departure_ready(board))
+        minimum, destination, _depth = policy._visit_departure_minimum(board)
+        self.assertIsNotNone(destination)
+        self.assertTrue(minimum["values"]["recall_departure_ready"])
 
 
 if __name__ == "__main__":

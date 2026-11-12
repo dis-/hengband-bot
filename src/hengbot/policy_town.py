@@ -6027,8 +6027,13 @@ class TownMixin:
             return status.count >= status.required_departure
 
         def recall_stock():
-            outgoing = (not snapshot.player.recalling and self._town_recall_destination(
-                snapshot, guardian_gate=False, safety_gate=False)[0] is not None)
+            # The departure's own read is added when the ledger adds it
+            # (_compute_supply_ledger): never during a fundraising set, whose
+            # departure is the mining walk-in.  Adding it there asked one
+            # scroll more than the ledger the purchases follow.
+            outgoing = (self._fundraising_mode is None
+                        and not snapshot.player.recalling and self._town_recall_destination(
+                            snapshot, guardian_gate=False, safety_gate=False)[0] is not None)
             # The ledger's units: a carried Rod of Recall is the departure's read
             # (_recall_supply_units).  Scrolls alone stopped n1-a life-512 at the
             # town end with ten scrolls and the rod (2026-11-11 18:39, 18:40).
