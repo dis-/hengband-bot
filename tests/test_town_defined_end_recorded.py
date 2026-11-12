@@ -39,8 +39,10 @@ Recorded boards (fixtures: tests/extract_town_defined_end_1102_fixtures.py):
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
+from contextlib import redirect_stdout
 import copy
 import gzip
+import io
 import json
 import re
 import tempfile
@@ -50,8 +52,8 @@ import unittest
 from unittest import mock
 
 from hengbot import heroism_potion
-from hengbot import cli, me_capability, me_staff_sequence, town_end_mining
-from hengbot.model import STORE_HOME, parse_snapshot
+from hengbot import cli, departure_rescues, me_capability, me_staff_sequence, town_end_mining
+from hengbot.model import STORE_ALCHEMIST, STORE_HOME, STORE_TEMPLE, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.runtime_paths import runtime_path
 from tests.support.recorded import EDIT, _policy
@@ -344,13 +346,23 @@ class TownDefinedEndRetiredBurstTest(unittest.TestCase):
     def test_no_owner_stops_under_the_unmet_survival_leaf(self):
         policy, board = self.boundary()
         # The opening Q34 still buys its torches (decisions: wait-restock
-        # general): no mining cycle can start, so the unmet minimum leaf
-        # stops by name instead of a departure.
+        # general): no mining cycle can start.
         self.assertTrue(policy._opening_q34_holds_fundraising(board))
         end = verdict_town_end(gather_town_end(policy, board))
         self.assertEqual(end.kind, "stop")
         self.assertEqual(end.conditions[0], "recall_departure_ready")
-        town_end_key(policy, board)
+        # Town rebuild stage 2 (owner 2026-11-12): the leaf's rescue walks to
+        # a Recall supplier this visit has not tried before the named stop.
+        with redirect_stdout(io.StringIO()):
+            town_end_key(policy, board)
+        self.assertEqual(policy.last_reason, "shop:travel")
+        self.assertEqual(policy._departure_rescue_last, ("recall_departure_ready", "supplier-visit"))
+        self.assertIn(policy._shopping_approach_store_type, (STORE_TEMPLE, STORE_ALCHEMIST))
+        # Once every rescue is spent, the unmet minimum leaf stops by name.
+        with mock.patch.dict(departure_rescues.ACTIONS, {name: (lambda *_args: None)
+                                                    for name in departure_rescues.ACTIONS}):
+            policy._decision_sequence += 5
+            town_end_key(policy, board)
         self.assertEqual(policy.last_reason, SURVIVAL_STOP + end.conditions[0])
         self.assertTrue(cli._policy_final_stop_required(policy))
         self.assertIn("departure-minimum", cli._policy_final_stop_banner(policy.last_reason))
