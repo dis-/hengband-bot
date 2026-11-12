@@ -35,6 +35,12 @@ class PlanValues:
     # The distance the ranged hit chance is weighed at, per race, else the default.
     compare_distance: Mapping[int, int]
     compare_distance_default: int
+    # Owner 2026-11-12 「大広間が危険な段階3まではテレポートが危険なので禁止」 (段階3: 「ラアルとクイルスルグを
+    # 倒すまで」): the last battle phase (quest25_battle.PHASES name) without relocation.
+    no_teleport_through_phase: str = "tome"
+    # Owner 2026-11-12 「待って向かってくる敵がいれば迎撃する。100ターンで切り上げる。」: player actions waited in
+    # a room whose only way out is a great-hall door (quest25_sealed_room).
+    sealed_room_wait_actions: int = 100
 
     def wait_limit(self, name: str) -> int:
         """A ``wait_limits`` item by name (``Phase.wait_limit``)."""
@@ -64,7 +70,11 @@ def _object(value: Any, where: str, names) -> dict:
 def parse(raw: Any) -> PlanValues:
     """The checked values of a ``revised_plan_values`` block; ValueError when malformed."""
     raw = _object(raw, "", ("wait_limits", "pen_misses_to_escaped", "trap_searches",
-                            "compare_distance"))
+                            "compare_distance", "no_teleport_through_phase",
+                            "sealed_room_wait_actions"))
+    through = raw["no_teleport_through_phase"]
+    if not isinstance(through, str) or not through:
+        raise ValueError(f"{VALUES_KEY}.no_teleport_through_phase must name a phase")
     waits = _object(raw["wait_limits"], "wait_limits", _WAIT_LIMITS)
     searches = _object(raw["trap_searches"], "trap_searches", _TRAP_SEARCHES)
     compare = _object(raw["compare_distance"], "compare_distance", ("default", "by_race"))
@@ -83,6 +93,8 @@ def parse(raw: Any) -> PlanValues:
             int(race): _count(distance, f"compare_distance.by_race.{race}")
             for race, distance in by_race.items()},
         compare_distance_default=_count(compare["default"], "compare_distance.default"),
+        no_teleport_through_phase=through,
+        sealed_room_wait_actions=_count(raw["sealed_room_wait_actions"], "sealed_room_wait_actions"),
     )
 
 

@@ -29,7 +29,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import cli, quest25_battle as battle, quest25_plan
+from hengbot import cli, quest25_battle as battle, quest25_plan, quest_no_teleport
 from hengbot.model import _parse_items, parse_snapshot
 from tests.support import q25_house as q25
 
@@ -95,7 +95,10 @@ class N1a508TrapWalkRecordedTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.answers = replay()
+        # DECLARED: the 11-11 replay under its own rules; the owner's 2026-11-12 rule 「大広間が危険な
+        # 段階3まではテレポートが危険なので禁止」 answers decision 4009 otherwise (``ElevenTwelveTest``).
+        with patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False):
+            cls.answers = replay()
 
     def test_the_recording(self):
         rows = [row for row in CASE["recorded"] if row["sequence"] >= FIRST_SEARCH]
@@ -134,6 +137,16 @@ class N1a508TrapWalkRecordedTest(unittest.TestCase):
 
     def test_control_the_disarm_still_counts(self):
         self.assertNotIn(battle.DISARM_REASON, cli.STATIONARY_EXEMPT_REASONS)
+
+
+class ElevenTwelveTest(unittest.TestCase):
+    """Owner 2026-11-12: the recorded Teleportation of 4009 is a carried Teleport Away now."""
+
+    def test_4009_aims_teleport_away_instead(self):
+        answered = {sequence: (key, reason) for sequence, _snapshot, key, reason in replay()}
+        recorded = {row["sequence"]: (row["key"], row["reason"]) for row in CASE["recorded"]}
+        self.assertEqual(recorded[4009], ("rg", "quest-strategy:sweep-teleport"))
+        self.assertEqual(answered[4009], ("aj8", "quest-strategy:teleport-away"))
 
 
 if __name__ == "__main__":

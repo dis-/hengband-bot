@@ -35,11 +35,13 @@ import dataclasses
 import gzip
 import json
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import quest25_battle as battle, quest25_battle_record, quest25_geometry as geo, quest_exposure
+from hengbot import quest_no_teleport
 from hengbot.model import (
     SV_POTION_RESTORE_EXP, SV_SCROLL_TELEPORT, TVAL_POTION, TVAL_SCROLL, parse_snapshot,
 )
@@ -165,7 +167,11 @@ class SummonedStrongTest(unittest.TestCase):
         def probe(policy, snapshot, index):
             cls.memory[index] = getattr(battle._ctx(policy, snapshot).battle, "strong", None)
 
-        cls.answers = replay(probe=probe)
+        # DECLARED: the 11-11 replay under its own rules.  The owner's 2026-11-12 rule 「大広間が危険な段階3
+        # まではテレポートが危険なので禁止」 forbids the phase-2 Teleportation the recording made
+        # (``ElevenTwelveTest`` below); with it the boards after 180 are no longer the policy's.
+        with patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False):
+            cls.answers = replay(probe=probe)
 
     def test_the_planned_teleport_remembers_the_dracolich(self):
         key, reason = self.answers[SUMMONED]
@@ -205,6 +211,17 @@ class SummonedStrongTest(unittest.TestCase):
             key, reason = self.answers[index]
             self.assertEqual(reason, ESCAPE_REASON, index)
             self.assertTrue(key.startswith("r"), (index, key))
+
+
+
+class ElevenTwelveTest(unittest.TestCase):
+    """Owner 2026-11-12: on phase 2 no Teleportation; the dracolich beside the player is fought."""
+
+    def test_the_summoned_board_fights_instead_of_teleporting(self):
+        answers = replay()
+        key, reason = answers[SUMMONED]
+        self.assertNotEqual(reason, battle.TELEPORT_REASON)
+        self.assertFalse(key.startswith("r"), key)
 
 
 if __name__ == "__main__":

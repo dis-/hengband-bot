@@ -17324,5 +17324,357 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The Q25 plan's hold (a WAIT): also the answer of a walk whose step is a weapon-warning refused cell (n1-c life-200). No independent progress."
+  },
+  "quest25_battle.py:_ball_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_has_piercing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_haste": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_ipsissimus": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_match_strong": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_melt_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_pen_shot": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_pen_sight": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_quyls": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_rally": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_shunned": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_shunned_hold": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_sights": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_summons_in_view": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_tome": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_unseen_fire": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_battle.py:_walk_to_sight": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_geometry.py:_room_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_geometry.py:ball_centre": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_geometry.py:room_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_sealed_room.py:_clear": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:_full": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:_ipsissimus_after_clear": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:_ipsissimus_from_room": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:_melt_stand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_sealed_room.py:_open_door": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:_prepare_right": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:_rest_of_hall": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:_wait": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest25_sealed_room.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest_plan_base.py:hall_away_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+  },
+  "quest_room_light.py:room_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

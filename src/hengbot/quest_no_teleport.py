@@ -25,7 +25,32 @@ from __future__ import annotations
 def forbids(policy, snapshot) -> bool:
     """This floor's approved strategy forbids reading a relocation scroll."""
     profile = policy.approved_quest_strategy(snapshot.floor_key[2])
-    return profile is not None and profile.engagement_plan.get("no_teleport") is True
+    if profile is None:
+        return False
+    return profile.engagement_plan.get("no_teleport") is True or q25_hall_forbids(policy, snapshot)
+
+
+def q25_hall_forbids(policy, snapshot) -> bool:
+    """Quest 25 while its great hall is dangerous: no relocation at all.
+
+    Owner 2026-11-12 (n1-c life-200, a Teleportation landed in the great hall about six times in
+    ten and the quylthulgs' TELE_AWAY threw the player back east): 「大広間が危険な段階3まではテレ
+    ポートが危険なので禁止。回復とテレポートアウェイで対処する。」, 段階3 answered the same day
+    「ラアルとクイルスルグを倒すまで」: the draft's phase 3, so every battle phase up to and with
+    ``revised_plan_values.no_teleport_through_phase`` (the tome, quest25_battle phases 0-5).
+    Before the floor's battle exists it is phase 0.  Teleport Away moves the monster, not the
+    player: it is the answer (quest_plan_base._below_line), not forbidden here."""
+    if policy._active_fixed_quest_id(snapshot) != 25 or snapshot.in_town:
+        return False
+    from hengbot import quest25_battle, quest25_battle_record, quest25_plan
+
+    profile = policy.approved_quest_strategy(25)
+    if profile is None or quest25_plan.VALUES_KEY not in profile.engagement_plan:
+        return False
+    through = quest25_plan.values_of(profile).no_teleport_through_phase
+    battle = quest25_battle_record._battle_of(policy, snapshot)
+    phase = 0 if battle is None else battle.phase
+    return phase <= quest25_battle.phase_index(through)
 
 
 # Owner 2026-11-09 (n1-c life-178, Q3): 「成功率が80%以上なら体力回復は使っても良い。テレポートは

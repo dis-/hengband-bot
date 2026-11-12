@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import quest25_battle as battle, quest25_geometry as geo, quest_room_sweep, resist_potion
+from hengbot import quest_no_teleport
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.quest_find_exit import HOLD_REASON, MELEE_REASON
 from tests.support import q25_house as q25
@@ -106,6 +107,13 @@ def beside(raw):
             if max(abs(m["y"] - here["y"]), abs(m["x"] - here["x"])) <= 1]
 
 
+
+# DECLARED: these boards were recorded, and these pins decided, under the rules before the owner's
+# 2026-11-12 「大広間が危険な段階3まではテレポートが危険なので禁止」 (quest_no_teleport.q25_hall_forbids,
+# tests/test_n1c_200_q25_no_teleport_plan_1112_recorded.py).  The pins that read a relocation on
+# the Q25 floor (the plan's Teleportation, the summons' leave) run with that rule lifted.
+relocation_allowed = patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False)
+
 class Q25MassBesideTest(unittest.TestCase):
     """Owner 2026-11-07 「隣に来たら倒す」, widened the same day 「全部の段に広げる」: 「第1段から最後の段
     まで、隣のマスの死体の塊は殴るか撃って倒す。離れた塊は今のまま相手にしない。」"""
@@ -173,6 +181,7 @@ class Q25NoChanceLeaveTest(unittest.TestCase):
             with self.subTest(sequence=sequence):
                 self.assertNotEqual(answer(sequence)[1], resist_potion.LEAVE_REASON)
 
+    @relocation_allowed
     def test_control_the_rule_still_says_leave_and_answers_below_the_phase(self):
         raw = BY_SEQUENCE[TYRANNOSAUR_ALONE][0]
         policy = new_policy(raw)

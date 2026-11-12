@@ -14,6 +14,12 @@ from dataclasses import replace
 from unittest.mock import patch
 
 from hengbot import consumable_policy, destruction_use, quest25_battle, quest_room_sweep, resist_potion, threat_tiers
+from hengbot import quest_no_teleport
+
+# Owner 2026-11-12 「大広間が危険な段階3まではテレポートが危険なので禁止」 (quest_no_teleport.q25_hall_forbids):
+# these Q25 boards are in the ambush (phase 0), where no relocation is read now.  The pins of the
+# leave and the plan's Teleportation hold where relocation is allowed.
+relocation_allowed = patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False)
 from hengbot.model import (
     STORE_BLACK, SV_POTION_RESISTANCE, SV_POTION_SPEED, TVAL_POTION, StoreState, parse_snapshot,
 )
@@ -102,11 +108,15 @@ class PlanFloorTest(unittest.TestCase):
         policy, raw, key = q25_boards.replay_until(NO_CHANCE)
         self.assertNotEqual(policy.last_reason, resist_potion.LEAVE_REASON, key)
         self.assertFalse(_is_drink(raw, key))
-        with patch.object(quest25_battle, "_phase_key", lambda policy, snapshot: None):
+        with patch.object(quest25_battle, "_phase_key", lambda policy, snapshot: None), relocation_allowed:
             policy, raw, key = q25_boards.replay_until(NO_CHANCE)
         self.assertEqual(policy.last_reason, resist_potion.LEAVE_REASON, key)
         self.assertTrue(key.startswith("r"), key)
         self.assertFalse(_is_drink(raw, key))
+        with patch.object(quest25_battle, "_phase_key", lambda policy, snapshot: None):
+            policy, raw, key = q25_boards.replay_until(NO_CHANCE)
+        self.assertNotEqual(policy.last_reason, resist_potion.LEAVE_REASON, key)   # 2026-11-12
+        self.assertFalse(key.startswith("r"), key)
 
     def test_not_while_its_elements_are_on_the_status_bar(self):
         policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _bar("resist_pois"))
@@ -135,11 +145,15 @@ class PlanFloorTest(unittest.TestCase):
         # The plan's order beneath its 1-turn 即死 rung (owner 2026-11-07 「作戦が先・即死だけ例外」):
         # at HP 300 the tyrannosaur's next action reaches the HP, so the rung answers first now,
         # with the plan's own escape: the same Teleportation.
-        with patch.object(threat_tiers, "instant_death_key", lambda *args: None):
+        with patch.object(threat_tiers, "instant_death_key", lambda *args: None), relocation_allowed:
             policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
         self.assertEqual(policy.last_reason, "quest-strategy:sweep-teleport")
-        policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
+        with relocation_allowed:
+            policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
         self.assertEqual(policy.last_reason, "quest-strategy:sweep-teleport")  # the plan's escape
+        # 2026-11-12: the same rung's answer with no relocation: the potion (no Teleport Away carried).
+        policy, raw, key = q25_boards.replay_until(TYRANNOSAUR, _with_hp(300))
+        self.assertEqual(policy.last_reason, "quest-strategy:heal")
 
     def test_a_race_with_no_such_breath_and_an_immune_player(self):
         race = next(monster["race_id"] for board in q25_boards.CASE["boards"] if board["turn"] == TYRANNOSAUR
