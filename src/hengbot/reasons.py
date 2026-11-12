@@ -86,6 +86,12 @@ _rows(EMERGENCY, ("policy", "policy_combat", "threat_tiers", "threat_escape"), _
       "emergency:phase", "emergency:stairs")
 _rows(EMERGENCY, ("policy", "once_quest_recall"), _RULE_EMERGENCY, "emergency:recall")
 _rows(EMERGENCY, "policy_combat", _RULE_EMERGENCY, "emergency:seek-upstairs")
+# Owner 2026-11-12 「テレポート追尾が3体以上で致死的なときは破壊の次にテレポートを優先して試す」: the
+# teleport from a pack of followers (teleport_follower.pack_teleport_key) is the ladder's escape.
+_rows(EMERGENCY, "teleport_follower", _RULE_EMERGENCY,
+      "emergency:teleport-follower:pack-teleport",
+      "emergency:teleport-follower:pack-teleport:absorbed-power",
+      "emergency:teleport-follower:pack-teleport-staff")
 
 # ================================================================ counted once relocated
 # User 2026-10-02 13:4x 「逃走も緊急脱出に数える」: the relocating escapes from an unresisted

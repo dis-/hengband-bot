@@ -16233,6 +16233,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "teleport_follower.py:pack_teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only in effect: pack_teleport_means needs a follower adjacent (pack_due: followers() is empty in town or on the surface, dungeon_level <= 0); the emergency ladder asks it only on a lethal board beside 3 or more engaged followers, after *Destruction*; refused in a store or a no-teleport quest.",
+    "evidence": "n1-c life-201 (2026-11-12, Angband 30F): the teleport (the ladder's teleport scroll r + slot, else the absorbed Teleportation m + kind + letter, else the carried Staff of Teleportation u + slot) from a pack of 3 or more teleport followers, owner 2026-11-12 「テレポート追尾が3体以上で致死的なときは破壊の次にテレポートを優先して試す」. Sets last_reason emergency:teleport-follower:pack-teleport (+ :absorbed-power / -staff); no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "teleport_follower.py:away_key": {
     "classification": "producer",
     "rows": [

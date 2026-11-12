@@ -26,13 +26,31 @@ zaprod-execution.cpp:146 the same); confused, the aim is random (get_aim_dir), s
 then; the absorbed power is cast blind as the ``m`` command allows (``blind_castable``) and
 refused while confused (cmd-magiceat.cpp:463).  Once no follower is adjacent the teleports count
 again.
+
+A pack (owner 2026-11-12, n1-c life-201, verbatim): 「*破壊*前にテレポート追尾の群れに踏み込むのは
+レアケース。対応を個別に決めるのであれば、テレポート追尾が3体以上で致死的なときは破壊の次にテレポートを
+優先して試す。テレポートすることによって数が減ることが見込めるためである。」  ``teleport_monster_to``
+(spells-teleport.cpp:192-201) moves each adjacent follower only when ``randint1(100) <= power``, and
+``teleport_player`` passes the race level as the power (:407): a Lv37 ウィル・オー・ウィスプ comes
+along 37 times in 100, so a teleport leaves most of a pack behind, where Teleport Other removes one
+a turn.  n1-c life-201 (Magic-Eater Lv31, 鉄獄30階): a Teleportation read landed among 13 of them
+(race 582: Lv37, speed +20, TPORT, PASS_WALL); the absorbed Teleport Other sent one away a turn
+(decisions 24281-24286) while the others closed in, and it died with 13 Teleportation scrolls.
+With ``PACK_MIN`` or more followers engaged (``pack``) on a lethal board the emergency ladder
+answers *Destruction*, then the teleport itself (``pack_teleport_key``: the scroll, the absorbed
+Teleportation, the carried staff), then Teleport Other and the fight as before; with fewer the
+11-09 order stands.
 """
 
 from __future__ import annotations
 
-from hengbot import me_absorbed_substitutes, me_capability
+from hengbot import me_absorbed_substitutes, me_capability, quest_no_teleport
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import SV_ROD_TELEPORT_AWAY, SV_WAND_TELEPORT_AWAY, TVAL_ROD, TVAL_WAND
+from hengbot.model import (
+    SV_ROD_TELEPORT_AWAY, SV_STAFF_TELEPORTATION, SV_WAND_TELEPORT_AWAY, TVAL_ROD, TVAL_STAFF,
+    TVAL_WAND,
+)
+from hengbot.policy_constants import speed_energy
 
 
 AWAY_REASON = "emergency:teleport-follower:teleport-away"
@@ -69,6 +87,92 @@ def followers(policy, snapshot) -> list:
 
 def followed(policy, snapshot) -> bool:
     return bool(followers(policy, snapshot))
+
+
+# Owner 2026-11-12 「テレポート追尾が3体以上で致死的なとき」.
+PACK_MIN = 3
+PACK_REASON = "emergency:teleport-follower:pack-teleport"
+# The carried Staff of Teleportation's suffix (threat_escape.STAFF_REASON_SUFFIX's form).
+PACK_STAFF_REASON = PACK_REASON + "-staff"
+
+
+def pack(policy, snapshot) -> list:
+    """The followers engaged now: the adjacent ones (``followers``), and every other awake
+    follower in view that stands beside the player before its next action (its moves per player
+    action, at the exported haste / slowness, cover the distance less one, and it can close).
+    The pack's members move between the boards (n1-c life-201: 2 to 4 of 13 adjacent, the rest
+    1-2 moves off), so the adjacent count alone undercounts it."""
+    if snapshot.in_town or snapshot.dungeon_level <= 0:
+        return []
+    here = snapshot.player.position
+    player_energy = max(1, speed_energy(snapshot.player.speed))
+    engaged = []
+    for monster in snapshot.visible_monsters:
+        if not monster.hostile or monster.position == here or not follows(policy, monster):
+            continue
+        distance = max(abs(monster.position.y - here.y), abs(monster.position.x - here.x))
+        if distance > 1:
+            speed = monster.speed + (10 if monster.fast else 0) - (10 if monster.slow else 0)
+            moves = speed_energy(speed) // player_energy
+            if distance - 1 > moves or not policy._monster_can_approach(snapshot, monster):
+                continue
+        engaged.append(monster)
+    return engaged
+
+
+def pack_due(policy, snapshot) -> bool:
+    """``PACK_MIN`` or more followers engaged, one of them adjacent (else nothing follows)."""
+    return followed(policy, snapshot) and len(pack(policy, snapshot)) >= PACK_MIN
+
+
+def pack_teleport_means(policy, snapshot):
+    """The teleport the pack rung uses: ("scroll", item) when the ladder's teleport scroll can be
+    read (``_escape_scroll``'s rules: Teleportation, else Teleport Level, which leaves the floor
+    and is followed by none; Phase Door excluded: its 10 cells keep the pack in reach), else
+    ("absorbed", None) for the absorbed Teleportation (cast blind too, refused confused:
+    cmd-magiceat.cpp:463), else ("staff", item) for a carried Staff of Teleportation
+    (threat_escape.blind_teleport_means' order); None when none can be used here."""
+    if (snapshot.store is not None or quest_no_teleport.forbids(policy, snapshot)):
+        return None
+    scroll = policy._escape_scroll(snapshot, teleport_only=True, beside_followers=True)
+    if scroll is not None:
+        return "scroll", scroll
+    player = snapshot.player
+    if player.confused or policy._teleport_blocked_by_equipment(snapshot):
+        return None
+    power = me_absorbed_substitutes.TELEPORTATION
+    if (not quest_no_teleport.forbids_absorbed(policy, snapshot)
+            and me_absorbed_substitutes.cast_key(
+                policy, snapshot, me_absorbed_substitutes.POWERS[power], blind_ok=True) is not None):
+        return "absorbed", None
+    staff = next((item for item in snapshot.inventory
+                  if item.tval == TVAL_STAFF and item.sval == SV_STAFF_TELEPORTATION
+                  and item.aware and item.charges > 0), None)
+    return None if staff is None else ("staff", staff)
+
+
+def pack_teleport_key(policy, snapshot) -> str | None:
+    """The teleport of ``pack_teleport_means`` as an emergency escape (counted at the read like
+    the ladder's own: reasons.EMERGENCY, ``_latch_repeat_emergency_return``), else None."""
+    means = pack_teleport_means(policy, snapshot)
+    if means is None:
+        return None
+    kind, item = means
+    if kind == "scroll":
+        return policy._issue_emergency_consumable(snapshot, item, PACK_REASON)
+    if kind == "absorbed":
+        power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
+        key = me_absorbed_substitutes.cast_key(policy, snapshot, power, blind_ok=True)
+        reason = PACK_REASON + me_absorbed_substitutes.CAST_SUFFIX
+    else:
+        key = reserved_item_command(policy, snapshot, "staff", item)
+        reason = PACK_STAFF_REASON
+    if key is None:
+        return None
+    policy.last_reason = reason
+    policy._emergency_return_active = True
+    policy._latch_repeat_emergency_return(snapshot, reason)
+    return key
 
 
 def _aim_ready(snapshot) -> bool:
