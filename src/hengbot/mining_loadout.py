@@ -26,7 +26,14 @@ hostile in view, ``awake``) so they can never alternate:
 - ``rollback_key``: while an awake hostile is in view, an empty combat hand
   is re-armed with the weapon the swap displaced before any fight producer
   takes the turn -- at once when a sleeping one wakes or one comes into view
-  awake.  Flight goes first (survival).  After a restart the remembered
+  awake.  Flight goes first (survival) only beside an awake hostile or
+  below FLEE_HP_RATIO (``_flight_first``): elsewhere the empty hand is the
+  flight's own cause (n1-a life-518, 2026-11-12: a Lv1 worm mass three
+  cells away read T1 against the bare hand and the re-arm yielded to the
+  flee rung for the rest of the run).  With nothing awake in view the hand
+  is re-armed too once no swap owner will wield the digger
+  (``swap_abandoned``: a latched return, no mining run, no dig route of
+  the breakout's family on this floor).  After a restart the remembered
   weapon is lost: the cached optimizer winner, else the first usable melee
   weapon carried (the established fallback of every re-arm), never a digger.
 
@@ -46,6 +53,7 @@ from __future__ import annotations
 from hengbot.equipment_mutation import EquipmentMutationResult
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.model import TVAL_SHIELD
+from hengbot.policy_constants import FLEE_HP_RATIO
 
 
 # Not one of the executor's opposing goals: undoing the swap's own strip is
@@ -240,17 +248,55 @@ def _rearm_target(policy, snapshot):
     return None
 
 
+def swap_abandoned(policy, snapshot) -> bool:
+    """No owner of the digger swap will wield the digger on this board.
+
+    The mining run wields it only while it goes on (mode "mine", no return
+    latched: policy_fundraising ``_fundraising_key`` hands a latched return
+    to the floor exit at once); the dig-to-stairs breakout, the walk-out dig
+    and the enclosure dig mark their floor (``_breakout_dig_floor``) when
+    they strip, and the breakout's restore rung clears it once no dig route
+    is left.  n1-a life-518 (2026-11-12, Yeek cave 1F): 'ta' at 139869, a
+    worm mass, two Teleportation scrolls, then the return walked
+    bare-handed from 139938 to the stop at 156613 with nothing in view.
+    """
+    if policy._breakout_dig_floor == snapshot.floor_key:
+        return False
+    return policy._returning_to_town or policy._fundraising_mode != "mine"
+
+
+def _flight_first(policy, snapshot, hostiles) -> bool:
+    """Flight goes before the re-arm only where the turn the wield costs is not free.
+
+    An awake hostile beside the player strikes during the wield, and below
+    FLEE_HP_RATIO no turn is spent before leaving; otherwise the empty hand
+    is the flight's own cause (a free damage of 0 reads every monster T1:
+    n1-a life-518 fled a Lv1 white worm mass three cells away at 139876 and
+    read ten Teleportation scrolls), so the weapon goes back first and the
+    flight is judged again with it.
+    """
+    adjacent = policy._physical_adjacent_hostiles(snapshot)
+    if not policy._should_flee(snapshot, hostiles, adjacent):
+        return False
+    return bool(awake(adjacent)) or snapshot.player.hp_ratio < FLEE_HP_RATIO
+
+
 def rollback_key(policy, snapshot) -> str | None:
-    """Re-arm a combat hand the digger swap left empty before a fight."""
+    """Re-arm a combat hand the digger swap left empty before a fight, or
+    while no swap owner will wield the digger (``swap_abandoned``)."""
     if snapshot.in_town or getattr(snapshot, "store", None) is not None:
         return None
-    hostiles = policy._physical_hostiles(snapshot)
-    if not awake(hostiles) or not any(item.is_digging_tool for item in snapshot.inventory):
+    if not any(item.is_digging_tool for item in snapshot.inventory):
         return None
+    hostiles = policy._physical_hostiles(snapshot)
+    if not awake(hostiles):
+        if (snapshot.player.class_id in MARTIAL_ARTS_CLASS_IDS
+                or not swap_abandoned(policy, snapshot)):
+            return None
     target = _rearm_target(policy, snapshot)
     if target is None:
         return None
-    if policy._should_flee(snapshot, hostiles, policy._physical_adjacent_hostiles(snapshot)):
+    if awake(hostiles) and _flight_first(policy, snapshot, hostiles):
         return None
     slot, item = target
     key = policy._equipment_wield(snapshot, ROLLBACK_GOAL, item, slot)
