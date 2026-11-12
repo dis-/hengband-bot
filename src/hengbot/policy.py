@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_above_emergency, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_light, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -7741,13 +7741,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if profile is not None
             else weighed_hostiles
         )
-        # A committed STRONG-tier hunt (esp-threat-rest) owns its fight,
-        # including Healing drinks, ahead of the emergency/flee ladder.
-        esp_threat_hunt = self._town_producer_entry("_esp_threat_hunt_key", lambda: self._esp_threat_hunt_key(
-            snapshot, strategic_hostiles
-        ))
-        if esp_threat_hunt is not None:
-            return esp_threat_hunt
+        # The above-emergency layer: a committed STRONG-tier hunt (ladder_above_emergency).
+        above_emergency = ladder_above_emergency.key(
+            self, snapshot, strategic_hostiles=strategic_hostiles)
+        if above_emergency is not PASS:
+            return above_emergency
         # The emergency layer: the emergency consumables and the survival rungs after them
         # (ladder_emergency).
         emergency = ladder_emergency.key(
