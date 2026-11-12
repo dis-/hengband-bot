@@ -31,6 +31,8 @@ class ScreenKind(str, Enum):
     FILE_VIEWER = "file-viewer"
     IDENTIFY_VIEWER_PAGE = "identify-viewer-page"
     IDENTIFY_VIEWER_FINAL = "identify-viewer-final"
+    SELF_KNOWLEDGE_PAGE = "self-knowledge-page"
+    SELF_KNOWLEDGE_FINAL = "self-knowledge-final"
     CHARACTER = "character"
     FILE_NAME = "file-name"
     LEVEL_UP_STAT = "level-up-stat"
@@ -165,6 +167,9 @@ FLOOR_PICKUP_PROMPT_PATTERN = (
 # format "どのダンジョン{}しますか:" / "Which dungeon do you {}?: ".
 BUILDING_ENCHANT_PROMPTS = ("どのアイテムを改良しますか？", "Improve which item?")
 RECALL_DUNGEON_PROMPTS = ("どのダンジョンに帰還しますか:", "Which dungeon do you recall?:")
+# view/display-self-info.cpp display_self_info: the heading and the closing prompt.
+SELF_KNOWLEDGE_HEADINGS = ("あなたの状態:", "Your Attributes:")
+SELF_KNOWLEDGE_CLOSE_PROMPTS = ("[何かキーを押すとゲームに戻ります]", "[Press any key to continue]")
 # cmd-item/cmd-equipment.cpp do_cmd_wield: the second chooser of a wield.  A
 # ring with both ring slots filled asks "Replace which ring? " instead of the
 # hand question (n1-c life-160); both take the same equipment labels and
@@ -344,6 +349,22 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     # store/store.cpp:181-185. Japanese selects either 商品 or アイテム.
     if re.match(r"^\((?:商品|アイテム):.-., ESCで中断\) ", prompt0):
         return ScreenMatch(ScreenKind.ITEM_SOURCE, prompt0, 0, prompt_column)
+
+    # view/display-self-info.cpp display_self_info (player-info/self-info.cpp
+    # self_knowledge: the Potions of Self Knowledge and *Enlightenment*, the
+    # Self Knowledge spells).  screen_save, then prt() of the heading at row 1,
+    # x=15 (its literal leads with 8 spaces in Japanese, 5 in English), 20
+    # entries a page with "-- more --" at x=15, and the closing prompt at x=13;
+    # both are input_key_with_context(InputKind::ANY_KEY).
+    if len(lines) > 1 and _text_at_cell(lines[1], 15).strip() in SELF_KNOWLEDGE_HEADINGS:
+        for y, line in enumerate(lines[2:], start=2):
+            text = _text_at_cell(line, 15)
+            if text.startswith(("-- more --", "-- 続く --")):
+                return ScreenMatch(ScreenKind.SELF_KNOWLEDGE_PAGE, text, y, 15)
+            text = _text_at_cell(line, 13)
+            if text.startswith(SELF_KNOWLEDGE_CLOSE_PROMPTS):
+                return ScreenMatch(ScreenKind.SELF_KNOWLEDGE_FINAL, text, y, 13)
+        return ScreenMatch(ScreenKind.UNKNOWN, "incomplete-self-knowledge-viewer")
 
     # perception/identification.cpp:762-799. prt() starts at x=15 and the
     # heading literal itself begins with five spaces, so its text starts at 20.
@@ -1464,6 +1485,12 @@ class OperationExecutor:
             # reads in order.
             return self._post_and_barrier(match.feature + "y", deadline,
                                           role="auxiliary-request")
+        if match.kind is ScreenKind.SELF_KNOWLEDGE_PAGE:
+            # Any quaff (an unknown flavour too) or cast can open
+            # self_knowledge; nothing to answer but the pages, then the close.
+            return self._post_and_barrier(" ", deadline, role="auxiliary-request")
+        if match.kind is ScreenKind.SELF_KNOWLEDGE_FINAL:
+            return self._post_and_barrier("\x1b", deadline, role="exit")
         if self.active.owner.startswith("identify:full"):
             if match.kind is ScreenKind.IDENTIFY_VIEWER_PAGE:
                 # screen_object() owns an arbitrary number of attribute pages.

@@ -549,6 +549,7 @@ from hengbot.model import (
     SV_SCROLL_PHASE_DOOR,
     SV_SCROLL_TELEPORT,
     RESTORE_POTION_SVAL_BY_STAT,
+    SELF_KNOWLEDGE_POTION_SVALS,
     STAT_GAIN_POTION_SVALS,
     SV_ROD_IDENTIFY,
     SV_ROD_LITE,
@@ -12702,13 +12703,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             None,
         )
         if potion is not None:
-            self.last_reason = "stat-gain:quaff"
+            # Self Knowledge / *Enlightenment* (owner 2026-11-13): the viewer
+            # the quaff opens is closed by the input executor.
+            self_knowledge = potion.sval in SELF_KNOWLEDGE_POTION_SVALS
+            self.last_reason = "stat-gain:self-knowledge" if self_knowledge else "stat-gain:quaff"
             key = reserved_item_command(self, snapshot, "quaff", potion)
             self._offer_execution(
-                key, producer="survival", work_id="stat-gain:quaff",
+                key, producer="survival", work_id=self.last_reason,
                 next_step="survival.quaff-stat-gain",
                 arguments=(self._item_signature(potion),),
-                expected_effect="stat-gain-observed",
+                expected_effect=("self-knowledge-viewer-closed" if self_knowledge
+                                 else "stat-gain-observed"),
             )
             return key
         return None

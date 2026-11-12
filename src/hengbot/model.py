@@ -388,6 +388,12 @@ STAT_GAIN_POTION_SVALS = frozenset(
         SV_POTION_AUGMENTATION,
     }
 )
+# sv-potion-types.h: the potions whose quaff opens the self-knowledge viewer
+# (object-use/quaff/quaff-effects.cpp: self_knowledge after *Enlightenment*'s
+# wiz_lite, detections and identify_pack).
+SV_POTION_STAR_ENLIGHTENMENT = 57
+SV_POTION_SELF_KNOWLEDGE = 58
+SELF_KNOWLEDGE_POTION_SVALS = frozenset({SV_POTION_STAR_ENLIGHTENMENT, SV_POTION_SELF_KNOWLEDGE})
 SV_STAFF_IDENTIFY = 5         # sv-definition/sv-staff-types.h
 SV_STAFF_REMOVE_CURSE = 6
 SV_STAFF_LITE = 8
