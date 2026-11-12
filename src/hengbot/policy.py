@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_above_emergency, ladder_combat, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_safe_now, ladder_summoner_shots, warning_cell_record
+from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
@@ -8499,170 +8499,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # hunt is not asked for this board.
             self._release_esp_threat_rest_hunt("esp-threat:rest-gate-closed")
 
-        # 5. Descend when standing on a downstairs or dungeon entrance — only
-        #    while healthy, so we never dive deeper than we can handle.
-        static_entrance_here = (
-            snapshot.in_town
-            and self._town_map_active(snapshot)
-            and self._town_map_descent_entrance(snapshot) == player.position
-            and here is not None
-            and self._is_active_dungeon_entrance(here)
-        )
-        direct_destination_depth = (
-            self._dungeon_entry_depth(
-                snapshot, self._active_dungeon_target(), via_recall=False
-            )
-            if static_entrance_here
-            or (
-                snapshot.dungeon_level == 0
-                and here is not None
-                and here.has_entrance
-                and self._is_active_dungeon_entrance(here)
-            )
-            else down_destination(snapshot.dungeon_level, here)
-            if snapshot.dungeon_level > 0
-            and here is not None
-            and here.is_descent
-            else None
-        )
-        if (
-            (
-                here is not None
-                and here.is_descent
-                and self._is_descent_target(snapshot, here)
-                or static_entrance_here
-            )
-            and player.hp_ratio >= DESCEND_MIN_HP_RATIO
-            and not self._descent_is_blocked(snapshot)
-            # Routing toward town may yield to another escape owner, but no
-            # owner may route us back into the breeder floor we just fled.
-            and not self._breeder_walkout_active(snapshot)
-            and (
-                direct_destination_depth is None
-                or self._destination_depth_allowed(
-                    snapshot, direct_destination_depth
-                )
-            )
-            and (
-                not (
-                    static_entrance_here
-                    or (
-                        snapshot.dungeon_level == 0
-                        and here is not None
-                        and here.has_entrance
-                    )
-                )
-                or self._dungeon_entry_allowed(
-                    snapshot,
-                    via_recall=False,
-                    destination_depth=self._dungeon_entry_depth(
-                        snapshot, self._active_dungeon_target(), via_recall=False
-                    ),
-                )
-            )
-        ):
-            self.last_reason = "descend"
-            key = self._town_producer_entry(
-                "direct-descent", lambda: (
-                    ENTER_DUNGEON_MACRO
-                    if static_entrance_here or (here is not None and here.has_entrance)
-                    else DOWN_STAIRS_KEY), family="departure")
-            if key is None:
-                return None
-            if (getattr(self, "_crossarea_fundraising_enforced", False)
-                    and snapshot.in_town
-                    and self._fundraising_mode in {"mine", "scavenge"}):
-                facts = self._fundraising_facts(snapshot)
-                prior = self._fundraising_purpose_record
-                self._fundraising_run_purpose = (
-                    prior.purpose
-                    if prior is not None and prior.status == "active"
-                    else FundraisingPurpose(
-                        identity=self._decision_sequence,
-                        mode=self._fundraising_mode,
-                        first_run_food_waiver=(
-                            not facts.carried_edible and facts.first_run
-                            and facts.procurement_exhausted
-                        ),
-                    )
-                )
-            return key
-
-        # If every known way forward fails the next-depth resistance gate,
-        # invalidate the descent route and keep exploring this (highest safe)
-        # floor.  The lack of readiness for depth N+1 is not a reason to abandon
-        # useful exploration on safe depth N.
-        if self._all_known_descents_blocked_by_next_depth_requirements(snapshot):
-            self._nav_ledger.clear_descent_route()
-            self._descent_target_goal = None
-
-        # A monster can be just outside the material-threat threshold at its
-        # current distance while becoming material after one closing step.
-        # Preserve higher-priority concrete work such as safe loot recovery,
-        # but retreat before descent, hunting, or generic exploration can
-        # close into the engagement and alternate with the threat gate.
-        # A sleeping monster is retreated from too when it is this strong
-        # (owner 2026-11-07: only a weak one, which is not a material melee
-        # engagement, is not); the dead end that retreat walked into (n1-c
-        # life-153 Labyrinth 13F) is answered by engagement_avoid_seal.
-        if any(
-            self._material_melee_engagement(snapshot, monster)
-            and not immobile_threat_memory.ringed(self, monster)
-            for monster in strategic_hostiles
-        ):
-            avoid_engagement = self._avoid_engagement_key(snapshot, strategic_hostiles)
-            if avoid_engagement is not None:
-                return avoid_engagement
-
-        # 6. Head for a known downstairs / dungeon entrance: path straight there
-        #    if reachable, otherwise explore toward it (the entrance may be known
-        #    but its approach still unmapped — e.g. the town's wilderness gate).
-        #    A single BFS covers both, so the huge full-map scan runs only once.
-        step = self._town_producer_entry("_descent_step", lambda: self._descent_step(snapshot))
-        if step is not None:
-            # A visible monster can temporarily split the only known route to
-            # the stairs. Chasing a fallback frontier makes the monster vanish
-            # from sight, after which we turn back toward the stairs forever.
-            # Clear an easy blocker instead of bouncing at the visibility edge.
-            if self.last_reason == "approach-descent" and strategic_hostiles:
-                clear_step = self._town_producer_entry("_hunt_step#2", lambda: self._hunt_step(snapshot, strategic_hostiles))
-                if clear_step is not None:
-                    self.last_reason = "clear-descent"
-                    self._declare_monster(
-                        getattr(self, "_hunt_step_target", None)
-                    )
-                    key = self._town_producer_entry("_step_toward:departure", lambda: self._step_toward(snapshot, clear_step), family="departure")
-                    if key is not None:
-                        self._offer_execution(
-                            key, producer="departure",
-                            work_id="departure:clear-descent",
-                            next_step="departure.clear-descent-blocker",
-                            expected_effect="descent-route-cleared",
-                        )
-                    else:
-                        self._offer_execution_no_step(
-                            producer="departure",
-                            work_id="departure:clear-descent",
-                            cause="blocker-step-unavailable",
-                        )
-                    return key
-            travel = self._town_producer_entry("_entrance_travel_key", lambda: self._entrance_travel_key(snapshot, self._descent_target_goal), family="departure")
-            if travel is not None:
-                return travel
-            key = self._town_producer_entry("_step_toward:departure", lambda: self._step_toward(snapshot, step), family="departure")
-            if key is not None:
-                self._offer_execution(
-                    key, producer="departure",
-                    work_id=f"departure:descent-route:{self._descent_target_goal}",
-                    next_step="departure.approach-descent",
-                    expected_effect="descent-target-reached",
-                )
-            else:
-                self._offer_execution_no_step(
-                    producer="departure", work_id="departure:descent-route",
-                    cause="descent-step-unavailable",
-                )
-            return key
+        # The descent layer: descend while healthy, else walk to the way down (ladder_descent).
+        descent = ladder_descent.key(
+            self, snapshot, strategic_hostiles=strategic_hostiles, here=here)
+        if descent is not PASS:
+            return descent
 
         # The idle layer, last: it always answers (ladder_idle).
         return ladder_idle.key(

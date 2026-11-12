@@ -18056,5 +18056,18 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "ladder_descent.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "departure",
+      "survival",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The descent layer of _decide moved verbatim (maintainability review step 8): the direct-descent entry, the blocked descents, _avoid_engagement_key, _descent_step with its clearing and departure steps, _hunt_step#2 and _entrance_travel_key, entries through _town_producer_entry as in _decide; every return of the block returns the same value (None included), else dungeon_ladder.PASS. The labelled direct-descent entry is the departure row. The rows are its children's. Selected child inherits work; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

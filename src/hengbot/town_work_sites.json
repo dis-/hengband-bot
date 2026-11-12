@@ -2760,6 +2760,15 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_descent.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "departure",
+      "survival",
+      "store-approach"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_emergency.py:key": {
     "classification": "adapter",
     "rows": [

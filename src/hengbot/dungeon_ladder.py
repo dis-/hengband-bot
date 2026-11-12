@@ -307,6 +307,7 @@ LAYER_MODULES = {
     "pre-combat": "ladder_pre_combat",
     "combat": "ladder_combat",
     "safe-now": "ladder_safe_now",
+    "descent": "ladder_descent",
     "idle": "ladder_idle",
 }
 
