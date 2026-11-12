@@ -17313,5 +17313,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する。」: called by policy_combat._ranged_attack_key before it fires the launcher at a distant target; the Magic-Eater's fixed-order answer (absorbed power, absorbed Magic Missile, carried attack wand; no torch) when its expected damage per action is strictly above the launcher's (attack_expectation.launcher_shot), along a clear ray or, off the rays and never in town, an absorbed power aimed at the cell over a clear projection path; else None (the rung fires). Its key comes from the reviewed senders (device_key, _fire_missile, _use, _grid_options.send); no independent progress."
+  },
+  "quest25_battle.py:_hold": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The Q25 plan's hold (a WAIT): also the answer of a walk whose step is a weapon-warning refused cell (n1-c life-200). No independent progress."
   }
 }

@@ -34,6 +34,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_breeder_floor_record_path",
     "_town_end_mining_path",
     "_alternate_dungeon_record_path",
+    "_warning_cell_record_path",
 )
 
 

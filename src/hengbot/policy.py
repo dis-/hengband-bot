@@ -6,7 +6,7 @@ from hengbot.item_reservation import (
 )
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
-from hengbot import ladder_floor_avoidance, ladder_light
+from hengbot import ladder_floor_avoidance, ladder_light, warning_cell_record
 from hengbot import anaguma, combat_answer, damaging_ground, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
@@ -1664,6 +1664,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Grids warned for a trap, with the searches spent on each (this floor;
         # trap_warning).
         self._trap_warning_cells: dict[Position, int] = {}
+        # Both collections' restart record (warning_cell_record); the CLI
+        # points the path beside the decision log.
+        self._warning_cell_record_path = None
+        self._warning_cell_record = None
+        self._warning_cell_record_read = False
         self._warning_prompt_stops_decision = False
         # Per-decision grid indexes (y, x) tuples: floor we can walk onto,
         # closed doors we can open, and all currently-known tiles. Rebuilt each
@@ -2873,22 +2878,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # can replace that key, so remember what the commitment was bound to.
             decided_key = key
             decided_visit = self._store_visit
-            if (
-                key == WAIT_KEY
-                and self.last_reason == "warning:blocked-step"
-                and any(
-                    home_page_message_body(message).startswith(
-                        WARNING_PROMPT_MESSAGE_PREFIXES
-                    )
-                    for message in snapshot.messages
-                )
-            ):
-                # The prompt-bearing fixed-quest snapshot has no alternative rung;
-                # preserve its no-command seam after the refusal was processed.
-                # A later snapshot without the stale prompt returns the ordinary
-                # warning:blocked-step wait, while the CLI now bounds quiet None.
-                key = None
-                break
+            # The prompt-bearing board keeps the ordinary warning:blocked-step
+            # wait.  The executor answered the live prompt before this board
+            # was decided (the screen is back at the command prompt), so the
+            # message is only the record of it; turning the wait into no key
+            # stopped the bot (no-key-exhausted), and the restart walked onto
+            # the refused cell unasked (n1-c life-200, Q25 2026-11-12 12:03).
             if key is None and self._warning_prompt_stops_decision:
                 key = None
                 break
@@ -3236,6 +3231,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         town_advance_hold(self, snapshot, key)
         self._town_progress_note_command(key)
         quest25_battle_record.record(self, snapshot)
+        warning_cell_record.record(self, snapshot)
         return key
 
     # -- The producers' side of the town hold (town_hold) -------------------
