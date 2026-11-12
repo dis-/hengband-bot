@@ -43,6 +43,7 @@ import math
 import os
 import pathlib
 import pickle
+import shutil
 import sys
 from pathlib import Path
 
@@ -518,7 +519,11 @@ def _pickles(roots, min_age_seconds: float):
 
 
 def main(argv=None) -> int:
-    """Convert recorded pickles: ``json_snapshot [--min-age SECONDS] PATH...`` (run with -m)."""
+    """Convert recorded pickles: ``json_snapshot [--min-age SECONDS] PATH...`` (run with -m).
+
+    Hard links of one pickle (a visit and the incident captures it was copied to) are read and
+    converted once, and the snapshot is linked to each of their places.
+    """
     import argparse
 
     parser = argparse.ArgumentParser(description="Convert recorded policy pickles to json_snapshot.")
@@ -530,15 +535,59 @@ def main(argv=None) -> int:
     if hasattr(os, "nice"):
         os.nice(10)  # the bots come first on a shared machine
     failed = 0
-    for path in _pickles(args.paths, args.min_age):
+    for paths in _linked_groups(_pickles(args.paths, args.min_age)):
+        first, *others = paths
         try:
-            before = path.stat().st_size
-            target = convert_pickle(path)
-            print(f"{path}: {before} -> {target.stat().st_size} bytes", flush=True)
+            before = first.stat().st_size
+            target = convert_pickle(first)
+            print(f"{first}: {before} -> {target.stat().st_size} bytes", flush=True)
         except Exception as exc:  # one bad or vanished file does not stop the sweep
-            failed += 1
-            print(f"{path}: not converted: {exc}", file=sys.stderr, flush=True)
+            failed += len(paths)
+            print(f"{first}: not converted: {exc}", file=sys.stderr, flush=True)
+            continue
+        for other in others:
+            try:
+                _link_converted(target, other)
+                print(f"{other}: linked to {target}", flush=True)
+            except Exception as exc:
+                failed += 1
+                print(f"{other}: not converted: {exc}", file=sys.stderr, flush=True)
     return 1 if failed else 0
+
+
+def _linked_groups(paths):
+    """The pickles grouped by file: hard links of one checkpoint are converted once.
+
+    ``town_arrival_checkpoint.copy_latest_into`` hard-links a visit's policy.pkl into every
+    incident capture it copies the visit to, so one pickle on disk has several paths.  Each
+    group keeps the order the sweep found its paths in.
+    """
+    groups: dict[tuple[int, int], list[Path]] = {}
+    for path in paths:
+        try:
+            stat = path.stat()
+        except OSError:
+            continue  # removed meanwhile
+        groups.setdefault((stat.st_dev, stat.st_ino), []).append(path)
+    return list(groups.values())
+
+
+def _link_converted(target: Path, pickle_path: Path) -> None:
+    """Give ``pickle_path`` the snapshot already written for another link of its file, then
+    remove the pickle (a link where the file system allows one, else a copy with its times)."""
+    link = converted_path(pickle_path)
+    if link.exists():
+        raise FileExistsError(f"{link} exists")
+    try:
+        os.link(target, link)
+    except OSError:
+        temporary = link.with_name(f".{link.name}.tmp")
+        try:
+            shutil.copy2(target, temporary)
+            os.replace(temporary, link)
+        finally:
+            temporary.unlink(missing_ok=True)
+    pickle_path.unlink()
 
 
 if __name__ == "__main__":

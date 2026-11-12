@@ -13,6 +13,7 @@ import pickle
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from hengbot import json_snapshot
 from hengbot.latch_onset_capture import _PortablePathUnpickler, load_bytes, restore_checkpoint_bytes
@@ -235,6 +236,26 @@ class ConversionTest(unittest.TestCase):
         self.assertEqual(policy_file(old), old / CONVERTED_POLICY_FILE)
         self.assertEqual(policy_file(new), new / POLICY_FILE)
         self.assertAlmostEqual((old / CONVERTED_POLICY_FILE).stat().st_mtime, past, delta=1)
+
+    def test_hard_links_of_one_pickle_are_converted_once_and_linked(self):
+        # copy_latest_into hard-links a visit's policy.pkl into the incident captures.
+        visit = self.visit("live")
+        capture = self.root / "capture" / "town-arrival"
+        capture.mkdir(parents=True)
+        os.link(visit / POLICY_FILE, capture / POLICY_FILE)
+        converted = []
+        original = json_snapshot.convert_pickle
+        with mock.patch.object(json_snapshot, "convert_pickle",
+                               side_effect=lambda path: converted.append(path) or original(path)),                 contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(json_snapshot.main([str(self.root)]), 0)
+        self.assertEqual(len(converted), 1)
+        for place in (visit, capture):
+            self.assertFalse((place / POLICY_FILE).exists())
+            self.assertEqual(policy_file(place), place / CONVERTED_POLICY_FILE)
+        self.assertTrue(os.path.samefile(visit / CONVERTED_POLICY_FILE,
+                                         capture / CONVERTED_POLICY_FILE))
+        self.assertIsInstance(restore_checkpoint_bytes(
+            HengbotPolicy, (capture / CONVERTED_POLICY_FILE).read_bytes()), HengbotPolicy)
 
     def test_an_unconverted_visit_reads_its_pickle(self):
         visit = self.visit()
