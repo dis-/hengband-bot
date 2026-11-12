@@ -29,10 +29,10 @@ from hengbot.policy_constants import (
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
     QUEST_STATUS_UNTAKEN,
-    SUPPLY_LABEL_KINDS,
     TOWN_TELEPORT_COST,
     TOWN_TRAVEL_STALL_LIMIT,
 )
+from hengbot.departure_readiness import readiness_table
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
@@ -1453,18 +1453,6 @@ def stockout_mining_intended_terminal(
     return stockout_mining_supply_terminal(policy, board, failed=failed)
 
 
-# The procurement requirement labels (policy_supply.procurement_requirements)
-# that supply each departure leaf.
-LEAF_SUPPLY_LABELS: dict[str, frozenset[str]] = {
-    "recall_departure_ready": frozenset({"Word of Recall scrolls"}),
-    "food_ready": frozenset({"Food rations", "Device charges for food"}),
-    "light_ready": frozenset({"Flasks of oil"}),
-    "teleport_ready": frozenset({"Teleport scrolls"}),
-    "cure_critical_ready": frozenset({"Cure Critical Wounds potions"}),
-    "remove_curse_ready": frozenset({"Remove Curse scrolls", "*Remove Curse* scrolls"}),
-}
-
-
 def stockout_mining_supply_terminal(
     policy: Any, board: Any, *, failed: tuple[str, ...] | None = None,
 ) -> TerminalRef | None:
@@ -1473,7 +1461,6 @@ def stockout_mining_supply_terminal(
     The dispatcher consumes the departure's failed leaves; terminal admission
     separately checks the physical surface before starting a mining run.
     """
-    labels = LEAF_SUPPLY_LABELS
     # Installing a one-run procurement plan is not ordinary dungeon entry.
     # Optional catalogue/identification work can remain pending; physical
     # transfers must settle before another expedition can own the board.
@@ -1489,9 +1476,10 @@ def stockout_mining_supply_terminal(
                    if name not in {"equipment_departure_ready", "home_candidate_resolved",
                                    "spare_gear_stowed",
                                    "identification_need_clear", "departure_identification_need_clear"})
-    blocked = {row["item"] for row in policy.procurement_requirements(board)
-               if row.get("blocked_reason") == "no-actionable-supplier"}
-    if not failed or any(not (labels.get(name, set()) & blocked) for name in failed):
+    # Every failed leaf is a supply of the readiness table that no Home or
+    # store can serve this visit (departure_readiness: stocked out).
+    table = readiness_table(policy, board)
+    if not failed or any(not table.stocked_out(name) for name in failed):
         return None
     return TerminalRef("fundraising", ("supply-stockout",))
 
@@ -2403,12 +2391,12 @@ def purchase_gaps(policy: Any, board: Any, unmet: tuple[str, ...]) -> tuple[str,
     visit: priced above the gold, or out of stock at every supplier visited
     (owner 2026-11-02 「品切れも採掘に回す」)."""
     ledger = policy._supply_ledger(board, policy._planned_depth())
+    table = readiness_table(policy, board)
 
     def unbuyable(name: str) -> bool:
         if name == "identify_staff_ready":
             return policy._identify_staff_purchase_gap(board)
-        short = [kind for kind in {SUPPLY_LABEL_KINDS[label]
-                                   for label in LEAF_SUPPLY_LABELS.get(name, ())}
+        short = [kind for kind in table.leaf_kinds(name)
                  if kind in ledger and ledger[kind].count < ledger[kind].required_departure]
         return bool(short) and all(policy._supply_purchase_gap(board, kind) for kind in short)
 

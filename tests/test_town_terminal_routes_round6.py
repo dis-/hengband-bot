@@ -11,6 +11,7 @@ from dataclasses import replace
 from unittest.mock import patch
 
 from hengbot import town_terminal as tt
+from hengbot.departure_readiness import ReadinessTable
 from hengbot.model import (
     Position, SV_LITE_LANTERN, SV_SCROLL_DETECT_TREASURE,
     SV_SCROLL_WORD_OF_RECALL, SV_DIGGING_SHOVEL, TVAL_DIGGING,
@@ -206,8 +207,8 @@ class Round6RouteTerminalTest(unittest.TestCase):
             policy = policy_on(snap)
             with patch.object(policy, "_recall_town_departure_conjuncts",
                               return_value={failed: False}), \
-                    patch.object(policy, "procurement_requirements", return_value=[{
-                        "item": "Word of Recall scrolls", "blocked_reason": "no-actionable-supplier"}]):
+                    patch.object(ReadinessTable, "stocked_out",
+                                 lambda _table, leaf: leaf == "recall_departure_ready"):
                 terminal = tt.rung_terminal(policy, "supply-stockout-mining", snap)
                 self.assertEqual(terminal is not None, terminal_expected)
                 if terminal_expected:
@@ -224,8 +225,8 @@ class Round6RouteTerminalTest(unittest.TestCase):
         policy = policy_on(snap)
         with patch.object(policy, "_recall_town_departure_conjuncts",
                           return_value={"recall_departure_ready": False}), \
-                patch.object(policy, "procurement_requirements", return_value=[{
-                    "item": "Word of Recall scrolls", "blocked_reason": "no-actionable-supplier"}]):
+                patch.object(ReadinessTable, "stocked_out",
+                             lambda _table, leaf: leaf == "recall_departure_ready"):
             self.assertIsNotNone(policy._supply_stockout_mining_key(snap))
         self.assertEqual(policy._fundraising_mode, "prepare")
         self.assertEqual(policy._planned_mining_runs, 1)

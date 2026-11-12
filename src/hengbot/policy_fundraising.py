@@ -598,8 +598,11 @@ class FundraisingMixin:
                    for item in snapshot.equipment):
                 return False
             detection_count = self._count_treasure_detection_scrolls(snapshot)
+            # The mining kit's target is the readiness table's mining row
+            # (_fundraising_mining_requirements, departure_readiness).
+            detection_target, _digger_target = self._fundraising_mining_requirements(snapshot)
             detection_ready = (
-                detection_count >= self._mining_detection_scroll_target(snapshot)
+                detection_count >= detection_target
                 or (
                     detection_count > 0
                     and STORE_HOME in self._town_store_attempted

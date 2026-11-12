@@ -29,6 +29,7 @@ import unittest
 from unittest.mock import patch
 
 from hengbot import cli
+from hengbot.departure_readiness import ReadinessTable
 from hengbot.model import QuestState
 from hengbot.policy_constants import QUEST_STATUS_FINISHED
 from hengbot.model import DUNGEON_YEEK_CAVE, Position, TVAL_POTION, SV_POTION_CURE_CRITICAL, TVAL_STAFF, SV_STAFF_IDENTIFY
@@ -333,11 +334,12 @@ class DepartureTest(unittest.TestCase):
                 board = replace(board, inventory=[i for i in board.inventory if not i.is_recall_scroll])
                 policy._supply_stockout_cycles = 3 if exhausted else 0
                 policy._town_blocked_reason = "departure-unsatisfiable"
-                # DECLARED CONSTRUCTED: exhausted supplier evidence. Exercise
+                # DECLARED CONSTRUCTED: exhausted supplier evidence (the
+                # readiness table's stock-out, departure_readiness). Exercise
                 # the real stockout owner's eligibility and three-run bound.
                 with patch.object(policy, "_departure_block_state", return_value={"failed": ["recall_departure_ready"]}), patch.object(
-                        policy, "procurement_requirements", return_value=[{
-                            "item": "Word of Recall scrolls", "blocked_reason": "no-actionable-supplier"}]):
+                        ReadinessTable, "stocked_out",
+                        lambda _table, leaf: leaf == "recall_departure_ready"):
                     key = policy._town_blocked_key(board)
                     # A stockout is no purchase gap: the town end's cycle does
                     # not start; the existing stockout run and its three-run
@@ -388,7 +390,7 @@ class DepartureTest(unittest.TestCase):
             self.assertTrue(policy._descent_is_blocked(replace(board, player=replace(board.player, hp=1))))
             self.assertEqual(policy._town_blocked_reason, "repetition")
 
-    def test_guardian_switch_keeps_closed_soft_work_and_checks_actual_landing_stock(self):
+    def test_guardian_switch_keeps_closed_soft_work_and_reads_the_one_table_stock(self):
         policy, board, _ = ready_board()
         original = policy._active_dungeon_target()
         alternate = 7
@@ -412,10 +414,15 @@ class DepartureTest(unittest.TestCase):
                 policy, "_guardian_blocked_recall_switch", side_effect=switch), patch.object(
                 policy, "_recall_town_departure_conjuncts", return_value={"equipment_departure_ready": False}):
             self.assertTrue(policy._departure_minimum(board, 19)["holds"])
-            self.assertEqual(policy._town_blocked_key(board), WAIT_KEY)
+            # Town rebuild stage 1 (owner 2026-11-12): the supplies are read
+            # at the readiness table's one depth, the planned depth the
+            # purchases follow.  The switched 40F landing no longer asks for a
+            # recall stock the purchases never bought (it was WAIT here); its
+            # depth gates still read the landing.
+            self.assertTrue(policy._town_blocked_key(board).startswith(READ_KEY))
             self.assertEqual(policy._active_dungeon_target(), alternate)
             minimum = policy._departure_minimum(board, 40)
-            self.assertIn("recall_departure_ready", minimum["failed"])
+            self.assertTrue(minimum["values"]["recall_departure_ready"])
             self.assertTrue(minimum["values"]["depth_abilities"])
             self.assertEqual(policy._town_blocked_reason, "repetition")
 
