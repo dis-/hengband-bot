@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
+from hengbot import full_pack_exchange, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -1740,6 +1740,11 @@ class IdentificationMixin:
                     self._declare_reach(step_target)
                     return self._step_toward(snapshot, step)
         blocker = self._loot_block_reason(snapshot, hostiles)
+        if blocker == "pack-full":
+            # Owner 2026-11-13 「価値の低い品を捨てて拾う」 (full_pack_exchange).
+            exchange = full_pack_exchange.key(self, snapshot, hostiles)
+            if exchange is not None:
+                return exchange
         if blocker is not None:
             if blocker == "paralyzer-ring":
                 guarded_loot = (
@@ -1799,9 +1804,9 @@ class IdentificationMixin:
         )
 
     def _loot_block_reason(
-        self, snapshot: Snapshot, hostiles: list[MonsterState]
+        self, snapshot: Snapshot, hostiles: list[MonsterState], *, ignore_pack: bool = False,
     ) -> str | None:
-        if len(snapshot.inventory) >= PACK_CAPACITY:
+        if not ignore_pack and len(snapshot.inventory) >= PACK_CAPACITY:
             return "pack-full"
         if self._physical_adjacent_hostiles(snapshot):
             return "adjacent-hostile"
