@@ -96,6 +96,33 @@ def staple_needs_recharge(snapshot: Snapshot) -> bool:
             and staple_charges(snapshot) < MANA_FOOD_CHARGE_TARGET)
 
 
+def drained_staple_food(policy, snapshot: Snapshot, item) -> bool:
+    """A carried charged device the drained staple leaves as the food.
+
+    ``_find_edible`` eats one when the staple is empty (owner 2026-11-12
+    「食べられる代替の食料も持っている」); while the staple's charges are below the
+    departure food, these devices are kept up to the charges it lacks (n1-c
+    life-205 2026-11-13 00:11: the identified サンダー・ボールの魔法棒 (10) and
+    光の杖 (15) were sold at the Magic shop as surplus a moment later).
+    """
+    staple = staple_food(snapshot)
+    if staple is None or staple_charges(snapshot) >= MANA_FOOD_CHARGE_TARGET:
+        return False
+    def food(candidate) -> bool:
+        return (candidate.known and candidate.is_wand_staff and candidate.charges > 0
+                and not is_staple_food(candidate) and not awaiting_absorption(policy, candidate))
+    if not food(item):
+        return False
+    lacking = MANA_FOOD_CHARGE_TARGET - staple_charges(snapshot)
+    before = 0
+    for candidate in snapshot.inventory:
+        if candidate is item or candidate.slot == item.slot:
+            return before < lacking
+        if food(candidate):
+            before += max(0, candidate.charges)
+    return False
+
+
 def awaiting_absorption(policy, item: InventoryItem | StoreItem) -> bool:
     from hengbot import me_capability, me_staff_sequence
 

@@ -702,6 +702,26 @@ def _fundraising_owns(policy) -> bool:
             and getattr(policy, "_supply_stockout_gold_target", None) == record.fundraise_target)
 
 
+def _expedition_run_unneeded(policy, snapshot, gold: int) -> bool:
+    """An expedition run not yet started whose trip the gold now pays.
+
+    The Tower's recharge prices an unidentified device as the dearest of its kind
+    (morivant_tower.recharge_all_price); once identified the price falls.  n1-c
+    life-205 2026-11-13 00:11: the unknown wand (4,050 of the recharge) became a
+    サンダー・ボールの魔法棒, the trip fell from 11,285 to 7,020 below the 7,856
+    gold, and the set opened for the old target held the town until it stopped.
+    """
+    record = state(policy)
+    if not (_fundraising_owns(policy) and policy._fundraising_mode == "prepare"
+            and snapshot.in_town and record.fundraise_why in EXPEDITION_WHYS):
+        return False
+    supplies = supply_cost(policy, snapshot)
+    needed = (_rumor_expedition_cost(snapshot, supplies)
+              if record.fundraise_why == "rumor-travel-recharge"
+              else _expedition_cost(snapshot, supplies))
+    return gold >= needed
+
+
 def mines_floor_out(policy) -> bool:
     """Whether the current explicit-target run ignores its gold target.
 
@@ -1088,6 +1108,11 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     if phase == "done":
         return None
     gold = snapshot.player.gold
+    if _expedition_run_unneeded(policy, snapshot, gold):
+        # The run's target was the expedition priced before the pack was known;
+        # the gold pays it now, so the set ends before it leaves town.
+        record.target_reached = True
+        policy._end_mining_set()
     if _fundraising_owns(policy):
         # The existing fundraising owners carry out the run.
         record.target_reached = record.target_reached or gold >= record.fundraise_target
