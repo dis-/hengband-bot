@@ -496,8 +496,7 @@ class ObservationMixin:
                 self._dive_loot += 1
             elif self.last_reason in EMERGENCY_ESCAPE_REASONS:
                 escape_count.count(self)
-            elif self.last_reason in RELOCATING_ESCAPE_REASONS and threat_tiers.counts_as_escape(
-                    self, self.last_reason) and (
+            elif self.last_reason in RELOCATING_ESCAPE_REASONS and (
                 previous_floor != snapshot.floor_key
                 or (
                     self._last_position is not None

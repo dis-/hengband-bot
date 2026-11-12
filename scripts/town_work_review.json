@@ -17991,39 +17991,5 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
-  },
-  "full_pack_exchange.py:key": {
-    "classification": "producer",
-    "rows": [
-      "destruction",
-      "loot-exploration"
-    ],
-    "context": "Dungeon floor loot only: _normal_loot_key's pack-full branch; the town's own loot paths keep their pack budget (pile_fits) and never reach a full pack's exchange in a store.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "Owner 2026-11-13 「価値の低い品を捨てて拾う」: with 23 of 23 slots and no other loot blocker, walk to a single-item floor pile whose aware base cost exceeds the cheapest whole-stack spare (no necessity, ego, artifact or unknown item), then destroy that spare on the pile (_verified_destroy_key); the ordinary pickup follows."
-  },
-  "full_pack_exchange.py:spare": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success",
-    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cheapest carried item the exchange may destroy (policy _cheapest_exchange_item over the pack without necessities, egos, artifacts and unknown items)."
-  },
-  "loot_frontier.py:key": {
-    "classification": "producer",
-    "rows": [
-      "loot-exploration"
-    ],
-    "context": "Dungeon floor loot only: _normal_loot_key when its candidates have no route; the town has no remembered frontier on its fully known map.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "Owner 2026-11-13 「その品の方へ探索を寄せる」: a step toward the reachable remembered frontier nearest a loot candidate with no route, over _walk_veto; a target spends its budget (twice its path plus FRONTIER_SLACK boards) and is then spent for the floor."
   }
 }
