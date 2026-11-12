@@ -2401,6 +2401,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # evidence that an ordinary command was processed after that leave.
         self._home_knowledge_scan_leave_turn: int | None = None
         self._home_scan_source: str | None = None
+        # Decision whose Home scan page handed a bound take to the outside
+        # composer (not a charged stop pass).
+        self._home_scan_take_handoff_sequence: int | None = None
         self._home_scan_item_count: int | None = None
         self._star_remove_curse_shelf_seen = False
         self._star_remove_curse_reserve_deposit_pending = False
@@ -6105,6 +6108,25 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.last_reason = "home:scan-complete-from-open-page"
                 key = LEAVE_STORE_KEY
                 self._offer_home_scan_leave()
+                if (
+                    self._home_knowledge_current
+                    and not self._home_knowledge_invalidated
+                    and self._bound_home_take_signatures()
+                    and self._keep_home_takes_within_pack_budget(
+                        snapshot, snapshot.store.items)
+                ):
+                    # The scan a filed take waited for (its errand needed
+                    # knowledge) also hands that take to the outside composer,
+                    # exactly as home:leave-for-pending-withdraw does on a page
+                    # whose knowledge was already current: not a failed stop
+                    # pass.  n1-c life-196 2026-11-12 00:44: the Magic-Eater's
+                    # spare *Identify* take re-scanned an invalidated Home, the
+                    # scan was charged as Home's third unsatisfied pass, Home
+                    # was blocked with the take still filed, and the visit
+                    # waited under town:blocked:equipment-home-unavailable
+                    # (home_candidate_resolved unmet) until owner retirement.
+                    self._home_scan_take_handoff_sequence = self._decision_sequence
+                    self._request_store_trip(STORE_HOME, "home-visit")
             elif (
                 self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and self._home_knowledge_current and (not self._home_knowledge_invalidated) and self._bound_home_take_signatures() and self._keep_home_takes_within_pack_budget(snapshot, snapshot.store.items if self._open_home_page_is_complete(snapshot) else (*snapshot.store.items, *self._home_knowledge_items))
             ):
@@ -6368,6 +6390,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self.last_reason == "home:scan-complete-from-open-page"
                 and self._store_visit is not None
                 and self._store_visit.store_type != STORE_HOME
+            )
+            # A scan page that handed a bound take to the outside composer.
+            and not (
+                self.last_reason == "home:scan-complete-from-open-page"
+                and getattr(self, "_home_scan_take_handoff_sequence", None)
+                == self._decision_sequence
             )
             and not self.last_reason.startswith(
                 "town:blocked:home-claim-uncomposable:"
