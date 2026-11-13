@@ -49,14 +49,14 @@ from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, SV_WAND_WONDER, drained_staple_food, is_staple_food, staple_food,
 )
 from hengbot.model import (
-    SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, SV_POTION_EXPERIENCE, SV_POTION_HEALING,
+    SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, SV_POTION_HEALING,
     SV_POTION_HEROISM, SV_POTION_LIFE, SV_POTION_RESISTANCE, SV_POTION_RESIST_COLD,
-    SV_POTION_RESTORE_EXP, SV_POTION_SELF_KNOWLEDGE, SV_POTION_SPEED, SV_POTION_STAR_ENLIGHTENMENT,
+    SV_POTION_RESTORE_EXP, SV_POTION_SPEED,
     SV_POTION_STAR_HEALING, SV_ROD_RECALL, SV_SCROLL_DETECT_TREASURE, SV_SCROLL_ENCHANT_WEAPON_TO_DAM,
     SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_IDENTIFY, SV_SCROLL_LIGHT, SV_SCROLL_MAPPING,
     SV_SCROLL_PHASE_DOOR, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_DESTRUCTION, SV_SCROLL_STAR_IDENTIFY,
     SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_TELEPORT, SV_SCROLL_WORD_OF_RECALL, SV_STAFF_DESTRUCTION,
-    SV_WAND_STONE_TO_MUD, RESTORE_POTION_SVAL_BY_STAT, STAT_GAIN_POTION_SVALS,
+    SV_WAND_STONE_TO_MUD, RESTORE_POTION_SVAL_BY_STAT,
     TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.policy_constants import FOOD_TYPE_MANA
@@ -142,6 +142,11 @@ def _mana_food(policy, snapshot, item) -> bool:
     return drained_staple_food(policy, snapshot, item)
 
 
+def _drink_does_something(policy, snapshot, item) -> bool:
+    """Drinking it raises a stat below the character's maximum (consumable_policy.DRINK_AT_ONCE)."""
+    return consumable_policy.does_something(snapshot, item)
+
+
 def _stone_to_mud_kept(policy, snapshot, item) -> bool:
     """User 2026-10-20 「すべて残す」, lifted for the Magic-Eater that absorbed it (owner
     2026-11-07 「岩石溶解の全部持つ決まりは、取り込む分だけ外す。」): its wands then serve only
@@ -160,6 +165,7 @@ WHEN = {
     "magic-eater-absorbs": _magic_eater_absorbs,
     "mana-food": _mana_food,
     "stone-to-mud-kept": _stone_to_mud_kept,
+    "drink-does-something": _drink_does_something,
 }
 
 
@@ -181,13 +187,13 @@ ROUTES = (
     # Owner 2026-11-01: a reliable absorbed Speed staff replaces the potion.
     Route(TVAL_POTION, SV_POTION_SPEED, "speed_dose", "not-replaced"),
     Route(TVAL_POTION, SV_POTION_HEROISM, "heroism_potion", "no-lasting-fear-resistance"),
-    # Drunk: restores when drained (policy_home reserves them at Home), stat gain on sight.
+    # Drunk: restores when drained (policy_home reserves them at Home).
     *(Route(TVAL_POTION, sval, "stat-restore") for sval in sorted(RESTORE_POTION_SVAL_BY_STAT.values())),
     Route(TVAL_POTION, SV_POTION_RESTORE_EXP, "experience-restore"),
-    *(Route(TVAL_POTION, sval, "stat-gain-quaff") for sval in sorted(STAT_GAIN_POTION_SVALS)),
-    Route(TVAL_POTION, SV_POTION_STAR_ENLIGHTENMENT, "consumable_policy.DRINK_NOT_STORE"),
-    Route(TVAL_POTION, SV_POTION_SELF_KNOWLEDGE, "consumable_policy.DRINK_NOT_STORE"),
-    Route(TVAL_POTION, SV_POTION_EXPERIENCE, "experience-quaff"),
+    # Drunk at once, wherever they are (consumable_policy.DRINK_AT_ONCE, owner 2026-11-13).
+    *(Route(TVAL_POTION, sval, consumable_policy.DRINK_AT_ONCE[TVAL_POTION, sval].drinker,
+            "drink-does-something")
+      for sval in sorted(sval for tval, sval in consumable_policy.DRINK_AT_ONCE)),
     # Owner 2026-11-05: Enlightenment only as the Q25 optional carry.
     Route(TVAL_POTION, SV_POTION_ENLIGHTENMENT, "quest_optional_carry", "quest-optional-carry"),
     # Scrolls of a use.

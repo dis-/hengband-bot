@@ -1041,13 +1041,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "consumable_policy.py:_used_here": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "consumable_policy.py:consumables": {
     "classification": "data",
     "rows": [
@@ -1062,7 +1055,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "consumable_policy.py:quaffed_on_sight": {
+  "consumable_policy.py:does_something": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:drink_row": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "consumable_policy.py:drunk_now": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
