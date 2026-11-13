@@ -646,6 +646,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "attack_expectation.py:effective": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:melee": {
     "classification": "data",
     "rows": [
@@ -3581,6 +3588,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_device_attacks.py:race_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:race_id_flags": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
