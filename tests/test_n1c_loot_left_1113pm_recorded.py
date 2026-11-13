@@ -36,7 +36,10 @@ FIXTURE_SHA256 = "c770396104ef0daa1227886959f8f9812c623e79e541fbdca92a07d55eeb6d
 # The recorded floor's single items worth more than the spare (base cost, k_info).
 HEAVY_CHAIN_MAIL = Position(35, 22)  # 重鎖かたびら [16], 900
 STAFF_OF_EARTHQUAKES = Position(39, 84)  # 地震の杖, 350
-COMMITTED_LOOT = Position(57, 164)  # the choke-hold window's loot walk
+# The choke-hold window's loot walk: live (57,164); with the left-cell registry (owner 2026-11-13
+# 「1と2だけ」) the loot walk does not step back into (56,165), the cell detected:prepare-choke
+# left at 4044398, and commits to the pile at (55,163) instead -- the hold then interrupts that walk.
+COMMITTED_LOOT = Position(55, 163)
 
 
 class N1cLootLeft1113pmRecordedTest(recorded.RecordedHarness):
