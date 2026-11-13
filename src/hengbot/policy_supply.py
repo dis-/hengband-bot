@@ -1944,7 +1944,8 @@ class SupplyMixin:
         # (change_wild_mode: an awake hostile within MAX_PLAYER_SIGHT, seen or
         # not) walks away from the detected monsters off the nearest edge to
         # the next tile, then '<' again.
-        if any(not monster.asleep and monster.distance <= 20 for monster in hostiles):
+        if any(not monster.asleep and monster.distance <= wilderness_exit.MAX_PLAYER_SIGHT
+               for monster in hostiles):
             # MAX_PLAYER_SIGHT, the range change_wild_mode refuses for.
             return None
         if player.recalling:
