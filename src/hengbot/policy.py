@@ -12309,7 +12309,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Food gates a new town departure. An already armed recall belongs
         # to Hengband; the carried-only decision does not authorise cancelling
         # it for food alone (suitefix3 task, 2026-10-04).
-        if not leaves["free_pack_slots_ready"]:
+        if not leaves["free_pack_slots_ready"] and self._recall_pack_fuller_than_read(snapshot):
             blockers.append("pack-too-full")
         if (
             snapshot.player.class_id >= 0
@@ -12322,6 +12322,25 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return blockers
 
 
+
+    def _recall_pack_fuller_than_read(self, snapshot: Snapshot) -> bool:
+        """Whether the pack holds more slots than when the armed read was
+        authorised (town rebuild stage 3-3b, owner 2026-11-12 「出発の判断を1つに」).
+
+        The read accepts four free slots on the terminal certificate, which
+        signs the exact stacks, names included: a survival step during the
+        countdown that changes a device's charges or a ration's count voids
+        it although no slot was taken.  The canceller then undid the recall
+        the departure had authorised, and the read point refused to read again
+        (n1-c life-205 2026-11-13 06:31: a zombie Magic-Eater absorbed a wand,
+        96 -> 95 charges; recall-readiness-contradiction).  The pack leaf is a
+        regression only when the pack is fuller than at the read.  A read this
+        policy did not record (a restored older checkpoint) keeps the leaf.
+        """
+        read_slots = getattr(self, "_town_recall_read_pack_slots", None)
+        if read_slots is None:
+            return True
+        return len(self._recall_departure_board(snapshot).inventory) > read_slots
 
     @staticmethod
     def _has_cursed_equipment(snapshot: Snapshot) -> bool:

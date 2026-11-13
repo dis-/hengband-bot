@@ -398,6 +398,9 @@ class FloorHolds(_Holds):
     # (destination, command turn, pre-read stack count).
     pending_recall_dungeon_id: int | None = None
     recall_issue_watch: tuple[int, int, int] | None = None
+    # The occupied pack slots the armed read was authorised with (stage 3-3b):
+    # the canceller's pack leaf is a regression only when the pack is fuller.
+    recall_read_pack_slots: int | None = None
     # This visit already cancelled a recall as unready (the read point never
     # reads again in the same visit, the read/cancel class bound).  The town
     # change forgets it too, by name.
@@ -437,6 +440,7 @@ FLOOR_HOLD_LEGACY_NAMES = {
     "_equipment_optimization_timed_out_this_visit": "equipment_optimization_timed_out",
     "_pending_recall_dungeon_id": "pending_recall_dungeon_id",
     "_town_recall_issue_watch": "recall_issue_watch",
+    "_town_recall_read_pack_slots": "recall_read_pack_slots",
     "_town_visit_unready_recall_cancelled": "unready_recall_cancelled",
     "_town_visit_purchases": "purchases",
     "_town_visit_purchase_quantities": "purchase_quantities",
