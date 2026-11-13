@@ -244,13 +244,16 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
     # 48 MB and its encoding exhausted the 1 GB soak machine (2026-10-16 00:09). They are cleared at
     # every public decision, so the onset capture's exclusion list applies here too.
     from hengbot.latch_onset_capture import _CAPTURE_STATE_NAMES
-    from hengbot.town_visit import legacy_bindings
+    from hengbot.town_visit import hold_bindings, legacy_bindings
     simple = {}
     # The town visit's fields are listed under their former policy names.
     state = vars(policy)
     visit = state.get("_town_visit")
     if visit is not None:
         state = {**state, **legacy_bindings(visit)}
+    holds = state.get("_town_holds")
+    if holds is not None:
+        state = {**state, **hold_bindings(holds)}
     for name, value in state.items():
         if name.startswith("_latch_capture_") or name in _CAPTURE_STATE_NAMES:
             continue

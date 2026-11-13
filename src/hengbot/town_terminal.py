@@ -33,6 +33,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.departure_readiness import readiness_table
+from hengbot.departure_rescues import rescue_key
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
@@ -2552,6 +2553,12 @@ def town_end_key(policy: Any, board: Any) -> str:
         # The forced visit departure departs or starts the mining cycle by
         # the same verdict (one place for every visit-closing cause).
         key = policy.force_visit_departure(board, TOWN_END_CAUSE)
+        if key is not None:
+            return key
+    if end.kind == "stop" and not policy._visit_departure_committed:
+        # Town rebuild stage 2 (owner 2026-11-12): a failed leaf's rescue
+        # (departure_rescues.RESCUES) answers before its named stop.
+        key = rescue_key(policy, board, end.conditions)
         if key is not None:
             return key
     policy._town_blocked_reason = (

@@ -16,7 +16,7 @@ from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCR
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
 from hengbot.policy_types import TownVisitLedger
-from hengbot.town_visit import is_fresh_visit
+from hengbot.town_visit import is_fresh_visit, town_holds
 from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.unwanted_kinds import own_book_tvals
@@ -231,53 +231,20 @@ class ObservationMixin:
             # town visits (static map), so a stale no-progress latch from the
             # previous visit would suppress native travel forever.
             self._release_town_travel_claim("town-travel:floor-changed")
-            self._town_travel_state = None
-            self._town_travel_fallback = None
-            self._town_hunt_target = None
-            self._town_signature_history.clear()
-            self._town_progress_marker = None
-            self._town_no_progress_count = 0
-            self._town_cycle_pending = False
-            self._town_cycle_breaks = 0
-            self._visit_departure_committed = None
-            self._visit_departure_recorded.clear()
-            self._town_restock_suppressed = False
-            self._town_suppression_claim_stores.clear()
-            self._town_errand_plan = None
-            self._terminal_pack_space_signature = None
-            self._town_restock_wait_until = None
-            self._town_restock_waiting_for = ()
-            self._town_restock_rechecked.clear()
-            self._town_restock_waited_turns = 0
-            self._town_restock_last_wait_turn = None
+            # The town's hold flags end with the floor (town_visit.TownHolds).
+            town_holds(self).release()
         elif town_changed:
             # Inn travel keeps the surface floor key at (0, 0, 0), but it is a
             # new town visit with different stores and routes.  Carrying the
             # previous town's cycle debt made the first ordinary shopping pass
             # in the destination look like a second repetition offense.
             self._release_town_travel_claim("town-travel:town-changed")
-            self._town_travel_state = None
-            self._town_travel_fallback = None
-            self._town_hunt_target = None
-            self._town_signature_history.clear()
-            self._town_progress_marker = None
-            self._town_no_progress_count = 0
+            # The town's hold flags end with the town (town_visit.TownHolds),
+            # and the town change forgets three more.
+            town_holds(self).release()
             self._town_wander_streak = 0
-            self._town_cycle_pending = False
-            self._town_cycle_breaks = 0
-            self._visit_departure_committed = None
-            self._visit_departure_recorded.clear()
             self._town_blocked_reason = None
             self._town_visit_unready_recall_cancelled = False
-            self._town_restock_suppressed = False
-            self._town_suppression_claim_stores.clear()
-            self._town_errand_plan = None
-            self._terminal_pack_space_signature = None
-            self._town_restock_wait_until = None
-            self._town_restock_waiting_for = ()
-            self._town_restock_rechecked.clear()
-            self._town_restock_waited_turns = 0
-            self._town_restock_last_wait_turn = None
             self._town_store_attempted.clear()
             self._shopping_stuck = False
             self._shop_approach_stuck_count = 0
