@@ -18,7 +18,7 @@ from hengbot import home_identification, home_pass_charge
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
-from hengbot import consumable_policy
+from hengbot import consumable_policy, item_use_route
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -2332,6 +2332,10 @@ class HomeMixin:
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
         """Return retention plus the narrow weakest-ammo fallback."""
+        if item_use_route.surplus(self, snapshot, item):
+            # Owner 2026-11-13 「アイテムが整理できていない」: no consumer uses it, so no
+            # reservation (a stale quest carry, reserve or keep-all) holds it.
+            return 0, None
         baseline = self._retention_reservation_baseline_detail(snapshot, item)
         launcher = self._equipped_launcher(snapshot)
         retired_town_owners = set(
@@ -3320,6 +3324,9 @@ class HomeMixin:
     def _home_deposit_candidate(
         self, item: InventoryItem, snapshot: Snapshot | None = None
     ) -> bool:
+        # Owner 2026-11-13: what no consumer uses is sold or destroyed, never shelved.
+        if snapshot is not None and item_use_route.surplus(self, snapshot, item):
+            return False
         if self._home_reserve_deposit_item(item):
             return True
         # Junk is destroyed, never shelved (#95 step 1b, owner 2026-10-20).

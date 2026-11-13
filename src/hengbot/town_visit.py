@@ -168,6 +168,10 @@ class TownVisit:
     # [stage, first sequence, last sequence, decisions, interrupts] per run
     # of decisions in one stage.  Nothing decides from it yet.
     plan_segments: list[list] = field(default_factory=list)
+    # The progress seam's replacements this visit (town rebuild stage 3-3a):
+    # [sequence, the producer's reason, the seam's reason].  Nothing decides
+    # from it; stage 3-3 retires the seam and shows this list empty.
+    plan_rewrites: list[list] = field(default_factory=list)
 
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:
@@ -307,18 +311,45 @@ def adopt_legacy_attributes(state: dict) -> None:
         setattr(visit, LEGACY_NAMES[legacy], state.pop(legacy))
 
 
-# --- The town's hold flags (town rebuild stage 3-2a, owner 2026-11-12) ------
+# --- The hold flags, one container per clearing moment (town rebuild stage 3-2)
 #
 # Owner 2026-11-12 「1〜3まで一気に進める」, stage 3: the hold flags become the
-# visit plan's state.  Before stage 3-2a these flags were policy attributes
-# that two places forgot, each with its own copy of the list: the floor change
-# (policy_observation, ``previous_floor != floor_key``) and the town change on
-# the surface (inn travel keeps the surface floor key).  ``TownHolds`` is the
-# one list and ``release`` the one forgetting; both places call it, and the
-# town change keeps its own extra resets.  They are not ``TownVisit`` fields:
-# ``TownVisit.begin`` runs on a fresh visit, the holds end when the character
-# leaves the floor or the town, as before (a process that starts in town keeps
-# them, as the restored attributes did).
+# visit plan's state.  Before stage 3-2 they were policy attributes forgotten
+# in several places, each with its own copy of the list, so a flag added to
+# one list and not another outlived its moment.  Each container below holds
+# the flags that end at one moment, and its ``release`` is the one forgetting
+# (containers emptied in place, the rest back to its default, as the lists
+# did).  The former attribute names forward to the containers; an old
+# checkpoint's attributes move in on restore (``adopt_legacy_holds``).
+#
+# ``TownHolds`` (stage 3-2a) ends when the character leaves the floor it was
+# on or the town changes on the surface (inn travel keeps the surface floor
+# key): policy_observation's floor change with a previous floor, and its town
+# change, which forgets three more by name.
+# ``FloorHolds`` (stage 3-2b) ends on every board whose floor is not the one
+# the policy last decided on, the first board of a process included
+# (policy_observation's ``floor_key != _floor_key``).
+# Neither is a ``TownVisit`` field: ``TownVisit.begin`` runs on a fresh town
+# visit only.
+
+
+class _Holds:
+    """A dataclass mixin: ``release`` and a default-filling ``__setstate__``."""
+
+    def release(self) -> None:
+        for spec in fields(self):
+            if spec.default_factory is not MISSING:
+                getattr(self, spec.name).clear()
+            else:
+                setattr(self, spec.name, spec.default)
+
+    def __setstate__(self, state: dict) -> None:
+        # A container pickled before a field existed holds that field's default.
+        self.__dict__.update({
+            spec.name: (spec.default_factory() if spec.default_factory is not MISSING
+                        else spec.default)
+            for spec in fields(self)})
+        self.__dict__.update(state)
 
 
 def _signature_history() -> Any:
@@ -328,7 +359,7 @@ def _signature_history() -> Any:
 
 
 @dataclass
-class TownHolds:
+class TownHolds(_Holds):
     # Native surface travel's progress and its fallback goal.
     travel_state: Any = None
     travel_fallback: Any = None
@@ -358,21 +389,29 @@ class TownHolds:
     restock_waited_turns: int = 0
     restock_last_wait_turn: int | None = None
 
-    def release(self) -> None:
-        """Forget every hold: containers are emptied in place, the rest
-        returns to its default (what both former lists did)."""
-        for spec in fields(self):
-            if spec.default_factory is not MISSING:
-                getattr(self, spec.name).clear()
-            else:
-                setattr(self, spec.name, spec.default)
 
-    def __setstate__(self, state: dict) -> None:
-        self.__dict__.update({
-            spec.name: (spec.default_factory() if spec.default_factory is not MISSING
-                        else spec.default)
-            for spec in fields(TownHolds)})
-        self.__dict__.update(state)
+@dataclass
+class FloorHolds(_Holds):
+    # The equipment optimizer timed out on this floor's visit.
+    equipment_optimization_timed_out: bool = False
+    # The dungeon the armed recall was read for, and the read's issue watch
+    # (destination, command turn, pre-read stack count).
+    pending_recall_dungeon_id: int | None = None
+    recall_issue_watch: tuple[int, int, int] | None = None
+    # The occupied pack slots the armed read was authorised with (stage 3-3b):
+    # the canceller's pack leaf is a regression only when the pack is fuller.
+    recall_read_pack_slots: int | None = None
+    # This visit already cancelled a recall as unready (the read point never
+    # reads again in the same visit, the read/cancel class bound).  The town
+    # change forgets it too, by name.
+    unready_recall_cancelled: bool = False
+    # Store purchases are retained for the rest of the visit.
+    purchases: set = field(default_factory=set)
+    purchase_quantities: dict = field(default_factory=dict)
+    # Sales are retained for the visit: buying the same tval/sval back is churn.
+    sale_signatures: set = field(default_factory=set)
+    # Most per-staff charges of an Identify staff sold this visit.
+    sale_identify_charges: int | None = None
 
 
 HOLD_LEGACY_NAMES = {
@@ -397,44 +436,78 @@ HOLD_LEGACY_NAMES = {
     "_town_restock_last_wait_turn": "restock_last_wait_turn",
 }
 
+FLOOR_HOLD_LEGACY_NAMES = {
+    "_equipment_optimization_timed_out_this_visit": "equipment_optimization_timed_out",
+    "_pending_recall_dungeon_id": "pending_recall_dungeon_id",
+    "_town_recall_issue_watch": "recall_issue_watch",
+    "_town_recall_read_pack_slots": "recall_read_pack_slots",
+    "_town_visit_unready_recall_cancelled": "unready_recall_cancelled",
+    "_town_visit_purchases": "purchases",
+    "_town_visit_purchase_quantities": "purchase_quantities",
+    "_town_visit_sale_signatures": "sale_signatures",
+    "_town_visit_sale_identify_charges": "sale_identify_charges",
+}
+
+# policy attribute -> (container class, its former attribute names)
+_HOLD_CONTAINERS = {
+    "_town_holds": (TownHolds, HOLD_LEGACY_NAMES),
+    "_floor_holds": (FloorHolds, FLOOR_HOLD_LEGACY_NAMES),
+}
+
+
+def _holder(policy: Any, attribute: str) -> Any:
+    """The policy's container, made on first use (like ``town_visit``)."""
+    holder = policy.__dict__.get(attribute)
+    if holder is None:
+        holder = policy.__dict__[attribute] = _HOLD_CONTAINERS[attribute][0]()
+    return holder
+
 
 def town_holds(policy: Any) -> TownHolds:
-    """The policy's hold flags, made on first use (like ``town_visit``)."""
-    holds = policy.__dict__.get("_town_holds")
-    if holds is None:
-        holds = policy.__dict__["_town_holds"] = TownHolds()
-    return holds
+    return _holder(policy, "_town_holds")
 
 
-def _forward_hold(name: str) -> property:
+def floor_holds(policy: Any) -> FloorHolds:
+    return _holder(policy, "_floor_holds")
+
+
+def _forward_hold(attribute: str, name: str) -> property:
     return property(
-        lambda policy: getattr(town_holds(policy), name),
-        lambda policy, value: setattr(town_holds(policy), name, value),
-        doc=f"TownHolds.{name} (town rebuild stage 3-2a).",
+        lambda policy: getattr(_holder(policy, attribute), name),
+        lambda policy, value: setattr(_holder(policy, attribute), name, value),
+        doc=f"{_HOLD_CONTAINERS[attribute][0].__name__}.{name} (town rebuild stage 3-2).",
     )
 
 
-for _legacy, _name in HOLD_LEGACY_NAMES.items():
-    setattr(TownVisitAttributes, _legacy, _forward_hold(_name))
+for _attribute, (_cls, _names) in _HOLD_CONTAINERS.items():
+    for _legacy, _name in _names.items():
+        setattr(TownVisitAttributes, _legacy, _forward_hold(_attribute, _name))
 
 
-def hold_bindings(holds: TownHolds) -> dict:
-    """The holds under the policy's former names (diagnostics)."""
-    return {legacy: getattr(holds, name) for legacy, name in HOLD_LEGACY_NAMES.items()}
+def hold_bindings(state: dict) -> dict:
+    """Every container's flags under the policy's former names (diagnostics),
+    read from a policy's ``vars``."""
+    bindings = {}
+    for attribute, (_cls, names) in _HOLD_CONTAINERS.items():
+        holder = state.get(attribute)
+        if holder is not None:
+            bindings.update({legacy: getattr(holder, name) for legacy, name in names.items()})
+    return bindings
 
 
 def adopt_legacy_holds(state: dict) -> None:
-    """Move an old checkpoint's hold attributes into its ``TownHolds``.
+    """Move an old checkpoint's hold attributes into their containers.
 
-    Checkpoints pickled before stage 3-2a hold these as policy attributes;
-    the values move as they are (the same objects), so the restored holds
+    Checkpoints pickled before stage 3-2 hold these as policy attributes; the
+    values move as they are (the same objects), so the restored containers
     decide exactly as the restored attributes did.
     """
-    present = [legacy for legacy in HOLD_LEGACY_NAMES if legacy in state]
-    if not present:
-        return
-    holds = state.get("_town_holds")
-    if holds is None:
-        holds = state["_town_holds"] = TownHolds()
-    for legacy in present:
-        setattr(holds, HOLD_LEGACY_NAMES[legacy], state.pop(legacy))
+    for attribute, (cls, names) in _HOLD_CONTAINERS.items():
+        present = [legacy for legacy in names if legacy in state]
+        if not present:
+            continue
+        holder = state.get(attribute)
+        if holder is None:
+            holder = state[attribute] = cls()
+        for legacy in present:
+            setattr(holder, names[legacy], state.pop(legacy))

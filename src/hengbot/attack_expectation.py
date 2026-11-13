@@ -462,8 +462,7 @@ def launcher_against(policy, snapshot, race_id, distance: int) -> float:
 
 def devices_against(policy, snapshot, race_id, *, area_only: bool = False) -> float:
     """The best absorbed attack power or carried attack wand/rod against ``race_id``."""
-    flags = race_knowledge(policy, race_id)
-    flags = flags.flags if flags is not None else None
+    flags = me_device_attacks.race_id_flags(policy, race_id)
     level, best = snapshot.player.level, 0.0
     if me_device_attacks.can_use_powers(snapshot):
         for power, success in me_device_attacks.usable_powers(policy):
@@ -493,6 +492,16 @@ def ranged_against(policy, snapshot, race_id, distance: int) -> float:
     """The larger of the launcher's and the devices' figure (one action each)."""
     return max(launcher_against(policy, snapshot, race_id, distance),
                devices_against(policy, snapshot, race_id))
+
+
+def effective(options) -> list:
+    """The (expected damage, key maker) rows of ``options`` that deal any damage, in their order.
+
+    Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に期待値で比べて高い方（耐性・命中率・成功率
+    まで）」: a chooser walks its rows to the first whose key can be sent, so a row the target's
+    known flags cancel (me_device_attacks.expected_damage 0: 「免疫の属性を撃たない」, the weak
+    light on a race without HURT_LITE, a fail-certain power) must not be among them."""
+    return [option for option in options if option[0] > 0]
 
 
 def actions_to_kill(hit_points: float, per_action: float) -> float:

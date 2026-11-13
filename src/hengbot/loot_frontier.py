@@ -14,6 +14,13 @@ STEER_AFTER_BOARDS boards (the nearest frontier often opens the way first); ever
 outranks the explore (holds, chokes, rest, descent) still does, and a committed explore route is followed as before.  A frontier chosen
 FRONTIER_TRIES times is spent for the floor.  The note also asks the Magic-Eater's absorbed area
 mapping (me_powers trigger ``loot-unreachable``), the 周辺感知 the owner named.
+
+Only loot that exploring can open a way to steers.  An item the known map already joins to the
+player once known traps and damaging grids are crossed (``_walkable_neighbors`` with
+``allow_damaging``) is closed by those hazards, which no new grid opens: n1-c life-205
+(dungeon 3, 23F, 2026-11-13 08:42-09:15) had six items in a room floored with known traps,
+was sent to the frontier nearest them from wherever it stood, crossed the floor every 30
+seconds between x~40 and x~135 and was stopped by the floor-dwell guard.
 """
 
 from __future__ import annotations
@@ -59,6 +66,20 @@ def unreachable_recently(policy, snapshot, game_turns: int) -> bool:
     return bool(_fresh(policy, snapshot, game_turns))
 
 
+def _hazard_closed(policy, snapshot, candidates, closed) -> frozenset:
+    """The ``candidates`` the known map joins to the player across known hazards."""
+    start = snapshot.player.position
+    seen = {start}
+    queue = deque([start])
+    while queue:
+        position = queue.popleft()
+        for neighbor in policy._walkable_neighbors(snapshot, position, allow_damaging=True):
+            if neighbor not in seen and neighbor not in closed:
+                seen.add(neighbor)
+                queue.append(neighbor)
+    return frozenset(candidates) & frozenset(seen)
+
+
 def explore_path(policy, snapshot, avoided) -> list:
     """[first step, ..., frontier] toward the noted loot, or [] (the explore's own plan)."""
     candidates = _fresh(policy, snapshot, NOTE_GAME_TURNS)
@@ -70,6 +91,9 @@ def explore_path(policy, snapshot, avoided) -> list:
     counts = tried[1]
     start = snapshot.player.position
     closed = set(avoided) | set(policy._walk_veto(snapshot))
+    candidates = candidates - _hazard_closed(policy, snapshot, candidates, closed)
+    if not candidates:
+        return []
     parent = {start: None}
     queue = deque([start])
     frontiers = []

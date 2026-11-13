@@ -45,6 +45,7 @@ import lzma
 import os
 import time
 import unittest
+from tests.support import item_use_route_wall
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
@@ -97,6 +98,7 @@ class MergingHomeGame(HomeEntranceGame):
 class N1bQ2HomeAmmo1109RecordedTest(executor_pins.ProductionHarness):
 
     def setUp(self):
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
         scratch = TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
         self.scratch = Path(scratch.name)

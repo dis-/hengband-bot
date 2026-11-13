@@ -103,6 +103,7 @@ EAT_REASON = REASON + "eat"
 APPROACH_REASON = REASON + "approach-tower"
 CURE_REASON = REASON + "cure"
 EDGE_REASON = REASON + "ambush-edge"
+LEAVE_SIGHT_REASON = REASON + "leave-sight"
 REWEAR_REASON = REASON + "rewear-ring"
 REPLACED_RING_ATTR = "_zul_replaced_ring"
 HOME_PURPOSE = "zul-levitation"
@@ -592,13 +593,50 @@ def _fundraise(policy, snapshot, record, target: int) -> str | None:
 
 def _enter_global_key(policy, snapshot, record) -> str | None:
     from hengbot import wilderness_exit
-    if wilderness_exit.global_map_refused(snapshot):
-        return None  # an awake monster near: the town hunt has the board
     if snapshot.player.food_state in {"weak", "fainting"}:
         return None  # input-key-processor.cpp: 「その前に食事をとらないと。」
+    awake = wilderness_exit.perceived_awake_hostiles(snapshot)
+    if wilderness_exit.refuses_from(snapshot.player.position, awake):
+        return _leave_sight_key(policy, snapshot, awake)
+    if wilderness_exit.global_map_refused(snapshot):
+        return None  # a monster near that the player does not perceive
     record.active = True
     policy.last_reason = ENTER_GLOBAL_REASON
     return UP_STAIRS_KEY
+
+
+def _leave_sight_key(policy, snapshot, awake) -> str | None:
+    """One step toward the nearest cell no perceived awake monster refuses '<' from.
+
+    change_wild_mode refuses the global map for an awake hostile within
+    MAX_PLAYER_SIGHT, seen or not.  A beatable one in view is the town hunt's
+    (ahead of this owner); one only sensed, or one the character cannot beat,
+    is walked away from (owner 2026-11-08 「近くの敵を倒すか、敵から離れて…
+    全体地図へ出る」).  n1-b life-389 (2026-11-13 16:32, Zul, night): a
+    Black market agent sensed by telepathy at (11,72), nine rows from the
+    player at (20,68), refused '<' five times; nothing else moved the
+    character, and the Home work Zul has no Home for stopped the bot
+    (equipment-transaction:home-route-repeat-terminal).  None when no such cell
+    is reachable (the refusal is then the other owners').
+    """
+    route = leave_sight_route(policy, snapshot, awake)
+    if route is None:
+        return None
+    policy.last_reason = LEAVE_SIGHT_REASON
+    policy._declare_reach(route.target)
+    return policy._step_toward(snapshot, route.first_step)
+
+
+def leave_sight_route(policy, snapshot, awake):
+    """The walk to the nearest open cell out of every ``awake`` monster's refusal range."""
+    from hengbot import wilderness_exit
+
+    def clear(grid) -> bool:
+        return (grid.passable and grid.store_number < 0 and grid.building_type < 0
+                and not grid.has_entrance and not grid.has_quest_enter
+                and not wilderness_exit.refuses_from(grid.position, awake))
+
+    return policy._nearest_goal_route(snapshot, clear)
 
 
 def _levitation_walk_step(policy, snapshot, building: int):

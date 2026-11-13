@@ -4,6 +4,7 @@ from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
+from hengbot import item_use_route
 from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
 from hengbot import status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
@@ -5139,6 +5140,8 @@ class TownMixin:
             self._find_device_sale(snapshot),
             self._find_weapon_sale(snapshot),
             self._find_light_sale(snapshot),
+            # Owner 2026-11-13: carried kinds no consumer uses (item_use_route).
+            item_use_route.sale_candidate(self, snapshot),
         )
         candidates = [candidate for candidate in finder_candidates if candidate is not None]
         candidates.extend(
@@ -5194,8 +5197,10 @@ class TownMixin:
         if (
             self._item_signature(item) in self._unsellable_items
             or self._sale_retains_digging_tool(snapshot, item)
-            # The owner's table shelves these at Home (consumable_policy).
-            or consumable_policy.shelved_at_home(item)
+            # The owner's table shelves these at Home (consumable_policy), unless
+            # no consumer uses them (item_use_route): those are sold.
+            or (consumable_policy.shelved_at_home(item)
+                and not item_use_route.surplus(self, snapshot, item))
             or not item_fate.ranked_gear_saleable(self, snapshot, item)
         ):
             return None
@@ -7337,6 +7342,9 @@ class TownMixin:
                             snapshot.turn,
                             recall_count,
                         )
+                        # The departure stage's own record of the pack the
+                        # read was authorised with (town rebuild stage 3-3b).
+                        self._town_recall_read_pack_slots = len(snapshot.inventory)
                         self.last_reason = f"town:recall-to-{recall_dest}"
                         key = self._town_recall_device_key(snapshot, recall, selection)
                         self._offer_execution(

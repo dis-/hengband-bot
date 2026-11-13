@@ -230,7 +230,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "anaguma_geometry.py:diggable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "anaguma_geometry.py:longest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma_geometry.py:solid": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -640,6 +654,13 @@
     "delegation": "selected child; no independent success"
   },
   "attack_expectation.py:device_use_success": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:effective": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2824,6 +2845,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "item_use_route.py:has_buyer": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_use_route.py:sale_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_use_route.py:surplus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_use_route.py:uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "json_snapshot.py:_Decoder._remember": {
     "classification": "data",
     "rows": [
@@ -3276,6 +3325,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "left_cells.py:_live_records": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success"
+  },
+  "left_cells.py:_registry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success"
+  },
+  "left_cells.py:refused": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success"
+  },
+  "left_cells.py:refused_yx": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success"
+  },
   "locked_doors.py:pick_key": {
     "classification": "data",
     "rows": [
@@ -3553,6 +3630,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_device_attacks.py:race_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_attacks.py:race_id_flags": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -4746,6 +4830,20 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "pingpong_guard.py:after_ladder": {
+    "classification": "dungeon-only",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "pingpong_guard.py:report": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success"
   },
   "policy.py:HengbotPolicy._activate_safe_recall_fallback": {
     "classification": "data",
@@ -7351,6 +7449,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_fundraising.py:FundraisingMixin._dig_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_fundraising.py:FundraisingMixin._dig_route_first_step": {
     "classification": "data",
     "rows": [
@@ -7965,6 +8070,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_home.py:HomeMixin._inventory_weight_limit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._keep_home_takes_within_pack_budget.refused": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -12937,12 +13049,26 @@
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
+  "retreat_enclosure.py:melt_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "retreat_enclosure.py:melt_toward_key": {
     "classification": "action",
     "rows": [
       "positioning"
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:meltable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "retreat_enclosure.py:open_toward_key": {
     "classification": "action",
@@ -12993,6 +13119,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_loot.py:_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "sealed_loot.py:pocket_walls": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "sealed_pocket.py:_aim": {
     "classification": "data",
     "rows": [
@@ -13022,6 +13169,13 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_pocket.py:_melt_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_melt_key.cast_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13973,6 +14127,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_hold.py:decision_rung": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success"
+  },
   "town_hold.py:errand_hold": {
     "classification": "data",
     "rows": [
@@ -14452,7 +14613,7 @@
     "rows": [
       "data/no-independent-credit"
     ],
-    "delegation": "selected child; no independent success"
+    "delegation": "no independent success"
   },
   "town_terminal.py:verdict_quest_entry": {
     "classification": "data",
@@ -14473,7 +14634,7 @@
     "rows": [
       "data/no-independent-credit"
     ],
-    "delegation": "selected child; no independent success"
+    "delegation": "no independent success"
   },
   "town_terminal.py:verdict_store_route": {
     "classification": "data",
@@ -14858,6 +15019,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "wilderness_exit.py:perceived_awake_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "wilderness_map.py:WildernessMap.next_key_to_town": {
     "classification": "producer",
     "rows": [
@@ -14914,6 +15082,13 @@
     "rows": [
       "cross-town",
       "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_leave_sight_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
@@ -15010,6 +15185,13 @@
     "delegation": "selected child; no independent success"
   },
   "zul_trip.py:is_levitation_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "zul_trip.py:leave_sight_route": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

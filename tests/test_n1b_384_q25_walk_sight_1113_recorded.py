@@ -75,6 +75,19 @@ def exhausted():
     return found
 
 
+# The attacks that hurt the stairway to hell (439: IM_ACID/ELEC/FIRE/POIS, no HURT_LITE).
+HURTING = {"アイス・ボルト", "アイス・ボール", "ドラゴンの冷気", "マジック・ミサイル"}
+
+
+def unarmed():
+    """DECLARED CONSTRUCTED: ``exhausted`` without the attacks that hurt the stairway (never
+    absorbed).  Holding one of them, spent, the phase now rests for a charge
+    (quest25_battle ``_stairway_spent``, tests/test_element_aware_shots_1113_recorded); holding
+    none, the walk to a sight is the phase's move, which this module pins."""
+    return {kind: (stamp, tuple(row for row in rows if row["name"] not in HURTING))
+            for kind, (stamp, rows) in exhausted().items()}
+
+
 class TheRecordingTest(unittest.TestCase):
 
     def test_the_two_walks_alternated(self):
@@ -94,7 +107,7 @@ class OneWalkPerBoardTest(replay._Replay):
     case = CASE
 
     def test_spent_the_walk_to_a_sight_owns_the_move(self):
-        answers = self.drive(exhausted())
+        answers = self.drive(unarmed())
         self.assertEqual(len(answers), len(CASE["second"]["boards"]) - 4, answers[-1])
         moves = {(cell, key) for _sequence, cell, key, reason, _phase in answers
                  if reason in {battle.WALK_REASON, battle.SIGHT_REASON}}

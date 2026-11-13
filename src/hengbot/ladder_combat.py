@@ -106,7 +106,7 @@ def key(
                     (grid.position
                      for grid in snapshot.grids.values()
                      if grid.position.distance_to(threat.position) <= 1),
-                    snapshot=snapshot, threats=(threat,),
+                    snapshot=snapshot, threats=(threat,), owner="status-threat:retreat",
                 )
             policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
             policy.last_reason = "status-threat:retreat"
@@ -182,7 +182,7 @@ def key(
             if tiers_leave or policy._is_material_threat(snapshot, strategic_hostiles):
                 policy._claim_engagement_avoid_cells(
                     (snapshot.player.position,),
-                    snapshot=snapshot, threats=strategic_hostiles,
+                    snapshot=snapshot, threats=strategic_hostiles, owner="flee",
                 )
                 policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
             policy.last_reason = "flee"
@@ -271,7 +271,8 @@ def key(
             # seek-loot '7' between (23,115)/(24,116) until the loop
             # detector stopped the bot (Castle 20F, 2026-10-02 15:14-15:16).
             policy._claim_engagement_avoid_cells(
-                (snapshot.player.position,), snapshot=snapshot, threats=corridor_threats)
+                (snapshot.player.position,), snapshot=snapshot, threats=corridor_threats,
+                owner="summoner:retreat")
             policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
             policy.last_reason = "summoner:retreat"
             return policy._town_producer_entry("_step_toward:escape", lambda: policy._step_toward(snapshot, step), family="escape")
@@ -374,7 +375,8 @@ def key(
             # secret-wall exploration can immediately reverse this retreat
             # and alternate with it forever.
             policy._claim_engagement_avoid_cells(
-                (snapshot.player.position,), snapshot=snapshot, threats=strategic_hostiles)
+                (snapshot.player.position,), snapshot=snapshot, threats=strategic_hostiles,
+                owner="threat:reposition")
             policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
             policy.last_reason = "threat:reposition"
             policy._declare_reach(step)

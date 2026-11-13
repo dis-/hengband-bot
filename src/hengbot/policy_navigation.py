@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import area_mapping, dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import area_mapping, dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1383,7 +1383,8 @@ class NavigationMixin:
         # retreat just left and alternates with it (n1c-5f-loop-1102).  The
         # area the retreat would fire in again is routed around as well
         # (_engagement_danger_cells, shoot-immobile-sleeper-1102).
-        vetoed = self._engagement_avoid_cells | self._engagement_route_veto(snapshot)
+        vetoed = (self._engagement_avoid_cells | left_cells.refused(self, snapshot)
+                  | self._engagement_route_veto(snapshot))
         self._nav_ledger.advance_descent_route(origin)
         route = self._nav_ledger.descent_path
         if route:
@@ -1531,6 +1532,7 @@ class NavigationMixin:
         self._engagement_avoid_cells |= self._warning_refused_cells
         avoided = (
             self._engagement_avoid_cells
+            | left_cells.refused(self, snapshot)
             | self._warning_refused_cells
             | self._unseen_attack_area_cells(snapshot)
             | self._engagement_route_veto(snapshot)

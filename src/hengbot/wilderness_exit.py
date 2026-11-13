@@ -23,10 +23,30 @@ GLOBAL_MAP_REFUSED_MESSAGES = (
 )
 
 
+MAX_PLAYER_SIGHT = 20  # src/system/gamevalue.h, the range change_wild_mode refuses for
+
+
 def global_map_refused(snapshot) -> bool:
     """Whether this board reports the refused '<' to the global map."""
     return any(message.startswith(GLOBAL_MAP_REFUSED_MESSAGES)
                for message in snapshot.messages)
+
+
+def perceived_awake_hostiles(snapshot) -> list:
+    """The awake hostile monsters the player sees or senses (telepathy, detection).
+
+    change_wild_mode skips the asleep and the non-hostile ones (pets, friendlies).
+    """
+    perceived = {monster.index: monster
+                 for monster in (*snapshot.detected_monsters, *snapshot.visible_monsters)}
+    return [monster for monster in perceived.values() if monster.hostile and not monster.asleep]
+
+
+def refuses_from(cell, monsters) -> bool:
+    """Whether one of ``monsters`` is within MAX_PLAYER_SIGHT of ``cell`` by its ``cdis``."""
+    from hengbot.policy_combat import CombatMixin
+    return any(CombatMixin._monster_cast_distance(cell, monster.position) <= MAX_PLAYER_SIGHT
+               for monster in monsters)
 
 
 def up_stairs_exit_to_wilderness(floor_key, dungeon_knowledge, wilderness_map, grid=None) -> bool:

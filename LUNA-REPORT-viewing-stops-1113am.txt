@@ -1,0 +1,149 @@
+LUNA-REPORT-viewing-stops-1113am（2026-11-13 観戦の止まり A・B・C・D）
+
+枝 viewing-stops-1113am（main 9c8baca87 から作り、途中で main 8982e80bb を早送りで取り込み）。push・main への取り込みはしていない。
+記録の写し: C:\hengband-backups\pdca\captures\viewing-stops-1113am\（サーバは読み取りだけ。書き込み・削除・再起動はしていない）。
+
+コミット（古い順）
+  a004a7ebd9 Rest out a temporary status before Q1 on the opening route            （A 根1）
+  0ed451accc Lower the Q1 carries to the floor when the shelf is short, as when gold is （A 根2）
+  （8982e80bb の取り込み、早送り）
+  2f7c073773 Keep the town hunt on the monster it walks to                          （D）
+  f376bc7bf5 Fire the nearest-target macro only when some hostile is projectable     （B）
+  28026b0046 Steer the explore only toward loot that exploring can reach                 （C1）
+C2 は直していない（所有者の決まりが要る。下の問い）。
+
+==================================================================
+■ A. 新キャラが町で quest:blocked:opening-route（n1-b life-385 08:44、life-387 12:30、Lv6 魔道具術師、bot-30771c7cc）
+==================================================================
+今日の取り込みによる退行ではない（policy_opening.py・quest_strategies.py・QUEST_1.jsonc は 11-10 以降変更なし）。
+n1-c.out の opening-route 15件は 10-31〜11-04、n1-b の 11-07 の1件は life-336（直し済み）、n1-a.out は0件。今日の分は n1-b の2件（各3回で新キャラへ交代）。
+
+根1（life-385）: 08:44:13 turn 81807、HP 108/108・恐怖（afraid）・見える敵なし、Q1 の携行品は揃っていた。
+  _opening_q1_town_key の休む枝は HP が最大未満の時だけだった。受注条件 _fixed_quest_ready は temporary-status で拒否
+  （policy_quest.py:5266-5268）→ _opening_q1_stop("readiness:...'reason': 'temporary-status'")。再起動後も同じ盤面で即停止（5秒ごとに2回）。
+  ゲーム: R& は is_fully_healthy まで休む（src/system/player-type-definition.cpp:75-91、恐怖は 83 行; src/cmd-action/cmd-move.cpp:453;
+  src/core/player-processor.cpp:163-165）。bot に出る afraid は時限の恐怖だけ（src/bot/bot-json-output.cpp:875）なので休めば治る。
+  直し a004a7ebd9: 休む条件に「一時的な状態がある」（既存の _temporary_status_clear、受注条件と同じ述語）を足した。
+
+根2（life-387）: 12:30:22 turn 81361、Q34 の後で松明14本・所持金155、雑貨屋の棚の松明は4本（3金）。
+  _opening_q1_plan は _q1_reserve の unstocked で即 "stop:stock:quest-throwing-items" を返し、carry_floor（QUEST_1 の
+  「携行品を全部は買えない時の下限」、魔道具術師は9本、owner 2026-10-31「Q1の要求値を下げ、受注可能にする」）はお金が足りない時にしか使われていなかった。
+  直し 0ed451accc: 棚が足りない時も同じ下げ方をする（_q1_affordable_targets は元から棚の数を数えている）。4本買って18本で受注。
+  下限も満たせない時は今までどおり stop:stock の名前で止まる（既存の test_opening_route_recorded の空棚の確認はそのまま通る）。
+
+テスト tests/test_viewing_stops_1113_opening_recorded.py（3本。町到着の記録を public choose_key に通し、R& と購入 'pi4\r\r' を _ExecutorInputPort で送る）
+  life-385 の再生は 18〜27 行（外套の装備の取引。記録の較正では再現しない。実機でも confirmation-stall-bound で何も変えずに終わった）だけ食い違い、
+  28 行以降は記録と一致し、最後の盤面で記録の停止を再現する。
+  戻し確認: 根1を戻す → ('', 'quest:blocked:opening-route') != ('R&\r', 'town:recover') で失敗。
+            根2を戻す → 2本失敗（('\x1b','shop:observe-and-leave') != ('pi4\r\r','shop:in-store-buy')、20 != 18）。
+関係モジュール13個（opening 系・Q1 の松明・Q34 の油・n1c_loops ほか）は main と結果が同じ（新モジュールが増えただけ）。
+
+==================================================================
+■ D. n1-b life-389 の町の敵退治の行き来（14:09〜、Lv37 魔道具術師、bot-8982e80bb、塔へ向かう途中）
+==================================================================
+記録: jsonlog/town-arrival/20261113-140656.143744541-turn3456705（journal は 16MiB の上限で 532 行まで）。
+連鎖: 128 行目から town:kill-mob-approach だけ。_town_kill_mob_key（policy_town.py）は毎盤面「見えている倒せる町の敵」をゲームの距離で並べ直していた。
+  (24,59): 眠る汚いイタズラ小僧 (9,62) 距離16 < 眠る貧しげな傭兵 (40,57) 17 → '8'。
+  (23,59): 小僧 (9,62) は視界外、傭兵 18 < 小僧 (7,66)(9,65) 19 → '2'。400 盤面以上。
+直し 2f7c073773: 歩いて向かう相手を (index, race) で覚え（_town_hunt_commit）、倒す・見えなくなって最後のマスに着く・届かない・対象でなくなる
+  まで先頭に置く（_town_hunt_order）。隣の敵は今までどおり先に戦う。覚えは _town_hunt_target が立っている間だけ読むので、既存の目標の
+  リセット（階・町の変化、最後のマスに着く／届かない）がそのまま終わりになる。_town_kill_mob_key の中だけの変更。
+決まりの確認: 町で見える倒せる敵を倒しに行くこと自体は既存の設計（関数の説明「Approach and kill every visible town monster except the player's pets」）。
+  所有者の決まりは「勝てない時は攻撃しない／近づかない」（10-31 D32、死2）で、眠っている弱い町の敵に近づくことを禁じる決まりは見当たらない
+  （11-07「眠っている敵でも強い敵からは離れる・弱い敵だけ逃げない」はダンジョンの決まり）。よって近づくこと自体は止めていない。
+テスト tests/test_viewing_stops_1113_kill_mob_recorded.py（2本。町到着の記録の 140 行を choose_key に通し、記録のキーを送る再生。
+  食い違いは 43 行（一回買いの所で CLI の担当の退役が記録に無い）だけで、行き来の盤面は main で記録どおり再現。
+  直し後は (23,59) で北へ進み、その一歩を _ExecutorInputPort で送る）。
+  戻し確認: 2本とも失敗（'2' not found in ('7','8','9'); 130 行で '8' の後に '2'）。
+関係モジュール19個（町の敵・町の止まり・町の調停役ほか）は main 8982e80bb と結果が同じ（main で赤いものは同じく赤い）。
+
+==================================================================
+■ B. n1-a life-519 stall:floor-dwell:ranged:fire-target（11:16:57、11:48:00、12:41:03、追加の 14:53:12 は bot-9f3df0a31。dungeon 3、23F、Lv37 ゾンビ戦士）
+==================================================================
+4件とも同じ場面: 起きている見習戦士（race 110）が壁のくぼみ (17,158) に立ち（(17,156)(17,157)(17,159)(16,159) が壁）、プレイヤーは (16,149)〜(16,151)。
+  3盤面に1回 'fm*t5<Esc>'（ranged:fire-target）、相手は無傷のまま（14:53 の記録でも 200 回）。矢は 16 行目に落ち、拾いの歩き（seek-loot /
+  trigger-autodestroy）がそれを拾いに動くので、位置ごとの3回の外れの見張り（_ranged_target_attempts。位置が変わると消える）が働かなかった。
+ゲーム: `*` は target_able な相手だけを並べ、target_able は projectable() を要る（src/target/target-preparation.cpp:54-57、
+  src/target/projection-path-calculator.cpp:262-272、射程 18 は src/system/angband-system.cpp:45-48）。16 行目からの射線は (17,156) の壁で止まる
+  （bot の projection_path の移植で確認）ので、`*` は対象なしで自由カーソル（プレイヤーのマス）になる。記録の「ランス (2d8)がある。」はその表示で、撃つたびに1ターン失った。
+根: _ranged_attack_key の最後の `*t` の手順の条件 targetable_hostile が距離だけを見ていた（policy_combat.py）。
+直し f376bc7bf5: 既存の _may_project（projectable() の移植。未知のマスは開いている扱い＝届く側に寄せる）を条件に足した。
+  記録の盤面では直し後は seek-loot で落ちた矢の方へ歩く（その先で見習戦士の隣に出れば近接）。
+element-aware-shots-1113 との関係: こちらは「届かない相手に照準の手順で撃つ」の直しで、期待値や属性の免疫の計算には触れていない。選ぶ側の二重の直しにはならない。
+テスト tests/test_viewing_stops_1113_fire_target_recorded.py（3本、記録の最後の6盤面、新しい方針、最後の一歩を _ExecutorInputPort で送る）。
+  戻し確認: 2本失敗（turn 6590493 で 'fm*t5\x1b'、最後の盤面も ranged:fire-target）。
+期待の更新: tests/test_q18_water_cave.py の Q18ClearBeforeAdvancingTest（構成盤面）。隘路 (1,12) の左右は壁で、次の隘路の隣のイカ (1,16) へは
+  射線が通らない（(1,13) の壁で止まる）。古い期待「撃つ」は上の空撃ちを撃ったと数えていたので、「歩いて先へ進む」に直した（壁ではなく正しい振る舞いへの更新）。
+関係モジュール14個（射撃・召喚の撃ち・Q18 ほか）は main 8982e80bb と、上の1本を除き結果が同じ。
+
+==================================================================
+■ C1. n1-c life-205 stall:floor-dwell:explore（09:15:54、dungeon 3、23F、Lv45 魔道具術師、bot-30771c7cc）
+==================================================================
+退行: 今日 07:25 に取り込んだ loot_frontier（owner 11-13「その品の方へ探索を寄せる」）による。
+連鎖: 08:42:27 に階へ着いた。品 (39,84)(40,75)(40,86)(40,88)(40,90)(41,75) は既知のトラップで床が埋まった部屋の中（停止時の画面の 40〜42 行）。
+  拾いの歩きは安全な隣がある時はトラップへ踏み込まない（policy.py _walkable_neighbors の allow_damaging=None と _is_avoidable_hazard_grid）ので
+  経路なし → loot_frontier.note。20 盤面後から新しい探索の目標は「その品に一番近い届く境界」になり、プレイヤーの位置によらず選ばれた。
+  09:02 以降は x≈40 と x≈135 の間を約30秒ごとに往復（サーバの決定ログ: 8719 回の explore、(43,84)〜(43,98) の通路を51回通過）、30分の floor-dwell で停止。
+  品のマス自体が暗い部屋で marked でない隣を持つので「境界の隣か」では区別できない（最初の案はこれで効かなかった）。
+直し 28026b0046: 既知のトラップや危険な地形を越えれば既知の地図でプレイヤーとつながる品は、探索で道が開かないので誘導に使わない
+  （loot_frontier._hazard_closed、_walkable_neighbors(allow_damaging=True) の一回の幅優先）。
+テスト tests/test_viewing_stops_1113_explore_loot_recorded.py（2本、記録の最後の40盤面、新しい方針、最後の一歩を _ExecutorInputPort で送る）。
+  戻し確認: 1本失敗（誘導の経路 [(40,53),(41,54),...] != []）。
+関係モジュール9個（loot の決まり・召喚の記憶・探索のループほか）は main 8982e80bb と結果が同じ。
+
+==================================================================
+■ C2. n1-c life-205 loop-detected（10:58:43、同じ階）— 直していない（問い）
+==================================================================
+退行: 今日 07:25 に取り込んだ summoner_far_loot（owner 11-13「遠い品は拾ってよい」）による。
+連鎖: 招き猫（race 1263、召喚する、決して動かない）を約800ゲームターン前（turn 3782530-3782534）に (37,153) で見て、召喚の記憶に残っていた。
+  (60,94) では見える敵も感知した敵もなく免除 → 遠い品（(52..58,97..104)）へ seek-loot '6'。
+  (60,95) ではウルク (54,112) がテレパシーの範囲の端（距離 20、src/monster/monster-update.cpp:197,448、src/system/gamevalue.h:19 MAX_PLAYER_SIGHT=20）で
+  感知され免除が切れ、summoner-visible で explore '4'。(60,94) からは距離 21 で消える。30 盤面の '6'/'4' でループ検出。
+試した直し: 免除の「感知した敵もいない」を、敵を見た／感知した最後のゲームターンから召喚の記憶と同じ期間（monster_memory.UNSEEN_GAME_TURNS=1000）は
+  満たさないとした。記録の場面は直ったが、所有者の決めた場面そのもの（tests/test_n1c_loot_rules_1113_recorded.py の
+  test_far_items_are_taken_with_only_a_remembered_summoner、n1-c life-200: ファイア・トロルを約370ゲームターン前まで感知していて、その後に遠い品を拾う）
+  まで止めてしまったので取り下げた。端の出入りを止めるには「免除を戻すまでどれだけ待つか（または何をしたら戻すか）」という新しい決まりが要る。
+  記録のテストと盤面（test_viewing_stops_1113_summoner_edge_recorded.py、summoner-edge-205.json.xz、招き猫の記憶だけ構成）は
+  C:\Users\user\AppData\Local\Temp\claude\9e958c6758adbc4a\5d4c37b9-8401-4e79-9d9c-5fe1f7809f4a\scratchpad\c2-keep\ に残した（枝には入れていない）。
+  別の担当の一般の行き来の見張り（pingpong-root-1113、同じ理由の行き来も拾うと報告にある）が入れば、この形の停止はそちらでも防げる見込み。
+
+==================================================================
+保守性
+==================================================================
+  - A: 新しい述語を作らず、受注条件と同じ _temporary_status_clear を休む枝で使った。棚の不足は既存の下げ方（_q1_affordable_targets、carry_floor）に
+    合流させ、「お金」と「棚」で別の道を作らなかった（停止の名前は今までどおり）。
+  - D: 決まりは _town_kill_mob_key の隣の1つの小さな関数 _town_hunt_order に置いた。覚えの寿命を既存の _town_hunt_target に乗せたので、
+    新しいリセットの箇所を増やしていない（policy.py の初期化にも触れず、クラスの既定値 None）。
+  - B: 新しい射線の判定を作らず、既存の _may_project（projectable() の移植）を使った。照準の手順の条件1行だけ。
+  - C1: 決まりは持ち主の loot_frontier の中だけ（_hazard_closed）。危険マスの扱いは既存の _walkable_neighbors(allow_damaging=True) をそのまま使った。
+  - 記録の取り出しは tests/extract_viewing_stops_1113_fixtures.py の1本（arrival／boards の2種、行数の上限つき）にまとめた。
+  - クエスト番号・種族・町の名前などの特別扱いは書いていない。
+  - 気付いたこと（直していない）: 共有の scratchpad の同名ファイルを別の担当が上書きした（報告の下書き）。各担当の作業ファイルは固有名にした方がよい。
+
+==================================================================
+確認したこと（すべて前景または待ち合わせで実行、裏の処理は残していない）
+==================================================================
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK（各コミットの後）
+  - python scripts/town_work_manifest.py --write → 1913 candidates (372 proved data), zero unmapped（変更なし）
+  - 新しいモジュール4つ（opening 3本、kill_mob 2本、fire_target 3本、explore_loot 2本）→ すべて OK
+  - 関係モジュールを main（9c8baca87 または 8982e80bb）と比べた（11-05 の決定で赤いものは差だけ報告）:
+    A 13個 差なし／D 19個 差なし／B 14個 差は Q18 の1本（期待を更新済み）／C1 9個 差なし
+  - 比較用に一時 worktree（viewing-stops-1113am-base、viewing-stops-1113am-c、どちらも main の detached）を作り、終わった後に削除した。
+  全体の試験・preflight・mutation_check・fast_tier は流していない。
+
+==================================================================
+checks.json の案
+==================================================================
+{"id":"viewing-stops-1113-opening-route","owner":"2026-11-13 観戦の止まり（開始ルートの恐怖・松明の棚不足）","tests":["tests/test_viewing_stops_1113_opening_recorded.py"]}
+{"id":"viewing-stops-1113-town-hunt-commit","owner":"2026-11-13 観戦の止まり（町の敵退治の行き来）","tests":["tests/test_viewing_stops_1113_kill_mob_recorded.py"]}
+{"id":"viewing-stops-1113-fire-target-projectable","owner":"2026-11-13 観戦の止まり（射線の通らない相手への照準の空撃ち）","tests":["tests/test_viewing_stops_1113_fire_target_recorded.py","tests/test_q18_water_cave.py"]}
+{"id":"viewing-stops-1113-loot-frontier-hazard","owner":"2026-11-13 観戦の止まり（トラップ部屋の品への探索の誘導）","tests":["tests/test_viewing_stops_1113_explore_loot_recorded.py"]}
+
+==================================================================
+所有者への問い（新しい決まりが要るものだけ）
+==================================================================
+問い1（C2）: 覚えている召喚する敵だけの時に遠い品を拾う免除（11-13）は、感知の範囲の端にいる敵が一歩ごとに感知されたり消えたりする時、
+  どう扱いますか。案A: 敵を最後に感知してから一定のゲームターン（例 100 = 10 行動）は免除しない。
+  案B: 免除で品へ向かった一歩で敵が感知されたら、その品はこの階では諦める（数は増えない）。
+  案C: 今のまま（一般の行き来の見張り pingpong-root-1113 に任せる）。
+（D について: 眠っている弱い町の敵を倒しに行くこと自体を止めたいなら新しい決まりになりますが、今回の止まりの直しには不要です。）

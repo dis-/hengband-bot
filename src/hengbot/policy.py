@@ -9,7 +9,7 @@ from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
-from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
+from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
@@ -346,6 +346,7 @@ from hengbot.policy_constants import (
     ZAP_ROD_KEY,
 )
 from hengbot.policy_constants import (
+    UNSEEN_REVERSE_REASON,
     AIM_WAND_KEY,
     EQUIPMENT_SLOT_KEY,
     EXECUTABLE_QUEST_STRATEGY_IDS,
@@ -1435,7 +1436,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # points the path beside the decision log.
         self._alternate_dungeon_record_path = None
         self._alternate_dungeon_record = None
-        self._pending_recall_dungeon_id: int | None = None
+        # _pending_recall_dungeon_id lives in town_visit.FloorHolds (stage 3-2b).
         # Owner 2026-11-08: a refused global map walks off the wilderness
         # tile's edge (_wilderness_survival_key / _wilderness_edge_key).
         self._wilderness_global_refused = False
@@ -1444,14 +1445,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # destination, command turn, and pre-read stack count.  JSON snapshots
         # can redraw several times at the same game turn before ``recalling`` is
         # exported; without an issue watch each stale redraw consumes another
-        # Word of Recall scroll.
-        self._town_recall_issue_watch: tuple[int, int, int] | None = None
+        # Word of Recall scroll.  The watch lives in town_visit.FloorHolds.
         # The Rod of Recall the armed town read zapped (None: a scroll was read).
         self._town_recall_issue_rod: InventoryItem | None = None
-        # Whether this town visit already cancelled a recall as unready.  The
-        # read point never reads again in the same visit (read/cancel class
-        # bound); restored checkpoints read False through getattr.
-        self._town_visit_unready_recall_cancelled = False
+        # Whether this town visit already cancelled a recall as unready (the
+        # read/cancel class bound) lives in town_visit.FloorHolds.
         # A repetition fallback recall is the sole sanctioned exception to
         # ordinary town departure readiness.  Keep its ownership explicit so
         # the readiness cancel path cannot fight the cycle breaker's read.
@@ -2190,16 +2188,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_deposit_abandoned = False
         # A command can reject one item even while the Home still has free pages.
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
-        # Store purchases are retained for the rest of the current town visit.
-        self._town_visit_purchases: set[tuple[str, int, int]] = set()
-        self._town_visit_purchase_quantities: dict[tuple[str, int, int], int] = {}
-        # Successful sales are retained for the same town visit. Buying the
-        # same tval/sval item back is semantic churn, not shopping progress.
-        self._town_visit_sale_signatures: set[tuple[int, int]] = set()
-        # Most per-staff charges of an Identify staff sold this visit.  The
-        # 2026-10-03 swap sells the emptiest staff to buy a fuller one, which
-        # is an upgrade, not a sell-then-rebuy of the same item.
-        self._town_visit_sale_identify_charges: int | None = None
+        # The visit's purchases and sales (a sell-then-rebuy is churn; the
+        # 2026-10-03 Identify staff swap sells the emptiest staff for a fuller
+        # one, an upgrade) live in town_visit.FloorHolds (stage 3-2b).
         self.town_visit_report: str | None = None
         # Prices are learned only from shelves actually shown by the emitter.
         # Values are (unit price, units supplied); no guessed/default shopping
@@ -2422,7 +2413,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_optimization_preparation: (
             WarriorOptimizationPreparation | None
         ) = None
-        self._equipment_optimization_timed_out_this_visit = False
         self._equipment_optimization_telemetry: dict[str, object] = {}
         self._equipment_fresh_search_target_ids: frozenset[str] = frozenset()
         self._town_plan_projection_telemetry: dict[str, object] = {
@@ -2696,6 +2686,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         destruction_use.observe(self, snapshot)
         summon_response.observe(self, snapshot)
         tunnel_feasibility.observe(self, snapshot)
+        # Two owners stepping opposite ways in turn (owner 2026-11-13 「1と2だけ」, part 2).
+        pingpong_guard.observe(self, snapshot)
         # The Q25 phase battle the previous process left on this floor visit.
         quest25_battle_record.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
@@ -2894,9 +2886,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     "gold",
                 )
             key = self._refuse_no_progress_cycle(snapshot, key)
+            seam_input = (key, self.last_reason)
             procurement_key = self._town_procurement_decision(snapshot, key)
             if procurement_key is not None:
                 key = procurement_key
+            town_visit_plan.note_seam(self, snapshot, seam_input, key)
             if (
                 self._town_blocked_reason
                 == "town:blocked:home-withdraw-failed-stock-present"
@@ -6446,6 +6440,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     and self._store_visit.operation_effect_observed
                 ),
             )
+        key = pingpong_guard.after_ladder(self, snapshot, key)
         key = self._break_positional_oscillation(snapshot, key)
         key = self._break_livelock(snapshot, key)
         key = self._bound_escape_wait(snapshot, key)
@@ -7681,7 +7676,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     monster.position
                     for monster in self._engagement_breeder_population(snapshot)
                 ),
-            ])
+            ], owner="breeder-giveup")
             if any(
                 step in self._engagement_avoid_cells
                 for step in self._explore_path
@@ -7735,15 +7730,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return above_emergency
         # The emergency layer: the emergency consumables and the survival rungs after them
         # (ladder_emergency).
-        emergency = ladder_emergency.key(
-            self,
-            snapshot,
-            emergency_hostiles=emergency_hostiles,
-            paralyzers=paralyzers,
-            physical_adjacent=physical_adjacent,
-        )
-        if emergency is not PASS:
-            return emergency
+        # Its walks are survival walks: the left cells' bounded records do not hold them
+        # (left_cells.survival_walks).
+        with left_cells.survival_walks(self):
+            emergency = ladder_emergency.key(
+                self,
+                snapshot,
+                emergency_hostiles=emergency_hostiles,
+                paralyzers=paralyzers,
+                physical_adjacent=physical_adjacent,
+            )
+            if emergency is not PASS:
+                return emergency
 
         # The summoner-shots layer: what dies 被害無く, then the last shots at a summoner
         # (ladder_summoner_shots).
@@ -7802,17 +7800,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         mining_hostiles = mining.hostiles
 
         # The combat layer: survival, flight and the fight itself (ladder_combat).
-        combat = ladder_combat.key(
-            self,
-            snapshot,
-            strategic_hostiles=strategic_hostiles,
-            strategic_adjacent=strategic_adjacent,
-            physical_hostiles=physical_hostiles,
-            physical_adjacent=physical_adjacent,
-            mining_hostiles=mining_hostiles,
-        )
-        if combat is not PASS:
-            return combat
+        # Its walks are survival walks, as the emergency layer's (left_cells.survival_walks).
+        with left_cells.survival_walks(self):
+            combat = ladder_combat.key(
+                self,
+                snapshot,
+                strategic_hostiles=strategic_hostiles,
+                strategic_adjacent=strategic_adjacent,
+                physical_hostiles=physical_hostiles,
+                physical_adjacent=physical_adjacent,
+                mining_hostiles=mining_hostiles,
+            )
+            if combat is not PASS:
+                return combat
 
         # The safe-now layer: the survival gate and the floor work done while it is safe
         # (ladder_safe_now).
@@ -12318,7 +12318,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Food gates a new town departure. An already armed recall belongs
         # to Hengband; the carried-only decision does not authorise cancelling
         # it for food alone (suitefix3 task, 2026-10-04).
-        if not leaves["free_pack_slots_ready"]:
+        if not leaves["free_pack_slots_ready"] and self._recall_pack_fuller_than_read(snapshot):
             blockers.append("pack-too-full")
         if (
             snapshot.player.class_id >= 0
@@ -12331,6 +12331,25 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return blockers
 
 
+
+    def _recall_pack_fuller_than_read(self, snapshot: Snapshot) -> bool:
+        """Whether the pack holds more slots than when the armed read was
+        authorised (town rebuild stage 3-3b, owner 2026-11-12 「出発の判断を1つに」).
+
+        The read accepts four free slots on the terminal certificate, which
+        signs the exact stacks, names included: a survival step during the
+        countdown that changes a device's charges or a ration's count voids
+        it although no slot was taken.  The canceller then undid the recall
+        the departure had authorised, and the read point refused to read again
+        (n1-c life-205 2026-11-13 06:31: a zombie Magic-Eater absorbed a wand,
+        96 -> 95 charges; recall-readiness-contradiction).  The pack leaf is a
+        regression only when the pack is fuller than at the read.  A read this
+        policy did not record (a restored older checkpoint) keeps the leaf.
+        """
+        read_slots = getattr(self, "_town_recall_read_pack_slots", None)
+        if read_slots is None:
+            return True
+        return len(self._recall_departure_board(snapshot).inventory) > read_slots
 
     @staticmethod
     def _has_cursed_equipment(snapshot: Snapshot) -> bool:
@@ -13745,6 +13764,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         # For the town hold (rev 9.3 R2): see ``_nearest_goal_step``.
         capture = self.__dict__.get("_claim_target_capture")
+        refused = self._engagement_avoid_cells | left_cells.refused(self, snapshot)
         while queue:
             position, first_step = queue.popleft()
             if position != start and position in targets:
@@ -13755,7 +13775,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # Same lethal-danger weight as every other routing BFS: a
                 # device-recovery route through an avoided cell would repeat
                 # _step_toward's refusal forever on this static floor.
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in refused:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -14900,8 +14920,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         breeders = self._engagement_breeder_population(snapshot)
         self._claim_engagement_avoid_cells(
-            [*plan.trigger_last_seen.values(), *(monster.position for monster in breeders)]
-        )
+            [*plan.trigger_last_seen.values(), *(monster.position for monster in breeders)],
+            owner="breeder-giveup")
         if any(step in self._engagement_avoid_cells for step in self._explore_path):
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         step = self._explore_step(snapshot)
@@ -15151,12 +15171,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         if route is not None and committed:
             if snapshot.player.position != route[1]:
-                step = self._position_target_step(snapshot, route[1])
+                # Its own walk passes the cells it left (left_cells.walking_as).
+                with left_cells.walking_as(self, "detected:prepare-choke"):
+                    step = self._position_target_step(snapshot, route[1])
                 if step is not None:
                     self.last_reason = "detected:prepare-choke"
                     self._declare_reach(route[1])
                     # the committed pack this retreat is from, still perceived
                     self._declare_triggers(committed)
+                    # The cell left, until the pack is gone (left_cells).
+                    left_cells.leave(self, snapshot, (snapshot.player.position,),
+                                     owner=self.last_reason, threats=committed, step=step)
                     return self._step_toward(snapshot, step)
             # Arrived at the chosen cell without it being a choke any more, or
             # it is no longer reachable: the commitment is spent either way.
@@ -15171,9 +15196,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not threats:
             self._detected_threat_route = None
             return None
-        destination, step = self._summoner_retreat_route(
-            snapshot, threats, detected
-        )
+        with left_cells.walking_as(self, "detected:prepare-choke"):
+            destination, step = self._summoner_retreat_route(
+                snapshot, threats, detected
+            )
         if destination is None:
             # Owner 2026-10-23: with no covered cell reachable the preparation
             # does not retreat at all (no flee step, no wait in the open); the
@@ -15202,6 +15228,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # SWARM_LOOKAHEAD with no ranged damage (or the converging breeders),
         # the same selection the route above retreats from.
         self._declare_triggers(threats)
+        if step is not None:
+            # The cell left, until the pack is gone (left_cells).
+            left_cells.leave(self, snapshot, (snapshot.player.position,),
+                             owner=self.last_reason, threats=threats, step=step)
         return self._step_toward(snapshot, step)
 
 
@@ -15531,6 +15561,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._unseen_choke_position = None
         self._unseen_choke_started_turn = None
         self._unseen_retreat_blind_only = False
+        # The retreat retired: the cells it left are a way again (left_cells).
+        left_cells.lift(self, UNSEEN_REVERSE_REASON)
 
     @staticmethod
     def _is_unseen_spell_message(message: str) -> bool:
@@ -15857,7 +15889,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not engagement_avoid_seal.seals(
                 self, snapshot, snapshot.player.position, step):
             self._claim_engagement_avoid_cells(
-                (snapshot.player.position,), snapshot=snapshot, threats=hostiles)
+                (snapshot.player.position,), snapshot=snapshot, threats=hostiles,
+                owner="threat:avoid-engagement")
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:avoid-engagement"
         self._declare_reach(step)
@@ -15973,8 +16006,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         shrank to the cells nearer it and the explore stepped '3' straight back; at 20:44
         to 20:45 ``chest:approach`` walked toward a chest the loot walk kept off, between
         [4,38] and [5,39], until the loop detector stopped the bot three more times."""
-        return (frozenset(self._engagement_avoid_cells) | self._engagement_route_veto(snapshot)
-                | self._unseen_attack_area_veto(snapshot))
+        return (frozenset(self._engagement_avoid_cells) | left_cells.refused(self, snapshot)
+                | self._engagement_route_veto(snapshot) | self._unseen_attack_area_veto(snapshot))
 
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
@@ -16507,12 +16540,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _least_visited_neighbor(self, snapshot: Snapshot) -> Position | None:
+        refused = self._engagement_avoid_cells | left_cells.refused(self, snapshot)
         candidates = [
             candidate
             for candidate in self._walkable_neighbors(
                 snapshot, snapshot.player.position
             )
-            if candidate not in self._engagement_avoid_cells
+            if candidate not in refused
             and (
                 not snapshot.in_town
                 or (
@@ -16567,19 +16601,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _claim_engagement_avoid_cells(
         self, cells: Iterable[Position], *, snapshot: Snapshot | None = None,
-        threats: Iterable[MonsterState] = (),
+        threats: Iterable[MonsterState] = (), owner: str = "engagement-claim",
     ) -> None:
-        """Record an engagement/status-threat avoidance claim with ownership.
+        """Record an engagement/status-threat avoidance claim with ownership: the
+        left-cell registry's retreat lifetime (left_cells.leave).
 
         The engagement owner's claims are tracked separately so the warning
         owner's exhaustion withdrawal can never remove them from the shared
         routing set.  A retreat names the ``threats`` it fled, and the claim
         is lifted once they are gone (retreat_veto_life); without them it
         stays for the floor visit."""
-        owned = set(cells)
-        self._engagement_owned_avoid_cells |= owned
-        self._engagement_avoid_cells |= owned
-        retreat_veto_life.claim(self, snapshot, owned, tuple(threats))
+        left_cells.leave(self, snapshot, cells, owner=owner, threats=threats, shared=True)
 
 
     def _warning_prompt_response_key(self, snapshot: Snapshot) -> str | None:

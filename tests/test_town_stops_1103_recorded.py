@@ -13,6 +13,7 @@ import lzma
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from tests.support import item_use_route_wall
 from unittest import mock
 
 from hengbot import identification_wait, random_quest_reserve, town_last_stand, town_terminal
@@ -48,6 +49,7 @@ def tearDownModule():
 class TownStops1103RecordedTest(executor_pins.ProductionHarness):
     def setUp(self):
         super().setUp()
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
         scratch = TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
         self.scratch = Path(scratch.name)

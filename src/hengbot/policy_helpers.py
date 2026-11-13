@@ -28,7 +28,7 @@ from hengbot.model import (
 )
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.item_reservation import decision_memo
-from hengbot import consumable_policy
+from hengbot import consumable_policy, item_use_route
 from hengbot.policy_constants import (
     ExplorationPathOutcome, FOOD_TYPE_MANA, HEAVY_CURSE_TAG, PLAYER_CLASS_BERSERKER, SPEED_ENERGY_90,
     WAIT_KEY,
@@ -382,6 +382,9 @@ class PolicyHelpersMixin:
         # through the gates below.
         elif consumable_policy.discarded(item):
             junk = "table-discard"
+        # Owner 2026-11-13: a kind no consumer uses that no store buys (item_use_route).
+        elif item_use_route.disposable(self, snapshot, item):
+            junk = "no-use-route"
         # Supervisor Q7: only the launcher worn now counts; with none worn
         # every ammunition stays, and a quest reservation keeps its stack.
         elif (item.is_ammo

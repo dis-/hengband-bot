@@ -161,30 +161,36 @@ POWERS = {(power.kind, power.sval): power for power in (
 )}
 _BY_NAME = {(power.kind, name): power for power in POWERS.values() for name in power.names}
 
-# effect-monster-resist-hurt.cpp: IM_* is dam /= 9; HURT_FIRE/COLD doubles.
-_IMMUNITY = {"ACID": "IM_ACID", "ELEC": "IM_ELEC", "FIRE": "IM_FIRE",
-             "COLD": "IM_COLD", "POIS": "IM_POIS"}
-_HURT = {"FIRE": "HURT_FIRE", "COLD": "HURT_COLD", "DISINTEGRATE": "HURT_ROCK"}
+# The monster's side of each element, one row per element (a new attack power names one of
+# these, or adds its element here).
+#
+# effect-monster-resist-hurt.cpp: an immunity leaves dam /= 9 (acid :34-40, elec :53-59,
+# fire :72-78, cold :101-107, pois :130-136); HURT_FIRE / HURT_COLD double (:82-88, :111-117):
+# element -> (immunity, vulnerability).
+IMMUNE_SHARE = 1 / 9
+_ELEMENT_FLAGS = {"ACID": ("IM_ACID", None), "ELEC": ("IM_ELEC", None),
+                  "FIRE": ("IM_FIRE", "HURT_FIRE"), "COLD": ("IM_COLD", "HURT_COLD"),
+                  "POIS": ("IM_POIS", None), "DISINTEGRATE": (None, "HURT_ROCK")}
 # effect_monster_meteor: dam * 3 / (randint1(6) + 6).
 _METEOR_RESIST = sum(3 / (roll + 6) for roll in range(1, 7)) / 6
+# element -> (resistance, the share it leaves).
+_RESISTED = {"ROCKET": ("RES_SHAR", 0.5), "METEOR": ("RES_METEOR", _METEOR_RESIST)}
+# element -> the flag without which it deals nothing: effect-monster-lite-dark.cpp:15-16
+# (LITE_WEAK: dam = 0 unless HURT_LITE), effect-monster-evil.cpp (DISP_EVIL, DISP_UNDEAD).
+_NEEDS = {"LITE_WEAK": "HURT_LITE", "DISP_EVIL": "EVIL", "DISP_UNDEAD": "UNDEAD"}
 
 
 def _element_multiplier(element, flags, race_known=True):
-    if element in _IMMUNITY and _IMMUNITY[element] in flags:
-        return 1 / 9
-    if element in _HURT and _HURT[element] in flags:
+    immunity, vulnerability = _ELEMENT_FLAGS.get(element, (None, None))
+    if immunity in flags:
+        return IMMUNE_SHARE
+    if vulnerability in flags:
         return 2.0
-    if element == "ROCKET" and "RES_SHAR" in flags:
-        return 0.5
-    if element == "METEOR" and "RES_METEOR" in flags:
-        return _METEOR_RESIST
-    if element == "LITE_WEAK":
-        return 1.0 if "HURT_LITE" in flags else 0.0
-    if element == "DISP_EVIL":
-        return 1.0 if "EVIL" in flags else 0.0
-    if element == "DISP_UNDEAD":
-        # effect-monster-evil.cpp effect_monster_disp_undead.
-        return 1.0 if "UNDEAD" in flags else 0.0
+    if element in _RESISTED:
+        resistance, share = _RESISTED[element]
+        return share if resistance in flags else 1.0
+    if element in _NEEDS:
+        return 1.0 if _NEEDS[element] in flags else 0.0
     if element == "HYPODYNAMIA":
         # MonraceDefinition::has_living_flag; an unknown race is not proven living.
         living = race_known and not flags & {"DEMON", "UNDEAD", "NONLIVING"}
@@ -193,7 +199,15 @@ def _element_multiplier(element, flags, race_known=True):
 
 
 def expected_damage(power, level, flags):
-    """Average damage of one successful use against a race with ``flags``."""
+    """Average damage of one successful use against a race with ``flags``.
+
+    Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に期待値で比べて高い方（耐性・命中率・成功率
+    まで）」, its use 「免疫の属性を撃たない」: a power whose one element the race's known flags
+    leave at an immunity's ninth or less (``IMMUNE_SHARE``; nothing at all for the weak light on
+    a race without HURT_LITE) scores 0, so no chooser spends a charge on it (n1-b life-384,
+    2026-11-13 Quest 25: 235 shots at the stairway to hell, IM_ACID/ELEC/FIRE/POIS, of which
+    weak light 75, acid 41, lightning 41, fire 29 and poison 15).  Dragon's Breath picks its
+    element at random, so each of its five keeps the game's share."""
     known = flags if flags is not None else frozenset()
     if "RES_ALL" in known:
         return 0.0
@@ -201,8 +215,10 @@ def expected_damage(power, level, flags):
         damage = sum(value * _element_multiplier(element, known)
                      for value, element in _DRAGON_BREATH) / len(_DRAGON_BREATH)
     else:
-        damage = power.damage(level) * _element_multiplier(
-            power.element, known, race_known=flags is not None)
+        share = _element_multiplier(power.element, known, race_known=flags is not None)
+        if share <= IMMUNE_SHARE:
+            return 0.0
+        damage = power.damage(level) * share
     if "REFLECTING" in known and power.shape in {"bolt", "bolt-or-beam"}:
         # Beams are not PROJECT_REFLECTABLE; a bolt passes 1 time in 10.
         beam = power.beam_percent / 100
@@ -269,9 +285,14 @@ def sight_hits_bystander(snapshot) -> bool:
     return any(not monster.hostile for monster in snapshot.visible_monsters)
 
 
+def race_id_flags(policy, race_id):
+    """The race flags the bot models for ``race_id``, else None (unknown race)."""
+    return getattr(policy._monrace_knowledge.get(race_id), "flags", None)
+
+
 def race_flags(policy, monster):
     """The race flags the bot models for ``monster``, else None (unknown race)."""
-    return getattr(policy._monrace_knowledge.get(monster.race_id), "flags", None)
+    return race_id_flags(policy, monster.race_id)
 
 
 def can_use_powers(snapshot) -> bool:

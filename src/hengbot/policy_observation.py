@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -16,7 +16,7 @@ from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCR
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
 from hengbot.policy_types import TownVisitLedger
-from hengbot.town_visit import is_fresh_visit, town_holds
+from hengbot.town_visit import floor_holds, is_fresh_visit, town_holds
 from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.unwanted_kinds import own_book_tvals
@@ -859,14 +859,8 @@ class ObservationMixin:
                 if previous_floor is None and snapshot.floor_key[2] == 2
                 else None
             )
-            self._equipment_optimization_timed_out_this_visit = False
-            self._pending_recall_dungeon_id = None
-            self._town_recall_issue_watch = None
-            self._town_visit_unready_recall_cancelled = False
-            self._town_visit_purchases.clear()
-            self._town_visit_purchase_quantities.clear()
-            self._town_visit_sale_signatures.clear()
-            self._town_visit_sale_identify_charges = None
+            # The floor's hold flags end with it (town_visit.FloorHolds).
+            floor_holds(self).release()
             self._town_visit_ledger.purchase_churn_exclusions.clear()
             self._town_visit_ledger.purchase_churn_class_exclusions.clear()
             self.town_visit_report = None
@@ -1003,6 +997,7 @@ class ObservationMixin:
             immobile_threat_memory.forget_floor_visit(self)
             retreat_enclosure.forget_floor_visit(self)
             retreat_veto_life.forget_floor_visit(self)
+            left_cells.forget_floor_visit(self)
             threat_tiers.forget_floor_visit(self)
             oneshot_breath.forget_floor_visit(self)
             hunt_target.forget_floor_visit(self)

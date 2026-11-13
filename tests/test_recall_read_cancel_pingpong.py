@@ -126,10 +126,14 @@ class RecallReadCancelClassTest(unittest.TestCase):
         policy._town_store_attempted[STORE_HOME] = board.turn
         return policy
 
-    def _visit(self, leaf, *, filler=0, certify=False):
-        """Drive A -> B -> C; return the reasons and keys in order."""
+    def _visit(self, leaf, *, filler=0, certify=False, fuller=0):
+        """Drive A -> B -> C; return the reasons and keys in order.
+
+        ``fuller``: items board B carries beyond board A (the pack filled
+        after the read)."""
         board_a = self._board(recall=RECALL_STOCK, recalling=False, turn=READ_TURN, filler=filler)
-        board_b = self._board(recall=RECALL_STOCK - 1, recalling=True, turn=READ_TURN + 10, filler=filler)
+        board_b = self._board(recall=RECALL_STOCK - 1, recalling=True, turn=READ_TURN + 10,
+                              filler=filler + fuller)
         board_c = self._board(recall=RECALL_STOCK, recalling=False, turn=READ_TURN + 20, filler=filler)
         policy = self._policy(board_a)
         if certify:
@@ -199,7 +203,7 @@ class RecallReadCancelClassTest(unittest.TestCase):
                 emitted = self._visit(leaf)
                 self.assertEqual(emitted[0], ("rra", "town:recall-to-angband"))
                 self._assert_no_read_cancel_read(emitted)
-                if leaf in CANCEL_LEAVES:
+                if leaf in CANCEL_LEAVES and leaf != "free_pack_slots_ready":
                     # The leaf changed after the read: one cancel, then the
                     # visit stops visibly instead of reading again.
                     self.assertEqual(
@@ -209,8 +213,20 @@ class RecallReadCancelClassTest(unittest.TestCase):
                     self.assertIn(CONTRADICTION, POLICY_FINAL_STOP_REASONS)
                 else:
                     # The canceller does not act on this leaf: the armed
-                    # recall stays, so the visit cannot alternate.
+                    # recall stays, so the visit cannot alternate.  The pack
+                    # leaf alone, with no slot taken since the read, is no
+                    # regression (town rebuild stage 3-3b, n1-c life-205
+                    # 2026-11-13 06:31: an absorbed wand's charges voided the
+                    # certificate); test_r2_a_fuller_pack_still_cancels below.
                     self.assertEqual(emitted[1], (None, None))
+
+    def test_r2_a_fuller_pack_still_cancels(self):
+        """The pack leaf cancels when the pack holds more slots than at the read."""
+        emitted = self._visit("free_pack_slots_ready", fuller=1)
+        self.assertEqual(emitted[0], ("rra", "town:recall-to-angband"))
+        self._assert_no_read_cancel_read(emitted)
+        self.assertEqual(emitted[1][1], "town:cancel-unready-recall")
+        self.assertEqual(emitted[2][1], CONTRADICTION)
 
     def test_r2_the_read_alone_never_arms_the_cancel(self):
         """Incident shape: 19 items, the four-slot certificate, nothing else.

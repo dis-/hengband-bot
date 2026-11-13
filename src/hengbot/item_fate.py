@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from hengbot import spare_gear, town_pack_budget
+from hengbot import item_use_route, spare_gear, town_pack_budget
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.item_reservation import decision_memo, item_available
 from hengbot.model import SV_STAFF_IDENTIFY, TVAL_STAFF
@@ -200,8 +200,10 @@ def sweep_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
         if ware is not None:
             return ware
     rows = [(result, item) for item in stock
-            if SLOT_BY_TVAL.get(item.tval) is not None
-            and gear_tier(policy, snapshot, item) == ANY
+            if ((SLOT_BY_TVAL.get(item.tval) is not None
+                 and gear_tier(policy, snapshot, item) == ANY)
+                # Owner 2026-11-13: Home kinds no consumer uses (item_use_route).
+                or item_use_route.surplus(policy, snapshot, item))
             and (result := policy._home_full_sale_candidate(snapshot, item)) is not None
             and policy._can_add_item_without_overweight(snapshot, item)]
     return min(rows, key=lambda entry: sale_value(policy, entry[0][0])) if rows else None

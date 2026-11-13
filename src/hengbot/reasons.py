@@ -382,6 +382,14 @@ def is_attack(reason: str | None) -> bool:
     return row is not None and row.attack
 
 
+def survival(reason: str | None) -> bool:
+    """``reason`` is a survival rung's: an escape the count reads (``COUNTED``) or a walking
+    retreat (the rows of owner 2026-11-09 「歩いての後退は数えない」).  The ping-pong guard never
+    refuses one (pingpong_guard)."""
+    row = lookup(reason)
+    return row is not None and (row.kind in COUNTED or row.rule == _RULE_WALK)
+
+
 def reasons_of(kind: str) -> frozenset:
     """The exact reasons of ``kind`` (the counted kinds have no pattern rows)."""
     return frozenset(row.pattern for row in ROWS if row.kind == kind)

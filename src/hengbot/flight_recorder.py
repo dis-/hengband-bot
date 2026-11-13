@@ -251,9 +251,7 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
     visit = state.get("_town_visit")
     if visit is not None:
         state = {**state, **legacy_bindings(visit)}
-    holds = state.get("_town_holds")
-    if holds is not None:
-        state = {**state, **hold_bindings(holds)}
+    state = {**state, **hold_bindings(state)}
     for name, value in state.items():
         if name.startswith("_latch_capture_") or name in _CAPTURE_STATE_NAMES:
             continue

@@ -193,7 +193,7 @@ def _fixed_options(policy, snapshot, target, direction, *, torch=True) -> list:
     if thrown is not None:
         options.append((attack_expectation.torch_throw(policy, snapshot, target, thrown),
                         lambda: _use(policy, snapshot, "throw", thrown, direction, TORCH_REASON)))
-    return options
+    return attack_expectation.effective(options)
 
 
 def _launcher_ammo(policy, snapshot):
@@ -327,7 +327,7 @@ def _adjacent_options(policy, snapshot, target, direction) -> list:
             kind, ammo, reason = chosen
             options.append((attack_expectation.launcher_shot(policy, snapshot, target, ammo),
                             lambda: _use(policy, snapshot, kind, ammo, direction, reason)))
-    return options
+    return attack_expectation.effective(options)
 
 
 def _strongest_adjacent_key(policy, snapshot, target, direction) -> str | None:

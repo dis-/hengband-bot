@@ -204,7 +204,7 @@ def _step_off(policy, snapshot, *, adjacent_only: bool):
     step = _back_step(policy, snapshot, occupied, adjacent_only=adjacent_only)
     if step is not None and entry is not None:
         # No crossing: the walk is given up here for the floor visit.
-        policy._claim_engagement_avoid_cells(_hazard_ground(policy, snapshot))
+        policy._claim_engagement_avoid_cells(_hazard_ground(policy, snapshot), owner=STEP_REASON)
     return step
 
 
@@ -299,7 +299,7 @@ def _safe_ground(policy, snapshot) -> None:
     given_up = _given_up(policy, snapshot)
     policy._hazard_given_up = policy._hazard_crossing = None
     if given_up:
-        policy._claim_engagement_avoid_cells(given_up)
+        policy._claim_engagement_avoid_cells(given_up, owner=STEP_REASON)
 
 
 def leave_first(decide):

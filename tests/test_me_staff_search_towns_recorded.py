@@ -16,6 +16,7 @@ import tests  # noqa: F401 -- isolate live runtime files
 
 import copy
 import unittest
+from tests.support import item_use_route_wall
 from unittest.mock import patch
 
 from hengbot import me_staff_sequence as sequence
@@ -29,6 +30,10 @@ STOCKOUT = "me-staff:fundraise:staff-stockout:"
 
 
 class StaffSearchTownsTest(nokey.PostedKey):
+    def setUp(self):
+        super().setUp()
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
+
     def policy(self):
         absorbed = {**nokey.CASE["recorded_sequence"]["absorbed"],
                     **{str(sval): 9 for sval in ABSORBED}}

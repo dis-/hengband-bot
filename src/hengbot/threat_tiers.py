@@ -52,6 +52,7 @@ from hengbot import (
     destruction_use,
     disenchant_avoid,
     hunt_target,
+    left_cells,
     retreat_veto_life,
     speed_dose,
     survival_preemption,  # noqa: F401 -- re-exported (tests patch threat_tiers.survival_preemption)
@@ -520,9 +521,13 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
             policy.last_reason = SENSED_LEAVE_PREFIX + "recall"
             return policy._read_key(snapshot, recall)
     if walk_leaves(policy, snapshot, hostiles):
-        step = policy._flee_step(snapshot, hostiles)
+        with left_cells.walking_as(policy, SENSED_LEAVE_PREFIX + "walk"):
+            step = policy._flee_step(snapshot, hostiles)
         if step is not None:
             policy.last_reason = SENSED_LEAVE_PREFIX + "walk"
+            # The cell left, until the T1s are gone (left_cells).
+            left_cells.leave(policy, snapshot, (snapshot.player.position,),
+                             owner=policy.last_reason, threats=strong, step=step)
             return policy._step_toward(snapshot, step)
     return None
 
