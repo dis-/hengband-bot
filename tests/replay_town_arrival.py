@@ -34,7 +34,7 @@ from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.runtime_paths import configured_home_history_dir, configured_runtime_dir
 from hengbot.town_arrival_checkpoint import (
-    DIRECTORY, JOURNAL_FILE, POLICY_FILE, SIDECAR_DIRECTORY, TRUNCATED_FILE, restore_runtime_files,
+    DIRECTORY, JOURNAL_FILE, SIDECAR_DIRECTORY, TRUNCATED_FILE, policy_file, restore_runtime_files,
 )
 from hengbot.warrior_optimization import load_character_calibration
 from town_work_corpus import replay_window
@@ -52,7 +52,7 @@ def restore(visit: Path, scratch: Path | None = None) -> HengbotPolicy:
     re-pointed there, and every captured runtime file is written to the
     restored policy's isolated locations.
     """
-    policy = restore_checkpoint_bytes(HengbotPolicy, (visit / POLICY_FILE).read_bytes())
+    policy = restore_checkpoint_bytes(HengbotPolicy, policy_file(visit).read_bytes())
     if scratch is not None:
         if policy._character_dump_path is not None:
             policy._character_dump_path = scratch / Path(policy._character_dump_path).name
