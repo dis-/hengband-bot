@@ -16,7 +16,7 @@ from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCR
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
 from hengbot.policy_types import TownVisitLedger
-from hengbot.town_visit import is_fresh_visit, town_holds
+from hengbot.town_visit import floor_holds, is_fresh_visit, town_holds
 from hengbot.warrior_optimization import character_intrinsic_flags
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.unwanted_kinds import own_book_tvals
@@ -856,14 +856,8 @@ class ObservationMixin:
                 if previous_floor is None and snapshot.floor_key[2] == 2
                 else None
             )
-            self._equipment_optimization_timed_out_this_visit = False
-            self._pending_recall_dungeon_id = None
-            self._town_recall_issue_watch = None
-            self._town_visit_unready_recall_cancelled = False
-            self._town_visit_purchases.clear()
-            self._town_visit_purchase_quantities.clear()
-            self._town_visit_sale_signatures.clear()
-            self._town_visit_sale_identify_charges = None
+            # The floor's hold flags end with it (town_visit.FloorHolds).
+            floor_holds(self).release()
             self._town_visit_ledger.purchase_churn_exclusions.clear()
             self._town_visit_ledger.purchase_churn_class_exclusions.clear()
             self.town_visit_report = None

@@ -254,7 +254,7 @@ def normalize_policy_state(restored, *, restart=False):
     # (a name an old checkpoint lacks keeps the field's default; the stockout
     # plans' False is their former set-end behavior).
     adopt_town_visit_attributes(restored.__dict__)
-    # Town rebuild stage 3-2a: the hold flags live in the town holds.
+    # Town rebuild stage 3-2: the hold flags live in their containers.
     adopt_town_holds(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES:
@@ -364,8 +364,6 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_quest_strategy_recovery_pickup_posted", None)
     restored.__dict__.setdefault("_q2_blue_recovery_perceived", set())
     restored.__dict__.setdefault("_quest_light_areas_read", set())
-    restored.__dict__.setdefault("_town_visit_purchase_quantities", {})
-    restored.__dict__.setdefault("_town_visit_sale_identify_charges", None)
     restored.__dict__.setdefault("_crossarea_fundraising_enforced", False)
     restored.__dict__.setdefault("_fundraising_run_purpose", None)
     restored.__dict__.setdefault("_fundraising_purpose_record", None)
@@ -395,7 +393,6 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_home_observed_addresses", {})
     # Older captures predate the read/cancel class bound; False is "no recall
     # cancelled as unready this visit", what a fresh visit starts with.
-    restored.__dict__.setdefault("_town_visit_unready_recall_cancelled", False)
     restored.__dict__.setdefault("_safety_deferred_loot", set())
     restored.__dict__.setdefault("_loot_safety_rearmed", set())
     restored.__dict__.setdefault("_home_knowledge_scan_epoch", None)
