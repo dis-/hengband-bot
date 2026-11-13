@@ -2824,6 +2824,111 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "json_snapshot.py:_Decoder._remember": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Decoder.decode": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Encoder._callable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Encoder._close": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Encoder._items": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Encoder._number": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Encoder._open": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Encoder._with_id": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_Encoder.encode": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_deep": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_document": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_qualname": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:_resolve": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:dumps": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "json_snapshot.py:loads": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "junk_destroy_now.py:destroy_now_key": {
     "classification": "dungeon-only",
     "rows": [
@@ -2866,6 +2971,26 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_combat.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "departure",
+      "survival",
+      "fundraising",
+      "positioning",
+      "combat"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_descent.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "departure",
+      "survival",
+      "store-approach"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_emergency.py:key": {
     "classification": "adapter",
     "rows": [
@@ -2893,11 +3018,106 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_idle.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "departure",
+      "loot-exploration",
+      "store-exit",
+      "plan-routing",
+      "cross-town",
+      "quest-service",
+      "positioning",
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-approach",
+      "home-catalogue",
+      "home-deposit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "home-disposal",
+      "destruction",
+      "identification",
+      "device",
+      "remove-curse",
+      "enchant",
+      "equipment-optimization",
+      "equipment-transaction",
+      "equipment-inscription",
+      "stat-recovery",
+      "rumor",
+      "restock",
+      "fundraising",
+      "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ladder_light.py:key": {
     "classification": "adapter",
     "rows": [
       "survival",
       "quest-service"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_objectives.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "quest-service",
+      "positioning",
+      "home-disposal",
+      "departure",
+      "equipment-transaction",
+      "home-deposit",
+      "loot-exploration",
+      "stat-recovery",
+      "identification",
+      "fundraising",
+      "destruction",
+      "home-catalogue",
+      "store-approach",
+      "device",
+      "equipment-inscription",
+      "remove-curse",
+      "enchant",
+      "cross-town",
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy",
+      "sale",
+      "sale-address",
+      "browse",
+      "store-exit",
+      "home-withdraw",
+      "home-executor",
+      "home-relief",
+      "equipment-optimization",
+      "rumor",
+      "restock",
+      "survival",
+      "plan-routing",
+      "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_opening.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "home-withdraw",
+      "store-approach",
+      "fundraising",
+      "departure",
+      "equipment-transaction"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -2915,6 +3135,38 @@
       "loot-exploration",
       "destruction",
       "identification"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_pre_combat.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "equipment-transaction",
+      "cross-town",
+      "combat",
+      "survival",
+      "fundraising"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_rest.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "quest-service"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ladder_safe_now.py:key": {
+    "classification": "adapter",
+    "rows": [
+      "survival",
+      "loot-exploration",
+      "quest-service",
+      "quest-buy",
+      "home-withdraw",
+      "store-approach",
+      "destruction"
     ],
     "delegation": "selected child; no independent success"
   },

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """The dungeon decision ladder as the source says it is, against hengbot.dungeon_ladder.
 
-The order of the rungs is the order of ``return`` in ``HengbotPolicy._decide``:
-nothing else states it.  This reads that order from the AST and fails when the
-table in ``hengbot/dungeon_ladder.py`` says anything else, so a reorder is a
-visible one-line diff of the table in the same commit.  A layer asked in a module
-of its own (``dungeon_ladder.LAYER_MODULES``) is read inside that module's ``key``
-in place of its call in ``_decide``.  ``--print`` lists the rows as the source has
+The order of the rungs is the order of ``return`` in ``HengbotPolicy._decide`` and in
+the layer modules it asks (``dungeon_ladder.LAYER_MODULES``, one per layer): nothing
+else states it.  This reads that order from the AST, each layer module's ``key`` in
+place of its call in ``_decide``, and fails when the table in
+``hengbot/dungeon_ladder.py`` says anything else, so a reorder is a visible one-line
+diff of the table in the same commit.  ``--print`` lists the rows as the source has
 them, for writing the table's diff.
 """
 from __future__ import annotations
@@ -318,10 +318,11 @@ def _layer_module_findings(policy_source: str, module_sources: dict[str, str]) -
         if called.count(f'{module}.key') != 1:
             findings.append(f'layer {name}: _decide calls {module}.key '
                             f'{called.count(f"{module}.key")} time(s), not once')
+        # Falling off the end would return None, which _decide returns as its answer: a layer
+        # module ends with ``return PASS``, or (the last layer, idle) with its last rung's return.
         last = _function(ast.parse(module_sources[module]), 'key').body[-1]
-        if not (isinstance(last, ast.Return) and isinstance(last.value, ast.Name)
-                and last.value.id == 'PASS'):
-            findings.append(f'layer {name}: {module}.key does not end with return PASS')
+        if not isinstance(last, ast.Return):
+            findings.append(f'layer {name}: {module}.key falls off its end (return PASS)')
         said = [(rung.name, rung.kind) for rung in layers[name].rungs]
         found = [row[:2] for row in layer_module_rows(module_sources[module], module)]
         if said != found:
