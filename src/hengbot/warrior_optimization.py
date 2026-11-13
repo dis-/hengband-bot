@@ -8,7 +8,7 @@ import hashlib
 import json
 from math import isfinite
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Iterable, Mapping
 
 from hengbot.equipment_encounters import normal_encounters, representative_encounters
 from hengbot.equipment_optimizer import (
@@ -96,6 +96,47 @@ REPRESENTATIVE_EVALUATION_WORKLOAD_THRESHOLD = 12_000
 INCREMENTAL_SEARCH_CATALOG_THRESHOLD = 44
 FREE_ACTION_PRESERVE_DEPTH = 10
 TR_FREE_ACT = 46
+
+
+def _loadout_key(loadout: Loadout) -> tuple[frozenset[str], str]:
+    return loadout.item_ids, loadout.hand_mode
+
+
+def optimize_single_slot_closure(
+    current: Loadout,
+    neighbours: Callable[[Loadout], Iterable[Loadout]],
+    optimize: Callable[[tuple[Loadout, ...]], OptimizationResult],
+) -> OptimizationResult:
+    """Choose over the single-slot neighbourhoods until the choice's own is included.
+
+    The selection is relative to its field (the 95% of the best melee, the
+    survival floor, the 1% margin band), so the one-swap neighbourhood of the
+    worn loadout alone can choose a set whose own neighbourhood chooses the
+    worn one back.  n1-c life-205 2026-11-13 20:06-20:14: with the Gauntlets of
+    Slaying worn the Cestus set won (a Gauntlets neighbour at 397.8 melee fell
+    under the 30-turn survival floor, so the 95% cut stayed low); with the
+    Cestus worn its neighbour at 389.8 melee stayed above the floor, the cut
+    rose past the Cestus set, and the Gauntlets won - swapped through Home
+    forever.  The field here is the union of the neighbourhoods of every
+    chosen set, grown until the chosen set's neighbourhood is in it, so a set
+    is moved to only when it is also the choice from its own position: both
+    boards above choose over the same union and keep one glove.  The loop ends
+    because every pass expands a loadout not expanded before, from a finite
+    catalog.  Each pass is one optimization under the search's own time
+    budget; the evaluator cache keeps the loadouts already scored.
+    """
+    candidates: dict[tuple[frozenset[str], str], Loadout] = {}
+    expanded: set[tuple[frozenset[str], str]] = set()
+    seed = current
+    while True:
+        expanded.add(_loadout_key(seed))
+        for loadout in neighbours(seed):
+            candidates.setdefault(_loadout_key(loadout), loadout)
+        result = optimize(tuple(candidates.values()))
+        best = result.best
+        if best is None or result.timed_out or _loadout_key(best.loadout) in expanded:
+            return result
+        seed = best.loadout
 
 
 def blocker_leaves_no_target(blocker: str) -> bool:
@@ -913,34 +954,46 @@ def prepare_warrior_optimization(
         # piece pinned in its slot, say), the search without it stands.
         flag_sets.insert(0, required_flags | {TR_FREE_ACT})
     for flags in flag_sets:
-        result = optimize_loadout(
-            items,
-            lambda loadout: evaluator(loadout).metrics,
-            depth=depth,
-            intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
-            has_destruction=has_destruction,
-            current_item_ids=current.item_ids,
-            timeout_seconds=timeout_seconds,
-            candidate_loadouts=search_factory(
+        def optimize(candidates):
+            return optimize_loadout(
+                items,
+                lambda loadout: evaluator(loadout).metrics,
+                depth=depth,
+                intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
+                has_destruction=has_destruction,
+                current_item_ids=current.item_ids,
+                timeout_seconds=timeout_seconds,
+                candidate_loadouts=candidates,
+                require_light=require_light,
+                require_body=require_body,
+                require_armor_slots=owned_armor_fill_slots(
+                    items, search_excluded_item_ids
+                ),
+                identification_exempt_item_ids=identification_exempt_item_ids,
+                obtainable_ammunition=(
+                    tuple(snapshot.inventory)
+                    if obtainable_ammunition is None
+                    else obtainable_ammunition
+                ),
+            )
+
+        def search(seed=None, flags=flags):
+            return search_factory(
                 items,
                 current_item_ids=current.item_ids,
                 pinned=pinned,
                 excluded_item_ids=search_excluded_item_ids,
                 require_light=require_light,
                 required_flags=flags,
-            ),
-            require_light=require_light,
-            require_body=require_body,
-            require_armor_slots=owned_armor_fill_slots(
-                items, search_excluded_item_ids
-            ),
-            identification_exempt_item_ids=identification_exempt_item_ids,
-            obtainable_ammunition=(
-                tuple(snapshot.inventory)
-                if obtainable_ammunition is None
-                else obtainable_ammunition
-            ),
-        )
+                **({} if seed is None else {"seed": seed}),
+            )
+
+        if search_factory is enumerate_single_slot_variants:
+            result = optimize_single_slot_closure(
+                current, lambda seed: search(seed), optimize,
+            )
+        else:
+            result = optimize(search())
         if result.best is not None or result.timed_out:
             break
     if loadout_report_path is not None:

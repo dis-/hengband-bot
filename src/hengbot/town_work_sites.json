@@ -3699,13 +3699,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "me_loadout_offense.py:offense_inputs": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "me_menu.py:MagicEaterMenu._post_answer": {
     "classification": "driver",
     "rows": [
@@ -14907,14 +14900,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "warrior_optimization.py:_equipment_speed": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "warrior_optimization.py:_intrinsic_flags": {
+  "warrior_optimization.py:_loadout_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14935,7 +14921,28 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "warrior_optimization.py:optimize_single_slot_closure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "warrior_optimization.py:prepare_warrior_optimization": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_optimization.py:prepare_warrior_optimization.optimize": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_optimization.py:prepare_warrior_optimization.search": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

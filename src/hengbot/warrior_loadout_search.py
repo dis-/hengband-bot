@@ -678,6 +678,8 @@ class WarriorSingleSlotSearch:
     excluded_item_ids: frozenset[str] = frozenset()
     require_light: bool = False
     required_flags: frozenset[int] = frozenset()
+    # The loadout whose neighbours are yielded; None is the worn loadout.
+    seed: Loadout | None = None
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
@@ -686,7 +688,11 @@ class WarriorSingleSlotSearch:
             for item in self.items
             if item.exploration_legal and item.id not in self.excluded_item_ids
         ]
-        protected_ids = self.current_item_ids.union(
+        current = (
+            current_loadout(self.items) if self.seed is None else self.seed
+        )
+        seed_ids = self.current_item_ids.union(current.item_ids)
+        protected_ids = seed_ids.union(
             item.id for item in self.pinned.values()
         )
         legal = _deduplicate_slot_copies(
@@ -700,13 +706,12 @@ class WarriorSingleSlotSearch:
                     ),
                 ]
             ),
-            self.current_item_ids,
+            seed_ids,
             self.pinned,
         )
         legal = _prune_dominated_catalog(legal, protected_ids)
         legal = _deduplicate_melee_weapons(legal, protected_ids)
 
-        current = current_loadout(self.items)
         base = {name: item for name, item in current.slots}
         main0 = base.get(SLOT_MAIN_HAND)
         sub0 = base.get(SLOT_SUB_HAND)
@@ -805,9 +810,10 @@ def enumerate_single_slot_variants(
     excluded_item_ids: frozenset[str] = frozenset(),
     require_light: bool = False,
     required_flags: frozenset[int] = frozenset(),
+    seed: Loadout | None = None,
 ) -> WarriorSingleSlotSearch:
-    """Yield the current loadout plus its single-slot-swap neighbours."""
+    """Yield ``seed`` (the current loadout by default) plus its single-slot-swap neighbours."""
     return WarriorSingleSlotSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
-        require_light, required_flags,
+        require_light, required_flags, seed,
     )
