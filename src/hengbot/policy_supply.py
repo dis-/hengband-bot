@@ -1,6 +1,7 @@
 from __future__ import annotations
-from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
+from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
+from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, awaiting_absorption, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -2299,6 +2300,10 @@ class SupplyMixin:
             step = self._unseen_reverse_choke_step(snapshot)
         if step is not None:
             self.last_reason = "unseen:reverse-choke"
+            # The cell left, for the unseen attacker's window: no monster is known to outlast
+            # (left_cells; monster_memory.UNSEEN_GAME_TURNS, no new number).
+            left_cells.leave(self, snapshot, (player.position,), owner=self.last_reason,
+                             game_turns=UNSEEN_GAME_TURNS, step=step)
             return self._step_toward(snapshot, step)
         # The reverse route is exhausted without reaching a choke: the retreat
         # retires here, as it does when its choke wait ends.  Left armed it

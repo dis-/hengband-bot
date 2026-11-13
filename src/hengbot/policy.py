@@ -13756,6 +13756,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         # For the town hold (rev 9.3 R2): see ``_nearest_goal_step``.
         capture = self.__dict__.get("_claim_target_capture")
+        refused = self._engagement_avoid_cells | left_cells.refused(self, snapshot)
         while queue:
             position, first_step = queue.popleft()
             if position != start and position in targets:
@@ -13766,7 +13767,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # Same lethal-danger weight as every other routing BFS: a
                 # device-recovery route through an avoided cell would repeat
                 # _step_toward's refusal forever on this static floor.
-                if neighbor in seen or neighbor in self._engagement_avoid_cells:
+                if neighbor in seen or neighbor in refused:
                     continue
                 seen.add(neighbor)
                 queue.append(
@@ -15168,6 +15169,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self._declare_reach(route[1])
                     # the committed pack this retreat is from, still perceived
                     self._declare_triggers(committed)
+                    # The cell left, until the pack is gone (left_cells).
+                    left_cells.leave(self, snapshot, (snapshot.player.position,),
+                                     owner=self.last_reason, threats=committed, step=step)
                     return self._step_toward(snapshot, step)
             # Arrived at the chosen cell without it being a choke any more, or
             # it is no longer reachable: the commitment is spent either way.
@@ -15213,6 +15217,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # SWARM_LOOKAHEAD with no ranged damage (or the converging breeders),
         # the same selection the route above retreats from.
         self._declare_triggers(threats)
+        if step is not None:
+            # The cell left, until the pack is gone (left_cells).
+            left_cells.leave(self, snapshot, (snapshot.player.position,),
+                             owner=self.last_reason, threats=threats, step=step)
         return self._step_toward(snapshot, step)
 
 
@@ -16515,12 +16523,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _least_visited_neighbor(self, snapshot: Snapshot) -> Position | None:
+        refused = self._engagement_avoid_cells | left_cells.refused(self, snapshot)
         candidates = [
             candidate
             for candidate in self._walkable_neighbors(
                 snapshot, snapshot.player.position
             )
-            if candidate not in self._engagement_avoid_cells
+            if candidate not in refused
             and (
                 not snapshot.in_town
                 or (
