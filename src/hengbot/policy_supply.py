@@ -2291,13 +2291,15 @@ class SupplyMixin:
             self._unseen_retreat_target = None
 
         step = None
-        if self._unseen_retreat_target is not None:
-            step = self._nearest_goal_step(
-                snapshot,
-                lambda grid: grid.position == self._unseen_retreat_target,
-            )
-        if step is None:
-            step = self._unseen_reverse_choke_step(snapshot)
+        # Its own walk passes the cells it left (left_cells.walking_as).
+        with left_cells.walking_as(self, "unseen:reverse-choke"):
+            if self._unseen_retreat_target is not None:
+                step = self._nearest_goal_step(
+                    snapshot,
+                    lambda grid: grid.position == self._unseen_retreat_target,
+                )
+            if step is None:
+                step = self._unseen_reverse_choke_step(snapshot)
         if step is not None:
             self.last_reason = "unseen:reverse-choke"
             # The cell left, for the unseen attacker's window: no monster is known to outlast

@@ -15166,7 +15166,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         if route is not None and committed:
             if snapshot.player.position != route[1]:
-                step = self._position_target_step(snapshot, route[1])
+                # Its own walk passes the cells it left (left_cells.walking_as).
+                with left_cells.walking_as(self, "detected:prepare-choke"):
+                    step = self._position_target_step(snapshot, route[1])
                 if step is not None:
                     self.last_reason = "detected:prepare-choke"
                     self._declare_reach(route[1])
@@ -15189,9 +15191,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not threats:
             self._detected_threat_route = None
             return None
-        destination, step = self._summoner_retreat_route(
-            snapshot, threats, detected
-        )
+        with left_cells.walking_as(self, "detected:prepare-choke"):
+            destination, step = self._summoner_retreat_route(
+                snapshot, threats, detected
+            )
         if destination is None:
             # Owner 2026-10-23: with no covered cell reachable the preparation
             # does not retreat at all (no flee step, no wait in the open); the
@@ -16597,7 +16600,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         routing set.  A retreat names the ``threats`` it fled, and the claim
         is lifted once they are gone (retreat_veto_life); without them it
         stays for the floor visit."""
-        left_cells.leave(self, snapshot, cells, owner=owner, threats=threats)
+        left_cells.leave(self, snapshot, cells, owner=owner, threats=threats, shared=True)
 
 
     def _warning_prompt_response_key(self, snapshot: Snapshot) -> str | None:
