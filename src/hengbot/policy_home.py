@@ -231,10 +231,12 @@ class HomeMixin:
                 shed[item.slot] = item.weight * self._retention_surplus(snapshot, item)
             for _, _, item, count, _ in relief.surplus:
                 shed[item.slot] = max(shed.get(item.slot, 0), item.weight * count)
-            if relief.route == "home-relief" and sum(shed.values()) >= relief.excess:
+            if (relief.route == "home-relief" and sum(shed.values()) >= relief.excess
+                    and not state.get("home_relief_exhausted")):
                 # The carried surplus no longer clears the excess, but Home's
                 # relief (sell Home's surplus for a slot, then deposit) is open
-                # and its deposits with the surplus do clear it: hand the
+                # (it did not set this state on giving up) and its deposits
+                # with the surplus do clear it: hand the
                 # weight back to it as the deposit branch above does, never a
                 # stop while a rescue is open (town rebuild stage 3-3d, owner
                 # 2026-11-12 「落ちた葉には必ず救済の手」; n1-c life-205
@@ -453,7 +455,8 @@ class HomeMixin:
         if self._inventory_overweight(snapshot):
             # Required weight work cannot be parked behind its own retry
             # reservation. The separately admitted surplus producer owns it.
-            self._overweight_surplus_disposal = {"town": relief["town"]}
+            # Home's relief gave up here: the producer never hands back to it.
+            self._overweight_surplus_disposal = {"town": relief["town"], "home_relief_exhausted": True}
             self._home_full_relief = None
             self._home_full_retry_deposits = None
             self._home_errand.finish()
