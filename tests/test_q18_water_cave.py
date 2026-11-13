@@ -559,7 +559,12 @@ class Q18ClearBeforeAdvancingTest(unittest.TestCase):
 
     def test_a_sleeper_beside_the_next_choke_is_shot_and_one_off_the_route_is_left(self):
         beside = monster(SQUID, 1, 16, asleep=True)  # beside the next choke (1,15)
-        self.assertTrue(self.run_boards([board(self.CHOKE, monsters=[beside])])[0][1].startswith("ranged:"))
+        # From the choke (1,12) the bolt path ends on the wall (1,13): the game's `*` has no
+        # target_able monster (target-preparation.cpp:54-57) and the old `*t` shot was spent
+        # (2026-11-13 viewing stops, n1-a life-519); no cell two or more away is reachable
+        # by a bolt from this choke, so the walk goes on.
+        self.assertEqual(self.run_boards([board(self.CHOKE, monsters=[beside])]),
+                         [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
         off_route = monster(SQUID, 3, 3, asleep=True)
         self.assertEqual(self.run_boards([board(self.CHOKE, monsters=[off_route])]),
                          [(step_key(self.CHOKE, self.NEXT), WALK_REASON)])
