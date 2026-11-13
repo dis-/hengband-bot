@@ -10,6 +10,7 @@ tests/fixtures/town-stops-1114am/<name>/:
                      (no calibration: the live process had none, partial-stat-table)
   filed-take-522     n1-a life-522 20261114-063149-town-blocked-owner-retired-burst-after-
                      town-blocked-repetition, --calibration --rows=56
+  renamed-sale-395   n1-b life-395 20261114-063747-town-blocked-owner-retired-burst, --rows=85
 
     python tests/extract_town_stops_1114am_fixtures.py <town-arrival directory> <name> [--calibration] [--rows=N]
 """
