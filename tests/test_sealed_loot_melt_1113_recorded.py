@@ -11,6 +11,11 @@ Recorded: tests/fixtures/sealed-loot-melt-1113.jsonl.gz
 (tests/extract_sealed_loot_melt_1113_fixture.py).  Each case replays the last 40 boards in a
 fresh policy; on the last, the stuck count stands at its limit as it did live (DECLARED
 CONSTRUCTED: the replayed window is shorter than the live count's 60 boards).
+
+Owner 2026-11-13 (問い1) puts the traps before the walls: the room is one detected trap from the
+cross's centre, so the melt runs once that trap has no way left to clear it.  These cases spend
+the disarm presses on that trap (DECLARED CONSTRUCTED, ``stuck(spent=True)``, the default; the
+trap cases are tests/test_sealed_loot_trap_1113_recorded.py).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -26,7 +31,8 @@ from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import STUCK_ESCAPE_LIMIT
+from hengbot.model import Position
+from hengbot.policy_constants import CHEST_DISARM_BUDGET, STUCK_ESCAPE_LIMIT
 from tests.support import recorded
 
 
@@ -38,6 +44,8 @@ SKILL_FIXTURE = FIXTURES / "n1c-loot-rules-1113.jsonl.gz"
 # DECLARED CONSTRUCTED: the player beside the wall the route melts ((19,87), upper left room).
 BESIDE_THE_WALL = (20, 88)
 STONE_TO_MUD = (65, 6)
+# The one detected trap between the cross's centre (22,88) and the lower left room's loot (24,86).
+ROOM_TRAP = Position(23, 87)
 
 
 class SealedLootMelt1113RecordedTest(recorded.RecordedHarness):
@@ -56,8 +64,9 @@ class SealedLootMelt1113RecordedTest(recorded.RecordedHarness):
         cls.monrace = load_monrace_knowledge(recorded.EDIT / "MonraceDefinitions.jsonc")
         cls.costs = load_baseitem_costs(recorded.EDIT / "BaseitemDefinitions.jsonc")
 
-    def stuck(self, *, absorbed=False):
-        """The policy after the window, its stuck count at the limit, and the last board."""
+    def stuck(self, *, absorbed=False, spent=True):
+        """The policy after the window, its stuck count at the limit, and the last board;
+        with ``spent`` the disarm presses on the room's trap are used up."""
         policy = HengbotPolicy(monrace_knowledge=self.monrace, baseitem_costs=self.costs)
         policy.consume_skill_knowledge(self.skill)
         policy._skill_exp_request_key = lambda snapshot: None
@@ -68,6 +77,8 @@ class SealedLootMelt1113RecordedTest(recorded.RecordedHarness):
         if absorbed:
             policy._me_device_lists = dict(self.wand_list)
         policy._stuck_escape_streak = STUCK_ESCAPE_LIMIT
+        if spent:
+            policy._floor_trap_disarm_attempts[(ROOM_TRAP.y, ROOM_TRAP.x)] = CHEST_DISARM_BUDGET
         policy._move_repeat = 0  # the window's own boards never answered its steps
         raw = copy.deepcopy(self.boards[-1])
         self.assertEqual(raw["turn"], self.live["turn"])

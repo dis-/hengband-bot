@@ -13112,12 +13112,40 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_loot.py:_known_wall": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:_neighbours": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "sealed_loot.py:_reach": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:_trap_device": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:_trap_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "sealed_loot.py:key": {
     "classification": "action",
@@ -13127,6 +13155,20 @@
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "sealed_loot.py:pocket_walls": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:pockets": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:trap_route": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
