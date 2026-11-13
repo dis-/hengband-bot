@@ -39,6 +39,7 @@ from hengbot.policy_types import (
     StoreVisitPhase,
 )
 from hengbot.retired_values import retired_module
+from hengbot import town_visit_plan
 from hengbot.town_arbiter import (
     RECALL_ACTIVATION_MAX_GAME_TURNS,
     ClaimOwner,
@@ -1213,9 +1214,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         # dropped by explore on every firing (never two rows in a row in
         # any recorded ledger).
         ("livelock:seek-window-edge", T, EFFECT),
-        ("town-progress-invariant:", T, EFFECT),
+        (town_visit_plan.PROGRESS_INVARIANT_PREFIX, T, EFFECT),
         ("town-liveness-invariant:", T, EFFECT),
-        ("town:cycle-break", T, EFFECT),
+        (town_visit_plan.CYCLE_BREAK_REASON, T, EFFECT),
         ("posting-contract:", T, EFFECT),
         ("stuck:", T, EFFECT),
         ("stuck:ascend", O, FLOOR_CHANGE),
@@ -1799,7 +1800,13 @@ _RUNGS: tuple[Rung, ...] = (
     _rewrite("_break_positional_oscillation", "detectors", "nav:"),
     _rewrite("_break_livelock", "detectors"),
     _rewrite("_bound_escape_wait", "detectors"),
-    _rewrite("_town_procurement_decision", "town-plan", ordinary=True),
+    # The plan's rows (town_visit_plan, town rebuild stage 3-4): the progress
+    # step's town-plan rung, and the progress invariant's reasons in the
+    # detectors' rewrite rank, where the cycle detector's ordinary rung
+    # ranked them before.
+    _rewrite(*town_visit_plan.PROGRESS_INVARIANT_RUNG,
+             *town_visit_plan.PLAN_DETECTOR_REASONS),
+    _rewrite(*town_visit_plan.STEP_RUNG, ordinary=True),
     _rewrite("_skill_exp_request_key", "bookkeeping", "periodic:skill-exp"),
     _rewrite("_periodic_game_save_key", "bookkeeping", ordinary=True),
     _rewrite(

@@ -3,6 +3,7 @@
 from enum import Enum
 
 from hengbot import reasons, torch_release
+from hengbot.town_visit_plan import CYCLE_BREAK_REASON
 from hengbot.model import (
     Position, SV_SCROLL_TELEPORT, TVAL_ARROW, TVAL_BOLT, TVAL_SHOT,
     STORE_ALCHEMIST,
@@ -1036,7 +1037,7 @@ TOWN_CYCLE_IGNORED_REASONS = frozenset(
     {
         "town:wait-recall",
         "return:wait-recall",
-        "town:cycle-break",
+        CYCLE_BREAK_REASON,
         # This long locomotion leg is independently bounded by both native-
         # travel progress leashes.  Counting its duplicate input-latency rows
         # as transaction/wander no-progress falsely blocks a productive walk

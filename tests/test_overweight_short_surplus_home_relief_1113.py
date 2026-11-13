@@ -10,7 +10,8 @@ inventory_weight_ready is that same function, so the leaf had no rescue (owner
 
 Recorded: the incident capture's town-arrival checkpoint, journal rows 0-10 and
 sidecar files (tests/extract_n1c_205_overweight_short_1113_fixture.py).  Rows 0-5
-replay through the public choose_key; current code leaves the record at row 6
+are decided through the public choose_key and the recorded key is posted; code
+of 2026-11-13 left the record at row 6
 (the item-use-route table changed the Home deposit), so rows 6-9 are supplied
 (their recorded inputs consumed) without deciding, and row 10 is the board outside
 Home on which the recorded bot stopped.
@@ -66,11 +67,13 @@ class N1c205ShortSurplusRecordedTest(unittest.TestCase):
     def stop_board(self):
         policy = self.policy
         for row, supply in self.steps[:REPLAYED_ROWS]:
-            board = supply()
-            key = policy.choose_key(board)
-            self.assertEqual((key, policy.last_reason), (row["key"], row["reason"]), row["row"])
-            if key:
-                policy.confirm_key_posted(key)
+            # The recorded key is posted whatever the current code decides on
+            # these rows: they only bring the policy to the stop board (a
+            # later Magic-Eater identification order leaves the record at
+            # row 4 on main 8ea2303d4b).
+            policy.choose_key(supply())
+            if row["key"]:
+                policy.confirm_key_posted(row["key"])
         for _, supply in self.steps[REPLAYED_ROWS:STOP_ROW]:
             supply()
         return self.steps[STOP_ROW][1]()

@@ -14875,6 +14875,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_visit_plan.py:progress_defect_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_visit_plan.py:stage_of": {
     "classification": "data",
     "rows": [

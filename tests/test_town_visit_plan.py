@@ -60,6 +60,24 @@ class StageTableLintTest(unittest.TestCase):
                       found)
 
 
+class LadderRowsTest(unittest.TestCase):
+    """Stage 3-4: the ladder takes the plan's rows from the plan, ranks unchanged."""
+
+    def test_the_plan_rows_keep_their_ranks(self):
+        from hengbot import town_hold
+        step = town_hold.rung_named(town_visit_plan.STEP_RUNG[0])
+        self.assertEqual((step.family, step.section, step.rank), ("town-plan", "rewrite", 1))
+        defect = town_visit_plan.progress_defect_reason("shop:approach", "shop:travel")
+        self.assertEqual(defect, "town-progress-invariant:defect:shop:approach=>shop:travel")
+        rung = town_hold.rung_of("detectors", defect)
+        self.assertEqual((rung.name, rung.rank), (town_visit_plan.PROGRESS_INVARIANT_RUNG[0], 0))
+        # the detectors' rank, the one the cycle detector's ordinary rung had
+        self.assertEqual(rung.rank, town_hold.rung_of("detectors", "livelock:exhausted").rank)
+        # Stage 3-4b: the town repetition cycle's break ranks at the same plan rung.
+        cycle = town_hold.rung_of("detectors", town_visit_plan.CYCLE_BREAK_REASON)
+        self.assertEqual((cycle.name, cycle.rank), (town_visit_plan.PROGRESS_INVARIANT_RUNG[0], 0))
+
+
 class TraceTest(unittest.TestCase):
     def note(self, policy, family, sequence):
         policy._decision_sequence = sequence

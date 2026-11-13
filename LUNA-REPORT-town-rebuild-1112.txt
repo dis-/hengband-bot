@@ -483,3 +483,46 @@ U. 残り（段3）
   57e81f54f6 Town rebuild 3-3e: the seam's replacements become the owners' named stage transitions
   （この報告のコミットがその上に乗る）
   再生の台本は作業木の .scratch\ に写して動かした（調整役の決まり 2026-11-14、追跡しない）。
+
+
+追記6（2026-11-14）: 件2のテストの前置き・段3-4（3-4a・3-4b）
+==============================================================
+
+V. 件2のテストの前置き（7416a7de6e）
+  - tests/test_overweight_short_surplus_home_relief_1113 の 0〜5行目は、choose_key に通したうえで記録のキーを送る形にした
+    （調整役の決定）。main で4行目に別の品を鑑定するようになって前置きで落ちていた。
+  - 戻し確認: policy_home.py の 3-3d の変更を一時的に逆に当てると2本とも落ちる（'5' の止まり、諦めた印が無い）。戻して通る。
+
+W. main 5bfd83ac0b の取り込み（1373808b2f）: 衝突は scripts/town_work_review.json だけで、両方の項目を足し合わせた。
+   比較用の作業木 town-rebuild-1112-base を 5bfd83ac0b で作り直した。
+
+X. 段3-4a（d531b9f69f）: 請求の梯子が計画の行を計画から取る
+  - 梯子の上書きの段（town_hold._RUNGS）は、継ぎ目の town-plan の行を文字列で書いていた。進みの不変条件の理由
+    （town-progress-invariant:、計画の移り変わりと観た店を続けるが書く）は自分の行を持たず、検出器の普通の行
+    （_refuse_no_progress_cycle、順位0）に落ちていた。理由の文字列は5か所に書かれていた。
+  - town_visit_plan に名前を置いた: STEP_RUNG（継ぎ目の town-plan の行）、PROGRESS_INVARIANT_PREFIX／PROGRESS_INVARIANT_RUNG、
+    defect の頭、approach と continue-observed-shop の理由、progress_defect_reason。梯子は両方の行をこの名前から作る。
+    進みの不変条件の理由は、検出器の家族の計画の行（town-visit-plan:progress-invariant）に入るので順位は前と同じ0。
+    town_arbiter・town_hold・policy_town は同じ名前を読む。
+  - 梯子全体を main と比べた差は、足した1行だけ（ほかの行の名前・順位・理由は同じ）。
+  - town_visit_plan_lint: 梯子が計画の行を計画の名前で順位付けていなければ失敗。
+X2. 段3-4b（fc4e9613fd）: 町の繰り返しの切断（town:cycle-break）も計画の行で順位付ける
+  - CYCLE_BREAK_REASON と PLAN_DETECTOR_REASONS を town_visit_plan に置き、梯子・裁定役・town_hold・policy_town・
+    policy_constants はそれを読む。順位は前と同じ0。
+  - town-liveness-invariant: の登録は書く所が無いので触っていない。
+
+Y. 再生（町到着の記録、main 5bfd83ac0b 対 枝。rung の順位も1行ずつ比べた）
+
+   段    | 枝          | 記録 | 再生 | 行    | キーと理由の差 | 順位の差 | rung の名前が変わった行
+   3-4a  | d531b9f69f  | 233  | 222  | 2,362 | 0              | 0        | 36（進みの不変条件: _refuse_no_progress_cycle → town-visit-plan:progress-invariant）
+   3-4b  | fc4e9613fd  | 233  | 222  | 2,362 | 0              | 0        | 37（上の36 ＋ town:cycle-break 1）
+
+   （3-3e と件2のテストの直しも main との差に含まれ、どれも振る舞いを変えない）
+
+Z. 確認（前景）
+  - 3-4a: import OK、マニフェスト 1972 candidates・zero unmapped（progress_defect_reason を data として審査に足した）、
+    dungeon_ladder_lint 0、departure_rescue_lint 0、town_visit_plan_lint 0、所有の lint の未宣言 39（main と同じ）。
+    町のテスト77モジュール（3-3e の68 ＋ 梯子・裁定役・ping-pong・町の終わりの宣言）を main と枝で: 両方通る 37、
+    両方赤 39（同じ名前）、main で赤く枝で通る 1（V で直した件2のテスト）、時間切れ 0。
+  - 3-4b: 同じ lint とマニフェスト、町の繰り返しと梯子に触れるテスト33モジュール: 両方通る 20、両方赤 13（同じ名前）、差 0。
+  - 新しい確かめ: test_town_visit_plan の LadderRowsTest（順位が前と同じ・town:cycle-break も計画の行）。
