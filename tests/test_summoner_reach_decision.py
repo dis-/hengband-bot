@@ -119,6 +119,9 @@ class SummonerReachConstructedTest(unittest.TestCase):
         # counter-attack target: behind the wall it may still summon there.
         policy = HengbotPolicy()
         open_board = _board(wall=False)
+        # The shot was decided on the open board: the floor was observed before the target
+        # was noted (a floor change forgets the targets, floor_visit_memory).
+        policy.prime(open_board)
         policy._note_summoner_counter_targets(open_board, "f1")
         board = _board()
         policy, key, reason = self._decide(board, policy)
