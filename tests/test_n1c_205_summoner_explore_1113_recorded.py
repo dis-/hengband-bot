@@ -23,6 +23,8 @@ B (04:48:58-49:03): from (34,40) a Teleport Away was aimed '4' along row 34 at t
 loop detector.  Each use completed (the game turn advanced every time; at the stop the game
 stood in command mode with no prompt): no input desync, a beam that cannot land.  The player's
 own beam now stops at a glass wall (policy._stops_player_projection).
+Since 2026-11-14 a monster's line of fire stops there too (glass_reach, n1-c life-207): the
+mages' zone stays in their pocket, and A's step out and back no longer happens.
 
 Every decision is the public ``choose_key`` of one policy built as the live one
 (tests.support.recorded._policy) and driven over the recorded boards from turn 2921424
@@ -157,42 +159,38 @@ class SummonerZoneGlassRecordedTest(ProductionHarness):
                             if grid is not None and not grid.passable))
         self.assertIn(218, self.policy._los_only_terrain_ids)
 
-    def test_the_zone_outside_keeps_the_mages_and_the_cell_left(self):
+    def test_the_zone_stays_behind_the_glass(self):
+        """The mages' line of fire stops at the glass as projectable() does
+        (projection-path-calculator.cpp:94; glass_reach, n1-c life-207 2026-11-14): the zone
+        holds neither (29,38) nor (28,39), so no owner steps out of it there."""
         checked = 0
         for raw, board, key, reason, remembered, zone, vetoed in self.rows:
             here = board.player.position
-            if raw["turn"] <= FIRST_ZONE_STEP or here != OUTSIDE or raw["turn"] >= 2922501:
+            if raw["turn"] <= FIRST_ZONE_STEP or here not in (INSIDE, OUTSIDE) or raw["turn"] >= 2922501:
                 continue
             checked += 1
             # The two sensed mages stay remembered (immobile_ranged_kill.key never shoots
             # a summoner that moves, so killable does not read them as killed).
-            self.assertTrue(set(MAGES) <= set(remembered), raw["turn"])
+            if here == OUTSIDE:
+                self.assertTrue(set(MAGES) <= set(remembered), raw["turn"])
             for mage in board.detected_monsters:
                 self.assertFalse(immobile_ranged_kill.killable(self.policy, board, mage))
-                # Nor would a shot land: read as a monster's reach the glass is open and
-                # (26,32) a shooting cell ('1' to (29,38) first); the player's own shot
-                # stops at the glass (policy._player_may_project).
+                # Nor would a shot land: the player's own shot stops at the glass
+                # (policy._player_may_project).
                 self.assertIsNone(immobile_ranged_kill.plan(self.policy, board, mage),
                                   (raw["turn"], mage.position))
-            self.assertIn(INSIDE, zone, raw["turn"])
-            self.assertIn(INSIDE, vetoed, raw["turn"])
-            self.assertNotIn(_target(here, key), zone, (raw["turn"], key, reason))
+            self.assertNotIn(INSIDE, zone, raw["turn"])
+            self.assertNotIn(OUTSIDE, zone, raw["turn"])
+            self.assertNotEqual(reason, IMMOBILE_SUMMONER_AVOID_REASON, raw["turn"])
         self.assertGreaterEqual(checked, 15)
 
-    def test_no_owner_steps_back_into_the_cell_the_zone_step_left(self):
-        # One rule: the cells the avoid step leaves stay vetoed for the next owner.
-        checked = 0
-        for before, after in zip(self.rows, self.rows[1:]):
-            raw, board, key, reason, *_ = before
-            left = board.player.position
-            if reason != IMMOBILE_SUMMONER_AVOID_REASON or after[1].player.position != _target(
-                    left, key):
-                continue
-            checked += 1
-            step = _target(after[1].player.position, after[2])
-            self.assertNotEqual(step, left, (after[0]["turn"], after[2], after[3]))
-            self.assertNotIn(step, after[5], (after[0]["turn"], after[2], after[3]))
-        self.assertGreaterEqual(checked, 8)
+    def test_no_owner_steps_back_into_the_cell_it_left(self):
+        # The recorded loop: '9' out of (29,38), '1' back from (28,39).  Read across the
+        # glass no zone sends the player out, and nothing sends it back.
+        back = [(row[0]["turn"], row[2], row[3]) for row in self.rows
+                if FIRST_ZONE_STEP <= row[0]["turn"] < 2922501
+                and row[1].player.position == OUTSIDE and _target(OUTSIDE, row[2]) == INSIDE]
+        self.assertEqual(back, [])
 
     def test_a_never_mover_the_kill_leaves_alone_keeps_its_zone(self):
         """killable and key read one rule (immobile_ranged_kill._key_plan).

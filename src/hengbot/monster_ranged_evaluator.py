@@ -85,6 +85,10 @@ class SpellSelectionContext:
     # attempts that pick a DIRECT_ONLY ability reach nothing (their share is dropped, not
     # spread over the rest: the game wastes the attempt).
     offset_target: bool = False
+    # Across glass the game forces the attempt to the few spells that cross it (glass_reach,
+    # mspell-lite.cpp check_lite_area_by_mspell / decide_lite_breath): with ``forced`` set,
+    # every attempt casts one of these (read evenly, the larger reading of the game's draws).
+    forced: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -371,6 +375,9 @@ def source_selection_probabilities(
     the bot's danger readings were tuned on: it stays as it is until the owner decides.
     The probabilities sum below 1 when a branch has nothing to cast: the monster moves."""
     castable = _castable_abilities(monster, context)
+    if context.forced:
+        forced = sorted(castable & context.forced)
+        return {ability: 1.0 / len(forced) for ability in forced} if forced else {}
     with_innate = min(1.0, monster.spell_frequency * 2 / 100.0)
     result: dict[str, float] = {}
     for share, abilities in ((with_innate, castable), (1.0 - with_innate, castable - INNATE_ABILITIES)):

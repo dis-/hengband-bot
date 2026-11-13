@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
@@ -3695,7 +3695,15 @@ class CombatMixin:
                 if direct_reach or contact or monster.asleep or monster.max_ranged_damage <= 0
                 else self._offset_spell_reach(snapshot, monster)
             )
-            spell_reach = direct_reach or offset_reach is not None
+            # Across glass only light and disintegration still reach it (glass_reach).
+            across_glass = (
+                frozenset()
+                if direct_reach or offset_reach is not None or contact or monster.asleep
+                or monster.max_ranged_damage <= 0
+                else glass_reach.passing_abilities(
+                    self, snapshot, monster, knowledge, snapshot.player.position)
+            )
+            spell_reach = direct_reach or offset_reach is not None or bool(across_glass)
             ranged_actions = (
                 actions if offset_reach is None else max(0, actions - offset_reach[0])
             )
@@ -3790,6 +3798,7 @@ class CombatMixin:
                         ability: damage
                         for ability in knowledge.abilities
                         if not (offset_target and ability in DIRECT_ONLY_ABILITIES)
+                        and (not across_glass or ability in across_glass)
                         and (
                             damage := maximum_ability_hp_damage(
                                 ability,
@@ -3803,7 +3812,8 @@ class CombatMixin:
                     }
                     ranged = ranged_actions * max(maximum_by_ability.values(), default=0)
                     selection_context = SpellSelectionContext(
-                        distance=max(1, distance), offset_target=offset_target
+                        distance=max(1, distance), offset_target=offset_target,
+                        forced=across_glass,
                     )
                     selection = ability_selection_probabilities(
                         knowledge, selection_context
@@ -4858,17 +4868,22 @@ class CombatMixin:
             return False
         reaches = self._has_line_of_fire(snapshot, monster.position, cell) or (
             projectable and self._may_project(snapshot, monster.position, cell)
-        )
+        ) or bool(glass_reach.passing_abilities(
+            self, snapshot, monster, self._monrace_knowledge.get(monster.race_id), cell))
         return reaches and self._predicted_damage(snapshot, [monster], turns=1) > 0
 
-    @staticmethod
-    def _has_line_of_fire(snapshot: Snapshot, origin: Position, target: Position, *,
-                          remembered: dict | None = None) -> bool:
+    def _has_line_of_fire(self, snapshot: Snapshot, origin: Position, target: Position, *,
+                          remembered: dict | None = None, across_glass: bool = False) -> bool:
         """``remembered``: the map memory read for a grid the board does not
         know (the incoming-damage estimate; n1-c life-171, 城65階: after the
         darkness storm two floor grids the player had walked between it and
         皇帝『レイザーク』 were off the board and read as walls, so the
-        emperor's spells counted 0 while they landed)."""
+        emperor's spells counted 0 while they landed).
+
+        A known glass grid (LOS without PROJECTION) stops the line as it stops
+        projectable() (projection-path-calculator.cpp:94, glass_reach);
+        ``across_glass`` reads the line of sight through it, for the spells
+        that cross it (glass_reach.passing_abilities)."""
         y0, x0 = origin.y, origin.x
         y1, x1 = target.y, target.x
         dy, dx = abs(y1 - y0), abs(x1 - x0)
@@ -4888,7 +4903,8 @@ class CombatMixin:
             if (remembered is not None and (grid is None or not grid.known)
                     and (memory := remembered.get(Position(y0, x0))) is not None):
                 grid = memory
-            if grid is None or not grid.allows_los:
+            if grid is None or not grid.allows_los or (
+                    not across_glass and glass_reach.stops(self, grid)):
                 return False
         return True
     # -- summoner reach (USER DECISION 2026-10-03 06:1x) -----------------------
@@ -4898,35 +4914,29 @@ class CombatMixin:
         dy, dx = abs(origin.y - target.y), abs(origin.x - target.x)
         return dy + (dx >> 1) if dy > dx else dx + (dy >> 1)
 
-    @staticmethod
-    def _may_block_projection(snapshot: Snapshot, position: Position) -> bool:
+    def _may_block_projection(self, snapshot: Snapshot, position: Position, *,
+                              across_glass: bool = False) -> bool:
         """Only a known grid without PROJECTION can stop a bolt.  The board
         carries LOS and MOVE; the only PROJECTION terrain without LOS is the
         closed curtain, which has MOVE (TerrainDefinitions.jsonc), and LOS
-        without PROJECTION (glass) is read as open: an over-estimate of reach."""
+        without PROJECTION is glass (glass_reach.stops), which stops it
+        (projection-path-calculator.cpp:94); ``across_glass`` reads the line
+        of sight through it (glass_reach.passing_abilities)."""
         grid = snapshot.grid_at(position)
         return (
             grid is not None
             and grid.known
             and not (grid.allows_los or grid.passable)
-        )
+        ) or (not across_glass and glass_reach.stops(self, grid))
 
     def _stops_player_projection(self, snapshot: Snapshot, position: Position) -> bool:
-        """A known grid that stops the player's own bolt, beam or shot: no PROJECTION.
-
-        ``_may_block_projection`` reads LOS without PROJECTION (glass) as open, an
-        over-estimate of a monster's reach.  Read for the player's own reach the same
-        over-estimate is a shot that cannot land: a glass wall (or a closed glass door)
-        stops it (projection-path-calculator.cpp:94).  n1-c life-205 (2026-11-13, ガラスの城
+        """A known grid that stops the player's own bolt, beam or shot: no PROJECTION,
+        glass included (``_may_block_projection``).  n1-c life-205 (2026-11-13, ガラスの城
         60F): three ノーム・メイジ in a pocket walled with glass were judged killable from
         a shooting cell across the glass (the immobile summoner zone withdrawn there and
         laid again one step on) and a Teleport Away was aimed through the glass until the
         loop detector."""
-        if self._may_block_projection(snapshot, position):
-            return True
-        grid = snapshot.grid_at(position)
-        return (grid is not None and grid.known
-                and grid.terrain_id in getattr(self, "_los_only_terrain_ids", frozenset()))
+        return self._may_block_projection(snapshot, position)
 
     def _player_may_project(
         self, snapshot: Snapshot, source: Position, target: Position
@@ -4941,16 +4951,19 @@ class CombatMixin:
         return bool(path) and path[-1] == target
 
     def _may_project(
-        self, snapshot: Snapshot, source: Position, target: Position
+        self, snapshot: Snapshot, source: Position, target: Position, *,
+        across_glass: bool = False,
     ) -> bool:
         """projectable() (projection-path-calculator.cpp:254-270) over the
         known map with unknown grids open: the ported bolt path, range
-        get_max_range() = 18 (angband-system.cpp:45-48), ends on the target."""
+        get_max_range() = 18 (angband-system.cpp:45-48), ends on the target.
+        ``across_glass``: the same line read through glass (``_may_block_projection``)."""
         if source == target:
             return True
         path = projection_path(
             source, target, MONSTER_SPELL_MAX_RANGE,
-            lambda position: self._may_block_projection(snapshot, position),
+            lambda position: self._may_block_projection(
+                snapshot, position, across_glass=across_glass),
         )
         return bool(path) and path[-1] == target
 
