@@ -478,7 +478,13 @@ class OpeningRouteMixin:
             self.last_reason = "opening-q1:equip-light"
             key = self._equipment_wield(snapshot, "light-loadout", light, "light")
             return key if key is not None else self._opening_q1_stop("light-equip-unavailable")
-        if snapshot.player.hp < snapshot.player.max_hp:
+        # Readiness refuses Q1 below full HP and under a temporary status
+        # (not-full-hp / temporary-status); rest-as-needed waits out both
+        # (PlayerType::is_fully_healthy, player-type-definition.cpp:75-91).
+        # n1-b life-385 2026-11-13 08:44: afraid at full HP in the Outpost,
+        # the route stopped as readiness:temporary-status on every board.
+        if (snapshot.player.hp < snapshot.player.max_hp
+                or not self._temporary_status_clear(snapshot)):
             if not hostiles:
                 self.last_reason = "town:recover"
                 return REST_MACRO
