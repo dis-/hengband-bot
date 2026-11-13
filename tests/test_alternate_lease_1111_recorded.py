@@ -29,11 +29,13 @@ from pathlib import Path
 from unittest import mock
 
 import tests.test_castle_summoner_loot_1110_recorded as castle
+from hengbot import fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND, parse_snapshot
 from hengbot.policy_constants import EMPTY_DIVE_LIMIT
+from tests.support.fallback_floor import floor_lifted
 from tests.test_guardian_floor_above_1111_recorded import quiet
 
-ORC_CAVE, CASTLE = 3, 12
+ORC_CAVE, CASTLE, MOUNTAIN = 3, 12, 14
 LIVE_RECORD = {"turn": 5573602, "conquered": [2, 3, 4], "state": {
     "_alternate_dungeon": 3, "_alternate_dungeon_reason": "over_extended_dives",
     "_last_overextended_depth": 50, "_target_empty_dives": 0, "_guardian_bounce_dives": 0,
@@ -85,6 +87,9 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
             policy._observe(self.at(board, floor_key))
         policy._observe(self.at(self.town, (0, 0, 0)))
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
+    # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @floor_lifted()
     def test_five_orc_cave_dives_then_the_deepest_destination(self):
         policy, board = self.start()
         for number in range(1, 5):
@@ -98,6 +103,9 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
                          (DUNGEON_ANGBAND, "deepest_destination"))
         self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
+    # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @floor_lifted()
     def test_hard_again_the_next_switch_lasts_ten(self):
         policy, board = self.start()
         for _ in range(5):
@@ -108,6 +116,9 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
         self.assertEqual(policy._alternate_dungeon_reason, "over_extended_dives")
         self.assertEqual((policy._alternate_lease, policy._alternate_dives), (10, 0))
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
+    # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @floor_lifted()
     def test_a_restart_keeps_the_lease(self):
         policy, board = self.start()
         for _ in range(3):
@@ -115,6 +126,9 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
         stored = json.loads(Path(self.record).read_text(encoding="utf-8"))["state"]
         self.assertEqual((stored["_alternate_lease"], stored["_alternate_dives"]), (5, 3))
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
+    # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @floor_lifted()
     def test_with_angband_shut_the_castle_64_is_the_deepest(self):
         """C5 with C2: the Castle's landing 64 (the floor above its guardian) qualifies; the
         Mountain 50 is P3's T1 guardian floor, the Anti-melee cave refuses melee."""
@@ -125,6 +139,19 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
                          (CASTLE, "deepest_destination"))
         self.assertEqual(policy._target_dungeon_id, CASTLE)
 
+    def test_the_floor_ends_the_orc_cave_switch(self):
+        """Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」: the restored Orc cave 23
+        switch is under the floor 50 (Angband 70 reached), so the first town board ends it as a
+        finished lease ends: on this town board the Mountain 50F conquest target may be landed
+        on, so it keeps its priority (no deepest-destination switch)."""
+        policy, board = self.start()
+        town = self.at(self.town, (0, 0, 0))
+        self.assertEqual(fallback_depth_floor.floor(policy, town), 50)
+        policy._observe(town)
+        # Unfixed: (ORC_CAVE, "over_extended_dives", ORC_CAVE).
+        self.assertEqual((policy._alternate_dungeon, policy._alternate_dungeon_reason,
+                          policy._target_dungeon_id), (None, None, MOUNTAIN))
+        self.assertEqual(policy._target_dungeon_reason, "conquest")
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ the next switch or conquest.  A conquest target whose landing may be taken keeps
 """
 from __future__ import annotations
 
+from hengbot import fallback_depth_floor
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE
 
@@ -57,7 +58,10 @@ def forget(policy) -> None:
 
 
 def deepest_destination(policy, snapshot) -> int | None:
-    """The deepest recall destination this character may land on now (C5)."""
+    """The deepest recall destination this character may land on now (C5).
+
+    None when it would land under the fallback depth floor (owner 2026-11-13
+    「フォールバックは最新到達-20Fまでにする。」, ``fallback_depth_floor``)."""
     best, best_depth = None, -1
     candidates = list(snapshot.entered_dungeon_ids or ())
     if snapshot.angband_recall_unlocked and DUNGEON_ANGBAND not in candidates:
@@ -75,6 +79,8 @@ def deepest_destination(policy, snapshot) -> int | None:
         depth = policy._dungeon_entry_depth(snapshot, did, via_recall=True)
         if depth > best_depth or (depth == best_depth and did < best):
             best, best_depth = did, depth
+    if best is None or not fallback_depth_floor.landing_allowed(policy, snapshot, best_depth):
+        return None
     return best
 
 
@@ -91,7 +97,9 @@ def settle(policy, snapshot) -> bool:
 
 
 def end(policy, snapshot) -> None:
-    """End the switch: the original destination is taken again (C5)."""
+    """End the switch: the original destination is taken again (C5).
+
+    Also how ``fallback_depth_floor.settle`` ends a switch that lands under its floor."""
     policy._alternate_dungeon = None
     policy._alternate_dungeon_reason = None
     policy._alternate_dives = 0

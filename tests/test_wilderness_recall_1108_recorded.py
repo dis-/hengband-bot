@@ -45,7 +45,9 @@ import unittest
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import DUNGEON_YEEK_CAVE, parse_snapshot
 from hengbot.policy_constants import UP_STAIRS_KEY
+from hengbot import fallback_depth_floor
 from tests.support import recorded as executor_pins
+from tests.support.fallback_floor import floor_lifted
 from tests.test_town_decision_speed_caches import build_policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "wilderness-recall-1108.json.gz"
@@ -200,16 +202,23 @@ class WildernessRecallRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(last.outcome, "completed")
         self.assertEqual(accepted, ["r", recall.slot, letter])
 
-    def test_a_safe_fallback_landing_answers_before_the_yeek_cave(self):
+    def resisted_boards(self):
         # DECLARED CONSTRUCTED: fire and confusion resistance worn (as with
         # Gungnir), so the Orc cave's recall floor 23 passes its gates while
-        # Angband 80 still lacks chaos; the departure read point's safe
-        # fallback picks the Orc cave ahead of the Yeek cave.
+        # Angband 80 still lacks chaos.
         first, refused = self.boards()
         for board in (first, refused):
             sources = board["player"]["ability_sources"]
             for name in ("resist_fire", "resist_conf"):
                 sources[name]["equipment"] = True
+        return first, refused
+
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 80 reached, the floor 60 refuses
+    # the Orc cave 23 (test_the_floor_leaves_the_yeek_cave_place); this subject predates it.
+    @floor_lifted()
+    def test_a_safe_fallback_landing_answers_before_the_yeek_cave(self):
+        # The departure read point's safe fallback picks the Orc cave ahead of the Yeek cave.
+        first, refused = self.resisted_boards()
         policy = self.policy(first)
         key = decide(policy, self.in_danger(refused))
         self.assertEqual(policy.last_reason, "emergency:recall")
@@ -218,6 +227,21 @@ class WildernessRecallRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(key, "r" + recall.slot + chr(ord("a") + board.entered_dungeon_ids.index(ORC_CAVE)))
         self.assertEqual(policy._target_dungeon_id, ORC_CAVE)
         self.assertEqual(policy._alternate_dungeon_reason, "safe_fallback")
+    def test_the_floor_leaves_the_yeek_cave_place(self):
+        """Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」: Angband 80 is the deepest
+        reached, so the Orc cave 23 is no fallback (floor 60) and the read carries the next
+        rule's letter, the no-safe-destination place (USER DECISION 2026-10-02): the Yeek cave."""
+        first, refused = self.resisted_boards()
+        policy = self.policy(first)
+        key = decide(policy, self.in_danger(refused))
+        self.assertEqual(policy.last_reason, "emergency:recall")
+        board = parse_snapshot(refused, policy._monrace_knowledge)
+        self.assertEqual(fallback_depth_floor.floor(policy, board), 60)
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual(key, "r" + recall.slot + chr(
+            ord("a") + board.entered_dungeon_ids.index(DUNGEON_YEEK_CAVE)))
+        self.assertIsNone(policy._alternate_dungeon)
+
 
 if __name__ == "__main__":
     unittest.main()

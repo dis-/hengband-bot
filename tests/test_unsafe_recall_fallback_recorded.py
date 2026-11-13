@@ -64,6 +64,8 @@ from hengbot.policy_constants import (
     required_depth_gates,
 )
 
+from hengbot import fallback_depth_floor
+from tests.support.fallback_floor import floor_lifted
 from tests.support.recorded import EDIT, _policy
 
 
@@ -169,6 +171,9 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
         # The refused destination is not the destination the scroll points at.
         self.assertEqual(board.recall_depth, 13)
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
+    # every landing below (test_f5); this subject predates the floor.
+    @floor_lifted()
     def test_f1_the_refused_depth_bounds_the_fallback(self):
         policy = self._independent()
         board = self.board
@@ -192,6 +197,9 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
         )
         self.assertEqual(policy._target_dungeon_id, alternate)
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
+    # every landing below (test_f5); this subject predates the floor.
+    @floor_lifted()
     def test_f2_the_town_terminal_takes_the_fallback_instead_of_blocking(self):
         policy = self._independent()
 
@@ -205,6 +213,9 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
             policy._alternate_dungeon, policy._target_dungeon_id
         )
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
+    # every landing below (test_f5); this subject predates the floor.
+    @floor_lifted()
     def test_f2b_the_fallback_is_the_deepest_landing_that_fits(self):
         # Owner 2026-11-10 (n1-b life-362): 「収まる中で一番深い所へ」 -- 「切り替え
         # 先を一番浅いダンジョンではなく、行き過ぎた深さより浅い中で一番深い
@@ -249,6 +260,9 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
             f"town:blocked:{policy.last_reason}", RECORDED_GATE_REASON
         )
 
+    # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
+    # every landing below (test_f5); this subject predates the floor.
+    @floor_lifted()
     def test_f4_a_safe_destination_is_not_diverted(self):
         """CHANGED 2026-09-23 by user decision
         「*破壊*を使用するロジックを実装するまでは実際に50F以降に潜ることを
@@ -285,6 +299,25 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
             self.assertIsNone(restored._town_special_key(safe))
             self.assertEqual(restored._target_dungeon_id, DUNGEON_ANGBAND)
             self.assertIsNone(restored._alternate_dungeon)
+
+    def test_f5_the_floor_refuses_every_landing_below_thirty(self):
+        """Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」: Angband 50 is the deepest
+        reached, so the floor is 30.  The Castle 22 and the Mountain 25 the fallback took before
+        are under it, the Labyrinth 30 is a conquered forgetting maze: no fallback, and the town
+        terminal leaves the departure to the next rules (fundraising, a named stop)."""
+        policy = self._independent()
+        board = self.board
+        self.assertEqual(fallback_depth_floor.floor(policy, board), 30)
+        for did in (12, 14):
+            self.assertFalse(policy._fallback_landing_allowed(
+                board, did, board.dungeon_recall_depths[did]))
+        self.assertIsNone(policy._activate_safe_recall_fallback(board, ANGBAND_ARRIVAL_DEPTH))
+        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+        policy = self._independent()
+        policy._town_special_key(board)
+        self.assertNotEqual(policy.last_reason, FALLBACK_REASON)
+        self.assertIsNone(policy._alternate_dungeon)
+        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,9 @@ from policy_fixtures import (
     set_completed_equipment_optimization,
 )
 
+from hengbot import fallback_depth_floor
 from hengbot.dungeon_knowledge import DungeonInfo
+from tests.support.fallback_floor import floor_lifted
 from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
 from hengbot.model import (
     DUNGEON_ANGBAND,
@@ -745,6 +747,13 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
     policy-declared final stop ``town:blocked:guardian-bounce-no-alternate``.
     Valves fired by anything else (over-extension, a mixed streak) keep the
     shallower-landing bound and the existing no-candidate behaviour.
+
+    DECLARED WALL (tests/support/fallback_floor.py) on every pin of these worlds: Angband 50 is
+    reached in each, so the fallback depth floor (owner 2026-11-13 「フォールバックは最新到達-20F
+    までにする。」) is 30 and refuses every landing of 18-27 the subject is about; lowering
+    Angband's landing below 50 would make it pass the *Destruction* gate and the guardian
+    valve's Angband first, a different subject.  The floor itself on these worlds:
+    ``test_the_floor_refuses_every_landing_of_these_worlds`` (unwalled).
     """
 
     ORC_CAVE = 3  # landing 23 == max depth 23: its guardian floor
@@ -893,6 +902,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             getattr(policy, "_guardian_bounce_dives", None),
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_bounce_bound_holds_for_every_role_of_the_bounced_dungeon(self):
         self._use_castle_destination()
         worlds = {
@@ -920,6 +930,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                         self.assertIsNone(policy._conquest_committed)
                         self.assertIsNone(policy._town_blocked_reason)
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_no_qualifying_alternate_ends_the_run_visibly(self):
         # Round 2 bounced 13 times on the Orc cave here (the drive ceiling).
         landings = self.ALL_BLOCKED
@@ -948,6 +959,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                     )
                     self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_restored_checkpoint_latch_keeps_the_terminal(self):
         # A checkpoint pickled before the terminal existed carries a town-block
         # latch without it; restoring adds it, so the per-decision release
@@ -975,6 +987,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         restored._evaluate_cross_decision_latches(town)
         self.assertEqual(restored._town_blocked_reason, self.TERMINAL)
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_latched_alternate_whose_landing_became_a_guardian_floor(self):
         self._use_castle_destination()
         # Forest was a productive alternate; its saved recall depth has since
@@ -997,6 +1010,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                     trips, bounced_on=self.FOREST, productive=self.MOUNTAIN
                 )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_restored_checkpoint_without_the_bounce_count_still_switches(self):
         self._use_castle_destination()
         # A checkpoint pickled before _guardian_bounce_dives existed, taken
@@ -1010,6 +1024,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         )
         self._assert_bounded(trips, bounced_on=self.ORC_CAVE, productive=self.FOREST)
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_restored_checkpoint_with_a_running_streak_is_judged_mixed_once(self):
         self._use_castle_destination()
         # A checkpoint pickled mid-streak (two counted dives, no guardian
@@ -1043,6 +1058,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             + [(self.FOREST, False)],
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_mixed_streak_keeps_the_shallower_landing_bound(self):
         self._use_castle_destination()
         # One over-extended Forest dive (two emergency escapes at landing 26),
@@ -1081,6 +1097,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             self.MOUNTAIN,
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_over_extension_valve_keeps_the_shallower_landing_bound(self):
         self._use_castle_destination()
         # Three over-extended Forest dives (two emergency escapes each, no
@@ -1108,6 +1125,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             self.MOUNTAIN,
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_a_stale_guardian_trigger_does_not_count_another_return(self):
         self._use_castle_destination()
         # The previous return was a guardian bounce, so _last_return_trigger
@@ -1142,6 +1160,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                     (0, 0),
                 )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_a_profitable_pursued_dive_clears_the_guardian_bounces(self):
         self._use_castle_destination()
         # Two guardian bounces are on the streak; then a dive of the same
@@ -1164,6 +1183,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             self._streak(policy), (0, 0)
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_guardian_valve_never_re_picks_the_bounced_dungeon(self):
         self._use_castle_destination()
         # The conquest target is not the alternate, so only the explicit
@@ -1195,6 +1215,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                 self.FOREST,
             )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_depth_progress_count_still_judges_only_the_dives_it_judged(self):
         # sol review P2: four stalled Angband dives, then ONE stalled dive of a
         # latched conquest target with Angband's recall unlocked.  The depth
@@ -1256,6 +1277,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             ],
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_town_never_recalls_onto_a_blocked_guardian_landing(self):
         """G3 extended to the path of the 2026-09-25 06:22:31 recall.
 
@@ -1334,6 +1356,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                             "rr" + policy._recall_selection_key(board, productive),
                         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_repetition_block_switches_off_a_blocked_guardian_landing(self):
         """Round 2 (R1): the repetition-block departure rung reads its recall
         itself.  With a guardian-blocked target and no walk-in entrance on the
@@ -1385,6 +1408,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                         (productive, productive),
                     )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_no_switch_while_a_speed_potion_withdrawal_is_pending(self):
         """Round 2 (R2): the switch happens only where the recall is read.
 
@@ -1457,6 +1481,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             (None, self.ORC_CAVE),
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_repetition_block_keeps_the_conquest_while_a_speed_withdrawal_is_pending(self):
         """Round 3: the repetition-block rung applies the departure gate too.
 
@@ -1526,6 +1551,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             (None, self.ORC_CAVE),
         )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_blocked_landing_keeps_the_departure_scroll_and_names_the_leaf(self):
         """Round 2 (R3): a recall is read either way (to the switched landing),
         so the departure scroll stays in the recall stock target, and the
@@ -1560,6 +1586,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
                         policy.last_reason, f"town:blocked:{self.TERMINAL}"
                     )
 
+    @floor_lifted()  # DECLARED WALL: see the class docstring (the fallback depth floor)
     def test_picker_skips_a_landing_on_a_blocked_guardian_floor(self):
         self._use_castle_destination()
         policy = self._policy(self.SHALLOWER)
@@ -1577,3 +1604,15 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             policy._pick_alternate_dungeon(board, max_entry_depth=49),
             self.FOREST,
         )
+
+    def test_the_floor_refuses_every_landing_of_these_worlds(self):
+        """Owner 2026-11-13: Angband 50 reached, floor 30.  The over-extension valve and the
+        guardian valve take nothing of 18-27; the bounce run stops visibly instead."""
+        self._use_castle_destination()
+        policy = self._policy(self.SHALLOWER)
+        town = self._town(policy, self.ORC_CAVE, self.SHALLOWER, angband_unlocked=True)
+        self.assertEqual(fallback_depth_floor.floor(policy, town), 30)
+        policy._last_overextended_depth = 50
+        self.assertIsNone(policy._pick_alternate_dungeon(town, prefer_deepest=True))
+        self.assertIsNone(policy._pick_alternate_dungeon(
+            town, guardian_bounced_dungeon=self.ORC_CAVE))
