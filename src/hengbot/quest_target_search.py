@@ -35,6 +35,14 @@ the walk does not reach is opened toward with the existing openers (retreat_encl
 ``open_toward_key``: a held digger's route bounded by tunnel_feasibility, else Stone to Mud, the
 wand or the absorbed power, sealed_pocket's counted uses), after the locks and before the secret
 doors and the lap; with no means, the door search and the lap as before.
+Ground past a known trap (``_past_traps``): the walks keep off a known trap, so a corridor of
+traps walls the rest of the floor off as rock does (n1-a life-522, Angband 24F, RANDOM quest 41,
+2026-11-14: the bot walked east onto traps it had not seen, three went off, then it lapped the
+76 cells past them for 29 minutes; restarted, its explore disarmed them and killed the target on
+the far side 5 seconds later).  The ground is walked to across the trap by the enclosure ladder's
+own disarm opener (retreat_enclosure ``cross_toward_key``; owner 2026-11-06 「壁を掘る、罠を解除する、
+弱い敵なら倒すことを試みる。」), right after the dig and before the secret doors and the lap; a trap
+whose disarms are spent (CHEST_DISARM_BUDGET) is not crossed, and the lap goes on as before.
 Before the lap (and the secret doors below), a closed door the three-pick cap wrote off, that the
 game answered as a lock and that opens onto ground the walk does not reach, is walked to and
 picked (locked_doors.pick_key): a failed pick is progress, and the rest of the floor can be behind
@@ -242,8 +250,7 @@ def _routes(policy, snapshot: Snapshot) -> dict:
     start = snapshot.player.position
     routes = {start: (0, None)}
     queue = deque([start])
-    avoided = (policy._engagement_avoid_cells | left_cells.refused(policy, snapshot)
-               | policy._engagement_route_veto(snapshot))
+    avoided = _avoided(policy, snapshot)
     while queue:
         here = queue.popleft()
         distance, first = routes[here]
@@ -252,6 +259,12 @@ def _routes(policy, snapshot: Snapshot) -> dict:
                 routes[neighbour] = (distance + 1, neighbour if first is None else first)
                 queue.append(neighbour)
     return routes
+
+
+def _avoided(policy, snapshot: Snapshot) -> frozenset:
+    """The cells every walk of the search keeps off (``_routes``)."""
+    return frozenset(policy._engagement_avoid_cells | left_cells.refused(policy, snapshot)
+                     | policy._engagement_route_veto(snapshot))
 
 
 def _room_groups(cells: set) -> list:
@@ -494,7 +507,8 @@ def _known(policy, snapshot: Snapshot, cell: Position) -> bool:
 
 def _cut_off_floor(policy, snapshot: Snapshot, routes: dict) -> set:
     """Remembered floor inside the outer ring that no walk reaches, not even over damaging
-    ground or past a veto (those have their own owners): the ground only an opener reaches."""
+    ground or past a veto (a known trap: ``_past_traps``; a veto: walled_off_key): the ground
+    only an opener reaches."""
     start = snapshot.player.position
     reached, queue = {start}, deque([start])
     while queue:
@@ -505,6 +519,21 @@ def _cut_off_floor(policy, snapshot: Snapshot, routes: dict) -> set:
     height, width = snapshot.height, snapshot.width
     return {cell for y, x in policy._floor_t
             if 0 < y < height - 1 and 0 < x < width - 1 and (cell := Position(y, x)) not in reached}
+
+
+def _past_traps(policy, snapshot: Snapshot, routes: dict, avoided: frozenset) -> set:
+    """The walkable ground no route reaches that a walk across known traps the disarm still
+    tries does (retreat_enclosure.crossable), keeping off the ``avoided`` cells as the routes do."""
+    start = snapshot.player.position
+    reached, queue = {start}, deque([start])
+    while queue:
+        for neighbour in policy._walkable_neighbors(snapshot, queue.popleft(), allow_damaging=True):
+            if (neighbour not in reached and neighbour not in avoided
+                    and retreat_enclosure.crossable(policy, snapshot, neighbour)):
+                reached.add(neighbour)
+                queue.append(neighbour)
+    return {cell for cell in reached if cell not in routes
+            and not policy._is_avoidable_hazard_grid(snapshot.grids.get(cell))}
 
 
 def door_walls(policy, snapshot: Snapshot, routes: dict) -> set:
@@ -658,6 +687,12 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
         opened = retreat_enclosure.open_toward_key(policy, snapshot, routes.keys(), cut_off)
         if opened is not None:
             return opened
+    avoided = _avoided(policy, snapshot)
+    past = _past_traps(policy, snapshot, routes, avoided)
+    if past:
+        crossed = retreat_enclosure.cross_toward_key(policy, snapshot, past, avoided)
+        if crossed is not None:
+            return crossed
     means = door_means_key(policy, snapshot, memory, routes)
     if means is not None:
         return means

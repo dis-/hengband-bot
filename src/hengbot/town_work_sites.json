@@ -12811,6 +12811,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_avoided": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:_beside": {
     "classification": "data",
     "rows": [
@@ -12854,6 +12861,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest_target_search.py:_next_goal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_past_traps": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13007,6 +13021,20 @@
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
+  "retreat_enclosure.py:_disarm_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_first_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; a route reading for the openers"
+  },
   "retreat_enclosure.py:_ladder": {
     "classification": "action",
     "rows": [
@@ -13041,6 +13069,13 @@
       "positioning"
     ],
     "delegation": "No independent success; pure reading."
+  },
+  "retreat_enclosure.py:cross_toward_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "retreat_enclosure.py:enclosed_key": {
     "classification": "action",

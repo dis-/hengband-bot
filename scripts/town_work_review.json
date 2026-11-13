@@ -18845,5 +18845,60 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The absorbed Teleportation cast (m + kind + letter, reason + :absorbed-power, the owner me_device_attacks_input answers) or the carried Staff of Teleportation (u + slot, the caller's staff reason) of a teleport_means answer; sets last_reason; no independent progress."
+  },
+  "retreat_enclosure.py:cross_toward_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the walled-off ladder and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: the quest search's ground past a known trap (n1-a life-522 Angband 24F, 2026-11-14: a corridor of known traps walled the lap into 76 cells for 29 minutes; owner 2026-11-06 「罠の解除」, retreat_enclosure's disarm opener); the disarm opener's walk across a trap toward known ground the asker's walk does not reach, after the dig and before the door search; returns the step or disarm key through _step_toward, or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_disarm_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the walled-off ladder and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: owner 2026-11-06 「罠を解除する」 (the walled-off ladder's opener) and the quest search's ground past a known trap (n1-a life-522 Angband 24F, 2026-11-14: a corridor of known traps walled the lap into 76 cells for 29 minutes; owner 2026-11-06 「罠の解除」, retreat_enclosure's disarm opener); a walk across a trap the walk's disarm still tries, posted through _step_toward (its existing disarm key); returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_first_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "dungeon-only: pure reading, the first step of the shortest walk to the given goals over admitted cells (the disarm and strike openers, the quest search's trap crossing); posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; a route reading for the openers"
+  },
+  "quest_target_search.py:_past_traps": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target (owner 2026-11-05); dungeon only; reads the remembered floor and the board (the ground only a walk across a known trap reaches, the quest search's ground past a known trap (n1-a life-522 Angband 24F, 2026-11-14: a corridor of known traps walled the lap into 76 cells for 29 minutes; owner 2026-11-06 「罠の解除」, retreat_enclosure's disarm opener)); posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_avoided": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reached only from quest_target_search.loop_key on a runtime RANDOM quest floor held for its target (owner 2026-11-05); dungeon only; reads the cells the search's walks keep off (the engagement cells, the left-cell registry, the route veto); posts nothing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

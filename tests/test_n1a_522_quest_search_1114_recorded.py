@@ -9,6 +9,9 @@ the bot's explore disarmed them (``D4``) and killed the target on the far side 5
 Two roots, against the owner's rules for the random quest search (2026-11-08: the walk covers the
 whole floor, a cut-off floor is opened first, and the floor is given up after two whole coverages):
 
+1. The ground past a known trap was never opened (quest_target_search ``_past_traps``): the lap
+   circled the pocket.  Now the enclosure ladder's disarm opener walks across the trap
+   (retreat_enclosure ``cross_toward_key``, owner 2026-11-06 「罠の解除」).
 2. The Staff of Detect Evil (10 charges, picked up at 05:01:34) spent its last charge at 05:03:04;
    the empty staff still counted as a held means (``held_cast_radius`` 30), so the walk's view
    counted for nothing and no cast came: no coverage could ever complete and the floor could never
@@ -103,6 +106,34 @@ class N1a522QuestSearchRecordedTest(recorded.ProductionHarness):
         self.assertEqual(max(row["position"]["x"] for row in lap), 107)
         west = next(row for row in rows if row["turn"] == WEST_END)
         self.assertEqual((west["position"], west["key"]), ({"y": 38, "x": 74}, "6"))
+
+    # -- 1. the ground past the traps ----------------------------------------
+
+    def test_the_search_crosses_the_trap_toward_the_rest_of_the_floor(self):
+        policy = self.policy(WEST_END)
+        raw = self.rows[WEST_END]
+        key = self.decide(policy, raw)
+        self.assertEqual((key, policy.last_reason), ("D4", DISARM))
+        board = self.board(raw)
+        routes = search._routes(policy, board)
+        self.assertEqual(len(routes), 76)
+        self.assertGreater(len(search._past_traps(policy, board, routes, search._avoided(policy, board))),
+                           100)
+        # The key the production executor posts.
+        following = next(row for row in self.case["rows"] if row["turn"] > WEST_END)
+        game = FaithfulHookGame()
+        game.state = copy.deepcopy(raw)
+        game.screen = command_screen(raw["turn"])
+        game.screens = [command_screen(following["turn"])]
+        game.states = [copy.deepcopy(following)]
+        _, _, executor = self.make(game)
+        self.assertEqual(executor.observe_boundary(deadline=9999999999).outcome, "ready")
+        port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
+        self.assertEqual(port(key, decision={"reason": policy.last_reason,
+                                             "sequence": policy._decision_sequence}),
+                         SendResult.SENT, port.last_result.reason)
+        self.assertEqual(port.last_result.outcome, "completed")
+        self.assertEqual("".join(game.accepted), key)
 
     # -- 2. the empty staff --------------------------------------------------
 
