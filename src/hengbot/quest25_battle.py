@@ -943,10 +943,10 @@ def _settle_beam(ctx: _Ctx) -> None:
 
 def _ball_powers(ctx: _Ctx, race: int):
     """(expected damage, radius, shape, key maker) of each ball or breath the character can aim
-    at a grid: absorbed powers and carried wands and rods, strongest first."""
+    at a grid: absorbed powers and carried wands and rods, strongest first; none that ``race``'s
+    known flags cancel (``attack_expectation.effective``)."""
     snapshot, policy = ctx.snapshot, ctx.policy
-    flags = attack_expectation.race_knowledge(policy, race)
-    flags = flags.flags if flags is not None else None
+    flags = me_device_attacks.race_id_flags(policy, race)
     level = snapshot.player.level
     found = []
     if me_device_attacks.can_use_powers(snapshot):
@@ -968,7 +968,7 @@ def _ball_powers(ctx: _Ctx, race: int):
             found.append((chance * me_device_attacks.expected_damage(power, level, flags),
                           me_device_attacks.AREA_RADIUS[power.shape], power.shape,
                           lambda grid, item=item, kind=kind: _carried_grid_key(ctx, kind, item, grid)))
-    return sorted(found, key=lambda row: -row[0])
+    return sorted(attack_expectation.effective(found), key=lambda row: -row[0])
 
 
 def _cursor_suffix(ctx: _Ctx, grid) -> str:
@@ -994,22 +994,34 @@ def _launcher_grid_key(ctx: _Ctx, grid) -> str | None:
 
 
 def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
-    """The best absorbed beam along a ray to ``grid`` (a bolt-or-beam counts at its beam chance)."""
+    """The best absorbed beam along a ray to ``grid`` (a bolt-or-beam counts at its beam chance);
+    none that ``race``'s known flags cancel."""
     snapshot = ctx.snapshot
     direction = me_powers.beam_direction(ctx.policy, snapshot, snapshot.player.position, Position(*grid))
     if direction is None or not me_device_attacks.can_use_powers(snapshot):
         return None
-    flags = attack_expectation.race_knowledge(ctx.policy, race)
-    flags = flags.flags if flags is not None else None
+    flags = me_device_attacks.race_id_flags(ctx.policy, race)
     best = None
     for power, success in me_device_attacks.usable_powers(ctx.policy):
-        share = 1.0 if power.shape == "beam" else power.beam_percent / 100
+        share = _beam_share(power)
         if share <= 0 or power.group_only:
             continue
         damage = success * share * me_device_attacks.expected_damage(power, snapshot.player.level, flags)
-        if best is None or damage > best[0]:
+        if damage > 0 and (best is None or damage > best[0]):
             best = (damage, lambda power=power: me_device_attacks.device_key(ctx.policy, power, direction))
     return best
+
+
+def _beam_share(power) -> float:
+    """The share of ``power``'s uses that pass the bodies along its ray: a beam's all, a
+    bolt-or-beam's beam chance (fire_bolt_or_beam), a bolt's none."""
+    return 1.0 if power.shape == "beam" else power.beam_percent / 100
+
+
+def _reaches_grid(power) -> bool:
+    """``power`` hits a grid it need not see: a ball or a breath aimed at it, a beam along its ray
+    (``_ball_powers``, ``_beam_key``)."""
+    return power.shape in me_device_attacks.TARGETABLE_SHAPES or _beam_share(power) > 0
 
 
 def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
@@ -1521,13 +1533,21 @@ def _quyls_done(ctx: _Ctx) -> bool:
     return _quyl_plan(ctx) is None and not _recharging_area_attack(ctx)
 
 
-def _area_attack_held(ctx: _Ctx) -> bool:
-    """An area attack the character holds whatever its charges now: an absorbed ball or breath
-    (the Magic-Eater's wands regain charges and its rods recharge, hpmp/hp-mp-regenerator.cpp
-    regenmagic, twice as fast resting), or a carried rod of one (it recharges)."""
+def _area_attack_held(ctx: _Ctx, race: int) -> bool:
+    """An area attack on ``race`` the character holds whatever its charges now (``_held_against``)."""
+    return _held_against(ctx, race, lambda power: power.shape in me_device_attacks.TARGETABLE_SHAPES)
+
+
+def _held_against(ctx: _Ctx, race: int, reaches: Callable) -> bool:
+    """An attack ``reaches`` admits that the character holds whatever its charges now -- an
+    absorbed power (the Magic-Eater's wands regain charges and its rods recharge,
+    hpmp/hp-mp-regenerator.cpp regenmagic, twice as fast resting) or a carried rod (it recharges)
+    -- and that ``race``'s known flags do not cancel (me_device_attacks.expected_damage)."""
     policy, snapshot = ctx.policy, ctx.snapshot
+    flags = me_device_attacks.race_id_flags(policy, race)
     for (kind, sval), power in me_device_attacks.POWERS.items():
-        if power.shape not in me_device_attacks.TARGETABLE_SHAPES or power.group_only:
+        if (power.group_only or not reaches(power)
+                or me_device_attacks.expected_damage(power, snapshot.player.level, flags) <= 0):
             continue
         if me_capability.has(policy, snapshot, kind, sval):
             return True
@@ -1550,7 +1570,7 @@ def _recharging_area_attack(ctx: _Ctx) -> bool:
     left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
             if race == geo.QUYL and cell not in ctx.battle.quyls_done]
     return (bool(left) and ctx.kills(geo.QUYL) < geo.ROSTER[geo.QUYL]
-            and not _balls(ctx, geo.QUYL) and _area_attack_held(ctx)
+            and not _balls(ctx, geo.QUYL) and _area_attack_held(ctx, geo.QUYL)
             and ctx.battle.recharge_rests < RECHARGE_REST_LIMIT)
 
 
@@ -2120,7 +2140,26 @@ def _stairway(ctx: _Ctx) -> str | None:
         return ctx.policy._step_toward(ctx.snapshot, Position(*stairway))
     # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen from [13,27], no arrow; the
     # door [13,28] beside it when nothing is aimed at the grid.
+    if (rest := _stairway_spent(ctx, stairway, bool(seen))) is not None:
+        return rest
     return _unseen_fire(ctx, stairway, geo.STAIRWAY, seen=bool(seen), among={stand, door})
+
+
+def _stairway_spent(ctx: _Ctx, stairway, seen: bool) -> str | None:
+    """No attack that hurts the stairway is ready, one is held: the refill rest (``_refill_key``).
+
+    Owner 2026-11-13 「休んで充填を待つ」 (the tome's ``_tome_unarmed``) with 2026-11-12 「射撃と
+    取り込んだ魔法道具は常に期待値で比べて高い方（耐性・命中率・成功率まで）」: the stairway to hell
+    (lib/edit MonraceDefinitions 439) is immune to acid, lightning, fire and poison and the weak
+    light leaves it unhurt (``attack_expectation.effective``), so with its cold and missiles spent
+    none of those is fired; the rest refills what does hurt it.  n1-b life-384 (2026-11-13
+    08:30-08:42): from [13,27] 235 uses at it, the cold 28 and the Magic Missile 6 of them.  None
+    (the walk to a sight, ``_unseen_fire``) when nothing hurting it is held or the rest is refused."""
+    if _fire_options(ctx, stairway, geo.STAIRWAY, missiles=seen):
+        return None
+    if not _held_against(ctx, geo.STAIRWAY, _reaches_grid):
+        return None
+    return _refill_key(ctx)
 
 
 def _stands_looked_from(ctx: _Ctx, stairway, door, stand) -> bool:
