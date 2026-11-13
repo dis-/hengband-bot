@@ -19,7 +19,7 @@ from hengbot.cli import _loop_stop_due, _write_decision
 from hengbot.loop_detection import LOOP_WINDOW
 from hengbot.model import Position, Snapshot
 from hengbot.policy import HengbotPolicy
-from hengbot.policy_constants import DIRECTION_KEYS
+from hengbot.policy_constants import DIRECTION_KEYS, UNSEEN_REVERSE_REASON
 from tests.policy_fixtures import grid, player
 
 FLOOR = (3, 19, 0)
@@ -81,6 +81,14 @@ class RegistryTest(unittest.TestCase):
         left_cells.leave(policy, corridor(floor=(3, 20, 0)), (P,), owner="x", boards=40)
         self.assertEqual(getattr(policy, left_cells.MEMORY).floor_key, (3, 20, 0))
         self.assertNotIn(Q, getattr(policy, left_cells.MEMORY).records)
+
+    def test_the_retired_unseen_retreat_lifts_its_records(self):
+        """The reverse-choke retreat's cells are a way again once it retires (as its area is)."""
+        policy, board = HengbotPolicy(), corridor()
+        left_cells.leave(policy, board, (Q,), owner=UNSEEN_REVERSE_REASON, game_turns=1000)
+        left_cells.leave(policy, board, (Position(28, 93),), owner="pingpong:a/b", boards=40)
+        policy._clear_unseen_retreat()
+        self.assertEqual(left_cells.refused(policy, board), {Position(28, 93)})
 
     def test_a_record_that_seals_the_player_is_not_made(self):
         policy, board = HengbotPolicy(), corridor()

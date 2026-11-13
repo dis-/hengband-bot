@@ -345,6 +345,7 @@ from hengbot.policy_constants import (
     ZAP_ROD_KEY,
 )
 from hengbot.policy_constants import (
+    UNSEEN_REVERSE_REASON,
     AIM_WAND_KEY,
     EQUIPMENT_SLOT_KEY,
     EXECUTABLE_QUEST_STRATEGY_IDS,
@@ -15565,6 +15566,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._unseen_choke_position = None
         self._unseen_choke_started_turn = None
         self._unseen_retreat_blind_only = False
+        # The retreat retired: the cells it left are a way again (left_cells).
+        left_cells.lift(self, UNSEEN_REVERSE_REASON)
 
     @staticmethod
     def _is_unseen_spell_message(message: str) -> bool:

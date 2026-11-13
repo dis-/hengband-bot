@@ -15,7 +15,8 @@ This module is part 1: one record of the cells left, one registration, one reade
   owner and the lifetime of its reason: until the monsters it left (``threats``) are gone
   (retreat_veto_life's reading: died, changed shape, or not shown for UNSEEN_GAME_TURNS), for
   ``game_turns`` game turns (an unseen attacker's window), for ``boards`` decisions (the
-  ping-pong guard's window), else for the floor visit.  The owner's own walk passes its own
+  ping-pong guard's window), else for the floor visit; or until the owner retires its episode
+  (``lift``).  The owner's own walk passes its own
   records (``walking_as``): a retreat pushed back onto its way does not detour round the
   cells behind it.  ``shared=True`` is the engagement claim (``_claim_engagement_avoid_cells``):
   its cells stay in the claim's storage (``_engagement_owned_avoid_cells``, mirrored into
@@ -182,6 +183,20 @@ def refused(policy, snapshot) -> frozenset:
 def refused_yx(policy, snapshot) -> frozenset:
     """``refused`` as (y, x) cells, for the quest plan walks' maps."""
     return frozenset((cell.y, cell.x) for cell in refused(policy, snapshot))
+
+
+def lift(policy, owner: str) -> None:
+    """``owner``'s reason ended (its episode retired): its records go."""
+    registry = getattr(policy, MEMORY, None)
+    if registry is None:
+        return
+    for cell, records in list(registry.records.items()):
+        kept = [record for record in records if record.owner != owner]
+        if kept:
+            registry.records[cell] = kept
+        else:
+            del registry.records[cell]
+    registry.sealed = None
 
 
 def who_left(policy, cell: Position) -> frozenset:
