@@ -1498,6 +1498,7 @@ class IdentificationMixin:
         ):
             step = self._position_target_step(snapshot, target, through=through, avoid=veto)
             if step is not None:
+                self._loot_walked_target = target
                 return step
 
         if target is not None and self._loot_target == target:
@@ -1512,6 +1513,7 @@ class IdentificationMixin:
             pos, first_step, distance = queue.popleft()
             if pos != start and pos in candidates:
                 self._loot_target = pos
+                self._loot_walked_target = pos
                 return first_step
             if max_path_distance is not None and distance >= max_path_distance:
                 continue

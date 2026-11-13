@@ -395,6 +395,7 @@ def normalize_policy_state(restored, *, restart=False):
     # cancelled as unready this visit", what a fresh visit starts with.
     restored.__dict__.setdefault("_safety_deferred_loot", set())
     restored.__dict__.setdefault("_loot_safety_rearmed", set())
+    restored.__dict__.setdefault("_loot_walked_target", None)
     restored.__dict__.setdefault("_home_knowledge_scan_epoch", None)
     if not token_was_present:
         restored.__dict__["_home_knowledge_scan_inflight"] = False

@@ -1824,6 +1824,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._nav_ledger_deferred_loot: set[Position] = set()
         self._loot_ledger_rearmed: set[Position] = set()
         self._loot_safety_rearmed: set[Position] = set()
+        # The loot target this decision's own loot walk stepped toward (_loot_step): the
+        # navigation ledger charges a committed loot goal only on the board after its walk.
+        self._loot_walked_target: Position | None = None
         self._loot_defer_blocker: str | None = None
         self._pending_loot_pickup: tuple[tuple[int, int, int], Position, int] | None = None
         self._multiplier_target: Position | None = None
@@ -13615,8 +13618,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return offer(self._step_toward(snapshot, step))
 
     def _observe_navigation_commitments(self, snapshot: Snapshot) -> None:
-        """Charge a committed loot goal on every decision until it expires."""
+        """Charge a committed loot goal after each step of its own walk until it expires.
+
+        Only the board after the loot walk's own step (``_loot_walked_target``) is charged: a
+        decision another owner took did not pursue the goal, so it does not stall it.  The
+        ledger charged the goal on every decision whoever took it, and an owner that holds
+        the player still for long spent the walk's budget: n1-c life-205 (Orc cave 23F,
+        2026-11-13 19:17:22) deferred a polearm three cells away for the floor on the 32nd
+        board of an ``anaguma:hold`` in the pocket beside it, and the visit returned by
+        ``stuck:recall-escape`` with it on the floor (13:26 the same with a choke hold, for
+        which ``_set_aside_loot_goal`` was added to that one owner).
+        """
         committed_loot = self._loot_target
+        walked = self.__dict__.get("_loot_walked_target")
+        self._loot_walked_target = None
         previous_position = self._recent[-2] if len(self._recent) >= 2 else None
         jumped = (
             previous_position is not None
@@ -13643,7 +13658,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # approach stepped back, and seek-loot walked out again from the
             # entrance until owner-retired-burst.
             self._nav_ledger.release("loot", committed_loot)
-        elif committed_loot is not None and not jumped:
+        elif committed_loot is not None and not jumped and walked == committed_loot:
             self._nav_ledger.observe(
                 "loot",
                 committed_loot,
