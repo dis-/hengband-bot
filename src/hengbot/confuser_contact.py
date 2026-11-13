@@ -13,9 +13,11 @@ yet confused, when a monster faster than the player (threat_projection.adjusted_
 threat tiers' comparison) whose blows confuse can reach the player before its next action
 (paralyzer_contact.in_contact, the game's energy arithmetic), read Teleportation to leave
 instead of trading shots.  Once confused the current behaviour stands (the cures until they
-run out, then the fight).  *Destruction* comes first where the existing order already puts it
-(destruction_use.key, as the paralyzer and status-threat rungs ask it before their scroll).
-A Phase Door is no substitute (owner 2026-11-02 「ショートテレポートはテレポートの代替にならない」).
+run out, then the fight).  The leave is the player's own teleport and nothing else
+(teleport_follower.teleport_means): the Teleportation scroll first, as the decision says, else
+the absorbed Teleportation, else a carried Staff of Teleportation; with none the rungs below
+answer as today.  *Destruction* is not a leave and is not asked here.  A Phase Door is no
+substitute (owner 2026-11-02 「ショートテレポートはテレポートの代替にならない」).
 
 The rung stands in the emergency layer after the paralyzer prevention: below the emergency
 ladder (the 即死 board and the tiers' rules answer there first) and above the summoner shots.
@@ -23,10 +25,12 @@ ladder (the 即死 board and the tiers' rules answer there first) and above the 
 
 from __future__ import annotations
 
-from hengbot import destruction_use, paralyzer_contact, quest_no_teleport
+from hengbot import paralyzer_contact, teleport_follower
+from hengbot.threat_escape import STAFF_REASON_SUFFIX
 from hengbot.threat_projection import _with_adjusted_speed, adjusted_speed
 
 REASON = "status-threat:confuser-leave"
+STAFF_REASON = REASON + STAFF_REASON_SUFFIX
 CONFUSE_EFFECT = "CONFUSE"
 
 
@@ -50,23 +54,21 @@ def confusers(policy, snapshot, hostiles) -> list:
 
 
 def leave_key(policy, snapshot, hostiles) -> str | None:
-    """*Destruction* where it comes first, else Teleportation, before the confuser's blow.
+    """The player's own teleport (``teleport_means``) before the confuser's blow, else None.
 
-    Once confused neither is asked here: destruction_use refuses a confused player
-    (``_clear_headed``) and ``_escape_scroll`` a confused or blind one (cmd-read.cpp), so the
-    cures and the fight below stay as they are.  Blind, *Destruction* is still used (owner
-    2026-11-08 「盲目でも使う」, as the status-threat rung does)."""
+    Once confused none is asked: ``teleport_means`` refuses a confused player (cmd-read.cpp,
+    cmd-magiceat.cpp:463), so the cures and the fight below stay as they are."""
     threats = confusers(policy, snapshot, hostiles)
-    if not threats:
+    if not threats or policy._relocation_refused(snapshot):
         return None
-    if (used := destruction_use.key(policy, snapshot)) is not None:
+    means = teleport_follower.teleport_means(policy, snapshot)
+    if means is None:
+        return None
+    if means[0] == "scroll":
+        policy.last_reason = REASON
+        key = policy._read_key(snapshot, means[1])
+    else:
+        key = teleport_follower.device_teleport_key(policy, snapshot, means, REASON, STAFF_REASON)
+    if key is not None:
         policy._declare_triggers(threats)
-        return used
-    if quest_no_teleport.forbids(policy, snapshot) or policy._relocation_refused(snapshot):
-        return None
-    scroll = policy._escape_scroll(snapshot, teleport_only=True)
-    if scroll is None:
-        return None
-    policy.last_reason = REASON
-    policy._declare_triggers(threats)
-    return policy._read_key(snapshot, scroll)
+    return key

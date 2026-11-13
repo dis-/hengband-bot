@@ -8,26 +8,38 @@ never readable again and the character died.
 
 Owner 2026-11-14 「混乱する前に離れるだけ」 (option C of that question): without resist_conf and
 not yet confused, a faster monster whose blows confuse and which reaches before the next
-action is left by Teleportation instead of trading shots (confuser_contact).  Once confused,
-the current behaviour stands.
+action is left by the player's own teleport instead of trading shots (confuser_contact): the
+Teleportation scroll first, else the absorbed Teleportation or a Staff of Teleportation; with
+none, today's rungs.  *Destruction* is not a leave.  Once confused, the current behaviour stands.
 
 Source: tests/fixtures/n1b-392-confused-read-1113.json.gz (the confused-read pin's fixture,
 tests/extract_n1b_392_confused_read_1113_fixture.py).  Every decision goes through the public
 ``choose_key``; a test says when it edits a board (DECLARED CONSTRUCTED).
+DECLARED RESTORED: ``ABSORBED`` is the death's policy-state.json ``_me_staff_sequence.absorbed``
+(C:/hengband-backups/pdca/captures/n1b-392-recall-confirm-1113/incident-captures/
+20261113-195221-loop-detected); the boards carry no power list.  It holds no Teleportation.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import unittest
 
-from hengbot import confuser_contact
-from hengbot.model import parse_snapshot
+from hengbot import confuser_contact, me_absorbed_substitutes
+from hengbot.model import SV_SCROLL_TELEPORT, SV_STAFF_TELEPORTATION, TVAL_SCROLL, parse_snapshot
 from tests.support.recorded import READ_PROMPT, prompt_screen
 from tests.test_me_nokey_1031_recorded import PostedKey
 from tests.test_n1b_392_confused_read_1113_recorded import CASE, TELEPORT_NAME, replay, slot
 
 SHOT, FIRST_CONFUSED = 1124309, 1124323
 DEMONESS = 319
+ABSORBED = {"staff:10": 19, "staff:12": 12, "staff:13": 15, "staff:15": 14, "staff:5": 21,
+            "staff:8": 19, "staff:9": 11, "wand:6": 12}
+
+
+def without_teleport_scrolls(raw):
+    raw["inventory"] = [item for item in raw["inventory"]
+                        if not (item["tval"] == TVAL_SCROLL
+                                and item.get("sval") == SV_SCROLL_TELEPORT)]
 
 
 class RecordedRowsTest(unittest.TestCase):
@@ -54,6 +66,21 @@ class ConfuserLeaveTest(PostedKey):
         self.assertEqual([m.race_id for m in confuser_contact.confusers(
             policy, snapshot, snapshot.visible_monsters)], [DEMONESS])
         self.post(policy, raw, key, screens=(prompt_screen(READ_PROMPT),))
+
+    def test_without_the_scroll_the_absorbed_teleportation_is_cast(self):
+        """DECLARED CONSTRUCTED: the 1124309 board without the Teleportation scrolls, the
+        restored absorbed powers with a Staff of Teleportation added (10 charges)."""
+        absorbed = dict(ABSORBED, **{f"staff:{SV_STAFF_TELEPORTATION}": 10})
+        policy, _raw, key = replay(SHOT, without_teleport_scrolls, absorbed=absorbed)
+        power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
+        self.assertEqual((key, policy.last_reason),
+                         (power.key, confuser_contact.REASON + me_absorbed_substitutes.CAST_SUFFIX))
+
+    def test_control_without_any_teleport_the_shot_stays(self):
+        """DECLARED CONSTRUCTED: the 1124309 board without the Teleportation scrolls and the
+        restored absorbed powers (no Teleportation): no teleport means, today's shot."""
+        policy, _raw, key = replay(SHOT, without_teleport_scrolls, absorbed=ABSORBED)
+        self.assertEqual((key, policy.last_reason), ("fl4", "summoner:ranged-kill"))
 
     def test_control_with_resist_confusion_the_shot_stays(self):
         """DECLARED CONSTRUCTED: the 1124309 board with resist_conf from equipment."""
