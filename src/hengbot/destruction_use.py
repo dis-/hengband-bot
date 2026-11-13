@@ -56,7 +56,7 @@ from dataclasses import dataclass
 from functools import partial
 
 from hengbot import (
-    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, summoner_wait,
+    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, pingpong_guard, summoner_wait,
 )
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
@@ -107,7 +107,7 @@ POSITION_DICTS = (
 # Collections of (kind, Position):
 KIND_POSITION_COLLECTIONS = ("_unverified_stairs", "_stair_rejection_strikes")
 # Module memories of monsters and holds that may stand in the circle.
-FORGET_VISIT = (summoner_wait, immobile_threat_memory, hunt_target, left_cells)
+FORGET_VISIT = (summoner_wait, immobile_threat_memory, hunt_target, left_cells, pingpong_guard)
 
 
 @dataclass

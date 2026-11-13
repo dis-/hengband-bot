@@ -335,6 +335,9 @@ AFTER_DECIDE = (
     "_flee_sustain_key", "_strong_fight_speed_filter", "heroism_potion.fight_filter",
     "me_powers.fight_key",
     "_periodic_game_save_key", "_periodic_character_dump_key", "periodic_magic_eater_powers_key",
+    # The ping-pong guard's escalation (owner 2026-11-13 「1と2だけ」): the existing livelock leave
+    # in place of a key that is not a survival rung's, on the escalation board only.
+    "pingpong_guard.after_ladder",
     "_break_positional_oscillation", "_break_livelock", "_bound_escape_wait",
     "_forbid_wait_on_town_entrance", "_suppress_pending_stair_command",
 )
