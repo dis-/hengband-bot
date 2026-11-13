@@ -91,6 +91,8 @@ def observe(policy, snapshot) -> None:
         turn = int(record["turn"])
         names = {field.name for field in dataclasses.fields(Battle)} - _NOT_CARRIED
         fields = {name: _decode(value) for name, value in record["battle"].items() if name in names}
+        if record["battle"].get("tome_gone"):   # a record written before ``gone`` (2026-11-13)
+            fields["gone"] = fields.get("gone", frozenset()) | {geo.TOME}
         battle = Battle(**fields)
         board = record.get("board")
         board = None if board is None else (int(board[0]), tuple(str(text) for text in board[1]))
