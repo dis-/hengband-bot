@@ -253,3 +253,80 @@ E. 残り（段3）
     混じるので TownHolds には入れられない（入れると町を移った時に消えて振る舞いが変わる）。消える時機ごとに入れ物を分けるか、
     release に時機を渡す形にする。
   - 3-3〜3-5 は前の「残り」のとおり（3-5 の期限の値は B のユーザーの答えに従う）。
+
+
+追記2（2026-11-13 夕方）: 段3-2b・3-3a・3-3b
+================================================
+
+（枝の段2・3-1・3-2a は 9359721d9f で main に入った。続きを同じ枝で進めた）
+
+F. 段3-2b（70ee871546）: 階が変わった時だけ消す訪問の旗8つを、別の入れ物にまとめる
+  - 8つ: 装備の最適化の時間切れ・帰還を読んだ先のダンジョン・帰還の読みの見張り・
+    帰還を取り消した印・この訪問で買った品と数・売った品の種類・売った鑑定の杖の残り回数。
+  - これらは「前の判断の時と違う階の盤面」（プロセスの最初の盤面も含む）で消えていた。
+    TownHolds（前の階があって階が変わった時と、地表で町が変わった時に消える）とは消える時機が違うので、
+    town_visit.FloorHolds に入れ、階が変わった時に release() を呼ぶ。
+    町が変わった時は、帰還を取り消した印だけを今までどおり名前で消す。
+  - 入れ物の仕組み（release・既定値を埋める __setstate__・旧名の転送・古いチェックポイントからの移し替え・
+    flight recorder の旧名での記録）は、2つの入れ物で共通の表 _HOLD_CONTAINERS にした（重複をなくした）。
+    policy の初期値と、復元の時の setdefault の重複は削除。
+  - 再生（main 9f3df0a310 対 枝）: 233件・222件・2,804行・差 0件。
+  - テスト tests/test_town_holds.py（7本）OK。関係するテスト（town_progress_invariant、classC2、
+    recall_read_cancel_pingpong、town_plan_exhausted_wander、flight_recorder、town_arrival_checkpoint、
+    town_visit_reset、policy_structure）は、負荷で main も枝も 1700 秒で時間切れになったが、そこまでの結果は
+    同じ（一時ファイルの名前以外の出力が一致）。
+
+G. 段3-3a（eb98f83eaa）: 進みの継ぎ目（_town_procurement_decision）が町の判断を差し替えた所を記録する
+  - 段3-1 の記録は、継ぎ目が理由を town-plan の家族に変えた時しか数えていなかった。
+    choose_key の中で、継ぎ目の前後のキーと理由を比べ、変わったら TownVisit.plan_rewrites に
+    （番号・元の理由・継ぎ目の理由）を書く。決定の記録の visit_stage に数を出す。判断は読まない。
+  - 再生: 233件・222件・2,804行・差 0件。測り: 222訪問のうち23訪問で計52回。
+    43回が shop:observe-and-leave → town-progress-invariant:continue-observed-shop、
+    5回が shop:approach → town-progress-invariant:defect:…、ほか4回。
+    → 段3-3 の続きで継ぎ目をなくす時の対象は、この「観た店を続ける」が9割。
+
+H. 段3-3b（016cc872e8）: 認めた帰還を荷物の理由で取り消すのは、荷物が埋まった時だけ（n1-c 06:31 の件）
+  - 根（前の報告の (a)）: 帰還を読む時は「空き4つの証明」（荷物の正確な中身の署名、名前を含む）で認め、
+    待つ間に魔法棒の魔力を吸収して名前（回数）が変わると、証明が消えて取り消し側が帰還を取り消していた。
+    スロットは1つも増えていない。
+  - 帰還を読む時に、その時の荷物のスロット数を記録し（FloorHolds.recall_read_pack_slots、読みの見張りと一緒に消える）、
+    取り消し側の pack-too-full は「読んだ時より荷物が埋まっている」時だけにした
+    （_recall_pack_fuller_than_read、読んだ時の盤面で判断）。この方針で記録していない読み（古いチェックポイント）は前のまま。
+    ほかの取り消しの理由は変えていない。
+  - 再生: 233件のうち、違ったのはこの記録だけ（設計どおり）:
+    n1-c life-205 06:31 の50行目、main は 'ri' town:cancel-unready-recall（巻物で取り消し）、
+    枝は '5' town:wait-recall（認めた帰還をそのまま待つ）。ほかの232件は main と同じ（2,804行）。
+    枝ではこの盤面で、出発の判断が「読む時も取り消す時も同じ答え（帰還する）」になる。
+    記録の入力はこの後の取り消しの結果なので、51行目より先は再生できない（帰還してダンジョンに着くはず）。
+  - テスト tests/test_n1c_205_recall_contradiction_1113_recorded.py（記録の盤面を公開の choose_key に通す）。
+    元に戻すと ['pack-too-full'] で落ちることを確かめた。
+    町到着の記録のテスト用の取り出しと読み込みを tests/support/town_arrival_fixture.py に1つにした
+    （今までは各テストに同じ処理を写していた）。
+  - recall・pingpong の名前のテスト（27モジュール・147本）を main と枝で流した。
+    違いは test_recall_read_cancel_pingpong の1本だけだった。この作った盤面のテストは、
+    スロットが同じまま荷物の葉だけ落ちる形（n1-c と同じ形）で取り消しを期待していたので、
+    「帰還はそのまま」に期待を直した。荷物が1つ埋まった時は今までどおり取り消して contradiction で止まることを
+    test_r2_a_fuller_pack_still_cancels で残した。ほかの落ちるテストは main と同じ（25本）。
+
+I. main の取り込み（6bddc7291a、段3-2a までを含む main）: 7047396361（衝突なし）。
+   main の「町の敵の目標を続ける」（2f7c073773）は _town_hunt_target を転送のプロパティ越しに読むので直す所なし。
+   取り込み後: マニフェスト zero unmapped・0 violation(s)、dungeon_ladder_lint 0、departure_rescue_lint 0、
+   town_visit_plan_lint 0、import OK、テスト（test_town_holds・test_town_visit_plan・test_departure_rescues・
+   test_departure_readiness・test_town_defined_end_recorded・test_n1c_205_recall_contradiction_1113_recorded・
+   test_recall_read_cancel_pingpong の40本）OK。
+
+J. 再生の表（町到着の記録、main 対 枝、キーと理由を1行ずつ）
+
+   段           | main         | 枝           | 記録 | 再生 | 行    | 差
+   3-2b         | 9f3df0a310   | 70ee871546   | 233  | 222  | 2,804 | 0
+   3-3a         | 9f3df0a310   | eb98f83eaa   | 233  | 222  | 2,804 | 0
+   3-3b         | 9f3df0a310   | f6da84dddf   | 233  | 222  | 2,804 | 1（設計どおり: n1-c 06:31 の50行目）
+   最終         | 6bddc7291a   | 7047396361   | 233  | 222  | 2,791 | 1（同じ1件だけ）
+
+K. 残り（段3）
+  - 3-3c 以降: 進みの継ぎ目の差し替え（測りで52回、うち43回が「観た店を続ける」）を、計画の段の移り変わりとして
+    持ち主の側に移し、継ぎ目の記録（plan_rewrites）が0になることを再生で示す。最初は「観た店を続ける」
+    （買う段: 観た店の棚で買える物がある時は、店を出ずに買う段を続ける）から。
+  - 3-4: town_hold の _rewrite の町の部分を計画へ。
+  - 3-5: owner-retired-burst を段ごとの期限へ（ユーザーの答え「測った最大の2倍」、その時点で ta_stages.py で測り直し、
+    「2026-11-13 の再生の測り×2、観戦のボットが超えたら見直す」とコードに書く）。
