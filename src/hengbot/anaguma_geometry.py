@@ -21,6 +21,11 @@ Game facts (C:/hengband/src, design section 1):
 - a cell melts when its terrain has STONE: granite, magma, quartz, rubble and the doors
   (lib/edit/TerrainDefinitions.jsonc); PERMANENT never does (system/dungeon/
   dungeon-definition.cpp:40-52).  The board's ``tunnel and not permanent`` is that test;
+- every edge cell of a floor is a permanent wall (floor/cave-generator.cpp make_perm_walls,
+  place_bound_perm_wall), shown as the terrain it mimics unless ``bound_walls_perm``, and no
+  cell lies beyond the edge: neither is ever dug, whatever the board shows or does not show
+  (``interior``).  n1-b life-393 (dungeon 20, 45F, 2026-11-14) planned a pocket whose last
+  cell lay on row 0, the edge;
 - for k >= 2 every neighbour of c_k but c_(k-1) and c_(k+1) must stay solid: then only
   ``M`` touches ``P``, the queue is single file, and from L = 4 the next cell in line
   ``D`` has exactly two open neighbours, which is what pins a pack animal's retreat
@@ -95,6 +100,14 @@ def diggable(grid, presume: bool = False) -> bool:
     return solid(grid) and grid.tunnel and not grid.permanent
 
 
+def interior(snapshot: Snapshot, position: Position) -> bool:
+    """``position`` lies inside the floor's edge (the module docstring); with unknown
+    dimensions every cell counts as inside."""
+    if snapshot.width <= 0 or snapshot.height <= 0:
+        return True
+    return 0 < position.y < snapshot.height - 1 and 0 < position.x < snapshot.width - 1
+
+
 def open_cell(grid) -> bool:
     return grid is not None and grid.known and grid.passable
 
@@ -111,7 +124,8 @@ def zigzag(snapshot: Snapshot, start: Position, axis, side, length: int,
     cells = tuple(cell(start, axis, side, index) for index in range(1, length + 1))
     for index, here in enumerate(cells):
         grid = snapshot.grid_at(here)
-        if not (open_cell(grid) if index < dug else diggable(grid, presume)):
+        if not interior(snapshot, here) or not (
+                open_cell(grid) if index < dug else diggable(grid, presume)):
             return None
     tunnel = set(cells)
     for index, here in enumerate(cells):
