@@ -3,6 +3,8 @@ import tests  # noqa: F401  -- live runtime-file isolation, also for bare module
 import gzip
 import json
 import unittest
+from unittest import mock
+from hengbot import torch_release
 from pathlib import Path
 from unittest.mock import patch
 
@@ -129,6 +131,10 @@ class FundraiseLightBlockAcceptanceTest(unittest.TestCase):
         self.assertIs(pure, ProcurementHomeGate.HOME_FIRST)
         self.assertIs(stateful, pure)
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_captured_window_composes_a_general_purchase_within_eight_decisions(self):
         approach, entrance, general, home, _ = captured_pages()
         policy = incident_policy()

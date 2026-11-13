@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from unittest import mock
+from hengbot import torch_release
 from recorded_junk_scope import install_past_destroyed_junk
 import base64
 import gzip
@@ -127,6 +129,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertIsNotNone(route)
         self.assertEqual(route[0], second)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_dark_route_yields_on_remembered_upstairs_for_return_handoff(self):
         snapshot = _snapshot_fixture()
         policy = HengbotPolicy()
@@ -164,6 +170,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertTrue(policy._returning_to_town)
         self.assertEqual(policy.last_reason, "return:ascend")
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_returning_dark_route_does_not_yield_on_remembered_downstairs(self):
         snapshot = _snapshot_fixture()
         origin = snapshot.player.position
@@ -177,6 +187,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertIn(key, DIRECTIONS)
         self.assertEqual(policy.last_reason, "dark:probe")
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_committed_dark_route_reaches_far_remembered_end(self):
         snapshot = _snapshot_fixture()
         template = next(iter(snapshot.grids.values()))
@@ -209,6 +223,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertLessEqual(decision_count, len(cells))
         self.assertEqual(policy._probe_counts[(10, 11)], 0)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_dark_goal_ranking_prefers_upstairs_then_downstairs(self):
         snapshot = _snapshot_fixture()
         start = Position(10, 10)
@@ -231,6 +249,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertEqual(key, "6")
         self.assertEqual(policy._dark_route_goal, upstairs)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_isolated_generic_dead_end_retires_after_arrival_budget(self):
         snapshot = _snapshot_fixture()
         start = Position(10, 10)
@@ -270,6 +292,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertEqual(retirement_window_arrivals, 0)
         self.assertNotEqual(policy._dark_route_goal, goal)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_dark_probe_tiebreak_reduces_stairs_distance(self):
         snapshot = _snapshot_fixture()
         current = Position(10, 10)
@@ -295,6 +321,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
 
         self.assertLess(distances[-1], distances[0])
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_occupied_dark_cells_are_removed_from_blocked_unknown(self):
         snapshot = _snapshot_fixture()
         origin = snapshot.player.position
@@ -343,6 +373,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertEqual(policy._step_toward(revealed, door), "o6")
         self.assertEqual(policy._step_toward(revealed, rubble), "T2")
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_dark_route_obstacles_use_dedicated_budgets_without_retiring_stairs(self):
         snapshot = _snapshot_fixture()
         template = next(iter(snapshot.grids.values()))
@@ -413,6 +447,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         )
         self.assertEqual(rubble_policy._dark_goal_counts[(target.y, target.x)], 0)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_old_checkpoint_without_dark_route_fields_remains_selectable(self):
         snapshot = _snapshot_fixture()
         policy = HengbotPolicy()
@@ -446,6 +484,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertEqual(reasons.count("dark:backtrack"), 1)
         self.assertEqual(live_escape[-1]["position"], {"y": 8, "x": 56})
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_dark_route_crosses_a_nonremembered_occupied_trail_cell(self):
         snapshot = _snapshot_fixture()
         template = next(iter(snapshot.grids.values()))
@@ -473,6 +515,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertNotIn(trail, routed.grids)
         self.assertNotIn((trail.y, trail.x), policy._remembered_floor_t)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_dark_backtrack_entries_share_the_probe_budget(self):
         snapshot = _snapshot_fixture()
         template = next(iter(snapshot.grids.values()))
@@ -510,6 +556,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertLessEqual(reasons.count("dark:backtrack"), 2 * PROBE_LIMIT)
         self.assertEqual(reasons[-1], "dark:locomotion-exhausted")
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_remembered_own_cell_exhaustion_never_falls_to_return_wait(self):
         snapshot = _snapshot_fixture()
         template = next(iter(snapshot.grids.values()))
@@ -534,6 +584,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, "return:wait")
         self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_missing_own_cell_is_dark_and_public_choice_does_not_read(self):
         snapshot = _snapshot_fixture()
         policy = HengbotPolicy()
@@ -574,6 +628,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
             {(('free', 11), ('used', 12))},
         )
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_dark_probe_is_bounded_and_ends_at_visible_terminal(self):
         snapshot = _snapshot_fixture()
         policy = HengbotPolicy()
@@ -619,6 +677,10 @@ class DarkwalkIncidentTest(unittest.TestCase):
         self.assertEqual(key, "2")
         self.assertEqual(policy.last_reason, "dark:backtrack")
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_darkwalk_enters_adjacent_remembered_floor_before_probing(self):
         snapshot = _snapshot_fixture()
         origin = Position(5, 43)
