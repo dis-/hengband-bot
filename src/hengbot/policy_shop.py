@@ -500,10 +500,13 @@ class ShopMixin(InStoreMixin):
             and (it.name, it.tval, it.sval) not in self._unsellable_items,
         )
 
-    def _cheapest_exchange_item(self, snapshot: Snapshot) -> InventoryItem | None:
+    def _cheapest_exchange_item(
+        self, snapshot: Snapshot, among: list[InventoryItem] | None = None,
+    ) -> InventoryItem | None:
+        """The cheapest surplus stack, of ``among`` when given; surplus is judged on the whole pack."""
         candidates = [
             item
-            for item in snapshot.inventory
+            for item in (snapshot.inventory if among is None else among)
             if not item.is_recall_scroll
             and not self._is_high_value_book(item)
             and self._entire_stack_is_surplus(snapshot, item)

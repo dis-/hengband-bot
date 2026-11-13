@@ -55,13 +55,23 @@ def _worth_more_than_its_kind(item) -> bool:
 
 
 def spare(policy, snapshot):
-    """The cheapest carried item the exchange may destroy, or None."""
+    """The cheapest carried item the exchange may destroy, or None.
+
+    Only an item the destroy itself accepts: ``_verified_destroy_dispatch_key`` refuses an item
+    that is the best of its comparable gear (``_destroy_would_discard_superior_item``), and the
+    exchange's finder is bound to the one item chosen here.  n1-c life-205 (Orc cave 23F,
+    2026-11-13 15:44:20 and 12:34:28): the cheapest spare was an amulet of resist lightning
+    (base 300), the walk reached a metal scale mail pile (1100), the destroy refused the amulet
+    on the pile, and the full pack's return read Recall there.
+    """
     narrowed = [item for item in snapshot.inventory
-                if not _necessity(item) and not _worth_more_than_its_kind(item)]
+                if not _necessity(item) and not _worth_more_than_its_kind(item)
+                and not policy._destroy_would_discard_superior_item(snapshot, item)]
     if not narrowed:
         return None
-    from dataclasses import replace
-    return policy._cheapest_exchange_item(replace(snapshot, inventory=narrowed))
+    # Surplus is judged on the whole pack: a pack narrowed to the candidates hid the other
+    # stacks of the same ammunition, and the one left was no longer surplus.
+    return policy._cheapest_exchange_item(snapshot, narrowed)
 
 
 def pile_value(policy, snapshot, position) -> int | None:
