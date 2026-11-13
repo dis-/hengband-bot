@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -1033,6 +1033,7 @@ class ObservationMixin:
             immobile_threat_memory.forget_floor_visit(self)
             retreat_enclosure.forget_floor_visit(self)
             retreat_veto_life.forget_floor_visit(self)
+            left_cells.forget_floor_visit(self)
             threat_tiers.forget_floor_visit(self)
             oneshot_breath.forget_floor_visit(self)
             hunt_target.forget_floor_visit(self)

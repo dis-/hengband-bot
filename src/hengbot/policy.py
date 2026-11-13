@@ -8,7 +8,7 @@ from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
-from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
+from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
@@ -7690,7 +7690,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     monster.position
                     for monster in self._engagement_breeder_population(snapshot)
                 ),
-            ])
+            ], owner="breeder-giveup")
             if any(
                 step in self._engagement_avoid_cells
                 for step in self._explore_path
@@ -14906,8 +14906,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         breeders = self._engagement_breeder_population(snapshot)
         self._claim_engagement_avoid_cells(
-            [*plan.trigger_last_seen.values(), *(monster.position for monster in breeders)]
-        )
+            [*plan.trigger_last_seen.values(), *(monster.position for monster in breeders)],
+            owner="breeder-giveup")
         if any(step in self._engagement_avoid_cells for step in self._explore_path):
             self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         step = self._explore_step(snapshot)
@@ -15863,7 +15863,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not engagement_avoid_seal.seals(
                 self, snapshot, snapshot.player.position, step):
             self._claim_engagement_avoid_cells(
-                (snapshot.player.position,), snapshot=snapshot, threats=hostiles)
+                (snapshot.player.position,), snapshot=snapshot, threats=hostiles,
+                owner="threat:avoid-engagement")
         self._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
         self.last_reason = "threat:avoid-engagement"
         self._declare_reach(step)
@@ -16569,19 +16570,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _claim_engagement_avoid_cells(
         self, cells: Iterable[Position], *, snapshot: Snapshot | None = None,
-        threats: Iterable[MonsterState] = (),
+        threats: Iterable[MonsterState] = (), owner: str = "engagement-claim",
     ) -> None:
-        """Record an engagement/status-threat avoidance claim with ownership.
+        """Record an engagement/status-threat avoidance claim with ownership: the
+        left-cell registry's retreat lifetime (left_cells.leave).
 
         The engagement owner's claims are tracked separately so the warning
         owner's exhaustion withdrawal can never remove them from the shared
         routing set.  A retreat names the ``threats`` it fled, and the claim
         is lifted once they are gone (retreat_veto_life); without them it
         stays for the floor visit."""
-        owned = set(cells)
-        self._engagement_owned_avoid_cells |= owned
-        self._engagement_avoid_cells |= owned
-        retreat_veto_life.claim(self, snapshot, owned, tuple(threats))
+        left_cells.leave(self, snapshot, cells, owner=owner, threats=threats)
 
 
     def _warning_prompt_response_key(self, snapshot: Snapshot) -> str | None:
