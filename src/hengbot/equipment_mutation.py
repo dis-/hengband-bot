@@ -241,12 +241,20 @@ def _item_identity(item) -> tuple:
 
 
 def progress_core(snapshot) -> tuple:
-    """Gold/experience plus a stack-normalized total per item identity."""
+    """The floor, gold/experience plus a stack-normalized total per item identity.
+
+    The floor is progress too: a mining run that found nothing returns to
+    town with the same gold, experience and items, and the town re-arm
+    (combat-loadout) was refused as superseding the mining-loadout posted in
+    the dungeon (n1-c life-207 2026-11-14 06:29, both hands on diggers:
+    town:blocked:survival:combat_weapon_ready).
+    """
     totals: dict[tuple, int] = {}
     for item in (*snapshot.inventory, *snapshot.equipment):
         identity = _item_identity(item)
         totals[identity] = totals.get(identity, 0) + int(getattr(item, "count", 1))
     return (
+        tuple(getattr(snapshot, "floor_key", ()) or ()),
         getattr(snapshot.player, "gold", 0),
         getattr(snapshot.player, "exp", 0),
         tuple(sorted(totals.items(), key=repr)),
