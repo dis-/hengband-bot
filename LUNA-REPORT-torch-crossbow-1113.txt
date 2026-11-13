@@ -1,7 +1,8 @@
 LUNA-REPORT torch-crossbow-1113（クロスボウと松明の決まり、持ち主の 2026-11-13 の答え2つ）
 
 枝: torch-crossbow-1113（main 784d60f714 から）
-コミット: 3e9623994a（コード・試験）。このレポートは次のコミット。
+コミット: 3e9623994a（1つ目の答え）、45652a455e（2つ目の答え、main 9c8baca870 を取り込んだ後）。
+このレポートは最後のコミット。
 
 ■ 持ち主の答え（そのまま）
 Q1「ヘヴィ・クロスボウなど他の射撃武器を装備した時も、松明を全て自宅に仕舞いますか？」→「クロスボウ2種だけ」
@@ -47,17 +48,21 @@ Q2「クロスボウを装備した時に、付けている光源が松明だっ
 
 --- a/linux_soak.py
 +++ b/linux_soak.py
-@@ -37,6 +37,11 @@
+@@ -37,6 +37,15 @@
  SOAK = HOME / "hengbot-soak"
  WINDOW_S = 30 * 60
  SAME_REASON_LIMIT = 3
-+# Stops the owner asked to end the run and be reported, not restarted (owner 2026-11-13
-+# 「松明は装備しない。装備していたら停止して報告。」): the runner saves, creates ~/hengbot-soak/<instance>.paused
++# Stops the owner asked to end the run and be reported, not restarted (owner 2026-11-13, the crossbow light
++# stops: hengbot torch_release.HALT_REASONS): the runner saves, creates ~/hengbot-soak/<instance>.paused
 +# (the unit's ConditionPathExists keeps systemd from starting it again; n1b_guard.py skips a paused instance)
 +# and ends.  The bot names the stop in its banner (cli._policy_final_stop_banner).
-+OWNER_HALT_REASONS = frozenset({"light:torch-worn-with-crossbow"})
++OWNER_HALT_REASONS = frozenset({
++    "light:torch-worn-with-crossbow",
++    "light:no-lantern-with-crossbow",
++    "light:lamp-fuel-out-with-crossbow",
++})
  MEMORY_FLOOR_KB = 60_000
-@@ -534,6 +539,18 @@
+@@ -534,6 +543,17 @@
                  while self.recent and stamp - self.recent[0][0] > WINDOW_S:
                      self.recent.popleft()
                  repeats = sum(1 for _, other in self.recent if other == reason)
@@ -77,8 +82,62 @@ Q2「クロスボウを装備した時に、付けている光源が松明だっ
 （"\x1b" と "\x13" はソースの中の文字どおりの逆スラッシュの書き方。ast.parse で構文を確かめた。）
 これで: 捕まえた記録（captures/）を残し、保存して、paused を作って走らせ役が終わる。systemd の
 Restart=always は ConditionPathExists で止まる。events.jsonl に "owner-halt" が残るので見張りが
-報告に使える。再開は監督者が盤面を直して（松明を外す）paused を消すこと。
+報告に使える。再開は監督者が盤面を直して（松明を外す・ランタンや油を持たせる）paused を消すこと。
+（11-13 の2つ目の答えで3つの理由にした。次の節を参照。）
 Windows の監督 scripts/bot_autorecover.py は今回触っていない（観戦の走らせ役だけが対象）。
+
+■ 追加（2026-11-13 の2つ目の答え、別のコミット 45652a455e、main 9c8baca870 を取り込んだ上）
+持ち主の答え（そのまま）:
+- 問1（光源が松明しか無いと最適化はクロスボウを選ばない）→「開始直後にランタンが入手できるのでその状況は
+  ありえない。発生したら名前付きで止まる。」
+- 問2（クロスボウを付けていてランタンの燃料も予備の油も尽きた）→「名前付きで止まる」
+直したこと: 止まりを決める所を torch_release.light_halt の1か所にまとめた（_choose_key の入口がこれを
+聞き、鍵を None にして理由を付ける。理由と表示文は torch_release.HALT_MESSAGES と HALT_REASONS から
+policy_constants の POLICY_FINAL_STOP_REASONS と cli の表示文が読む）。決めるのは次の順:
+1. "light:torch-worn-with-crossbow": 付けているクロスボウの横に松明（前のコミットのまま）
+2. "light:no-lantern-with-crossbow": クロスボウを付けている、または付けられる形で持っている（鑑定済みに
+   近く呪い・壊れなし。_equip_blocked_by_identification で判断）のに、松明以外の光源（光るもの）が付けて
+   いる物・持ち物・自宅（装備の目録の home）のどこにも無い
+3. "light:lamp-fuel-out-with-crossbow": 町の外で、付けているクロスボウの光源が切れている（光源なし、
+   またはランタンが 0 ターン、未鑑定なら lamp_fuel で消えて見える）のに、持ち物に油（燃料あり）も、
+   クロスボウの横で使える光源（永久光源・燃料のあるランタン・未鑑定のもの）も無い。町の中では今までの
+   光源の復旧（給油、油の店へ歩く）を先にする（範囲は問い5）
+どれも、開いた装備の取引の残りに光源を付ける手があれば止まらない。
+走らせ役の OWNER_HALT_REASONS は上の diff のとおり3つにした。
+
+試験（tests/test_torch_crossbow_1113_recorded.py に2件足して計10件、OK 117秒）:
+- test_crossbow_without_a_lantern_stops_by_name: 付けていたランタンを盤面から外し、自宅の Q34 の
+  ランタン（記録の目録にある）も目録から外した（DECLARED CONSTRUCTED）。ライト・ヘヴィのクロスボウを
+  付けている時と、長弓を付けてクロスボウを持っている時に (None, "light:no-lantern-with-crossbow")、
+  最終停止として扱われ、表示文の印も正しい。記録のまま（自宅にランタン）なら止まらない。クロスボウが
+  無ければ止まらない（松明が光源）。持っているランタンがあれば止まらない
+- test_lamp_out_off_town_stops_by_name: ランタン 0 ターン・油を外す・町の外（in_town を偽に）
+  （DECLARED CONSTRUCTED）。クロスボウ2種で (None, "light:lamp-fuel-out-with-crossbow")。
+  油がある、町の中、まだ燃えている、長弓なら止まらない
+revert-proof（1つずつ戻して流した）: 入口の呼び出し・最終停止の登録 → 3つの停止の試験が赤（7件）、
+取引の例外 → 1件、no-lantern の分岐 → 3件、fuel-out の分岐 → 2件、町は復旧を先に → 1件、
+自宅の光源を数える → 1件、持っている油を予備に数える → 1件。持っているクロスボウを「付けられる形」に
+限る絞り → test_launcher_deferral の2件（持っている未鑑定のクロスボウ）が赤。
+読み込み確認 OK。town_work_manifest.py --write: 1918 candidates (375 proved data), 47843 sites,
+zero unmapped（torch_release.py:light_halt の review を足した）。
+
+光源・松明の 52 項目を、どの試験で新しい停止が起きるかを数える計測つきで流した（main を取り込んだ木で）。
+新しい停止が起きて赤くなったのは次の 22 件で、どれも記録または作ったキャラがライト・クロスボウを付けて
+いる盤面:
+- 町の外で光源が切れ油も無い（fuel-out）: test_darkwalk 15 件（C4-A の暗がりの歩き）、
+  test_light_leave_confirm_recorded 3 件（光源が切れての帰還）、test_light_rootfix_q2_recorded の
+  test_lightless_pair_leaves_instead_of_alternating（C4-A Q2）
+- 光源が1つも無い作った盤面（no-lantern）: test_policy_supply 3 件（_q2_town はクロスボウだけを付けた
+  合成の盤面）
+- test_launcher_deferral の2件は、持っている未鑑定のクロスボウで no-lantern が起きていたので、持って
+  いる方は「付けられる形」に限った（上の絞り）。これで赤は消えた。
+上の 22 件は前と同じ形の壁（その試験の間だけ CROSSBOW_SVALS を空にし、理由をコメントに書いた）にした。
+壁の後の結果: 影響のあった7部品を流し直し、赤は前と同じ（test_light_rootfix_q2_recorded の
+test_control_104_and_100_boards_keep_sweeping 2件と test_lantern_rewield_recorded の
+test_control_dark_board_without_oil_keeps_the_dark_walk 1件。どちらも main で赤）。新しい試験は 10件 OK。
+
+本番への影響（追加）: C4-A の記録のとおり、クロスボウを付けて光源が切れたまま暗がりを歩いて帰る形は
+実際にあった。これからはその場で止まる（持ち主の答えどおり）。
 
 ■ 範囲の注意
 持ち主の答えはクロスボウの話として聞いたものなので、クロスボウを付けていないキャラの光源には
@@ -183,14 +242,11 @@ WaitClassificationTest。main の写しは worktree の中の一時の .main-bas
 ■ 提案する checks.json の項目
 {"id":"TORCH-CROSSBOW","owner":"2026-11-13 「クロスボウ2種だけ」「松明は装備しない。装備していたら停止して報告。」","tests":["tests.test_torch_crossbow_1113_recorded","tests.test_town_weight_torch_1112_recorded"]}
 
-■ 持ち主への問い（未決。実装していない）
-1. 光源が松明しか無い時（ランタン・永久光源なし）、装備の最適化はクロスボウを選ばなくなる（光源の
-   要求が先に立ち、クロスボウ＋松明の組は捨てられるので、松明＋別の射撃武器か射撃武器なしになる）。
-   これでよいか。それとも光源が無くてもクロスボウを優先するか。
-2. クロスボウを付けていてランタンの燃料が切れ油も無い時、松明に替えないので光源なしになる（ダンジョン
-   なら暗がりの歩き、町なら油を買いに行く）。松明は解放で自宅にある。これでよいか。
-3. クロスボウを付けていてランタンを持たず、計画の深さが1階以下の時、_light_ready は松明の本数で光源の
-   用意を判断するが、松明は解放で持たないので用意が整わない形になりうる（最適化が問1のとおり
-   クロスボウを選ばないので起きにくい。起きたら町の止まりとして見える）。
-4. 走らせ役の変更（上の案）を当てるか。当てない間は、この止まりは起こし直され、30分に2〜3回で
-   新しいキャラに替わる。
+■ 持ち主への問い
+前の問い1・2は 11-13 に答えをもらい、上の「追加」で実装した。問い3（_light_ready の松明の本数）は、
+クロスボウを付けて松明しか無い形が no-lantern の停止になるので、起きる前に止まる。問い4（走らせ役の
+変更）は未決のまま。新しい問い:
+5. fuel-out の停止は町の外だけにした（町の中では給油・油の店へ歩く今の復旧を先にする）。町の中でも
+   止めるべきか。
+6. no-lantern の「持っている」クロスボウは、付けられる形（鑑定済みに近く、呪い・壊れなし）に限った。
+   未鑑定のクロスボウを拾っただけでは止まらない。これでよいか。
