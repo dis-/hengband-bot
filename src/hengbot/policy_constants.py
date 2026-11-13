@@ -2,7 +2,7 @@
 
 from enum import Enum
 
-from hengbot import reasons
+from hengbot import reasons, torch_release
 from hengbot.model import (
     Position, SV_SCROLL_TELEPORT, TVAL_ARROW, TVAL_BOLT, TVAL_SHOT,
     STORE_ALCHEMIST,
@@ -392,6 +392,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:outpost-fare-return-route-unavailable',
         'town:blocked:outpost-fare-recall-active',
         'wilderness:no-safe-route',
+        *torch_release.HALT_REASONS,
     }
 )
 

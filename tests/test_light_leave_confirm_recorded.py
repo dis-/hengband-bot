@@ -9,6 +9,8 @@ No policy methods are patched: choose_key feeds the production follow executor.
 from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation
+from unittest import mock
+from hengbot import torch_release
 import copy
 import gzip
 import hashlib
@@ -120,6 +122,10 @@ class LightLeaveConfirmRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual((str(key), self.policy.last_reason), ("<", "return:ascend"))
         return board, key
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_fixed_once_light_return_answers_confirm_in_same_post(self):
         board, key = self._return_on_stairs()
         self.assertEqual(self.policy._active_fixed_quest_id(board), 2)
@@ -129,6 +135,10 @@ class LightLeaveConfirmRecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(result.outcome, "completed")
         self.assertEqual(game.accepted, ["<", "y"])
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_runtime_kill_light_return_answers_confirm_in_same_post(self):
         board = self._board(5)
         # DECLARED CONSTRUCTED: same empty-lantern staircase, runtime RANDOM
@@ -170,6 +180,10 @@ class LightLeaveConfirmRecordedTest(executor_pins.ProductionHarness):
         board = replace(board, inventory=type(board.inventory)((*board.inventory, oil)))
         self._assert_held(board)
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_light_release_does_not_own_non_stair_or_town_confirm(self):
         board, _key = self._return_on_stairs()
         self.assertFalse(self.policy.quest_leave_confirmation_owned(board, "6"))

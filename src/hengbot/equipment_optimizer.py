@@ -18,6 +18,7 @@ from math import isfinite
 from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
+from hengbot import torch_release
 from hengbot.model import (
     BAD_PSEUDO_FEELINGS,
     SV_BOW_LIGHT_XBOW,
@@ -1232,6 +1233,10 @@ def _meets_static_requirements(
 ) -> bool:
     """Reject loadouts whose failure does not depend on combat evaluation."""
     if require_light and not _loadout_lights(loadout):
+        return False
+    light = loadout.item_at(SLOT_LIGHT)
+    launcher = loadout.item_at(SLOT_BOW)
+    if not torch_release.wearable_light(launcher and launcher.item, light and light.item):
         return False
     abilities = set(intrinsic_abilities)
     for name, flag in ABILITY_FLAG.items():

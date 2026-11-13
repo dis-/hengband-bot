@@ -148,7 +148,7 @@ class LightInHandRecordedTest(unittest.TestCase):
     # The board wears a light crossbow over a lantern: this pin is the torch carry
     # without the owner's 2026-11-12 release (torch_release; pinned on its own in
     # test_town_weight_torch_1112_recorded).
-    @patch.object(torch_release, "RELEASING_LAUNCHER_SVALS", frozenset())
+    @patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_recorded_spare_torches_back_the_lantern(self):
         policy, board = self._board()
         torch = self._home_item(lambda item: item.is_torch)

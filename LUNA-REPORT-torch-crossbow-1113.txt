@@ -1,0 +1,252 @@
+LUNA-REPORT torch-crossbow-1113（クロスボウと松明の決まり、持ち主の 2026-11-13 の答え2つ）
+
+枝: torch-crossbow-1113（main 784d60f714 から）
+コミット: 3e9623994a（1つ目の答え）、45652a455e（2つ目の答え、main 9c8baca870 を取り込んだ後）。
+このレポートは最後のコミット。
+
+■ 持ち主の答え（そのまま）
+Q1「ヘヴィ・クロスボウなど他の射撃武器を装備した時も、松明を全て自宅に仕舞いますか？」→「クロスボウ2種だけ」
+Q2「クロスボウを装備した時に、付けている光源が松明だったらどうしますか？」→「松明は装備しない。装備していたら停止して報告。」
+
+■ 直したこと
+1. 松明を自宅へ仕舞う対象をクロスボウ2種に広げた（torch_release.CROSSBOW_SVALS = ライト 23・ヘヴィ 24、
+   sv-bow-types.h）。スリングと弓は今までどおり松明を持つ。
+   11-12 の実装は「付けている光源が松明なら解放しない」（松明が予備の光源だから）としていたが、Q2 で
+   「松明は装備しない」と決まったので、解放の条件はクロスボウを付けていることだけにした（光源を問わない）。
+   equipment_swap_weight の重さの見込みも同じ問い（releases(bow)）にした。
+2. 松明を付けない: 光源を選ぶ所は全部、ひとつの問い torch_release.wearable_light(射撃武器, 光源)
+   （盤面からは light_wearable(snapshot, 光源)）に聞く。聞く所は次の4か所で、ほかの光源選びはこれを通る。
+   - 装備の最適化の静的な条件 equipment_optimizer._meets_static_requirements（クロスボウと松明の組の
+     装備案を捨てる。付け替えの取引もこの案から作られる）
+   - policy._find_light（_light_to_wield・資金集めの光源・Q1 の開幕の光源・町の光源の復旧・
+     _light_judgment の付け替えがここを通る）、その未鑑定の光源の予備の分岐
+   - policy._darkness_torch（暗がりの復旧・町の光源の復旧・ランタンが切れた時の松明）
+   クエストの lit_torch（投げる松明）は持つ数の話で、クロスボウを付けていれば 11-12 の解放で 0 になる。
+   Q34/Q1 の松明の決まりは投げる松明で、付ける光源は _light_to_wield を通る（確認済み）。
+3. 付けていたら止まって報告: 盤面にクロスボウと松明が両方付いていれば、policy._choose_key の最初の方
+   （装備の取引の観測の直後、どの担当よりも前）で鍵を返さず、理由を "light:torch-worn-with-crossbow" に
+   する。policy_constants.POLICY_FINAL_STOP_REASONS に載せたので、CLI は送らずに
+   「<light:torch-worn-with-crossbow> a torch is worn beside a crossbow (...); stopping the bot for
+   investigation」と出して止まる（_policy_final_stop_banner）。
+   例外は1つ: 開いている装備の取引の残りの手順に光源を付ける手がある間（計画は射撃武器を光源より先に
+   付ける、equipment_transaction_planner._EQUIP_ORDER bow 10 < light 30）。取引の途中の一瞬を止まりに
+   しないため。
+   鍵を None にしたのは、町の入口の上で WAIT（"5"）を返すと入口から降りる鍵（town:entrance-step-off:…）
+   に書き換えられて止まりにならなかったため（試験で見つけた）。
+
+■ 観戦の走らせ役（linux_soak.py）の扱いと、サーバへの変更の案（サーバは触っていない）
+今の扱い（C:\hengband-backups\guard-tools\linux_soak.py 11-05 版と n1b_guard.py を読んだ）:
+- stop_reason は bot の標準出力の最後の <印> を読む → "light:torch-worn-with-crossbow"（数字なし）。
+- 死亡でなければ ESC と保存のあと bot を起こし直す。同じ理由が30分に3回で escalate →
+  --on-escalate new（観戦の2体）なので新しいキャラになる。n1b_guard.py も同じ理由が30分に2回で
+  引退させて新キャラにする。つまり今のままでは止まっても同じ盤面で起こし直され、最後は新キャラに
+  替わって報告が埋もれる。
+- 止めたままにする仕組みは既にある: ~/hengbot-soak/<instance>.paused（bot_budget_n1.py と n1b_guard.py
+  の churn が作る）。unit の ConditionPathExists=!%h/hengbot-soak/<n1-x>.paused で systemd が
+  起こし直さず、n1b_guard.py も paused なら何もしない。
+案（linux_soak.py に足す。サーバのファイルが 11-05 版と同じかは確かめてから当てること）:
+
+--- a/linux_soak.py
++++ b/linux_soak.py
+@@ -37,6 +37,15 @@
+ SOAK = HOME / "hengbot-soak"
+ WINDOW_S = 30 * 60
+ SAME_REASON_LIMIT = 3
++# Stops the owner asked to end the run and be reported, not restarted (owner 2026-11-13, the crossbow light
++# stops: hengbot torch_release.HALT_REASONS): the runner saves, creates ~/hengbot-soak/<instance>.paused
++# (the unit's ConditionPathExists keeps systemd from starting it again; n1b_guard.py skips a paused instance)
++# and ends.  The bot names the stop in its banner (cli._policy_final_stop_banner).
++OWNER_HALT_REASONS = frozenset({
++    "light:torch-worn-with-crossbow",
++    "light:no-lantern-with-crossbow",
++    "light:lamp-fuel-out-with-crossbow",
++})
+ MEMORY_FLOOR_KB = 60_000
+@@ -534,6 +543,17 @@
+                 while self.recent and stamp - self.recent[0][0] > WINDOW_S:
+                     self.recent.popleft()
+                 repeats = sum(1 for _, other in self.recent if other == reason)
++                if not (died or game_dead) and reason in OWNER_HALT_REASONS:
++                    answered = all(self.send_keys("\x1b") for _ in range(3))
++                    if answered:
++                        self.send_keys("\x13")   # save: the board stays for the report
++                        time.sleep(2)
++                    (SOAK / f"{self.args.instance}.paused").write_text(json.dumps(
++                        {"time": now(), "rule": "owner-halt", "life": self.life_index, "reason": reason,
++                         "captured": captured}, ensure_ascii=False) + "\n", encoding="utf-8")
++                    self.log("owner-halt", reason=reason, captured=captured, bot_uptime_s=uptime,
++                             game_answers=answered)
++                    return 5
+                 if died or game_dead:
+
+（"\x1b" と "\x13" はソースの中の文字どおりの逆スラッシュの書き方。ast.parse で構文を確かめた。）
+これで: 捕まえた記録（captures/）を残し、保存して、paused を作って走らせ役が終わる。systemd の
+Restart=always は ConditionPathExists で止まる。events.jsonl に "owner-halt" が残るので見張りが
+報告に使える。再開は監督者が盤面を直して（松明を外す・ランタンや油を持たせる）paused を消すこと。
+（11-13 の2つ目の答えで3つの理由にした。次の節を参照。）
+Windows の監督 scripts/bot_autorecover.py は今回触っていない（観戦の走らせ役だけが対象）。
+
+■ 追加（2026-11-13 の2つ目の答え、別のコミット 45652a455e、main 9c8baca870 を取り込んだ上）
+持ち主の答え（そのまま）:
+- 問1（光源が松明しか無いと最適化はクロスボウを選ばない）→「開始直後にランタンが入手できるのでその状況は
+  ありえない。発生したら名前付きで止まる。」
+- 問2（クロスボウを付けていてランタンの燃料も予備の油も尽きた）→「名前付きで止まる」
+直したこと: 止まりを決める所を torch_release.light_halt の1か所にまとめた（_choose_key の入口がこれを
+聞き、鍵を None にして理由を付ける。理由と表示文は torch_release.HALT_MESSAGES と HALT_REASONS から
+policy_constants の POLICY_FINAL_STOP_REASONS と cli の表示文が読む）。決めるのは次の順:
+1. "light:torch-worn-with-crossbow": 付けているクロスボウの横に松明（前のコミットのまま）
+2. "light:no-lantern-with-crossbow": クロスボウを付けている、または付けられる形で持っている（鑑定済みに
+   近く呪い・壊れなし。_equip_blocked_by_identification で判断）のに、松明以外の光源（光るもの）が付けて
+   いる物・持ち物・自宅（装備の目録の home）のどこにも無い
+3. "light:lamp-fuel-out-with-crossbow": 町の外で、付けているクロスボウの光源が切れている（光源なし、
+   またはランタンが 0 ターン、未鑑定なら lamp_fuel で消えて見える）のに、持ち物に油（燃料あり）も、
+   クロスボウの横で使える光源（永久光源・燃料のあるランタン・未鑑定のもの）も無い。町の中では今までの
+   光源の復旧（給油、油の店へ歩く）を先にする（範囲は問い5）
+どれも、開いた装備の取引の残りに光源を付ける手があれば止まらない。
+走らせ役の OWNER_HALT_REASONS は上の diff のとおり3つにした。
+
+試験（tests/test_torch_crossbow_1113_recorded.py に2件足して計10件、OK 117秒）:
+- test_crossbow_without_a_lantern_stops_by_name: 付けていたランタンを盤面から外し、自宅の Q34 の
+  ランタン（記録の目録にある）も目録から外した（DECLARED CONSTRUCTED）。ライト・ヘヴィのクロスボウを
+  付けている時と、長弓を付けてクロスボウを持っている時に (None, "light:no-lantern-with-crossbow")、
+  最終停止として扱われ、表示文の印も正しい。記録のまま（自宅にランタン）なら止まらない。クロスボウが
+  無ければ止まらない（松明が光源）。持っているランタンがあれば止まらない
+- test_lamp_out_off_town_stops_by_name: ランタン 0 ターン・油を外す・町の外（in_town を偽に）
+  （DECLARED CONSTRUCTED）。クロスボウ2種で (None, "light:lamp-fuel-out-with-crossbow")。
+  油がある、町の中、まだ燃えている、長弓なら止まらない
+revert-proof（1つずつ戻して流した）: 入口の呼び出し・最終停止の登録 → 3つの停止の試験が赤（7件）、
+取引の例外 → 1件、no-lantern の分岐 → 3件、fuel-out の分岐 → 2件、町は復旧を先に → 1件、
+自宅の光源を数える → 1件、持っている油を予備に数える → 1件。持っているクロスボウを「付けられる形」に
+限る絞り → test_launcher_deferral の2件（持っている未鑑定のクロスボウ）が赤。
+読み込み確認 OK。town_work_manifest.py --write: 1918 candidates (375 proved data), 47843 sites,
+zero unmapped（torch_release.py:light_halt の review を足した）。
+
+光源・松明の 52 項目を、どの試験で新しい停止が起きるかを数える計測つきで流した（main を取り込んだ木で）。
+新しい停止が起きて赤くなったのは次の 22 件で、どれも記録または作ったキャラがライト・クロスボウを付けて
+いる盤面:
+- 町の外で光源が切れ油も無い（fuel-out）: test_darkwalk 15 件（C4-A の暗がりの歩き）、
+  test_light_leave_confirm_recorded 3 件（光源が切れての帰還）、test_light_rootfix_q2_recorded の
+  test_lightless_pair_leaves_instead_of_alternating（C4-A Q2）
+- 光源が1つも無い作った盤面（no-lantern）: test_policy_supply 3 件（_q2_town はクロスボウだけを付けた
+  合成の盤面）
+- test_launcher_deferral の2件は、持っている未鑑定のクロスボウで no-lantern が起きていたので、持って
+  いる方は「付けられる形」に限った（上の絞り）。これで赤は消えた。
+上の 22 件は前と同じ形の壁（その試験の間だけ CROSSBOW_SVALS を空にし、理由をコメントに書いた）にした。
+壁の後の結果: 影響のあった7部品を流し直し、赤は前と同じ（test_light_rootfix_q2_recorded の
+test_control_104_and_100_boards_keep_sweeping 2件と test_lantern_rewield_recorded の
+test_control_dark_board_without_oil_keeps_the_dark_walk 1件。どちらも main で赤）。新しい試験は 10件 OK。
+
+本番への影響（追加）: C4-A の記録のとおり、クロスボウを付けて光源が切れたまま暗がりを歩いて帰る形は
+実際にあった。これからはその場で止まる（持ち主の答えどおり）。
+
+■ 範囲の注意
+持ち主の答えはクロスボウの話として聞いたものなので、クロスボウを付けていないキャラの光源には
+松明を禁じていない（開幕は松明を使う）。試験でも弓＋松明は止まらず、弓なら松明を選ぶことを確かめた。
+
+■ 試験
+新しい試験 tests/test_torch_crossbow_1113_recorded.py（8件）。n1-c life-202 の 11-12 17:18 の町の到着の
+記録（tests/fixtures/town-weight-torch-1112、11-12 の試験と同じ）を公開の choose_key と CLI の
+owner-retirement の入口で row 137 まで再生（setUpClass で1回、各試験は pickle の複製）。
+作った部分は試験ごとに DECLARED CONSTRUCTED と書いた（射撃武器の sval、付けている光源、開いた取引、
+最適化の目録と評価）。
+- test_heavy_crossbow_shelves_every_torch: ヘヴィ・クロスボウ → 17本を自宅へ（atomic-deposit）、
+  その鍵を本番の実行器（_ExecutorInputPort、_send_new_decision_key）で送って completed
+- test_light_crossbow_still_shelves_every_torch: 記録のまま（11-12 の決まりは変わらない）
+- test_bow_keeps_the_torches: 長弓 → 解放なし、松明は取り置き、自宅へは仕舞わない
+- test_torch_worn_with_crossbow_stops_by_name: ライト・ヘヴィとも (None, "light:torch-worn-with-crossbow")、
+  _policy_final_stop_required が真、表示文が <light:torch-worn-with-crossbow> で始まる
+- test_torch_worn_with_a_bow_plays_on: 長弓＋松明は止まらない
+- test_open_transaction_putting_a_light_on_is_no_stop: 取引の残りに光源を付ける手があれば止まらない
+- test_no_light_chooser_picks_a_torch_beside_a_crossbow: 光源なし＋松明17本で、クロスボウ2種では
+  _find_light・_light_to_wield・_darkness_torch・未鑑定の予備がどれも松明を選ばず、choose_key も
+  光源を付けない。解放は光源なしでも効く。長弓ではどれも松明を選ぶ
+- test_loadout_search_never_wears_a_torch_beside_a_crossbow: 評価が松明をランタンより高く見ても
+  クロスボウ＋ランタン。ランタンが無ければクロスボウ＋松明にはならない。長弓なら長弓＋松明
+結果: 8件 OK（236秒）。
+
+既存の試験の直し: 11-12 の解放を切るために torch_release.RELEASING_LAUNCHER_SVALS を空にしていた
+6本（test_light_in_hand_recorded・test_overflow_torches_recorded・test_overweight_recurrence_1027・
+test_town_overflow_disposal_candidates_recorded・test_town_weight_torch_1112_recorded・
+test_weight_deposit_loop_20261018）を、名前を変えた CROSSBOW_SVALS に向けた（意味は同じ）。
+新しく足した壁は 6 部品・13 件（下の「壁」）。
+
+revert-proof（本番の各ハンクを1つずつ戻して該当の試験を流し、戻した。git stash は使っていない）:
+- H1 ヘヴィ・クロスボウを CROSSBOW_SVALS に入れた → test_heavy_crossbow_shelves_every_torch が赤
+- H2 解放が光源を問わない → test_no_light_chooser_picks_a_torch_beside_a_crossbow が赤（2件の subTest）
+- H3 _choose_key の名前つきの停止 → test_torch_worn_with_crossbow_stops_by_name が赤（2件）
+- H4 _find_light の問い → test_no_light_chooser_… が赤（2件）
+- H5 _find_light の未鑑定の予備の問い → test_no_light_chooser_… が赤（2件）
+- H6 _darkness_torch の問い → test_no_light_chooser_… が赤（2件）
+- H7 最適化の静的な条件 → test_loadout_search_never_wears_a_torch_beside_a_crossbow が赤
+- H8 最終停止の登録 → test_torch_worn_with_crossbow_stops_by_name が赤（2件）
+- H9 取引の途中の例外 → test_open_transaction_putting_a_light_on_is_no_stop が赤
+- equipment_swap_weight の光源の追跡を消したのは releases の引数が変わったことに合わせた整理で、
+  振る舞いは同じ（戻す対象なし）。cli の表示文は H8 と組（表示文が無いと KeyError）。
+
+読み込み確認: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK
+town_work_manifest.py --write: 1890 candidates (376 proved data), 46937 sites, zero unmapped
+  （torch_release.py:worn_launcher の review を scripts/town_work_review.json に足し、released の
+  evidence を11-13 の答えに合わせた）
+
+光源・松明の試験の main との比べ（51 の部品: 名前に torch/light/lantern を含む試験、光源の選び手を
+呼ぶ試験、クロスボウの試験、test_darkwalk、test_cli の PolicyFinalStopBannerTest と
+WaitClassificationTest。main の写しは worktree の中の一時の .main-base で流し、終わって消した。
+3並列ずつ）:
+- 52 項目（51 の部品、test_cli は2つのクラス）: main 614 件・赤 48 項目、枝 621 件・赤 47 項目。
+  違いは新しい部品 test_torch_crossbow_1113_recorded だけ（main には無いので読み込みの誤り → 枝で 8 件 OK）。
+  ほかの 51 項目は main と赤の試験の名前まで同じ（main の赤は 11-05 の決定のとおり、今回の差ではない）。
+- 最初の比べで枝だけ赤くなった 6 部品・13 件は、どれも記録のキャラがライト・クロスボウ（sval 23）と
+  松明を両方付けている盤面で、新しい決まりのとおり名前つきで止まった（または松明を選ばなくなった）もの。
+  その試験の主題（暗がりの戻り・ランタンの付け直し・資金集めの光源など）は持ち主の答えより前の決まりの
+  ものなので、下の「壁」に書いたとおり、その試験の間だけクロスボウの決まりを外して主題を残した。
+  （初めの main の写しは src・tests・scripts だけで、記録の読み込みに要るファイルが無く偽の赤が出たので、
+  main の木全体を写して違いの出た 19 部品を流し直した。最終の数はその流し直しの結果。）
+
+■ 壁（宣言つき、11-12 と同じ形: mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())）
+理由はどれも同じ: 記録のキャラが松明をライト・クロスボウの横に付けており、持ち主の 11-13 の答えで
+その盤面は名前つきで止まる（その止まりは test_torch_crossbow_1113_recorded が押さえる）。試験の主題は
+クロスボウの決まりの外のことなので、決まりを外して主題を残した。
+- tests/test_town_lantern_out_1107.py: test_without_oil_the_torch_is_not_traded_back_for_the_dark_lantern（n1-b life-330）
+- tests/test_lantern_lost_recorded.py: test_control_torch_only_character_keeps_the_torch_rules、
+  test_recorded_town_board_keeps_the_empty_lantern（C4-A）
+- tests/test_fundraise_light_block.py: test_captured_window_composes_a_general_purchase_within_eight_decisions
+- tests/test_light_rootfix_q2_recorded.py: test_faint_torch_without_refill_or_swap_still_releases_quest（C4-A Q2）
+- tests/test_dark_backtrack_loop_recorded.py: 5 件（test_recorded_lit_board_reads_recall_instead_of_stepping_into_the_dark、
+  test_recorded_pair_no_longer_alternates、test_control_recorded_dark_board_still_backtracks_to_the_lit_cell、
+  test_control_own_light_keeps_the_shallow_walk_out、test_control_fuelled_pack_torch_keeps_the_shallow_walk_out）（C4-A）
+- tests/test_lantern_rewield_recorded.py: test_recorded_lit_return_board_wields_the_lantern、
+  test_recorded_dark_board_wields_the_lantern（C4-A、暗視の松明）
+
+■ 本番への影響（重要）
+上の 6 部品の記録が示すとおり、ライト・クロスボウと松明を両方付けて歩くキャラは実際にいた（n1-b life-330
+2026-11-06、Linux の C4-A の 10-16〜10-25 の何件も）。この枝を入れると、その形のキャラは入れた直後の
+最初の判断で "light:torch-worn-with-crossbow" で止まる（持ち主の答えどおり）。走らせ役の変更を当てない
+間は、起こし直し → また止まる → 30分に2〜3回で新キャラ、となる。入れる前に観戦の2〜3体の今の装備を
+見ておくとよい。
+
+■ 保守性
+- 新しい決まりは全部 torch_release.py（クロスボウと松明の決まりの1つの部品）に置いた: クロスボウの表
+  CROSSBOW_SVALS、is_crossbow、解放 releases/released、光源の問い wearable_light/light_wearable、
+  止まりの判定 torch_worn_with_crossbow と理由の名前 STOP_REASON。光源の選び手と最適化はこの問いを
+  呼ぶだけで、sval の条件を書き散らしていない。理由の文字列は STOP_REASON 1か所から
+  policy_constants と cli の表示文が読む。
+- 11-12 の「光源が松明でない」条件（Q2 で不要になった）を消し、equipment_swap_weight の光源の追跡も
+  要らなくなったので消した（重複した判定を1つ減らした）。
+- 町の作り直し（town-rebuild-1112）の構造には触れていない。触った町に関わるファイル:
+  policy.py（_choose_key の入口の1行の分岐と光源の選び手2つ。町の担当の中ではない）、
+  policy_constants.py（最終停止の表に1行）、cli.py（表示文に1行）、equipment_optimizer.py、
+  equipment_swap_weight.py、torch_release.py、scripts/town_work_review.json、
+  src/hengbot/town_work_sites.json（生成物）。policy_town.py・policy_home.py・policy_shop.py・
+  policy_supply.py・town_* は触っていない。
+
+■ 提案する checks.json の項目
+{"id":"TORCH-CROSSBOW","owner":"2026-11-13 「クロスボウ2種だけ」「松明は装備しない。装備していたら停止して報告。」","tests":["tests.test_torch_crossbow_1113_recorded","tests.test_town_weight_torch_1112_recorded"]}
+
+■ 持ち主への問い
+前の問い1・2は 11-13 に答えをもらい、上の「追加」で実装した。問い3（_light_ready の松明の本数）は、
+クロスボウを付けて松明しか無い形が no-lantern の停止になるので、起きる前に止まる。問い4（走らせ役の
+変更）は未決のまま。新しい問い:
+5. fuel-out の停止は町の外だけにした（町の中では給油・油の店へ歩く今の復旧を先にする）。町の中でも
+   止めるべきか。
+6. no-lantern の「持っている」クロスボウは、付けられる形（鑑定済みに近く、呪い・壊れなし）に限った。
+   未鑑定のクロスボウを拾っただけでは止まらない。これでよいか。

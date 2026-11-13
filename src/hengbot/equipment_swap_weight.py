@@ -11,7 +11,7 @@ the transaction asks before its Home withdrawal.
 ``withdraw_overload``: the weight the swap leaves once every removable unit is shed, compared
 with the limit.  The kept weight now is the carried weight less the retention surplus of the
 pack; the session's remaining actions add each withdrawal and drop each deposit of worn gear
-(a pack deposit is surplus already, or kept weight leaving); a light crossbow the swap puts on
+(a pack deposit is surplus already, or kept weight leaving); a crossbow the swap puts on
 releases the reserved torches (``torch_release``).  A swap that ends over the limit and heavier
 than now is refused (the session blocks; the abandonment keeps the item at Home this visit).
 """
@@ -22,7 +22,6 @@ from typing import Any
 from hengbot import torch_release
 
 BOW_SLOT = "bow"
-LIGHT_SLOT = "light"
 REFUSAL = "withdraw-overweight"
 
 
@@ -41,7 +40,6 @@ def withdraw_overload(policy: Any, snapshot: Any, session: Any) -> dict | None:
     kept = weight - removable
     catalog = {owned.id: owned for owned in policy._equipment_catalog.items}
     bow = next((item for item in snapshot.equipment if item.slot == BOW_SLOT), None)
-    light = policy._worn_light(snapshot)
     delta = 0
     for action in session.plan.actions[session.index:]:
         owned = catalog.get(action.item_id)
@@ -56,9 +54,7 @@ def withdraw_overload(policy: Any, snapshot: Any, session: Any) -> dict | None:
                 delta -= _unit_weight(owned.item)
         elif action.kind == "equip" and action.target_slot == BOW_SLOT:
             bow = owned.item
-        elif action.kind == "equip" and action.target_slot == LIGHT_SLOT:
-            light = owned.item
-    if torch_release.releases(bow, light) and not torch_release.released(policy, snapshot):
+    if torch_release.releases(bow) and not torch_release.released(policy, snapshot):
         delta -= sum(_unit_weight(item) * policy._retention_reservation(snapshot, item)
                      for item in snapshot.inventory if item.is_torch)
     after = kept + delta

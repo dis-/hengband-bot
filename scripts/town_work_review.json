@@ -17818,7 +17818,29 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
-    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure predicate (owner 2026-11-12): the worn light crossbow, with a worn light that is not a torch, releases every torch carry; read by the carry targets, the Home deposit finder and the General Store light sale; no command"
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure predicate (owner 2026-11-12, 2026-11-13 「クロスボウ2種だけ」): a worn crossbow (light or heavy) releases every torch carry; read by the carry targets, the Home deposit finder and the General Store light sale; no command"
+  },
+  "torch_release.py:light_halt": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure board read (owner 2026-11-13): names the crossbow light final stop the board calls for (torch worn beside a crossbow, no light but torches owned, the lamp out off the town with no oil or spare); _choose_key returns no key under it and the driver stops; no command"
+  },
+  "torch_release.py:worn_launcher": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure board read (owner 2026-11-13): the worn launcher the torch release and the no-torch-beside-a-crossbow light rule ask; no command"
   },
   "torch_release.py:throwing_torch_target": {
     "classification": "data",

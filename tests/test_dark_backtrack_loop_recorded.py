@@ -29,6 +29,7 @@ from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
 import unittest
+from hengbot import torch_release
 from unittest import mock
 from dataclasses import replace
 from pathlib import Path
@@ -108,11 +109,19 @@ class DarkBacktrackLoopRecordedTest(unittest.TestCase):
         self.assertTrue(self.policy._is_dark(dark))
         self.assertIsNone(dark.grid_at(DARK))
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_recorded_lit_board_reads_recall_instead_of_stepping_into_the_dark(self):
         board = self._board(0)
         self._latch_walk_out()
         self.assertEqual(self._decide(board), (READ_RECALL_FROM_F, "return:recall"))
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_recorded_pair_no_longer_alternates(self):
         lit = self._board(0)
         self._latch_walk_out()
@@ -126,6 +135,10 @@ class DarkBacktrackLoopRecordedTest(unittest.TestCase):
             [(READ_RECALL_FROM_F, "return:recall"), ("6", "dark:backtrack")],
         )
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_control_recorded_dark_board_still_backtracks_to_the_lit_cell(self):
         board = self._board(1)
         self.policy._returning_to_town = True
@@ -133,6 +146,10 @@ class DarkBacktrackLoopRecordedTest(unittest.TestCase):
         self.assertEqual(self._decide(board), ("6", "dark:backtrack"))
         self.assertEqual(self.policy._dark_route_goal, LIT)
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_control_own_light_keeps_the_shallow_walk_out(self):
         board = self._board(0)
         # DECLARED CONSTRUCTED: the character lights radius 1.
@@ -141,6 +158,10 @@ class DarkBacktrackLoopRecordedTest(unittest.TestCase):
         self._latch_walk_out()
         self.assertEqual(self._decide(board), ("4", "return:explore"))
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_control_fuelled_pack_torch_keeps_the_shallow_walk_out(self):
         board = self._board(0)
         worn = next(item for item in board.equipment if item.is_light)
