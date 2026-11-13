@@ -2590,11 +2590,17 @@ class CombatMixin:
             # and Teleport Other at that monster is one (a wand or rod zaps blind).
             blinders = (status_cure.outpacing_blinders(self, snapshot)
                         if (lethal or summoner_open) and not guardian_reposition else [])
+            # Owner 2026-11-13: the threats *Destruction* removes are the engagement's (seen or
+            # detected, awake or asleep; destruction_use.key leaving) on every board of this
+            # ladder; on the 即死 board only a readable Teleportation scroll goes first
+            # (``scroll_first`` below), so blind or without that scroll the sensed threats count.
+            engagement = (threat_tiers.engagement(self, snapshot)
+                          if (lethal or summoner_open) and not guardian_reposition else [])
             blind_escape = bool(
                 (lethal or summoner_open) and not guardian_reposition
                 and player.blind and not player.confused
                 and (threat_tiers.blind_teleport_means(self, snapshot) is not None
-                     or destruction_use.usable(self, snapshot)
+                     or destruction_use.usable(self, snapshot, leaving=engagement)
                      or ((followers or blinders)
                          and teleport_follower.away_usable(self, snapshot))
                      or pack_teleport)
@@ -2673,9 +2679,11 @@ class CombatMixin:
                 # Owner 2026-11-09 B 「即死はテレポートで逃げる。射線が通っていないなど即死では
                 # ない場合は破壊による排除を優先する。」: off the 即死 board the threat need not
                 # be awake in view (destruction_use.key leaving: seen or detected, awake or asleep).
+                # Owner 2026-11-13: on the 即死 board with no Teleportation scroll to read (none
+                # carried, or blind) the same set counts (n1-b life-391: Fafnir and Smaug only
+                # sensed at 12 and 15 cells, the absorbed *Destruction* at 87%).
                 if not guardian_reposition and not scroll_first and (
-                        used := destruction_use.key(self, snapshot, leaving=None if instant_death
-                                                    else threat_tiers.engagement(self, snapshot))
+                        used := destruction_use.key(self, snapshot, leaving=engagement)
                 ) is not None:
                     return used
                 if pack_teleport and (
