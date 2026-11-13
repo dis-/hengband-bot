@@ -59,9 +59,9 @@ from dataclasses import dataclass, field
 # hengbot.arena first loads me_absorbed_substitutes -> me_powers -> hunt_target
 # -> retreat_enclosure -> this module while me_absorbed_substitutes is still
 # initializing, so a from-import of its names fails (circular import).
-from hengbot import area_mapping, me_absorbed_substitutes, me_powers
+from hengbot import area_mapping, me_absorbed_substitutes, me_capability, me_powers
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import Position, Snapshot, game_distance
+from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND, Position, Snapshot, game_distance
 from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE, NEIGHBOR_OFFSETS
 
 
@@ -251,15 +251,22 @@ def _memory(policy, snapshot: Snapshot) -> Memory:
 
 
 def _melt_key(policy, snapshot: Snapshot, direction: str,
-              reason: str = REASON) -> tuple[str, str] | None:
-    """(key, reason) of the wand, else of the absorbed power, as the quest breach aims them."""
-    wand = policy._stone_to_mud_wand(snapshot)
-    if wand is not None:
-        used = reserved_item_command(policy, snapshot, "wand", wand, suffix=direction)
-        if used is not None:
-            return used, reason
-    cast = me_absorbed_substitutes.carry_cast_key(policy, snapshot, "utility_tools", "wall_breach", direction)
-    return None if cast is None else (cast, reason + me_absorbed_substitutes.CAST_SUFFIX)
+              reason: str = REASON, *, power_first: bool = False) -> tuple[str, str] | None:
+    """(key, reason) of the wand, else of the absorbed power, as the quest breach aims them;
+    ``power_first`` asks the absorbed power before the wand."""
+    def wand_key():
+        wand = policy._stone_to_mud_wand(snapshot)
+        used = None if wand is None else reserved_item_command(
+            policy, snapshot, "wand", wand, suffix=direction)
+        return None if used is None else (used, reason)
+
+    def cast_key():
+        cast = me_absorbed_substitutes.carry_cast_key(
+            policy, snapshot, "utility_tools", "wall_breach", direction)
+        return None if cast is None else (cast, reason + me_absorbed_substitutes.CAST_SUFFIX)
+
+    first, second = (cast_key, wand_key) if power_first else (wand_key, cast_key)
+    return first() or second()
 
 
 def can_melt(policy, snapshot: Snapshot) -> bool:
@@ -269,14 +276,23 @@ def can_melt(policy, snapshot: Snapshot) -> bool:
                 policy, snapshot, "utility_tools", "wall_breach") is not None)
 
 
+def melt_charges(policy, snapshot: Snapshot) -> int:
+    """Every Stone to Mud use carried: the charged wands' charges and the absorbed power's,
+    one wall a charge as Q2's breach counts them (policy ``_quest_named_item_count``)."""
+    wands = sum(item.charges for item in snapshot.inventory
+                if item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD and item.charges > 0)
+    return wands + max(0, me_capability.charges(policy, snapshot, "wand", SV_WAND_STONE_TO_MUD))
+
+
 def worn_out(policy, snapshot: Snapshot, wall: Position) -> bool:
     """``wall`` stayed after me_powers.FAILURES_PER_PLACE uses on this floor visit."""
     return _memory(policy, snapshot).uses[(wall.y, wall.x)] >= me_powers.FAILURES_PER_PLACE
 
 
-def _spend_melt(policy, snapshot: Snapshot, direction: str, wall: Position, reason: str) -> str | None:
+def _spend_melt(policy, snapshot: Snapshot, direction: str, wall: Position, reason: str,
+                *, power_first: bool = False) -> str | None:
     """One use along ``direction`` at ``wall``, counted against it, else None."""
-    melt = _melt_key(policy, snapshot, direction, reason)
+    melt = _melt_key(policy, snapshot, direction, reason, power_first=power_first)
     if melt is None:
         return None
     memory = _memory(policy, snapshot)
@@ -329,7 +345,8 @@ def forget_melted_wall(policy, snapshot: Snapshot) -> None:
             return
 
 
-def melt_at_key(policy, snapshot: Snapshot, wall: Position, reason: str) -> str | None:
+def melt_at_key(policy, snapshot: Snapshot, wall: Position, reason: str,
+                *, power_first: bool = False) -> str | None:
     """One use aimed at ``wall`` on a straight line from the player, else None.
 
     For an asker that chose the wall itself (retreat_enclosure's way to walled-off ground)."""
@@ -337,7 +354,8 @@ def melt_at_key(policy, snapshot: Snapshot, wall: Position, reason: str) -> str 
     if player.blind or player.confused or player.recalling:
         return None
     direction = me_powers.beam_direction(policy, snapshot, player.position, wall)
-    return None if direction is None else _spend_melt(policy, snapshot, direction, wall, reason)
+    return None if direction is None else _spend_melt(
+        policy, snapshot, direction, wall, reason, power_first=power_first)
 
 
 def after_destruction_key(policy, snapshot: Snapshot) -> str | None:

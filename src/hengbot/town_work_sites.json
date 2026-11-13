@@ -230,7 +230,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "anaguma_geometry.py:diggable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "anaguma_geometry.py:longest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "anaguma_geometry.py:solid": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -7435,6 +7449,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_fundraising.py:FundraisingMixin._dig_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_fundraising.py:FundraisingMixin._dig_route_first_step": {
     "classification": "data",
     "rows": [
@@ -13028,12 +13049,26 @@
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
+  "retreat_enclosure.py:melt_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "retreat_enclosure.py:melt_toward_key": {
     "classification": "action",
     "rows": [
       "positioning"
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:meltable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "retreat_enclosure.py:open_toward_key": {
     "classification": "action",
@@ -13084,6 +13119,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_loot.py:_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "sealed_loot.py:pocket_walls": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "sealed_pocket.py:_aim": {
     "classification": "data",
     "rows": [
@@ -13113,6 +13169,13 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_pocket.py:_melt_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:_melt_key.cast_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

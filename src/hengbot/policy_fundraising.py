@@ -1346,8 +1346,22 @@ class FundraisingMixin:
         walking_wins: bool = True,
         tunnelled: bool = True,
     ) -> Position | None:
-        """First step of the shortest known route to a target through floor
-        and ``diggable`` cells.
+        """The first step of ``_dig_route``, else None."""
+        route = self._dig_route(snapshot, targets, diggable,
+                                walking_wins=walking_wins, tunnelled=tunnelled)
+        return None if route is None else route[0]
+
+    def _dig_route(
+        self,
+        snapshot: Snapshot,
+        targets: set[Position],
+        diggable: Callable[[GridState], bool],
+        *,
+        walking_wins: bool = True,
+        tunnelled: bool = True,
+    ) -> tuple[Position, int] | None:
+        """(first step, cells tunnelled) of the shortest known route to a target through
+        floor and ``diggable`` cells, the target counted when it is one of them.
 
         With ``walking_wins`` it is None when a walking route reaches a
         target, so the dig is solely for targets whose known approach needs
@@ -1382,7 +1396,7 @@ class FundraisingMixin:
                 continue
             settled.add(position)
             if position in targets and position != origin:
-                return first
+                return first, digs
             walkable = self._walkable_neighbors(snapshot, position)
             for dy, dx in NEIGHBOR_OFFSETS:
                 neighbor = Position(position.y + dy, position.x + dx)
