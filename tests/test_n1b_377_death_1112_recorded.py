@@ -21,7 +21,9 @@ sensed leave's *Destruction* (absorbed, 97%) was due on every board until the st
    clear-headed; 7976 the absorbed Teleport Away (97% shown, 87% stunned: cmd-magiceat.cpp:485,
    player-stun.cpp:135-153) failed, though a Teleportation scroll (no penalty at this stun,
    player-stun.cpp:162-178) was in the pack.  Now a stunned THREAT power gives way to the
-   surer scroll (me_powers ``_stunned_scroll_first``).
+   surer scroll (me_powers ``_stunned_scroll_first``).  Owner 2026-11-13: a stun no longer
+   refuses *Destruction* (the game only adds its penalty: the absorbed *Destruction* 97% shown,
+   87% at this stun, still reliable), so 7975 and 7976 now use it before any scroll.
 4. 混沌の王族 (race 737, speed +20, BA_CHAO / PSY_SPEAR / MIND_BLAST, invisible, known by
    telepathy) killed the player from behind the pocket's wall, while ``threat_prediction`` read
    its ranged damage 0 on every board: no projectable line to the player, but the game casts at
@@ -52,7 +54,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import me_powers, threat_tiers
+from hengbot import destruction_use, me_powers, threat_tiers
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
 from hengbot.model import Position, Snapshot, game_distance
@@ -134,11 +136,15 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
             with self.subTest(sequence=sequence):
                 self.assertEqual(self.decided[sequence][2:], DESTRUCTION)
 
-    def test_stunned_pocket_board_reads_the_sensed_leave(self):
-        """7975: stunned, *Destruction* is out (no clear head); the pocket's blow was the live
-        answer, the sensed leave's Teleportation scroll is HEAD's (ladder_floor_avoidance)."""
+    def test_stunned_pocket_board_destroys(self):
+        """7975: the pocket's blow was the live answer; stunned (slight), the absorbed
+        *Destruction* reads 87% (97% shown, cmd-magiceat.cpp:485 and player-stun.cpp:135-153),
+        still reliable: owner 2026-11-13, *Destruction* before the sensed leave's scroll."""
+        policy, board, key, reason = self.decided[7975]
         self.assertEqual(live(7975), ("7", "melee:anaguma"))
-        self.assertEqual(self.decided[7975][2:], SCROLL_LEAVE)
+        self.assertEqual((board.player.stunned, board.player.stun_rank), (True, 1))
+        self.assertEqual(me_powers.stunned_success(policy, board, destruction_use.POWER), 87)
+        self.assertEqual((key, reason), DESTRUCTION)
 
     def test_summoned_bodak_is_not_sent_away_before_destruction(self):
         """7973: the THREAT power on the summoned ボダック was live; *Destruction* now."""
@@ -148,13 +154,30 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
                          [(566, 1)])
         self.assertEqual((key, reason), DESTRUCTION)
 
-    def test_stunned_teleport_away_gives_way_to_the_scroll(self):
-        """7976: the absorbed Teleport Away at 87% stunned against the scroll's 100%."""
+    def test_stunned_teleport_away_gives_way(self):
+        """7976: the absorbed Teleport Away at 87% stunned was live; stunned *Destruction* (87%,
+        owner 2026-11-13) answers first now."""
         policy, board, key, reason = self.decided[7976]
         self.assertEqual(live(7976), TELEPORT_AWAY)
         self.assertEqual((board.player.stunned, board.player.stun_rank), (True, 1))
         self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 87)
-        self.assertEqual((key, reason), SCROLL_LEAVE)
+        self.assertEqual((key, reason), DESTRUCTION)
+
+    def test_harder_stun_gives_way_to_the_scroll(self):
+        """7976 at a normal stun (DECLARED CONSTRUCTED: stun_rank 2 for the recorded 1): the
+        penalty is 20 (player-stun.cpp:135-153), *Destruction* and Teleport Away read 77%, below
+        the reliable 80%; the scroll has no penalty at this stun (:162-178) and is read."""
+        policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoints"][7976])
+        with TemporaryDirectory() as scratch:
+            _, boards = _consume_response_sequence(
+                SEGMENTS[7976]["lines"], policy, lambda _key: True, policy._monrace_knowledge,
+                knowledge_ledger_path=Path(scratch) / "k.jsonl")
+        board = policy.with_known_skill_exp(boards[-1])
+        board = replace(board, player=replace(board.player, stun_rank=2))
+        self.assertEqual(me_powers.stunned_success(policy, board, destruction_use.POWER), 77)
+        self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 77)
+        key = str(policy.choose_key(board))
+        self.assertEqual((key, policy.last_reason), SCROLL_LEAVE)
 
     def test_chaos_lord_ranged_reach_behind_the_pocket_wall(self):
         """7972-7976: no projectable line, a chaos ball at the grid beside the player."""

@@ -542,6 +542,12 @@ class CombatMixin:
             self.last_reason = "summoner:seek-upstairs"
             self._declare_reach(exits.route.target)
             return self._step_toward(snapshot, exits.route.first_step)
+        # Owner 2026-11-04 「巻物が無くても使う（ショート・テレポートと帰還より先）」 and
+        # 2026-11-05 (動かない敵にも「今のまま全部に使う」): *Destruction* by its own gates before
+        # the scrolls that leave the floor (owner 2026-11-13).
+        if (used := destruction_use.key(self, snapshot, leaving=threat_tiers.engagement(
+                self, snapshot))) is not None:
+            return used
         if exits.teleport_level is not None and not exits.recalling:
             self.last_reason = "summoner:teleport-level"
             return (self._anti_teleport_takeoff_key(snapshot, exits.teleport_level)
@@ -591,6 +597,12 @@ class CombatMixin:
                     self.last_reason = "breeder-item-damage:seek-stairs"
                     return self._step_toward(snapshot, step)
 
+        # Owner 2026-11-05 (増殖する敵にも「今のまま全部に使う」): *Destruction* by its own gates
+        # before the scrolls that leave the floor (owner 2026-11-13); a staff or the absorbed
+        # power needs no reading.
+        if (used := destruction_use.key(self, snapshot, leaving=threat_tiers.engagement(
+                self, snapshot))) is not None:
+            return used
         if not self._can_read_scrolls(snapshot):
             return None
         relocation_allowed = not (quest_no_teleport.forbids(self, snapshot)
@@ -2590,16 +2602,33 @@ class CombatMixin:
             # and Teleport Other at that monster is one (a wand or rod zaps blind).
             blinders = (status_cure.outpacing_blinders(self, snapshot)
                         if (lethal or summoner_open) and not guardian_reposition else [])
+            # Owner 2026-11-13: the threats *Destruction* removes are the engagement's (seen or
+            # detected, awake or asleep; destruction_use.key leaving) on every board of this
+            # ladder; on the 即死 board only a readable Teleportation scroll goes first
+            # (``scroll_first`` below), so blind or without that scroll the sensed threats count.
+            engagement = (threat_tiers.engagement(self, snapshot)
+                          if (lethal or summoner_open) and not guardian_reposition else [])
             blind_escape = bool(
                 (lethal or summoner_open) and not guardian_reposition
                 and player.blind and not player.confused
                 and (threat_tiers.blind_teleport_means(self, snapshot) is not None
-                     or destruction_use.usable(self, snapshot)
+                     or destruction_use.usable(self, snapshot, leaving=engagement)
                      or ((followers or blinders)
                          and teleport_follower.away_usable(self, snapshot))
                      or pack_teleport)
             )
-            if not blind_escape and status_cure.treats(self, snapshot):
+            # Owner 2026-11-13 「成功率が足りれば *破壊* を先」: stunned (not blind), when the
+            # stun-adjusted *Destruction* is reliable and would be the escape, it goes before the
+            # cure (a cut's); short of the bar the cure keeps its place.  Not on the 即死 board
+            # with a readable Teleportation scroll, which is read first (``scroll_first``).
+            stunned_destruction = bool(
+                player.stunned and not player.blind and not player.confused
+                and (lethal or summoner_open) and not guardian_reposition
+                and not (instant_death and (
+                    readable := self._escape_scroll(snapshot)) is not None
+                    and readable.is_teleport_scroll)
+                and destruction_use.usable(self, snapshot, leaving=engagement))
+            if not blind_escape and not stunned_destruction and status_cure.treats(self, snapshot):
                 # Owner 2026-11-09 D: confused again right after a cure on the 即死 board, the
                 # Speed dose first and the HP recovery potion when HP is down (status_cure).
                 if (speed := status_cure.speed_first_key(
@@ -2670,12 +2699,24 @@ class CombatMixin:
                 scroll_first = bool(
                     instant_death and scroll is not None and scroll.is_teleport_scroll
                 )
+                # Owner 2026-11-13 「成功率の高い方を先に」: blind on the 即死 board (no scroll
+                # can be read), the absorbed or staff Teleportation goes before *Destruction*
+                # when its success is higher; on a tie *Destruction* first.
+                blind_teleport_first = False
+                if instant_death and player.blind and blind_escape and not followers:
+                    teleport_success = threat_tiers.blind_teleport_success(self, snapshot)
+                    destruction_success = destruction_use.success(self, snapshot)
+                    blind_teleport_first = (teleport_success is not None
+                                            and destruction_success is not None
+                                            and teleport_success > destruction_success)
                 # Owner 2026-11-09 B 「即死はテレポートで逃げる。射線が通っていないなど即死では
                 # ない場合は破壊による排除を優先する。」: off the 即死 board the threat need not
                 # be awake in view (destruction_use.key leaving: seen or detected, awake or asleep).
-                if not guardian_reposition and not scroll_first and (
-                        used := destruction_use.key(self, snapshot, leaving=None if instant_death
-                                                    else threat_tiers.engagement(self, snapshot))
+                # Owner 2026-11-13: on the 即死 board with no Teleportation scroll to read (none
+                # carried, or blind) the same set counts (n1-b life-391: Fafnir and Smaug only
+                # sensed at 12 and 15 cells, the absorbed *Destruction* at 87%).
+                if not guardian_reposition and not scroll_first and not blind_teleport_first and (
+                        used := destruction_use.key(self, snapshot, leaving=engagement)
                 ) is not None:
                     return used
                 if pack_teleport and (

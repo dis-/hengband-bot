@@ -21,6 +21,14 @@ breathed before the next board (533 -> dead).
 Owner 2026-11-09 B 「即死はテレポートで逃げる。」: now the 1-turn test reads the engagement on
 every board, and 6409 reads the Teleportation scroll (14 carried).
 
+Owner 2026-11-13 (「今のまま即死はテレポート」, and *Destruction* where no scroll can be read):
+on the 即死 board without a Teleportation scroll, or blind, the ladder's *Destruction* counted
+only the awake hostiles in view, so the two sensed dragons (12 and 15 cells by the game's
+distance) never got it.  Now it counts the engagement.  DECLARED CONSTRUCTED variants of
+6409: the scrolls taken out of the pack (the absorbed *Destruction*, 87%, answers), or the
+player blind (owner 2026-11-13 「成功率の高い方を先に」: the absorbed Teleportation, 92%, unless
+*Destruction* is as sure).
+
 Owner 2026-11-13 (this death's question, answer 「まとめて判定する」): awake sensed strong
 monsters are judged together; T1 together, they are the sensed T1 (threat_tiers
 ``_sensed_strong``).  Each dragon is T2 alone from contact, the pair T1.  From 6407 both are
@@ -35,12 +43,15 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import lzma
 import pickle
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import threat_tiers
+from hengbot import destruction_use, me_capability, threat_tiers
+from hengbot.me_absorbed_substitutes import TELEPORTATION
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
+from hengbot.model import game_distance
 from hengbot.policy import HengbotPolicy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-391-death-1113.pkl.xz"
@@ -48,6 +59,11 @@ FAFNER, SMAUG = 712, 697
 TELEPORT_REASON = "emergency:teleport"
 APPROACH = "sensed-t1:approach-destruction"
 DESTRUCTION = ("mA3", "emergency:destruction:absorbed-power")
+BLIND_TELEPORT = ("mAe", "emergency:teleport:absorbed-power")
+
+
+def blind(board):
+    return replace(board, player=replace(board.player, blind=True))
 
 
 def _case():
@@ -58,14 +74,21 @@ CASE = _case()
 SEGMENTS = {segment["decision"]["decision_sequence"]: segment for segment in CASE["segments"]}
 
 
-def decide(sequence):
-    """(policy, board, key, reason) of the board as HEAD decides it from the live history."""
+def consumed(sequence):
+    """(policy, board) of the board read from the live history, not yet decided."""
     policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoints"][sequence])
     with TemporaryDirectory() as scratch:
         _, boards = _consume_response_sequence(
             SEGMENTS[sequence]["lines"], policy, lambda _key: True, policy._monrace_knowledge,
             knowledge_ledger_path=Path(scratch) / "k.jsonl")
-    board = policy.with_known_skill_exp(boards[-1])
+    return policy, policy.with_known_skill_exp(boards[-1])
+
+
+def decide(sequence, change=lambda board: board):
+    """(policy, board, key, reason) of the board as HEAD decides it from the live history;
+    ``change`` makes a DECLARED CONSTRUCTED variant of the board."""
+    policy, board = consumed(sequence)
+    board = change(board)
     key = str(policy.choose_key(board))
     return policy, board, key, policy.last_reason
 
@@ -115,6 +138,35 @@ class N1b391Death1113RecordedTest(unittest.TestCase):
         _, board, key, reason = self.decided[6409]
         scroll = next(item for item in board.inventory if item.is_teleport_scroll)
         self.assertEqual((key, reason), ("r" + scroll.slot, TELEPORT_REASON))
+
+    def test_death_board_without_a_scroll_destroys(self):
+        """6409 with no Teleportation scroll in the pack (DECLARED CONSTRUCTED): the dragons,
+        sensed only, are in the guaranteed radius (12 and 15 cells by the game's distance)."""
+        policy, board, key, reason = decide(6409, lambda board: replace(board, inventory=[
+            item for item in board.inventory if not item.is_teleport_scroll]))
+        self.assertTrue(threat_tiers.instant_death(policy, board).next_action)
+        here = board.player.position
+        self.assertEqual(sorted(game_distance(here, monster.position)
+                                for monster in dragons(policy, board).values()), [12, 15])
+        self.assertEqual((key, reason), DESTRUCTION)
+
+    def test_blind_death_board_reads_the_surer_power(self):
+        """6409 blind (DECLARED CONSTRUCTED): no scroll can be read.  Owner 2026-11-13 「成功率の
+        高い方を先に」: the absorbed Teleportation (92% shown) before *Destruction* (87%)."""
+        policy, board, key, reason = decide(6409, blind)
+        self.assertEqual(threat_tiers.blind_teleport_success(policy, board), 92)
+        self.assertEqual(destruction_use.success(policy, board), 87)
+        self.assertEqual((key, reason), BLIND_TELEPORT)
+
+    def test_blind_death_board_destroys_on_a_tie(self):
+        """6409 blind with the Teleportation row shown at *Destruction*'s 87% (DECLARED
+        CONSTRUCTED: the last displayed list's failure 13 for 8): on a tie *Destruction* first."""
+        policy, board = consumed(6409)
+        row = me_capability.observed_row(policy, *TELEPORTATION)
+        row.update(fail=13, success=87)
+        board = blind(board)
+        self.assertEqual(threat_tiers.blind_teleport_success(policy, board), 87)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason), DESTRUCTION)
 
     def test_boards_before_the_reach_read_no_instant_death(self):
         """6405-6408: no breath reaches before the player's next action (each dragon one action

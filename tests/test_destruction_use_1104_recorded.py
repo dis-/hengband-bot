@@ -198,12 +198,59 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
         self.assertEqual(self.answer(raw, policy)[0], TELEPORT)
 
     def test_status_keeps_the_read_or_the_cure(self):
-        raw = with_staff(self.raw)
+        # Confusion (the game halves the staff's skill; owner 2026-11-08 「混乱では使わない」)
+        # keeps the read.
+        raw = with_staff(copy.deepcopy(self.raw))
         raw["player"]["status"]["confused"] = True
         self.assertNotEqual(self.answer(raw)[0][1], "emergency:destruction")
-        raw = with_staff(self.raw)
-        raw["player"]["status"]["stunned"] = True
-        self.assertNotEqual(self.answer(raw)[0][1], "emergency:destruction")
+
+    def test_stunned_and_cut_destruction_before_the_cure_when_reliable(self):
+        """Owner 2026-11-13 「成功率が足りれば *破壊* を先」 (DECLARED CONSTRUCTED: the recorded
+        board stunned and cut, a staff at skill 60): at a slight stun the staff stays at 80% and
+        is used before the cut's Cure Critical Wounds; at a hard stun (76%) the cure keeps its
+        place; cut alone (no stun) the cure is first as before."""
+        for rank, expected in ((1, STAFF_KEY), (3, ("qb", "emergency:cure-critical")),
+                               (0, ("qb", "emergency:cure-critical"))):
+            with self.subTest(rank=rank):
+                raw = with_staff(copy.deepcopy(self.raw))
+                status = raw["player"]["status"]
+                status.update(stunned=rank > 0, stun_rank=rank, cut=True)
+                self.assertEqual(self.answer(raw)[0], expected)
+
+    @staticmethod
+    def hallucinating(raw):
+        """DECLARED CONSTRUCTED: the recorded board as the game emits it hallucinating
+        (bot-json-output.cpp make_visible_monster_json: index, position and pet only)."""
+        raw["player"]["status"]["hallucinated"] = True
+        raw["visible_monsters"] = [
+            {"index": monster["index"], "hallucinated": True, "pet": False,
+             "y": monster["y"], "x": monster["x"]} for monster in raw["visible_monsters"]]
+        return raw
+
+    def test_hallucinating_the_means_are_used(self):
+        """Owner 2026-11-13 「幻覚でも使う」: neither the staff nor the ``m`` command refuses
+        hallucination; the identities hidden, the same gates judge the positions."""
+        raw = self.hallucinating(with_staff(copy.deepcopy(self.raw)))
+        self.assertEqual(self.answer(raw)[0], STAFF_KEY)
+        raw, policy = self.absorbed(20)
+        answer, _ = self.answer(self.hallucinating(raw), policy)
+        self.assertEqual(answer[1], "emergency:destruction:absorbed-power")
+        self.assertTrue(answer[0].startswith("mA"))
+        # Control: without the means the recorded read stands.
+        self.assertEqual(self.answer(self.hallucinating(copy.deepcopy(self.raw)))[0], TELEPORT)
+
+    def test_stunned_the_staff_is_still_used(self):
+        """Owner 2026-11-13: a stun only adds the game's penalty (check_stun,
+        player-stun.cpp:162-178 get_item_chance_penalty: none at a slight or normal stun, 5% at
+        a hard one): at the reliable skill (80%) a slight or normal stun still uses the staff,
+        a hard stun (76%) reads the scroll, a skill of 65 (87% * 95% = 82%) uses it again."""
+        for rank, skill, expected in ((1, RELIABLE_SKILL, STAFF_KEY), (2, RELIABLE_SKILL, STAFF_KEY),
+                                      (3, RELIABLE_SKILL, TELEPORT), (3, 65, STAFF_KEY)):
+            with self.subTest(rank=rank, skill=skill):
+                raw = with_staff(copy.deepcopy(self.raw), skill=skill)
+                raw["player"]["status"]["stunned"] = True
+                raw["player"]["status"]["stun_rank"] = rank
+                self.assertEqual(self.answer(raw)[0], expected)
 
     def beyond_range(self, raw):
         """Every awake hostile 14 squares or more away on the same row."""

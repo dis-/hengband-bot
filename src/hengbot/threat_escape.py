@@ -195,6 +195,21 @@ def blind_teleport_means(policy, snapshot):
                  and item.aware and item.charges > 0), None)
 
 
+STAFF_TELEPORTATION_LEVEL = 20  # BaseitemDefinitions.jsonc id 303
+
+
+def blind_teleport_success(policy, snapshot) -> float | None:
+    """The success percent of ``blind_teleport_key``'s means (the stun counted as the game
+    counts it, destruction_use), else None."""
+    means = blind_teleport_means(policy, snapshot)
+    if means is None:
+        return None
+    if means == ABSORBED:
+        return destruction_use.absorbed_success(
+            policy, snapshot, me_absorbed_substitutes.TELEPORTATION)
+    return destruction_use.staff_success(snapshot.player, STAFF_TELEPORTATION_LEVEL)
+
+
 def escape_restorable(policy, snapshot) -> bool:
     """4.2 restore: a cure for blindness / confusion, a removable anti-teleport item, or a
     Teleport Other at an adjacent monster that follows the teleport (teleport_follower)."""

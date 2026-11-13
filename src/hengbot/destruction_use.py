@@ -21,13 +21,17 @@ Game (C:/hengband/src):
    knowledge of the circle goes, and 「燃えるような閃光が発生した！」 is printed, with
    blindness 10+1d10 unless the player resists blindness or light.
  * A staff (object-use/use-execution.cpp): no blind or confused refusal, but
-   confusion halves the skill, stun may refuse it, a Berserker always fails, a
-   failure spends the turn and keeps the charge.  The absorbed power
-   (cmd-magiceat.cpp) refuses a confused player; a failure spends the turn and
-   keeps the charge.
+   confusion halves the skill, stun may refuse it (check_stun, the stun's
+   get_item_chance_penalty: 5% at a hard stun, 10% unconscious), a Berserker always
+   fails, a failure spends the turn and keeps the charge.  The absorbed power
+   (cmd-magiceat.cpp) refuses a confused player; a stun adds its
+   get_magic_chance_penalty to the failure (:485, 10-50%); a failure spends the turn
+   and keeps the charge.  Neither refuses hallucination (only cmd_limit_image's two
+   class powers do; owner 2026-11-13 「幻覚でも使う」).
 
 Gates (``key``, asked by each rung before its read): the character is clear-headed (blindness
-allowed, owner 2026-11-08 「盲目でも使う」); a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
+allowed, owner 2026-11-08 「盲目でも使う」; a stun allowed, owner 2026-11-13, judged by the
+stun-adjusted success); a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
 absorbed power first as in speed_dose); the floor is one the game destroys; the
 most dangerous awake visible hostile other than the quest target is in
 ``GUARANTEED_RADIUS``; and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
@@ -56,7 +60,8 @@ from dataclasses import dataclass
 from functools import partial
 
 from hengbot import (
-    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, pingpong_guard, summoner_wait,
+    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, pingpong_guard,
+    summoner_wait,
 )
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
@@ -128,18 +133,41 @@ def _memory(policy) -> Memory:
 # -- the means ------------------------------------------------------------------
 
 def _absorbed_key(policy, snapshot) -> str | None:
-    """The reliable power (me_capability's counting row) with a charge here."""
+    """The reliable power (me_capability's counting row) with a charge here; stunned, the
+    displayed failure with the stun's penalty (me_powers.stunned_success) is reliable too."""
     if me_capability.replacing_charges(policy, snapshot, STAFF) <= 0:
         return None
-    return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER], blind_ok=True)
+    if snapshot.player.stunned and (
+            me_powers.stunned_success(policy, snapshot, POWER) or 0) < me_capability.RELIABLE_MIN_SUCCESS:
+        return None
+    return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER], blind_ok=True,
+                                hallucination_ok=True)
+
+
+def staff_success(player, level: int) -> float:
+    """A carried staff's success percent (not confused): use-execution.cpp's chance
+    (attack_expectation) at the item's level; stunned, times the chance check_stun lets the
+    use through (me_powers.STUN_ITEM_PENALTY); a Berserker always fails."""
+    if player.class_id == PLAYER_CLASS_BERSERKER:
+        return 0.0
+    success = attack_expectation.device_use_success(player.device_skill, level) * 100
+    if player.stunned:
+        success *= (100 - me_powers.STUN_ITEM_PENALTY[me_powers._stun_rank(player)]) / 100
+    return success
+
+
+def absorbed_success(policy, snapshot, ident) -> int | None:
+    """An absorbed power's success percent now: the displayed failure with the stun's
+    penalty (me_powers.stunned_success), else the displayed success; None without a row."""
+    success = me_powers.stunned_success(policy, snapshot, ident)
+    if success is not None:
+        return success
+    row = me_capability.observed_row(policy, *ident)
+    return None if row is None else int(row.get("success") or 0)
 
 
 def _reliable_staff(snapshot) -> bool:
-    """use-execution.cpp's chance (attack_expectation) at the table's number."""
-    if snapshot.player.class_id == PLAYER_CLASS_BERSERKER:
-        return False
-    success = attack_expectation.device_use_success(snapshot.player.device_skill, STAFF_LEVEL)
-    return success * 100 >= me_capability.RELIABLE_MIN_SUCCESS
+    return staff_success(snapshot.player, STAFF_LEVEL) >= me_capability.RELIABLE_MIN_SUCCESS
 
 
 def _reliable_carried_staff(policy, snapshot):
@@ -175,8 +203,14 @@ def gap_here(policy, snapshot, missing) -> frozenset:
 
 def _clear_headed(player) -> bool:
     """Owner 2026-11-08 「盲目でも使う」: blindness does not stop the use (neither the
-    staff nor the ``m`` command refuses it, above); confusion still does."""
-    return not (player.confused or player.hallucinated or player.stunned)
+    staff nor the ``m`` command refuses it, above); confusion still does.  A stun does not
+    either (owner 2026-11-13; n1-b life-377 died stunned without it): the game only adds
+    its penalty, which ``_absorbed_key`` and ``_reliable_staff`` count.  Nor hallucination
+    (owner 2026-11-13 「幻覚でも使う」, no refusal of the game's): the board then redacts
+    every monster's identity (bot-json-output.cpp make_visible_monster_json; model.py keeps
+    the position and treats it as an awake hostile of unknown strength), and the same gates
+    judge from what it still gives."""
+    return not player.confused
 
 
 def _floor_destroyed(policy, snapshot) -> bool:
@@ -276,8 +310,11 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None)
 
     ``leaving``: the hostiles a rung leaves on a board that is not 即死 (``_threat_in_reach``,
     owner 2026-11-09 B): the sensed T1 leave, the emergency ladder's escape off the 即死 board,
-    the cornered flee of a leave the tiers decided.  On the 即死 board the ladder reads
-    Teleportation first (owner 2026-11-08, policy_combat ``scroll_first``)."""
+    the cornered flee of a leave the tiers decided.  On the 即死 board the ladder reads a
+    Teleportation scroll first (owner 2026-11-08, policy_combat ``scroll_first``); with none to
+    read (none carried, or blind) it leaves the engagement here too (owner 2026-11-13).  The
+    summoner hold's teleport, the immobile summoner's and the item-destroying breeders' floor
+    exits ask it before their scrolls (owner 2026-11-13)."""
     if leaving is not None:
         in_range = partial(_threat_in_reach, hostiles=list(leaving))
     if _falls_back(_memory(policy), snapshot):
@@ -291,6 +328,16 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None)
     policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
     _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
     return used
+
+
+def success(policy, snapshot) -> float | None:
+    """The success percent of the means ``key`` would use (the absorbed power first), else
+    None; the scene's gates are not asked."""
+    if _absorbed_key(policy, snapshot) is not None:
+        return absorbed_success(policy, snapshot, POWER)
+    if _carried_key(policy, snapshot) is not None:
+        return staff_success(snapshot.player, STAFF_LEVEL)
+    return None
 
 
 def usable(policy, snapshot, *, leaving=None) -> bool:

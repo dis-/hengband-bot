@@ -19,8 +19,9 @@ import unittest
 from dataclasses import replace
 
 import test_flee_into_rubble_recorded as rubble
-from hengbot.model import SV_SCROLL_PHASE_DOOR
+from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_STAFF_DESTRUCTION, TVAL_STAFF
 from hengbot.summoner_wait import HOLD_TELEPORT_REASON
+from tests.policy_fixtures import item
 
 
 class SummonerHoldPhaseOnlyRecordedTest(unittest.TestCase):
@@ -56,6 +57,24 @@ class SummonerHoldPhaseOnlyRecordedTest(unittest.TestCase):
         self.assertNotIn(HOLD_TELEPORT_REASON, [reason for _key, reason in keys])
         # The Phase Door stack keeps the Teleportation slot h: never read.
         self.assertNotIn("rh", [key for key, _reason in keys])
+
+    def test_destruction_comes_before_the_hold_teleport(self):
+        """Owner 2026-11-04 「テレポートに代わり*破壊*を使用する」 and 2026-11-13: with no other
+        point out of fire, *Destruction* before the Teleportation scroll.  DECLARED
+        CONSTRUCTED: a known staff of *Destruction* in the pack, device skill 60 (80%)."""
+        policy = self.recorded.policy
+        staff = item("x", TVAL_STAFF, SV_STAFF_DESTRUCTION, known=True, charges=5,
+                     name="*破壊*の杖 (5回分)")
+        keys = []
+        for _ in range(6):
+            board = self.recorded._board(0)
+            board = replace(board, inventory=[*board.inventory, staff],
+                            player=replace(board.player, device_skill=60))
+            keys.append((policy.choose_key(board), policy.last_reason))
+        self.assertEqual(keys[:4], [("T8", "summoner:hold-reposition")] * 4)
+        # The sixth ask is the same board (the same turn): the game did not take the key, so the
+        # rung reads its own scroll (destruction_use ``_falls_back``).
+        self.assertEqual(keys[4:], [("ux", "emergency:destruction"), ("rh", HOLD_TELEPORT_REASON)])
 
 
 if __name__ == "__main__":
