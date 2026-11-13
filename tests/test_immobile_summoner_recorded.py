@@ -26,7 +26,10 @@ from hengbot import threat_tiers, town_hold
 from hengbot.cli import (
     PostingContract, STATIONARY_REASONS, _ExecutorInputPort, _send_decision_key_with_prompt_chain,
 )
-from hengbot.model import SV_POTION_CURE_CRITICAL, SV_SCROLL_TELEPORT, Position, QuestState, Snapshot, parse_snapshot
+from hengbot.model import (
+    SV_POTION_CURE_CRITICAL, SV_SCROLL_TELEPORT, SV_STAFF_DESTRUCTION, TVAL_STAFF, Position, QuestState, Snapshot,
+    parse_snapshot,
+)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import QUEST_STATUS_TAKEN
@@ -245,6 +248,20 @@ class ImmobileSummonerRecordedTest(executor_pins.ProductionHarness):
         policy = self._policy(board)
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
                          ("rt", "summoner:teleport-level"))
+
+    def test_constructed_destruction_precedes_teleport_level(self):
+        """Owner 2026-11-04 「巻物が無くても使う（ショート・テレポートと帰還より先）」, 2026-11-05
+        (動かない敵にも「今のまま全部に使う」) and 2026-11-13: with no stairs, a reliable staff of
+        *Destruction* (DECLARED CONSTRUCTED: carried, device skill 60 = 80%) and the summoner
+        5 cells off, *Destruction* before the Teleport Level scroll."""
+        board = self._corridor(inventory=[
+            fixtures.item("s", TVAL_STAFF, SV_STAFF_DESTRUCTION, known=True, charges=5,
+                          name="*破壊*の杖 (5回分)"),
+            fixtures.item("t", 70, 10), fixtures.item("r", 70, 11)])
+        board = replace(board, player=replace(board.player, device_skill=60))
+        policy = self._policy(board)
+        self.assertEqual((str(policy.choose_key(board)), policy.last_reason),
+                         ("us", "emergency:destruction"))
 
     def test_constructed_recall_and_countdown(self):
         board = self._corridor(inventory=[fixtures.item("r", 70, 11)])

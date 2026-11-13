@@ -542,6 +542,12 @@ class CombatMixin:
             self.last_reason = "summoner:seek-upstairs"
             self._declare_reach(exits.route.target)
             return self._step_toward(snapshot, exits.route.first_step)
+        # Owner 2026-11-04 「巻物が無くても使う（ショート・テレポートと帰還より先）」 and
+        # 2026-11-05 (動かない敵にも「今のまま全部に使う」): *Destruction* by its own gates before
+        # the scrolls that leave the floor (owner 2026-11-13).
+        if (used := destruction_use.key(self, snapshot, leaving=threat_tiers.engagement(
+                self, snapshot))) is not None:
+            return used
         if exits.teleport_level is not None and not exits.recalling:
             self.last_reason = "summoner:teleport-level"
             return (self._anti_teleport_takeoff_key(snapshot, exits.teleport_level)
@@ -591,6 +597,12 @@ class CombatMixin:
                     self.last_reason = "breeder-item-damage:seek-stairs"
                     return self._step_toward(snapshot, step)
 
+        # Owner 2026-11-05 (増殖する敵にも「今のまま全部に使う」): *Destruction* by its own gates
+        # before the scrolls that leave the floor (owner 2026-11-13); a staff or the absorbed
+        # power needs no reading.
+        if (used := destruction_use.key(self, snapshot, leaving=threat_tiers.engagement(
+                self, snapshot))) is not None:
+            return used
         if not self._can_read_scrolls(snapshot):
             return None
         relocation_allowed = not (quest_no_teleport.forbids(self, snapshot)

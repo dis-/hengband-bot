@@ -88,8 +88,9 @@ def _leave_shot_hold_point_key(policy, snapshot, monsters):
     無理ならテレポート。」  The point stays vetoed for routing for this floor
     visit (the engagement avoid set is cleared only on a floor change), so
     exploration cannot walk back into it.  Steps toward another choke out of
-    fire, else reads a teleport (owner 2026-11-02 「ショートテレポートは
-    テレポートの代替にならない」: never Phase Door), else None.
+    fire, else uses *Destruction* by its own gates (owner 2026-11-04 「テレポートに
+    代わり*破壊*を使用する」, 2026-11-13), else reads a teleport (owner 2026-11-02
+    「ショートテレポートはテレポートの代替にならない」: never Phase Door), else None.
     """
     here = snapshot.player.position
     policy._claim_engagement_avoid_cells((here,), owner=HOLD_REPOSITION_REASON)
@@ -106,6 +107,11 @@ def _leave_shot_hold_point_key(policy, snapshot, monsters):
         policy._declare_reach(destination)
         policy._declare_triggers(monsters)
         return policy._step_toward(snapshot, step)
+    # destruction_use imports this module (its FORGET_VISIT).
+    from hengbot import destruction_use, threat_tiers
+    used = destruction_use.key(policy, snapshot, leaving=threat_tiers.engagement(policy, snapshot))
+    if used is not None:
+        return used
     scroll = policy._escape_scroll(snapshot, teleport_only=True)
     if scroll is not None:
         policy.last_reason = HOLD_TELEPORT_REASON
