@@ -137,7 +137,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from hengbot import (
-    area_mapping, hunt_target, locked_doors, me_capability, me_powers, retreat_enclosure,
+    area_mapping, hunt_target, left_cells, locked_doors, me_capability, me_powers, retreat_enclosure,
     search_coverage,
 )
 from hengbot.item_reservation import reserved_item_command
@@ -242,7 +242,8 @@ def _routes(policy, snapshot: Snapshot) -> dict:
     start = snapshot.player.position
     routes = {start: (0, None)}
     queue = deque([start])
-    avoided = policy._engagement_avoid_cells | policy._engagement_route_veto(snapshot)
+    avoided = (policy._engagement_avoid_cells | left_cells.refused(policy, snapshot)
+               | policy._engagement_route_veto(snapshot))
     while queue:
         here = queue.popleft()
         distance, first = routes[here]

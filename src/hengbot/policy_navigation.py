@@ -1532,6 +1532,7 @@ class NavigationMixin:
         self._engagement_avoid_cells |= self._warning_refused_cells
         avoided = (
             self._engagement_avoid_cells
+            | left_cells.refused(self, snapshot)
             | self._warning_refused_cells
             | self._unseen_attack_area_cells(snapshot)
             | self._engagement_route_veto(snapshot)
