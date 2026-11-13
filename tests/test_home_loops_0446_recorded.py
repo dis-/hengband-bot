@@ -302,7 +302,10 @@ class JunkSweepRecordedTest(BurstVisitRecordedTest):
         self.assertEqual(destroyed(), ["モンスター・ボール (空)"] * 3, self.events)
         self.assertEqual(reasons.count("home:junk-sweep:unwanted-kind"), 3, reasons)
         self.assertNotIn(BURST, reasons)
-        self.assertLess(max(self.unprogressed), cli.OWNER_RETIRED_LOG_ONLY_LIMIT, reasons)
+        # Each observed destroy is progress: the count of retirements without
+        # progress stays below three (the former burst; since town rebuild
+        # 3-5 the count no longer stops a visit, it is the record's).
+        self.assertLess(max(self.unprogressed), 3, reasons)
 
 
 if __name__ == "__main__":

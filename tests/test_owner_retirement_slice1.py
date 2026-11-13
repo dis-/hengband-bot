@@ -186,17 +186,13 @@ class RecordedRetirementTest(unittest.TestCase):
                 self.assertEqual(receipt['town_idle_d0']['trigger_category'], 'recurrence')
                 self.assertTrue(receipt['town_idle_d0']['process_session_id'])
                 self.assertTrue(receipt['town_idle_d0']['build_version'])
-                if recorded['forgiven']:
-                    self.assertEqual(result, recorded['key'])
-                    self.assertEqual(policy.last_reason, recorded['reason'])
-                    self.assertEqual(receipt['town_idle_d0']['final_key'], recorded['key'])
-                    self.assertEqual(receipt['town_idle_d0']['final_reason'], recorded['reason'])
-                else:
-                    self.assertEqual(result, cli.WAIT_KEY)
-                    self.assertEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
-                    self.assertEqual(receipt['town_idle_d0']['final_key'], cli.WAIT_KEY)
-                    self.assertEqual(receipt['town_idle_d0']['final_reason'],
-                                     'town:blocked:owner-retired-burst')
+                # Town rebuild 3-5 (owner 2026-11-12): every log-only
+                # retirement is forgiven, the recorded third ones (the former
+                # burst) too; the visit's stage deadlines bound it instead.
+                self.assertEqual(result, recorded['key'])
+                self.assertEqual(policy.last_reason, recorded['reason'])
+                self.assertEqual(receipt['town_idle_d0']['final_key'], recorded['key'])
+                self.assertEqual(receipt['town_idle_d0']['final_reason'], recorded['reason'])
 
     def test_c_survival_route_interrupts_the_disclosed_home_relocation_hold(self):
         pin = self.pins()[0]
@@ -242,19 +238,22 @@ class BurstTest(unittest.TestCase):
         policy._decision_sequence += 1
         return result
 
-    def test_two_continue_third_stops_even_with_reason_rewrites_and_forgiveness(self):
+    def test_every_retirement_continues_and_is_counted(self):
+        """Town rebuild 3-5 (owner 2026-11-12, the burst becomes the stages'
+        deadlines): the third retirement without progress used to stop the
+        visit as owner-retired-burst; now every one is forgiven and counted."""
         policy = Policy()
-        for owner in ['home-visit', 'shop-buy']:
+        for count, owner in enumerate(['home-visit', 'shop-buy', 'town-plan', 'store-router'], 1):
             retire(policy, owner)
             self.assertEqual(self.handle(policy), '5')
             self.assertFalse(policy._town_turn_arbiter.retirement_pending)
-        retire(policy, 'town-plan')
-        self.handle(policy)
-        self.assertEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
-        self.assertTrue(cli._policy_final_stop_required(policy))
-        self.assertIn(policy.last_reason, POLICY_FINAL_STOP_REASONS)
-        self.assertTrue(policy._town_turn_arbiter.retirement_pending)
-        self.assertIn('three retirements', cli._policy_final_stop_banner(policy.last_reason))
+            self.assertEqual(policy._owner_retired_no_progress_count, count)
+        self.assertEqual(policy.last_reason, 'shop:approach')
+        self.assertFalse(cli._policy_final_stop_required(policy))
+        # The burst's names stay readable for the records that hold them.
+        self.assertIn('town:blocked:owner-retired-burst', POLICY_FINAL_STOP_REASONS)
+        self.assertIn('three retirements',
+                      cli._policy_final_stop_banner('town:blocked:owner-retired-burst'))
 
     def test_bookkeeping_retirements_never_count_toward_the_burst(self):
         """Live 2026-10-09 01:01-01:02 (owner-retired-log-only.jsonl, capture
@@ -272,11 +271,13 @@ class BurstTest(unittest.TestCase):
             self.assertNotEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
             policy.last_reason = 'periodic:character-dump'
         self.assertEqual(policy._owner_retired_no_progress_count, 1)
-        # Errand owners still count: two more retirements reach the burst.
+        # Errand owners still count (the record's count); since town rebuild
+        # 3-5 the count no longer stops the visit.
         policy.last_reason = 'shop:approach'
         retire(policy, 'store-router'); self.handle(policy)
         retire(policy, 'shop-buy'); self.handle(policy)
-        self.assertEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
+        self.assertEqual(policy._owner_retired_no_progress_count, 3)
+        self.assertEqual(policy.last_reason, 'shop:approach')
 
     def test_labelled_and_empty_hidden_retirements_share_the_same_counter(self):
         policy = Policy()
@@ -291,8 +292,9 @@ class BurstTest(unittest.TestCase):
         retire(policy)
         self.assertEqual(self.handle(policy, key=''), '')
         retire(policy)
-        self.assertEqual(self.handle(policy, key=''), '5')
-        self.assertEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
+        # Town rebuild 3-5: the third shares the counter and is forgiven too.
+        self.assertEqual(self.handle(policy, key=''), '')
+        self.assertEqual(policy._owner_retired_no_progress_count, 3)
 
     def test_log_only_does_not_forgive_an_independent_final_failure(self):
         policy = Policy()

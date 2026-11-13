@@ -202,6 +202,13 @@ class DepartureTest(unittest.TestCase):
                         routes={}, effects=set(), admitted=set(), sequence=policy._decision_sequence)
                     key = cli._handle_owner_retirement(SimpleNamespace(owner_retired_log_only=True),
                         board, WAIT_KEY, policy)
+                    # Town rebuild 3-5 (owner 2026-11-12): the third retirement
+                    # is forgiven like the others; no forced departure, no stop
+                    # (the visit's stage deadlines bound it).
+                    self.assertEqual((key, policy.last_reason), (WAIT_KEY, "town:blocked:owner-retired"))
+                    self.assertFalse(cli._policy_final_stop_required(policy))
+                    self.assertFalse((Path(root) / "keep-running-events.jsonl").exists())
+                    continue
                 else:
                     policy._town_blocked_reason = cause
                     key = policy._town_blocked_key(board)
@@ -242,7 +249,10 @@ class DepartureTest(unittest.TestCase):
                 self.assertEqual(policy.last_reason, f"town:blocked:{cause}")
                 self.assertFalse((Path(root) / "keep-running-events.jsonl").exists())
 
-    def test_burst_three_retirements_depart_or_retain_hard_stop(self):
+    def test_three_retirements_neither_depart_nor_stop(self):
+        """Town rebuild 3-5 (owner 2026-11-12, the burst becomes the stages'
+        deadlines): three retirements without progress used to force the
+        departure (safe) or stop the visit (unsafe).  Now each is forgiven."""
         for safe in (True, False):
             with self.subTest(safe=safe), TemporaryDirectory() as root, patch.dict(os.environ,
                     HENGBOT_RUNTIME_DIR=root), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
@@ -257,12 +267,10 @@ class DepartureTest(unittest.TestCase):
                     policy.last_reason = "shop:approach"
                     policy._town_turn_arbiter.retire("store-router", ("unchanged",))
                     key = cli._handle_owner_retirement(args, board, "5", policy)
-                # Unsafe (HP 1, the hp_full leaf, no purchase gap): no
-                # departure and no mining cycle; the burst stops.
-                self.assertEqual(key, "rha" if safe else WAIT_KEY)
-                self.assertEqual(cli._policy_final_stop_required(policy), not safe)
-                self.assertEqual(self.records(root)[0]["outcome"], "forced_departure" if safe else "hard_stop")
-                self.assertEqual(len(self.records(root)), 1)
+                    self.assertEqual(key, "5")
+                    self.assertFalse(cli._policy_final_stop_required(policy))
+                self.assertEqual(policy._owner_retired_no_progress_count, 3)
+                self.assertFalse((Path(root) / "keep-running-events.jsonl").exists())
 
     def test_one_slot_record_stops_without_mining(self):
         policy, board, depth = ready_board()
