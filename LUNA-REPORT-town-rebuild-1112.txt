@@ -396,3 +396,90 @@ O. 町の止まりの報告の残り（重さの処分の状態が立った後�
   - 直し方の案（次の段 3-3d）: その分岐で経路が home-relief なら処分の状態を外して None を返し、
     home-relief の持ち主に渡す（同じ関数の、経路が deposit になった時に状態を外す分岐と同じ形）。
     止まっていた盤面だけが変わる。18:07 の記録は今の main では余りが足りて再現しないので、作った盤面のテストで示す。
+
+
+追記5（2026-11-14）: 段3-3e（継ぎ目の残りの差し替えを持ち主の段の移り変わりへ）・件2の盤面
+=====================================================================================
+
+P. 取り込み: main 8ea2303d4b は枝の fb970fd041（3-3d）を含むので、枝は main に早送りした（同じ木）。
+
+Q. 段3-3e: 進みの継ぎ目（_town_procurement_decision）の差し替えを、持ち主の名前つきの段の移り変わりにする
+  - 継ぎ目の中でキーか理由を変える分岐は7つあった（再生で出たのは3つ: 進みの無い歩きの引き渡し 3回、
+    自宅の流れが店の案内を抑えている時の待ち 1回、約束した拾い物を続ける 1回。ほか4つは再生の窓の中では出ない）。
+  - town_visit_plan.TRANSITIONS: 7つを1つの登録表にした（名前 → 持ち主の家族と、それを決める TownMixin のメソッド。
+    継ぎ目が調べる順）。closing-equipment-weight（home-visit）・holder-keeps-store-router（store-router）・
+    committed-loot（floor-loot）・bounty-route-nonprogress（quest-request）・posted-shop-operation（shop-buy）・
+    identify-staff-supplier（fundraising）・progress-handover（store-router）。
+  - 各分岐の中身を名前つきのメソッドに移した（中身は写しただけ、条件の順も同じ）。メソッドは当てはまらない時 STAY を返し、
+    差し替える時は note_transition で自分の名前を宣言する。継ぎ目には、差し替えない見張り（ADMIT・自宅の一覧の待ち・
+    進みのある結果・allow の集合・装備の取引・取り出しの待ち・観た店）と、その間で移り変わりを順に呼ぶ所だけが残る。
+    差し替えの位置（choose_key の _refuse_no_progress_cycle の後）は変えていない。持ち主の producer の中へ動かすと、
+    その間の層（_refuse_no_progress_cycle が出したキーを記録する）が違うキーを見て後の判断が変わりうるため。
+  - 記録: note_seam は、宣言のある差し替えを TownVisit.plan_transitions（番号・名前・元の理由・結果の理由）に、
+    宣言の無い差し替えだけを plan_rewrites（継ぎ目の記録）に書く。決定の記録の visit_stage に stage_transitions を足した。
+  - scripts/town_visit_plan_lint.py: 移り変わりの家族に段が無い・上書きの段（town-plan）・方針に無いメソッドで失敗。0 gap(s)。
+  - 理由を書く4つのメソッドには登録表と同じ持ち主の @claims を付けた（所有の lint の未宣言は main と同じ 39。
+    継ぎ目の例外の行から8か所が宣言の中へ移った）。@claims は関数に印を付けるだけで、_offer_execution の呼び出し元の
+    さかのぼりは引数2つの関数しか見ないので、引数3つ以上のこれらは掛からない。
+  - 町の作業の記録（town_work）: 新しいメソッドは返すキーが記録されるので、7つを adapter として審査に足した
+    （継ぎ目は producer のままで、選ばれる記録は前と同じ）。マニフェスト 1967 candidates・zero unmapped。
+
+R. 再生（町到着の記録、main 8ea2303d4b 対 枝、キーと理由を1行ずつ）
+
+   段           | main         | 枝            | 記録 | 再生 | 行    | 差 | 継ぎ目の記録 main→枝 | 持ち主の移り変わり
+   3-3e         | 8ea2303d4b   | 57e81f54f6   | 233  | 222  | 2,362 | 0  | 5 → 0             | 5（progress-handover 3・holder-keeps-store-router 1・committed-loot 1）
+
+   11件は両方とも戻せない（前と同じ、付属ファイルの欠け）。@claims を足した後の最終の作業木でも流し直し、同じ結果。
+
+   確認（前景、コミット前）: import OK、マニフェスト 1967 candidates・zero unmapped、dungeon_ladder_lint 0、
+   departure_rescue_lint 35 leaves 0 gap(s)、town_visit_plan_lint 0 gap(s)、所有の lint の未宣言 39（main と同じ）。
+   町のテスト 68モジュール（3-3c の67 ＋ 継ぎ目を直接呼ぶテスト・段の表・救済・出発・件2・n1-c 06:31 のテスト）を
+   main と枝で1モジュールずつ: 両方とも通る 31、両方とも赤 37（落ちるテストの名前も同じ）、時間切れ 0、差 0。
+   main でも赤い記録の盤面のテスト: test_n1c_205_recall_contradiction_1113_recorded の1本、
+   test_overweight_short_surplus_home_relief_1113 の1本（下の S）、test_town_progress_invariant の8本（代役に裁定役が無い）。
+   新しい確かめ: test_town_visit_plan（9本、移り変わりの記録と lint）、test_town_progress_invariant の
+   test_net_zero_goal_walk_is_still_preempted（choose_key を通した引き渡しが progress-handover の移り変わりとして残り、
+   継ぎ目の記録が空）。
+   段ごとの決定の数（ta_stages.py、main 8ea2303d4b の再生、1区間の最大／1訪問の最大）:
+     クエスト 117／118、買う 33／108、自宅 37／56、装備 7／12、売る 5／6、資金集め 48／48、鑑定 4／4、
+     町の移動・噂 3／3、出発 1／1、上書き 1／1（全6回）。出発が 35→1 に減ったのは、main の変更で古い記録と分かれる行が
+     前に動いたため（段3-5 の期限の測り直しはこの点に注意が要る）。
+
+S. 件2（town-stops-1113pm の報告の件2、n1-c life-205 18:07 town:blocked:overweight-home-full-no-legal-relief）
+  - 処分の状態が立った後で持っている余りが超過に足りない時に、自宅の救済（home-relief）があっても止まる件は、
+    3-3d（0bc5f31c51・fb970fd041、main に入っている）で処分と救済の流れに入れてある: その分岐で経路が home-relief で、
+    自宅に預ける余りで超過が消えるなら処分の状態を外して救済の持ち主に渡す。自宅の救済が自分で諦めて立てた状態
+    （home_relief_exhausted）なら名前つきの止まりのまま。
+  - 盤面の再生（記録 C:\hengband-backups\pdca\captures\town-stops-1113pm\n1c-205\incident\20261113-180734-...\town-arrival、
+    tests/fixtures/n1c-205-overweight-short-1113/i1807。0〜5行目は記録のキーを送り、6〜9行目は入力だけ与え、
+    10行目が止まった盤面。今の版では持っている余りが足りるので、3-3d のテストと同じく最初の装備の重さを+380（作った値）にし、
+    需要の経路が立てる処分の状態を置く）:
+      3-3d の前（c14aab7a49）: 経路 home-relief・超過 520・持っている余り 516 → '5' town:blocked:overweight-home-full-no-legal-relief
+      枝: 同じ盤面 → キー None、処分の状態を外し、止まりの名前なし（自宅の救済へ渡る）
+  - 注: tests/test_overweight_short_surplus_home_relief_1113 の1本（記録の 0〜5行目を choose_key に通して一致を確かめる所）は
+    main 8ea2303d4b でも枝でも赤い。4行目で魔道具術師が別の品を鑑定する（'UAfp' me-powerful:identify、記録は 'R&\r' town:recover）。
+    fb970fd041 の後の main の変更による。止まった盤面の判断は上のとおり変わっていない。直すなら、0〜5行目を記録のキーを
+    送って進める形にする（この枝では直していない）。
+
+T. 保守性
+  - 継ぎ目に新しい差し替えを足す時: 前は継ぎ目の本体に分岐を書くだけで、誰の手かは書かれず、再生の記録では
+    「継ぎ目の差し替え」としか見えなかった。後は TRANSITIONS に1行（名前・持ち主の家族・メソッド）とメソッド1つ。
+    宣言を忘れると継ぎ目の記録（plan_rewrites）に出て、名前・家族・メソッドの漏れは lint が知らせる。
+  - 継ぎ目の本体は約210行から、見張りと移り変わりの呼び出しだけの約120行になった。
+
+U. 残り（段3）
+  - 3-4（town_hold の _rewrite の町の部分を計画へ）: 主な解釈は「上書きの段の町の部分」= 梯子の rewrite の段の
+    town-plan の行（_rewrite("_town_procurement_decision", "town-plan")）と、町で検出器の行として順位が付く
+    town-progress-invariant: の理由（進みの引き渡しと観た店を続けるは、検出器の普通の行 _refuse_no_progress_cycle の
+    順位0で数えられている）。3-3e で差し替えは持ち主の名前つきの移り変わりになったので、次はこれらの順位を計画の登録表から
+    引く形にする。ただし順位を変えると holder の中断／違反の判定（owner_change）と持ち主ごとの進みの数えが変わりうるので、
+    順位は同じまま出どころだけを移すところから始め、再生で差0を示す。
+  - 3-5（owner-retired-burst を段ごとの期限へ）: cli._handle_owner_retirement と _owner_retired_log_only_allows の
+    訪問全体の数えを、town_visit_plan の段ごとの決定の数の期限（その時点で ta_stages.py で測り直した1訪問の最大×2、
+    コメント「2026-11-13 の再生の測り×2、観戦のボットが超えたら見直す」）にする。設計どおりの振る舞いの差になる。
+    今の main の再生では出発の段が 35→1 に減って見えるので、測りは古い記録との分かれ目の影響を除いて取り直す必要がある。
+
+コミット（追記5）
+  57e81f54f6 Town rebuild 3-3e: the seam's replacements become the owners' named stage transitions
+  （この報告のコミットがその上に乗る）
+  再生の台本は作業木の .scratch\ に写して動かした（調整役の決まり 2026-11-14、追跡しない）。
