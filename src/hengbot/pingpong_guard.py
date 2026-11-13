@@ -78,10 +78,6 @@ def _guard(policy, snapshot) -> Guard:
     return guard
 
 
-def _decision(policy) -> int:
-    return int(getattr(policy, "_decision_sequence", 0) or 0)
-
-
 def _previous_rank(policy) -> int | None:
     """The ladder rank of the previous decision's rung (town_hold), None when unknown."""
     from hengbot.town_hold import decision_rung, rung_named
@@ -144,7 +140,7 @@ def observe(policy, snapshot) -> None:
         return
     left_cells.leave(policy, snapshot, (winner.origin,), owner=f"{EVENT}:{label}",
                      boards=GUARD_BOARDS, step=winner.step)
-    guard.windows[names] = _decision(policy) + GUARD_BOARDS
+    guard.windows[names] = left_cells.decision_of(policy) + GUARD_BOARDS
     guard.report = f"{EVENT}:{label}"
 
 
@@ -164,7 +160,7 @@ def holds_loop_stop(policy, snapshot) -> bool:
     guard = getattr(policy, MEMORY, None)
     if guard is None or guard.floor_key != snapshot.floor_key:
         return False
-    decision = _decision(policy)
+    decision = left_cells.decision_of(policy)
     return any(decision <= end for end in guard.windows.values())
 
 

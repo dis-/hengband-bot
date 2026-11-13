@@ -80,7 +80,8 @@ def _registry(policy, snapshot) -> Registry:
     return registry
 
 
-def _decision(policy) -> int:
+def decision_of(policy) -> int:
+    """The policy's decision count (the bounded records' clock; the ping-pong guard's)."""
     return int(getattr(policy, "_decision_sequence", 0) or 0)
 
 
@@ -108,7 +109,7 @@ def leave(policy, snapshot, cells, *, owner: str, threats=(), game_turns: int | 
     record = Bounded(
         owner,
         until_turn=None if game_turns is None else snapshot.turn + game_turns,
-        until_decision=None if boards is None else _decision(policy) + boards)
+        until_decision=None if boards is None else decision_of(policy) + boards)
     for cell in cells:
         registry.bounded.setdefault(cell, []).append(record)
     registry.sealed = None
@@ -120,7 +121,7 @@ def _bounded_cells(policy, snapshot) -> frozenset:
     registry = getattr(policy, MEMORY, None)
     if registry is None or not registry.bounded or registry.floor_key != snapshot.floor_key:
         return frozenset()
-    turn, decision = snapshot.turn, _decision(policy)
+    turn, decision = snapshot.turn, decision_of(policy)
     for cell, records in list(registry.bounded.items()):
         live = [record for record in records if record.holds(turn, decision)]
         if live:
@@ -135,7 +136,7 @@ def _encloses(policy, snapshot, cells: frozenset) -> bool:
     would have (engagement_avoid_seal's reading; cached for the decision)."""
     registry = getattr(policy, MEMORY)
     here = snapshot.player.position
-    key = (_decision(policy), here, cells)
+    key = (decision_of(policy), here, cells)
     if registry.sealed is not None and registry.sealed[0] == key:
         return registry.sealed[1]
     closed = cells - {here}
