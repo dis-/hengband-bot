@@ -19,6 +19,7 @@ from hengbot.cli import _loop_stop_due, _write_decision
 from hengbot.loop_detection import LOOP_WINDOW
 from hengbot.model import Position, Snapshot
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import DIRECTION_KEYS
 from tests.policy_fixtures import grid, player
 
 FLOOR = (3, 19, 0)
@@ -43,7 +44,7 @@ class RegistryTest(unittest.TestCase):
         monster = mock.Mock(index=7, race_id=348)
         monster.name = "dark elven lord"
         recorded = left_cells.leave(policy, board, (P,), owner="threat:avoid-engagement",
-                                    threats=(monster,))
+                                    threats=(monster,), shared=True)
         self.assertEqual(recorded, frozenset({P}))
         self.assertIn(P, policy._engagement_owned_avoid_cells)
         self.assertIn(P, policy._engagement_avoid_cells)
@@ -79,7 +80,7 @@ class RegistryTest(unittest.TestCase):
         self.assertNotIn(Q, left_cells.refused(policy, corridor(floor=(3, 20, 0))))
         left_cells.leave(policy, corridor(floor=(3, 20, 0)), (P,), owner="x", boards=40)
         self.assertEqual(getattr(policy, left_cells.MEMORY).floor_key, (3, 20, 0))
-        self.assertNotIn(Q, getattr(policy, left_cells.MEMORY).bounded)
+        self.assertNotIn(Q, getattr(policy, left_cells.MEMORY).records)
 
     def test_a_record_that_seals_the_player_is_not_made(self):
         policy, board = HengbotPolicy(), corridor()
@@ -92,10 +93,28 @@ class RegistryTest(unittest.TestCase):
 
 
 class ReaderTest(unittest.TestCase):
+    def test_the_owner_walk_passes_its_own_records(self):
+        policy, board = HengbotPolicy(), corridor()
+        left_cells.leave(policy, board, (Q,), owner="detected:prepare-choke", game_turns=50)
+        left_cells.leave(policy, board, (Position(28, 93),), owner="sensed-t1:walk", game_turns=50)
+        with left_cells.walking_as(policy, "detected:prepare-choke"):
+            self.assertEqual(left_cells.refused(policy, board), {Position(28, 93)})
+        self.assertEqual(left_cells.refused(policy, board), {Q, Position(28, 93)})
+
+    def test_threat_lifetime_ends_when_the_monsters_are_gone(self):
+        policy, board = HengbotPolicy(), corridor()
+        monster = mock.Mock(index=7, race_id=348)
+        monster.name = "dark elven lord"
+        left_cells.leave(policy, board, (Q,), owner="detected:prepare-choke", threats=(monster,))
+        self.assertNotIn(Q, policy._engagement_avoid_cells)  # not the claim's storage
+        self.assertIn(Q, left_cells.refused(policy, board))
+        retreat_veto_life.release(policy, board, {(7, 348)})  # as if gone
+        self.assertNotIn(Q, left_cells.refused(policy, board))
+
     def test_survival_walks_do_not_read_bounded_records(self):
         policy, board = HengbotPolicy(), corridor()
         left_cells.leave(policy, board, (Q,), owner="pingpong:a/b", boards=40)
-        left_cells.leave(policy, board, (Position(28, 93),), owner="flee")
+        left_cells.leave(policy, board, (Position(28, 93),), owner="flee", shared=True)
         with left_cells.survival_walks(policy):
             self.assertEqual(left_cells.refused(policy, board), {Position(28, 93)})
         self.assertEqual(left_cells.refused(policy, board), {Q, Position(28, 93)})
@@ -159,20 +178,41 @@ class OtherWalkersTest(unittest.TestCase):
 
 
 class GuardTest(unittest.TestCase):
-    def _walk(self, policy, moves, *, start=P, turn=1000):
+    def _walk(self, policy, moves, *, start=P, turn=1000, floor=FLOOR, key=None):
         """Feed ``observe`` the boards of ``moves`` [(owner, position after)], as choose_key would:
-        the previous decision's reason, then the board the move produced."""
-        board = corridor(start, turn=turn)
+        the previous decision's reason and key (the walk key toward the next cell, else ``key``),
+        then the board the move produced."""
+        board = corridor(start, turn=turn, floor=floor)
         pingpong_guard.observe(policy, board)
         reports = []
         for owner, position in moves:
+            here = board.player.position
+            offset = (position.y - here.y, position.x - here.x)
             policy._decision_entry_reason = owner
+            policy._last_move_pos = here
+            policy._last_move_key = key or DIRECTION_KEYS.get(offset, "rf")
             policy._decision_sequence += 1
             turn += 10
-            board = corridor(position, turn=turn)
+            board = corridor(position, turn=turn, floor=floor)
             pingpong_guard.observe(policy, board)
             reports.append(pingpong_guard.report(policy))
         return board, reports
+
+    def test_one_reason_stepping_back_and_forth(self):
+        """n1-b life-389 (2026-11-13, in town): town:kill-mob-approach '2' and '8' in turn."""
+        policy = HengbotPolicy()
+        reason = "town:kill-mob-approach"
+        board, reports = self._walk(policy, self.alternation(reason, reason), floor=(0, 0, 0))
+        self.assertEqual(reports[-1], f"pingpong:{reason}/{reason}")
+        self.assertIn(P, left_cells.refused(policy, board))
+        self.assertTrue(pingpong_guard.holds_loop_stop(policy, board))
+
+    def test_a_board_without_a_walk_key_is_not_a_move(self):
+        """The position changed but the decision sent no walk key (a recorded board, a swap):
+        not a walk of that owner."""
+        policy = HengbotPolicy()
+        _board, reports = self._walk(policy, self.alternation(), key="s")
+        self.assertEqual(reports, [None] * 4)
 
     def alternation(self, a="explore", b="seek-loot"):
         return [(a, Q), (b, P), (a, Q), (b, P)]
@@ -230,6 +270,7 @@ class GuardTest(unittest.TestCase):
         board, reports = self._walk(policy, self.alternation(), turn=board.turn)
         self.assertEqual(reports[-1], "pingpong-escalate:explore/seek-loot")
         self.assertTrue(policy._nav_exhausted)
+        self.assertFalse(pingpong_guard.holds_loop_stop(policy, board))  # the window ends
         policy.last_reason = "explore"
         with mock.patch.object(policy, "_navigation_livelock_key", return_value="r_") as leave:
             self.assertEqual(pingpong_guard.after_ladder(policy, board, "8"), "r_")

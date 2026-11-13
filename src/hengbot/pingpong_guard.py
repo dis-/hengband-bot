@@ -1,16 +1,21 @@
-"""Two owners stepping opposite ways in turn: the move stays with the higher-priority one.
+"""Steps back and forth between two cells: the move stays with the higher-priority reason.
 
 Owner 2026-11-13 (「同型のループが多いが再発防止できないのか？」 -> 「1と2だけ」), part 2.  The left-cell
 registry (left_cells, part 1) holds the cells the retreating owners record.  A pair of owners
 neither of which retreats (seek-loot / explore, esp-threat:hunt-weak / explore, anaguma:walk /
 seek-loot, quest25:walk / quest-patrol:walk, ...) still walked p->q, q->p, p->q, q->p until the
 loop detector (cli ``_is_looping``) stopped the bot, and so did a retreating owner whose record
-was not made.  This guard sees the alternation before the detector does.
+was not made.  One owner alone does it too: n1-b life-389 (2026-11-13 14:06, in town)
+town:kill-mob-approach stepped '2' (23,59)->(24,59) and '8' back 180 times, its target flipping
+as a third monster came into view (coordinator 2026-11-13: the guard is the safety net for a
+same-reason alternation as well; the root is fixed in ``_town_kill_mob_key`` separately).  This
+guard sees the alternation before the detector does.
 
 Rule.  Every board (``observe``, before the ladder) reads the previous board's move: the cell
-the player stood on, the cell it stands on now (one step) and the previous decision's owner
-(its reason) and ladder rung.  When the last ``2 * ROUND_TRIPS`` moves on the floor are
-A p->q, B q->p, A p->q, B q->p with two different owners A and B:
+the player stood on, the cell it stands on now (one step, the previous decision's key a walk
+key) and the previous decision's owner (its reason) and ladder rung.  When the last
+``2 * ROUND_TRIPS`` moves on the floor (the town included, a store not) are A p->q, B q->p,
+A p->q, B q->p, keyed by (A, B) -- the same reason twice included:
 
 - the winner is the owner whose rung ranks higher in the ladder (town_hold's rank: the ladder
   asks it first, so its reason is the higher-priority one); with no rank to compare (a rung the
@@ -24,10 +29,12 @@ A p->q, B q->p, A p->q, B q->p with two different owners A and B:
 - inside the window the driver's loop detector does not stop the bot (``holds_loop_stop``).
 
 The guard does not hide a stuck state.  The same pair alternating again on the same floor,
-inside or after its window, is escalated (``pingpong-escalate:<A>/<B>``): the navigation is
-marked exhausted, so the existing livelock leave (policy_navigation ``_navigation_livelock_key``:
-recall, up stairs, teleport, else the visible ``livelock:exhausted`` stop) answers, on this board
-already unless the ladder decided a survival reason (``after_ladder``).  No new leave.
+inside or after its window, is escalated (``pingpong-escalate:<A>/<B>``): its window ends, so
+the driver's loop detector is free again, and the navigation is marked exhausted, so the
+existing livelock leave (policy_navigation ``_navigation_livelock_key``: recall, up stairs,
+teleport, else the visible ``livelock:exhausted`` stop) answers, on this board already unless
+the ladder decided a survival reason (``after_ladder``).  In town that leave does not apply
+(it answers nothing there): the driver's own town and loop stops answer.  No new leave.
 
 GUARD_BOARDS is the loop detector's own window (loop_detection.LOOP_WINDOW, 40 decisions): the
 time the driver already allows a confined walk before calling it stuck.  The guard holds the
@@ -44,12 +51,14 @@ from dataclasses import dataclass, field
 from hengbot import left_cells, reasons
 from hengbot.loop_detection import LOOP_WINDOW
 from hengbot.model import Position
+from hengbot.policy_constants import DIRECTION_KEYS
 
 MEMORY = "_pingpong_guard"
 EVENT = "pingpong"
 ESCALATE_EVENT = "pingpong-escalate"
 GUARD_BOARDS = LOOP_WINDOW
 ROUND_TRIPS = 2
+WALK_KEYS = frozenset(DIRECTION_KEYS.values())
 
 
 @dataclass(frozen=True)
@@ -87,11 +96,11 @@ def _previous_rank(policy) -> int | None:
 
 
 def _alternation(moves) -> tuple | None:
-    """(A, B, p, q) when the moves are A p->q, B q->p repeated ROUND_TRIPS times."""
+    """(A p->q, B q->p) when the moves are those repeated ROUND_TRIPS times (A may be B)."""
     if len(moves) < 2 * ROUND_TRIPS:
         return None
     first, second = moves[0], moves[1]
-    if first.owner == second.owner or first.step != second.origin or second.step != first.origin:
+    if first.step != second.origin or second.step != first.origin:
         return None
     for index, move in enumerate(moves):
         model = first if index % 2 == 0 else second
@@ -109,10 +118,10 @@ def _winner(first: Move, second: Move) -> tuple[Move, Move]:
 
 def observe(policy, snapshot) -> None:
     """Every board, before the ladder: read the previous board's move; on ROUND_TRIPS round
-    trips of two owners, record the winner's left cell (or escalate a pair seen before)."""
+    trips, record the winner's left cell (or escalate a pair seen before)."""
     guard = _guard(policy, snapshot)
     guard.report = guard.escalated = None
-    if snapshot.in_town or snapshot.store is not None:
+    if snapshot.store is not None:
         guard.last = None
         guard.moves.clear()
         return
@@ -121,8 +130,10 @@ def observe(policy, snapshot) -> None:
     if previous is None or previous == here:
         return  # no move: a wait, a cast, a bookkeeping key (the alternation goes on)
     owner = getattr(policy, "_decision_entry_reason", None) or ""
-    if max(abs(here.y - previous.y), abs(here.x - previous.x)) != 1 or not owner:
-        guard.moves.clear()  # a relocation, or a move no owner named: not a walk
+    walked = (getattr(policy, "_last_move_key", None) in WALK_KEYS
+              and getattr(policy, "_last_move_pos", None) == previous)
+    if max(abs(here.y - previous.y), abs(here.x - previous.x)) != 1 or not owner or not walked:
+        guard.moves.clear()  # a relocation, a move no owner named or no walk key made
         return
     guard.moves.append(Move(previous, here, owner, _previous_rank(policy)))
     pair = _alternation(guard.moves)
@@ -136,6 +147,7 @@ def observe(policy, snapshot) -> None:
     label = f"{names[0]}/{names[1]}"
     if names in guard.windows:
         guard.report = guard.escalated = f"{ESCALATE_EVENT}:{label}"
+        guard.windows[names] = -1  # the window ends: the driver's loop detector is free again
         policy._nav_exhausted = True
         return
     left_cells.leave(policy, snapshot, (winner.origin,), owner=f"{EVENT}:{label}",
