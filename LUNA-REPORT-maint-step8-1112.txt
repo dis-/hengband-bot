@@ -1,0 +1,296 @@
+LUNA-REPORT maint-step8-1112  保守性の点検 段8（_decide の層の分け出し）の仕上げ
+================================================================================
+枝: maint-step8-1112（worktree C:\hengband\bot-client\.worktrees\maint-step8-1112）
+HEAD: この報告のコミット（その親 564c5dd8c7）。main 787111d6c2 まで取り込み済み。push・main への取り込みはしていない
+前の実装役の HEAD: bc140b2764（報告なしで止まっていた）
+
+----------------------------------------------------------------
+1. 結論
+----------------------------------------------------------------
+- 段8の「層の分け出し」は終わっている。dungeon_ladder.LADDER の 16 層すべてが
+  hengbot/ladder_<層>.py の key(policy, snapshot, ...) に出ており、_decide は
+  町の前置き → 盤面の観測 → 16 層を表の順に呼ぶだけになった。残りの層の移動は無い
+  （この引き継ぎで足した層の移動は 0。前の実装役の 8 層を点検した）。
+- 点検で振る舞いを変えない移動の誤りは見つからなかった。ただし次の 4 つを直した
+  （どれもボットの判断の経路の外。判断の答えは変わらない）:
+  a) json_snapshot: (str, Enum) の dict の鍵が、等しい str の鍵の後に来ると str に落ちる
+  b) json_snapshot: numpy の配列（protocol 5 の PickleBuffer）を書けず、テストの
+     固定の最初の pickle（alternate-deepest-1110）で変換が止まる
+  c) json_snapshot の変換の見回り: ハードリンクされた同じ pickle をリンクの数だけ変換していた
+  d) テストの差し替え先: objectives の層の移動で
+     mock.patch("hengbot.policy.identification_ready_in_pack") が何にも効かなくなっていた
+- main（784d60f714）を取り込んだ。main が _decide の中で変えた 3 か所を移し先の層へ移した。
+- 中立性: 記録の再生で main と枝の choose_key の (key, last_reason) が全行一致
+  （数は 4 節）。テストの pickle 114 本が json_snapshot で往復して同じ物の網になる。
+
+----------------------------------------------------------------
+2. 何がどこへ動いたか
+----------------------------------------------------------------
+dungeon_ladder.LAYER_MODULES（表の順。_decide はこの順に呼び、PASS 以外を返す）:
+
+  層                    モジュール                      移したコミット
+  global-map            ladder_global_map.py            main 側（段8の前半、43f88b0142 から）
+  plan-above-survival   ladder_plan_above_survival.py   main 側
+  above-emergency       ladder_above_emergency.py       main 側
+  emergency             ladder_emergency.py             main 側
+  summoner-shots        ladder_summoner_shots.py        main 側
+  floor-avoidance       ladder_floor_avoidance.py       main 側
+  light                 ladder_light.py                 main 側
+  opening               ladder_opening.py               73c0598c30（この枝）
+  plan-approved-quest   ladder_plan_approved_quest.py   main 側
+  pre-combat            ladder_pre_combat.py            bb9aa61c90（MiningViews で採掘の敵の見方を combat へ渡す）
+  combat                ladder_combat.py                8d3398a0cb
+  safe-now              ladder_safe_now.py              3dffc407a5
+  objectives            ladder_objectives.py            b7c07ecdea（RETURN_LOOT_SWEEP_* の定数も移し policy.py は import）
+  rest                  ladder_rest.py                  84ac0b581c（REST_CAP も移し policy.py は import）
+  descent               ladder_descent.py               40be444de4
+  idle                  ladder_idle.py                  645952c1e6（最後の層。常に答える。lint は「最後の文が return」を求める）
+
+  bc140b2764: 表の docstring に「各層は自分のモジュールで問われる」を書き、lint の文言を合わせた。
+
+大きさ（policy.py / _decide の行数）:
+  段8の前（43f88b0142 の親）  18,374 / 2,252
+  この枝の分岐点 b9aba6941b    18,261 / 2,134
+  今（HEAD）                   16,659 /   528（うち町の前置き 368 行。ladder の外）
+  ladder_*.py の合計 2,354 行。
+
+json_snapshot（段8の 3 つ目「policy.pkl の固定を JSON の状態スナップショットへ」の受け皿）:
+  e8f88f55c4  hengbot/json_snapshot.py: pickle の protocol が記録する物の網（__reduce_ex__、
+              共有・循環の参照）を gzip の JSON に書く・読む。tests/support/graph_equal.py。
+  30cefa0678  ボットは今までどおり pickle を書く（判断の経路は不変）。
+              latch_onset_capture.load_bytes と town_arrival_checkpoint.policy_file が
+              両方の形を読む。python -m hengbot.json_snapshot [--min-age 秒] 場所... が
+              記録済みの *.pkl を変換して pickle を消す（ボットの外で走らせる物）。
+  ec04bd2de0  （この引き継ぎ）上の a・b の直し。
+  065497a948  （この引き継ぎ）上の c の直し: 同じ inode のリンクは 1 回だけ変換し、
+              できた policy.json.gz を他の場所へリンクする（できなければ写す）。
+
+----------------------------------------------------------------
+3. コミットの点検（各コミットが振る舞いを変えないか）
+----------------------------------------------------------------
+層の移動 8 本（73c0598c30 bb9aa61c90 8d3398a0cb 3dffc407a5 645952c1e6 40be444de4
+84ac0b581c b7c07ecdea）を次の方法で確かめた:
+- 消した policy.py の行と、足したモジュールの本体（docstring・import を AST で除く）を
+  self→policy に揃えて行ごとに比べた。差は全コミットで「関数の頭・最後の return PASS・
+  player = snapshot.player・MiningViews の受け渡し・REST_CAP の注・git の差分が同じ ")"
+  行を残った側に合わせた見かけの差」だけ。条件・順序・理由の文字列・入口の名前は逐語。
+- 移した先の関数が読む大域の名前を symtable で全部集め、モジュールの名前空間と組み込みに
+  あるかを確かめた: 未定義 0（わざと未定義を入れた小片で検査が拾うことも確かめた）。
+  対象は ladder_*.py 16 本・json_snapshot.py・policy.py・latch_onset_capture.py・
+  town_arrival_checkpoint.py。super()・__class__・名前修飾される属性は 0。
+- _decide の中の return None（入口が拒んだ時など）は移し先でも return None のまま
+  （_decide がそのまま返す）。ブロックの終わりに落ちる所だけが return PASS。
+- フレームを見る所: policy._offer_execution の producer の探し（self の producer の
+  メソッドのフレームを探す。層の key は self を持たないので対象外で、前と同じ結果）、
+  town_work の戻り値の観測（ladder_*.py:key は manifest で adapter。記録に選ばれるのは
+  内側の producer か一番外の choose_key で前と同じ。chain に adapter の行が増えるだけで診断のみ）、
+  slow_decisions と latch_onset_capture の呼び出し元の記録（診断のみ）。
+- テストの差し替え: tests/ の mock.patch("hengbot.policy.<名前>") 全 6 種のうち、層の
+  モジュールが自分で import して読む名前は identification_ready_in_pack の 1 つだけ
+  → 56875353d7 で差し替え先を hengbot.ladder_objectives に直した（上の d）。そのテスト
+  tests.test_town_stops_1103_recorded は main でも枝でも同じ 4 本が赤（全赤のテストの整理は
+  止めている決まりのため、赤のまま。差し替えの直しは緑に戻す時のため）。
+- テストを書き換えたコミット: 8d3398a0cb（test_exploration_commitment_observation の
+  経路の消し手の一覧で、移った 4 か所の関数名を _decide→key）、645952c1e6
+  （test_dungeon_ladder の lint の文言）。どちらも構造の検査の文言だけ。
+
+json_snapshot の 2 本（e8f88f55c4 30cefa0678）:
+- 実行側の変更は「読む時に両方の形を受ける」だけ。pickle は b"\x80" で始まり gzip の
+  b"\x1f\x8b" と区別できる。書き込み（checkpoint_bytes、town-arrival、captures）は不変。
+- 見つけた不具合（ec04bd2de0 で直した。テストを足した）:
+  a) _plain_keys が「前に見た鍵の集合に含まれるか」だけで JSON の object にしていた。
+     (str, Enum) の要素は値の str と等しく hash も同じなので、"red" の後の {Shade.RED: …}
+     が {"red": …} と書かれ、読むと str になる（pickle は Enum のまま）。全部の鍵の型を見る。
+     （テストの 114 本の pickle にはこの形の鍵は 0。将来の値への備え）
+  b) numpy の ndarray は protocol 5 で _frombuffer(PickleBuffer, …) に還元され、
+     PickleBuffer に還元が無いので「cannot pickle 'pickle.PickleBuffer' object」で止まる。
+     テストの固定の 1 本目 alternate-deepest-1110 で止まった。pickle が帯域内で書く通り、
+     読み取り専用は bytes、書き込み可は bytearray にする（読んだ配列の書き込みの可否も同じ）。
+- c) は 7 節の見回りの準備として直した（065497a948）。
+
+----------------------------------------------------------------
+4. 中立性の証拠
+----------------------------------------------------------------
+比べた版: main 784d60f714（git archive で書き出した src）と枝の HEAD（取り込み後）。
+同じ入力を両方へ。公開の choose_key の (key, last_reason) を行ごとに比べた。
+
+(1) 町に着いた時の記録の再生（tests/fixtures の policy.pkl.xz + journal.jsonl.xz の全 111 本）
+    pickle を restore し、journal の各行の入力・CLI の latch・店の画面の確認を渡して choose_key、
+    記録との食い違いでは止めずに全行（入力は記録のまま）。sidecars と calibration も復元。
+    結果: 111 本・3,535 行。110 本は全行一致。
+    1 本（n1c-stops-1104/tower-hunger）だけ全体の流しで分岐が 0 行目に例外
+    「refusing to shrink Home transaction history from 626 to 284」、main は '6' me-staff:travel-morivant。
+    原因は再生の道具の側: Home の履歴のファイルはテストの隔離でプロセスごとに 1 つで、
+    560 秒の時間切れで区切って続きから流したため、分岐では前の 9 本と同じプロセス、main では
+    前の 1 本とだけ同じプロセスだった。同じ並び（番号 35〜44 の 10 本）を新しいプロセスで
+    両方に流すと 10 本とも全行一致（tower-hunger と fourth-absorb は両方とも同じ例外）、
+    tower-hunger 単独では両方とも 30 行一致。→ 版の差ではない。
+    注: journal の盤面は 4,613 行すべて町（店 1,131・店の外 3,482）。町の前置きと、
+    町の盤面で踏む層（objectives・idle の town_end_key ほか）を通る。
+
+(2) ダンジョンを含む記録の盤面の再生（tests/fixtures の盤面の行を持つ 346 本のうち
+    ダンジョンの盤面のある 151 本、各 12 盤面まで）
+    新しい tests.support.recorded._policy に、記録テストの decide と同じく技能の知識を渡して
+    choose_key、出したキーは confirm_key_posted。盤面でない行（知識・キャラの応答など）は飛ばす。
+    結果: 151 本・742 行（うちダンジョン 491 行）がすべて一致。例外 0。
+    答えの種類（理由の頭）: explore 97・shop 88・quest-strategy 76・inventory 66・home 52・
+    seek-loot 47・town 37・detected 34・ranged 31・return 29・anaguma 25・store 25・
+    approach-descent 19・melee 17・flee 12・search 12・fixedquest 12・emergency 3 ほか
+    （戦闘・逃げ・休み・下り・探索・クエストの作戦の層を踏んでいる）。
+    最初の流しは盤面でない行でファイルごと止まり 127 本・449 行（これも全一致）だったので、
+    そういう行を飛ばすように直して流し直した。
+
+(3) json_snapshot の往復（テストが使う policy の pickle 全 114 本、tests/**/*.pkl.xz）
+    portable unpickler で読む → dumps → loads → tests/support/graph_equal（型・値・還元・
+    共有の仕方まで比べる）。114/114 一致。pickle 計 2,561 MB → json.gz 計 103 MB。
+    1 本 5〜90 秒（混んだ機械で）。
+
+(4) テスト（前景）:
+    枝の HEAD で:
+    - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy": 通る
+    - scripts/town_work_manifest.py --write: zero unmapped（1,912 候補）。検査の形: 0 violation(s)
+    - scripts/dungeon_ladder_lint.py: 0 violation(s)
+    - tests.test_dungeon_ladder・test_n1b_292_summoner_after_survival_recorded・
+      test_threat_tiers_plans_recorded・test_n1c_loot_rules_1113_recorded: 46 本 OK
+    - tests.test_json_snapshot: 15 本 OK（今回足した 3 本: str 列挙の鍵・numpy の配列・
+      ハードリンクの 1 回の変換を含む）
+    main でも赤で、枝でも同じ中身で赤のもの（触れていない。赤の整理は止める決まり）:
+    - tests.test_exploration_commitment_observation の 3 本（一覧の検査は main でも
+      「_decide が期待より 1 少ない」ほか同じ 5 行の差。経路の 2 本も同じ失敗）
+    - tests.test_town_terminal_declarations の test_1_every_entry_rung_is_declared
+      （_mining_abort_exit_key ほか同じ 5 つ）
+    - tests.test_town_stops_1103_recorded の 4 本（3 節）
+
+----------------------------------------------------------------
+5. main の取り込み（e4f54d624c）
+----------------------------------------------------------------
+- policy.py の衝突 2 塊は main 側に古い _decide の本体が入った物。base→main の _decide の
+  差は 3 か所だけだったので、こちら側を残し 3 か所を移し先へ移した:
+  ladder_objectives.key: _bind_home_drink_potion_withdrawal（66bee9c631）を
+    _bind_home_star_remove_curse_withdrawal の後 2 か所に。
+  ladder_idle.key: 引いた時の拒否のマスで囲まれた時の脱出の前に
+    engagement_avoid_seal.encloses（48d1aa6cdb）と注を。
+  _latch_unviable_quest_return の変更はそのまま取り込まれた。dungeon_ladder.py は main で不変。
+- scripts/town_work_review.json は文字の取り込みだと項目が入り混じるので、分岐点・こちら・
+  main の 3 つを JSON で読み鍵ごとに合わせた（main の追加 10・削除 6、両側で変えた鍵 0）。
+  town_work_sites.json は作り直した。
+- その後 main が 787111d6c2 へ進んだので取り込み直した（564c5dd8c7）。main の 5 コミットは
+  policy.py・dungeon_ladder.py・層のモジュールに触れず、衝突なし。manifest は作り直しても不変。
+  取り込みの後に新しい main（787111d6c2）と枝で見本を流し直した: 盤面 27 本・116 行
+  （新しい固定 n1c-loot-rules-1113 の 12 行を含む）、町の記録 8 本・311 行がすべて一致。
+
+----------------------------------------------------------------
+6. 保守性
+----------------------------------------------------------------
+前（段8の前）:
+- dungeon の判断の段（rung）はすべて 2,252 行の _decide の中に書き足すしかなかった。
+  表（dungeon_ladder.LADDER）と lint で「順序」は守れていたが、「中身」の置き場が
+  _decide しかなく、4 日で 29 か所の手が入っていた。
+今:
+- 新しい段は、その段が属する層のモジュール hengbot/ladder_<層>.py の key の中の、
+  表の行の位置に書き、dungeon_ladder.LADDER のその層の Rung に 1 行足す。
+  scripts/dungeon_ladder_lint.py が LAYER_MODULES から各モジュールの中の行を読み、
+  表と食い違えば失敗する（並べ替え・他の層の段の混入・表に無い段・終わりに落ちる key も失敗）。
+  _decide は触らない。
+- 新しい層は、ladder_<層>.py（key は答えか PASS を返す。最後の文は return）を作り、
+  LADDER に Layer 行、LAYER_MODULES に 1 行、_decide の該当の位置に呼び出しを 1 つ足す。
+  lint が「_decide がちょうど 1 回呼ぶか」を見る。
+- 層が使う敵の見方（strategic/physical の hostiles・adjacent）は _decide が 1 回だけ作って
+  名前つきで渡す。層の間で受け渡す値は pre-combat→combat の MiningViews だけで、型で見える。
+- 置き場の注意（今回見つけた形）: 層のモジュールは名前を自分で import して読むので、
+  テストで差し替える時は hengbot.policy.<名前> ではなく hengbot.ladder_<層>.<名前> を差し替える。
+- 町の前置き（368 行）は ladder の外のまま。町の判断の作り直し（town-rebuild-1112）の領分なので
+  触れていない。
+
+----------------------------------------------------------------
+7. 段8の後に計画で残るもの
+----------------------------------------------------------------
+計画（C:\hengband-backups\pdca\maintainability-review-1109\REPORT.txt 5 節 段8）の 3 項目のうち:
+- 層の分け出し: 終わり（16/16）。
+- 「新しい MEMORY 属性は monster_memory のような専用の入れ物に寄せ、__init__ の属性を減らす」:
+  未着手。19 のモジュールが MEMORY = "_xxx" の文字列で policy に状態を生やす形は今も残る。
+- 「policy.pkl 固定は、新しい固定から JSON の状態スナップショットに替える」: 受け皿
+  （json_snapshot・両形の読み）と記録の変換は済み。テストの固定（tests/**/policy.pkl.xz 114 本）と
+  tests/extract_*.py（54 本が capture の policy.pkl を名前で読む）は pickle のまま。
+  新しい固定を JSON にするには、extract 側の共通の読み（town_arrival_checkpoint.policy_file）と
+  固定の書き方を tests/support/extraction.py に寄せるのが次の一手。
+- 段8の外で今回気付いた小さな物: policy.py の identification_ready_in_pack の import は
+  移動の後は使われていない（消してもよいが、他から hengbot.policy 経由で読む物が無いことを
+  確かめてから。今回は触れていない）。
+
+----------------------------------------------------------------
+8. checks.json の項目の案
+----------------------------------------------------------------
+{"id":"MAINT-STEP8","owner":"2026-11-09 保守性の点検 段8（_decide の層の分け出し）","tests":["tests.test_dungeon_ladder","tests.test_json_snapshot","tests.test_n1b_292_summoner_after_survival_recorded","tests.test_threat_tiers_plans_recorded"]}
+（段8の前半は MAINT8-A に tests.test_dungeon_ladder が登録済み。重なりはあるが、この項目は
+ 後半の 8 層と json_snapshot の分。どれも枝で緑、main で赤の物は入れていない）
+
+----------------------------------------------------------------
+9. サーバの側の変更（json_snapshot の変換。サーバには触れていない）
+----------------------------------------------------------------
+前提: この枝が main に入り、deploy_viewing.sh で hengband.net の ~/hengbot-smoke/bot-current に
+展開されてから入れる（065497a948 のハードリンクの扱いが要る。前の版の見回りは同じ pickle を
+リンクの数だけ変換する）。
+
+なぜ今の片付け（bot_budget_n1.py、10 分ごと）に足さないか: 変換は大きい物で 1 本 100 秒・
+1.7 GB を使い、10 分ごとの容量の判断を遅らせる。別の service とタイマーにする。
+bot_budget_n1.py は変えなくてよい（size() は inode で数えるので、リンクした policy.json.gz も
+1 回だけ数える）。
+
+足す物（~/.config/systemd/user/ に 2 つ。C:\hengband-backups\guard-tools に元を置く慣例なら
+そこにも同じ名前で）:
+
+--- hengbot-json-snapshot.service ---
+# Maintainability review 2026-11-09 step 8 (owner 2026-11-13 「ログの圧縮を別で行うことで
+# botを止めないことと容量節約を両立できないか？」): the bots keep writing pickles; this turns
+# the recorded ones in the incident captures into policy.json.gz, off their decision path.
+[Unit]
+Description=Convert recorded Hengband bot policy pickles to json_snapshot
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/hengbot-smoke/bot-current
+Environment=PYTHONPATH=%h/hengbot-smoke/bot-current/src
+ExecStart=/bin/sh -c 'exec %h/hengbot-smoke/venv/bin/python -m hengbot.json_snapshot --min-age 172800 %h/hengbot-soak/n1-*/life-*/incident-captures'
+IOSchedulingClass=idle
+MemoryMax=4G
+TimeoutStartSec=3h
+# 1: some pickle could not be read (a class removed since it was written); it is kept and named
+# in the log, the rest is converted.
+SuccessExitStatus=1
+StandardOutput=append:%h/hengbot-soak/json-snapshot.log
+StandardError=append:%h/hengbot-soak/json-snapshot.log
+
+--- hengbot-json-snapshot.timer ---
+[Unit]
+Description=Convert recorded Hengband bot policy pickles every hour
+
+[Timer]
+OnBootSec=20min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target
+
+入れ方（持ち主か運用の手で。私はしていない）:
+  cd ~/hengbot-smoke/bot-current && PYTHONPATH=src ../venv/bin/python -m hengbot.json_snapshot \
+      --min-age 172800 ~/hengbot-soak/n1-a/life-NNN/incident-captures/<1つ>   # まず 1 つで試す
+  systemctl --user daemon-reload && systemctl --user enable --now hengbot-json-snapshot.timer
+
+決めた値の理由と注意:
+- 対象は各 life の incident-captures だけ。生きているボットの jsonlog/town-arrival（3 回分で回る）は
+  触れない。そこから capture へハードリンクされた pickle は、jsonlog 側のリンクが回って消えるまで
+  場所を取るが、capture 側は 1 回の変換で JSON になる。
+- --min-age 172800（48 時間）: tests/extract_*.py の 54 本が capture の
+  town-arrival/<visit>/policy.pkl を名前で読む。止まりを直すために写して固定を作るのは
+  たいてい当日なので、新しい capture は pickle のまま残す。48 時間より古い capture から固定を
+  作る時は、extract の読みを town_arrival_checkpoint.policy_file に替える必要がある
+  （restore_checkpoint_bytes と replay_town_arrival は両方の形を読む）。
+- 変換しない物: incident-*.json.gz の中に base64 で埋めた checkpoint（latch_onset_capture）。
+  *.pkl のファイルだけが対象。
+- 古い life の pickle が今のコードの型で読めない時は、その pickle を残して log に書き、
+  残りは続ける（exit 1。上の SuccessExitStatus で unit は失敗にしない）。
+- 見込み: テストの 114 本では pickle 2,561 MB → 103 MB（約 4%）。ボットの書き込みの速さは
+  不変（30cefa0678 の測定）。
+- n1-c の instance が bot_budget_n1.py の INSTANCES に無いのは手元の写し（10-31）の話で、
+  サーバの版は確かめていない。上の glob は n1-* なので 3 体とも対象になる。

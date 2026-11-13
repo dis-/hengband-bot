@@ -14,6 +14,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from hengbot import json_snapshot
 from hengbot.flight_recorder import jsonable, rotate_log
 from hengbot.monrace_knowledge import (
     find_monrace_definitions,
@@ -123,10 +124,22 @@ class _PortablePathUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 
+def load_bytes(payload: bytes) -> Any:
+    """A ``checkpoint_bytes`` pickle, or the json_snapshot a conversion made of one.
+
+    The bot writes pickles (fast, on the decision path); ``json_snapshot.convert_pickle`` turns
+    the recorded ones into gzip JSON in a process of its own.  The two are told apart by their
+    first bytes (json_snapshot.is_snapshot).
+    """
+    if json_snapshot.is_snapshot(payload):
+        return json_snapshot.loads(payload)
+    return _PortablePathUnpickler(io.BytesIO(payload)).load()
+
+
 def restore_checkpoint_bytes(policy_type: type, payload: bytes) -> Any:
-    """Restore a ``checkpoint_bytes`` pickle without policy initialization."""
+    """Restore a ``checkpoint_bytes`` pickle (or its json_snapshot) without policy initialization."""
     restored = policy_type.__new__(policy_type)
-    state = _PortablePathUnpickler(io.BytesIO(payload)).load()
+    state = load_bytes(payload)
     restored.__dict__.update(state)
     restored._latch_capture_path = None
     restored._latch_capture_previous = None

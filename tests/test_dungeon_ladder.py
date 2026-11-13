@@ -67,7 +67,7 @@ class TableAgainstSourceTest(unittest.TestCase):
         # is asked only on PASS (dungeon_ladder.PASS).
         findings = analyze_with(plan=lambda source: source.replace(
             '    return PASS\n', '    pass\n'))
-        self.assertIn('layer light: ladder_light.key does not end with return PASS', findings)
+        self.assertIn('layer light: ladder_light.key falls off its end (return PASS)', findings)
 
     def test_pass_is_no_row(self):
         rows = lint.ladder_rows(*lint.repository_sources())
