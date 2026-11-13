@@ -17,7 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import hunt_target
+from hengbot import full_pack_exchange, hunt_target
 from hengbot.dungeon_ladder import PASS
 from hengbot.home_visit import HomeVisitKind
 from hengbot.item_reservation import reserved_item_command
@@ -213,6 +213,11 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         destroy = policy._town_producer_entry("_full_pack_destroy_key", lambda: policy._full_pack_destroy_key(snapshot), family="shop-sell")
         if destroy is not None:
             return destroy
+        # Owner 2026-11-13 「価値の低い品を捨てて拾う」: on a dungeon floor the exchange for a
+        # dearer floor item comes before the return a full pack starts (full_pack_exchange).
+        exchange = policy._town_producer_entry("full_pack_exchange.key", lambda: full_pack_exchange.key(policy, snapshot, strategic_hostiles))
+        if exchange is not None:
+            return exchange
 
     # Process a carried chest while things are calm — BEFORE committing to
     # a supply return: the pipeline takes a couple dozen decisions and the
