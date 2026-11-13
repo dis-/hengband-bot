@@ -126,19 +126,28 @@ def pack_due(policy, snapshot) -> bool:
 
 
 def pack_teleport_means(policy, snapshot):
-    """The teleport the pack rung uses: ("scroll", item) when the ladder's teleport scroll can be
+    """The teleport the pack rung uses: ``teleport_means`` read beside the followers."""
+    return teleport_means(policy, snapshot, beside_followers=True)
+
+
+def teleport_means(policy, snapshot, *, beside_followers=False):
+    """The player's own teleport: ("scroll", item) when the ladder's teleport scroll can be
     read (``_escape_scroll``'s rules: Teleportation, else Teleport Level, which leaves the floor
-    and is followed by none; Phase Door excluded: its 10 cells keep the pack in reach), else
+    and is followed by none; Phase Door excluded: its 10 cells keep a pursuer in reach), else
     ("absorbed", None) for the absorbed Teleportation (cast blind too, refused confused:
     cmd-magiceat.cpp:463), else ("staff", item) for a carried Staff of Teleportation
-    (threat_escape.blind_teleport_means' order); None when none can be used here."""
+    (threat_escape.blind_teleport_means' order); None when none can be used here.  No rod
+    teleports the player (sv-rod-types.h: only Teleport Other).  ``beside_followers``: the pack
+    rung teleports beside followers anyway; every other caller gets None while one is adjacent
+    (``followed``), as ``_escape_scroll`` answers."""
     if (snapshot.store is not None or quest_no_teleport.forbids(policy, snapshot)):
         return None
-    scroll = policy._escape_scroll(snapshot, teleport_only=True, beside_followers=True)
+    scroll = policy._escape_scroll(snapshot, teleport_only=True, beside_followers=beside_followers)
     if scroll is not None:
         return "scroll", scroll
     player = snapshot.player
-    if player.confused or policy._teleport_blocked_by_equipment(snapshot):
+    if (player.confused or policy._teleport_blocked_by_equipment(snapshot)
+            or (not beside_followers and followed(policy, snapshot))):
         return None
     power = me_absorbed_substitutes.TELEPORTATION
     if (not quest_no_teleport.forbids_absorbed(policy, snapshot)
@@ -157,21 +166,32 @@ def pack_teleport_key(policy, snapshot) -> str | None:
     means = pack_teleport_means(policy, snapshot)
     if means is None:
         return None
+    if means[0] == "scroll":
+        return policy._issue_emergency_consumable(snapshot, means[1], PACK_REASON)
+    key = device_teleport_key(policy, snapshot, means, PACK_REASON, PACK_STAFF_REASON)
+    if key is None:
+        return None
+    policy._emergency_return_active = True
+    policy._latch_repeat_emergency_return(snapshot, policy.last_reason)
+    return key
+
+
+def device_teleport_key(policy, snapshot, means, reason: str, staff_reason: str) -> str | None:
+    """The cast of the absorbed Teleportation (``reason`` + the cast suffix, the owner
+    me_device_attacks_input answers the power prompt for) or the use of the carried staff
+    (``staff_reason``) of a ``teleport_means`` answer other than the scroll, setting
+    ``last_reason``; None when its key cannot be composed."""
     kind, item = means
-    if kind == "scroll":
-        return policy._issue_emergency_consumable(snapshot, item, PACK_REASON)
     if kind == "absorbed":
         power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
         key = me_absorbed_substitutes.cast_key(policy, snapshot, power, blind_ok=True)
-        reason = PACK_REASON + me_absorbed_substitutes.CAST_SUFFIX
+        reason = reason + me_absorbed_substitutes.CAST_SUFFIX
     else:
         key = reserved_item_command(policy, snapshot, "staff", item)
-        reason = PACK_STAFF_REASON
+        reason = staff_reason
     if key is None:
         return None
     policy.last_reason = reason
-    policy._emergency_return_active = True
-    policy._latch_repeat_emergency_return(snapshot, reason)
     return key
 
 

@@ -4,8 +4,9 @@
 (above-emergency), above the summoner shots and every layer below.  The emergency consumables
 first (survival may always pre-empt a lower-priority owner), then the quiet recall, the sensed
 T1 leave's *Destruction*, the absorbed THREAT powers, the item-destroying breeder's leave,
-starvation and the paralyzer prevention.  The rungs are asked top-down and the first key
-returned wins, as in ``_decide``; ``PASS`` hands the decision on to the layers below.
+starvation, the paralyzer prevention and the faster confuser's leave.  The rungs are asked
+top-down and the first key returned wins, as in ``_decide``; ``PASS`` hands the decision on
+to the layers below.
 scripts/dungeon_ladder_lint.py reads the rows here (dungeon_ladder.LAYER_MODULES), so the table
 still states this order.
 
@@ -14,11 +15,11 @@ them as well) and passed in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import me_powers, return_yield, sent_away_t1, threat_tiers
+from hengbot import confuser_contact, me_powers, return_yield, sent_away_t1, threat_tiers
 from hengbot.dungeon_ladder import PASS
 
 
-def key(policy, snapshot, *, emergency_hostiles, paralyzers, physical_adjacent):
+def key(policy, snapshot, *, emergency_hostiles, paralyzers, physical_hostiles, physical_adjacent):
     """The emergency layer's answer, or PASS when none of its rungs acts."""
     emergency = policy._town_producer_entry("_emergency_item", lambda: policy._emergency_item(snapshot, emergency_hostiles))
     if emergency is not None:
@@ -68,4 +69,9 @@ def key(policy, snapshot, *, emergency_hostiles, paralyzers, physical_adjacent):
     ))
     if paralyzer_prevention is not None:
         return paralyzer_prevention
+    # Owner 2026-11-14 「混乱する前に離れるだけ」 (n1-b life-392): a faster confuser whose blow
+    # reaches before the next action is left by Teleportation, above the summoner shots.
+    confuser_leave = confuser_contact.leave_key(policy, snapshot, physical_hostiles)
+    if confuser_leave is not None:
+        return confuser_leave
     return PASS

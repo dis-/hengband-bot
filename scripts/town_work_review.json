@@ -18886,5 +18886,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "confuser_contact.py:leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: asked from ladder_emergency.key (the dungeon ladder's emergency layer), which policy._decide reaches only off the town board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "n1-b life-392 (2026-11-13, death at 19F); owner 2026-11-14 「混乱する前に離れるだけ」: without resist_conf and not yet confused, an awake hostile faster than the player whose blows confuse and which reaches before its next action is left by the player's own teleport (teleport_follower.teleport_means): the Teleportation scroll (status-threat:confuser-leave), else the absorbed Teleportation (+ :absorbed-power), else a carried Staff of Teleportation (-staff); *Destruction* is not a leave. None once confused (teleport_means refuses), where the quest forbids teleport, relocation is refused, a teleport follower is adjacent, or no teleport means is held (today's rungs answer)."
+  },
+  "teleport_follower.py:teleport_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; refused in a store (snapshot.store) or a no-teleport quest.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. The player's own teleport means: the ladder's teleport scroll (_escape_scroll teleport_only), else the absorbed Teleportation, else a carried Staff of Teleportation; None confused, blocked by equipment, or (unless beside_followers) beside a teleport follower. Read by pack_teleport_means and confuser_contact.leave_key."
+  },
+  "teleport_follower.py:pack_teleport_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. teleport_means read beside the followers (owner 2026-11-12, the pack teleport); read by pack_teleport_key and policy_combat's lethal pack board."
+  },
+  "teleport_follower.py:device_teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only in effect: asked from pack_teleport_key and confuser_contact.leave_key, both reached only in the dungeon ladder's emergency layer off the town board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The absorbed Teleportation cast (m + kind + letter, reason + :absorbed-power, the owner me_device_attacks_input answers) or the carried Staff of Teleportation (u + slot, the caller's staff reason) of a teleport_means answer; sets last_reason; no independent progress."
   }
 }

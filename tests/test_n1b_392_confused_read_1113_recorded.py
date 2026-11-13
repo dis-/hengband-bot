@@ -29,6 +29,7 @@ import json
 import unittest
 from pathlib import Path
 
+from hengbot import me_staff_sequence
 from hengbot.model import parse_snapshot
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests.support.recorded import QUAFF_PROMPT, READ_PROMPT, prompt_screen
@@ -46,9 +47,12 @@ REFUSAL = "混乱していてできない！"
 RECALL_NAME, TELEPORT_NAME = "帰還の詔の巻物", "テレポートの巻物"
 
 
-def replay(until, change=None):
-    """The policy, the (edited) board and the key on ``until``."""
+def replay(until, change=None, absorbed=None):
+    """The policy, the (edited) board and the key on ``until``.  ``absorbed``: the Magic-Eater's
+    absorbed-power record to start from (me_staff_sequence), none by default."""
     policy = loops.new_policy(CASE, CASE["skill"], monraces=CASE["monraces"])
+    if absorbed is not None:
+        me_staff_sequence.state(policy).absorbed = dict(absorbed)
     for raw in CASE["boards"]:
         raw = copy.deepcopy(raw)
         if raw["turn"] == until and change is not None:
