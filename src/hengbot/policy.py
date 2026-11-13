@@ -7758,6 +7758,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot,
                 emergency_hostiles=emergency_hostiles,
                 paralyzers=paralyzers,
+                physical_hostiles=physical_hostiles,
                 physical_adjacent=physical_adjacent,
             )
             if emergency is not PASS:
