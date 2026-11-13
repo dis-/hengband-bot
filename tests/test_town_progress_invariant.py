@@ -147,6 +147,9 @@ class TownProgressInvariantTest(unittest.TestCase):
         inside = replace(snapshot, store=store)
         policy._shop_observation = (store, policy._decision_sequence)
         policy.last_reason = "shop:observe-and-leave"
+        # The shop owner names the continuation (town rebuild 3-3c); the
+        # progress seam passes it through unchanged.
+        policy._continue_observed_shop(inside, "\x1b")
         self.assertEqual(policy._town_procurement_decision(inside, "\x1b"), "\x1b")
         self.assertEqual(
             policy.last_reason,
@@ -269,7 +272,10 @@ class TownProgressInvariantTest(unittest.TestCase):
         self.assertEqual(
             policy._atomic_shop_transaction_key(snapshot), WAIT_KEY
         )
+        # The shop owner names the continuation (town rebuild 3-3c); the
+        # progress seam passes it through unchanged.
         policy.last_reason = "shop:observe-and-leave"
+        policy._continue_observed_shop(target, "\x1b")
         self.assertEqual(
             policy._town_procurement_decision(target, "\x1b"), "\x1b"
         )
@@ -282,6 +288,7 @@ class TownProgressInvariantTest(unittest.TestCase):
         nonstocking = replace(snapshot, store=empty)
         policy._town_progress_invariant_defect = {}
         policy.last_reason = "shop:observe-and-leave"
+        policy._continue_observed_shop(nonstocking, "\x1b")
         self.assertEqual(
             policy._town_procurement_decision(nonstocking, "\x1b"), "\x1b"
         )

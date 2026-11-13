@@ -103,6 +103,10 @@ from hengbot.runtime_paths import runtime_path
 
 # The accepted recall's surface decisions (town_hold registers both).
 RECALL_COUNTDOWN_REASONS = frozenset({"town:wait-recall", "town:wait-recall-step-off"})
+# Leaving an observed shop page: the observation's own name, and the shop
+# owner's name when the buy stage continues past it (town rebuild 3-3c).
+OBSERVE_AND_LEAVE_REASON = "shop:observe-and-leave"
+CONTINUE_OBSERVED_SHOP_REASON = "town-progress-invariant:continue-observed-shop"
 VISIT_CLOSABLE_REASONS = frozenset({
     "departure-unsatisfiable", "no-actionable-claim-owner",
     "overweight-retained-only",
@@ -1745,6 +1749,50 @@ class TownMixin:
         reserve = self._fundraising_kit_reserve(snapshot)
         return snapshot.player.gold - wanted.price * quantity >= reserve
 
+    def _continue_observed_shop(self, snapshot: Snapshot, key: str) -> None:
+        """Name the leave of an observed, wanted, affordable shelf as the buy
+        stage's continuation (town rebuild stage 3-3c).
+
+        Observing such a shelf is the entry phase of the existing atomic
+        contract.  Leaving is only its transport step: it is a defect until the
+        saved page is composed on the adjacent outside snapshot.  A non-supplier
+        store keeps ``shop:observe-and-leave`` so the router can advance toward
+        another supplier.  The progress seam (``_town_procurement_decision``)
+        used to relabel the observation; the shop owner now names its own
+        result and the seam passes it through.
+        """
+        if not self._observed_shop_continues(snapshot):
+            return
+        self.last_reason = CONTINUE_OBSERVED_SHOP_REASON
+        self._town_progress_invariant_defect = {
+            "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+            "winning_rung": OBSERVE_AND_LEAVE_REASON,
+            "progress_action": self.last_reason,
+            "gold": snapshot.player.gold,
+            "allow_set": (),
+        }
+        self._record_shop_selector_diagnostics(snapshot, key)
+
+    def _observed_shop_continues(self, snapshot: Snapshot) -> bool:
+        """Whether leaving this observed shop page continues the buy stage.
+
+        The guards are the boards on which the progress seam left the
+        observation's own name (it returned before naming the continuation):
+        a Home sequence holding the store router, a board outside a town, a
+        reviewed preemptor of the progress invariant (the allow set), a
+        decision that began under equipment-transaction ownership, and the
+        dark-without-recovery relabel that hid the name from the seam.
+        """
+        if not snapshot.in_town or self._dark_without_recovery(snapshot):
+            return False
+        if self._town_errand_defer_verdict("store-router", "procurement-decision")[1]:
+            return False
+        if self._town_progress_allow_members(snapshot):
+            return False
+        if self._equipment_transaction_owns_town_relocation(snapshot):
+            return False
+        return self._town_observed_purchase_is_composable(snapshot)
+
     def _town_blocked_purchase_is_composable(self, snapshot: Snapshot) -> bool:
         """Whether the blocked store handler will stage its selected purchase."""
         store = snapshot.store
@@ -1959,23 +2007,10 @@ class TownMixin:
             and self._home_atomic_withdraw_pending is not None
         ):
             return key
-        # Observing a wanted, affordable shelf is the entry phase of the
-        # existing atomic contract.  Leaving is only its transport step: it is
-        # a defect until the saved page is composed on the adjacent outside
-        # snapshot.  A non-supplier store may still be left normally so the
-        # router can advance toward another supplier.
-        if proposed_reason == "shop:observe-and-leave":
-            if not self._town_observed_purchase_is_composable(snapshot):
-                return key
-            self.last_reason = "town-progress-invariant:continue-observed-shop"
-            self._town_progress_invariant_defect = {
-                "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
-                "winning_rung": proposed_reason,
-                "progress_action": self.last_reason,
-                "gold": snapshot.player.gold,
-                "allow_set": (),
-            }
-            self._record_shop_selector_diagnostics(snapshot, key)
+        # The shop owner names the leave of an observed shelf itself
+        # (_continue_observed_shop, town rebuild 3-3c); the seam passes either
+        # name through unchanged.
+        if proposed_reason in {OBSERVE_AND_LEAVE_REASON, CONTINUE_OBSERVED_SHOP_REASON}:
             return key
 
         visit = self._store_visit
@@ -6304,7 +6339,7 @@ class TownMixin:
                 # records the shelf, then the outside entrance page binds the
                 # exact purchase before re-entry releases its command tail.
                 self._shop_observation = (store, self._decision_sequence)
-                self.last_reason = "shop:observe-and-leave"
+                self.last_reason = OBSERVE_AND_LEAVE_REASON
                 self._offer_execution(
                     LEAVE_STORE_KEY, producer="shop-buy",
                     work_id="shop:blocked-observe-shelf",
@@ -6312,6 +6347,7 @@ class TownMixin:
                     arguments=(store.store_type,),
                     expected_effect="outside-store",
                 )
+                self._continue_observed_shop(snapshot, LEAVE_STORE_KEY)
             else:
                 self._close_store_visit("repetition-block-abandoned")
             return LEAVE_STORE_KEY

@@ -83,7 +83,10 @@ class BlockedPurchaseNamespaceAcceptanceTest(unittest.TestCase):
         inside = self._incident_snapshot()
 
         self.assertEqual(policy._town_blocked_key(inside), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "shop:observe-and-leave")
+        # The owner names the buy stage's continuation itself (town rebuild
+        # 3-3c); the progress seam used to rename the observation.
+        self.assertEqual(policy.last_reason,
+                         "town-progress-invariant:continue-observed-shop")
         self.assertEqual(policy._shop_observation[0], inside.store)
         outside = replace(inside, store=None, turn=inside.turn + 1)
         policy.choose_key(outside)
@@ -161,7 +164,10 @@ class BlockedPurchaseNamespaceAcceptanceTest(unittest.TestCase):
 
         self.assertTrue(policy._town_blocked_purchase_is_composable(snapshot))
         self.assertEqual(policy._town_blocked_key(snapshot), LEAVE_STORE_KEY)
-        self.assertEqual(policy.last_reason, "shop:observe-and-leave")
+        # The owner names the buy stage's continuation itself (town rebuild
+        # 3-3c); the progress seam used to rename the observation.
+        self.assertEqual(policy.last_reason,
+                         "town-progress-invariant:continue-observed-shop")
         self.assertEqual(policy._shop_observation[0], snapshot.store)
 
     def test_pin_vacuity_mandatory_recall_precedes_identify_then_falls_through(self):
