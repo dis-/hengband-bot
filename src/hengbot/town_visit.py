@@ -168,6 +168,10 @@ class TownVisit:
     # [stage, first sequence, last sequence, decisions, interrupts] per run
     # of decisions in one stage.  Nothing decides from it yet.
     plan_segments: list[list] = field(default_factory=list)
+    # The progress seam's replacements this visit (town rebuild stage 3-3a):
+    # [sequence, the producer's reason, the seam's reason].  Nothing decides
+    # from it; stage 3-3 retires the seam and shows this list empty.
+    plan_rewrites: list[list] = field(default_factory=list)
 
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:

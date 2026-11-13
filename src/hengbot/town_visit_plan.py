@@ -77,6 +77,8 @@ FAMILY_STAGE: dict[str, str] = {
 
 # A visit's trace keeps its newest segments only.
 SEGMENT_LIMIT = 200
+# A visit keeps its newest seam replacements only.
+REWRITE_LIMIT = 100
 
 
 def stage_of(family: str | None) -> str:
@@ -111,10 +113,30 @@ def note_decision(policy: Any, snapshot: Any) -> None:
         del segments[:-SEGMENT_LIMIT]
 
 
+def note_seam(policy: Any, snapshot: Any, before: tuple, key: Any) -> None:
+    """Record a town decision the progress seam (``_town_procurement_decision``)
+    replaced: its key or its reason changed across the seam (stage 3-3a).
+
+    The ``town-plan`` family counts only the decisions whose reason the seam
+    renamed into its own family; a seam that keeps the producer's reason and
+    changes the key, or relabels under another family, is counted here.
+    Nothing decides from it.
+    """
+    if not (snapshot.in_town or snapshot.store is not None):
+        return
+    if (key, policy.last_reason) == before:
+        return
+    from hengbot.town_visit import town_visit
+    rewrites = town_visit(policy).plan_rewrites
+    rewrites.append([getattr(policy, "_decision_sequence", None), before[1], policy.last_reason])
+    del rewrites[:-REWRITE_LIMIT]
+
+
 def facts(policy: Any) -> dict:
     """The decision log's view: the current stage and the visit's flow."""
     from hengbot.town_visit import town_visit
-    segments = town_visit(policy).plan_segments
+    visit = town_visit(policy)
+    segments = visit.plan_segments
     if not segments:
         return {}
     stage, since, _last, decisions, interrupts = segments[-1]
@@ -124,4 +146,5 @@ def facts(policy: Any) -> dict:
         "decisions": decisions,
         "interrupts": interrupts,
         "flow": [segment[0] for segment in segments[-12:]],
+        "seam_rewrites": len(visit.plan_rewrites),
     }

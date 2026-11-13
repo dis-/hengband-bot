@@ -2883,9 +2883,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     "gold",
                 )
             key = self._refuse_no_progress_cycle(snapshot, key)
+            seam_input = (key, self.last_reason)
             procurement_key = self._town_procurement_decision(snapshot, key)
             if procurement_key is not None:
                 key = procurement_key
+            town_visit_plan.note_seam(self, snapshot, seam_input, key)
             if (
                 self._town_blocked_reason
                 == "town:blocked:home-withdraw-failed-stock-present"
