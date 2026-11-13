@@ -305,3 +305,136 @@ def adopt_legacy_attributes(state: dict) -> None:
         visit = state["_town_visit"] = TownVisit()
     for legacy in present:
         setattr(visit, LEGACY_NAMES[legacy], state.pop(legacy))
+
+
+# --- The town's hold flags (town rebuild stage 3-2a, owner 2026-11-12) ------
+#
+# Owner 2026-11-12 「1〜3まで一気に進める」, stage 3: the hold flags become the
+# visit plan's state.  Before stage 3-2a these flags were policy attributes
+# that two places forgot, each with its own copy of the list: the floor change
+# (policy_observation, ``previous_floor != floor_key``) and the town change on
+# the surface (inn travel keeps the surface floor key).  ``TownHolds`` is the
+# one list and ``release`` the one forgetting; both places call it, and the
+# town change keeps its own extra resets.  They are not ``TownVisit`` fields:
+# ``TownVisit.begin`` runs on a fresh visit, the holds end when the character
+# leaves the floor or the town, as before (a process that starts in town keeps
+# them, as the restored attributes did).
+
+
+def _signature_history() -> Any:
+    from collections import deque
+    from hengbot.policy_constants import TOWN_CYCLE_WINDOW
+    return deque(maxlen=TOWN_CYCLE_WINDOW)
+
+
+@dataclass
+class TownHolds:
+    # Native surface travel's progress and its fallback goal.
+    travel_state: Any = None
+    travel_fallback: Any = None
+    # The town monster the survival owner walks to.
+    hunt_target: Any = None
+    # The town-repetition detector (TOWN_CYCLE_WINDOW) and the no-progress
+    # breaker (TOWN_WANDER_LIMIT).
+    signature_history: Any = field(default_factory=_signature_history)
+    progress_marker: tuple | None = None
+    no_progress_count: int = 0
+    cycle_pending: bool = False
+    cycle_breaks: int = 0
+    # The visit's committed departure and the departures it recorded.
+    departure_committed: Any = None
+    departure_recorded: set = field(default_factory=set)
+    # The restock suppression and the stores its claim covers.
+    restock_suppressed: bool = False
+    suppression_claim_stores: set[int] = field(default_factory=set)
+    # The store errand plan of this stay.
+    errand_plan: Any = None
+    # The town end's terminal four-slot pack certificate.
+    terminal_pack_space_signature: Any = None
+    # The restock wait: until when, for which stores, what was rechecked.
+    restock_wait_until: int | None = None
+    restock_waiting_for: tuple[int, ...] = ()
+    restock_rechecked: set[int] = field(default_factory=set)
+    restock_waited_turns: int = 0
+    restock_last_wait_turn: int | None = None
+
+    def release(self) -> None:
+        """Forget every hold: containers are emptied in place, the rest
+        returns to its default (what both former lists did)."""
+        for spec in fields(self):
+            if spec.default_factory is not MISSING:
+                getattr(self, spec.name).clear()
+            else:
+                setattr(self, spec.name, spec.default)
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update({
+            spec.name: (spec.default_factory() if spec.default_factory is not MISSING
+                        else spec.default)
+            for spec in fields(TownHolds)})
+        self.__dict__.update(state)
+
+
+HOLD_LEGACY_NAMES = {
+    "_town_travel_state": "travel_state",
+    "_town_travel_fallback": "travel_fallback",
+    "_town_hunt_target": "hunt_target",
+    "_town_signature_history": "signature_history",
+    "_town_progress_marker": "progress_marker",
+    "_town_no_progress_count": "no_progress_count",
+    "_town_cycle_pending": "cycle_pending",
+    "_town_cycle_breaks": "cycle_breaks",
+    "_visit_departure_committed": "departure_committed",
+    "_visit_departure_recorded": "departure_recorded",
+    "_town_restock_suppressed": "restock_suppressed",
+    "_town_suppression_claim_stores": "suppression_claim_stores",
+    "_town_errand_plan": "errand_plan",
+    "_terminal_pack_space_signature": "terminal_pack_space_signature",
+    "_town_restock_wait_until": "restock_wait_until",
+    "_town_restock_waiting_for": "restock_waiting_for",
+    "_town_restock_rechecked": "restock_rechecked",
+    "_town_restock_waited_turns": "restock_waited_turns",
+    "_town_restock_last_wait_turn": "restock_last_wait_turn",
+}
+
+
+def town_holds(policy: Any) -> TownHolds:
+    """The policy's hold flags, made on first use (like ``town_visit``)."""
+    holds = policy.__dict__.get("_town_holds")
+    if holds is None:
+        holds = policy.__dict__["_town_holds"] = TownHolds()
+    return holds
+
+
+def _forward_hold(name: str) -> property:
+    return property(
+        lambda policy: getattr(town_holds(policy), name),
+        lambda policy, value: setattr(town_holds(policy), name, value),
+        doc=f"TownHolds.{name} (town rebuild stage 3-2a).",
+    )
+
+
+for _legacy, _name in HOLD_LEGACY_NAMES.items():
+    setattr(TownVisitAttributes, _legacy, _forward_hold(_name))
+
+
+def hold_bindings(holds: TownHolds) -> dict:
+    """The holds under the policy's former names (diagnostics)."""
+    return {legacy: getattr(holds, name) for legacy, name in HOLD_LEGACY_NAMES.items()}
+
+
+def adopt_legacy_holds(state: dict) -> None:
+    """Move an old checkpoint's hold attributes into its ``TownHolds``.
+
+    Checkpoints pickled before stage 3-2a hold these as policy attributes;
+    the values move as they are (the same objects), so the restored holds
+    decide exactly as the restored attributes did.
+    """
+    present = [legacy for legacy in HOLD_LEGACY_NAMES if legacy in state]
+    if not present:
+        return
+    holds = state.get("_town_holds")
+    if holds is None:
+        holds = state["_town_holds"] = TownHolds()
+    for legacy in present:
+        setattr(holds, HOLD_LEGACY_NAMES[legacy], state.pop(legacy))

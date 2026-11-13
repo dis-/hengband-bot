@@ -1525,9 +1525,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # the dungeon entrance): the current goal, the best distance seen for
         # it, and how many issues brought no progress. See _town_travel_key.
         self._descent_target_goal: Position | None = None
-        self._town_travel_state: TownTravelProgress | None = None
-        self._town_travel_fallback: Position | None = None
-        self._town_hunt_target: Position | None = None
+        # _town_travel_state, _town_travel_fallback, _town_hunt_target and the
+        # other town hold flags live in town_visit.TownHolds (stage 3-2a).
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
         self._equipment_mutation = EquipmentMutationExecutor()
         self._equipment_mutation_result = EquipmentMutationResult(None)
@@ -1785,12 +1784,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Gold when scavenge mode was last entered — the scavenge->prepare
         # transition re-checks latched stores only if gold actually rose.
         self._scavenge_entry_gold = 0
-        # Town-repetition detector state — see TOWN_CYCLE_WINDOW.
-        self._town_signature_history: deque[tuple] = deque(
-            maxlen=TOWN_CYCLE_WINDOW
-        )
-        self._town_progress_marker: tuple | None = None
-        self._town_no_progress_count = 0
+        # The town-repetition detector state (TOWN_CYCLE_WINDOW) lives in
+        # town_visit.TownHolds.
         self._town_visit_ledger = TownVisitLedger()
         # Terminal admission (town_terminal): the per-decision verdict memo
         # and the admission rows of the current decision.
@@ -1812,19 +1807,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_route_refusal_sequence: int | None = None
         self._town_was_in_town = False
         self._town_visit_epoch: int | None = None
-        self._town_cycle_pending = False
-        self._town_cycle_breaks = 0
-        self._visit_departure_committed = None
-        self._visit_departure_recorded = set()
         self._observed_town_id: int | None = None
-        self._town_restock_suppressed = False
-        self._town_suppression_claim_stores: set[int] = set()
-        self._town_errand_plan: TownErrandPlan | None = None
-        # Four free slots are accepted only after the productive town pipeline
-        # has declined every action for this exact inventory.  Keep the readiness
-        # gate pure: calling disposal/store planners from it recurses through the
-        # supply ledger and equipment departure checks.
-        self._terminal_pack_space_signature: tuple[tuple[object, ...], ...] | None = None
+        # The town cycle, the departure commitment, the restock suppression,
+        # the errand plan and the terminal four-slot pack certificate (accepted
+        # only after the productive town pipeline declined every action for
+        # that exact inventory) live in town_visit.TownHolds (stage 3-2a).
         self._known_loot: set[Position] = set()
         self._loot_target: Position | None = None
         self._deferred_loot: set[Position] = set()
@@ -2185,11 +2172,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_latch_history: list[dict[str, object]] = []
         self._home_gate_telemetry: dict[str, object] = {}
         self._home_atomic_withdraw_telemetry: dict[str, object] = {}
-        self._town_restock_wait_until: int | None = None
-        self._town_restock_waiting_for: tuple[int, ...] = ()
-        self._town_restock_rechecked: set[int] = set()
-        self._town_restock_waited_turns = 0
-        self._town_restock_last_wait_turn: int | None = None
+        # The restock wait lives in town_visit.TownHolds (stage 3-2a).
         # Normal Remove Curse can fail against a heavy curse.  A confirmed
         # unchanged read records that fact both in the runtime latch and in a
         # player-visible, savefile-persistent inscription.  All curse consumers
