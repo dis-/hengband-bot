@@ -93,8 +93,8 @@ def settle_target(policy, snapshot) -> None:
             policy._target_dungeon_reason = "initial_yeek_cave"
         return
     if snapshot.yeek_cave_conquered and snapshot.in_town:
-        deepest = policy._pick_alternate_dungeon(
-            snapshot, prefer_deepest=True, require_shallower=False)
+        deepest = policy._pick_alternate_dungeon(  # an intended destination: no fallback floor
+            snapshot, prefer_deepest=True, require_shallower=False, depth_floor=False)
         if deepest is not None:
             policy._target_dungeon_id = deepest
             policy._target_dungeon_reason = DEEPEST_OPEN_REASON

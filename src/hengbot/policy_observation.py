@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, fallback_depth_floor, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -637,6 +637,8 @@ class ObservationMixin:
         # Owner 2026-11-11 (C3, C5): the over-extension switch ends after its lease and the
         # target is the deepest recall destination again.
         alternate_lease.settle(self, snapshot)
+        # Owner 2026-11-13: a held fallback switch landing under the floor ends the same way.
+        fallback_depth_floor.settle(self, snapshot)
         guardian_rumor.settle(self, snapshot)
         # A switched target overrides the ordinary selection until its lifecycle
         # ends through conquest, loadout-fallback completion, replacement, or the

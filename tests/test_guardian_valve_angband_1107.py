@@ -24,9 +24,10 @@ departure, equipment optimization done):
   owner 2026-11-11 C2 「能力的には64Fから成果を得るのに十分である。」: 64F is explored,
   only 65F is the guardian floor)
   and whose guardian the kit cannot beat, so the Castle recall is refused for
-  the guardian only;
-- Angband's saved recall depth is 40 (passes every check) or 85 (missing
-  ``speed+25``), the only difference between the first two pins.
+  the guardian only, and the Dark cave at 65 (added 2026-11-13: the old choice
+  must land at the fallback depth floor, the deepest reached minus 20);
+- Angband's saved recall depth is 50 (passes every check; 40 before the floor)
+  or 85 (missing ``speed+25``), the only difference between the first two pins.
 Every pin decides through ``HengbotPolicy.choose_key``.
 """
 
@@ -53,7 +54,13 @@ ORC_CAVE = 3
 CASTLE = 12
 CASTLE_LANDING = 65  # Castle max depth 65: its guardian floor (64F is explored since C2)
 ORC_CAVE_LANDING = 23
-ANGBAND_ACCEPTABLE = 40
+# Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」: the Castle 65 is reached, so the
+# fallback floor is 45 (65 with Angband 85).  Angband's acceptable landing is 50 (40 before the
+# floor), and the Dark cave at 65 is the other entered dungeon the old choice takes: the Orc
+# cave 23 is under every floor here.
+DARK_CAVE = 19
+DARK_CAVE_LANDING = 65  # Dark cave 55-72: not its guardian floor
+ANGBAND_ACCEPTABLE = 50
 ANGBAND_NEEDS_SPEED = 85  # 81F+ asks speed+25 of a speed-110 character
 
 
@@ -75,9 +82,10 @@ def scene(angband_landing, *, target=CASTLE):
         actor, terrain, [], turn=500000, town_flag=True, town_id=0,
         recall_dungeon_id=target,
         recall_depth=CASTLE_LANDING if target == CASTLE else angband_landing,
-        entered_dungeon_ids=(DUNGEON_ANGBAND, ORC_CAVE, CASTLE),
+        entered_dungeon_ids=(DUNGEON_ANGBAND, ORC_CAVE, CASTLE, DARK_CAVE),
         dungeon_recall_depths={DUNGEON_ANGBAND: angband_landing,
-                               ORC_CAVE: ORC_CAVE_LANDING, CASTLE: CASTLE_LANDING},
+                               ORC_CAVE: ORC_CAVE_LANDING, CASTLE: CASTLE_LANDING,
+                               DARK_CAVE: DARK_CAVE_LANDING},
         angband_recall_unlocked=True,
         conquered_dungeon_ids=(ORC_CAVE,),
         quests={34: QuestState(34, status=QUEST_STATUS_FINISHED),
@@ -133,7 +141,7 @@ class GuardianValveAngbandFirstTest(unittest.TestCase):
         self.assertEqual(
             (policy._alternate_dungeon, policy._alternate_dungeon_reason,
              policy._target_dungeon_id),
-            (ORC_CAVE, "guardian_valve", ORC_CAVE))
+            (DARK_CAVE, "guardian_valve", DARK_CAVE))
 
     def test_bounce_off_angband_itself_keeps_the_old_choice(self):
         # DECLARED CONSTRUCTED: the observation's guardian-bounce valve just
@@ -146,7 +154,17 @@ class GuardianValveAngbandFirstTest(unittest.TestCase):
         policy.choose_key(board)
         self.assertEqual(
             (policy._alternate_dungeon, policy._alternate_dungeon_reason),
-            (ORC_CAVE, "guardian_bounce_valve"))
+            (DARK_CAVE, "guardian_bounce_valve"))
+
+    def test_the_orc_cave_under_the_floor_is_no_old_choice(self):
+        """Owner 2026-11-13: without the Dark cave the old choice was the Orc cave 23, under
+        the floor 65 (Angband 85 reached); nothing qualifies and the bounce stops visibly."""
+        policy, board = scene(ANGBAND_NEEDS_SPEED)
+        board = replace(board, entered_dungeon_ids=(DUNGEON_ANGBAND, ORC_CAVE, CASTLE))
+        self.assertIsNone(policy._pick_alternate_dungeon(board, guardian_bounced_dungeon=CASTLE))
+        policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:blocked:guardian-bounce-no-alternate")
+        self.assertIsNone(policy._alternate_dungeon)
 
 
 if __name__ == "__main__":
