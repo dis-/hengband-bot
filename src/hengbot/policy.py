@@ -11,7 +11,7 @@ from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladde
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
-from hengbot.summoner_wait import hold_key, summoner_wait_decision
+from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 
 from collections import Counter, deque
@@ -15798,9 +15798,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         The destination is the cell this search actually chose, so an owner can
         commit to it across decisions.  The flee fallback has no destination: it
         is a direction away from the hostiles, not a place.
+
+        The covered cell is where the summoner hold then waits (hold_key), so it is chosen
+        as the hold would keep it: never a cell an owner left while its reason holds
+        (left_cells.refused: the hold's own record of a shot point among them; this search is
+        one of the walkers that route on their own), and, where one is reachable, a cell no
+        visible hostile reaches (summoner_wait.unfit_hold_point, owner 2026-11-02
+        「撃たれる場所は待つポイントとして不適当なので撃たれない場所で待つ」).  n1-c life-207
+        (Glass castle 60F, 2026-11-13 23:37): at [41,106] this search chose the shot choke
+        [41,107] one step back, which summoner:hold-reposition had just left and recorded;
+        the hold stepped off it again and the two walked [41,106]/[41,107] 25 times until
+        the loop detector stopped the bot.
         """
         origin = snapshot.player.position
         origin_distance = min(origin.distance_to(monster.position) for monster in summoners)
+        refused = left_cells.refused(self, snapshot)
         seen = {origin}
         queue: deque[tuple[Position, Position | None, int]] = deque([(origin, None, 0)])
         candidates: list[tuple[int, int, int, Position, Position]] = []
@@ -15815,6 +15827,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if (
                     openness <= SUMMONER_CHOKE_NEIGHBORS - 1
                     and summoner_distance >= origin_distance
+                    and position not in refused
                     # The wait there would be a step off it (damaging_ground).
                     and not damaging_ground.hurts_at(self, snapshot, position)
                 ):
@@ -15840,7 +15853,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 )
 
         if candidates:
-            chosen = min(candidates, key=lambda candidate: candidate[:3])
+            # Nearest first; the first the hold would keep, else the nearest (still cover
+            # out of the open, the hold's own move or teleport answers its fire there).
+            candidates.sort(key=lambda candidate: candidate[:3])
+            chosen = next((candidate for candidate in candidates
+                           if not unfit_hold_point(self, snapshot, candidate[4])),
+                          candidates[0])
             return chosen[4], chosen[3]
         return None, self._flee_step(snapshot, hostiles)
 

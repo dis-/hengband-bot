@@ -81,6 +81,18 @@ def _shot_at(policy, snapshot, cell):
     )
 
 
+def unfit_hold_point(policy, snapshot, cell) -> bool:
+    """``cell`` is no point to wait at (owner 2026-11-02 「撃たれる場所は待つポイントとして
+    不適当なので撃たれない場所で待つ」): a visible hostile reaches it (``_shot_at``).
+
+    One test for the hold and for the covered cell the summoner retreat walks to
+    (``_summoner_retreat_route``), so the retreat ends where the hold waits.  n1-c life-207
+    (Glass castle 60F, 2026-11-13 23:37): the retreat chose the shot choke [41,107] the hold had
+    just left, the hold stepped off it to [41,106] and the retreat walked back, 25 times until
+    the loop detector stopped the bot."""
+    return _shot_at(policy, snapshot, cell)
+
+
 def _leave_shot_hold_point_key(policy, snapshot, monsters):
     """Leave a hold point that is shot at (owner 2026-11-02).
 
@@ -98,7 +110,7 @@ def _leave_shot_hold_point_key(policy, snapshot, monsters):
     route = policy._validated_choke_route(
         snapshot, monsters,
         admit=lambda cell: cell not in policy._engagement_avoid_cells
-        and not _shot_at(policy, snapshot, cell),
+        and not unfit_hold_point(policy, snapshot, cell),
     ) if monsters else None
     if route is not None:
         destination, step = route
