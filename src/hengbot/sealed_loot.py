@@ -21,8 +21,8 @@ The way in is the Stone to Mud route (retreat_enclosure ``melt_route`` / ``melt_
 the walled-off hunt's): melt the route's next wall once beside it, else walk toward it.  Its
 walls are counted against every use carried (sealed_pocket ``melt_charges``, one wall a charge
 as Q2's breach counts them); fewer uses than walls, no means, or a hostile seen or sensed
-leaves the escape as it was.  Its reason holds the stuck count (policy_constants
-``STUCK_NEUTRAL_REASONS``), so the walk and the next wall stay with this rung until the pocket
+leaves the escape as it was.  Its reasons (``REASONS``) hold the stuck count as
+``STUCK_NEUTRAL_REASONS`` do (policy_observation), so the walk and the next wall stay with this rung until the pocket
 opens and the loot owner, above, walks in.
 """
 

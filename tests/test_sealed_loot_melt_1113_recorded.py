@@ -107,6 +107,16 @@ class SealedLootMelt1113RecordedTest(recorded.RecordedHarness):
                     if (item["tval"], item["sval"]) == STONE_TO_MUD)
         self.assertEqual(key, "a" + wand["slot"] + "7")
 
+    def test_the_absorbed_power_alone_counts_its_uses(self):
+        """Declared constructed: the wand taken out, the absorbed power's uses (the life's
+        ~f list) alone cover the route's wall."""
+        policy, raw = self.stuck(absorbed=True)
+        raw["inventory"] = [item for item in raw["inventory"]
+                            if (item["tval"], item["sval"]) != STONE_TO_MUD]
+        raw["player"]["y"], raw["player"]["x"] = BESIDE_THE_WALL
+        self.assertEqual(self.decide(policy, raw),
+                         ("mBg7", sealed_loot.REASON + ":absorbed-power"))
+
     def test_with_no_means_the_escape_reads_recall_as_live(self):
         policy, raw = self.stuck()
         raw["inventory"] = [item for item in raw["inventory"]

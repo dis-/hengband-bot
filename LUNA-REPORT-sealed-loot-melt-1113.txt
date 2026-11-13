@@ -1,0 +1,107 @@
+LUNA-REPORT sealed-loot-melt-1113（壁に囲まれた感知した品は、価値に関係なく溶かして取る）
+
+枝: sealed-loot-melt-1113（main 6bddc7291a から、最後に main c50cd91dc4 を取り込み 358487bc32、その上に仕上げのコミット）。push・取り込みはしていない。
+オーナーの答え（2026-11-13、問い N）: 「価値に関係なく溶かす」。
+
+== 1. 先に訂正（13:10 の小部屋の形） ==
+
+前の報告（n1c-loot-left-1113pm）で「壁に囲まれた小部屋」と書いた 13:10 の訪問の品は、実際は次の形だった。
+- ボットの記憶の地図（13:11 の周辺感知で写った床）では、小部屋の中は既知の砂地の床。
+- 廊下側に開いた唯一の面は、感知した罠の列（(23,87)・(23,88) と (23,89)。(23,89) は焦げた場所＝火の罠）。
+- ボットの歩きは罠のマスを通らない（policy _is_avoidable_hazard_grid）ので、品へ歩く道が無く、「入口が無い」のと同じだった。
+  ほかの面はすべて既知の壁。
+前の報告では、ゲームの地図だけで読んで（記憶の床と罠を見ずに）壁で閉じていると書いた。誤りだったので訂正する。
+答えの「溶かす」はこの形にもそのまま当てはまる。廊下の脇の壁を1つ溶かせば、罠を通らずに入れる。
+そこで「歩きが届かない品のまわりの、壁と、歩きが避ける危険なマス（罠・害のある床）の内側」を小部屋として扱った。
+罠を解除して通る形を選ぶかどうかは、決まりが無いので問い1に書いた。
+
+== 2. 直し（コミット d9f004d4ca、仕上げは本文のコミット） ==
+
+新しいモジュール sealed_loot（判定はここだけ）:
+- いつ: policy ``_stuck_escape_key``（探索と隠し扉探しを使い切り、行き詰まりの帰還を読む直前）。
+  自分の閉じ込め（sealed_pocket.key）の次で、見える敵も感知した敵もいない時（「安全な時」）。
+- 小部屋（``pocket_walls``）: 拾いの候補のうち歩きが届かないもの。そこからつながるマスで、既知の壁でも
+  歩きが避ける危険なマスでもないものを集める。それが届く範囲や盤の端に触れていないこと（触れていれば
+  探索の受け持ちのフロンティア）。そのまわりの既知の溶かせる壁が目標。
+- 回数: 溶かす道の壁の数（retreat_enclosure ``melt_route``）を、持っている全ての回数
+  （sealed_pocket ``melt_charges``: 魔法棒の回数＋取り込んだ岩石溶解の回数、Q2 の突破と同じく1回で壁1つ）と比べる。
+  足りなければ今のまま（帰還）。手段が無い時も今のまま。
+- 溶かし方: 既存の Stone to Mud の道（retreat_enclosure ``melt_toward_key`` → sealed_pocket ``melt_at_key``、
+  追われる狩りの壁越えと同じ）。道の次の壁の隣なら溶かし、そうでなければそこへ歩く。新しい溶かし方は作っていない。
+- 順: 取り込んだ力を先に使い、無ければ魔法棒（既存の溶かす関数に ``power_first`` の指定を足した。
+  既存の呼び手は今までどおり魔法棒が先）。
+- 価値は見ない。小部屋が開けば、上の段の拾いの持ち主がふつうに歩いて拾う。
+- 理由 "stuck:sealed-loot-stone-to-mud"（取り込んだ力なら ":absorbed-power" が付く）は行き詰まりの回数を保つ
+  （policy_observation）。歩きと次の壁は、小部屋が開くまでこの段が持つ。
+
+既存の関数の小さな整理（振る舞いは同じ）:
+- policy_fundraising ``_dig_route``: 掘る道の最初の一歩と、掘る壁の数を返す。``_dig_route_first_step`` はその薄い包み。
+- retreat_enclosure ``meltable`` / ``melt_route``: ``_melt_key`` の中の溶かせる壁の判定と道を、外から使える関数にした。
+
+== 3. テスト ==
+
+tests/test_sealed_loot_melt_1113_recorded.py（8件）。記録 tests/fixtures/sealed-loot-melt-1113.jsonl.gz
+（tests/extract_sealed_loot_melt_1113_fixture.py）: 13:18:29 の帰還の前の盤 40 枚、life-205 の魔法棒の一覧
+（岩石溶解 99/99）、同じ命の感知した敵1体。各件は新しい policy で 40 枚を再生する。最後の盤では、実機と同じく
+行き詰まりの回数を上限にした（宣言した組み立て: 窓が 60 より短いため）。
+- test_the_stuck_escape_walks_to_the_rooms_wall_instead_of_reading_recall: choose_key で '8'
+  stuck:sealed-loot-stone-to-mud（実機は 'rk' stuck:recall-escape）。キーを _ExecutorInputPort で送り、
+  ゲームの偽物が ['8'] を受けた。
+- test_the_walk_holds_the_stuck_count_for_the_next_board: 次の盤も同じ段が '8' を出し、回数は保たれる。
+- test_beside_the_wall_the_absorbed_power_melts_it_first（宣言した組み立て: 壁 (19,87) の隣の (20,88) へ移す）:
+  取り込んだ力で 'mBg7'、理由 stuck:sealed-loot-stone-to-mud:absorbed-power。
+- test_without_the_power_the_wand_melts_it: 一覧が無ければ魔法棒 'a<slot>7'。
+- test_the_absorbed_power_alone_counts_its_uses（宣言した組み立て: 魔法棒を除き、壁の隣へ移す。仕上げで追加）:
+  取り込んだ力の回数だけで道の壁を数え、'mBg7' :absorbed-power。
+- test_with_no_means_the_escape_reads_recall_as_live: 魔法棒を除くと実機と同じ 'rk' stuck:recall-escape。
+- test_more_walls_than_uses_reads_recall（宣言した組み立て: 道の壁の数を 45、魔法棒の回数 44 より多くする）: 'rk'。
+- test_a_sensed_hostile_keeps_the_escape（宣言した組み立て: 感知した敵を足す）: この段は答えない。
+
+結果（main c50cd91dc4 の上、仕上げの後）:
+- tests.test_sealed_loot_melt_1113_recorded: 8件 OK（約125秒）。
+- 関係するモジュール（sealed_pocket・retreat_enclosure・行き詰まり/逃げ・拾い・資金集めの掘り・穴熊・Q2 の突破ほか、
+  名前とソースの語で選んだ149モジュール、3526件）を main（-base の worktree）と HEAD で1モジュール1プロセスで流して比べた:
+  main の赤 144件・HEAD の赤 144件、同じ id の集合。新しい赤 0件・直った赤 0件。赤はすべて main から（全体の赤は止めている）。
+  （PYTHONPATH は src と tests。policy_fixtures などを直に読むモジュールがあるため）
+- scripts/dungeon_ladder_lint.py: 0 violation(s)。scripts/town_work_manifest.py: 0 violation(s)。
+- scripts/reason_registry_lint.py: 1件。'retention:supply-ledger:recall-rod'（item_use_route.py:242）で、main でも同じ1件。
+  この枝の新しい理由（stuck:sealed-loot-stone-to-mud とその :absorbed-power）は指摘されていない。この枝の分は 0。
+
+== 4. revert-proof（本番の hunk を1つずつ戻して流し、元に戻した） ==
+
+（スクリプトで1つずつ置き換えて tests.test_sealed_loot_melt_1113_recorded を流し、元に戻した。戻した後に git status で差が無いことを確かめた）
+- R1 policy._stuck_escape_key の sealed_loot.key の呼び出しを外す → 4件失敗
+  （walks_to_the_rooms_wall・holds_the_stuck_count・absorbed_power_melts_it_first・wand_melts_it）。
+- R2 policy_observation で sealed_loot.REASONS が行き詰まりの回数を保つのを外す → 1件失敗（holds_the_stuck_count）。
+- R3 sealed_loot の power_first=True を False に → 1件失敗（absorbed_power_melts_it_first）。
+- R4 道の壁の数と回数の比較（route[1] > melt_charges）を外す → 1件失敗（more_walls_than_uses_reads_recall）。
+- R5 安全な時だけ（_safe）を外す → 1件失敗（a_sensed_hostile_keeps_the_escape）。
+- R6 _bound の避ける危険なマス（罠）を外す → 4件失敗（R1 と同じ4件。罠の列が境にならず小部屋が届く範囲に触れる）。
+- R7 sealed_pocket.melt_charges の取り込んだ力の回数を外す → 前の実装役の7件では赤にならなかった（ピン無し）。
+  仕上げで test_the_absorbed_power_alone_counts_its_uses を足し、R7 で 1件失敗（この件）を確かめた。
+
+振る舞いの変わらない整理（_dig_route の分け方、meltable / melt_route の外出し、melt_charges）は対象外。
+
+== 5. 保守性 ==
+
+- 新しい判定は sealed_loot の1か所。溶かす・歩く・回数を数える・壁を覚える（使い切った壁は狙わない）は既存の
+  sealed_pocket / retreat_enclosure をそのまま使い、新しい溶かし方を作っていない。
+- retreat_enclosure の ``_melt_key`` の中にあった「溶かせる壁」と「道」を関数として外に出した。sealed_loot も
+  同じ判定を使い、判定は1つのまま。
+- 掘る道は、壁の数も返す ``_dig_route`` 1つにまとめ、``_dig_route_first_step`` はその包みにした（重複した探索を作らない）。
+- 取り込んだ力を先にする順は、既存の溶かす関数の指定1つ（power_first）。順を書いた関数は1つのまま。
+- 回数の合計は sealed_pocket ``melt_charges``。anaguma ``usable_charges`` にも魔法棒の回数の合計が同じ形で
+  あり（穴熊は魔道具術師以外は1回残す決まり）、次の保守性の回でまとめられる候補。
+- 特定の階・品・職業の条件は足していない。
+
+== 6. checks.json の案 ==
+
+{"id":"SEALED-LOOT-MELT","owner":"2026-11-13 「価値に関係なく溶かす」壁に囲まれた感知した品","tests":["tests.test_sealed_loot_melt_1113_recorded"]}
+
+== 7. オーナーへの問い（新しい決まりが要るものだけ） ==
+
+問い1: 13:10 の小部屋は、本当は罠の列の向こうにあった（上の訂正）。今回は答えのとおり脇の壁を溶かして、
+罠を避けて入る。罠を解除して入る手（罠の解除の魔法棒・取り込んだ力・素手の解除）もあるが、拾いの道で罠を
+解除して通る決まりは無い（今は罠の隣に来た時だけ解除する）。
+  案A: 今のまま（溶かせる時は溶かす、溶かせない時は帰還）。
+  案B: 溶かす前に、罠の解除の手段があれば解除して通る。
