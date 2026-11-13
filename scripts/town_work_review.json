@@ -18801,5 +18801,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure predicate: a known grid no monster walks through (not passable, not a door); read by anaguma_geometry.diggable."
+  },
+  "confuser_contact.py:leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: asked from ladder_emergency.key (the dungeon ladder's emergency layer), which policy._decide reaches only off the town board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "n1-b life-392 (2026-11-13, death at 19F); owner 2026-11-14 「混乱する前に離れるだけ」: without resist_conf and not yet confused, an awake hostile faster than the player whose blows confuse and which reaches before its next action is left by *Destruction* where destruction_use.key answers, else a Teleportation scroll (status-threat:confuser-leave); None once confused or blind (the cures and the fight stay), where the quest forbids teleport or relocation is refused, or without a Teleportation scroll."
   }
 }

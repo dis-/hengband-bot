@@ -95,6 +95,8 @@ LADDER = (
         *D("me_powers.threat_key", exempt=ANSWERS_DANGER),
         *E("_item_destroying_breeder_leave_key", "_mana_food_survival_override_key",
            "_paralyzer_prevention_key", exempt=ANSWERS_DANGER),
+        # Owner 2026-11-14 「混乱する前に離れるだけ」 (n1-b life-392): above the summoner shots.
+        *D("confuser_contact.leave_key", exempt=ANSWERS_DANGER),
     )),
     # Owner 2026-11-06 「命に関わる時の後へ回す」: below the emergency ladder.
     Layer("summoner-shots", "the summons rules, floor avoidance, combat and all below", (
@@ -486,6 +488,9 @@ OWNER_RULES = (
             "_item_destroying_breeder_leave_key": "leaves a breeder that destroys the kit: survival",
             "_mana_food_survival_override_key": "starvation: survival",
             "_paralyzer_prevention_key": "the blow that ends the game: survival",
+            "confuser_contact.leave_key": "leaves a faster confuser before its blow takes the "
+                                          "scrolls away: survival (owner 2026-11-14 "
+                                          "「混乱する前に離れるだけ」)",
             "worsens_kill.key": "kills a summoner / breeder / shrieker that dies 被害無く, after "
                                 "survival (threat tiers design 4.4, 10a); a summons rule due "
                                 "on the board skips it",

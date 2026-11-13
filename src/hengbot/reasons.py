@@ -158,6 +158,9 @@ _rows(RELOCATING, "policy_combat", _RULE_ALL, "breeder-breakthrough:ascend", "br
 # above the Free Action depth requirement (policy_combat._paralyzer_prevention_key,
 # paralyzer_contact.SHALLOW_SIGHT_REASON_PREFIX); counted as the status-threat relocations are.
 _rows(RELOCATING, "policy_combat", _RULE_ALL, "shallow-paralyzer:stairs", "shallow-paralyzer:scroll")
+# Owner 2026-11-14 「混乱する前に離れるだけ」 (n1-b life-392): the Teleportation read before a
+# faster confuser's blow (confuser_contact.REASON); counted as the status-threat relocations are.
+_rows(RELOCATING, "confuser_contact", _RULE_ALL, "status-threat:confuser-leave")
 
 # ================================================================ relocations not counted
 _rows(EXCLUDED, "destruction_use",

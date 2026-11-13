@@ -1041,6 +1041,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "confuser_contact.py:leave_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "consumable_policy.py:_used_here": {
     "classification": "data",
     "rows": [
