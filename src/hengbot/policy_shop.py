@@ -42,6 +42,7 @@ from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
 from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
+from hengbot import item_use_route
 from hengbot import fundraising_survival, mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.town_hold import hold_claims, offered_steps
@@ -3105,7 +3106,8 @@ class ShopMixin(InStoreMixin):
         return tuple(rungs)
 
     def _matching_live_purchase_rungs(self, snapshot: Snapshot, item) -> tuple[PurchaseMatch, ...]:
-        if me_capability.replaced_by_absorbed(self, snapshot, item, me_capability.PURCHASE):
+        if (me_capability.replaced_by_absorbed(self, snapshot, item, me_capability.PURCHASE)
+                or item_use_route.surplus(self, snapshot, item)):
             return ()
         context = PurchaseContext(snapshot)
         return tuple(match for rung in self._purchase_rungs(context) if (match := rung.match(context, item)) is not None)

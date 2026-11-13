@@ -8,6 +8,7 @@ keys are declared constructed; keys are posted through the production
 executor.
 """
 import tests  # noqa: F401
+from tests.support import item_use_route_wall
 
 import copy
 import gzip
@@ -33,6 +34,10 @@ class TownStops1031RecordedTest(executor_harness.ProductionHarness):
     shelf_screen = staticmethod(lv7.Lv7TownStopRecordedTest.shelf_screen)
     post = lv7.Lv7TownStopRecordedTest.post
     execute = unid.UnidentifiedDepositRecordedTest.execute
+
+    def setUp(self):
+        super().setUp()
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
 
     @classmethod
     def setUpClass(cls):

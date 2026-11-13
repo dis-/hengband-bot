@@ -24,6 +24,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
+from tests.support import item_use_route_wall
 
 from hengbot.cli import _handle_owner_retirement
 from hengbot.model import STORE_HOME
@@ -47,6 +48,7 @@ class IdstaffStockoutHomeKit1112RecordedTest(unittest.TestCase):
         scratch = TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
         self.scratch = Path(scratch.name)
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
 
     def load(self, stop):
         """The stop's arrival policy, its journal rows and its board suppliers."""

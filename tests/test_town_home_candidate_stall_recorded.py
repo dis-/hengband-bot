@@ -15,6 +15,7 @@ import gzip
 import hashlib
 import json
 import unittest
+from tests.support import item_use_route_wall
 from dataclasses import replace
 from pathlib import Path
 
@@ -35,6 +36,10 @@ FIXTURE_SHA256 = "99501ba3dfb757fd0387229b6410915e30737d4ef08c73438104e77554742e
 
 
 class TownHomeCandidateStallRecordedTest(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
+
     @classmethod
     def setUpClass(cls):
         assert hashlib.sha256(FIXTURE.read_bytes()).hexdigest() == FIXTURE_SHA256

@@ -30,12 +30,15 @@ from __future__ import annotations
 from hengbot import quest25_druj_gear
 from hengbot.home_errand import HomeErrandRequest
 from hengbot.model import TVAL_POTION
-from hengbot.policy_constants import PACK_CAPACITY, QUEST_POTION_SVALS
+from hengbot.policy_constants import (
+    PACK_CAPACITY, QUEST_POTION_SVALS, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN,
+)
 from hengbot.town_visit import town_visit
 
 PURPOSE = "quest-optional-carry"
 CATEGORY = "quest-optional-carry-home"
 RETENTION_BRANCH = "quest-optional-carry"
+QUEST_AHEAD = frozenset({QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN})
 
 
 def _wanted(profile) -> dict[int, int]:
@@ -52,6 +55,20 @@ def _prepared(policy, snapshot) -> dict[int, int]:
 def wanted_kind(policy, snapshot, item) -> bool:
     """``item`` is of a kind the quest being prepared would like carried in."""
     return item.tval == TVAL_POTION and item.aware and item.sval in _prepared(policy, snapshot)
+
+
+def wanted_ahead(policy, snapshot, item) -> bool:
+    """A quest not yet done would like this kind carried in: the Home keeps it for that quest
+    (item_use_route), whichever quest is prepared now.  An untaken quest is absent from the
+    board's quest list."""
+    if item.tval != TVAL_POTION or not getattr(item, "aware", True):
+        return False
+    for quest_id in policy._quest_strategies:
+        quest = snapshot.quests.get(quest_id)
+        if ((quest is None or quest.status in QUEST_AHEAD)
+                and item.sval in _wanted(policy.approved_quest_strategy(quest_id))):
+            return True
+    return False
 
 
 def retained(policy, snapshot, item) -> int:

@@ -41,6 +41,7 @@ import copy
 import gzip
 import json
 import unittest
+from tests.support import item_use_route_wall
 from pathlib import Path
 
 from hengbot.home_visit import HomeVisitKind, HomeVisitRequest
@@ -79,6 +80,10 @@ def with_detection(case):
 
 
 class TownMiningHomeLegRecordedTest(d57.PostedDeathKey):
+    def setUp(self):
+        super().setUp()
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
+
     def test_recorded_rows(self):
         recorded = d57.recorded(CASE_302)
         self.assertEqual(recorded[1376553][0],
