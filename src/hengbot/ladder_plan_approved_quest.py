@@ -76,12 +76,7 @@ def key(policy, snapshot, *, profile, strategic_hostiles, strategic_adjacent, ph
                 # Chest work temporarily owns movement/search turns. The
                 # previous sweep goal must not expire as stalled while we
                 # deliberately process a different floor object.
-                if policy._loot_target is not None:
-                    policy._release_claim_goal(
-                        "loot-chest-processing", policy._loot_target, owners=CLAIM_LOOT_OWNERS
-                    )
-                    policy._nav_ledger.release("loot", policy._loot_target)
-                    policy._loot_target = None
+                policy._set_aside_loot_goal("loot-chest-processing")
                 return chest
         tick_rest = once_quest_recall.tick_rest_before_navigator(policy, snapshot)
         if tick_rest is not None:

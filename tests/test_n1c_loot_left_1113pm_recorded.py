@@ -6,9 +6,14 @@
    ``pack-full`` and known loot left; on each the board that filled the pack read Recall although
    a dearer single item lay on the floor, because the exchange was asked only from the loot
    owner, below the full pack's return (full_pack_exchange, ladder_objectives).
+2. A choke hold sets the loot walk it interrupts aside (summoner_wait.hold_key,
+   ``_set_aside_loot_goal``).  The navigation ledger charged the committed loot goal on every
+   board of the hold and deferred it for the floor (13:26:32, a heavy chain mail two cells
+   away); two of the 31 visits left such a goal when they returned by ``stuck:recall-escape``.
 
 Recorded: tests/fixtures/n1c-loot-left-1113pm.jsonl.gz
-(tests/extract_n1c_loot_left_1113pm_fixture.py): the 09:22:12 boards (turns 3629396-3629410).
+(tests/extract_n1c_loot_left_1113pm_fixture.py): the 09:22:12 boards (turns 3629396-3629410)
+and the 13:26 choke hold (turns 4044384-4044417).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -27,10 +32,11 @@ from tests.support import recorded
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-loot-left-1113pm.jsonl.gz"
-FIXTURE_SHA256 = "db9bdc1842cc7df455b5d8b358a7b2d22ac15dac9bef0d6b3706fed0b581e01d"
+FIXTURE_SHA256 = "c770396104ef0daa1227886959f8f9812c623e79e541fbdca92a07d55eeb6d9f"
 # The recorded floor's single items worth more than the spare (base cost, k_info).
 HEAVY_CHAIN_MAIL = Position(35, 22)  # 重鎖かたびら [16], 900
 STAFF_OF_EARTHQUAKES = Position(39, 84)  # 地震の杖, 350
+COMMITTED_LOOT = Position(57, 164)  # the choke-hold window's loot walk
 
 
 class N1cLootLeft1113pmRecordedTest(recorded.RecordedHarness):
@@ -41,6 +47,7 @@ class N1cLootLeft1113pmRecordedTest(recorded.RecordedHarness):
             rows = [json.loads(line) for line in stream]
         cls.full_pack = [row["board"] for row in rows if row["role"] == "full-pack"]
         cls.live = next(row for row in rows if row["role"] == "live-return")
+        cls.choke_hold = [row["board"] for row in rows if row["role"] == "choke-hold"]
         cls.monrace = load_monrace_knowledge(recorded.EDIT / "MonraceDefinitions.jsonc")
         cls.costs = load_baseitem_costs(recorded.EDIT / "BaseitemDefinitions.jsonc")
 
@@ -87,6 +94,37 @@ class N1cLootLeft1113pmRecordedTest(recorded.RecordedHarness):
         key = policy.choose_key(snapshot)
         self.assertEqual(policy.last_reason, full_pack_exchange.DESTROY_REASON)
         self.assertIsNotNone(key)
+
+    def held(self, repeats=1):
+        """The choke-hold window replayed; its last board decided ``repeats`` times."""
+        policy = HengbotPolicy(monrace_knowledge=self.monrace, baseitem_costs=self.costs)
+        recorded.skill(policy, self.choke_hold[-1])
+        for raw in self.choke_hold[:-1]:
+            key = policy.choose_key(parse_snapshot(copy.deepcopy(raw), self.monrace))
+            if key:
+                policy.confirm_key_posted(key)
+        self.assertEqual(policy._loot_target, COMMITTED_LOOT)
+        for advanced in range(repeats):
+            raw = copy.deepcopy(self.choke_hold[-1])
+            raw["turn"] += advanced
+            key = policy.choose_key(parse_snapshot(raw, self.monrace))
+            self.assertEqual((key, policy.last_reason), ("5", "detected:hold-choke"))
+            policy.confirm_key_posted(key)
+        return policy
+
+    def test_the_choke_hold_sets_the_loot_walk_aside(self):
+        policy = self.held()
+        self.assertIsNone(policy._loot_target)
+        self.assertFalse(policy._nav_ledger.is_expired("loot", COMMITTED_LOOT))
+        self.assertNotIn(("loot", COMMITTED_LOOT), policy._nav_ledger._progress)
+
+    def test_a_long_hold_does_not_defer_the_loot_for_the_floor(self):
+        """Declared constructed: the recorded hold board decided 40 times, a game turn apart
+        (the live hold lasted 25 boards before the walk's goal was deferred)."""
+        policy = self.held(repeats=40)
+        self.assertNotIn(COMMITTED_LOOT, policy._deferred_loot)
+        self.assertIn(COMMITTED_LOOT, policy._loot_candidates(
+            parse_snapshot(copy.deepcopy(self.choke_hold[-1]), self.monrace)))
 
 
 if __name__ == "__main__":
