@@ -2525,17 +2525,20 @@ def town_end_key(policy: Any, board: Any) -> str:
     walk_in = policy._mining_walk_in_return_key(board)
     if walk_in is not None:
         return walk_in
+    take = home_identification.filed_take_route_key(policy, board)
+    if take is not None:
+        # Owner 2026-10-31: a visit that can identify a Home candidate takes
+        # it out and identifies it.  It answers before the entrance step-off:
+        # Home hands a filed take to its outside entrance, the one board its
+        # withdrawal is composed on (n1-a life-522 2026-11-14 06:31, the
+        # step-off and the route back alternated around the Home entrance).
+        return take
     here = board.grid_at(board.player.position)
     if board.store is None and here is not None and here.is_store:
         # A board right after a store page is still on its entrance, where
         # the town owners do not compose (Home batches, approaches).  The
         # established safe step off the entrance comes before the end.
         return policy._town_entrance_step_off_key(board, TOWN_END_STEP_OFF)
-    take = home_identification.filed_take_route_key(policy, board)
-    if take is not None:
-        # Owner 2026-10-31: a visit that can identify a Home candidate takes
-        # it out and identifies it.
-        return take
     kit = town_end_mining.home_kit_route_key(policy, board)
     if kit is not None:
         return kit
