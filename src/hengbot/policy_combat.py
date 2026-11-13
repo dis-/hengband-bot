@@ -1800,12 +1800,18 @@ class CombatMixin:
         # `5` fires at the accepted target after returning to the direction
         # prompt.  The trailing Escape safely cancels fire if targeting failed.
         # Keep throwables on the bot-verified V1 direction path.
+        # `*` lists only target_able monsters, which needs projectable()
+        # (target-preparation.cpp:54-57): with none, it falls to the free
+        # cursor on the player's grid and the shot is spent.  n1-a life-519
+        # (2026-11-13, 23F): a novice warrior in a wall niche, in sight and
+        # never projectable, drew this macro for 1.5 hours.
         targetable_hostile = any(
             2 <= (distance := max(
                 abs(monster.position.y - player.position.y),
                 abs(monster.position.x - player.position.x),
             )) <= RANGED_MAX_DISTANCE
             and not self._sleeper_beyond_ranged_reach(monster, distance)
+            and self._may_project(snapshot, player.position, monster.position)
             for monster in hostiles
         )
         if not targetable_hostile or unwoken:
