@@ -27,7 +27,7 @@ Game (C:/hengband/src):
    (cmd-magiceat.cpp) refuses a confused player; a stun adds its
    get_magic_chance_penalty to the failure (:485, 10-50%); a failure spends the turn
    and keeps the charge.  Neither refuses hallucination (only cmd_limit_image's two
-   class powers do).
+   class powers do; owner 2026-11-13 「幻覚でも使う」).
 
 Gates (``key``, asked by each rung before its read): the character is clear-headed (blindness
 allowed, owner 2026-11-08 「盲目でも使う」; a stun allowed, owner 2026-11-13, judged by the
@@ -140,19 +140,34 @@ def _absorbed_key(policy, snapshot) -> str | None:
     if snapshot.player.stunned and (
             me_powers.stunned_success(policy, snapshot, POWER) or 0) < me_capability.RELIABLE_MIN_SUCCESS:
         return None
-    return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER], blind_ok=True)
+    return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER], blind_ok=True,
+                                hallucination_ok=True)
+
+
+def staff_success(player, level: int) -> float:
+    """A carried staff's success percent (not confused): use-execution.cpp's chance
+    (attack_expectation) at the item's level; stunned, times the chance check_stun lets the
+    use through (me_powers.STUN_ITEM_PENALTY); a Berserker always fails."""
+    if player.class_id == PLAYER_CLASS_BERSERKER:
+        return 0.0
+    success = attack_expectation.device_use_success(player.device_skill, level) * 100
+    if player.stunned:
+        success *= (100 - me_powers.STUN_ITEM_PENALTY[me_powers._stun_rank(player)]) / 100
+    return success
+
+
+def absorbed_success(policy, snapshot, ident) -> int | None:
+    """An absorbed power's success percent now: the displayed failure with the stun's
+    penalty (me_powers.stunned_success), else the displayed success; None without a row."""
+    success = me_powers.stunned_success(policy, snapshot, ident)
+    if success is not None:
+        return success
+    row = me_capability.observed_row(policy, *ident)
+    return None if row is None else int(row.get("success") or 0)
 
 
 def _reliable_staff(snapshot) -> bool:
-    """use-execution.cpp's chance (attack_expectation) at the table's number; stunned, times
-    the chance check_stun lets the use through (me_powers.STUN_ITEM_PENALTY)."""
-    player = snapshot.player
-    if player.class_id == PLAYER_CLASS_BERSERKER:
-        return False
-    success = attack_expectation.device_use_success(player.device_skill, STAFF_LEVEL)
-    if player.stunned:
-        success *= (100 - me_powers.STUN_ITEM_PENALTY[me_powers._stun_rank(player)]) / 100
-    return success * 100 >= me_capability.RELIABLE_MIN_SUCCESS
+    return staff_success(snapshot.player, STAFF_LEVEL) >= me_capability.RELIABLE_MIN_SUCCESS
 
 
 def _reliable_carried_staff(policy, snapshot):
@@ -190,11 +205,12 @@ def _clear_headed(player) -> bool:
     """Owner 2026-11-08 「盲目でも使う」: blindness does not stop the use (neither the
     staff nor the ``m`` command refuses it, above); confusion still does.  A stun does not
     either (owner 2026-11-13; n1-b life-377 died stunned without it): the game only adds
-    its penalty, which ``_absorbed_key`` and ``_reliable_staff`` count.  Hallucination is
-    no refusal of the game's, but the board then redacts every monster's identity
-    (bot-json-output.cpp make_visible_monster_json), so neither the worst threat nor a
-    damaged target or guardian in the circle can be told: still no use."""
-    return not (player.confused or player.hallucinated)
+    its penalty, which ``_absorbed_key`` and ``_reliable_staff`` count.  Nor hallucination
+    (owner 2026-11-13 「幻覚でも使う」, no refusal of the game's): the board then redacts
+    every monster's identity (bot-json-output.cpp make_visible_monster_json; model.py keeps
+    the position and treats it as an awake hostile of unknown strength), and the same gates
+    judge from what it still gives."""
+    return not player.confused
 
 
 def _floor_destroyed(policy, snapshot) -> bool:
@@ -312,6 +328,16 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None)
     policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
     _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
     return used
+
+
+def success(policy, snapshot) -> float | None:
+    """The success percent of the means ``key`` would use (the absorbed power first), else
+    None; the scene's gates are not asked."""
+    if _absorbed_key(policy, snapshot) is not None:
+        return absorbed_success(policy, snapshot, POWER)
+    if _carried_key(policy, snapshot) is not None:
+        return staff_success(snapshot.player, STAFF_LEVEL)
+    return None
 
 
 def usable(policy, snapshot, *, leaving=None) -> bool:

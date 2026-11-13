@@ -101,6 +101,7 @@ from hengbot.threat_escape import (  # noqa: F401
     blind_teleport_key,
     ABSORBED,
     blind_teleport_means,
+    blind_teleport_success,
     escape_restorable,
     need_not_fight,
 )

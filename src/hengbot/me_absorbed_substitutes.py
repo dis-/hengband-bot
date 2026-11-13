@@ -20,6 +20,8 @@ that owner's prompts from ``POWERS`` exactly like a me_powers use.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from hengbot import me_capability, me_powers
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.me_staff_sequence import cast_blocked
@@ -110,9 +112,14 @@ def blind_castable(snapshot) -> bool:
             and not power_command_refused(snapshot))
 
 
-def cast_key(policy, snapshot, power, direction: str = "", *, blind_ok: bool = False) -> str | None:
+def cast_key(policy, snapshot, power, direction: str = "", *, blind_ok: bool = False,
+             hallucination_ok: bool = False) -> str | None:
     """``m`` + kind + letter (+ direction) when the power has a charge here.
-    ``blind_ok``: a power the caller casts blind too (``blind_castable``)."""
+    ``blind_ok``: a power the caller casts blind too (``blind_castable``).
+    ``hallucination_ok``: a power the caller casts hallucinating too; the ``m`` command does
+    not refuse hallucination (cmd-magiceat.cpp:463 refuses confusion only)."""
+    if hallucination_ok and snapshot.player.hallucinated:
+        snapshot = replace(snapshot, player=replace(snapshot.player, hallucinated=False))
     blocked = cast_blocked(snapshot) and not (blind_ok and blind_castable(snapshot))
     if (not me_capability.has(policy, snapshot, power.kind, power.sval) or blocked
             or me_capability.charges(policy, snapshot, power.kind, power.sval) <= 0):
