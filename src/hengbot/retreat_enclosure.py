@@ -32,7 +32,8 @@ In order (``OPENERS``):
   「数える」): the wand or the absorbed power (sealed_pocket ``can_melt``, ``melt_at_key``,
   its uses counted against each wall) melts the route's next wall once beside it;
 - disarm: a walk to the ground whose only way crosses a trap, onto which ``_step_toward``
-  posts its existing disarm (CHEST_DISARM_BUDGET tries a trap, as every walk);
+  posts its existing disarm (CHEST_DISARM_BUDGET tries a trap, as every walk); the quest
+  search asks it alone (``cross_toward_key``) toward ground only a known trap walls off;
 - strike: a visible enemy standing on the ground or on the vetoes beside the player's side
   that the walk-out's blocker reading calls weak (``_weak_blocker``: no ranged attack, and
   ``_escape_blocker_is_easy_kill``'s melee projection kills it before its blows take the
@@ -283,16 +284,30 @@ def _first_step(policy, snapshot, goals, admit) -> Position | None:
     return None
 
 
-def _disarm_key(policy, snapshot, walled) -> str | None:
+def crossable(policy, snapshot, position) -> bool:
+    """A cell the disarm opener's walk enters: no hazard, or a trap on ground that does no damage
+    whose disarm the walk still tries (CHEST_DISARM_BUDGET)."""
+    grid = snapshot.grids.get(position)
+    if not policy._is_avoidable_hazard_grid(grid):
+        return True
+    return (grid.trap and not policy._is_damaging_grid(grid)
+            and policy._floor_trap_disarm_attempts[(position.y, position.x)] < CHEST_DISARM_BUDGET)
+
+
+def cross_toward_key(policy, snapshot, ground, avoid=frozenset()) -> str | None:
+    """The disarm opener's walk across a trap toward known ``ground`` that the asker's own
+    walk, which keeps off traps, does not reach, keeping off ``avoid`` too: the quest search's
+    ground past a known trap (quest_target_search, n1-a life-522)."""
+    if snapshot.player.recalling:
+        return None
+    return _disarm_key(policy, snapshot, WalledOff(frozenset(), frozenset(ground)), avoid)
+
+
+def _disarm_key(policy, snapshot, walled, avoid=frozenset()) -> str | None:
     """A walk to the ground across a trap the walk's disarm still tries."""
     def admit(position) -> bool:
-        if position in policy._engagement_avoid_cells:
-            return False
-        grid = snapshot.grids.get(position)
-        if not policy._is_avoidable_hazard_grid(grid):
-            return True
-        return (grid.trap and not policy._is_damaging_grid(grid)
-                and policy._floor_trap_disarm_attempts[(position.y, position.x)] < CHEST_DISARM_BUDGET)
+        return (position not in policy._engagement_avoid_cells and position not in avoid
+                and crossable(policy, snapshot, position))
 
     first = _first_step(policy, snapshot, walled.ground, admit)
     if first is None:
