@@ -29,11 +29,11 @@ Who acts on a row:
  * ``shelved_at_home``: policy_home._home_deposit_candidate deposits a ``home``
    kind that has no ``carry`` flag on the Home visit, unless
    ``carry_required`` names a requirement that reads it from the pack.
- * ``quaffed_on_sight`` / ``read_on_sight``: a ``use`` kind is used when safe:
-   potions by the existing stat-gain owner (policy._stat_gain_quaff_key),
-   scrolls by ``use_now_key`` on the dungeon's safe decision
-   (junk_destroy_now.safe).  ``USE_OWNED_ELSEWHERE`` and ``USE_UNSUPPORTED``
-   name the ``use`` kinds this module does not use itself.
+ * ``DRINK_AT_ONCE`` / ``read_on_sight``: a ``use`` kind is used when safe:
+   potions by the drinker their ``DRINK_AT_ONCE`` row names, wherever they are
+   (a Home copy is taken out), scrolls by ``use_now_key`` on the dungeon's
+   safe decision (junk_destroy_now.safe).  ``USE_OWNED_ELSEWHERE`` and
+   ``USE_UNSUPPORTED`` name the ``use`` kinds used otherwise or not at all.
 """
 
 from __future__ import annotations
@@ -45,7 +45,9 @@ from pathlib import Path
 
 from hengbot import quest_optional_carry
 from hengbot.model import (
-    RESTORE_POTION_SVAL_BY_STAT, SV_POTION_EXPERIENCE, SV_POTION_RESISTANCE, SV_POTION_RESTORE_EXP,
+    RESTORE_POTION_SVAL_BY_STAT, STAT_NAMES, SV_POTION_AUGMENTATION, SV_POTION_EXPERIENCE,
+    SV_POTION_INC_CHR, SV_POTION_INC_CON, SV_POTION_INC_DEX, SV_POTION_INC_INT, SV_POTION_INC_STR,
+    SV_POTION_INC_WIS, SV_POTION_RESISTANCE, SV_POTION_RESTORE_EXP,
     SV_POTION_SELF_KNOWLEDGE, SV_POTION_STAR_ENLIGHTENMENT,
     SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_MAPPING,
     SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
@@ -58,8 +60,6 @@ KINDS = {TVAL_POTION: "potion", TVAL_SCROLL: "scroll"}
 
 # ``use`` kinds another owner already uses, with its own condition.
 USE_OWNED_ELSEWHERE = {
-    # policy_shop._experience_potion_quaff_key: Restore Life Levels first.
-    (TVAL_POTION, SV_POTION_EXPERIENCE): "experience-quaff",
     # policy_equipment._town_enchant_launcher_key: read on the worn launcher.
     (TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_HIT): "launcher-enchant",
     (TVAL_SCROLL, SV_SCROLL_ENCHANT_WEAPON_TO_DAM): "launcher-enchant",
@@ -150,21 +150,18 @@ def shelved_at_home(item) -> bool:
     return entry is not None and entry.home and not entry.carry
 
 
-def _used_here(item, tval: int) -> bool:
-    entry = row(item)
-    return (entry is not None and entry.use and item.tval == tval
-            and entry.kind not in USE_OWNED_ELSEWHERE
-            and entry.kind not in USE_UNSUPPORTED)
-
-
 def quaffed_on_sight(item) -> bool:
-    """A ``use`` potion drunk on sight (policy._stat_gain_quaff_key)."""
-    return _used_here(item, TVAL_POTION)
+    """A ``DRINK_AT_ONCE`` potion of the stat-gain quaff (policy._stat_gain_quaff_key)."""
+    entry = drink_row(item)
+    return entry is not None and entry.drinker == STAT_GAIN_QUAFF
 
 
 def read_on_sight(item) -> bool:
     """A ``use`` scroll read on the first safe dungeon decision."""
-    return _used_here(item, TVAL_SCROLL)
+    entry = row(item)
+    return (entry is not None and entry.use and item.tval == TVAL_SCROLL
+            and entry.kind not in USE_OWNED_ELSEWHERE
+            and entry.kind not in USE_UNSUPPORTED)
 
 
 def carry_required(policy, snapshot, item) -> bool:
@@ -247,34 +244,81 @@ def use_now_key(policy, snapshot) -> str | None:
     return None
 
 
-# Owner 2026-11-13 「*啓蒙*の薬を飲んでいない件を調査。知能と賢さの基礎値が上がるのですぐに飲み
-# たいし、そのように設定したはずである」: the Potions of *Enlightenment* (do_inc_stat on
-# A_INT and A_WIS, quaff-effects.cpp star_enlightenment) and Self Knowledge are drunk, never
-# shelved, sold or destroyed as surplus, and a copy at Home is taken out and drunk.
-DRINK_NOT_STORE = frozenset({(TVAL_POTION, SV_POTION_STAR_ENLIGHTENMENT),
-                             (TVAL_POTION, SV_POTION_SELF_KNOWLEDGE)})
+STAT_GAIN_QUAFF = "stat-gain-quaff"
 
 
-def kept_to_drink(item) -> bool:
-    """A carried potion the retention keeps whole: it is drunk, not stored."""
-    return (item.tval, item.sval) in DRINK_NOT_STORE and quaffed_on_sight(item)
+@dataclass(frozen=True)
+class Drink:
+    """A 「拾って使う」 potion drunk as soon as it is safe, wherever it is."""
+    # The stats it raises (status/base-status.cpp do_inc_stat); () -- it always does something.
+    raises: tuple[str, ...] = ()
+    # Its quaff owner.  ``STAT_GAIN_QUAFF`` (policy._stat_gain_quaff_key) drinks a carried
+    # one on the dungeon's and the town's safe decisions, the retention keeps it whole and
+    # a Home copy is taken out for it (``home_potions_to_drink``).
+    drinker: str = STAT_GAIN_QUAFF
+
+# The "drink at once" potions, one row per kind.  Owner 2026-11-13 「自宅に器用さの薬、耐久力の
+# 薬など即飲む指示にした薬が蓄積されている。調査して改善。」 and 「*啓蒙*の薬を飲んでいない件を調査。
+# 知能と賢さの基礎値が上がるのですぐに飲みたいし、そのように設定したはずである」: never shelved,
+# and a Home copy is taken out and drunk.  A stat potion does nothing once every stat it raises
+# is at the character's maximum and not drained (inc_stat: stat_cur >= stat_max_max; do_inc_stat
+# restores a drained one first): it is then surplus (item_use_route), sold or destroyed.
+DRINK_AT_ONCE = {
+    (TVAL_POTION, SV_POTION_INC_STR): Drink(("str",)),
+    (TVAL_POTION, SV_POTION_INC_INT): Drink(("int",)),
+    (TVAL_POTION, SV_POTION_INC_WIS): Drink(("wis",)),
+    (TVAL_POTION, SV_POTION_INC_DEX): Drink(("dex",)),
+    (TVAL_POTION, SV_POTION_INC_CON): Drink(("con",)),
+    (TVAL_POTION, SV_POTION_INC_CHR): Drink(("chr",)),
+    (TVAL_POTION, SV_POTION_AUGMENTATION): Drink(STAT_NAMES),   # quaff-effects.cpp augmentation
+    # star_enlightenment also maps the level and shows the self-knowledge.
+    (TVAL_POTION, SV_POTION_STAR_ENLIGHTENMENT): Drink(),
+    (TVAL_POTION, SV_POTION_SELF_KNOWLEDGE): Drink(),
+    # The drained wait (owner 2026-09-22): policy_shop._experience_potion_quaff_key drinks
+    # Restore Life Levels first; policy_shop._queue_home_experience_potion takes the Home copy.
+    (TVAL_POTION, SV_POTION_EXPERIENCE): Drink(drinker="experience-quaff"),
+}
 
 
-def home_potion_to_drink(policy, snapshot):
-    """The known Home stack of a ``DRINK_NOT_STORE`` potion to take out now, or None.
+def drink_row(item) -> Drink | None:
+    """The ``DRINK_AT_ONCE`` row of an identified 「拾って使う」 potion (pack or shelf)."""
+    entry = row(item)
+    if entry is None or not entry.use:
+        return None
+    return DRINK_AT_ONCE.get(entry.kind)
 
-    In town, with the Home listing current and no hostile in view (the stat-gain quaff
-    drinks it on the next safe town decision); one at a time, so a stack is drunk one
-    take after another.
+
+def does_something(snapshot, item) -> bool:
+    """Drinking it now changes the character: a stat it raises is below the maximum or drained."""
+    entry = drink_row(item)
+    if entry is None or not entry.raises:
+        return entry is not None
+    player = snapshot.player
+    return any(stat not in player.stats_at_max or stat in player.drained_stats
+               for stat in entry.raises)
+
+
+def drunk_now(snapshot, item) -> bool:
+    """A potion the stat-gain quaff drinks: the retention keeps it whole, Home gives it back."""
+    entry = drink_row(item)
+    return (entry is not None and entry.drinker == STAT_GAIN_QUAFF
+            and does_something(snapshot, item))
+
+
+def home_potions_to_drink(policy, snapshot) -> list:
+    """The known Home stacks of the potions ``drunk_now`` to take out now, catalogue order.
+
+    In town, with the Home listing current, no hostile in view and none carried (the
+    carried ones are drunk first); each stack is taken whole, and the stat-gain quaff
+    drinks them once the takes are done.
     """
     if not snapshot.in_town or not policy._home_knowledge_current:
-        return None
+        return []
     if policy._physical_hostiles(snapshot):
-        return None
-    if any(kept_to_drink(item) for item in snapshot.inventory):
-        return None   # the carried one is drunk first
+        return []
+    if any(drunk_now(snapshot, item) for item in snapshot.inventory):
+        return []
     deferred = getattr(policy, "_deferred_home_items", ())
-    return next((item for item in policy._home_knowledge_items[:policy._home_knowledge_valid_before]
-                 if item.count > 0 and getattr(item, "aware", True)
-                 and (item.tval, item.sval) in DRINK_NOT_STORE
-                 and policy._item_signature(item) not in deferred), None)
+    return [item for item in policy._home_knowledge_items[:policy._home_knowledge_valid_before]
+            if item.count > 0 and drunk_now(snapshot, item)
+            and policy._item_signature(item) not in deferred]

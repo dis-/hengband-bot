@@ -228,6 +228,10 @@ class N1bTownStops1108RecordedTest(executor_pins.ProductionHarness):
     # DECLARED WALL (2026-11-11): the Heroism stock (heroism_potion, owner 2026-11-11) postdates this
     # recording; with it the character also files the Temple errand and keeps its carried potion, so
     # the recorded route is pinned with no stock wanted.
+    # DECLARED WALL (2026-11-14): the Home take of the "drink at once" potions (owner 2026-11-13,
+    # tests/test_stat_potions_home_1114_recorded.py) postdates this recording; this Home holds a
+    # 耐久力の薬 (slot 10), taken at row 3, so the recorded route to the smith is pinned without it.
+    @mock.patch.object(HengbotPolicy, "_bind_home_drink_potion_withdrawal", lambda *args: None)
     @mock.patch.object(heroism_potion, "carry_target", lambda snapshot: 0)
     def test_a_recorded_raise_is_posted_through_the_one_item_chooser(self):
         policy = self.restore("a")

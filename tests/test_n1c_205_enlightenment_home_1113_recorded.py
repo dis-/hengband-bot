@@ -13,7 +13,7 @@ Recorded: the same town-arrival checkpoint as tests/test_n1c_205_food_devices_11
 *啓蒙*の薬 x1 (Home slot 12).  The recorded bot never took it: rows 11-16 sold at the Magic
 shop and row 18 stopped.
 
-Fix: consumable_policy.home_potion_to_drink / policy_home._bind_home_drink_potion_withdrawal
+Fix: consumable_policy.home_potions_to_drink / policy_home._bind_home_drink_potion_withdrawal
 file the Home take (the *Remove Curse* reserve's addressed take), the stat-gain quaff drinks
 the carried one, and the retention keeps both kinds whole (``consumable:drink-not-store``), so
 no stash, sale or destruction path takes them.
@@ -86,7 +86,7 @@ class N1c205EnlightenmentHome1113RecordedTest(food_devices.N1c205FoodDevices1113
         # DECLARED CONSTRUCTED: an awake enemy in view.
         raw["visible_monsters"] = [dict(MONSTER, y=raw["player"]["y"], x=raw["player"]["x"] + 2)]
         board = parse_snapshot(raw, policy._monrace_knowledge)
-        self.assertIsNone(consumable_policy.home_potion_to_drink(policy, board))
+        self.assertEqual(consumable_policy.home_potions_to_drink(policy, board), [])
         self.assertIsNone(policy._home_pending_item)
 
     def test_the_taken_potion_is_drunk_and_never_stored(self):
@@ -110,8 +110,14 @@ class N1c205EnlightenmentHome1113RecordedTest(food_devices.N1c205FoodDevices1113
                          (1, "consumable:drink-not-store"))
         self.assertEqual(policy._retention_surplus(board, carried), 0)
         self.assertFalse(policy._home_deposit_candidate(carried, board))
-        self.assertIsNone(consumable_policy.home_potion_to_drink(policy, board))
+        self.assertEqual(consumable_policy.home_potions_to_drink(policy, board), [])
+        # DECLARED CONSTRUCTED: the take's observed effect confirms the queued take
+        # (policy.py, home-withdraw-observed); the quaff ends it before drinking
+        # (stat-potions-home-1114: drunk while still queued, it read as a failed take).
+        policy._home_withdrawal_queued = False
+        policy._home_pending_take_confirmed = policy._home_pending_item
         self.assertEqual(policy.choose_key(board), "qe")
+        self.assertIsNone(policy._home_pending_item)
         self.assertEqual(policy.last_reason, "stat-gain:self-knowledge")
 
 

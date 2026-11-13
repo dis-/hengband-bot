@@ -2400,8 +2400,8 @@ class HomeMixin:
         """Return the existing reservation together with its observed branch."""
         if self._opening_q1_active(snapshot) and (item.is_digging_tool or item.is_treasure_detection_scroll):
             return item.count, "opening-q1:kit"
-        if consumable_policy.kept_to_drink(item):
-            # Owner 2026-11-13: *Enlightenment* / Self Knowledge are drunk, never stored.
+        if consumable_policy.drunk_now(snapshot, item):
+            # Owner 2026-11-13: the "drink at once" potions are drunk, never stored.
             return item.count, "consumable:drink-not-store"
         from hengbot.me_staff_sequence import retains as staff_sequence_retains
         if staff_sequence_retains(self, snapshot, item):
@@ -4354,7 +4354,10 @@ class HomeMixin:
         self._star_remove_curse_reserve_withdraw_pending = True
 
     def _bind_home_drink_potion_withdrawal(self, snapshot: Snapshot) -> None:
-        """Owner 2026-11-13: take a Home *Enlightenment* / Self Knowledge out to drink it.
+        """Owner 2026-11-13: take a Home "drink at once" potion out to drink it.
+
+        consumable_policy.home_potions_to_drink lists them (the DRINK_AT_ONCE rows of the
+        stat-gain quaff that still do something for this character).
 
         The same addressed Home take as the *Remove Curse* reserve
         (_bind_home_star_remove_curse_withdrawal); the stat-gain quaff drinks it.
@@ -4375,13 +4378,33 @@ class HomeMixin:
                 or self._home_is_full(snapshot)
                 or self._inventory_overweight(snapshot)):
             return
-        potion = consumable_policy.home_potion_to_drink(self, snapshot)
-        if potion is None or not home_take_fits(snapshot, potion, 1):
+        potions = consumable_policy.home_potions_to_drink(self, snapshot)
+        # One whole stack at a time, the last shelf slot first: a take shifts only
+        # the later slots (_confirm_home_withdrawal_address), so the next stack keeps
+        # its address and is taken once this one is drunk.
+        potion = potions[-1] if potions else None
+        if potion is None or not home_take_fits(snapshot, potion, potion.count):
             return
         self._rearm_town_store_for_new_work(STORE_HOME)
         self._home_pending_item = self._item_signature(potion)
-        self._home_pending_quantity = 1
+        self._home_pending_quantity = potion.count
         self._home_withdrawal_queued = True
+
+    def _home_takes_let_drink(self, signature: tuple[str, int, int]) -> bool:
+        """No Home take is in flight but this carried potion's own, confirmed one.
+
+        That take is ended here (_release_confirmed_home_take, as its entrance does):
+        drunk while still queued, the town item processing read the potion's absence
+        as a failed take and deferred its stack for the visit.  Another bound take
+        finishes first.
+        """
+        bound = self._bound_home_take_signatures()
+        if not bound:
+            return True
+        if bound == {signature} and getattr(self, "_home_pending_take_confirmed", None) == signature:
+            self._release_confirmed_home_take()
+            return True
+        return False
 
     def _keep_home_takes_within_pack_budget(self, snapshot, stocked_items) -> bool:
         """Release bound Home takes the town pack budget refuses.
