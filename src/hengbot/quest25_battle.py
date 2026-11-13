@@ -97,6 +97,7 @@ from hengbot import (
     breeder_area_attack,
     combat_answer,
     hunt_target,
+    left_cells,
     me_capability,
     me_device_attacks,
     me_powers,
@@ -555,7 +556,8 @@ def _refused(ctx: _Ctx) -> frozenset:
 
 
 def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
-    refused = _refused(ctx)
+    # The cells an owner left (left_cells) are refused as the warning's are.
+    refused = _refused(ctx) | left_cells.refused_yx(ctx.policy, ctx.snapshot)
     goals = {tuple(goal) for goal in goals} - refused
     if not goals:
         return []

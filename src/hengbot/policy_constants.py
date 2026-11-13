@@ -176,6 +176,9 @@ SCROLL_LOCK_ESCAPE_PROBABILITY = 0.10
 MONSTER_SPELL_MAX_RANGE = 18
 
 
+# The unseen attacker's reverse-choke retreat (policy_supply._unseen_retreat_key).
+UNSEEN_REVERSE_REASON = "unseen:reverse-choke"
+
 DIRECTION_KEYS: dict[tuple[int, int], str] = {
     (-1, -1): "7",
     (-1, 0): "8",

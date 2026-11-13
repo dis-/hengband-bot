@@ -18358,6 +18358,105 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the explore's path to the reachable remembered frontier nearest loot the loot walk noted without a route on STEER_AFTER_BOARDS boards (owner 2026-11-13 「その品の方へ探索を寄せる」); _explore_step records and walks it as its own FRONTIER goal."
   },
+  "left_cells.py:_registry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the left-cell registry of the floor visit (created on first use or a floor change); no key."
+  },
+  "left_cells.py:_live_records": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the left-cell records whose reason holds (clock, tracked monsters); drops ended records; no key."
+  },
+  "left_cells.py:refused": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cells no walk steps back into (owner 2026-11-13 「1と2だけ」 part 1): a frozenset of positions read by route searches; no key."
+  },
+  "left_cells.py:refused_yx": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: left_cells.refused as (y, x) cells for the quest plan maps; no key."
+  },
+  "pingpong_guard.py:report": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: this board's ping-pong event string for the decision log; no key."
+  },
+  "town_hold.py:decision_rung": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the rung name the latest decision ranked at (TownHold.last_rung); read by the decision log and the ping-pong guard's rank; no key."
+  },
+  "town_terminal.py:verdict_home_withdraw": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command."
+  },
+  "town_terminal.py:verdict_store_buy": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Town terminal admission and refused-operation confirmation.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "terminal refusal confirmation",
+    "delegation": "no independent success",
+    "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command."
+  },
+  "pingpong_guard.py:after_ladder": {
+    "classification": "dungeon-only",
+    "rows": [
+      "departure"
+    ],
+    "context": "No town key: guard.escalated is set only by pingpong_guard.observe on a dungeon board (it clears the guard in town and in a store).",
+    "evidence": "Owner 2026-11-13 「1と2だけ」 part 2: on a ping-pong escalation board, a non-survival key is replaced by the existing livelock leave (_navigation_livelock_key keeps its own rows).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_confirm_tome_key": {
     "classification": "producer",
     "rows": [

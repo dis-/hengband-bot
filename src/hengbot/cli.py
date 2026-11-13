@@ -44,7 +44,8 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
-from hengbot.loop_detection import LOOP_MAX_DISTINCT
+from hengbot import pingpong_guard
+from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
@@ -227,14 +228,7 @@ def _modal_recovery_action(recovery_attempts: int) -> str:
 def _silent_game_incident(window_pid) -> str:
     """Give process death priority when terminal modal recovery is exhausted."""
     return "stuck-prompt" if _game_process_alive(window_pid) else "player-death"
-# Loop / stuck detection. If the character stays confined to a handful of tiles
-# on a single floor for this many consecutive decisions, it is looping — an
-# exploration oscillation the policy's own anti-stuck guards (visit penalty,
-# probe, livelock breaker) could not break (e.g. a 2-cycle between two tiles that
-# gate the only routes to both frontiers, where the keys alternate so the
-# same-key livelock guard never trips). Rather than flail forever, STOP the bot
-# so the situation can be investigated from the preserved game state.
-LOOP_WINDOW = 40
+# Loop / stuck detection: LOOP_WINDOW (loop_detection, shared with the ping-pong guard).
 # Multipliers repeatedly appear and disappear between melee turns as their pack
 # shifts around the player. Give that productive fight longer to resolve, while
 # retaining a finite guard for a genuinely unwinnable engagement.
@@ -2415,6 +2409,8 @@ def _write_decision(
                 record["visit_stage"] = facts["visit_stage"]
             if facts.get("carried_spare_gear"):
                 record["carried_spare_gear"] = facts["carried_spare_gear"]
+            if policy is not None and (pingpong := pingpong_guard.report(policy)) is not None:
+                record["pingpong"] = pingpong
             if policy is not None:
                 from hengbot.town_work import current_record, receipts
                 arbiter = getattr(policy, "_town_turn_arbiter", None)
@@ -5579,7 +5575,7 @@ def _run_follow(
                         if multiplier_combat_grace
                         else LOOP_WINDOW
                     )
-                    if _is_looping(recent_cells, window=loop_window):
+                    if _loop_stop_due(recent_cells, loop_window, policy, snapshot):
                         # The driver's own stop report; see the stalled-command
                         # write above for why the ledger is not offered it.
                         _write_decision(
@@ -5769,6 +5765,14 @@ def _game_process_alive(pid) -> bool:
         return code.value == STILL_ACTIVE
     finally:
         kernel32.CloseHandle(handle)
+
+
+def _loop_stop_due(recent_cells, window: int, policy, snapshot) -> bool:
+    """The confined-walk stop (``_is_looping``), except inside a ping-pong guard's window: the
+    guard owns that alternation and escalates the same pair again to the livelock leave
+    (pingpong_guard ``holds_loop_stop``)."""
+    return (_is_looping(recent_cells, window=window)
+            and not pingpong_guard.holds_loop_stop(policy, snapshot))
 
 
 def _is_looping(recent_cells, *, window: int = LOOP_WINDOW) -> bool:

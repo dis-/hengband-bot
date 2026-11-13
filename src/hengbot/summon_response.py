@@ -303,7 +303,7 @@ def leave_key(policy, snapshot) -> str | None:
     if scroll is None:
         return None
     here = snapshot.player.position
-    policy._claim_engagement_avoid_cells((here,))
+    policy._claim_engagement_avoid_cells((here,), owner=LEAVE_REASON)
     if here in policy._explore_path:
         policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
     memory.leave_turn = snapshot.turn

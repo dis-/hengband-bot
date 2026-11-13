@@ -92,7 +92,7 @@ def _leave_shot_hold_point_key(policy, snapshot, monsters):
     テレポートの代替にならない」: never Phase Door), else None.
     """
     here = snapshot.player.position
-    policy._claim_engagement_avoid_cells((here,))
+    policy._claim_engagement_avoid_cells((here,), owner=HOLD_REPOSITION_REASON)
     if here in policy._explore_path:
         policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
     route = policy._validated_choke_route(

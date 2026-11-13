@@ -86,6 +86,7 @@ from __future__ import annotations
 
 from hengbot import (
     combat_answer,
+    left_cells,
     once_quest_recall,
     quest_exposure,
     quest_plan_base,
@@ -268,10 +269,11 @@ def _refused_cells(policy, snapshot, navigator) -> list[Position]:
 def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position]:
     """The walk with the fewest cells in a caster's line, then the fewest steps; through
     deep water only from where no dry walk leads (a teleport can land on a shore); never
-    over a cell the warning refused."""
+    over a cell the warning refused, nor a cell an owner left (left_cells)."""
     start = _cell(snapshot.player.position)
     goals = {_cell(goal) for goal in goals}
-    taken = frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot, navigator)))
+    taken = (frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot, navigator)))
+             | left_cells.refused_yx(policy, snapshot))
     lines = _lines(navigator, plan, snapshot)
     path = quest_plan_base._least_exposed_walk(navigator, snapshot, lines, start, goals, taken)
     return [Position(*cell) for cell in path]

@@ -1,6 +1,8 @@
 from __future__ import annotations
-from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
+from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
+from hengbot.monster_memory import UNSEEN_GAME_TURNS
+from hengbot.policy_constants import UNSEEN_REVERSE_REASON
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, awaiting_absorption, is_mana_food_ware, is_staple_food, mana_food_devices,
@@ -2290,15 +2292,22 @@ class SupplyMixin:
             self._unseen_retreat_target = None
 
         step = None
-        if self._unseen_retreat_target is not None:
-            step = self._nearest_goal_step(
-                snapshot,
-                lambda grid: grid.position == self._unseen_retreat_target,
-            )
-        if step is None:
-            step = self._unseen_reverse_choke_step(snapshot)
+        # Its own walk passes the cells it left (left_cells.walking_as).
+        with left_cells.walking_as(self, UNSEEN_REVERSE_REASON):
+            if self._unseen_retreat_target is not None:
+                step = self._nearest_goal_step(
+                    snapshot,
+                    lambda grid: grid.position == self._unseen_retreat_target,
+                )
+            if step is None:
+                step = self._unseen_reverse_choke_step(snapshot)
         if step is not None:
-            self.last_reason = "unseen:reverse-choke"
+            self.last_reason = UNSEEN_REVERSE_REASON
+            # The cell left while the retreat is armed (``_clear_unseen_retreat`` lifts it), for
+            # the unseen attacker's window at most: no monster is known to outlast (left_cells;
+            # monster_memory.UNSEEN_GAME_TURNS, no new number).
+            left_cells.leave(self, snapshot, (player.position,), owner=self.last_reason,
+                             game_turns=UNSEEN_GAME_TURNS, step=step)
             return self._step_toward(snapshot, step)
         # The reverse route is exhausted without reaching a choke: the retreat
         # retires here, as it does when its choke wait ends.  Left armed it

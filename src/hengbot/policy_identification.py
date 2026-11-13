@@ -12,7 +12,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import full_pack_exchange, loot_frontier, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
+from hengbot import full_pack_exchange, left_cells, loot_frontier, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -1488,8 +1488,9 @@ class IdentificationMixin:
             self._loot_target = None
             return None
         target = self._loot_target
-        # The routes' engagement veto, as the explore and descent walks keep it.
-        veto = self._engagement_route_veto(snapshot)
+        # The routes' engagement veto, as the explore and descent walks keep it, and the cells
+        # an owner left (left_cells).
+        veto = self._engagement_route_veto(snapshot) | left_cells.refused(self, snapshot)
         if (
             max_path_distance is None
             and target is not None

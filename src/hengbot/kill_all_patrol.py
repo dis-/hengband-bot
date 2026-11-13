@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from hengbot import combat_answer, me_capability, me_powers
+from hengbot import combat_answer, left_cells, me_capability, me_powers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
     Position, SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF)
@@ -138,15 +138,17 @@ def _hunt(policy, snapshot, hostiles) -> str | None:
 
 
 def _toward(policy, snapshot, goal) -> Position | None:
-    """The first step of the shortest remembered walk to a cell ``goal`` accepts."""
+    """The first step of the shortest remembered walk to a cell ``goal`` accepts, never into a
+    cell an owner left (left_cells)."""
     start = snapshot.player.position
+    refused = left_cells.refused(policy, snapshot)
     seen, queue = {start}, deque([(start, None)])
     while queue:
         cell, first = queue.popleft()
         if first is not None and goal((cell.y, cell.x)):
             return first
         for neighbor in policy._walkable_neighbors(snapshot, cell):
-            if neighbor not in seen:
+            if neighbor not in seen and neighbor not in refused:
                 seen.add(neighbor)
                 queue.append((neighbor, first if first is not None else neighbor))
     return None
