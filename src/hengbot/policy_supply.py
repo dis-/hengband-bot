@@ -345,6 +345,19 @@ class SupplyMixin:
                      if item.is_lantern and not item.known and not item.is_cursed
                      and q34_item_tagged(item)), None)
 
+    @contextmanager
+    def _outside_fundraising(self):
+        """Read the ordinary departure within the block: ``_fundraising_mode`` cleared, then
+        restored.  A run's own mode reshapes the ledger's recall requirement (none while
+        mining or scavenging, no scroll read at departure while any run is open), which is
+        not the ordinary departure's."""
+        mode = self._fundraising_mode
+        self._fundraising_mode = None
+        try:
+            yield
+        finally:
+            self._fundraising_mode = mode
+
     def _supply_ledger(self, snapshot: Snapshot, depth: int) -> dict[str, SupplyStatus]:
         memo = _SUPPLY_LEDGER_OBSERVER_MEMO.get()
         if memo is None:

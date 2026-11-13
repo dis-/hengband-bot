@@ -11550,12 +11550,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         the one-run time-pass itself reshapes the in-run recall requirement
         (zero while mining), which is not the shortage it waits out.
         """
-        mode = self._fundraising_mode
-        self._fundraising_mode = None
-        try:
+        with self._outside_fundraising():
             recall = self._supply_ledger(snapshot, self._planned_depth())["recall"]
-        finally:
-            self._fundraising_mode = mode
         if recall.count >= recall.required_departure:
             return False
         if STORE_HOME not in recall.stores:
@@ -11968,12 +11964,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         plan = getattr(self, "_town_errand_plan", None)
         if plan is None or plan.index < len(plan.stops):
             return False
-        mode = self._fundraising_mode
-        self._fundraising_mode = None
-        try:
+        with self._outside_fundraising():
             ledger = self._supply_ledger(snapshot, self._planned_depth())
-        finally:
-            self._fundraising_mode = mode
         if not any(
             status.count < status.required_departure and not status.obtainable
             for status in ledger.values()

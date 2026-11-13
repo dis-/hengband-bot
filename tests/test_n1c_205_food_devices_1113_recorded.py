@@ -118,7 +118,9 @@ class N1c205FoodDevices1113RecordedTest(unittest.TestCase):
         self.food_devices(board)
         self.assertEqual(policy._fundraising_mode, "prepare")
         supplies = me_staff_sequence.supply_cost(policy, board)
-        self.assertEqual(me_staff_sequence._expedition_cost(board, supplies), 7020)
+        # The expedition's own departure (with the recall scroll it reads; n1-b life-394): the
+        # record's 7,020 left the scroll out while preparing.  Still below the 7,856 gold.
+        self.assertEqual(me_staff_sequence._expedition_cost(board, supplies), 7170)
         self.assertEqual(board.player.gold, 7856)
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "me-staff:travel-morivant")
