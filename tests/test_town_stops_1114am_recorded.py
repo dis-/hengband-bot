@@ -10,6 +10,15 @@ one of the mining-loadout posted in the dungeon.  The departure minimum then fai
 combat_weapon_ready and the town end stopped by name on the third board of the visit.
 The floor is part of the progress core now, so a re-arm after the run is not a flip.
 
+n1-a life-522 06:31:49, town:blocked:owner-retired-burst after town:blocked:repetition.
+Three Home identification takes had used the identification-withdrawal claim's budget
+(3), so the ordinary router no longer walked to Home for the fourth filed take
+(耐火のナイト・シールド).  The town end's filed_take_route_key walked there; Home handed
+the take to its outside entrance (home:leave-for-pending-withdraw), the one board its
+withdrawal is composed on, and the town end stepped off that entrance before asking
+filed_take_route_key again, which walked back onto the entrance: 100 boards around
+(45,123).  The filed take now answers before the entrance step-off.
+
 Recorded: the town-arrival checkpoint and its journal
 (tests/extract_town_stops_1114am_fixtures.py), decided through the public choose_key;
 the re-arm is posted through the production executor (_ExecutorInputPort).
@@ -92,6 +101,34 @@ class TownStops1114RecordedTest(executor_harness.RecordedHarness):
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
         self.assertTrue(key.startswith("w"), key)
         raw = visit.board(1)
+        self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
+
+    def test_the_filed_home_take_is_composed_on_the_entrance_home_hands_it_to(self):
+        visit = self.visit("filed-take-522")
+        policy = visit.policy
+        for recorded, supply in visit.rows[:52]:
+            key = policy.choose_key(supply())
+            self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]),
+                             recorded["row"])
+            visit.post(key)
+        # Row 52, on another shop's entrance: the filed take walks to Home at once
+        # (recorded: one step off first).  Rows 53-54 are the recorded walk and
+        # Home's hand-off.
+        for recorded, supply in visit.rows[52:55]:
+            key = policy.choose_key(supply())
+            if recorded["row"] == 52:
+                self.assertEqual(policy.last_reason, "shop:travel")
+            else:
+                self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+                visit.post(key)
+        self.assertEqual(visit.rows[54][0]["reason"], "home:leave-for-pending-withdraw")
+        recorded, supply = visit.rows[55]
+        self.assertEqual(recorded["reason"], "town:entrance-step-off:town:end-step-off")
+        board = supply()
+        self.assertIsNone(board.store)
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "home-errand:atomic-withdraw:identification-catalog")
+        raw = visit.board(55)
         self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
 
 
