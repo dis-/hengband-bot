@@ -170,8 +170,18 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         # Owner 2026-11-09 「耐性の無い素の防具は不要」: plain armour the
         # optimizer did not select is not needed without a special property,
         # even when its numbers beat the selected piece.
-        for unneeded in ("鋼鉄ヘルメット [6,+5]", "鋼鉄ヘルメット [6,+4]", "金属帽子 [3,+7]"):
+        for unneeded in ("鋼鉄ヘルメット [6,+4]", "金属帽子 [3,+7]"):
             self.assertEqual(names[unneeded], "plain-gear", unneeded)
+        # Since n1-c life-205 2026-11-13 the single-slot search grows over the
+        # chosen sets' neighbourhoods and reaches the helmet step the one-swap
+        # search left for the next visit: the selected 鋼鉄ヘルメット [6,+5]
+        # (AC 11, light radius 2) beats the worn 闇の陣笠 [4,+4] {r暗;闇} (AC 8,
+        # its darkness lowers the radius to 1; 2026-10-23 「合計で比べる」 on the
+        # whole loadout) by margin 3.139 vs 3.097, beyond the 1% band; resist
+        # dark is no requirement of the 30F band.  The selected helmet stays.
+        head = dict(self._loadout(policy).slots)["head"]
+        self.assertEqual(head.item.name, "鋼鉄ヘルメット [6,+5]")
+        self.assertIsNone(names["鋼鉄ヘルメット [6,+5]"])
         for kept in ("マン・ゴーシュ (1d5) (+3,+10)", "カオス・ブレード (6d5) (+3,+6)"):
             self.assertIsNone(names[kept], kept)
 
