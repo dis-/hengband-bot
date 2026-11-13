@@ -95,6 +95,10 @@ RESCUES: dict[str, Rescue] = {
     "organization_complete": Rescue((), "the organization sale answers before the town end"),
     "spare_gear_stowed": Rescue((), "never stops a visit (gather_town_end drops it)"),
     "quest_carry_ready": Rescue((), "always ready: the quest-entry contract owns quest carry"),
+    # Owner 2026-11-13 「足さない」: a stop-only leaf whose owner did not answer
+    # (n1-c life-205 06:49, the Home catalogue check left in flight) gets no
+    # re-sent check as a rescue; it keeps its named stop until stage 3 rebuilds
+    # the owners' flow.
     "equipment_departure_ready": Rescue((), "the equipment transaction owns it; its exhaustion is a named stop"),
     "combat_weapon_ready": Rescue((), "the equipment transaction owns it; its exhaustion is a named stop"),
     "teleport_items_safe": Rescue((), "the equipment transaction owns it; its exhaustion is a named stop"),
