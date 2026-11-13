@@ -20,6 +20,8 @@ def key(policy, snapshot):
     find_exit = policy._town_producer_entry(
         "quest_find_exit.key", lambda: quest_find_exit.key(policy, snapshot), family="quest-request")
     if find_exit is not None:
+        # The plan answered the board, an unseen hit carried to it included (n1-a life-520).
+        quest_find_exit.note_answered(policy, snapshot)
         return find_exit
     # Q25's revised plan, phase by phase (it answers survival and the summons itself).
     phase_battle = policy._town_producer_entry(

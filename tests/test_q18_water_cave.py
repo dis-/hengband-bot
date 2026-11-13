@@ -35,6 +35,7 @@ from hengbot.quest_find_exit import (
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
 from hengbot.quest_navigator import QuestFloorNavigator
+from tests.support import recorded as executor_harness
 from tests.test_q14_heal_ccw_recorded import town_maps
 
 ROOT = Path(__file__).parents[1]
@@ -1479,6 +1480,94 @@ class Q18SpentChokeRetreatTest(unittest.TestCase):
         raw = Q18Life515Test.raw(1806351)
         key, reason = Q18Life515Test.decide_off_the_line(raw, spent=FIFTEEN_SPENT, quiet=FIFTEEN_SPENT)
         self.assertEqual((key, reason), (step_key((2, 20), (1, 19)), TO_CHOKE_REASON))
+
+
+with gzip.open(ROOT / "tests" / "fixtures" / "q18-life520-20261114.json.gz", "rt", encoding="utf-8",
+               errors="surrogateescape") as _stream:
+    LIFE_520 = {row["turn"]: row for row in json.load(_stream)["boards"]}
+LIFE_520_ENTRY, LIFE_520_DIG, LIFE_520_CURSE = 1339020, 1340339, 1340352
+LIFE_520_REST_PROMPT = "休憩 (0-9999, '*' で HP/MP全快, '&' で必要なだけ): "
+
+
+class Q18Life520UnseenHitAnsweredTest(executor_harness.RecordedHarness):
+    """n1-a life 520 (2026-11-14 02:12, warrior Lv28, floor (0,35,18)) died on (5,23).
+
+    Digging (1,7) from (2,6), an unseen siren's curse took HP 585 to 522 (turn 1340352).  The
+    hit was carried to later boards (``_unseen_hit_pending_floor``), which only the shared unseen
+    retreat consumed; the plan answers above it, so every later board of the floor stayed
+    "engaged" and the owner's 「HP が9割より低く敵がいなければ先に休む」 never ran again: from
+    (1,7) at 524/585 and from (2,13) at 379/553 (no Healing potion left, the seahorse fled) it
+    walked on, into the giant squid at (5,24), and died there.
+
+    The boards are the recorded ones (tests/fixtures/q18-life520-20261114.json.gz,
+    tests/extract_q18_life520_fixture.py), each answered through ``choose_key`` after the floor's
+    first board, the dig and the curse; the recorded keys are in the comments.  The rest is posted
+    through the production executor (``_ExecutorInputPort``)."""
+
+    @classmethod
+    def setUpClass(cls):
+        pass  # The dungeon-1031 corpus of RecordedHarness is not read.
+
+    @staticmethod
+    def answer(policy, turn):
+        """``choose_key`` on the recorded board, the skill list as observed on its turn (the
+        periodic ~f request is the bookkeeping's, not this floor's)."""
+        raw = copy.deepcopy(LIFE_520[turn])
+        policy.consume_skill_knowledge(dict(
+            copy.deepcopy(_CASE["skill"]), turn=raw["turn"],
+            player=dict(_CASE["skill"]["player"], level=raw["player"]["level"])))
+        snapshot = parse_snapshot(raw, policy._monrace_knowledge)
+        return str(policy.choose_key(snapshot)), snapshot
+
+    def walk(self, *turns):
+        policy = new_policy(LIFE_520[LIFE_520_ENTRY])
+        results = []
+        for turn in (LIFE_520_ENTRY, LIFE_520_DIG, LIFE_520_CURSE, *turns):
+            key, _ = self.answer(policy, turn)
+            results.append((turn, key, policy.last_reason))
+        return policy, results
+
+    def test_the_recorded_boards_up_to_the_curse(self):
+        _, results = self.walk()
+        self.assertEqual(results, [
+            (LIFE_520_ENTRY, step_key((1, 2), (1, 3)), WALK_REASON),   # recorded: exit-walk '6'
+            (LIFE_520_DIG, "T9", DIG_REASON),                           # recorded: exit-dig 'T9'
+            (LIFE_520_CURSE, step_key((2, 6), (1, 7)), WALK_REASON),   # recorded: exit-walk '9'
+        ])
+
+    def test_the_curse_is_answered_by_the_plan(self):
+        policy, _ = self.walk()
+        self.assertIsNone(policy._unseen_hit_pending_floor)
+
+    def test_after_the_curse_it_rests_below_the_ratio(self):
+        raw = LIFE_520[1340364]
+        self.assertEqual((raw["player"]["y"], raw["player"]["x"], raw["player"]["hp"], raw["player"]["max_hp"],
+                          raw["visible_monsters"]), (1, 7, 524, 585, []))
+        _, results = self.walk(1340364)  # recorded: exit-walk '6'
+        self.assertEqual(results[-1][1:], (REST_MACRO, "rest"))
+
+    def test_at_2_13_with_no_healing_potion_it_rests(self):
+        raw = LIFE_520[1340602]
+        self.assertEqual((raw["player"]["y"], raw["player"]["x"], raw["player"]["hp"], raw["player"]["max_hp"],
+                          raw["visible_monsters"]), (2, 13, 379, 553, []))
+        self.assertFalse(any(item["tval"] == TVAL_POTION and item["sval"] == SV_POTION_HEALING
+                             for item in raw["inventory"]))
+        policy, results = self.walk(1340599, 1340602)  # recorded: melee '7', exit-walk '9'
+        self.assertEqual(results[-2][1:], (step_key((2, 13), (1, 12)), MELEE_REASON))
+        self.assertEqual(results[-1][1:], (REST_MACRO, "rest"))
+        # DECLARED CONSTRUCTED: the rest-count prompt (cmd-move.cpp) and the board after it.
+        prompt = executor_harness.prompt_screen(LIFE_520_REST_PROMPT + "&")
+        self.assertEqual(self.post(policy, raw, REST_MACRO, [prompt], self.later(raw)),
+                         ["R", REST_MACRO[1:]])
+
+    def test_a_new_unseen_hit_engages_its_own_board(self):
+        """The curse board itself is still answered as engaged (the fresh evidence of that board)."""
+        policy = new_policy(LIFE_520[LIFE_520_ENTRY])
+        for turn in (LIFE_520_ENTRY, LIFE_520_DIG):
+            self.answer(policy, turn)
+        _, snapshot = self.answer(policy, LIFE_520_CURSE)
+        board = quest_find_exit._Board(policy, snapshot, STRATEGIES[18], policy._quest_navigators[18])
+        self.assertTrue(board.hit_by_unseen)
 
 
 if __name__ == "__main__":

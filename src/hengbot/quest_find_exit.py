@@ -1034,6 +1034,23 @@ def _note_contact(navigator, plan, position: Position) -> None:
         navigator.exit_quiet_spent = _without(navigator.exit_quiet_spent, position)
 
 
+def note_answered(policy, snapshot) -> None:
+    """``key`` answered this board: an unseen hit carried over from an earlier board of this
+    floor (``_unseen_hit_pending_floor``) is answered by it, as the shared unseen retreat
+    (policy_supply ``_unseen_retreat_key``) and quest_room_sweep's cover consume it.
+
+    ``key`` answers every board with an enemy above the shared ladders, so nothing below ever
+    consumed the carried hit here, and ``_Board.hit_by_unseen`` stayed true for the rest of the
+    floor: every later board was "engaged", so the owner's 「HP が9割より低く敵がいなければ先に
+    休む」 (``rest_below_ratio``, branch "no enemy for the line") never ran again.  n1-a life-520
+    (2026-11-14, warrior Lv28, Q18): a siren's unseen curse at (2,6) (turn 1340352, HP 585->522)
+    set it; from (1,7) on the walk went on unrested, at (2,13) with HP 379/553 and no Healing
+    potion left, into the giant squid at (5,24) and died there.  A new unseen hit on a later board
+    is fresh evidence of that board (``_unseen_attack_evidence``) and sets it again."""
+    if getattr(policy, "_unseen_hit_pending_floor", None) == snapshot.floor_key:
+        policy._unseen_hit_pending_floor = None
+
+
 def walk_key(policy, snapshot) -> str | None:
     """A quiet board on such a floor, through the navigator: walk on."""
     plan = _plan(policy, snapshot)
