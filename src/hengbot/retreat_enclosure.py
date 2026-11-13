@@ -229,30 +229,41 @@ def _dig_key(policy, snapshot, walled) -> str | None:
     return _melt_key(policy, snapshot, walled)
 
 
-def melt_toward_key(policy, snapshot, reach, ground, reason: str) -> str | None:
+def melt_toward_key(policy, snapshot, reach, ground, reason: str,
+                    *, power_first: bool = False) -> str | None:
     """The Stone to Mud route (``_melt_key``) from ``reach`` toward known ``ground``, under
     ``reason``: a sealed pocket whose straight lines all end at permanent rock
-    (sealed_pocket ``key``)."""
+    (sealed_pocket ``key``), the walls around sensed loot (sealed_loot)."""
     if snapshot.player.recalling:
         return None
-    return _melt_key(policy, snapshot, WalledOff(frozenset(reach), frozenset(ground)), reason)
+    return _melt_key(policy, snapshot, WalledOff(frozenset(reach), frozenset(ground)), reason,
+                     power_first=power_first)
 
 
-def _melt_key(policy, snapshot, walled, reason: str = MELT_REASON) -> str | None:
+def meltable(policy, snapshot, grid) -> bool:
+    """A wall the Stone to Mud route may melt: diggable, and not worn out on this floor."""
+    return walkout_dig.diggable(grid) and not sealed_pocket.worn_out(policy, snapshot, grid.position)
+
+
+def melt_route(policy, snapshot, ground) -> tuple[Position, int] | None:
+    """(first step, walls melted) of the Stone to Mud route toward ``ground``, else None."""
+    return policy._dig_route(snapshot, set(ground), lambda grid: meltable(policy, snapshot, grid),
+                             tunnelled=False)
+
+
+def _melt_key(policy, snapshot, walled, reason: str = MELT_REASON,
+              *, power_first: bool = False) -> str | None:
     """Melt the route's next wall when beside it, else walk toward it."""
     player = snapshot.player
     if player.blind or player.confused or not sealed_pocket.can_melt(policy, snapshot):
         return None
-
-    def meltable(grid) -> bool:
-        return walkout_dig.diggable(grid) and not sealed_pocket.worn_out(policy, snapshot, grid.position)
-
-    first = policy._dig_route_first_step(snapshot, set(walled.ground), meltable, tunnelled=False)
-    if first is None:
+    route = melt_route(policy, snapshot, walled.ground)
+    if route is None:
         return None
+    first = route[0]
     grid = snapshot.grids.get(first)
-    if grid is not None and meltable(grid):
-        return sealed_pocket.melt_at_key(policy, snapshot, first, reason)
+    if grid is not None and meltable(policy, snapshot, grid):
+        return sealed_pocket.melt_at_key(policy, snapshot, first, reason, power_first=power_first)
     policy.last_reason = reason
     return policy._step_toward(snapshot, first)
 

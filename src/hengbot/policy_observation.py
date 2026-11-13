@@ -11,7 +11,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, PICKUP_REASONS, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
-from hengbot import bm_destruction_fund, launcher_upgrade, me_powerful_activation, random_quest_hold, torch_release
+from hengbot import bm_destruction_fund, launcher_upgrade, me_powerful_activation, random_quest_hold, sealed_loot, torch_release
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
@@ -260,8 +260,11 @@ class ObservationMixin:
         # the bot forever.
         if not snapshot.in_town and self.last_reason in STUCK_FAMILY_REASONS:
             self._stuck_escape_streak += 1
-        elif self.last_reason in STUCK_NEUTRAL_REASONS and not snapshot.in_town:
-            pass  # upkeep between searches — hold the streak, do not reset it
+        elif ((self.last_reason in STUCK_NEUTRAL_REASONS or self.last_reason in sealed_loot.REASONS)
+              and not snapshot.in_town):
+            # Upkeep between searches, or the melt into a walled pocket of loot
+            # (sealed_loot): hold the streak, do not reset it.
+            pass
         else:
             self._stuck_escape_streak = 0
         # Town circuit breaker (see TOWN_WANDER_LIMIT): count the mirror-image
