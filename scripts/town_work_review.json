@@ -15054,6 +15054,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "zul_trip.py:_leave_sight_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-08 「近くの敵を倒すか、敵から離れて…全体地図へ出る」, n1-b life-389 2026-11-13 16:32 (Zul): a perceived awake hostile within MAX_PLAYER_SIGHT refuses '<'; one step toward the nearest open cell out of its range (Reach, the cell declared); None when none is reachable.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:leave_sight_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the town walk to the nearest open cell no perceived awake hostile refuses '<' from.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "zul_trip.py:_fundraise": {
     "classification": "producer",
     "rows": [
