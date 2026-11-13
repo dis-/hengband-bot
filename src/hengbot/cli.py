@@ -62,6 +62,7 @@ from hengbot.quest25_battle import SEARCH_REASON as Q25_TRAP_SEARCH_REASON
 from hengbot.quest25_battle import RECHARGE_REASON as Q25_RECHARGE_REASON
 # After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
 from hengbot import threat_tiers
+from hengbot import town_visit_plan
 from hengbot import spectator_threat
 from hengbot.anaguma import STATIONARY as ANAGUMA_STATIONARY
 from hengbot.town_hold import SURVIVAL_REASON_PREFIXES
@@ -1943,7 +1944,7 @@ def _empty_decision_facts() -> dict:
         "over_extension": {}, "depth_safety": {}, "threat_prediction": {},
         "threat_tiers": {},
         "equipment_optimization": {}, "loot": {}, "mining": {},
-        "fundraising": {}, "town_plan": {}, "fixedquest_readiness": {},
+        "fundraising": {}, "town_plan": {}, "visit_stage": {}, "fixedquest_readiness": {},
         "departure_block": {}, "cross_town_shopping": {},
         "quest_strategy": None,
         "retention_reservations": [], "deposit_keep_conflict": None,
@@ -2145,6 +2146,8 @@ def _capture_decision_facts_unchecked(snapshot, policy) -> dict:
         "mining": _mining_state(policy),
         "fundraising": _fundraising_state(snapshot, policy),
         "town_plan": _town_plan_state(policy),
+        # Town rebuild stage 3-1: the visit's stage (observe only).
+        "visit_stage": town_visit_plan.facts(policy),
         "fixedquest_readiness": fixedquest_readiness,
         "departure_block": policy.departure_block_state(snapshot),
         "cross_town_shopping": policy.cross_town_shopping_state(),
@@ -2408,6 +2411,8 @@ def _write_decision(
                 )
             if facts.get("threat_tiers"):
                 record["threat_tiers"] = facts["threat_tiers"]
+            if facts.get("visit_stage"):
+                record["visit_stage"] = facts["visit_stage"]
             if facts.get("carried_spare_gear"):
                 record["carried_spare_gear"] = facts["carried_spare_gear"]
             if policy is not None:

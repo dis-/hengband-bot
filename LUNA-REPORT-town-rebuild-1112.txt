@@ -1,0 +1,255 @@
+町の判断の作り直し（town-rebuild-1112）の報告
+================================================
+
+ユーザー決定 2026-11-12 深夜「1〜3まで一気に進める」（町の判断を根から作り直す。振る舞いは変えず、
+町到着の記録の再生で同じ判断を示しながら進める。期間中は町の振る舞いの直しを止める）。
+
+枝: town-rebuild-1112（C:\hengband\bot-client\.worktrees\town-rebuild-1112）
+基: main 784d60f714 → 作業中に main 30771c7cc0 を取り込んだ（手順1「Town rebuild 1」72f815dcaf は main に入っている）
+HEAD: （下の「コミット」を参照）
+
+
+1. 各段で変えたこと
+-------------------
+
+段1（main に取り込み済み、72f815dcaf）: 出発の判断を1つの表に
+  - departure_readiness.readiness_table: 品目ごとに 持っている数・要る数・仕入れ先・手に入るか を、
+    1つの深さ（計画の深さ _planned_depth）で読む。
+  - 普通の出発の関門、_departure_minimum、procurement_requirements、在庫切れの採掘の終わり、
+    町の終わりの購入の不足、採掘の出発の関門がこの表を読む。LEAF_SUPPLY_LABELS と SUPPLY_LABEL_KINDS は削除。
+
+段2（a1fe306298、この報告で確認を終えた）: 落ちた葉には必ず救済の手
+  - departure_rescues.RESCUES: 出発の関門の葉35個（_town_departure_conjuncts、
+    _recall_town_departure_conjuncts、_departure_minimum、gather_blocked_recall）の全部に、
+    救済の手（順番つき）か、手が無い理由（名前付きの止まり）を1行ずつ持たせた登録表。
+  - 救済の手は既存の持ち主の手だけ: まだ訪ねていない仕入れ先（自宅が先）へ歩く・別の町で買う・
+    在庫切れの採掘・重さ超過の余りを売る・自宅へ戻って保留中の受け渡しを済ませる・町で休む。
+    1訪問で1つの葉につき各手2回まで（歩きは続く決定で1回と数える）。尽きたら前と同じ名前で止まる。
+  - town_terminal.town_end_key は、前に止まりの名前を付けていた所で登録表に聞く。
+  - scripts/departure_rescue_lint.py: 関門の葉に行が無い・古い行・知らない手・手も理由も無い行で失敗。
+    結果「35 leaves, 0 gap(s)」。
+  - 振る舞いの差は設計どおり「町の終わりで名前付きで止まっていた所に、まだ使える救済があればそれを先に使う」
+    だけ（記録の盤面のテスト: tests/test_departure_rescues.py、tests/test_town_defined_end_recorded.py の期待の更新）。
+
+段3-1（この枝の新しいコミット）: 町の訪問の段を1つの表で名付けて記録する
+  - src/hengbot/town_visit_plan.py:
+    * STAGES: 訪問の流れの段（自宅 → 鑑定・解呪 → 装備 → 売る → 買う → クエスト → 町の移動・噂 →
+      資金集め → 出発）。
+    * FAMILY_STAGE: 持ち主の家族の一覧（town_arbiter.owner_families、家族の唯一の出どころ）の全29家族に段を付ける。
+      ダンジョン側の家族（生存・戦闘・逃げ・検出器・記帳など）は「割り込み」（段を動かさない）。
+      town-plan（_town_procurement_decision の進みの継ぎ目と町の終わりの止まり）は「上書き」の段:
+      段3で無くす層なので、まだ何回答えているかを数えるため。
+    * note_decision: choose_key の出口（town_hold.advance_hold の後）で、町の盤面の決定の段を
+      TownVisit.plan_segments に記録する（同じ段の続きは1区間、割り込みは区間の中で数える）。
+      新しい訪問（TownVisit.begin）で忘れる。
+    * facts: 決定の記録（bot-decisions）の新しい欄 visit_stage（今の段・始まり・決定の数・流れ）。
+  - scripts/town_visit_plan_lint.py: 家族に段が無い・古い行・知らない段・どの家族も持たない段で失敗。結果「0 gap(s)」。
+  - どの判断もこの記録を読まない（判断は変わらない）。次の段（期限・旗の移し替え）の土台と物差し。
+  - テスト: tests/test_town_visit_plan.py（6本: lint、区間のまとめ方、新しい訪問で忘れる、ダンジョンでは書かない、
+    記録の盤面を公開の choose_key に通して自分の理由の段が記録される）。
+
+
+2. 振る舞いが変わらない証拠（町到着の記録の再生）
+--------------------------------------------------
+
+方法: 手元にある町到着の記録（incident-captures の town-arrival/、2026-11-03 以降）を全部、
+main（.worktrees/town-rebuild-1112-base、784d60f714 で固定）と枝で再生し、
+各行の（キー、理由）を比べた。再生は tests/replay_town_arrival.py と同じ（policy.pkl を戻し、
+記録の入力を順に与え、公開の choose_key で決め、記録と違う最初の行で止まる）。
+記録の多くは古い版で取ったので記録とは途中で分かれる。比べるのは main と枝の結果どうし
+（分かれる行とその行の答えまで同じか）。台本: scratchpad の ta_replay_one.py / ta_run.sh / ta_compare.py。
+
+  段2（main 対 枝 a1fe306298）:
+    記録 232件（C:\hengband-backups 以下の town-arrival 231件 ＋ コーディネーターの n1-c life-205 06:31 の1件）
+    再生できた 221件（11件は両方とも同じ理由で戻せない: 記録の付属ファイルが欠けている FileNotFoundError）
+    再生した行 2,830行、差 0件。枝で救済の手が働いた行 0（再生の窓の中に救済の出番が無かった）。
+    記録と最後まで一致した訪問 main 10件・枝 10件（同じ）。
+  段3-1（main 対 枝 HEAD）: 記録 233件（段2の232件 ＋ コーディネーターの n1-c life-205 06:49 の1件）、再生できた 222件
+    （11件は段2と同じく両方とも戻せない）、再生した行 2,865行、main との差 0件。
+    段2の比べも 06:49 の1件を足して 233件・222件・2,865行・差 0件。
+
+コーディネーターから来た n1-c life-205 の2件（本番の版 bot-784d60f71、段1は入っている）:
+  (a) 06:31:44 town:blocked:recall-readiness-contradiction
+      （C:\hengband-backups\pdca\captures\n1c-205-recall-contradiction-1113\）
+      main も枝も記録どおり55行すべて一致し、同じ止まりになる（枝でも直らない）。
+      根: 出発の表（段1）の外の葉 free_pack_slots_ready。荷物の空きが4つの時、町の終わりの
+      「4枠の証明」（_terminal_pack_space_signature、荷物の正確な中身の署名）で出発を認める。
+      帰還を読んで待つ間に、ゾンビの魔道具術師が空腹で魔法棒の魔力を吸収した（survival:mana-absorb、
+      魔法棒の残りが 96→95 回）。荷物の署名が変わって証明が消え、取り消し側（_recall_unready_blockers）が
+      pack-too-full で帰還を取り消した（巻物1枚を使う）。その後、帰還の巻物を2枚買って関門が
+      もう一度そろったが、この訪問で一度取り消した帰還は読み直さない決まり（recall-read-cancel の往復の上限）で
+      contradiction として止まった。_recall_departure_board は帰還を読んだこと自体の効果しか戻さず、
+      生存の手（吸収）による荷物の変化は戻さない。
+      → 出発の判断が2つの場所（読む時は証明あり、取り消す時は署名の変わった荷物）で食い違う型。
+        品目の表（段1）でも救済の登録表（段2）でもなく、段3の「出発の段」が自分の証明を持つ形で直す対象。
+        町の振る舞いの直しは止める決定なので、この枝では直していない。
+  (b) 06:49:56 town:blocked:unmet:equipment_departure_ready
+      （C:\hengband-backups\pdca\captures\n1c-205-equip-unmet-1113\）
+      main も枝も34行目で記録と分かれ（記録は home:scan-step-off、再生は町の終わりの step-off。キーは同じ '1'）、
+      記録のキーを送って続けると両方とも次の行で town:blocked:unmet:home_catalog_ready で止まる（main と枝は同じ）。
+      根: 15行目に送った自宅の一覧の確認（~9）が「確認中」（_home_knowledge_scan_inflight）のまま
+      終わらず、自宅の一覧が古いまま（home_catalog_ready が偽）なので装備の出発の準備も証明できない。
+      救済の登録表ではこの2つの葉は「手が無い（その持ち主が町の終わりより前に答える）」の行で、
+      今回はその持ち主が答えなかった。→ 下の「残り」と問い1。
+
+
+3. 保守性
+---------
+
+新しい品目（出発に要る消耗品）を足す時に直す所:
+  前（段1の前）: _town_departure_conjuncts、_departure_minimum（深さを2つ読む別の計算）、
+    procurement_requirements、LEAF_SUPPLY_LABELS／SUPPLY_LABEL_KINDS（ラベルの文字列で突き合わせ）、
+    在庫切れの採掘の終わり、資金集め — 5〜6か所。漏れても何も知らせない。
+  後: departure_readiness の表の1行（SUPPLY_LEAVES と品目の行）と、救済の登録表 RESCUES の1行
+    （無ければ departure_rescue_lint が失敗する）、町の終わりの持ち主の表 _DEPARTURE_LEAF_SERVERS の1行
+    （これも同じ lint が見る）。読む側は直さない。
+
+新しい救済の手を足す時:
+  前: town_terminal.town_end_key の中に場面ごとの分岐（購入の不足だけ採掘の1周、ほかは止まり）。
+  後: departure_rescues.ACTIONS に関数を1つ、使う葉の RESCUES の行に名前を1つ。回数の上限と記録
+    （<departure-rescue> の行）は共通。
+
+新しい町の段（訪問の流れの段階）を足す時:
+  前: 段の考え方が無く、保留の旗・町の errand の hold・後からの上書き（_town_procurement_decision）に散らばっていた。
+  後（段3-1）: town_visit_plan.STAGES に1つ、FAMILY_STAGE で家族を割り当てる（town_visit_plan_lint が
+    家族の漏れ・古い行を知らせる）。今は記録だけで、判断はまだ旧来の場所が持つ（下の「残り」）。
+
+新しいロジックの置き場所: departure_readiness.py（表）、departure_rescues.py（救済）、
+town_visit_plan.py（段）。共有の判断コードに場面の特例（クエスト番号・店の名前・職業）は書いていない。
+
+
+4. 残り（段3の続き）
+--------------------
+
+段3-1 で段の名前と記録まで入った。残りは振る舞いを動かす段で、どれも同じく再生で示しながら1段ずつ:
+  3-2 保留の旗を段へ: 町の訪問で立てて消す旗（_town_visit_unready_recall_cancelled、
+      _town_visit_purchases／_quantities、_town_visit_sale_signatures、_town_visit_sale_identify_charges、
+      _equipment_optimization_timed_out_this_visit ほか、今は「階が変わった時」に消す）を TownVisit に移し、
+      どの段が立ててどの段が消すかを表にする。消す時機が「階の変化」から「新しい訪問」に変わるので、
+      ダンジョンで読む所（policy_supply、policy_equipment の一部）を先に確かめる必要がある。
+  3-3 計画が次の段の持ち主を選ぶ: _town_procurement_decision の付け替え（観た店を続ける・
+      約束した拾い物を続ける・進みの無い歩きを止める等）を段の移り変わりとして書き直し、上書きの段（REWRITE）を0にする。
+      段3-1 の記録で「上書きが答えた回数」を測れるので、0になったことを再生で示せる。
+      注: 段3-1 の「上書き」の数（7回）は、理由が town-plan の家族になる決定だけを数えている。
+      _town_procurement_decision が元の持ち主の理由のままキーを差し替える場合は数えられないので、
+      3-3 の最初に「差し替えた」ことをこの記録に書く（判断は変えない）。
+  3-4 town_hold の _rewrite の町の部分（検出器の付け替え）を計画へ。
+  3-5 owner-retired-burst（cli._handle_owner_retirement、訪問全体で進みの無い引退3回）を段ごとの期限へ。
+      期限の値は新しい数になるので、段3-1 の記録（下の測り）を元に値を決める必要がある → 問い2。
+  ほか: 上の (a) の型（出発の段が自分の証明を持つ）は 3-3 で出発の段を作る時に一緒に扱う。
+
+
+5. 確認（前景で流したもの）
+--------------------------
+
+  - PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK
+  - python scripts/town_work_manifest.py --write → 取り込み後 1893 candidates (372 proved data), 47178 sites, zero unmapped／検査は 0 violation(s)
+    （段3-1 で足した review は town_visit_plan.py:stage_of の1件、data）
+  - PYTHONPATH=src python scripts/departure_rescue_lint.py → 35 leaves, 0 gap(s)
+  - PYTHONPATH=src python scripts/town_visit_plan_lint.py → 0 gap(s)
+  - 町のテスト（tests/test_town*.py と tests/test_*departure*.py の 125 モジュール）を main と枝で1モジュールずつ: 
+    （取り込み前の枝 41ece77175 対 main 784d60f714）main と枝で違うものは 0。
+    内訳: 両方とも通る 79、両方とも赤で落ちるテストの名前も同じ 41、新しいテスト2つ（test_departure_rescues・
+    test_town_visit_plan）は枝だけにあり通る。main で 900 秒を超えた3つは別に流した:
+    test_town_work_contract は枝で通る（main は負荷で時間切れ）、test_town_terminal_exit_round16 は
+    main も枝も同じ9本が落ちる、test_town_retired_burst_1110_recorded は main も枝も同じ1本
+    （test_n1a_0040_stowed_recall_does_not_end_the_stockout_run）が落ちる。
+    取り込んだ後の枝 9387571122 でも 125 モジュールを流し直し、結果は取り込み前と同じ（main との差 0）。
+  - 新しいテスト tests.test_town_visit_plan（6本）OK、tests.test_departure_rescues・test_departure_readiness・
+    test_town_defined_end_recorded（21本）OK
+  - main の取り込み: 作業中に main が 30771c7cc0 に進んだ（ダンジョン側: KILL_ALL の巡回、Q25、拾い残しの5答、
+    召喚者の探索）。git merge で取り込んだ（9387571122）。衝突は scripts/town_work_review.json だけで、
+    両方の項目を足し合わせて解消した（同じ項目を両方が変えた所は無かった）。取り込んだ後にマニフェストを書き直し、
+    上の確認をやり直した。
+    取り込んだ後も新しい main 30771c7cc0 と枝 9387571122 で町到着の記録を全部再生し直した:
+    233件・再生できた 222件・2,865行・差 0件。
+
+
+6. checks.json の項目（案）
+--------------------------
+
+{"id":"TOWN-REBUILD","owner":"2026-11-12 町の判断を根から作り直す（出発の表・救済の登録表・計画の状態の流れ）","tests":["tests.test_departure_readiness","tests.test_departure_rescues","tests.test_town_defined_end_recorded","tests.test_town_visit_plan"]}
+
+
+7. ユーザーへの問い（新しい決まりが要る所だけ）
+-----------------------------------------------
+
+問い1（段2）: 「手が無い」行の葉で、その持ち主が答えないまま町の終わりに来た時（n1-c life-205 06:49 は
+  自宅の一覧の確認が終わらず home_catalog_ready／equipment_departure_ready で停止）、
+  救済の手として「自宅の一覧の確認をもう一度送る（1訪問2回まで）」を足してよいか。
+  今の登録表はこの2つの葉を「持ち主が先に答える」として止まりにしている。
+問い2（段3-5）: 段ごとの期限の値。段3-1 の記録で段ごとの決定の数を測った（町到着の記録 222訪問の再生で、段ごとの決定の数（1区間の最大／1訪問の最大／1訪問の中央値）は
+  クエスト 117／118／2、買う 33／108／2、自宅 37／56／1、装備 11／12／2、出発 35／35／1、売る 6／8／2、
+  資金集め 48／48／1、鑑定 4／4／1、町の移動・噂 3／3／2、上書き（town-plan）1／1／1（全7回）。
+  再生は古い版の記録と最初に分かれた行で止まるので、長い訪問ほど短めに出る）。
+  この数を元に期限を決めてよいか（例: 各段の再生での最大の決定の数の何倍か）。
+
+
+コミット
+--------
+a1fe306298 Town rebuild 2: give every departure leaf a rescue or a named stop（段2、前の実装役）
+41ece77175 Town rebuild 3-1: name the stage of every town decision from one table（段3-1）
+9387571122 Merge branch 'main' into town-rebuild-1112（main 30771c7cc0 の取り込み）
+（この報告のコミットがその上に乗る）
+
+再生の比べに使った main の作業場所 .worktrees/town-rebuild-1112-base は報告の後に消した。
+再生の台本と結果: C:\Users\user\AppData\Local\Temp\claude\9e958c6758adbc4a\5d4c37b9-8401-4e79-9d9c-5fe1f7809f4a\scratchpad\
+（台本 ta_replay_one.py・ta_run.sh・ta_compare.py・ta_stages.py、結果 s2_main/s2_head/s31_head/m_main/m_head、
+テストの結果 tm_main/tm_head/tm_merged）
+
+
+追記（2026-11-13 午後）: main の取り込み2回・ユーザーの答え・段3-2a
+==================================================================
+
+A. 取り込み口での保留への対応（main 9c8baca870、保守性の段8でダンジョンの層が ladder_*.py へ移った）
+  - git merge main。衝突は src/hengbot/policy.py の import の行だけ（main の ladder_* の行を取り、
+    town_visit_plan の import を足した）。town_visit_plan.note_decision の呼び出しは choose_key の出口
+    （policy.py に残る部分）にあり、ladder_*.py に移った部分には触れていない。救済の変更は town_terminal.py で衝突なし。
+  - マージのコミット 3e0f7e6d55。マニフェスト zero unmapped・0 violation(s)、dungeon_ladder_lint 0、import OK、
+    新しいテストと出発・救済のテスト（27本）OK。
+  - 町到着の記録の再生（main 9c8baca870 対 枝 3e0f7e6d55）: 233件・再生できた 222件・2,865行・差 0件。
+
+B. ユーザーの答え（2026-11-13）
+  - 問い1 「足さない」: 自宅の一覧の確認を救済として送り直す手は足さない。持ち主が答えない葉は、段3で持ち主の流れを
+    作り直すまで名前付きの止まりのまま。departure_rescues.py の該当の行に注記した（73750a8b1b、注記だけ）。
+  - 問い2 「測った最大の2倍を期限に」: 段3-5 で、町の訪問の各段の期限を「その時点の測りの1訪問の最大×2」にし、
+    超えたら段ごとの名前付きの止まり。今の測りでは クエスト 236・買う 216・自宅 112・資金集め 96・出発 70・装備 24・
+    売る 16・鑑定 8・町の移動・噂 6。値は 2026-11-13 の再生の測り×2 で、観戦のボットが超えたら見直す、とコードに書く。
+    （段3-5 はまだ。測りの台本は scratchpad の ta_stages.py）
+
+C. 段3-2a（e3483343b5）: 町の保留の旗を1つの入れ物にまとめ、忘れる場所を1つにする
+  - 町の保留の旗19個（町の繰り返しと進み無しの検出、地表の移動の進み、町の敵の目標、決めた出発、
+    品切れ待ちの抑え・待ち、店の巡回の計画、町の終わりの4枠の証明）は、policy の属性として2か所
+    （階が変わった時・地表で町が変わった時、policy_observation）でそれぞれ別の一覧で消していた。
+    片方の一覧にだけ足すと、その町を過ぎても旗が残る作りだった。
+  - town_visit.TownHolds に入れ、release() が唯一の「忘れる」（入れ物はその場で空に、ほかは既定値。
+    2つの一覧と同じ動き）。2か所ともこれを呼ぶ（町が変わった時だけの追加の3つはそのまま）。
+    旧名は転送のプロパティ（TownVisitAttributes に追加、policy の基底クラスは変えていない）、
+    policy.__init__ の初期値の重複は削除（dataclass の既定値が唯一の出どころ）、古いチェックポイントは
+    復元の時に移す（adopt_legacy_holds）、flight recorder は旧名で書く。
+    TownVisit とは別にした: 新しい訪問の begin() では消えず、階や町が変わった時に消える（前と同じ）。
+  - 再生（main 9c8baca870 対 枝 e3483343b5 の直前の作業木）: 233件・222件・2,865行・差 0件。
+  - テスト tests/test_town_holds.py（5本）OK。関係するテスト（town_visit_reset／lifetime、town_arrival_checkpoint、
+    flight_recorder、town_plan_exhausted_wander、town_stall、town_restock_trajectory の86本）は main と枝で
+    同じ15本が落ちる（差 0）。test_policy_structure も main と同じ2本が落ちる（差 0）。
+  - 保守性: 保留の旗を足す時は TownHolds の項目1つと HOLD_LEGACY_NAMES の1行（テストが対応を確かめる）。
+    消す所を足す必要はない。
+
+D. main の取り込みをさらに2回:
+   - 263d1f6ae0（Q25 の2件）→ a528a956e1（衝突なし）。再生（main 263d1f6ae0 対 a528a956e1）: 233件・222件・2,865行・差 0件。
+   - 9f3df0a310（松明とクロスボウの光源・Q1 の持ち物・Q25 の書の段）→ cd4599495a。衝突は
+     scripts/town_work_review.json だけで、両方の項目を足し合わせて解消（同じ項目を両方が変えた所は無し）。
+   取り込み後: マニフェスト 1927 candidates・zero unmapped・0 violation(s)、dungeon_ladder_lint 0、
+   departure_rescue_lint 0、town_visit_plan_lint 0、import OK、
+   テスト（test_town_holds・test_town_visit_plan・test_departure_rescues・test_departure_readiness・
+   test_town_defined_end_recorded の32本）OK。
+   最終の再生（main 9f3df0a310 対 枝 cd4599495a）: 233件・再生できた 222件・2,804行・差 0件
+   （行の数が 2,865 から減ったのは、main の変更で古い記録と分かれる行が前に動いたため。main と枝で同じ）。
+
+E. 残り（段3）
+  - 3-2b: 階が変わった時だけ消している訪問の旗（_town_visit_unready_recall_cancelled・_town_visit_purchases／
+    _quantities・_town_visit_sale_signatures・_town_visit_sale_identify_charges・_equipment_optimization_timed_out_this_visit・
+    _town_recall_issue_watch・_pending_recall_dungeon_id）を、消える時機ごとにまとめる。町が変わった時には消えないものが
+    混じるので TownHolds には入れられない（入れると町を移った時に消えて振る舞いが変わる）。消える時機ごとに入れ物を分けるか、
+    release に時機を渡す形にする。
+  - 3-3〜3-5 は前の「残り」のとおり（3-5 の期限の値は B のユーザーの答えに従う）。

@@ -6,6 +6,7 @@ from copy import deepcopy
 from hengbot.policy_types import OwnerProgressCore
 from hengbot.retired_values import is_retired
 from hengbot.town_visit import adopt_legacy_attributes as adopt_town_visit_attributes
+from hengbot.town_visit import adopt_legacy_holds as adopt_town_holds
 
 # Strip-calibration attributes retained by the equipped C-sheet observation.
 _RETAINED_CALIBRATION_NAMES = frozenset({
@@ -253,11 +254,11 @@ def normalize_policy_state(restored, *, restart=False):
     # (a name an old checkpoint lacks keeps the field's default; the stockout
     # plans' False is their former set-end behavior).
     adopt_town_visit_attributes(restored.__dict__)
+    # Town rebuild stage 3-2a: the hold flags live in the town holds.
+    adopt_town_holds(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES:
         restored.__dict__.pop(name, None)
-    restored.__dict__.setdefault("_visit_departure_committed", None)
-    restored.__dict__.setdefault("_visit_departure_recorded", set())
     restored.__dict__.setdefault("_trap_warning_cells", {})
     # The warning cells' restart record (warning_cell_record) postdates them.
     restored.__dict__.setdefault("_warning_cell_record_path", None)
@@ -387,8 +388,6 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_esp_threat_hunt_end", None)
     restored.__dict__.setdefault("_staged_prompt_chain", None)
     restored.__dict__.setdefault("_prompt_gated_posting", True)
-    restored.__dict__.setdefault("_town_restock_waited_turns", 0)
-    restored.__dict__.setdefault("_town_restock_last_wait_turn", None)
     restored.__dict__.setdefault("_home_latch_active", None)
     restored.__dict__.setdefault("_home_latch_history", [])
     restored.__dict__.setdefault("_home_gate_telemetry", {})
@@ -495,7 +494,6 @@ def normalize_policy_state(restored, *, restart=False):
     # its first operation, which reports restart-refile-required instead of
     # inheriting an unknown posted visit (every reader guards None).
     restored.__dict__.setdefault("_home_visit", None)
-    restored.__dict__.setdefault("_town_suppression_claim_stores", set())
     ledger = restored.__dict__.get("_town_visit_ledger")
     if ledger is not None:
         ledger.__dict__.setdefault("blocked_store_work_signatures", {})

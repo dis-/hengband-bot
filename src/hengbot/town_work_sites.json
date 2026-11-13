@@ -1143,6 +1143,24 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "departure_rescues.py:_rest": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "departure_rescues.py:rescue_key": {
+    "classification": "producer",
+    "rows": [
+      "store-approach",
+      "cross-town",
+      "fundraising",
+      "sale",
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "destruction_use.py:_absorbed_key": {
     "classification": "data",
     "rows": [
@@ -14414,7 +14432,11 @@
       "departure",
       "store-exit",
       "plan-routing",
-      "cross-town"
+      "cross-town",
+      "store-approach",
+      "survival",
+      "fundraising",
+      "sale"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
@@ -14524,6 +14546,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_visit.py:town_visit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_visit_plan.py:stage_of": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
