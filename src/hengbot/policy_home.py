@@ -225,6 +225,22 @@ class HomeMixin:
                 return self._town_producer_entry(
                     "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
                     family="home-scan")
+            relief = self._weight_relief_selection(snapshot)
+            shed: dict[str, int] = {}
+            for item in relief.deposits:
+                shed[item.slot] = item.weight * self._retention_surplus(snapshot, item)
+            for _, _, item, count, _ in relief.surplus:
+                shed[item.slot] = max(shed.get(item.slot, 0), item.weight * count)
+            if relief.route == "home-relief" and sum(shed.values()) >= relief.excess:
+                # The carried surplus no longer clears the excess, but Home's
+                # relief (sell Home's surplus for a slot, then deposit) is open
+                # and its deposits with the surplus do clear it: hand the
+                # weight back to it as the deposit branch above does, never a
+                # stop while a rescue is open (town rebuild stage 3-3d, owner
+                # 2026-11-12 「落ちた葉には必ず救済の手」; n1-c life-205
+                # 2026-11-13 18:07 stopped here, its restart took the relief).
+                self._overweight_surplus_disposal = None
+                return None
             self._town_blocked_reason = "overweight-home-full-no-legal-relief"
             return self._town_blocked_key(snapshot)
         pending = state.get("pending")
