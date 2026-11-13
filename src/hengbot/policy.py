@@ -1436,7 +1436,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # points the path beside the decision log.
         self._alternate_dungeon_record_path = None
         self._alternate_dungeon_record = None
-        self._pending_recall_dungeon_id: int | None = None
+        # _pending_recall_dungeon_id lives in town_visit.FloorHolds (stage 3-2b).
         # Owner 2026-11-08: a refused global map walks off the wilderness
         # tile's edge (_wilderness_survival_key / _wilderness_edge_key).
         self._wilderness_global_refused = False
@@ -1445,14 +1445,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # destination, command turn, and pre-read stack count.  JSON snapshots
         # can redraw several times at the same game turn before ``recalling`` is
         # exported; without an issue watch each stale redraw consumes another
-        # Word of Recall scroll.
-        self._town_recall_issue_watch: tuple[int, int, int] | None = None
+        # Word of Recall scroll.  The watch lives in town_visit.FloorHolds.
         # The Rod of Recall the armed town read zapped (None: a scroll was read).
         self._town_recall_issue_rod: InventoryItem | None = None
-        # Whether this town visit already cancelled a recall as unready.  The
-        # read point never reads again in the same visit (read/cancel class
-        # bound); restored checkpoints read False through getattr.
-        self._town_visit_unready_recall_cancelled = False
+        # Whether this town visit already cancelled a recall as unready (the
+        # read/cancel class bound) lives in town_visit.FloorHolds.
         # A repetition fallback recall is the sole sanctioned exception to
         # ordinary town departure readiness.  Keep its ownership explicit so
         # the readiness cancel path cannot fight the cycle breaker's read.
@@ -2191,16 +2188,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_deposit_abandoned = False
         # A command can reject one item even while the Home still has free pages.
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
-        # Store purchases are retained for the rest of the current town visit.
-        self._town_visit_purchases: set[tuple[str, int, int]] = set()
-        self._town_visit_purchase_quantities: dict[tuple[str, int, int], int] = {}
-        # Successful sales are retained for the same town visit. Buying the
-        # same tval/sval item back is semantic churn, not shopping progress.
-        self._town_visit_sale_signatures: set[tuple[int, int]] = set()
-        # Most per-staff charges of an Identify staff sold this visit.  The
-        # 2026-10-03 swap sells the emptiest staff to buy a fuller one, which
-        # is an upgrade, not a sell-then-rebuy of the same item.
-        self._town_visit_sale_identify_charges: int | None = None
+        # The visit's purchases and sales (a sell-then-rebuy is churn; the
+        # 2026-10-03 Identify staff swap sells the emptiest staff for a fuller
+        # one, an upgrade) live in town_visit.FloorHolds (stage 3-2b).
         self.town_visit_report: str | None = None
         # Prices are learned only from shelves actually shown by the emitter.
         # Values are (unit price, units supplied); no guessed/default shopping
@@ -2423,7 +2413,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_optimization_preparation: (
             WarriorOptimizationPreparation | None
         ) = None
-        self._equipment_optimization_timed_out_this_visit = False
         self._equipment_optimization_telemetry: dict[str, object] = {}
         self._equipment_fresh_search_target_ids: frozenset[str] = frozenset()
         self._town_plan_projection_telemetry: dict[str, object] = {
@@ -2897,9 +2886,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     "gold",
                 )
             key = self._refuse_no_progress_cycle(snapshot, key)
+            seam_input = (key, self.last_reason)
             procurement_key = self._town_procurement_decision(snapshot, key)
             if procurement_key is not None:
                 key = procurement_key
+            town_visit_plan.note_seam(self, snapshot, seam_input, key)
             if (
                 self._town_blocked_reason
                 == "town:blocked:home-withdraw-failed-stock-present"
@@ -12327,7 +12318,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Food gates a new town departure. An already armed recall belongs
         # to Hengband; the carried-only decision does not authorise cancelling
         # it for food alone (suitefix3 task, 2026-10-04).
-        if not leaves["free_pack_slots_ready"]:
+        if not leaves["free_pack_slots_ready"] and self._recall_pack_fuller_than_read(snapshot):
             blockers.append("pack-too-full")
         if (
             snapshot.player.class_id >= 0
@@ -12340,6 +12331,25 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return blockers
 
 
+
+    def _recall_pack_fuller_than_read(self, snapshot: Snapshot) -> bool:
+        """Whether the pack holds more slots than when the armed read was
+        authorised (town rebuild stage 3-3b, owner 2026-11-12 「出発の判断を1つに」).
+
+        The read accepts four free slots on the terminal certificate, which
+        signs the exact stacks, names included: a survival step during the
+        countdown that changes a device's charges or a ration's count voids
+        it although no slot was taken.  The canceller then undid the recall
+        the departure had authorised, and the read point refused to read again
+        (n1-c life-205 2026-11-13 06:31: a zombie Magic-Eater absorbed a wand,
+        96 -> 95 charges; recall-readiness-contradiction).  The pack leaf is a
+        regression only when the pack is fuller than at the read.  A read this
+        policy did not record (a restored older checkpoint) keeps the leaf.
+        """
+        read_slots = getattr(self, "_town_recall_read_pack_slots", None)
+        if read_slots is None:
+            return True
+        return len(self._recall_departure_board(snapshot).inventory) > read_slots
 
     @staticmethod
     def _has_cursed_equipment(snapshot: Snapshot) -> bool:

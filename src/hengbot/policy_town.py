@@ -7342,6 +7342,9 @@ class TownMixin:
                             snapshot.turn,
                             recall_count,
                         )
+                        # The departure stage's own record of the pack the
+                        # read was authorised with (town rebuild stage 3-3b).
+                        self._town_recall_read_pack_slots = len(snapshot.inventory)
                         self.last_reason = f"town:recall-to-{recall_dest}"
                         key = self._town_recall_device_key(snapshot, recall, selection)
                         self._offer_execution(

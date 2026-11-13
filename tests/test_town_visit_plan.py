@@ -16,7 +16,7 @@ from unittest.mock import patch
 from hengbot import town_visit_plan
 from hengbot.town_hold import claim_family_of
 from hengbot.town_visit import TownVisit
-from hengbot.town_visit_plan import INTERRUPT, facts, note_decision, stage_of
+from hengbot.town_visit_plan import INTERRUPT, facts, note_decision, note_seam, stage_of
 from test_keep_running_a0 import ready_board
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -75,6 +75,19 @@ class TraceTest(unittest.TestCase):
         with patch("hengbot.town_hold.claim_family_of", return_value="shop-buy"):
             note_decision(policy, SimpleNamespace(in_town=False, store=None))
         self.assertEqual(policy._town_visit.plan_segments, [])
+
+
+class SeamTest(unittest.TestCase):
+    def test_only_a_changed_key_or_reason_is_a_seam_rewrite(self):
+        policy = double("shop:travel", 4)
+        note_seam(policy, TOWN, ("7", "shop:travel"), "7")
+        self.assertEqual(policy._town_visit.plan_rewrites, [])
+        policy.last_reason = "town-progress-invariant:continue-observed-shop"
+        note_seam(policy, TOWN, ("7", "shop:travel"), "")
+        self.assertEqual(policy._town_visit.plan_rewrites, [
+            [4, "shop:travel", "town-progress-invariant:continue-observed-shop"]])
+        note_seam(policy, SimpleNamespace(in_town=False, store=None), ("7", "x"), "8")
+        self.assertEqual(len(policy._town_visit.plan_rewrites), 1)
 
 
 class RecordedBoardTest(unittest.TestCase):
