@@ -137,6 +137,27 @@ class ReaderTest(unittest.TestCase):
         self.assertIsNone(kill_all_patrol._toward(policy, board, far))
 
 
+class OtherWalkersTest(unittest.TestCase):
+    """The walks that searched on the engagement claim's set alone now ask ``refused``."""
+
+    def setUp(self):
+        self.policy, self.board = HengbotPolicy(), corridor()
+        self.policy._build_grid_index(self.board)
+        left_cells.leave(self.policy, self.board, (Q,), owner="pingpong:a/b", boards=40)
+
+    def test_device_recovery_position_walk(self):
+        self.assertIsNone(self.policy._nearest_position_step(self.board, {Position(25, 93)}))
+
+    def test_least_visited_fallback_step(self):
+        self.assertEqual(self.policy._least_visited_neighbor(self.board), Position(28, 93))
+
+    def test_quest_target_lap_routes(self):
+        from hengbot import quest_target_search
+        routes = quest_target_search._routes(self.policy, self.board)
+        self.assertNotIn(Q, routes)
+        self.assertIn(Position(28, 93), routes)
+
+
 class GuardTest(unittest.TestCase):
     def _walk(self, policy, moves, *, start=P, turn=1000):
         """Feed ``observe`` the boards of ``moves`` [(owner, position after)], as choose_key would:
@@ -238,6 +259,18 @@ class GuardTest(unittest.TestCase):
             _write_decision(path, board, "8", "explore", policy)
             row = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(row["pingpong"], "pingpong:explore/seek-loot")
+
+    def test_choose_key_asks_the_guard_every_board(self):
+        """The public decision observes the move before the ladder and passes its key through
+        the escalation after it."""
+        policy = HengbotPolicy()
+        with mock.patch.object(pingpong_guard, "observe", wraps=pingpong_guard.observe) as observe, \
+                mock.patch.object(pingpong_guard, "after_ladder",
+                                  wraps=pingpong_guard.after_ladder) as after:
+            for _ in range(2):
+                self.assertEqual(policy.choose_key(corridor()), "8")
+        self.assertEqual(observe.call_count, 2)
+        self.assertEqual(after.call_count, 2)
 
     def test_reasons_registry_names_the_survival_reasons(self):
         from hengbot import reasons
