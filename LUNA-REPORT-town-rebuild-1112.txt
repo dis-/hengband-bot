@@ -360,3 +360,39 @@ K. 残り（段3）
     町の終わりに来る型。ユーザーの答え「足さない」に従い、段3で持ち主の流れを作り直すまで名前付きの止まりのまま。
 
 main の取り込み: main b708b9b1eb は枝の 883dc85541 を含むので、枝は main に早送りした（同じ木、差 0）。
+
+
+追記4（2026-11-13 夜）: 段3-3c の確かめと main の取り込み
+==================================================
+
+L. 段3-3c（495458df31、前の実装役のコミット）: 観た店の棚を続ける名前を、店の持ち主が自分で付ける
+  - 進みの継ぎ目（_town_procurement_decision）が shop:observe-and-leave を
+    town-progress-invariant:continue-observed-shop に付け替えていたのを、shop:observe-and-leave を出す2か所
+    （店の頁の観察の訪問・繰り返しで止められた店の頁）が _continue_observed_shop で自分で名付ける形にした。
+    継ぎ目が返していた条件（自宅の流れが店の案内を持つ・町の外・invariant を先取りしてよい手・装備の取引の中・
+    暗くて回復の無い時の付け替え）は _observed_shop_continues が同じ順に読む。キーは変わらない。
+  - 前の実装役の「コミットしていない policy.py の変更」は中身が HEAD と同じだった（stat だけの差、失われた変更は無い）。
+M. main c50cd91dc4（ズルの広域マップの拒否）を取り込み: a42f292e5d（衝突なし）。
+N. 確かめ（main c50cd91dc4 対 枝 a42f292e5d）
+  - 町到着の記録の再生: 233件・再生できた 222件・2,362行・差 0件（両方とも戻せない11件は同じ）。
+  - 継ぎ目の差し替え（plan_rewrites）: main 42回 → 枝 5回。観た店を続ける37回が0回に。
+    残り5回: shop:approach → town-progress-invariant:defect:…=>approach 3回、
+    store:entry-interrupted-replan → town:kill-mob-approach 1回、home:request-knowledge-scan → pickup 1回。
+  - テスト: 町の68モジュール（3-3c の比べの67 ＋ test_n1b_389_zul_leave_sight_1113_recorded）を main と枝で流した。
+    新しい赤 0。赤は main 148・枝 147 で、違いは main だけの
+    test_n1c_stops_1104_recorded.TownStops.test_a_town_fight_is_not_the_opening_routes_standstill の1本
+    （main で単独に流し直すと通る。負荷による揺れ）。時間切れ（900秒）の3モジュールは両方同じ。
+  - マニフェスト 1944 candidates・zero unmapped。departure_rescue_lint 0（35葉）、town_visit_plan_lint 0、
+    dungeon_ladder_lint 0、import OK。
+    reason_registry_lint は 'retention:supply-ledger:recall-rod'（item_use_route.py:242）が未登録で失敗するが、
+    main c50cd91dc4 でも同じ（main の item-use-route 73d2f2e4a3 由来、この枝の変更ではない）。
+
+O. 町の止まりの報告の残り（重さの処分の状態が立った後、持っている余りが足りないと止まる）
+  - 段2の救済の表は inventory_weight_ready に overweight-sale だけを持ち、その手は
+    _overweight_surplus_sale_key を呼ぶ。この関数自身が、処分の状態が立っていて持っている余りが超過に足りない時に
+    overweight-home-full-no-legal-relief で止める（policy_home.py の「candidates の重さ < 超過」の分岐）。
+    その時 _weight_relief_selection の経路が home-relief（家に預けられる品があり家に行ける）でも止まる。
+    → 今の救済の流れでは扱えない（救済の手が止まりそのもの）。
+  - 直し方の案（次の段 3-3d）: その分岐で経路が home-relief なら処分の状態を外して None を返し、
+    home-relief の持ち主に渡す（同じ関数の、経路が deposit になった時に状態を外す分岐と同じ形）。
+    止まっていた盤面だけが変わる。18:07 の記録は今の main では余りが足りて再現しないので、作った盤面のテストで示す。
