@@ -19,6 +19,15 @@ withdrawal is composed on, and the town end stepped off that entrance before ask
 filed_take_route_key again, which walked back onto the entrance: 100 boards around
 (45,123).  The filed take now answers before the entrance step-off.
 
+n1-b life-395 06:37:50, town:blocked:owner-retired-burst.  The previous visit filed a
+full-Home sale of 耐久力の指輪 (+2), then identified the ring (it became
+耐久力の指輪 (+2) {+耐}) and put it back in Home.  The errand kept the old name, so at the
+Home entrance its target was never observed and the pending Restore Constitution take
+behind it was never composed: home-errand:target-unobserved:full-home-sale, ESC outside
+the store, until the owner retirement.  A Home errand whose name the complete current
+catalogue no longer holds gives way, as the identification takes already did
+(c12b43110d, n1-b life-348).
+
 Recorded: the town-arrival checkpoint and its journal
 (tests/extract_town_stops_1114am_fixtures.py), decided through the public choose_key;
 the re-arm is posted through the production executor (_ExecutorInputPort).
@@ -130,6 +139,46 @@ class TownStops1114RecordedTest(executor_harness.RecordedHarness):
         self.assertEqual(policy.last_reason, "home-errand:atomic-withdraw:identification-catalog")
         raw = visit.board(55)
         self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
+
+    def test_a_home_sale_errand_that_outlived_its_name_gives_way(self):
+        visit = self.visit("renamed-sale-395")
+        policy = visit.policy
+        # The arrival policy holds the sale under the ring's earlier name.
+        stale = ("耐久力の指輪 (+2)", 45, 27)
+        self.assertEqual(policy._home_errand.request.signature, stale)
+        for recorded, supply in visit.rows[:84]:
+            key = policy.choose_key(supply())
+            self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]),
+                             recorded["row"])
+            visit.post(key)
+        self.assertEqual(visit.rows[83][0]["reason"], "home:leave-for-pending-withdraw")
+        self.assertIsNone(policy._home_errand.request)
+        names = {policy._item_signature(item) for item in policy._home_knowledge_items}
+        self.assertNotIn(stale, names)
+        self.assertIn(("耐久力の指輪 (+2) {+耐}", 45, 27), names)
+        recorded, supply = visit.rows[84]
+        self.assertTrue(recorded["reason"].startswith(
+            "town-progress-invariant:defect:home-errand:target-unobserved:full-home-sale"))
+        board = supply()
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "home:atomic-withdraw")
+        self.assertIsNone(policy._home_errand.request)
+        self.assertEqual(key, "5pi1\r\x1b")
+        # DECLARED CONSTRUCTED: the Home screens of store.cpp for "5" (enter on the
+        # entrance), "p" (get), the letter, the quantity and Escape, on the page
+        # recorded on row 83.
+        page = visit.board(83)["store"]
+        ware = next(item for item in page["items"] if item["letter"] == "i")
+        screens = [
+            executor_harness.store_screen(),
+            executor_harness.prompt_screen(
+                f"(アイテム:a-{page['items'][-1]['letter']}, ESCで中断) どのアイテムを取りますか? "),
+            executor_harness.prompt_screen(f"いくつですか (1-{ware['count']}): 1"),
+            executor_harness.store_screen(),
+        ]
+        raw = visit.board(84)
+        self.assertEqual(self.post(policy, raw, key, screens, self.later(raw)),
+                         ["5", "p", "i", "1\r", "\x1b"])
 
 
 if __name__ == "__main__":

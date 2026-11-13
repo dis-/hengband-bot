@@ -71,13 +71,24 @@ def candidates(policy: Any, board: Any) -> list:
 def release_stale_take(policy: Any, board: Any) -> None:
     """An unposted catalogue take that can no longer be done gives way.
 
+    So does any unposted Home errand whose name the complete current Home
+    catalogue no longer holds (the take outlived its item's name).
+
     It gives way only to another candidate this visit can identify, so a
     take waiting for its source to be bought keeps its slot.
     """
     errand = policy._home_errand
     request = errand.request
-    if (not errand.active or request is None or request.purpose != CATALOGUE_PURPOSE
+    if (not errand.active or request is None
             or policy._home_atomic_withdraw_pending is not None):
+        return
+    if request.purpose != CATALOGUE_PURPOSE:
+        # The same name rule holds for every Home errand: n1-b life-395
+        # 2026-11-14 06:37, the full-Home sale of 耐久力の指輪 (+2) outlived
+        # its name (identified, it became 耐久力の指輪 (+2) {+耐}) and the
+        # entrance repeated home-errand:target-unobserved:full-home-sale.
+        if _uncatalogued_in_home(policy, request.signature):
+            errand.cancel_unposted()
         return
     target = next((owned.item for owned in policy._equipment_catalog.items
                    if owned.origin == "home"
