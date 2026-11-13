@@ -20,6 +20,7 @@ from typing import Callable, Iterable, Iterator, Mapping
 
 from hengbot import torch_release
 from hengbot.model import (
+    ARMOUR_TVALS,
     BAD_PSEUDO_FEELINGS,
     SV_BOW_LIGHT_XBOW,
     SV_BOW_SHORT,
@@ -263,6 +264,22 @@ def average_light_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
     return item.tval == TVAL_LITE and average_without_modifiers(item, trusted)
 
 
+def average_armour_without_modifiers(item: EquipmentItem, trusted: bool) -> bool:
+    """An unidentified armour piece sensed {average}: its base AC and no modifier.
+
+    pseudo_value_check_heavy (perception/simple-perception.cpp) senses
+    {average} only for an item that is no artifact or ego, not cursed or
+    broken, with to_a <= 0 and to_h + to_d <= 0; the name prints its base AC
+    (model._item_base_ac).  Owner 2026-11-13: an unidentified {average}
+    armour piece is rated with that base AC, to_a 0 and no flags, like the
+    worn {average} gear of the C screen (2026-11-04 「修正なしとして使う」) and
+    the {average} light worn unidentified (2026-10-31 「並なら付けて良い」).
+    n1-c life-205 follow-up: an unidentified セスタス [5] {並} rated AC 0 was
+    traded for a 革グローブ [1,+3].
+    """
+    return item.tval in ARMOUR_TVALS and average_without_modifiers(item, trusted)
+
+
 def q34_item_tagged(item: EquipmentItem) -> bool:
     """Whether the item carries the bot's in-game ``Q34`` inscription."""
     return bool(_Q34_TAG.search(item.inscription or "")
@@ -343,6 +360,8 @@ class OwnedEquipment:
         if item.known or item.pseudo_feeling in BAD_PSEUDO_FEELINGS:
             return False
         if average_light_without_modifiers(item, self.average_feeling_trusted):
+            return True
+        if average_armour_without_modifiers(item, self.average_feeling_trusted):
             return True
         return item.tval not in Q34_WIELD_IDENTIFY_FIRST_TVALS and q34_item_tagged(item)
 

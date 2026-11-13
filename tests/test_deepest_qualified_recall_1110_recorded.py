@@ -42,6 +42,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from hengbot import fallback_depth_floor
 from hengbot.cli import _consume_response_sequence
 from hengbot.model import DUNGEON_ANGBAND
 from tests.support.recorded import _policy
@@ -154,24 +155,27 @@ class DeepestQualifiedRecallTest(unittest.TestCase):
         self.assertEqual(restarted._alternate_dungeon, DUNGEON_ANGBAND)
         self.assertEqual(restarted._target_dungeon_id, DUNGEON_ANGBAND)
 
-    def test_below_the_over_extension_the_orc_cave_22_is_taken(self):
+    def test_below_the_over_extension_nothing_at_the_floor_qualifies(self):
         """Live and until owner 2026-11-11 (C2): nothing shallower than 49 qualified (the Orc
-        cave 22 read as its guardian floor) and the character fundraised.  The Orc cave's
-        guardian floor is 23; 22 is the deepest landing shallower than 49 now (「条件を満たす
-        一番深い所へ」)."""
+        cave 22 read as its guardian floor) and the character fundraised.  From C2 to
+        2026-11-13 the Orc cave 22 was taken (「条件を満たす一番深い所へ」).  Owner 2026-11-13
+        「フォールバックは最新到達-20Fまでにする。」: the Castle 51 is the deepest reached, so the
+        floor is 31 and the Orc cave 22 is no fallback either; nothing qualifies and the next
+        rules decide (the switch is not made)."""
         policy, board = self.process("none", CASE["rows"])
         # Angband 49 meets the depth gate but is not shallower than the over-extended 49.
         self.assertEqual(policy._last_overextended_depth, 49)
         self.assertEqual(board.dungeon_recall_depths[DUNGEON_ANGBAND], 49)
         self.assertEqual(policy._missing_required_abilities(board, 49), frozenset())
-        key, reason = self.gate(policy, board)
-        self.assertEqual((key, reason), ("5", "town:unsafe-recall-fallback"))
-        self.assertEqual((policy._alternate_dungeon, policy._target_dungeon_id), (3, 3))
+        self.assertEqual(fallback_depth_floor.floor(policy, board), 31)
         self.assertEqual(board.dungeon_recall_depths[3], 22)
+        self.assertFalse(policy._fallback_landing_allowed(board, 3, 22))
+        _key, reason = self.gate(policy, board)
+        self.assertNotEqual(reason, "town:unsafe-recall-fallback")
+        self.assertEqual((policy._alternate_dungeon, policy._target_dungeon_id), (CASTLE, CASTLE))
         # A restarted process on the same board decides the same (the set is re-derived).
         again, board = self.process("none-restart", CASE["rows"])
         self.assertEqual(self.gate(again, board)[1], reason)
-
 
 def _board(policy, row):
     line = json.dumps(row, ensure_ascii=False) + "\n"

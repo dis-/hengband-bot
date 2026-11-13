@@ -40,7 +40,9 @@ from pathlib import Path
 
 from hengbot.cli import _consume_response_sequence
 
+from hengbot import fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND
+from tests.support.fallback_floor import floor_lifted
 from tests.support.recorded import _policy
 from tests.test_stops_1109_town_recorded import RecordedVisit
 
@@ -60,6 +62,9 @@ class AlternateDeepestVisit(RecordedVisit):
         return [(row, *self.decide(row)) for row in range(last + 1)]
 
 
+# DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 refuses the
+# Castle 32 and the Orc cave 23 (FallbackDepthFloorTest); the deepest-fit order predates the floor.
+@floor_lifted()
 class OverExtensionDeepestTest(AlternateDeepestVisit):
     """Answer 「収まる中で一番深い所へ」: the deepest landing that still fits."""
 
@@ -120,6 +125,9 @@ class OverExtensionDeepestTest(AlternateDeepestVisit):
         policy._last_overextended_depth = LANDINGS[ORC_CAVE]
         self.assertIsNone(policy._pick_alternate_dungeon(board, prefer_deepest=True))
 
+# DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 refuses the
+# Castle 32 and the Orc cave 23 (FallbackDepthFloorTest); the deepest-fit order predates the floor.
+@floor_lifted()
 class RestartKeepsTheSwitchTest(AlternateDeepestVisit):
     """The switch survives a process restart (alternate_dungeon_record).
 
@@ -176,6 +184,25 @@ class RestartKeepsTheSwitchTest(AlternateDeepestVisit):
         # On this board the fresh process goes back to Angband 70F, the
         # depth the three over-extended dives just came from.
         self.assertEqual(fresh._target_dungeon_id, DUNGEON_ANGBAND)
+
+
+class FallbackDepthFloorTest(AlternateDeepestVisit):
+    """Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」 on the recorded arrival."""
+
+    def test_no_switch_under_the_floor_and_the_next_rules_decide(self):
+        (_row, board, _key, _reason), = self.replay(0)
+        policy = self.policy
+        # Angband 70 is the deepest reached: the floor is 50.  Below the over-extended 70 only
+        # the Mountain 50 is at the floor, and it needs *Destruction* the kit lacks.
+        self.assertEqual(fallback_depth_floor.floor(policy, board), 50)
+        self.assertIsNone(policy._pick_alternate_dungeon(board, prefer_deepest=True))
+        # No over-extension switch (live: the Orc cave 23; until 11-13: the Castle 32).  The
+        # next rule is the guardian valve of the Mountain 50 target, which takes Angband 70
+        # first (owner 2026-11-07), a landing at the floor or deeper.
+        self.assertNotEqual(policy._alternate_dungeon_reason, "over_extended_dives")
+        self.assertEqual((policy._alternate_dungeon, policy._alternate_dungeon_reason,
+                          policy._target_dungeon_id),
+                         (DUNGEON_ANGBAND, "guardian_valve", DUNGEON_ANGBAND))
 
 
 if __name__ == "__main__":

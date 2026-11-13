@@ -279,6 +279,7 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         policy._loot_target = target
         policy._recent = deque([countdown.player.position] * 2, maxlen=20)
         for _ in range(NAV_TARGET_STALL_LIMIT + 1):
+            policy._loot_walked_target = target  # the loot walk's own step (_loot_step)
             policy._observe_navigation_commitments(countdown)
         self.assertTrue(policy._nav_ledger.is_expired("loot", target))
         self.assertEqual(policy._nav_ledger_deferred_loot, {target})

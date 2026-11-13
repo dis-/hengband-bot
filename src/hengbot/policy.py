@@ -11,7 +11,7 @@ from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladde
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
-from hengbot.summoner_wait import hold_key, summoner_wait_decision
+from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 
 from collections import Counter, deque
@@ -1824,6 +1824,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._nav_ledger_deferred_loot: set[Position] = set()
         self._loot_ledger_rearmed: set[Position] = set()
         self._loot_safety_rearmed: set[Position] = set()
+        # The loot target this decision's own loot walk stepped toward (_loot_step): the
+        # navigation ledger charges a committed loot goal only on the board after its walk.
+        self._loot_walked_target: Position | None = None
         self._loot_defer_blocker: str | None = None
         self._pending_loot_pickup: tuple[tuple[int, int, int], Position, int] | None = None
         self._multiplier_target: Position | None = None
@@ -9272,16 +9275,27 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return not self._is_dark(snapshot)
 
     def _can_read_now(self, snapshot: Snapshot) -> bool:
-        """The game's read rule: ``cmd_limit_blind`` (blind or ``no_lite``)
-        and ``cmd_limit_confused`` (cmd-read.cpp, cmd-item.cpp)."""
-        return (
-            not snapshot.player.blind
-            and not snapshot.player.confused
-            and self._can_read_scrolls(snapshot)
-        )
+        """The game's read rule (``_can_read_scrolls``)."""
+        return self._can_read_scrolls(snapshot)
 
     def _can_read_scrolls(self, snapshot: Snapshot) -> bool:
-        """Return whether Hengband permits reading on the current grid now."""
+        """Return whether Hengband permits reading a scroll now.
+
+        The game's rule (cmd-read.cpp do_cmd_read_scroll): ``cmd_limit_blind``
+        (blind, or ``no_lite`` on the own grid) and ``cmd_limit_confused``
+        refuse the read with no game time spent.  The confusion test was left
+        to each caller; the ones that forgot it read on and on.  n1-b life-392
+        (2026-11-13 19:52, オークの洞窟19階): confused by the claws of a
+        <スラーネッシュ>の女悪魔, the low-HP walk gate read Word of Recall
+        (``rf``) twenty times, each refused 「混乱していてできない！」, and
+        the character died there.
+        """
+        if snapshot.player.blind or snapshot.player.confused:
+            return False
+        return self._own_grid_readable(snapshot)
+
+    def _own_grid_readable(self, snapshot: Snapshot) -> bool:
+        """The ``no_lite`` half of the read rule: the own grid is lit or visible."""
         if snapshot.can_see_own_grid is not None:
             # The reported own grid is the game's answer at every depth: an
             # unlit town street at night refuses the read like a dark room.
@@ -13632,8 +13646,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return offer(self._step_toward(snapshot, step))
 
     def _observe_navigation_commitments(self, snapshot: Snapshot) -> None:
-        """Charge a committed loot goal on every decision until it expires."""
+        """Charge a committed loot goal after each step of its own walk until it expires.
+
+        Only the board after the loot walk's own step (``_loot_walked_target``) is charged: a
+        decision another owner took did not pursue the goal, so it does not stall it.  The
+        ledger charged the goal on every decision whoever took it, and an owner that holds
+        the player still for long spent the walk's budget: n1-c life-205 (Orc cave 23F,
+        2026-11-13 19:17:22) deferred a polearm three cells away for the floor on the 32nd
+        board of an ``anaguma:hold`` in the pocket beside it, and the visit returned by
+        ``stuck:recall-escape`` with it on the floor (13:26 the same with a choke hold, for
+        which ``_set_aside_loot_goal`` was added to that one owner).
+        """
         committed_loot = self._loot_target
+        walked = self.__dict__.get("_loot_walked_target")
+        self._loot_walked_target = None
         previous_position = self._recent[-2] if len(self._recent) >= 2 else None
         jumped = (
             previous_position is not None
@@ -13660,7 +13686,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # approach stepped back, and seek-loot walked out again from the
             # entrance until owner-retired-burst.
             self._nav_ledger.release("loot", committed_loot)
-        elif committed_loot is not None and not jumped:
+        elif committed_loot is not None and not jumped and walked == committed_loot:
             self._nav_ledger.observe(
                 "loot",
                 committed_loot,
@@ -15798,9 +15824,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         The destination is the cell this search actually chose, so an owner can
         commit to it across decisions.  The flee fallback has no destination: it
         is a direction away from the hostiles, not a place.
+
+        The covered cell is where the summoner hold then waits (hold_key), so it is chosen
+        as the hold would keep it: never a cell an owner left while its reason holds
+        (left_cells.refused: the hold's own record of a shot point among them; this search is
+        one of the walkers that route on their own), and, where one is reachable, a cell no
+        visible hostile reaches (summoner_wait.unfit_hold_point, owner 2026-11-02
+        「撃たれる場所は待つポイントとして不適当なので撃たれない場所で待つ」).  n1-c life-207
+        (Glass castle 60F, 2026-11-13 23:37): at [41,106] this search chose the shot choke
+        [41,107] one step back, which summoner:hold-reposition had just left and recorded;
+        the hold stepped off it again and the two walked [41,106]/[41,107] 25 times until
+        the loop detector stopped the bot.
         """
         origin = snapshot.player.position
         origin_distance = min(origin.distance_to(monster.position) for monster in summoners)
+        refused = left_cells.refused(self, snapshot)
         seen = {origin}
         queue: deque[tuple[Position, Position | None, int]] = deque([(origin, None, 0)])
         candidates: list[tuple[int, int, int, Position, Position]] = []
@@ -15815,6 +15853,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if (
                     openness <= SUMMONER_CHOKE_NEIGHBORS - 1
                     and summoner_distance >= origin_distance
+                    and position not in refused
                     # The wait there would be a step off it (damaging_ground).
                     and not damaging_ground.hurts_at(self, snapshot, position)
                 ):
@@ -15840,7 +15879,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 )
 
         if candidates:
-            chosen = min(candidates, key=lambda candidate: candidate[:3])
+            # Nearest first; the first the hold would keep, else the nearest (still cover
+            # out of the open, the hold's own move or teleport answers its fire there).
+            candidates.sort(key=lambda candidate: candidate[:3])
+            chosen = next((candidate for candidate in candidates
+                           if not unfit_hold_point(self, snapshot, candidate[4])),
+                          candidates[0])
             return chosen[4], chosen[3]
         return None, self._flee_step(snapshot, hostiles)
 

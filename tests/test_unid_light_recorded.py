@@ -206,14 +206,17 @@ class UnidentifiedLightRecordedTest(executor_harness.ProductionHarness):
         self.assertIsNone(self.actions(policy))
         self.assertNotIn("light", self.selected(policy))
 
-    def test_control_average_non_light_is_not_worn(self):
+    def test_average_armour_is_worn_unidentified(self):
         # DECLARED CONSTRUCTED: the carried unidentified Leather Gloves sensed
         # {average}; the arms slot is empty and must be filled when it can be.
+        # Owner 2026-11-13: an unidentified {average} armour piece is rated with
+        # the base AC its name prints, to_a 0 and no flags, and worn like the
+        # {average} light (it was a control that stayed unworn before).
         inside = self.board("in-home", **{GLOVES_SLOT: {"pseudo_feeling": "average",
                                                         "name": "革グローブ [1] {並}"}})
         policy = self.policy(inside)
         self.decide(policy, inside)
-        self.assertNotIn("arms", self.selected(policy))
+        self.assertEqual(self.selected(policy)["arms"], "革グローブ [1] {並}")
         self.assertEqual(self.selected(policy)["light"], "真鍮のランタン {並}")
 
     def test_q34_inscribed_items_are_worn_unidentified(self):

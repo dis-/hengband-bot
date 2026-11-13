@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from hengbot import spare_gear
 from hengbot import random_quest_hold
+from hengbot import fallback_depth_floor
 from hengbot import me_capped_pickup
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 
@@ -550,8 +551,14 @@ class PolicyHelpersMixin:
         require_shallower: bool = True,
         guardian_bounced_dungeon: int | None = None,
         refused_dungeon: int | None = None,
+        depth_floor: bool = True,
     ) -> int | None:
         """Choose a safe dungeon already available to Recall.
+
+        ``depth_floor``: every landing is at least the fallback depth floor
+        (owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」,
+        ``fallback_depth_floor``); only the random-quest hold's deepest open
+        floor, an intended destination rather than a fallback, passes False.
 
         ``refused_dungeon``: the unsafe-recall fallback's refused target.
         Owner 2026-11-10 (n1-b life-365, Castle 51 lacking *Destruction* and
@@ -640,7 +647,9 @@ class PolicyHelpersMixin:
                     continue
             elif landing_depth > max_entry_depth:
                 continue
-            if not self._fallback_landing_allowed(snapshot, did, landing_depth):
+            if not self._fallback_landing_allowed(
+                snapshot, did, landing_depth, depth_floor=depth_floor
+            ):
                 continue
             if best is None:
                 best = info
@@ -688,6 +697,10 @@ class PolicyHelpersMixin:
             and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
             and self._can_fight_in_dungeon(DUNGEON_ANGBAND)
             and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
+            and fallback_depth_floor.landing_allowed(
+                self, snapshot,
+                fallback_depth_floor.landing_depth(self, snapshot, DUNGEON_ANGBAND),
+            )
         )
     def _fallback_destination_allowed(self, dungeon_id: int) -> bool:
         """Whether ``dungeon_id`` can ever be the fallback of ``_pick_alternate_dungeon``.
@@ -699,9 +712,13 @@ class PolicyHelpersMixin:
                 and self._can_fight_in_dungeon(dungeon_id))
 
     def _fallback_landing_allowed(
-        self, snapshot: Snapshot, dungeon_id: int, landing_depth: int
+        self, snapshot: Snapshot, dungeon_id: int, landing_depth: int, *,
+        depth_floor: bool = True,
     ) -> bool:
         """Whether a fallback's recall landing is a floor this kit may arrive on.
+
+        Not shallower than the fallback depth floor (the deepest floor reached
+        minus 20, ``fallback_depth_floor``) unless ``depth_floor`` is False.
 
         Its entry floor must be within our RESISTANCE safe band, or we just
         trade one under-resisted dungeon for another. The character lacking
@@ -716,7 +733,9 @@ class PolicyHelpersMixin:
         exists to end (live 2026-09-25: Orc cave, landing 23 = its guardian
         floor, picked as the unsafe-recall fallback, 7 round trips).
         """
-        return (not self._missing_required_abilities(snapshot, landing_depth)
+        return ((not depth_floor
+                 or fallback_depth_floor.landing_allowed(self, snapshot, landing_depth))
+                and not self._missing_required_abilities(snapshot, landing_depth)
                 and not self._recall_landing_guardian_blocked(snapshot, dungeon_id, landing_depth))
 
     def _can_fight_in_dungeon(self, dungeon_id: int) -> bool:

@@ -459,7 +459,10 @@ class WarriorOptimizationTest(unittest.TestCase):
 
         self.assertIsNotNone(prepared.result)
         self.assertFalse(prepared.result.timed_out)
-        self.assertEqual(
+        # Since n1-c life-205 2026-11-13 the field is the union of the
+        # neighbourhoods along the chosen sets (optimize_single_slot_closure):
+        # at least the worn loadout's own, and single-slot moves only.
+        self.assertGreaterEqual(
             prepared.result.combinations_considered, incremental_count
         )
 

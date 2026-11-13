@@ -1961,7 +1961,7 @@ def _parse_store(store_data: Any, *, protocol: int = PROTOCOL_LEGACY) -> "StoreS
             to_h=int(it.get("to_h", 0)),
             to_d=int(it.get("to_d", 0)),
             to_a=int(it.get("to_a", 0)),
-            ac=int(it.get("ac", 0)),
+            ac=_item_base_ac(it, name, tval, _as_bool(it.get("known", False))),
             damage_dice_num=int(dice.get("num", 0)),
             damage_dice_sides=int(dice.get("sides", 0)),
             known_flags=frozenset(int(flag) for flag in it.get("known_flags", [])),
@@ -1995,6 +1995,29 @@ def _parse_store(store_data: Any, *, protocol: int = PROTOCOL_LEGACY) -> "StoreS
 
 
 _STORE_CHARGES_RE = re.compile(r"[\(（]\s*(\d+)\s*(?:回分|charges?)\s*[\)）]", re.IGNORECASE)
+
+
+# Armour (soft/hard armour, dragon armour, shields, cloaks, helms, crowns,
+# gloves, boots): the kinds whose description always carries their AC.
+ARMOUR_TVALS = frozenset({30, 31, 32, 33, 34, 35, 36, 37, 38})
+_UNKNOWN_ARMOUR_AC = re.compile(r" \[(\d+)\]")
+
+
+def _item_base_ac(data: Mapping[str, Any], name: str, tval: int, known: bool) -> int:
+    """The item's base AC: the emitted value, or the one its name prints.
+
+    Protocol 3 emits ``ac`` only for an identified item, but the game prints
+    the base AC of unidentified armour in its name (flavor-describer.cpp
+    describe_ac: " [ac]" for every protector).  Without it an
+    unidentified セスタス [5] {並} weighed AC 0 against a 革グローブ [1,+3]
+    (owner 2026-11-13: the base AC is known; to_a stays unknown, read as 0).
+    """
+    if "ac" in data:
+        return int(data.get("ac") or 0)
+    if known or tval not in ARMOUR_TVALS:
+        return 0
+    match = _UNKNOWN_ARMOUR_AC.search(name)
+    return int(match.group(1)) if match else 0
 
 
 def _store_item_charges(item_data: Any, *, name: str, tval: int) -> int:
@@ -2047,7 +2070,7 @@ def _parse_items(items_data: Any, *, protocol: int = PROTOCOL_LEGACY) -> list[In
                 to_h=int(item_data.get("to_h", 0)),
                 to_d=int(item_data.get("to_d", 0)),
                 to_a=int(item_data.get("to_a", 0)),
-                ac=int(item_data.get("ac", 0)),
+                ac=_item_base_ac(item_data, str(item_data.get("name", "")), tval, known),
                 damage_dice_num=int(dice.get("num", 0)),
                 damage_dice_sides=int(dice.get("sides", 0)),
                 known_flags=frozenset(

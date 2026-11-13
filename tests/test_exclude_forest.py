@@ -56,7 +56,10 @@ class ExcludeForestTest(executor_harness.ProductionHarness):
             inventory=[item("r", TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, count=10),
                        item("f", TVAL_FOOD, 35, count=10)],
             entered_dungeon_ids=(1, 3, 7), conquered_dungeon_ids=(3, 7),
-            dungeon_recall_depths={1: 40, 3: 10, 7: 24},
+            # The Orc cave lands at 20, the fallback depth floor (Angband 40 reached minus 20,
+            # owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」); its entry floor 10
+            # before the floor.
+            dungeon_recall_depths={1: 40, 3: 20, 7: 24},
         )
 
     def _post(self, key, reason):

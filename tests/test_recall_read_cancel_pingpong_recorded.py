@@ -78,6 +78,8 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import MIN_FREE_PACK_SLOTS, PACK_CAPACITY
 
+from hengbot import fallback_depth_floor
+from tests.support.fallback_floor import floor_lifted
 from tests.support.recorded import EDIT, _policy
 
 
@@ -246,6 +248,7 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
                     "read_signature": read_signature,
                     "raw_failed": [k for k, ok in raw_leaves.items() if not ok],
                     "raw_pack_ready": policy._town_pack_space_ready(cancel_board),
+                    "floor": fallback_depth_floor.floor(policy, cancel_board),
                     "departure_signature": policy._town_pack_space_signature(
                         departure_board
                     ),
@@ -266,7 +269,11 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
     @recorded_loadout_replay
     def _replay(cls):
         if cls.replay is None:
-            cls.replay = [cls._pair(pair) for pair in range(len(PAIRS))]
+            # DECLARED WALL (tests/support/fallback_floor.py): the held Castle-for-Forest switch
+            # lands under the fallback depth floor (test_the_floor_ends_the_switch_under_it);
+            # the read/cancel subject predates the floor.
+            with floor_lifted():
+                cls.replay = [cls._pair(pair) for pair in range(len(PAIRS))]
         return cls.replay
 
     # ------------------------------------------------------------ recorded
@@ -362,6 +369,18 @@ class RecallReadCancelPingPongRecordedTest(unittest.TestCase):
             [result["cancel"] for result in replay],
             [(key, STEP_OFF) for key in STEP_OFF_KEYS],
         )
+
+    @recorded_loadout_replay
+    def test_the_floor_ends_the_switch_under_it(self):
+        """Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」: the held alternate's
+        landing is more than 20 floors above the deepest reached, so the cancel board ends the
+        switch and the armed recall is cancelled as a wrong destination (no longer the read's
+        pack certificate)."""
+        result = self._pair(0)
+        board = result["cancel_board"]
+        self.assertLess(board.dungeon_recall_depths[12], result["floor"])
+        self.assertEqual(result["read"], READ)
+        self.assertEqual(result["cancel"][1], "town:cancel-wrong-recall-destination")
 
 
 if __name__ == "__main__":

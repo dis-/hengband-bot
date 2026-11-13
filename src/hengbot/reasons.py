@@ -261,6 +261,10 @@ _rows(NOT_ESCAPE, "me_powers", "the absorbed detection when the stairs are neede
       "me-power:stairs-needed-and-unknown:*")
 _rows(NOT_ESCAPE, "me_powers", "the absorbed area mapping when seen loot has no known way to it "
       "(owner 2026-11-13 「経路が見つからない時に周辺感知を使う」)", "me-power:loot-unreachable:*")
+_rows(NOT_ESCAPE, "item_use_route",
+      "a retention label naming why a kind is kept (item_use_route.RETENTION_KINDS, the item-use-route "
+      "report and lint); never sent as a decision reason, no read and no escape",
+      "retention:*")
 
 # ================================================================ answered by the owner 2026-11-09
 # The registry report's questions (「ダンジョンの分だけ数える」): Q1 and Q2 count (above); these do not.

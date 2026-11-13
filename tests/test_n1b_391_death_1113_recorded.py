@@ -27,6 +27,15 @@ only the awake hostiles in view, so the two sensed dragons (12 and 15 cells by t
 distance) never got it.  Now it counts the engagement.  DECLARED CONSTRUCTED variants of
 6409: the scrolls taken out of the pack, or the player blind; the absorbed *Destruction* (87%)
 answers.
+
+Owner 2026-11-13 (this death's question, answer 「まとめて判定する」): awake sensed strong
+monsters are judged together; T1 together, they are the sensed T1 (threat_tiers
+``_sensed_strong``).  Each dragon is T2 alone from contact, the pair T1.  From 6407 both are
+inside their sensing radius (vision 20): 6407 walks toward the sure radius
+(``sensed-t1:approach-destruction``, live: the explore step, the same key), 6408 has both inside
+it (9 and 13 cells) and uses the absorbed *Destruction*.  6405: the dragons are outside their
+sensing radius and パーサーナックス (T1 alone, 31 cells off) is the sensed T1 already, with no known
+way toward it (unchanged); 6406: only ファフナー is sensing, no group.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -46,6 +55,7 @@ from hengbot.policy import HengbotPolicy
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-391-death-1113.pkl.xz"
 FAFNER, SMAUG = 712, 697
 TELEPORT_REASON = "emergency:teleport"
+APPROACH = "sensed-t1:approach-destruction"
 DESTRUCTION = ("mA3", "emergency:destruction:absorbed-power")
 
 
@@ -134,15 +144,45 @@ class N1b391Death1113RecordedTest(unittest.TestCase):
             board, player=replace(board.player, blind=True)))
         self.assertEqual((key, reason), DESTRUCTION)
 
-    def test_boards_before_the_reach_explore_on(self):
+    def test_boards_before_the_reach_read_no_instant_death(self):
         """6405-6408: no breath reaches before the player's next action (each dragon one action
-        a turn, no line and no grid beside the player in reach): no 即死, the explore stands."""
+        a turn, no line and no grid beside the player in reach): no 即死."""
         for sequence in range(6405, 6409):
             with self.subTest(sequence=sequence):
-                policy, board, key, reason = self.decided[sequence]
+                policy, board, _, _ = self.decided[sequence]
                 self.assertFalse(threat_tiers.instant_death(policy, board).holds)
-                self.assertEqual((key, reason), live(sequence))
 
+    def test_each_dragon_is_t2_alone_and_the_pair_t1(self):
+        """6407-6409: from contact each is T2 alone, the two together cannot be beaten."""
+        for sequence in range(6407, 6410):
+            with self.subTest(sequence=sequence):
+                policy, board, _, _ = self.decided[sequence]
+                pair = dragons(policy, board)
+                hp = board.player.hp
+                for monster in pair.values():
+                    self.assertTrue(threat_tiers.inside_sensing(policy, board, monster))
+                    self.assertEqual(threat_tiers.tiered(
+                        policy, board, [monster], contact=True).tier, threat_tiers.T2)
+                self.assertTrue(threat_tiers.cannot_win(threat_tiers.tiered(
+                    policy, board, list(pair.values()), contact=True), hp))
+                self.assertEqual(sorted(monster.race_id for monster
+                                        in threat_tiers._sensed_strong(policy, board)[1]),
+                                 [SMAUG, FAFNER])
+
+    def test_the_pair_is_approached_then_destroyed(self):
+        """Owner 2026-11-13 「まとめて判定する」 with 2026-11-10 「積極的に*破壊*で消しにいく」:
+        6407 walks toward the sure radius, 6408 (ファフナー 9, スマウグ 13 cells) destroys."""
+        self.assertEqual(live(6407), ("2", "explore"))
+        self.assertEqual(self.decided[6407][3], APPROACH)
+        self.assertEqual(live(6408), ("1", "explore"))
+        self.assertEqual(self.decided[6408][2:], DESTRUCTION)
+
+    def test_boards_without_a_sensed_pair_are_unchanged(self):
+        """6405 (the dragons outside their sensing radius) and 6406 (ファフナー alone sensing,
+        T2): no group, the recorded explore stands."""
+        for sequence in (6405, 6406):
+            with self.subTest(sequence=sequence):
+                self.assertEqual(self.decided[sequence][2:], live(sequence))
 
 if __name__ == "__main__":
     unittest.main()

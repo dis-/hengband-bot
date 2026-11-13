@@ -40,6 +40,10 @@ class LootLedgerMassDeferralRecordedTest(unittest.TestCase):
 
     def _observe(self, policy, position, reason):
         policy.last_reason = reason
+        # The previous decision: a loot walk stepped toward the committed target
+        # (_loot_step); the ledger charges the goal only on the board after its walk.
+        if reason.endswith("seek-loot"):
+            policy._loot_walked_target = policy._loot_target
         policy._recent = deque([position, position], maxlen=20)
         policy._observe_navigation_commitments(
             SimpleNamespace(player=SimpleNamespace(position=position))
@@ -119,8 +123,11 @@ class LootLedgerMassDeferralRecordedTest(unittest.TestCase):
         self.assertEqual(policy._deferred_loot, set())
         self.assertFalse(policy._nav_ledger.is_expired("loot", target))
         policy._loot_target = target
-        for _ in range(NAV_TARGET_STALL_LIMIT + 1):
+        for _ in range(NAV_TARGET_STALL_LIMIT * 2):
             self._observe(policy, position, "explore")
+        self.assertEqual(policy._deferred_loot, set())  # no walk of its own: not stalled
+        for _ in range(NAV_TARGET_STALL_LIMIT + 1):
+            self._observe(policy, position, "seek-loot")
         self.assertEqual(policy._deferred_loot, {target})
         self.assertNotIn(other, policy._deferred_loot)
         self.assertIsNone(policy._loot_target)

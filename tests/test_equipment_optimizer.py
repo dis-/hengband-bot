@@ -986,6 +986,22 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNotNone(result.best)
         self.assertNotIn("average", result.best.loadout.item_ids)
 
+    def test_trusted_average_armour_is_worn_unidentified_with_its_base_ac(self):
+        # Owner 2026-11-13: an unidentified {average} armour piece is rated
+        # with the base AC its name prints, to_a 0 and no flags, when the
+        # C screen shows no bad luck (average_feeling_trusted).
+        gloves = gear("gloves", 31, known=False, fully_known=False,
+                      pseudo_feeling="average")
+        gloves = replace(gloves, item=replace(gloves.item, aware=True, ac=5))
+        trusted = replace(gloves, average_feeling_trusted=True)
+        self.assertTrue(trusted.evaluable)
+        self.assertTrue(trusted.exploration_legal)
+        self.assertFalse(gloves.evaluable)
+        # A ring's {average} hides its numbers: still identify first.
+        ring = gear("ring", 45, known=False, fully_known=False,
+                    pseudo_feeling="average")
+        self.assertFalse(replace(ring, average_feeling_trusted=True).evaluable)
+
     def test_cursed_and_broken_items_are_not_candidates(self):
         cursed = gear("cursed", 23, cursed=True)
         broken = gear("broken", 23, broken=True)
