@@ -7431,7 +7431,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
             if surplus_key is not None:
                 return surplus_key
-        relief_ready = (snapshot.in_town and snapshot.player.hp >= snapshot.player.max_hp
+        # An accepted town recall hands every surface decision to the departure
+        # (ladder_objectives: town:wait-recall).  This optional relief runs before
+        # that guard, so it must not walk to Home under a counting-down recall:
+        # n1-c life-207 2026-11-14 05:50 stepped onto the Home entrance, left the
+        # page for the recall and re-entered it until the burst retired the owner.
+        relief_ready = (snapshot.in_town and not snapshot.player.recalling
+                and snapshot.player.hp >= snapshot.player.max_hp
                 and not (snapshot.player.poisoned or snapshot.player.cut
                          or snapshot.player.confused or snapshot.player.blind)
                 and snapshot.player.food_state in {"normal", "full", "gorged"}
