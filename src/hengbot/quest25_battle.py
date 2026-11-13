@@ -2021,7 +2021,7 @@ def _stairway(ctx: _Ctx) -> str | None:
     if battle.style is None:
         battle.style = ("melee" if melee_is_fewer(ctx.policy, ctx.snapshot, geo.STAIRWAY, steps=1)
                         else "ranged")
-    if ctx.here not in {stand, door}:
+    if ctx.here not in {stand, door} and not _stands_looked_from(ctx, stairway, door, stand):
         return _walk(ctx, {stand})
     if ctx.here == stand and ctx.door_closed(door) and (haste := _haste(ctx)) is not None:
         return haste      # 「全快し、加速して階段の前の扉を開ける」
@@ -2038,6 +2038,19 @@ def _stairway(ctx: _Ctx) -> str | None:
     # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen from [13,27], no arrow; the
     # door [13,28] beside it when nothing is aimed at the grid.
     return _unseen_fire(ctx, stairway, geo.STAIRWAY, seen=bool(seen), among={stand, door})
+
+
+def _stands_looked_from(ctx: _Ctx, stairway, door, stand) -> bool:
+    """The door is open and both stands were reached with the stairway unseen: the walk to
+    another cell that sees it owns the move (``_unseen_fire``'s 「撃つマスは段の立ち位置の中から選び、
+    無ければどこでもよい」), not the walk back to the stand.
+
+    n1-b life-384 (2026-11-13 08:42, Quest 25 phase 9): every attack spent, [13,27] and [13,28]
+    reached unseen, the walk to a sight stepped '7' to [12,26] and this phase's own approach
+    stepped '3' back to [13,27], board after board, until the loop guard stopped the bot three
+    times."""
+    return (ctx.battle.style == "ranged" and not ctx.door_closed(door)
+            and not _sights(ctx, stairway, {stand, door}))
 
 
 def _druj_done(ctx: _Ctx) -> bool:
