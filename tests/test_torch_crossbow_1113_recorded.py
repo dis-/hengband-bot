@@ -74,9 +74,20 @@ class TorchCrossbow1113RecordedTest(ProductionHarness):
     def setUp(self):
         self.policy = pickle.loads(self.policy_bytes)
 
-    def board(self, *, bow_sval=None, light="lantern"):
+    def board(self, *, bow_sval=None, light="lantern", carried_crossbow=False, oil=True,
+              lantern_turns=None, in_town=True):
         """Row 137's JSONL board with the declared constructed equipment."""
         raw = copy.deepcopy(self.raw)
+        if carried_crossbow:
+            crossbow = next(item for item in raw["equipment"] if item["slot"] == "bow")
+            raw["inventory"].append(dict(copy.deepcopy(crossbow), slot="j"))
+        if not oil:
+            raw["inventory"] = [item for item in raw["inventory"] if item["tval"] != 77]
+        if lantern_turns is not None:
+            lantern = next(item for item in raw["equipment"] if item["slot"] == "light")
+            lantern["light_turns"] = lantern_turns
+        if not in_town:
+            raw["floor"]["in_town"] = False
         bow = next(item for item in raw["equipment"] if item["slot"] == "bow")
         self.assertEqual(bow["sval"], SV_BOW_LIGHT_XBOW)
         if bow_sval is not None:
@@ -143,7 +154,7 @@ class TorchCrossbow1113RecordedTest(ProductionHarness):
         key = self.policy.choose_key(board)
         self.assertNotEqual(self.policy.last_reason, DEPOSIT[1])
         self.assertFalse(self.policy._home_atomic_deposit_pending)
-        self.assertNotEqual(self.policy.last_reason, torch_release.STOP_REASON)
+        self.assertNotEqual(self.policy.last_reason, torch_release.TORCH_WORN_REASON)
         self.assertIsNotNone(key)
 
     # ----------------------------------------------- 「装備していたら停止して報告」
@@ -167,8 +178,8 @@ class TorchCrossbow1113RecordedTest(ProductionHarness):
         """DECLARED CONSTRUCTED: a torch worn with a long bow is no stop (no crossbow)."""
         _raw, board = self.board(bow_sval=SV_BOW_LONG, light="torch")
         self.policy.choose_key(board)
-        self.assertNotEqual(self.policy.last_reason, torch_release.STOP_REASON)
-        self.assertFalse(torch_release.torch_worn_with_crossbow(self.policy, board))
+        self.assertNotEqual(self.policy.last_reason, torch_release.TORCH_WORN_REASON)
+        self.assertIsNone(torch_release.light_halt(self.policy, board))
 
     def test_open_transaction_putting_a_light_on_is_no_stop(self):
         """DECLARED CONSTRUCTED: the planner wears the bow before the light (``_EQUIP_ORDER``)."""
@@ -176,9 +187,74 @@ class TorchCrossbow1113RecordedTest(ProductionHarness):
         lantern = EquipmentTransaction(PHASE_EQUIP, "equip", "lantern", "light")
         self.policy._equipment_transaction_session = EquipmentTransactionSession(
             EquipmentTransactionPlan((lantern,), (), 0))
-        self.assertFalse(torch_release.torch_worn_with_crossbow(self.policy, board))
+        self.assertIsNone(torch_release.light_halt(self.policy, board))
         self.policy._equipment_transaction_session = None
-        self.assertTrue(torch_release.torch_worn_with_crossbow(self.policy, board))
+        self.assertEqual(torch_release.light_halt(self.policy, board), torch_release.TORCH_WORN_REASON)
+
+    # ------------------- 「発生したら名前付きで止まる」「名前付きで止まる」 (owner 2026-11-13)
+
+    def test_crossbow_without_a_lantern_stops_by_name(self):
+        """DECLARED CONSTRUCTED: the worn lantern taken off the board; a crossbow worn or carried;
+        the Home copy of the Q34 lantern (真鍮のランタン {並, Q34}, recorded in the catalogue)
+        taken out of the catalogue.
+
+        Only torches are left to light the way: the loadout search would leave the crossbow off
+        for a torch, so the board stops by name instead.
+        """
+        _raw, board = self.board(light=None)
+        # Recorded: the Home lantern is a light to take out, no stop.
+        self.assertIsNone(torch_release.light_halt(self.policy, board))
+        for sval, carried in ((SV_BOW_LIGHT_XBOW, False), (SV_BOW_HEAVY_XBOW, False),
+                              (SV_BOW_LONG, True)):
+            with self.subTest(sval=sval, carried=carried):
+                policy = pickle.loads(self.policy_bytes)
+                home = policy._equipment_catalog._home
+                for item_id in [key for key, owned in home.items() if owned.item.is_light]:
+                    del home[item_id]
+                _raw, board = self.board(bow_sval=sval, light=None, carried_crossbow=carried)
+                key = policy.choose_key(board)
+                self.assertEqual((key, policy.last_reason),
+                                 (None, "light:no-lantern-with-crossbow"))
+                self.assertTrue(_policy_final_stop_required(policy))
+                self.assertTrue(_policy_final_stop_banner(policy.last_reason).startswith(
+                    "<light:no-lantern-with-crossbow> "))
+        # Control: no crossbow at all, the torch is the light (the opening's rule).
+        _raw, board = self.board(bow_sval=SV_BOW_LONG, light=None)
+        self.assertIsNone(torch_release.light_halt(self.policy, board))
+        # Control: the lantern carried instead of worn is a light to put on, no stop.
+        raw, board = self.board(light=None)
+        lantern = next(item for item in self.raw["equipment"] if item["slot"] == "light")
+        raw["inventory"].append(dict(copy.deepcopy(lantern), slot="j"))
+        board = parse_snapshot(raw, self.policy._monrace_knowledge)
+        self.assertIsNone(torch_release.light_halt(self.policy, board))
+
+    def test_lamp_out_off_town_stops_by_name(self):
+        """DECLARED CONSTRUCTED: the worn lantern at 0 turns, the oil flask removed, off the town.
+
+        ``in_town`` False on the recorded town board stands for a floor; in town the existing
+        light restore (refill or the walk to the oil store) goes first.
+        """
+        for sval in (SV_BOW_LIGHT_XBOW, SV_BOW_HEAVY_XBOW):
+            with self.subTest(sval=sval):
+                policy = pickle.loads(self.policy_bytes)
+                _raw, board = self.board(bow_sval=sval, oil=False, lantern_turns=0, in_town=False)
+                self.assertFalse(board.in_town)
+                key = policy.choose_key(board)
+                self.assertEqual((key, policy.last_reason),
+                                 (None, "light:lamp-fuel-out-with-crossbow"))
+                self.assertTrue(_policy_final_stop_required(policy))
+                self.assertTrue(_policy_final_stop_banner(policy.last_reason).startswith(
+                    "<light:lamp-fuel-out-with-crossbow> "))
+        controls = (
+            dict(oil=True, lantern_turns=0, in_town=False),       # the oil refills it
+            dict(oil=False, lantern_turns=0, in_town=True),       # town: the restore walk
+            dict(oil=False, lantern_turns=4355, in_town=False),   # still burning
+            dict(bow_sval=SV_BOW_LONG, oil=False, lantern_turns=0, in_town=False),  # no crossbow
+        )
+        for control in controls:
+            with self.subTest(**control):
+                _raw, board = self.board(**control)
+                self.assertIsNone(torch_release.light_halt(self.policy, board))
 
     # ------------------------------------------------------ 「松明は装備しない」
 

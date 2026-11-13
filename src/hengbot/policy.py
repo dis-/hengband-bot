@@ -4776,10 +4776,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._pending_mutation_report = released or discarded
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         self._observe_town_equipment_work(snapshot)
-        if torch_release.torch_worn_with_crossbow(self, snapshot):
-            # Owner 2026-11-13 「装備していたら停止して報告」: a final stop, nothing is sent
+        light_halt = torch_release.light_halt(self, snapshot)
+        if light_halt is not None:
+            # Owner 2026-11-13: the crossbow light stops are final, nothing is sent
             # (no key: a town wait on an entrance would be rewritten into a step-off).
-            self.last_reason = torch_release.STOP_REASON
+            self.last_reason = light_halt
             return None
         # A restarted process reads the absorbed-power lists it lacks first (turn-free).
         from hengbot.me_powers_refresh import resume_read_key

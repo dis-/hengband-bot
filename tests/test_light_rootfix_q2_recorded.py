@@ -115,6 +115,10 @@ class LightRootFixQ2RecordedTest(unittest.TestCase):
         self.assertEqual(self._decide(board), READ_RECALL_FROM_F)
         self.assertEqual(self.policy._last_return_trigger, "light-low")
 
+    # Wall (owner 2026-11-13 「名前付きで止まる」, torch_release.FUEL_OUT_REASON): this board's
+    # character walks with its light out beside its light crossbow and no oil, which now stops by
+    # name (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_lightless_pair_leaves_instead_of_alternating(self):
         first = self._decide(self._board(4))
         second = self._decide(self._board(5))

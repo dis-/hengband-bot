@@ -25,19 +25,44 @@ Owner 2026-11-13, the two open points of that rule:
 
 ``wearable_light``: the one question every light chooser asks (the loadout search's static
 requirement, ``_find_light``, ``_darkness_torch``): a torch is no light to wear beside a
-crossbow.  ``torch_worn_with_crossbow``: the board shows both worn anyway, outside an open
-equipment transaction whose remaining actions still put a light on (the planner wears the
-bow before the light, equipment_transaction_planner ``_EQUIP_ORDER``); the policy then stops
-under ``STOP_REASON`` (a final stop, policy_constants ``POLICY_FINAL_STOP_REASONS``).
+crossbow.
+
+``light_halt``: the one place that names the owner's crossbow light stops (final stops,
+policy_constants ``POLICY_FINAL_STOP_REASONS``; the driver sends nothing and prints
+``HALT_MESSAGES``).  None of them fires while an open equipment transaction still has a light to
+put on (the planner wears the bow before the light, equipment_transaction_planner
+``_EQUIP_ORDER``).
+
+* ``TORCH_WORN_REASON``: a torch worn beside a worn crossbow (「装備していたら停止して報告」).
+* ``NO_LANTERN_REASON``: a crossbow worn, or carried and wearable (identified enough, not cursed
+  or broken), and no light that may be worn beside it (anything but a torch) worn, carried or at
+  Home.  Owner 2026-11-13 「開始直後にランタンが入手
+  できるのでその状況はありえない。発生したら名前付きで止まる。」 (the loadout search would otherwise
+  silently leave the crossbow off for the torch).
+* ``FUEL_OUT_REASON``: off the town, the worn crossbow's light is out (no light worn, or the worn
+  lantern at 0 turns, or an unidentified one seen out, lamp_fuel) with no oil and no other usable
+  light beside the crossbow in the pack.  Owner 2026-11-13 「名前付きで止まる」.  In town the existing
+  light restore (refill, or the walk to the oil store) goes first.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from hengbot.model import SV_BOW_HEAVY_XBOW, SV_BOW_LIGHT_XBOW, TVAL_BOW
+from hengbot.model import SV_BOW_HEAVY_XBOW, SV_BOW_LIGHT_XBOW, SV_LITE_LANTERN, TVAL_BOW, lights_nothing
 
 CROSSBOW_SVALS = frozenset({SV_BOW_LIGHT_XBOW, SV_BOW_HEAVY_XBOW})
-STOP_REASON = "light:torch-worn-with-crossbow"
+TORCH_WORN_REASON = "light:torch-worn-with-crossbow"
+NO_LANTERN_REASON = "light:no-lantern-with-crossbow"
+FUEL_OUT_REASON = "light:lamp-fuel-out-with-crossbow"
+HALT_MESSAGES = {
+    TORCH_WORN_REASON: "a torch is worn beside a crossbow (owner 2026-11-13: never wear a torch "
+                       "with a crossbow; stop and report)",
+    NO_LANTERN_REASON: "a crossbow is worn or carried and no light but torches is owned "
+                       "(owner 2026-11-13: stop by name)",
+    FUEL_OUT_REASON: "the light beside the worn crossbow is out with no oil and no other usable "
+                     "light carried (owner 2026-11-13: stop by name)",
+}
+HALT_REASONS = frozenset(HALT_MESSAGES)
 LIGHT_SLOT = "light"
 LIGHT_ACTIONS = frozenset({"equip", "reposition"})
 
@@ -87,9 +112,56 @@ def _light_change_pending(policy: Any) -> bool:
                and action.target_slot == LIGHT_SLOT for action in remaining)
 
 
-def torch_worn_with_crossbow(policy: Any, snapshot: Any) -> bool:
-    """The board shows a torch worn beside a crossbow and no transaction is changing it."""
+def _beside_crossbow(item: Any) -> bool:
+    """A light that may be worn beside a crossbow and lights (not a torch, not a dark light)."""
+    return item.is_light and not item.is_torch and not lights_nothing(item)
+
+
+def _owns_light_beside_crossbow(policy: Any, snapshot: Any) -> bool:
+    catalog = getattr(getattr(policy, "_equipment_catalog", None), "items", ())
+    home = (owned.item for owned in catalog if owned.origin == "home")
+    return any(_beside_crossbow(item)
+               for item in (*snapshot.equipment, *snapshot.inventory, *home))
+
+
+def _wearable_crossbow(policy: Any, item: Any) -> bool:
+    """A carried crossbow the loadout search may wear (identified enough, not cursed or broken)."""
+    return (is_crossbow(item) and not item.is_cursed and not item.is_broken
+            and not policy._equip_blocked_by_identification(item))
+
+
+def _light_out_without_spare(policy: Any, snapshot: Any) -> bool:
+    """The worn light lights nothing any more and the pack has no oil or usable light for it."""
+    from hengbot import lamp_fuel  # lamp_fuel imports policy_constants, which imports this module
+
+    worn = policy._worn_light(snapshot)
+    if worn is not None:
+        if not worn.is_lantern:
+            return False
+        out = (worn.fuel <= 0 if worn.known
+               else lamp_fuel.unidentified_lantern_out(snapshot) is True)
+        if not out:
+            return False
+    return not any(
+        (item.is_oil and item.fuel > 0)
+        or (_beside_crossbow(item) and (item.sval > SV_LITE_LANTERN or item.fuel > 0
+                                        or not item.known))
+        for item in snapshot.inventory)
+
+
+def light_halt(policy: Any, snapshot: Any) -> str | None:
+    """The owner's crossbow light stop this board calls for, or None (module docstring)."""
+    if _light_change_pending(policy):
+        return None
+    launcher = worn_launcher(snapshot)
+    worn = is_crossbow(launcher)
     light = next((item for item in snapshot.equipment if item.slot == LIGHT_SLOT), None)
-    return (not light_wearable(snapshot, light)
-            and not _light_change_pending(policy))
+    if worn and not wearable_light(launcher, light):
+        return TORCH_WORN_REASON
+    if ((worn or any(_wearable_crossbow(policy, item) for item in snapshot.inventory))
+            and not _owns_light_beside_crossbow(policy, snapshot)):
+        return NO_LANTERN_REASON
+    if worn and not snapshot.in_town and _light_out_without_spare(policy, snapshot):
+        return FUEL_OUT_REASON
+    return None
 
