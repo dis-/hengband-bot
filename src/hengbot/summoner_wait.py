@@ -135,6 +135,8 @@ def hold_key(policy, snapshot, monsters, *, continuing=False):
     # Named for what it awaits: a hold without a summoner to await (a
     # detected pack) is not a summoner hold.
     policy.last_reason = HOLD_CHOKE_REASON if waiting else DETECTED_HOLD_CHOKE_REASON
+    # The hold owns the turns it waits: the loot walk it interrupted is not stalled.
+    policy._set_aside_loot_goal("loot-choke-hold")
     return "5"
 
 

@@ -217,6 +217,7 @@ LADDER = (
         *D("_dungeon_equipment_identify_key"),
         *P("_fundraising_key#1"),
         *E("_pack_pressure_identify_key", "_full_pack_destroy_key"),
+        *P("full_pack_exchange.key"),
         *P("_chest_processing_key#2", "_normal_loot_key#1"),
         *E("_navigation_livelock_key"),
         *P("_return_to_town_key#2"),

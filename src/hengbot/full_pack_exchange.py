@@ -15,11 +15,22 @@ of oil or magic device; nor an ego, an artifact or an unknown item, whose worth 
 cost does not measure.  Only a pile of one item is exchanged, so one freed slot takes it.  The
 walk goes to the pile first and destroys the carried item standing on it, so nothing is
 destroyed for an item that is never reached; the ordinary pickup takes it on the next board.
+
+Where it is asked (n1-c life-205, Orc cave 23F, 2026-11-13 09:22-12:52): the full pack's own
+rung of the objectives layer (``ladder_objectives``, beside ``_full_pack_destroy_key``), ahead of
+the return a full pack starts (``_should_start_town_return``, trigger ``pack-full``).  Asked only
+from the loot owner, below that return, the exchange ran on quest floors alone (where the return
+is locked): seven of seven ordinary full packs read Recall on the board the pack filled, with a
+dearer single item known on the floor each time (a 25000-gold songbook for a 2-gold bolt stack).
+
+テレポート (the owner's necessity) is every relocation scroll the escapes read (policy
+``RELOCATION_SCROLL_SVALS``: Phase Door, Teleportation, Teleport Level); the live exchange
+chose the one Phase Door carried as its spare.
 """
 
 from __future__ import annotations
 
-from hengbot.model import TVAL_FLASK, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_STAFF, TVAL_WAND
+from hengbot.model import TVAL_FLASK, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND
 from hengbot.policy_constants import PACK_CAPACITY
 
 SEEK_REASON = "seek-loot:exchange"
@@ -28,8 +39,13 @@ NECESSITY_TVALS = frozenset({TVAL_POTION, TVAL_FOOD, TVAL_LITE, TVAL_FLASK,
                              TVAL_STAFF, TVAL_WAND, TVAL_ROD})
 
 
+def _relocation_scroll(item) -> bool:
+    from hengbot.policy import RELOCATION_SCROLL_SVALS
+    return item.tval == TVAL_SCROLL and item.sval in RELOCATION_SCROLL_SVALS
+
+
 def _necessity(item) -> bool:
-    return (item.tval in NECESSITY_TVALS or item.is_recall_scroll or item.is_teleport_scroll
+    return (item.tval in NECESSITY_TVALS or item.is_recall_scroll or _relocation_scroll(item)
             or item.is_food or item.is_light or item.is_oil)
 
 
@@ -62,7 +78,7 @@ def pile_value(policy, snapshot, position) -> int | None:
 
 
 def key(policy, snapshot, hostiles) -> str | None:
-    if len(snapshot.inventory) < PACK_CAPACITY:
+    if snapshot.in_town or len(snapshot.inventory) < PACK_CAPACITY:
         return None
     if policy._loot_block_reason(snapshot, hostiles, ignore_pack=True) is not None:
         return None
