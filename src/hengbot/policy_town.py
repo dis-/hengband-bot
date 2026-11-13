@@ -10,7 +10,7 @@ from hengbot import status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 from hengbot import town_visit_plan
 from hengbot.town_visit_plan import (
-    CONTINUE_OBSERVED_SHOP_REASON, PROGRESS_APPROACH_REASON, PROGRESS_DEFECT_PREFIX, STAY,
+    CONTINUE_OBSERVED_SHOP_REASON, CYCLE_BREAK_REASON, PROGRESS_APPROACH_REASON, PROGRESS_DEFECT_PREFIX, STAY,
     progress_defect_reason,
 )
 
@@ -6923,7 +6923,7 @@ class TownMixin:
             # shallow-dungeon departure route.
             if self._town_restock_suppressed and self._fundraising_mode is None:
                 self._town_blocked_reason = "repetition"
-            self.last_reason = "town:cycle-break"
+            self.last_reason = CYCLE_BREAK_REASON
             return WAIT_KEY
         if self._town_blocked_reason is not None:
             return self._town_blocked_key(snapshot)

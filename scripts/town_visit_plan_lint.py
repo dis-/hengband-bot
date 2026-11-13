@@ -26,7 +26,7 @@ def problems() -> list[str]:
     from hengbot.policy import HengbotPolicy
     from hengbot import town_hold
     from hengbot.town_visit_plan import (
-        FAMILY_STAGE, INTERRUPT, PROGRESS_INVARIANT_PREFIX, PROGRESS_INVARIANT_RUNG, REWRITE,
+        FAMILY_STAGE, INTERRUPT, PLAN_DETECTOR_REASONS, PROGRESS_INVARIANT_RUNG, REWRITE,
         STAGES, STEP_RUNG, TRANSITIONS,
     )
 
@@ -50,10 +50,11 @@ def problems() -> list[str]:
     step = town_hold.rung_named(STEP_RUNG[0])
     if step is None or (step.family, step.section) != (STEP_RUNG[1], town_hold.SECTION_REWRITE):
         found.append(f"STEP_RUNG: the ladder has no {STEP_RUNG[1]!r} rewrite rung {STEP_RUNG[0]!r}")
-    invariant = town_hold.rung_of(PROGRESS_INVARIANT_RUNG[1], PROGRESS_INVARIANT_PREFIX)
-    if invariant.name != PROGRESS_INVARIANT_RUNG[0]:
-        found.append(f"PROGRESS_INVARIANT_RUNG: {PROGRESS_INVARIANT_PREFIX!r} ranks at "
-                     f"{invariant.name!r}, not the plan's rung")
+    for reason in PLAN_DETECTOR_REASONS:
+        rung = town_hold.rung_of(PROGRESS_INVARIANT_RUNG[1], reason)
+        if rung.name != PROGRESS_INVARIANT_RUNG[0]:
+            found.append(f"PROGRESS_INVARIANT_RUNG: {reason!r} ranks at "
+                         f"{rung.name!r}, not the plan's rung")
     return found
 
 

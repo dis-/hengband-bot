@@ -1216,7 +1216,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("livelock:seek-window-edge", T, EFFECT),
         (town_visit_plan.PROGRESS_INVARIANT_PREFIX, T, EFFECT),
         ("town-liveness-invariant:", T, EFFECT),
-        ("town:cycle-break", T, EFFECT),
+        (town_visit_plan.CYCLE_BREAK_REASON, T, EFFECT),
         ("posting-contract:", T, EFFECT),
         ("stuck:", T, EFFECT),
         ("stuck:ascend", O, FLOOR_CHANGE),
@@ -1805,7 +1805,7 @@ _RUNGS: tuple[Rung, ...] = (
     # detectors' rewrite rank, where the cycle detector's ordinary rung
     # ranked them before.
     _rewrite(*town_visit_plan.PROGRESS_INVARIANT_RUNG,
-             town_visit_plan.PROGRESS_INVARIANT_PREFIX),
+             *town_visit_plan.PLAN_DETECTOR_REASONS),
     _rewrite(*town_visit_plan.STEP_RUNG, ordinary=True),
     _rewrite("_skill_exp_request_key", "bookkeeping", "periodic:skill-exp"),
     _rewrite("_periodic_game_save_key", "bookkeeping", ordinary=True),

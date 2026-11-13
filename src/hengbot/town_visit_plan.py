@@ -120,6 +120,11 @@ PROGRESS_INVARIANT_RUNG: tuple[str, str] = ("town-visit-plan:progress-invariant"
 PROGRESS_DEFECT_PREFIX = PROGRESS_INVARIANT_PREFIX + "defect:"
 PROGRESS_APPROACH_REASON = PROGRESS_INVARIANT_PREFIX + "approach"
 CONTINUE_OBSERVED_SHOP_REASON = PROGRESS_INVARIANT_PREFIX + "continue-observed-shop"
+# The town repetition cycle's one-turn break (_town_special_key): a detectors'
+# reason of the visit too, ranked at the same plan rung (stage 3-4b).
+CYCLE_BREAK_REASON = "town:cycle-break"
+# The reasons the plan's detector-family rung ranks.
+PLAN_DETECTOR_REASONS: tuple[str, ...] = (PROGRESS_INVARIANT_PREFIX, CYCLE_BREAK_REASON)
 
 
 def progress_defect_reason(winner: str, progress: str) -> str:

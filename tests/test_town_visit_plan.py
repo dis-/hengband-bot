@@ -73,6 +73,9 @@ class LadderRowsTest(unittest.TestCase):
         self.assertEqual((rung.name, rung.rank), (town_visit_plan.PROGRESS_INVARIANT_RUNG[0], 0))
         # the detectors' rank, the one the cycle detector's ordinary rung had
         self.assertEqual(rung.rank, town_hold.rung_of("detectors", "livelock:exhausted").rank)
+        # Stage 3-4b: the town repetition cycle's break ranks at the same plan rung.
+        cycle = town_hold.rung_of("detectors", town_visit_plan.CYCLE_BREAK_REASON)
+        self.assertEqual((cycle.name, cycle.rank), (town_visit_plan.PROGRESS_INVARIANT_RUNG[0], 0))
 
 
 class TraceTest(unittest.TestCase):
