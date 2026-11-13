@@ -551,7 +551,17 @@ def counts_as_escape(policy, reason) -> bool:
 
 
 def _sensed_strong(policy, snapshot) -> tuple[list, list]:
-    """(the engagement, its awake hostiles inside their sensing radius that are T1 alone).
+    """(the engagement, its awake hostiles inside their sensing radius that are T1 alone, or
+    else the strong ones among them that are T1 together).
+
+    Owner 2026-11-13 (the n1-b life-391 question, answer 「まとめて判定する」): awake sensed
+    strong monsters are judged together as well; when no one of them is T1 alone but together
+    they cannot be beaten, they are the sensed T1 (the leave of 2026-11-08, the approach to
+    *Destruction* of 2026-11-10, the strong monster met on the way of 2026-11-12).  The members
+    are the sensing ones that are strong alone from contact (``STRONG_ON_THE_WAY``, T2: beaten
+    only with supplies; a monster the free fight beats, T3, is no 強敵), and only two or more of
+    them make a group.  life-391 (Angband 80F): 竜の『ファフナー』 and 黄金竜『スマウグ』, each T2
+    alone, together T1 (two resisted fire breaths, 311 + 226, against HP 533), killed the player.
 
     On a random quest floor whose exit lock holds (``destruction_only_here``) the quest's target
     is none of them: *Destruction* cannot remove it, and its own T1 verdict gives the floor up
@@ -562,10 +572,15 @@ def _sensed_strong(policy, snapshot) -> tuple[list, list]:
     sensing = [monster for monster in hostiles
                if not monster.asleep and inside_sensing(policy, snapshot, monster)
                and (spared is None or monster.race_id != spared)]
+    hp = snapshot.player.hp
     # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
     # would otherwise read T3 only because it has not come yet).
-    strong = [monster for monster in sensing
-              if cannot_win(tiered(policy, snapshot, [monster], contact=True), snapshot.player.hp)]
+    readings = [(monster, tiered(policy, snapshot, [monster], contact=True)) for monster in sensing]
+    strong = [monster for monster, reading in readings if cannot_win(reading, hp)]
+    if not strong:
+        group = [monster for monster, reading in readings if reading.tier in STRONG_ON_THE_WAY]
+        if len(group) > 1 and cannot_win(tiered(policy, snapshot, group, contact=True), hp):
+            strong = group
     return hostiles, strong
 
 
