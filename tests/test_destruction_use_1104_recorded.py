@@ -198,12 +198,26 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
         self.assertEqual(self.answer(raw, policy)[0], TELEPORT)
 
     def test_status_keeps_the_read_or_the_cure(self):
-        raw = with_staff(self.raw)
-        raw["player"]["status"]["confused"] = True
-        self.assertNotEqual(self.answer(raw)[0][1], "emergency:destruction")
-        raw = with_staff(self.raw)
-        raw["player"]["status"]["stunned"] = True
-        self.assertNotEqual(self.answer(raw)[0][1], "emergency:destruction")
+        # Confusion (the game halves the staff's skill; owner 2026-11-08 「混乱では使わない」) and
+        # hallucination (the board redacts every monster's identity) keep the read.
+        for status in ("confused", "hallucinated"):
+            with self.subTest(status=status):
+                raw = with_staff(copy.deepcopy(self.raw))
+                raw["player"]["status"][status] = True
+                self.assertNotEqual(self.answer(raw)[0][1], "emergency:destruction")
+
+    def test_stunned_the_staff_is_still_used(self):
+        """Owner 2026-11-13: a stun only adds the game's penalty (check_stun,
+        player-stun.cpp:162-178 get_item_chance_penalty: none at a slight or normal stun, 5% at
+        a hard one): at the reliable skill (80%) a slight or normal stun still uses the staff,
+        a hard stun (76%) reads the scroll, a skill of 65 (87% * 95% = 82%) uses it again."""
+        for rank, skill, expected in ((1, RELIABLE_SKILL, STAFF_KEY), (2, RELIABLE_SKILL, STAFF_KEY),
+                                      (3, RELIABLE_SKILL, TELEPORT), (3, 65, STAFF_KEY)):
+            with self.subTest(rank=rank, skill=skill):
+                raw = with_staff(copy.deepcopy(self.raw), skill=skill)
+                raw["player"]["status"]["stunned"] = True
+                raw["player"]["status"]["stun_rank"] = rank
+                self.assertEqual(self.answer(raw)[0], expected)
 
     def beyond_range(self, raw):
         """Every awake hostile 14 squares or more away on the same row."""
