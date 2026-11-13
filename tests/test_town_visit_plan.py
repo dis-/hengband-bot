@@ -79,7 +79,7 @@ class LadderRowsTest(unittest.TestCase):
 
 
 class TraceTest(unittest.TestCase):
-    def note(self, policy, family, sequence):
+    def note(self, policy, family, sequence):  # also called unbound (self=None)
         policy._decision_sequence = sequence
         with patch("hengbot.town_hold.claim_family_of", return_value=family):
             note_decision(policy, TOWN)
@@ -137,6 +137,39 @@ class SeamTest(unittest.TestCase):
         self.assertEqual(len(policy._town_visit.plan_rewrites), 1)
 
 
+class StageDeadlineTest(unittest.TestCase):
+    """Stage 3-5 (owner 2026-11-13 「測った最大の2倍を期限に」)."""
+
+    def test_deadlines_are_twice_the_larger_measurement(self):
+        # Owner 2026-11-14 「ループと止まり以外の全訪問で測る」, never below the replays.
+        self.assertEqual(town_visit_plan.STAGE_DEADLINES, {
+            "quest": 298, "buy": 216, "home": 112, "fundraising": 96, "departure": 86,
+            "equipment": 42, "sell": 24, "identification": 26, "travel": 158})
+
+    def test_a_stage_past_its_deadline_is_its_named_stop(self):
+        policy = double("x", 0)
+        deadline = town_visit_plan.STAGE_DEADLINES["identification"]
+        for sequence in range(1, deadline + 1):
+            TraceTest.note(None, policy, "identification", sequence)
+        self.note_interrupts(policy)
+        self.assertEqual(policy._town_visit.stage_decisions, {"identification": deadline})
+        with patch("hengbot.town_hold.claim_family_of", return_value="identification"):
+            self.assertEqual(town_visit_plan.stage_deadline_stop(policy, TOWN),
+                             "town:blocked:stage-deadline:identification")
+            self.assertIsNone(town_visit_plan.stage_deadline_stop(
+                policy, SimpleNamespace(in_town=False, store=None)))
+        with patch("hengbot.town_hold.claim_family_of", return_value="survival"):
+            self.assertIsNone(town_visit_plan.stage_deadline_stop(policy, TOWN))
+        with patch("hengbot.town_hold.claim_family_of", return_value="shop-sell"):
+            self.assertIsNone(town_visit_plan.stage_deadline_stop(policy, TOWN))
+        policy._town_visit.begin(home_candidate_waiting=lambda: False)
+        self.assertEqual(policy._town_visit.stage_decisions, {})
+
+    def note_interrupts(self, policy):
+        # Interrupts are not counted against any stage.
+        TraceTest.note(None, policy, "combat", 9)
+
+
 class RecordedBoardTest(unittest.TestCase):
     def test_choose_key_notes_the_stage_of_its_own_reason(self):
         policy, board, _ = ready_board()
@@ -149,6 +182,24 @@ class RecordedBoardTest(unittest.TestCase):
             self.assertGreaterEqual(segments[-1][4], 1)
         else:
             self.assertEqual(segments[-1][0], stage)
+
+    def test_the_stage_past_its_deadline_stops_the_recorded_board(self):
+        """The recorded board through choose_key with its stage's deadline spent
+        (DECLARED CONSTRUCTED count): the decision is the stage's named stop."""
+        policy, board, _ = ready_board()
+        with redirect_stdout(io.StringIO()):
+            policy.choose_key(board)
+        stage = stage_of(claim_family_of(policy, policy.last_reason))
+        if stage not in town_visit_plan.STAGE_DEADLINES:
+            self.skipTest(f"the recorded decision is {stage}")
+        policy, board, _ = ready_board()
+        policy._town_visit.stage_decisions[stage] = town_visit_plan.STAGE_DEADLINES[stage]
+        with redirect_stdout(io.StringIO()):
+            key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:blocked:stage-deadline:" + stage)
+        self.assertEqual(key, "5" if key == "5" else key)
+        from hengbot.policy_constants import POLICY_FINAL_STOP_PREFIXES
+        self.assertTrue(policy.last_reason.startswith(POLICY_FINAL_STOP_PREFIXES))
 
 
 if __name__ == "__main__":

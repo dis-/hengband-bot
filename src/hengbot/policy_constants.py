@@ -3,7 +3,7 @@
 from enum import Enum
 
 from hengbot import reasons, torch_release
-from hengbot.town_visit_plan import CYCLE_BREAK_REASON
+from hengbot.town_visit_plan import CYCLE_BREAK_REASON, STAGE_DEADLINE_STOP_PREFIX
 from hengbot.model import (
     Position, SV_SCROLL_TELEPORT, TVAL_ARROW, TVAL_BOLT, TVAL_SHOT,
     STORE_ALCHEMIST,
@@ -409,12 +409,14 @@ TOWN_END_UNMET_STOP_PREFIX = 'town:blocked:unmet:'
 
 # The owner-retired burst whose last retirement came on a typed town:blocked:* wait
 # is named after that wait: ``town:blocked:owner-retired-burst:after:<the wait's reason>``
-# (cli._owner_retired_burst_reason).  A diagnostic name only; the stop is the burst's.
+# (the former cli._owner_retired_burst_reason).  A diagnostic name only; the stop
+# was the burst's.  Since town rebuild stage 3-5 no burst stops a visit (the stage
+# deadlines do); the name stays for the records that hold it.
 OWNER_RETIRED_BURST_AFTER_PREFIX = 'town:blocked:owner-retired-burst:after:'
 
 # Reason families on which the driver stops, beside the exact set above.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
-                              OWNER_RETIRED_BURST_AFTER_PREFIX)
+                              OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX)
 
 TUNNEL_KEY = "T"
 
