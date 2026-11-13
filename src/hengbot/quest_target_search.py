@@ -318,17 +318,27 @@ def _lap_left(policy, snapshot: Snapshot, memory: Memory):
 
 def held_cast_radius(policy, snapshot: Snapshot) -> int:
     """The largest plain radius of a held means that can show the unseen target: an absorbed
-    row with a charge (me_powers.revealing_radius) or a carried CARRIED_DETECTION device
-    (me_powers.map_radius, as its casts are recorded), else 0."""
+    row with a charge (me_powers.revealing_radius) or a carried CARRIED_DETECTION device that is
+    held (``_charged``: a staff without a charge is no means) (me_powers.map_radius, as its casts
+    are recorded), else 0."""
     race = hunt_target.unseen_race(policy, snapshot)
     if race is None:
         return 0
     flags = hunt_target.race_flags(policy, race)
-    held = {(item.tval, item.sval) for item in snapshot.inventory}
-    carried = any(kind_key in held and hunt_target.REVEALS[effect](flags)
-                  for kind_key, (_, effect) in CARRIED_DETECTION.items())
+    carried = any(
+        (use := CARRIED_DETECTION.get((item.tval, item.sval))) is not None
+        and hunt_target.REVEALS[use[1]](flags) and _charged(item, use[0])
+        for item in snapshot.inventory)
     return max(me_powers.revealing_radius(policy, snapshot, flags),
                me_powers.map_radius(policy, snapshot) if carried else 0)
+
+
+def _charged(item, kind: str) -> bool:
+    """A carried device the search holds: a rod (a charging rod is still held) or a staff with a
+    charge.  n1-a life-522 (Angband 24F, RANDOM quest 41, 2026-11-14): the Staff of Detect Evil
+    spent its last charge, the empty staff still counted as a means, so neither the walk's view nor
+    a cast covered anything and the floor could never be given up."""
+    return kind != "staff" or item.charges > 0
 
 
 def _draw(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> tuple:
@@ -553,7 +563,7 @@ def door_means_held(policy, snapshot: Snapshot) -> bool:
             me_capability.charges(policy, snapshot, kind, sval) > 0
             for kind, sval in ABSORBED_DOOR_MEANS):
         return True
-    return any(kind != "staff" or item.charges > 0 for item, kind in _carried_door_means(snapshot))
+    return any(_charged(item, kind) for item, kind in _carried_door_means(snapshot))
 
 
 def door_means_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> str | None:
