@@ -1,0 +1,142 @@
+LUNA-REPORT n1c-loot-left-1113pm（n1-c の拾い残し：11-13 の直しの後も残った分の根）
+
+枝: n1c-loot-left-1113pm（main 9c8baca870 から）。push・取り込みはしていない。
+診断の詳細: LUNA-DIAG-n1c-loot-left-1113pm.txt（同じ枝）。
+証拠: C:\hengband-backups\pdca\captures\n1c-loot-left-1113pm\（サーバから読み取りだけで写した）。
+
+== 1. 根の表（life-205、08:41-13:30、品を残した帰還 16 件） ==
+
+根 | 件数 | 判定・扱い
+---|---|---
+A 満杯の帰還（return:recall / pack-full）が答え3の交換より先に読まれる | 7 | 不具合。直した（コミット1）
+B 隘路の待ち（detected:hold-choke）の間に、拾いの目標がナビゲーションの台帳で数えられ、その階の間は後回し | 2 | 不具合。直した（コミット2）
+P seek-loot と別の持ち主の往復（召喚者が見える/見えない境・隘路の準備）を、2者ごとの掛け金（安全の後回しの戻しは1回きり／台帳の期限）が止め、品が後回しのまま | 2（+11:26 の残り1） | 往復の型。pingpong-root-1113 に登録する（ここでは直さない）
+N 道の無い品（壁に囲まれた小部屋の中の感知した品） | 1 | 新しい決まりが要る（問い1）
+C 生存優先の離脱（召喚3回で帰還・動かない召喚者から離れる） | 3 | 正しい。今のまま
+? 不明（訪問の前半の記録が回転で消えている） | 1 | 調べられない
+
+訪問ごと（開始・残り・帰還の理由 → 根）:
+08:41:39 1 stuck:recall-escape → ?／08:42:27 12 pack-full → A／09:22:45 10 summons:recall → C／
+10:12:15 6 stuck → P／10:20:40 2 stuck → B（(43,115) レイピア。(39,2) は道なし）／10:37:38 12 pack-full → A／
+10:57:37 7 pack-full → A／11:06:34 6 pack-full → A／11:26:12 3 pack-full → A（直した後も、アイス・ボルトのロッド
+2500 は P で後回しのまま）／11:41:29 6 summoner:recall → C／11:51:11 1 stuck → P／12:06:50 16 pack-full → A／
+12:34:28 1 pack-full → A／12:53:38 8 summoner:recall → C／13:10:35 4 stuck → N／13:24:31 1 stuck → B（(55,163) 重鎖かたびら）
+
+A の詳細（どの品・値・なぜ壊さなかったか）:
+- なぜ: 交換（full_pack_exchange.key）は拾いの持ち主（_normal_loot_key#2）からしか呼ばれず、満杯の帰還
+  （_return_to_town_key#3）はそれより上の段。満杯になった次の盤で帰還を読み、交換まで届かなかった。
+  787111d6c のテストは帰還が閉じられたクエストの階の盤で _normal_loot_key を直接呼んでいたので、段の順を見ていない。
+- 7件とも、帰還の盤に交換できる値の高い単品があった（基本価格）。例: 12:06 は歌集 Lv3 25000 とクロスボウの矢 2、
+  08:42 は重鎖かたびら [16] 900 と武器ダメージ増加の巻物 250、12:34 は金属製スケイル・メイル 550 と耐電のアミュレット 300。
+- 生の交換はショート・テレポートの巻物（15）を捨てる候補にしていた（必需品の判定がテレポートの巻物 sval 9 だけ）。
+  ボットは逃げにショート・テレポートを読む（RELOCATION_SCROLL_SVALS）ので、答え3の「テレポート」に含めた。
+
+B の詳細: 台帳（_observe_navigation_commitments）は、付いている拾いの目標を判断ごとに数え、32 回近づかなければ
+その階の間は後回しにする。13:26 は (55,163) 重鎖かたびらへ歩いていたところで隘路の待ち 25 回の後に後回し、
+13:26:39 にそのマスの上に立っても後回しのため拾わず、13:29 に stuck で帰還。宝箱の処理には「ほかの持ち主が
+手を持つ間は拾いの目標を止まったと数えない」前例（release）があり、隘路の待ちには無かった。
+
+P の詳細（pingpong-root-1113 へ）:
+- 10:12 と 11:26: 召喚者が見えるマスでは拾いが止まり（summoner-visible の安全の後回し）、隣の見えないマスでは戻されて
+  seek-loot が向かう、を1歩ずつ往復。戻しは1品1回きり（_loot_safety_rearmed）なので2回目でその階の間は戻らない。
+  その後に召喚者が見えなくなっても、答え1（見える敵も感知した敵もいなければ遠い品は拾う）がこの掛け金で効かない。
+- 11:51: seek-loot と detected:prepare-choke が交互に歩き、nav:break-oscillation の後に台帳が期限切れにした。
+- 共有の離れたマスの記録と guard ができたら、この2つの掛け金（1回きりの戻し・往復での台帳の期限）を置き換え、
+  答え1の条件を満たす品は後回しから戻す、のが筋。ここでは2者ごとの決まりを足していない。
+- 10:58 の loop-detected（explore↔seek-loot）も同じ型で、viewing-stops-1113am が直している止まり。ここでは触っていない。
+
+C: 09:40 は同じ階で召喚3回で帰還（11-04 の決まり）。11:43・12:54 は動かない召喚者を避けて離れる（11-02 の決まり）。
+どちらも離れる時点で見える脅威があり、答え1の条件（何も見えない・感知しない）を満たさない。生存優先の正しい離脱。
+
+== 2. 直し ==
+
+コミット1 5edcd169b6: 満杯の交換を、満杯が始める帰還より先に聞く（答え3）
+- ladder_objectives.key: 満杯の段（_full_pack_destroy_key の直後）に full_pack_exchange.key を足した
+  （_town_producer_entry、survival_preemption が攻撃中は断る P 行）。帰還（_return_to_town_key#3）より上。
+- dungeon_ladder.LADDER に行 P("full_pack_exchange.key")、town_terminal.TERMINALS に dungeon_board_intended_terminal
+  （町と店では当てはまらない）。full_pack_exchange.key にも町では None。
+- full_pack_exchange._necessity: テレポートの必需品を、逃げが読む全ての移動の巻物（ショート・テレポート、テレポート、
+  テレポート・レベル: policy.RELOCATION_SCROLL_SVALS）にした。
+
+コミット2 2bf1d2ba7c: 隘路の待ちが中断した拾いの目標を、止まったと数えずに外す
+- IdentificationMixin._set_aside_loot_goal（policy_identification）: 付いている拾いの目標の claim を放し、台帳から
+  判定なしで外し（NavigationLedger.release）、目標を None にする。拾いの持ち主が次に改めて付ける。
+- summoner_wait.hold_key: 待ち（"5"）を返す時に _set_aside_loot_goal("loot-choke-hold")。
+- ladder_plan_approved_quest: 宝箱の処理の同じ4行を _set_aside_loot_goal("loot-chest-processing") に置き換えた（振る舞いは同じ）。
+
+== 3. テスト ==
+
+新しいテスト: tests/test_n1c_loot_left_1113pm_recorded.py（5件）、記録 tests/fixtures/n1c-loot-left-1113pm.jsonl.gz
+（tests/extract_n1c_loot_left_1113pm_fixture.py）。
+- test_the_filled_pack_walks_to_the_dearer_item_instead_of_reading_recall: 09:22 の盤3枚（拾って満杯になった盤）を
+  公開の choose_key で再生 → '9' seek-loot:exchange（実機は 'ri' return:recall）。キーを _ExecutorInputPort で送り
+  ゲームの偽物が ['9'] を受けた。
+- test_phase_door_is_a_teleport_necessity_the_exchange_keeps: 捨てる品は武器ダメージ増加の巻物（70,18）、
+  ショート・テレポートではない。値の高い品は重鎖かたびら (35,22) と地震の杖 (39,84)。
+- test_on_the_pile_the_spare_is_destroyed（宣言した組み立て: プレイヤーを重鎖かたびらの上へ）: choose_key で
+  inventory:exchange-for-floor-loot。
+- test_the_choke_hold_sets_the_loot_walk_aside: 13:26 の盤 15 枚を再生、最後の盤が '5' detected:hold-choke、
+  付いていた目標 (57,164) が外れ、台帳に残らない。
+- test_a_long_hold_does_not_defer_the_loot_for_the_floor（宣言した組み立て: 待ちの盤を1ゲームターンずつ進めて 40 回）:
+  (57,164) は後回しにならず、拾いの候補に残る。
+
+結果（PYTHONPATH="src;tests;."、枝と分岐点 9c8baca870 の比較用 worktree で同じモジュールを流した）:
+- 新しいテスト 5件 OK（基準には無い）。tests.test_n1c_loot_rules_1113_recorded 6件 OK（基準も OK）。
+- 拾い・隘路・召喚の待ち・宝箱・段の表など 40 モジュールを比べ、違いは新しいテストだけ。
+  OK で同じ: test_loot_choke_oscillation / test_choke_hold_loop / test_detected_pack_no_choke /
+  test_reverse_choke_loot_loop / test_summoner_loot_choke_loop / test_summoner_hold_phase_1102 /
+  test_summoner_avoid_narrow_1102 / test_summoner_hold_los_1102 / test_choke_stall_recreate_1108 /
+  test_n1b_370_loot_choke_1111 / test_dungeon_ladder / test_reward_pack_full_handoff /
+  test_unseen_loot_deferral / test_castle_summoner_loot_1110 / test_chest_await_drop / test_q34_chest_prompt /
+  test_n1b_377_approach_loot_1112 / test_n1b_377_pile_loot_1112 / test_loot_triage / test_immobile_summoner /
+  test_n1c_205_summoner_explore_1113 / test_n1c_205_stuck_recall_1113 / test_stops_1109_dungeon（各 _recorded）。
+  基準でも同じく落ちる（以前から、今回と無関係）: test_loot_ledger_mass_deferral（3 ERROR）、test_q2_choke_loop（2）、
+  test_loot_before_recall（2）、test_town_terminal_declarations の test_1（1）、test_reason_registry（1）、
+  test_full_pack_store_unreachable（1）、test_loot_suppression_returning（1）。
+- 注意: test_summoner_hold_los_1102_recorded は、別の再生を同時に走らせた負荷の下で1回だけ落ち、
+  負荷なしで2回流し直して通った（基準も通る）。実行器の時間に敏感なテストと見ている。
+
+import 確認: PYTHONPATH=src python -c "import hengbot.cli, hengbot.policy" → OK。
+scripts/dungeon_ladder_lint.py → 0 violation(s)。scripts/town_work_manifest.py --write → zero unmapped（変更なし）。
+
+== 4. revert-proof（本番の各 hunk を1回ずつ戻して流し、元に戻した） ==
+
+- ladder_objectives の交換の段を戻す → 2件が落ちる: filled_pack（('ri','return:recall') != ('9','seek-loot:exchange')、
+  実機の帰還をそのまま再現）、on_the_pile（'return:recall' != 'inventory:exchange-for-floor-loot'）。
+- full_pack_exchange の必需品を is_teleport_scroll に戻す → 2件が落ちる: phase_door（(70,8,1) != (70,18,1)）、
+  filled_pack（'6' と '9'：ショート・テレポートのために別の品へ歩く）。
+- summoner_wait.hold_key の _set_aside_loot_goal を戻す → 2件が落ちる: choke_hold_sets（(57,164) is not None）、
+  long_hold（40 回の待ちで (57,164) が後回しに入る）。
+- 宝箱の4行の置き換えは振る舞いが同じなので revert-proof の対象外。
+
+== 5. 保守性 ==
+
+- 交換の呼び出しは、満杯の始末をする段（目標の層、_full_pack_destroy_key の隣）に1行足しただけで、判定は
+  full_pack_exchange の1か所のまま。段の順は dungeon_ladder の表と検査で見える形にした（表の1行の差分）。
+- 必需品のテレポートは policy.RELOCATION_SCROLL_SVALS を読み、定数を複製していない。
+- 「ほかの持ち主が手を持つ間は拾いの目標を止まったと数えない」を _set_aside_loot_goal の1つにまとめ、宝箱の処理の
+  複製（claim の放し・台帳の release・目標の None）をそれに置き換えた。隘路の待ちも同じ関数を呼ぶ。
+- 特定のクエスト・品・職業の条件は足していない。
+
+== 6. checks.json の案 ==
+
+{"id":"N1C-LOOT-LEFT","owner":"2026-11-13 「*破壊*のロジックとアイテム回収の瑕疵は直った？」拾い残し","tests":["tests.test_n1c_loot_left_1113pm_recorded"]}
+
+== 7. オーナーへの問い（新しい決まりが要るものだけ） ==
+
+問い1（根N）: 感知した品が、壁に囲まれた見えない小部屋の中にあり、探索で届く場所を使い切り、隠し扉探しでも
+見つからない時（13:10 の 23階: 硬革よろい・トラップ感知の巻物・耐久力復活の薬）、岩石溶解（魔法棒・取り込んだ力）
+で壁を溶かして取りに行くか。今は隠し扉探しの後、行き詰まりとして帰還を読む。周辺感知は隠し扉を見せないので、
+答え4の「周辺感知を使う」ではこの形は解けない。
+  案A: 安全な時（見える敵・感知した敵がいない）、品の価値が一定以上なら、岩石溶解で一番近い壁から掘って取る。
+  案B: 今のまま（行き詰まりで帰還）。
+
+確認（問いではなく報告）: 答え3の必需品「テレポート」に、ショート・テレポートとテレポート・レベルの巻物も含めた
+（ボットが逃げに読む移動の巻物）。
+
+== 8. 他の枝との関係 ==
+
+- pingpong-root-1113: 根P（召喚者が見える境の seek-loot↔explore、seek-loot↔detected:prepare-choke）を登録して
+  ほしい。今の止め方（1回きりの安全の戻し・台帳の期限）は品をその階の間ずっと後回しにし、答え1を効かなくする。
+- viewing-stops-1113am: 09:15 stall:floor-dwell:explore と 10:58 loop-detected は触っていない。根が同じものは無い
+  （10:58 は P と同じ往復の型）。

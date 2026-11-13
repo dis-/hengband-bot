@@ -1787,6 +1787,24 @@ class IdentificationMixin:
         self._declare_reach(self._loot_target)
         return self._step_toward(snapshot, step)
 
+    def _set_aside_loot_goal(self, cause: str) -> None:
+        """Set the committed loot goal aside while another owner deliberately takes the turns.
+
+        The navigation ledger charges a committed loot goal on every decision
+        (_observe_navigation_commitments) and defers it for the floor once its stall
+        budget is spent, whoever took the turns.  A goal that is not being pursued is not
+        stalled: it leaves the ledger unjudged and the loot owner commits it afresh.
+        n1-c life-205 (Orc cave 23F, 2026-11-13 13:26:28-13:26:32): a heavy chain mail two
+        cells away was deferred during 25 boards of a choke hold (summoner_wait.hold_key),
+        stood on and not picked up, and left on the floor when the explore ran out.
+        """
+        target = self._loot_target
+        if target is None:
+            return
+        self._release_claim_goal(cause, target, owners=CLAIM_LOOT_OWNERS)
+        self._nav_ledger.release("loot", target)
+        self._loot_target = None
+
     def _loot_route_hostile_cells(
         self, hostiles: list[MonsterState]
     ) -> frozenset[tuple[int, int]]:
