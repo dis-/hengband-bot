@@ -9,7 +9,10 @@ from hengbot import guardian_rumor, home_identification, home_pass_charge, town_
 from hengbot import status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 from hengbot import town_visit_plan
-from hengbot.town_visit_plan import STAY
+from hengbot.town_visit_plan import (
+    CONTINUE_OBSERVED_SHOP_REASON, PROGRESS_APPROACH_REASON, PROGRESS_DEFECT_PREFIX, STAY,
+    progress_defect_reason,
+)
 
 from hengbot.departure_readiness import readiness_table
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -108,7 +111,7 @@ RECALL_COUNTDOWN_REASONS = frozenset({"town:wait-recall", "town:wait-recall-step
 # Leaving an observed shop page: the observation's own name, and the shop
 # owner's name when the buy stage continues past it (town rebuild 3-3c).
 OBSERVE_AND_LEAVE_REASON = "shop:observe-and-leave"
-CONTINUE_OBSERVED_SHOP_REASON = "town-progress-invariant:continue-observed-shop"
+# (town_visit_plan names it: the progress invariant's reasons are the plan's.)
 VISIT_CLOSABLE_REASONS = frozenset({
     "departure-unsatisfiable", "no-actionable-claim-owner",
     "overweight-retained-only",
@@ -478,7 +481,7 @@ class TownMixin:
                         goal = pending[1]
         elif (owner == "detectors"
               and (reason or self.last_reason or "").startswith(
-                  "town-progress-invariant:defect:")):
+                  PROGRESS_DEFECT_PREFIX)):
             # The progress seam hands this decision to another errand's walk
             # (_town_procurement_progress_key) under the detector's label.  A
             # store route that walk staged on this decision is measured like
@@ -1736,7 +1739,7 @@ class TownMixin:
         )
         if step is None:
             return None
-        reason = "town-progress-invariant:approach"
+        reason = PROGRESS_APPROACH_REASON
         key = self._shopping_approach_key(snapshot, step, reason)
         return key, self.last_reason or reason
 
@@ -2134,10 +2137,7 @@ class TownMixin:
         }
         if enforce:
             town_visit_plan.note_transition(self, "posted-shop-operation")
-            self.last_reason = (
-                "town-progress-invariant:defect:"
-                f"{proposed_reason}=>{progress_reason}"
-            )
+            self.last_reason = progress_defect_reason(proposed_reason, progress_reason)
         return key
 
     @claims(ClaimOwner.FUNDRAISING)
@@ -2197,9 +2197,7 @@ class TownMixin:
             self.last_reason = proposed_reason
             return key
         town_visit_plan.note_transition(self, "progress-handover")
-        self.last_reason = (
-            f"town-progress-invariant:defect:{proposed_reason}=>{progress_reason}"
-        )
+        self.last_reason = progress_defect_reason(proposed_reason, progress_reason)
         self._record_shop_selector_diagnostics(snapshot, progress_key)
         return progress_key
 

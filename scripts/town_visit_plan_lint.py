@@ -8,7 +8,9 @@ Checks hengbot.town_visit_plan.FAMILY_STAGE against the one family list
 registered family, and every row's stage is one of STAGES, INTERRUPT or
 REWRITE.  Every stage of STAGES is some family's.  Every owner's stage
 transition (TRANSITIONS, stage 3-3e) names a family with a stage that is not
-the rewrite stage and a method the policy has.  Exit status 1 on a gap.
+the rewrite stage and a method the policy has.  The claim ladder ranks the
+plan's rows from the plan's names (stage 3-4): the progress step's rung and
+the progress invariant's reasons.  Exit status 1 on a gap.
 """
 from __future__ import annotations
 
@@ -22,7 +24,11 @@ def problems() -> list[str]:
     sys.path.insert(0, str(ROOT / "src"))
     from hengbot.town_arbiter import owner_families
     from hengbot.policy import HengbotPolicy
-    from hengbot.town_visit_plan import FAMILY_STAGE, INTERRUPT, REWRITE, STAGES, TRANSITIONS
+    from hengbot import town_hold
+    from hengbot.town_visit_plan import (
+        FAMILY_STAGE, INTERRUPT, PROGRESS_INVARIANT_PREFIX, PROGRESS_INVARIANT_RUNG, REWRITE,
+        STAGES, STEP_RUNG, TRANSITIONS,
+    )
 
     families = set(owner_families())
     found = []
@@ -41,6 +47,13 @@ def problems() -> list[str]:
             found.append(f"TRANSITIONS: {name!r} belongs to {family!r}, no owner's stage")
         if not callable(getattr(HengbotPolicy, method, None)):
             found.append(f"TRANSITIONS: {name!r} names {method!r}, which the policy lacks")
+    step = town_hold.rung_named(STEP_RUNG[0])
+    if step is None or (step.family, step.section) != (STEP_RUNG[1], town_hold.SECTION_REWRITE):
+        found.append(f"STEP_RUNG: the ladder has no {STEP_RUNG[1]!r} rewrite rung {STEP_RUNG[0]!r}")
+    invariant = town_hold.rung_of(PROGRESS_INVARIANT_RUNG[1], PROGRESS_INVARIANT_PREFIX)
+    if invariant.name != PROGRESS_INVARIANT_RUNG[0]:
+        found.append(f"PROGRESS_INVARIANT_RUNG: {PROGRESS_INVARIANT_PREFIX!r} ranks at "
+                     f"{invariant.name!r}, not the plan's rung")
     return found
 
 

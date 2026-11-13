@@ -6,6 +6,7 @@ from collections import Counter
 from typing import Callable, Mapping
 
 from hengbot.latch_onset_capture import assignment_provenance
+from hengbot.town_visit_plan import PROGRESS_DEFECT_PREFIX, PROGRESS_INVARIANT_PREFIX
 from hengbot.model import Position, Snapshot, STORE_HOME
 from hengbot.policy_constants import (
     CALIBRATION_HOME_VISIT_LIMIT,
@@ -155,7 +156,7 @@ class TownTurnArbiter:
             registration("rumor", ("town:rumor",), "departure-ready gate delta"),
             registration("quest-request", ("fixedquest:", "quest:", "opening-q34:", "me-staff:", "bounty:"), "quest request or phase advance",
                 census=("magic-eater:absorb",)),
-            registration("detectors", ("livelock:", "town-progress-invariant:", "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:", "ownership:"), "block release or visible stop"),
+            registration("detectors", ("livelock:", PROGRESS_INVARIANT_PREFIX, "town-liveness-invariant:", "town:cycle-break", "posting-contract:", "stuck:", "novel:", "breakout", "no-wait:", "nav:", "warning:", "dark:", "ownership:"), "block release or visible stop"),
             # -- S2a: the families behind the two catch-alls -----------------
             #
             # Design 6/S2a.  These are census-only (see ``classification``):
@@ -364,7 +365,7 @@ class TownTurnArbiter:
         #   (:abandon-unconfirmed-equip), 29903 (:step-off), and 29932
         #   (:approach) self-delegate because anchored prefix matching preserves
         #   the owner of the reason at the start of each composed string.
-        defect_prefix = "town-progress-invariant:defect:"
+        defect_prefix = PROGRESS_DEFECT_PREFIX
         if normalized.startswith(defect_prefix):
             # The detector emits the composed defect key, so it owns the decision.
             return "detectors"

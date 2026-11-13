@@ -18930,5 +18930,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The absorbed Teleportation cast (m + kind + letter, reason + :absorbed-power, the owner me_device_attacks_input answers) or the carried Staff of Teleportation (u + slot, the caller's staff reason) of a teleport_means answer; sets last_reason; no independent progress."
+  },
+  "town_visit_plan.py:progress_defect_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure formatter: the progress invariant's defect reason (town_visit_plan registry, town rebuild 3-4), a reason string, never a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

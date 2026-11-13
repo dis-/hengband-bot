@@ -104,6 +104,29 @@ TRANSITIONS: dict[str, tuple[str, str]] = {
 # A transition method's answer when its transition does not apply.
 STAY = object()
 
+# -- the plan's rows on the claim ladder (town rebuild stage 3-4) ----------
+# town_hold's ladder, town_arbiter's family registration and the reasons the
+# transitions write read these names here.  The ranks are unchanged.
+# The progress step itself: the ``town-plan`` family's rung in the ladder's
+# rewrite section (``town_hold._RUNGS``), ranked after the detectors.
+STEP_RUNG: tuple[str, str] = ("_town_procurement_decision", "town-plan")
+# The progress invariant's reasons, which the transitions (and the shop
+# owner's continuation of an observed shelf) write.  They belong to the
+# detectors' family and rank at the detectors' rewrite rank, where they ranked
+# as the cycle detector's ordinary rung; the ladder names their rung after
+# the plan (``PROGRESS_INVARIANT_RUNG``: producer label, family).
+PROGRESS_INVARIANT_PREFIX = "town-progress-invariant:"
+PROGRESS_INVARIANT_RUNG: tuple[str, str] = ("town-visit-plan:progress-invariant", "detectors")
+PROGRESS_DEFECT_PREFIX = PROGRESS_INVARIANT_PREFIX + "defect:"
+PROGRESS_APPROACH_REASON = PROGRESS_INVARIANT_PREFIX + "approach"
+CONTINUE_OBSERVED_SHOP_REASON = PROGRESS_INVARIANT_PREFIX + "continue-observed-shop"
+
+
+def progress_defect_reason(winner: str, progress: str) -> str:
+    """The reason of a decision the progress invariant names a defect: the
+    producer's reason ``winner`` and the progress action that replaced it."""
+    return f"{PROGRESS_DEFECT_PREFIX}{winner}=>{progress}"
+
 # A visit's trace keeps its newest segments only.
 SEGMENT_LIMIT = 200
 # A visit keeps its newest seam replacements and transitions only.
