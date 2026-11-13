@@ -25,6 +25,8 @@ import copy
 import gzip
 import json
 import unittest
+from unittest import mock
+from hengbot import torch_release
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -136,6 +138,10 @@ class TownLanternOutTest(unittest.TestCase):
         self.assertEqual(reason, "refill-light")
         self.assertIn("F", key)
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_without_oil_the_torch_is_not_traded_back_for_the_dark_lantern(self):
         lantern_worn = self._replay(self._rows(lantern_worn=True, oil=False))
         self.assertNotEqual(lantern_worn[-1][1], "refill-light")

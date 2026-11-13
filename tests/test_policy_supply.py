@@ -1,4 +1,6 @@
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from unittest import mock
+from hengbot import torch_release
 
 import ast
 import gzip
@@ -4574,6 +4576,10 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             policy._supply_ledger(town, policy._planned_depth())["oil"],
         )
 
+    # Wall (owner 2026-11-13 「発生したら名前付きで止まる」, torch_release.NO_LANTERN_REASON): this
+    # constructed board wears a light crossbow and owns no light at all, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_pin_vacuity_public_visit_refusal_preserves_observed_supplier(self):
         bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
         outside = replace(
@@ -4623,6 +4629,10 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         self.assertNotIn(STORE_WEAPON, policy._town_store_attempted)
         self.assertEqual(policy._town_errand_plan.index, 0)
 
+    # Wall (owner 2026-11-13 「発生したら名前付きで止まる」, torch_release.NO_LANTERN_REASON): this
+    # constructed board wears a light crossbow and owns no light at all, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_public_leaving_pass_latches_store_with_no_wanted_stock(self):
         bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
         outside = replace(
@@ -4671,6 +4681,10 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
         self.assertIn(STORE_WEAPON, policy._town_errand_plan.blocked_this_visit)
         self.assertEqual(policy._town_errand_plan.index, 1)
 
+    # Wall (owner 2026-11-13 「発生したら名前付きで止まる」, torch_release.NO_LANTERN_REASON): this
+    # constructed board wears a light crossbow and owns no light at all, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_public_leaving_pass_latches_when_home_gate_allows_purchase(self):
         bolts = store_item("a", TVAL_BOLT, 0, count=99, price=3)
         outside = replace(

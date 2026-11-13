@@ -3258,7 +3258,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "left_cells.py:_bounded_cells": {
+  "left_cells.py:_live_records": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -7995,6 +7995,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_home.py:HomeMixin._keep_home_takes_within_pack_budget.refused": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_home.py:HomeMixin._offer_home_atomic_no_step": {
     "classification": "adapter",
     "rows": [
@@ -11108,6 +11115,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_confirm_tome_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_ctx": {
     "classification": "data",
     "rows": [
@@ -11116,6 +11130,20 @@
     "delegation": "selected child; no independent success"
   },
   "quest25_battle.py:_cursor_suffix": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_detector": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11241,6 +11269,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_leave_fire": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_match_strong": {
     "classification": "data",
     "rows": [
@@ -11353,6 +11388,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_refill_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_refused": {
     "classification": "data",
     "rows": [
@@ -11445,6 +11487,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest25_battle.py:_tome": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_tome_unarmed": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13744,6 +13793,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "torch_release.py:is_crossbow": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:light_halt": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:light_wearable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "torch_release.py:released": {
     "classification": "data",
     "rows": [
@@ -13759,6 +13829,20 @@
     "delegation": "selected child; no independent success"
   },
   "torch_release.py:throwing_torch_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:wearable_light": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "torch_release.py:worn_launcher": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

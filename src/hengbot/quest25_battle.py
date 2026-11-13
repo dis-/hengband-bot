@@ -96,6 +96,7 @@ from hengbot import (
     attack_expectation,
     breeder_area_attack,
     combat_answer,
+    hunt_target,
     left_cells,
     me_capability,
     me_device_attacks,
@@ -293,7 +294,9 @@ class Battle:
     detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     recharge_rests: int = 0        # this phase's counted recharge rests (``RECHARGE_REST_LIMIT``)
-    tome_gone: bool = False        # every cell that sees the tome's grid reached, it not seen there
+    gone: frozenset = frozenset()  # never-moving races not on their grid (``_immobile_gone``)
+    tome_detect: int | None = None  # the turn a detection to confirm the tome was keyed
+    tome_shown: bool = False       # a detection showed the tome on its grid this phase
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
@@ -322,7 +325,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "tome_gone")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -715,9 +718,16 @@ def _safe_cells(ctx: _Ctx, fire) -> set:
 
 def _withdraw(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
     """Out of the fire by the least exposed walk, then the rest there."""
+    if ctx.here not in _fire(ctx):
+        return _rest_out_of_fire(ctx)
+    return _leave_fire(ctx, reason)
+
+
+def _leave_fire(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
+    """In the fire: the first step of the least exposed walk out of it; else None."""
     fire = _fire(ctx)
     if ctx.here not in fire:
-        return _rest_out_of_fire(ctx)
+        return None
     refused = _refused(ctx)
     safe = _safe_cells(ctx, fire) - refused
     occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
@@ -1549,16 +1559,24 @@ def _recharging_area_attack(ctx: _Ctx) -> bool:
 _FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
 
 
+def _refill_key(ctx: _Ctx, *before: Callable[[], str | None]) -> str | None:
+    """Spent, not missing: refill them (the between-phases rest, ``_recharge_key``), fighting
+    what comes first; ``before``: the phase's own steps ahead of the rest, in order."""
+    targets = _fight_targets(ctx)
+    if targets:
+        return _engage(ctx, targets) or _hold(ctx)
+    for step in before:
+        if (key := step()) is not None:
+            return key
+    return _recharge_key(ctx)
+
+
 def _quyls(ctx: _Ctx, plan=None) -> str | None:
     plan = _quyl_plan(ctx) if plan is None else plan
     if plan is None:
         if not _recharging_area_attack(ctx):
             return None
-        # Spent, not missing: refill them (the between-phases rest), fighting what comes first.
-        targets = _fight_targets(ctx)
-        if targets:
-            return _engage(ctx, targets) or _hold(ctx)
-        return _recharge_key(ctx)
+        return _refill_key(ctx)
     # 「テレポート・アウェイを受けるとイプシシマスの残党やドリードマスターと相対する可能性がある。
     # その場合は加速して討伐を試みる。」
     faced = [monster for monster in ctx.in_view() if monster.race_id in _FACED]
@@ -1582,35 +1600,46 @@ def _quyls(ctx: _Ctx, plan=None) -> str | None:
 
 
 def _tome_done(ctx: _Ctx) -> bool:
-    return ctx.kills(geo.TOME) >= geo.ROSTER[geo.TOME] or _tome_gone(ctx)
+    if _tome_absent(ctx):
+        ctx.battle.gone = ctx.battle.gone | {geo.TOME}
+    return ctx.kills(geo.TOME) >= geo.ROSTER[geo.TOME] or _immobile_gone(ctx, geo.TOME)
 
 
-def _tome_gone(ctx: _Ctx) -> bool:
-    """Every cell that sees the tome's grid was reached and the tome was not seen there: it is not
-    on the floor any more (``_walk_to_sight``'s 「見えなければ次から選ばない」 run out, as the pen's
-    ``_pen_sight`` counts the Ipsissimus escaped).  It never moves and resists teleportation
-    (lib/edit MonraceDefinitions 557 NEVER_MOVE, RES_TELE) and is not invisible: unseen on a cell
-    that sees its grid, it is not on that grid -- killed unseen (「何かを殺した。」 names no race,
-    monster-damage.cpp show_kill_message) or erased.
+def _placed(ctx: _Ctx, race: int):
+    """The plan's cell of the never-moving ``race`` (the battlefield's placements), else None."""
+    return next((tuple(cell) for cell, placed in ctx.navigator.battlefield.monster_placements
+                 if placed == race), None)
 
-    n1-b life-382 (2026-11-13 05:38:34-05:38:46): the walk to its sights reached every one of
-    them with no tome seen and walked over [9,8] itself (decision 5907); the plan then shot the
+
+def _immobile_gone(ctx: _Ctx, race: int) -> bool:
+    """Every cell that sees the grid of the never-moving ``race`` was reached and it was not seen
+    there: it is not on that grid any more (``_walk_to_sight``'s 「見えなければ次から選ばない」 run
+    out, as the pen's ``_pen_sight`` counts the Ipsissimus escaped).  The races this is asked for
+    never move and are not invisible (lib/edit MonraceDefinitions 557 Raal's Tome of Destruction,
+    439 Stairway to hell: NEVER_MOVE, no INVISIBLE): unseen on a cell that sees their grid, they
+    are not on it -- killed unseen (「何かを殺した。」 names no race, monster-damage.cpp
+    show_kill_message), erased, or moved off by the player's own teleport; what is left of the
+    floor is the KILL_ALL patrol's after the phases.
+
+    n1-b life-382 (2026-11-13 05:38:34-05:38:46): the walk to the tome's sights reached every one
+    of them with no tome seen and walked over [9,8] itself (decision 5907); the plan then shot the
     empty grid from [5,5] 85 times (5944-6028), and with every grid-aimed attack spent had no
-    step, which the KILL_ALL patrol took until the loop guard stopped the bot twice.  Kept over
-    the phases (``_next_phase``) and the record."""
+    step, which the KILL_ALL patrol took until the loop guard stopped the bot twice.  n1-b
+    life-384 (08:42): the stairway [13,29] unseen from both stands, [13,28] beside it included.
+    Kept over the phases (``_next_phase``) and the record."""
     battle = ctx.battle
-    if battle.tome_gone:
+    if race in battle.gone:
         return True
-    tome = next((tuple(cell) for cell, race in ctx.navigator.battlefield.monster_placements
-                 if race == geo.TOME), None)
-    reached = {cell for aimed, cell in _blind_pairs(ctx) if aimed == tome}
-    if tome is None or not reached or _seen_at(ctx, geo.TOME, {tome}):
+    cell = _placed(ctx, race)
+    reached = {sight for aimed, sight in _blind_pairs(ctx) if aimed == cell}
+    if cell is None or not reached or _seen_at(ctx, race, {cell}):
         return False
     player = ctx.snapshot.player
     looked = set() if player.blind or player.hallucinated else {ctx.here}   # this board's look
-    sights = geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx, tome))
-    battle.tome_gone = bool(sights) and sights <= reached | looked
-    return battle.tome_gone
+    sights = geo.sight_cells(ctx.open_terrain(), cell, _sight_radius(ctx, cell))
+    if sights and sights <= reached | looked:
+        battle.gone = battle.gone | {race}
+    return race in battle.gone
 
 
 def _tome(ctx: _Ctx) -> str | None:
@@ -1648,12 +1677,65 @@ def _tome(ctx: _Ctx) -> str | None:
             return _walk(ctx, {stands[0]})
         return _haste(ctx) or _fire_at(ctx, tome, geo.TOME, missiles=seen)
     if far <= 0:
-        return None
+        return _tome_unarmed(ctx, tome)
     if _hopeless(ctx, hp, far):
         return _withdraw(ctx)
     if seen:
         return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
     return _walk_to_sight(ctx, tome, sights)
+
+
+def _tome_unarmed(ctx: _Ctx, tome) -> str | None:
+    """No attack reaches the tome and it may still be there (cells that see it are left).
+
+    Owner 2026-11-13 (the open question of n1-b life-382): 「休んで充填を待つ。また、可能なら感知して
+    存在を確認する。」  Out of the casters' fire first (the formation's 「クイル・破壊集大成・ドルジの
+    射線のマスでは待たず、休まない」), a detection that shows its race from where it reaches the
+    tome's grid (``_confirm_tome_key``; one not showing it there ends the phase, ``_tome_absent``),
+    then the between-phases rest (``_recharge_key``) until a charge is back and the phase's attack
+    answers again."""
+    return _refill_key(ctx, lambda: _leave_fire(ctx), lambda: _confirm_tome_key(ctx, tome))
+
+
+def _confirm_tome_key(ctx: _Ctx, tome) -> str | None:
+    """「可能なら感知して存在を確認する」: once per phase until it shows the tome (a cast that failed
+    is cast again), the sweep's detection (``_detect_key``) when its effect shows the tome's race
+    (hunt_target.REVEALS: the Rod of Detection every monster, Detect Evil the evil; 557 is EVIL)
+    and the tome's grid is within its reach (spells-detection.cpp detect_monsters_*:
+    Grid::calc_distance to the player within DETECT_RAD_DEFAULT)."""
+    battle = ctx.battle
+    if battle.tome_shown or battle.tome_detect is not None:
+        return None
+    found = _detector(ctx)
+    if found is None or quest_exposure.game_distance(ctx.here, tuple(tome)) > me_powers.DETECT_RAD:
+        return None
+    effect = (found[1] if found[0] == "power"
+              else me_powers.BY_KEY[(found[1], found[2].sval)]).effect
+    if not hunt_target.REVEALS[effect](hunt_target.race_flags(ctx.policy, geo.TOME)):
+        return None
+    key = _detect_key(ctx)
+    if key is not None:
+        battle.tome_detect = int(ctx.snapshot.turn)
+    return key
+
+
+def _tome_absent(ctx: _Ctx) -> bool:
+    """The board after the tome's detection (``_confirm_tome_key``), read as the sweep reads its
+    own (``_detection_failed``): a cast that failed is forgotten (cast again); else the tome is
+    shown on its grid (the phase goes on) or it is not there (the phase ends, as
+    ``_immobile_gone``)."""
+    battle = ctx.battle
+    cast = battle.tome_detect
+    if cast is None or ctx.snapshot.turn <= cast:
+        return False
+    battle.tome_detect = None
+    if _detection_failed(ctx, cast):
+        return False
+    tome = _placed(ctx, geo.TOME)
+    battle.tome_shown = any(monster.race_id == geo.TOME
+                            and (monster.position.y, monster.position.x) == tome
+                            for monster in ctx.hostiles())
+    return not battle.tome_shown
 
 
 def _note_glow(ctx: _Ctx) -> None:
@@ -1941,11 +2023,12 @@ def _sweep_targets(ctx: _Ctx) -> list:
             if monster.race_id not in {geo.DRUJ, geo.STAIRWAY}]
 
 
-def _detection_failed(ctx: _Ctx) -> bool:
-    """The board after the sweep's detection says the cast or the use failed (and shows nothing)."""
+def _detection_failed(ctx: _Ctx, turn: int | None = None) -> bool:
+    """The board after a detection keyed on ``turn`` (default the sweep's) says the cast or the use
+    failed (and shows nothing)."""
     from hengbot import kill_all_patrol
 
-    if ctx.snapshot.turn == ctx.battle.detect_turn:
+    if ctx.snapshot.turn == (ctx.battle.detect_turn if turn is None else turn):
         return False
     texts = [message_text(message) for message in ctx.snapshot.messages]
     return (any(line in text for text in texts for line in kill_all_patrol.FAILED_LINES)
@@ -2012,7 +2095,7 @@ def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
 
 
 def _stairway_done(ctx: _Ctx) -> bool:
-    return ctx.kills(geo.STAIRWAY) >= geo.ROSTER[geo.STAIRWAY]
+    return ctx.kills(geo.STAIRWAY) >= geo.ROSTER[geo.STAIRWAY] or _immobile_gone(ctx, geo.STAIRWAY)
 
 
 def _stairway(ctx: _Ctx) -> str | None:
@@ -2023,7 +2106,7 @@ def _stairway(ctx: _Ctx) -> str | None:
     if battle.style is None:
         battle.style = ("melee" if melee_is_fewer(ctx.policy, ctx.snapshot, geo.STAIRWAY, steps=1)
                         else "ranged")
-    if ctx.here not in {stand, door}:
+    if ctx.here not in {stand, door} and not _stands_looked_from(ctx, stairway, door, stand):
         return _walk(ctx, {stand})
     if ctx.here == stand and ctx.door_closed(door) and (haste := _haste(ctx)) is not None:
         return haste      # 「全快し、加速して階段の前の扉を開ける」
@@ -2040,6 +2123,19 @@ def _stairway(ctx: _Ctx) -> str | None:
     # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen from [13,27], no arrow; the
     # door [13,28] beside it when nothing is aimed at the grid.
     return _unseen_fire(ctx, stairway, geo.STAIRWAY, seen=bool(seen), among={stand, door})
+
+
+def _stands_looked_from(ctx: _Ctx, stairway, door, stand) -> bool:
+    """The door is open and both stands were reached with the stairway unseen: the walk to
+    another cell that sees it owns the move (``_unseen_fire``'s 「撃つマスは段の立ち位置の中から選び、
+    無ければどこでもよい」), not the walk back to the stand.
+
+    n1-b life-384 (2026-11-13 08:42, Quest 25 phase 9): every attack spent, [13,27] and [13,28]
+    reached unseen, the walk to a sight stepped '7' to [12,26] and this phase's own approach
+    stepped '3' back to [13,27], board after board, until the loop guard stopped the bot three
+    times."""
+    return (ctx.battle.style == "ranged" and not ctx.door_closed(door)
+            and not _sights(ctx, stairway, {stand, door}))
 
 
 def _druj_done(ctx: _Ctx) -> bool:

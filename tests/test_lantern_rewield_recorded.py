@@ -27,6 +27,7 @@ from recorded_junk_scope import choose_past_junk_key
 import gzip
 import hashlib
 import unittest
+from hengbot import torch_release
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -108,12 +109,20 @@ class LanternRewieldRecordedTest(unittest.TestCase):
             self.assertIsNone(policy._light_refill_item(board))
             self.assertIsNone(policy._darkness_torch(board))
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_recorded_lit_return_board_wields_the_lantern(self):
         policy, board = self._board(0)
         key = choose_past_junk_key(policy, board)
         self.assertEqual(key, WIELD_LANTERN_FROM_SLOT_O)
         self.assertEqual(policy.last_reason, "restore-lantern")
 
+    # Wall (owner 2026-11-13 「松明は装備しない。装備していたら停止して報告。」, torch_release): this
+    # recorded character wears a torch beside its light crossbow, which now stops by name
+    # (tests/test_torch_crossbow_1113_recorded.py); the pin's own subject runs without that rule.
+    @mock.patch.object(torch_release, "CROSSBOW_SVALS", frozenset())
     def test_recorded_dark_board_wields_the_lantern(self):
         for returning in (True, False):
             with self.subTest(returning=returning):
