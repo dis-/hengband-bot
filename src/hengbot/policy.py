@@ -7744,15 +7744,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return above_emergency
         # The emergency layer: the emergency consumables and the survival rungs after them
         # (ladder_emergency).
-        emergency = ladder_emergency.key(
-            self,
-            snapshot,
-            emergency_hostiles=emergency_hostiles,
-            paralyzers=paralyzers,
-            physical_adjacent=physical_adjacent,
-        )
-        if emergency is not PASS:
-            return emergency
+        # Its walks are survival walks: the left cells' bounded records do not hold them
+        # (left_cells.survival_walks).
+        with left_cells.survival_walks(self):
+            emergency = ladder_emergency.key(
+                self,
+                snapshot,
+                emergency_hostiles=emergency_hostiles,
+                paralyzers=paralyzers,
+                physical_adjacent=physical_adjacent,
+            )
+            if emergency is not PASS:
+                return emergency
 
         # The summoner-shots layer: what dies 被害無く, then the last shots at a summoner
         # (ladder_summoner_shots).
@@ -7811,17 +7814,19 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         mining_hostiles = mining.hostiles
 
         # The combat layer: survival, flight and the fight itself (ladder_combat).
-        combat = ladder_combat.key(
-            self,
-            snapshot,
-            strategic_hostiles=strategic_hostiles,
-            strategic_adjacent=strategic_adjacent,
-            physical_hostiles=physical_hostiles,
-            physical_adjacent=physical_adjacent,
-            mining_hostiles=mining_hostiles,
-        )
-        if combat is not PASS:
-            return combat
+        # Its walks are survival walks, as the emergency layer's (left_cells.survival_walks).
+        with left_cells.survival_walks(self):
+            combat = ladder_combat.key(
+                self,
+                snapshot,
+                strategic_hostiles=strategic_hostiles,
+                strategic_adjacent=strategic_adjacent,
+                physical_hostiles=physical_hostiles,
+                physical_adjacent=physical_adjacent,
+                mining_hostiles=mining_hostiles,
+            )
+            if combat is not PASS:
+                return combat
 
         # The safe-now layer: the survival gate and the floor work done while it is safe
         # (ladder_safe_now).
@@ -15976,8 +15981,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         shrank to the cells nearer it and the explore stepped '3' straight back; at 20:44
         to 20:45 ``chest:approach`` walked toward a chest the loot walk kept off, between
         [4,38] and [5,39], until the loop detector stopped the bot three more times."""
-        return (frozenset(self._engagement_avoid_cells) | self._engagement_route_veto(snapshot)
-                | self._unseen_attack_area_veto(snapshot))
+        return (frozenset(self._engagement_avoid_cells) | left_cells.refused(self, snapshot)
+                | self._engagement_route_veto(snapshot) | self._unseen_attack_area_veto(snapshot))
 
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
