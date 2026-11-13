@@ -196,7 +196,10 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
                          ("セスタス [5] {並}", False, "average", 5, 0))
         arms = dict(self._loadout(policy).slots)["arms"]
         self.assertEqual((arms.origin, arms.item.name), ("equipped", "セスタス [5] {並}"))
-        self.assertTrue(arms.evaluable)
+        # The worn piece is rated with its printed base AC (no C screen of
+        # this board shows the mutations, so {average} is not trusted for a
+        # Home or pack copy; the worn one stays the seed of the search).
+        self.assertEqual((arms.item.ac, arms.item.to_a), (5, 0))
 
     def test_selected_dominance_implies_plain_gear(self):
         # M3: plain armour R1-dominated by the selected loadout is plain gear.
