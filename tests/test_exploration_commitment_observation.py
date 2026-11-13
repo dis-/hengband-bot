@@ -80,15 +80,16 @@ class ExplorationPathInventoryTest(unittest.TestCase):
             [
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
                 ("_decide", "ExplorationPathOutcome.INVALIDATE"),
-                ("_decide", "ExplorationPathOutcome.INVALIDATE"),
-                ("_decide", "ExplorationPathOutcome.INVALIDATE"),
-                ("_decide", "ExplorationPathOutcome.INVALIDATE"),
+                # The combat rungs' clears, in the combat layer's module (ladder_combat.key).
+                ("key", "ExplorationPathOutcome.INVALIDATE"),
+                ("key", "ExplorationPathOutcome.INVALIDATE"),
+                ("key", "ExplorationPathOutcome.INVALIDATE"),
                 # summoner:retreat vetoes the square it abandons (as the flee
                 # and threat:reposition retreats do), so a committed path
                 # through that square is dropped with it -- else the next
                 # decision walks straight back (two-cell oscillation, Castle
                 # 20F, 2026-10-02 15:14-15:16).
-                ("_decide", "ExplorationPathOutcome.INVALIDATE"),
+                ("key", "ExplorationPathOutcome.INVALIDATE"),
                 ("_observe", "ExplorationPathOutcome.INVALIDATE"),
                 ("_refresh_paralyzer_avoidance", "ExplorationPathOutcome.INVALIDATE"),
                 ("_paralyzer_prevention_key", "ExplorationPathOutcome.INVALIDATE"),

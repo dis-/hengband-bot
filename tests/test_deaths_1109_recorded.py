@@ -229,8 +229,13 @@ class EveryEscapeCountsRecordedTest(DeathsRecordedHarness):
                          ["me-power:after-destruction:map-area", "explore"])
         # DECLARED CONSTRUCTED: no absorbed *Destruction* (B would use it on 4229938) and the
         # depth gate walled off (the recorded depth_safety: nothing missing).
+        # DECLARED CONSTRUCTED too: the T1s left on 4229938 read as in the line of fire.  As
+        # recorded none has one (test_escape_count_1111_recorded), and owner 2026-11-13
+        # 「射線にT1が入っていない=感知しただけはカウントしない」 counts it only then.
+        def in_line_of_fire(policy, snapshot, strong):
+            setattr(policy, threat_tiers.IN_LINE_OF_FIRE, True)
         with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
-                               lambda self, *args, **kwargs: frozenset()):
+                               lambda self, *args, **kwargs: frozenset()),                 mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire):
             policy, answers = self.replay("life-355", 4229948, without=(DESTRUCTION_NAME,))
         self.assertEqual(answers[4229931][2], "emergency:teleport")
         self.assertEqual(answers[4229938][2], "sensed-t1:teleport")

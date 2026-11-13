@@ -15,9 +15,14 @@ same commit, for a reviewer to see.
 The table decides nothing about the order; the one thing read from it at run time is the
 list of rungs survival_preemption refuses.  ``--print`` of the lint lists the rows.
 
+Where the rungs are written: each layer of the table is a module of its own
+(``LAYER_MODULES``), whose ``key`` asks the layer's rungs in order; ``_decide`` computes the
+hostile views once and asks the layers in the table's order, returning a layer's answer unless
+it is ``PASS``.  A new rung is written in its layer's module, and its row here.
+
 Rows: ``entry`` goes through ``_town_producer_entry`` (named by its rung name), ``direct`` is
-called without it (so no gate of the entry applies), ``inline`` is a reason set in
-``_decide`` itself followed by a return.  A rung may have several rows.
+called without it (so no gate of the entry applies), ``inline`` is a reason set in the layer's
+``key`` itself followed by a return.  A rung may have several rows.
 """
 from __future__ import annotations
 
@@ -302,7 +307,15 @@ LAYER_MODULES = {
     "summoner-shots": "ladder_summoner_shots",
     "floor-avoidance": "ladder_floor_avoidance",
     "light": "ladder_light",
+    "opening": "ladder_opening",
     "plan-approved-quest": "ladder_plan_approved_quest",
+    "pre-combat": "ladder_pre_combat",
+    "combat": "ladder_combat",
+    "safe-now": "ladder_safe_now",
+    "objectives": "ladder_objectives",
+    "rest": "ladder_rest",
+    "descent": "ladder_descent",
+    "idle": "ladder_idle",
 }
 
 # After the ladder has answered, _choose_key passes its key through these, in order; each may
