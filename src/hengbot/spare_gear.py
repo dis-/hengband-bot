@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hengbot import launcher_upgrade, quest25_druj_gear
+from hengbot import item_use_route, launcher_upgrade, quest25_druj_gear
 from hengbot.model import STORE_HOME, SV_LITE_FEANOR, lights_nothing
 from hengbot.policy_constants import FUNDRAISING_START_GOLD
 
@@ -46,10 +46,17 @@ def mining_planned(policy: Any, snapshot: Any) -> bool:
 
 
 def _breach_required(policy: Any, snapshot: Any) -> int:
-    """The next quest's wall_breach carry (Q2's corridor), 0 without one."""
+    """The next quest's wall_breach carry (Q2's corridor), 0 without one.
+
+    Read from the retention's plan (item_use_route.prepared_strategy), which
+    keeps a taken quest's carry until its entrance: n1-a life-521 2026-11-14
+    took Q2, the procurement plan (untaken heads only) went empty, the
+    digger counted as spare gear went to Home, and the corridor's second
+    wall stopped the quest at [7,47] (quest:blocked:q2-breach-tool).
+    """
     if not snapshot.in_town:
         return 0
-    strategy = policy._carry_procurement_strategy(snapshot, cache_fixed_quest_head=False)
+    strategy = item_use_route.prepared_strategy(policy, snapshot)
     tools = getattr(strategy, "required_force", {}).get("utility_tools", {}) if strategy else {}
     return int(tools.get("wall_breach", 0)) if isinstance(tools, dict) else 0
 

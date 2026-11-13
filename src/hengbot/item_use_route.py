@@ -86,8 +86,13 @@ def _not_replaced(policy, snapshot, item) -> bool:
     return not me_capability.replaced_by_absorbed(policy, snapshot, item, me_capability.NEED)
 
 
-def _prepared_strategy(policy, snapshot):
-    """The quest plan the town prepares or the floor runs (the retention's own reading)."""
+def prepared_strategy(policy, snapshot):
+    """The quest plan the town prepares or the floor runs (the retention's own reading).
+
+    A taken quest still walks to its entrance with its carry, so the errand
+    reading answers once the procurement plan (untaken heads only) has none.
+    Every keep-or-release question about a quest carry reads this one plan.
+    """
     return decision_memo(policy, "item-use-route-strategy", snapshot, None, lambda: (
         policy._carry_procurement_strategy(snapshot, cache_fixed_quest_head=False)
         or policy._quest_strategy_for_errand_or_floor(snapshot)))
@@ -95,7 +100,7 @@ def _prepared_strategy(policy, snapshot):
 
 def _quest_carry(policy, snapshot, item) -> bool:
     """The prepared quest's required_force names the kind (policy_quest carry target)."""
-    strategy = _prepared_strategy(policy, snapshot)
+    strategy = prepared_strategy(policy, snapshot)
     return (strategy is not None and policy._quest_carry_target_for_item(
         snapshot, item, strategy.required_force) is not None)
 
