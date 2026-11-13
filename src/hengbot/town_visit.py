@@ -170,8 +170,16 @@ class TownVisit:
     plan_segments: list[list] = field(default_factory=list)
     # The progress seam's replacements this visit (town rebuild stage 3-3a):
     # [sequence, the producer's reason, the seam's reason].  Nothing decides
-    # from it; stage 3-3 retires the seam and shows this list empty.
+    # from it; stage 3-3 retires the seam and shows this list empty.  Since
+    # stage 3-3e it holds only a replacement no owner's stage transition
+    # (town_visit_plan.TRANSITIONS) declared.
     plan_rewrites: list[list] = field(default_factory=list)
+    # The owners' stage transitions this visit (town rebuild stage 3-3e):
+    # [sequence, transition name, the producer's reason, the result's reason].
+    plan_transitions: list[list] = field(default_factory=list)
+    # The transition declared on the decision being made; note_seam reads and
+    # clears it on the same decision.
+    transition_declared: str | None = None
 
     def begin(self, *, home_candidate_waiting: Callable[[], bool],
               run_made_again: bool = False) -> None:

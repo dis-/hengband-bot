@@ -18801,5 +18801,90 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure predicate: a known grid no monster walks through (not passable, not a door); read by anaguma_geometry.diggable."
+  },
+  "policy_town.py:TownMixin._closing_equipment_weight_transition": {
+    "classification": "adapter",
+    "rows": [
+      "home-relief",
+      "plan-routing"
+    ],
+    "evidence": "Town rebuild 3-3e: moved verbatim from the progress seam _town_procurement_decision, which calls it at the branch's old place and returns its answer; an owner's named stage transition (town_visit_plan.TRANSITIONS, home-visit 'closing-equipment-weight'). Returns STAY or _home_full_relief_key through _town_producer_entry, or _town_blocked_key (overweight-home-unreachable); the seam stays the selected producer of the decision.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._store_router_hold_transition": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach",
+      "plan-routing"
+    ],
+    "evidence": "Town rebuild 3-3e: moved verbatim from the progress seam _town_procurement_decision, which calls it at the branch's old place and returns its answer; an owner's named stage transition (town_visit_plan.TRANSITIONS, store-router 'holder-keeps-store-router'). Returns STAY or None (a non-router decision ends the step unchanged) or the holder's _town_holder_wait_key; the seam stays the selected producer of the decision.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._committed_loot_transition": {
+    "classification": "adapter",
+    "rows": [
+      "loot-exploration"
+    ],
+    "evidence": "Town rebuild 3-3e: moved verbatim from the progress seam _town_procurement_decision, which calls it at the branch's old place and returns its answer; an owner's named stage transition (town_visit_plan.TRANSITIONS, floor-loot 'committed-loot'). Returns STAY or the committed _normal_loot_key through _town_producer_entry; the seam stays the selected producer of the decision.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._bounty_route_nonprogress_transition": {
+    "classification": "adapter",
+    "rows": [
+      "quest-service",
+      "plan-routing"
+    ],
+    "evidence": "Town rebuild 3-3e: moved verbatim from the progress seam _town_procurement_decision, which calls it at the branch's old place and returns its answer; an owner's named stage transition (town_visit_plan.TRANSITIONS, quest-request 'bounty-route-nonprogress'). Returns STAY or WAIT_KEY offered as town:blocked:route-nonprogress:<slot> (producer town-plan); the seam stays the selected producer of the decision.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._posted_shop_operation_transition": {
+    "classification": "adapter",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy"
+    ],
+    "evidence": "Town rebuild 3-3e: moved verbatim from the progress seam _town_procurement_decision, which calls it at the branch's old place and returns its answer; an owner's named stage transition (town_visit_plan.TRANSITIONS, shop-buy 'posted-shop-operation'). Returns STAY or the producer's key, relabelled as the posted operation's defect; the seam stays the selected producer of the decision.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._identify_staff_supplier_transition": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach",
+      "fundraising"
+    ],
+    "evidence": "Town rebuild 3-3e: moved verbatim from the progress seam _town_procurement_decision, which calls it at the branch's old place and returns its answer; an owner's named stage transition (town_visit_plan.TRANSITIONS, fundraising 'identify-staff-supplier'). Returns STAY or the progress walk's key as shop:travel; the seam stays the selected producer of the decision.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._progress_handover_transition": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach",
+      "plan-routing"
+    ],
+    "evidence": "Town rebuild 3-3e: moved verbatim from the progress seam _town_procurement_decision, which calls it at the branch's old place and returns its answer; an owner's named stage transition (town_visit_plan.TRANSITIONS, store-router 'progress-handover'). Returns STAY or the producer's key, or the composable supplier walk's key named as the producer's defect; the seam stays the selected producer of the decision.",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

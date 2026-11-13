@@ -8,6 +8,8 @@ from hengbot import item_use_route
 from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
 from hengbot import status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
+from hengbot import town_visit_plan
+from hengbot.town_visit_plan import STAY
 
 from hengbot.departure_readiness import readiness_table
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -1878,32 +1880,22 @@ class TownMixin:
     def _town_procurement_decision(
         self, snapshot: Snapshot, key: str, *, enforce: bool = True
     ) -> str | None:
-        """Enforce composable progress at the one downstream town-result seam."""
-        if (
-            snapshot.store is None
-            and self._equipment_home_full_refused_this_visit()
-            and self._equipment_retired_worn_item_ids
-            and self._inventory_overweight(snapshot)
-            and (
-                self._overweight_home_bound_exhausted()
-                or self._home_rejected_deposits
-            )
-            and self._home_atomic_deposit_pending is None
-            and self._home_atomic_withdraw_pending is None
+        """The town visit's step after the owner has spoken (the progress seam).
+
+        It keeps composable progress: an owner's stage transition
+        (``town_visit_plan.TRANSITIONS``, town rebuild stage 3-3e) may replace
+        the decision with another owner's step, in the registry's order; the
+        guards between them leave the producer's decision as it is.  Every
+        replacement is an owner's named transition, so the seam itself
+        rewrites nothing.
+        """
+        for transition in (
+            self._closing_equipment_weight_transition,
+            self._store_router_hold_transition,
         ):
-            # Closing equipment must expose the existing, independently failed
-            # weight gate even if refused deposits no longer produce a need.
-            if self._home_is_full(snapshot):
-                return self._town_producer_entry("_home_full_relief_key",
-                    lambda: self._home_full_relief_key(snapshot), family="home-visit")
-            self._town_blocked_reason = "overweight-home-unreachable"
-            return self._town_blocked_key(snapshot)
-        if self._defer_town_errand("store-router", "procurement-decision"):
-            if town_claim_family_of(self, self.last_reason) == "store-router":
-                return self._town_holder_wait_key(
-                    town_errand_hold(self, "store-router"), snapshot
-                )
-            return None
+            moved = transition(snapshot)
+            if moved is not STAY:
+                return moved
         proposed_reason = self.last_reason or ""
         if offer_buffer(self).admitted_commands.get(key) == proposed_reason:
             if (
@@ -1925,25 +1917,9 @@ class TownMixin:
             # A declared posted census has its own finite observation bound.
             # Counterfactual travel cannot settle it or replace its await.
             return key
-        if (
-            snapshot.store is None
-            and self._town_committed_loot()
-            and not self._emergency_return_active
-            and (
-                self._shopping_approach_store_type is not None
-                or str(key).startswith("\x1b`n")
-                or proposed_reason.startswith(("shop:", "town:enchant-"))
-            )
-        ):
-            # The downstream seam sees the actual winning optional errand.
-            # Keep an admitted town-loot walk until pickup or until the loot
-            # producer names a safety/defer release; never alternate owners.
-            committed_loot = self._town_producer_entry(
-                "town-progress-committed-loot", lambda: self._normal_loot_key(
-                    snapshot, self._strategic_hostiles(snapshot)), family="floor-loot")
-            if committed_loot is not None:
-                self._town_begin_progress_decision(snapshot)
-                return committed_loot
+        moved = self._committed_loot_transition(snapshot, key, proposed_reason)
+        if moved is not STAY:
+            return moved
         self._town_begin_progress_decision(snapshot)
         if self._preserve_unavailable_quest_candidate(key):
             return key
@@ -1969,27 +1945,13 @@ class TownMixin:
                 # posting confirmation separately records request/in-flight.
                 self._home_scan_source = "~9"
             return key
-        slot = getattr(self, "_decision_goal", None)
-        movement_key = key in DIRECTION_KEYS.values()
-        allow_members = self._town_progress_allow_members(snapshot)
-        if allow_members:
+        if self._town_progress_allow_members(snapshot):
             return key
-
-        if (movement_key and proposed_reason.startswith("bounty:")
-                and slot is not None and slot[0] == "quest-request"
-                and slot[1].kind == "Reach" and slot[1].cell is not None
-                and self._town_progress_fingerprint(snapshot)
-                    in self._town_progress_history()):
-            # A repeated, ineffective step toward a declared destination must
-            # resolve that route.  Replacing it with another errand's approach
-            # re-arms the first producer and defeats both owners' bounds.
-            self._town_blocked_reason = f"route-nonprogress:{slot[0]}"
-            self.last_reason = f"town:blocked:{self._town_blocked_reason}"
-            self._offer_execution(
-                WAIT_KEY, producer="town-plan", work_id=self.last_reason,
-                state="releasing", cause=self._town_blocked_reason,
-            )
-            return WAIT_KEY
+        moved = self._bounty_route_nonprogress_transition(
+            snapshot, key, proposed_reason
+        )
+        if moved is not STAY:
+            return moved
 
         # Records the live route owners (``_town_claim_categories``) that the
         # town plan and the town end read.
@@ -2012,31 +1974,11 @@ class TownMixin:
         # name through unchanged.
         if proposed_reason in {OBSERVE_AND_LEAVE_REASON, CONTINUE_OBSERVED_SHOP_REASON}:
             return key
-
-        visit = self._store_visit
-        if visit is not None and visit.operation_posted:
-            if visit.store_type == STORE_HOME:
-                return key
-            progress_reason = "shop:one-shot-buy"
-            if self._progress_only_restores_consumed_resource(
-                snapshot, key, proposed_reason,
-                progress_selection=self._purchase_selection_for_key(snapshot, key),
-            ):
-                self.last_reason = proposed_reason
-                return key
-            self._town_progress_invariant_defect = {
-                "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
-                "winning_rung": proposed_reason,
-                "progress_action": progress_reason,
-                "gold": snapshot.player.gold,
-                "allow_set": (),
-            }
-            if enforce:
-                self.last_reason = (
-                    "town-progress-invariant:defect:"
-                    f"{proposed_reason}=>{progress_reason}"
-                )
-            return key
+        moved = self._posted_shop_operation_transition(
+            snapshot, key, proposed_reason, enforce=enforce
+        )
+        if moved is not STAY:
+            return moved
 
         if snapshot.store is not None:
             # Preserve the store producer's exit/continuation as its own step.
@@ -2047,23 +1989,192 @@ class TownMixin:
         if progress is None:
             self.last_reason = proposed_reason
             return key
-        progress_key, progress_reason = progress
-        if progress_key == key and progress_reason == proposed_reason:
+        if progress == (key, proposed_reason):
             self.last_reason = proposed_reason
             return key
-        if (
+        moved = self._identify_staff_supplier_transition(snapshot, progress)
+        if moved is not STAY:
+            return moved
+        return self._progress_handover_transition(
+            snapshot, key, proposed_reason, progress, enforce=enforce
+        )
+
+    # -- the owners' stage transitions (town_visit_plan.TRANSITIONS) ---------
+    # Each answers STAY when its transition does not apply on this decision,
+    # and declares its name (note_transition) when it replaces the decision.
+
+    def _closing_equipment_weight_transition(self, snapshot: Snapshot):
+        """home-visit: closing equipment over an overweight pack shows Home's
+        weight relief (``closing-equipment-weight``).
+
+        Closing equipment must expose the existing, independently failed
+        weight gate even if refused deposits no longer produce a need.
+        """
+        if not (
+            snapshot.store is None
+            and self._equipment_home_full_refused_this_visit()
+            and self._equipment_retired_worn_item_ids
+            and self._inventory_overweight(snapshot)
+            and (
+                self._overweight_home_bound_exhausted()
+                or self._home_rejected_deposits
+            )
+            and self._home_atomic_deposit_pending is None
+            and self._home_atomic_withdraw_pending is None
+        ):
+            return STAY
+        town_visit_plan.note_transition(self, "closing-equipment-weight")
+        if self._home_is_full(snapshot):
+            return self._town_producer_entry("_home_full_relief_key",
+                lambda: self._home_full_relief_key(snapshot), family="home-visit")
+        self._town_blocked_reason = "overweight-home-unreachable"
+        return self._town_blocked_key(snapshot)
+
+    def _store_router_hold_transition(self, snapshot: Snapshot):
+        """store-router: a Home sequence holding the store router keeps the
+        holder's step (``holder-keeps-store-router``).
+
+        While the hold defers the router, a store-router decision becomes the
+        holder's wait; any other decision ends the step unchanged (None).
+        """
+        if not self._defer_town_errand("store-router", "procurement-decision"):
+            return STAY
+        if town_claim_family_of(self, self.last_reason) != "store-router":
+            return None
+        town_visit_plan.note_transition(self, "holder-keeps-store-router")
+        return self._town_holder_wait_key(
+            town_errand_hold(self, "store-router"), snapshot
+        )
+
+    def _committed_loot_transition(
+        self, snapshot: Snapshot, key: str, proposed_reason: str
+    ):
+        """floor-loot: an admitted town-loot walk continues until the pickup
+        (``committed-loot``).
+
+        The step sees the actual winning optional errand.  Keep an admitted
+        town-loot walk until pickup or until the loot producer names a
+        safety/defer release; never alternate owners.
+        """
+        if not (
+            snapshot.store is None
+            and self._town_committed_loot()
+            and not self._emergency_return_active
+            and (
+                self._shopping_approach_store_type is not None
+                or str(key).startswith("\x1b`n")
+                or proposed_reason.startswith(("shop:", "town:enchant-"))
+            )
+        ):
+            return STAY
+        committed_loot = self._town_producer_entry(
+            "town-progress-committed-loot", lambda: self._normal_loot_key(
+                snapshot, self._strategic_hostiles(snapshot)), family="floor-loot")
+        if committed_loot is None:
+            return STAY
+        town_visit_plan.note_transition(self, "committed-loot")
+        self._town_begin_progress_decision(snapshot)
+        return committed_loot
+
+    @claims(ClaimOwner.QUEST_REQUEST)
+    def _bounty_route_nonprogress_transition(
+        self, snapshot: Snapshot, key: str, proposed_reason: str
+    ):
+        """quest-request: a repeated, ineffective step toward a bounty's
+        declared cell names its route (``bounty-route-nonprogress``).
+
+        Replacing it with another errand's approach re-arms the first producer
+        and defeats both owners' bounds.
+        """
+        slot = getattr(self, "_decision_goal", None)
+        if not (key in DIRECTION_KEYS.values()
+                and proposed_reason.startswith("bounty:")
+                and slot is not None and slot[0] == "quest-request"
+                and slot[1].kind == "Reach" and slot[1].cell is not None
+                and self._town_progress_fingerprint(snapshot)
+                    in self._town_progress_history()):
+            return STAY
+        town_visit_plan.note_transition(self, "bounty-route-nonprogress")
+        self._town_blocked_reason = f"route-nonprogress:{slot[0]}"
+        self.last_reason = f"town:blocked:{self._town_blocked_reason}"
+        self._offer_execution(
+            WAIT_KEY, producer="town-plan", work_id=self.last_reason,
+            state="releasing", cause=self._town_blocked_reason,
+        )
+        return WAIT_KEY
+
+    @claims(ClaimOwner.SHOP_BUY)
+    def _posted_shop_operation_transition(
+        self, snapshot: Snapshot, key: str, proposed_reason: str,
+        *, enforce: bool,
+    ):
+        """shop-buy: a posted shop operation's await is named its defect, not
+        a new errand (``posted-shop-operation``).  A posted Home operation and
+        a step that only re-buys the resource its winner consumes keep the
+        producer's decision.
+        """
+        visit = self._store_visit
+        if visit is None or not visit.operation_posted:
+            return STAY
+        if visit.store_type == STORE_HOME:
+            return key
+        progress_reason = "shop:one-shot-buy"
+        if self._progress_only_restores_consumed_resource(
+            snapshot, key, proposed_reason,
+            progress_selection=self._purchase_selection_for_key(snapshot, key),
+        ):
+            self.last_reason = proposed_reason
+            return key
+        self._town_progress_invariant_defect = {
+            "marker": "TOWN_PROGRESS_INVARIANT_DEFECT",
+            "winning_rung": proposed_reason,
+            "progress_action": progress_reason,
+            "gold": snapshot.player.gold,
+            "allow_set": (),
+        }
+        if enforce:
+            town_visit_plan.note_transition(self, "posted-shop-operation")
+            self.last_reason = (
+                "town-progress-invariant:defect:"
+                f"{proposed_reason}=>{progress_reason}"
+            )
+        return key
+
+    @claims(ClaimOwner.FUNDRAISING)
+    def _identify_staff_supplier_transition(
+        self, snapshot: Snapshot, progress: tuple[str, str]
+    ):
+        """fundraising: the identify-staff shortage keeps its direct supplier
+        route (``identify-staff-supplier``).
+
+        The shortage owns this route; its shop reason passes the step so the
+        posted visit is attributed to the supplier errand.
+        """
+        progress_key, progress_reason = progress
+        if not (
             progress_reason == "shop:travel"
             and self._fundraising_identify_staff_only_block(snapshot)
         ):
-            # The identify-staff shortage owns this direct supplier route. Keep
-            # its shop reason through the progress seam so the posted visit is
-            # attributed to the supplier errand.
-            self._declare_reach(
-                self._shopping_approach_goal, family="store-router"
-            )
-            self.last_reason = "shop:travel"
-            self._record_shop_selector_diagnostics(snapshot, progress_key)
-            return progress_key
+            return STAY
+        town_visit_plan.note_transition(self, "identify-staff-supplier")
+        self._declare_reach(
+            self._shopping_approach_goal, family="store-router"
+        )
+        self.last_reason = "shop:travel"
+        self._record_shop_selector_diagnostics(snapshot, progress_key)
+        return progress_key
+
+    @claims(ClaimOwner.STORE_ROUTER)
+    def _progress_handover_transition(
+        self, snapshot: Snapshot, key: str, proposed_reason: str,
+        progress: tuple[str, str], *, enforce: bool,
+    ) -> str:
+        """store-router: a town step that makes no progress hands over to the
+        composable supplier walk (``progress-handover``), named as the
+        producer's defect.  A walk that makes no progress either, or that only
+        re-buys the resource the producer consumes, keeps the producer's step.
+        """
+        progress_key, progress_reason = progress
         if not self._town_result_makes_progress(snapshot, progress_key):
             self.last_reason = proposed_reason
             return key
@@ -2085,6 +2196,7 @@ class TownMixin:
         if not enforce:
             self.last_reason = proposed_reason
             return key
+        town_visit_plan.note_transition(self, "progress-handover")
         self.last_reason = (
             f"town-progress-invariant:defect:{proposed_reason}=>{progress_reason}"
         )
