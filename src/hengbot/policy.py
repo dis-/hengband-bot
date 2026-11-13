@@ -1270,7 +1270,7 @@ from hengbot.policy_quest import QuestMixin
 from hengbot.policy_equipment import EquipmentMixin
 from .policy_home import HomeMixin
 from .policy_shop import ShopMixin
-from .policy_town import TownMixin, _town_fact_views
+from .policy_town import OBSERVE_AND_LEAVE_REASON, TownMixin, _town_fact_views
 from .policy_observation import ObservationMixin
 
 
@@ -3574,11 +3574,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 "deferred_reason": reason, "token_would_admit": token is not None,
                 "token_work_identity": token.work_identity if token else None}
 
-    def _defer_town_errand(
+    def _town_errand_defer_verdict(
         self, family: str, reason: str, *, work_identity: tuple | None = None,
         preserve_home_hold: bool = True,
-    ) -> bool:
-        """Apply the S3.3 hold to the requested town producer."""
+    ) -> tuple[dict | None, bool]:
+        """The S3.3 hold's verdict for a town producer, without recording it.
+
+        Returns the admission row (None when no holder answers) and whether
+        the producer is deferred now.  ``_defer_town_errand`` records it; an
+        owner that must know the verdict the seam will reach reads it here.
+        """
         enforced = (preserve_home_hold and town_home_sequence_has_holder(self)
                     and not town_home_route_opened_for(self, family)
                     and not town_descent_walk_held_by_own_route(self, family))
@@ -3586,6 +3591,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             family, reason, getattr(self, "_map_predicate_snapshot", None),
             work_identity=work_identity, enforced=True,
             arrival_board=town_home_hold_board(self) if enforced else None)
+        if row is None:
+            return None, False
+        return row, enforced and not row["token_would_admit"]
+
+    def _defer_town_errand(
+        self, family: str, reason: str, *, work_identity: tuple | None = None,
+        preserve_home_hold: bool = True,
+    ) -> bool:
+        """Apply the S3.3 hold to the requested town producer."""
+        row, deferred_now = self._town_errand_defer_verdict(
+            family, reason, work_identity=work_identity,
+            preserve_home_hold=preserve_home_hold)
         if row is None:
             return False
         active_bar = row.pop("active_bar", False)
@@ -3601,7 +3618,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if getattr(self, "_decision_errand_deferred", None) is None:
                 self._decision_errand_deferred = []
             self._decision_errand_deferred.append(row)
-        deferred_now = enforced and not row["token_would_admit"]
         if (deferred_now and family == "home-scan"
                 and not row["deferred_reason"].startswith("restore-debt:")):
             self._offer_execution_no_step(
@@ -7645,7 +7661,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     return in_store_key
             # Observation visit: never select or answer an item prompt here.
             self._shop_observation = (snapshot.store, self._decision_sequence)
-            self.last_reason = "shop:observe-and-leave"
+            self.last_reason = OBSERVE_AND_LEAVE_REASON
             key = LEAVE_STORE_KEY
             self._offer_execution(
                 key, producer="shop-buy", work_id="shop:observe-shelf",
@@ -7654,6 +7670,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 expected_effect="outside-store",
             )
             self._record_shop_selector_diagnostics(snapshot, key)
+            self._continue_observed_shop(snapshot, key)
             return key
 
         self._build_grid_index(snapshot)

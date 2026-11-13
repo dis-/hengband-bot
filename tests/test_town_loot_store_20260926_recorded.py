@@ -70,6 +70,12 @@ class TownLootStoreRecordedTest(unittest.TestCase):
         policy._loot_target = GOLD
         policy._store_visit = StoreVisit("town-errand", "shopping", 4)
         policy.last_reason = "shop:observe-and-leave"
+        # The progress seam no longer renames the observation (town rebuild
+        # 3-3c): the shop owner names the continuation and the seam keeps it.
+        self.assertEqual(policy._town_procurement_decision(board, LEAVE_STORE_KEY),
+                         LEAVE_STORE_KEY)
+        self.assertEqual(policy.last_reason, "shop:observe-and-leave")
+        policy._continue_observed_shop(board, LEAVE_STORE_KEY)
         key = policy._town_procurement_decision(board, LEAVE_STORE_KEY)
         self.assertEqual(key, LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "town-progress-invariant:continue-observed-shop")
