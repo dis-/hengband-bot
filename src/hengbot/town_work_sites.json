@@ -2806,6 +2806,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "item_use_route.py:has_buyer": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_use_route.py:sale_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_use_route.py:surplus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_use_route.py:uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "json_snapshot.py:_Decoder._remember": {
     "classification": "data",
     "rows": [

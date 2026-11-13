@@ -48,7 +48,7 @@ from dataclasses import dataclass
 from hengbot import me_device_policy
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
-    SV_SCROLL_DETECT_TREASURE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
+    SV_SCROLL_DETECT_TREASURE, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_STAR_REMOVE_CURSE,
     SV_POTION_HEALING, SV_POTION_SPEED, SV_ROD_HEALING, SV_STAFF_DESTRUCTION, SV_STAFF_DETECT_GOLD, SV_STAFF_HEALING,
     SV_STAFF_IDENTIFY,
     SV_STAFF_LITE, SV_STAFF_REMOVE_CURSE, SV_STAFF_SPEED, SV_WAND_STONE_TO_MUD,
@@ -307,6 +307,10 @@ REPLACES = (
     # 強力発動で対応する」 (me_powerful_activation casts them).
     Replacement(("staff", SV_STAFF_IDENTIFY), Kind(TVAL_SCROLL, SV_SCROLL_STAR_IDENTIFY)),
     Replacement(("staff", SV_STAFF_REMOVE_CURSE), Kind(TVAL_SCROLL, SV_SCROLL_STAR_REMOVE_CURSE)),
+    # 2026-11-13 「魔道具術師では不要な解呪」: the same powerful activation (remove_all_curse,
+    # every worn curse but PERMA_CURSE; me_powerful_activation._uncurse_targets) serves the
+    # light curses the Remove Curse scroll would (item_use_route).
+    Replacement(("staff", SV_STAFF_REMOVE_CURSE), Kind(TVAL_SCROLL, SV_SCROLL_REMOVE_CURSE)),
 )
 
 

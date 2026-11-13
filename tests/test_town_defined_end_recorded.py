@@ -47,6 +47,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from tests.support import item_use_route_wall
 from unittest import mock
 
 from hengbot import heroism_potion
@@ -84,6 +85,10 @@ class TownDefinedEndHomeLoopTest(_test_n1c_town_wander_1101_recorded.TownWanderR
 
     test_recorded_loop = None
     test_errand_take_is_composed_at_the_entrance_and_the_visit_departs = None
+
+    def setUp(self):
+        super().setUp()
+        item_use_route_wall.hold(self)  # wall, declared: tests/support/item_use_route_wall.py
 
     @classmethod
     def setUpClass(cls):
