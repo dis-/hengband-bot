@@ -214,6 +214,13 @@ class GuardTest(unittest.TestCase):
         _board, reports = self._walk(policy, self.alternation(), key="s")
         self.assertEqual(reports, [None] * 4)
 
+    def test_a_walk_key_the_other_way_is_not_that_move(self):
+        """A recorded board that does not follow the key (the decision stepped '6', the board
+        shows the cell north or south): not that owner's walk."""
+        policy = HengbotPolicy()
+        _board, reports = self._walk(policy, self.alternation(), key="6")
+        self.assertEqual(reports, [None] * 4)
+
     def alternation(self, a="explore", b="seek-loot"):
         return [(a, Q), (b, P), (a, Q), (b, P)]
 

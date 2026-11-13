@@ -12,8 +12,8 @@ same-reason alternation as well; the root is fixed in ``_town_kill_mob_key`` sep
 guard sees the alternation before the detector does.
 
 Rule.  Every board (``observe``, before the ladder) reads the previous board's move: the cell
-the player stood on, the cell it stands on now (one step, the previous decision's key a walk
-key) and the previous decision's owner (its reason) and ladder rung.  When the last
+the player stood on, the cell it stands on now (the one step the previous decision's walk key
+sent it, from that cell toward this one) and the previous decision's owner (its reason) and ladder rung.  When the last
 ``2 * ROUND_TRIPS`` moves on the floor (the town included, a store not) are A p->q, B q->p,
 A p->q, B q->p, keyed by (A, B) -- the same reason twice included:
 
@@ -58,7 +58,7 @@ EVENT = "pingpong"
 ESCALATE_EVENT = "pingpong-escalate"
 GUARD_BOARDS = LOOP_WINDOW
 ROUND_TRIPS = 2
-WALK_KEYS = frozenset(DIRECTION_KEYS.values())
+WALK_OFFSETS = {key: offset for offset, key in DIRECTION_KEYS.items()}
 
 
 @dataclass(frozen=True)
@@ -130,10 +130,12 @@ def observe(policy, snapshot) -> None:
     if previous is None or previous == here:
         return  # no move: a wait, a cast, a bookkeeping key (the alternation goes on)
     owner = getattr(policy, "_decision_entry_reason", None) or ""
-    walked = (getattr(policy, "_last_move_key", None) in WALK_KEYS
-              and getattr(policy, "_last_move_pos", None) == previous)
-    if max(abs(here.y - previous.y), abs(here.x - previous.x)) != 1 or not owner or not walked:
-        guard.moves.clear()  # a relocation, a move no owner named or no walk key made
+    # The previous decision's own walk: its key from that cell, toward this one.
+    walked = (getattr(policy, "_last_move_pos", None) == previous
+              and WALK_OFFSETS.get(getattr(policy, "_last_move_key", None))
+              == (here.y - previous.y, here.x - previous.x))
+    if not owner or not walked:
+        guard.moves.clear()  # a relocation, a move no owner named, or not the owner's walk
         return
     guard.moves.append(Move(previous, here, owner, _previous_rank(policy)))
     pair = _alternation(guard.moves)
