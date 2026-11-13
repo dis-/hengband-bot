@@ -86,6 +86,12 @@ def settle(policy, snapshot) -> bool:
     policy._alternate_lease = lease
     if getattr(policy, "_alternate_dives", 0) < lease:
         return False
+    end(policy, snapshot)
+    return True
+
+
+def end(policy, snapshot) -> None:
+    """End the switch: the original destination is taken again (C5)."""
     policy._alternate_dungeon = None
     policy._alternate_dungeon_reason = None
     policy._alternate_dives = 0
@@ -96,11 +102,10 @@ def settle(policy, snapshot) -> bool:
     # is beatable); one refused there (n1-b's Mountain 50F, P3's T1 guardian) does not.
     conquest = policy._conquest_target(snapshot)
     if conquest is not None and policy._recall_destination_safe(snapshot, conquest):
-        return True
+        return
     deepest = deepest_destination(policy, snapshot)
     if deepest is None:
-        return True
+        return
     policy._alternate_dungeon = deepest
     policy._alternate_dungeon_reason = DEEPEST_REASON
     policy._conquest_committed = None
-    return True
