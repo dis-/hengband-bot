@@ -480,6 +480,9 @@ class PlayerState:
     melee_displayed_totals: bool = False
     mutation_blows: int | None = None  # old emitter does not display this count
     drained_stats: tuple[str, ...] = ()  # ability names below their max (e.g. "str", "con")
+    # Ability names whose max is the character's maximum (the sheet's '!' mark,
+    # bot-json-output.cpp at_racial_max: stat_max == stat_max_max).
+    stats_at_max: tuple[str, ...] = ()
     abilities: frozenset[str] = frozenset()  # resistances / telepathy / free_action the char HAS
     # Present only for the per-source emitter format.  Keys with no active
     # source are retained so an all-false map remains distinguishable from the
@@ -1310,6 +1313,11 @@ def parse_snapshot(
         for name in STAT_NAMES
         if isinstance(stats.get(name), dict) and _as_bool(stats[name].get("drained", False))
     )
+    stats_at_max = tuple(
+        name
+        for name in STAT_NAMES
+        if isinstance(stats.get(name), dict) and _as_bool(stats[name].get("at_racial_max", False))
+    )
     # The emitter moved the per-source objects to "ability_sources" (hengband
     # PR #5517) precisely because reusing "abilities" for a changed value type
     # broke this parse silently -- a non-empty dict is truthy, so every ability
@@ -1434,6 +1442,7 @@ def parse_snapshot(
         melee_displayed_totals=displayed_totals,
         **melee_values,
         drained_stats=drained_stats,
+        stats_at_max=stats_at_max,
         abilities=abilities,
         ability_sources=AbilitySources(ability_sources),
         immunities=frozenset(

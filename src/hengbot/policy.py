@@ -11003,12 +11003,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         player = snapshot.player
         if hostiles or player.confused or player.blind:
             return None
-        # The owner's table names the potions (consumable_policy 「拾って使う」).
+        # The owner's table names the potions (consumable_policy.DRINK_AT_ONCE); one
+        # that does nothing for this character is surplus, not drunk.
         potion = next(
             (it for it in snapshot.inventory
-             if consumable_policy.quaffed_on_sight(it)),
+             if consumable_policy.drunk_now(snapshot, it)),
             None,
         )
+        if (potion is not None and snapshot.in_town
+                and not self._home_takes_let_drink(self._item_signature(potion))):
+            return None
         if potion is not None:
             # Self Knowledge / *Enlightenment* (owner 2026-11-13): the viewer
             # the quaff opens is closed by the input executor.
