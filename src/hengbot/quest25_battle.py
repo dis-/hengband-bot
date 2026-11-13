@@ -292,7 +292,7 @@ class Battle:
     detect_asked: frozenset = frozenset()  # trap cells a trap detection was keyed for
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     recharge_rests: int = 0        # this phase's counted recharge rests (``RECHARGE_REST_LIMIT``)
-    tome_gone: bool = False        # every cell that sees the tome's grid reached, it not seen there
+    gone: frozenset = frozenset()  # never-moving races not on their grid (``_immobile_gone``)
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
@@ -321,7 +321,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "tome_gone")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -1580,35 +1580,39 @@ def _quyls(ctx: _Ctx, plan=None) -> str | None:
 
 
 def _tome_done(ctx: _Ctx) -> bool:
-    return ctx.kills(geo.TOME) >= geo.ROSTER[geo.TOME] or _tome_gone(ctx)
+    return ctx.kills(geo.TOME) >= geo.ROSTER[geo.TOME] or _immobile_gone(ctx, geo.TOME)
 
 
-def _tome_gone(ctx: _Ctx) -> bool:
-    """Every cell that sees the tome's grid was reached and the tome was not seen there: it is not
-    on the floor any more (``_walk_to_sight``'s 「見えなければ次から選ばない」 run out, as the pen's
-    ``_pen_sight`` counts the Ipsissimus escaped).  It never moves and resists teleportation
-    (lib/edit MonraceDefinitions 557 NEVER_MOVE, RES_TELE) and is not invisible: unseen on a cell
-    that sees its grid, it is not on that grid -- killed unseen (「何かを殺した。」 names no race,
-    monster-damage.cpp show_kill_message) or erased.
+def _immobile_gone(ctx: _Ctx, race: int) -> bool:
+    """Every cell that sees the grid of the never-moving ``race`` was reached and it was not seen
+    there: it is not on that grid any more (``_walk_to_sight``'s 「見えなければ次から選ばない」 run
+    out, as the pen's ``_pen_sight`` counts the Ipsissimus escaped).  The races this is asked for
+    never move and are not invisible (lib/edit MonraceDefinitions 557 Raal's Tome of Destruction,
+    439 Stairway to hell: NEVER_MOVE, no INVISIBLE): unseen on a cell that sees their grid, they
+    are not on it -- killed unseen (「何かを殺した。」 names no race, monster-damage.cpp
+    show_kill_message), erased, or moved off by the player's own teleport; what is left of the
+    floor is the KILL_ALL patrol's after the phases.
 
-    n1-b life-382 (2026-11-13 05:38:34-05:38:46): the walk to its sights reached every one of
-    them with no tome seen and walked over [9,8] itself (decision 5907); the plan then shot the
+    n1-b life-382 (2026-11-13 05:38:34-05:38:46): the walk to the tome's sights reached every one
+    of them with no tome seen and walked over [9,8] itself (decision 5907); the plan then shot the
     empty grid from [5,5] 85 times (5944-6028), and with every grid-aimed attack spent had no
-    step, which the KILL_ALL patrol took until the loop guard stopped the bot twice.  Kept over
-    the phases (``_next_phase``) and the record."""
+    step, which the KILL_ALL patrol took until the loop guard stopped the bot twice.  n1-b
+    life-384 (08:42): the stairway [13,29] unseen from both stands, [13,28] beside it included.
+    Kept over the phases (``_next_phase``) and the record."""
     battle = ctx.battle
-    if battle.tome_gone:
+    if race in battle.gone:
         return True
-    tome = next((tuple(cell) for cell, race in ctx.navigator.battlefield.monster_placements
-                 if race == geo.TOME), None)
-    reached = {cell for aimed, cell in _blind_pairs(ctx) if aimed == tome}
-    if tome is None or not reached or _seen_at(ctx, geo.TOME, {tome}):
+    cell = next((tuple(cell) for cell, placed in ctx.navigator.battlefield.monster_placements
+                 if placed == race), None)
+    reached = {sight for aimed, sight in _blind_pairs(ctx) if aimed == cell}
+    if cell is None or not reached or _seen_at(ctx, race, {cell}):
         return False
     player = ctx.snapshot.player
     looked = set() if player.blind or player.hallucinated else {ctx.here}   # this board's look
-    sights = geo.sight_cells(ctx.open_terrain(), tome, _sight_radius(ctx, tome))
-    battle.tome_gone = bool(sights) and sights <= reached | looked
-    return battle.tome_gone
+    sights = geo.sight_cells(ctx.open_terrain(), cell, _sight_radius(ctx, cell))
+    if sights and sights <= reached | looked:
+        battle.gone = battle.gone | {race}
+    return race in battle.gone
 
 
 def _tome(ctx: _Ctx) -> str | None:
@@ -2010,7 +2014,7 @@ def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
 
 
 def _stairway_done(ctx: _Ctx) -> bool:
-    return ctx.kills(geo.STAIRWAY) >= geo.ROSTER[geo.STAIRWAY]
+    return ctx.kills(geo.STAIRWAY) >= geo.ROSTER[geo.STAIRWAY] or _immobile_gone(ctx, geo.STAIRWAY)
 
 
 def _stairway(ctx: _Ctx) -> str | None:

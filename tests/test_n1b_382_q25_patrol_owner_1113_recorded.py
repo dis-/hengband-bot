@@ -21,7 +21,7 @@ Two roots, two rules:
  * Ownership (kill_all_patrol ``_plan_running``): a plan with a phase still running owns every move
    of its floor; the patrol starts only when the plan has ended (owner 2026-11-13 「全滅クエストで作戦を
    完了しても終了しない場合、周回して敵を探す」), for Q25 from its own ``_after_the_phases``.
- * The plan's count (quest25_battle ``_tome_gone``): every cell that sees the never-moving tome's
+ * The plan's count (quest25_battle ``_immobile_gone``): every cell that sees the never-moving tome's
    grid reached with it unseen, it is not there (as the pen's ``_pen_sight`` counts the
    Ipsissimus escaped); the tome phase ends, kept over the phases and the record.
 

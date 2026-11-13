@@ -13,8 +13,15 @@ The chain (bot-decisions of ~/hengbot-soak/n1-b/life-384/captures/20261113-08423
    (``quest25:walk``); the two alternated board after board until the loop guard stopped the bot
    at 08:42:38, 08:42:50 and 08:42:57.
 
-The rule (quest25_battle ``_stands_looked_from``): with the door open and both stands reached
-unseen, the walk to another sight owns the move; the approach to the stand gives way.
+The rules (quest25_battle):
+
+ * ``_stands_looked_from``: with the door open and both stands reached unseen, the walk to another
+   sight owns the move; the approach to the stand gives way.
+ * ``_immobile_gone`` (the tome's rule of life-382, now for the stairway too): every cell that sees
+   a never-moving, visible-bodied target's grid reached with it unseen, it is not there and its
+   phase ends; the walk to the sights then has an end instead of ``quest:blocked:execute``.  The
+   record's ``gone`` replaces the tome's own flag; a record written with ``tome_gone`` still
+   carries it (the life-384 record is one).
 
 Recorded: tests/fixtures/n1b-384-q25-walk-sight-1113.json.gz
 (tests/extract_n1b_384_q25_walk_sight_1113_fixture.py, copies of the captures in
@@ -36,9 +43,11 @@ import gzip
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # noqa: F401 -- first: the plan modules import in a cycle alone
 from hengbot import me_device_attacks, quest25_battle as battle, quest25_battle_record
+from hengbot.model import parse_snapshot
 from tests import test_kill_all_patrol_1113_recorded as kill_all_patrol_test
 from tests import test_n1b_382_q25_patrol_owner_1113_recorded as replay
 
@@ -103,6 +112,39 @@ class OneWalkPerBoardTest(replay._Replay):
         answers = self.drive(exhausted(), record)
         by_cell = {cell: (key, reason) for _sequence, cell, key, reason, _phase in answers}
         self.assertEqual(by_cell[(12, 26)], ("3", battle.WALK_REASON))
+
+
+class GoneOverThePhasesTest(replay._Replay):
+    case = CASE
+
+    def _sights(self, record=None):
+        directory = self.enterContext(TemporaryDirectory())
+        policy = replay.new_policy(Path(directory), exhausted(), record, CASE)
+        raw = CASE["second"]["boards"][4]
+        snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        policy.choose_key(snapshot)   # the first decision restores the record (real path)
+        ctx = battle._ctx(policy, snapshot)
+        return ctx, battle.geo.sight_cells(ctx.open_terrain(), STAIRWAY_CELL,
+                                           battle._sight_radius(ctx, STAIRWAY_CELL))
+
+    def test_the_old_record_keeps_the_tome_gone(self):
+        self.assertIs(CASE["battle_record"]["battle"]["tome_gone"], True)
+        ctx, sights = self._sights()
+        self.assertIn(battle.geo.TOME, ctx.battle.gone)
+        self.assertTrue(sights - STANDS)   # sights left to walk to: the stairway not yet gone
+        self.assertNotIn(battle.geo.STAIRWAY, ctx.battle.gone)
+
+    def test_every_sight_looked_from_the_stairway_phase_ends(self):
+        # DECLARED CONSTRUCTED: the record with every cell that sees [13,29] reached unseen (the
+        # end of the walk to the sights the first rule lets run).
+        _ctx, sights = self._sights()
+        record = copy.deepcopy(CASE["battle_record"])
+        record["battle"]["blind_sights"] = quest25_battle_record._encode(
+            frozenset((STAIRWAY_CELL, cell) for cell in sights))
+        answers = self.drive(exhausted(), record)
+        self.assertTrue(all(phase > battle.phase_index("stairway") for *_rest, phase in answers),
+                        answers[:3])
+        self.assertNotIn("quest:blocked:execute", {reason for *_rest, reason, _phase in answers})
 
 
 if __name__ == "__main__":
