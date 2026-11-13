@@ -168,6 +168,9 @@ class TownVisit:
     # [stage, first sequence, last sequence, decisions, interrupts] per run
     # of decisions in one stage.  Nothing decides from it yet.
     plan_segments: list[list] = field(default_factory=list)
+    # The visit's decisions per stage (interrupts not counted), which the
+    # stages' deadlines read (town rebuild stage 3-5, town_visit_plan).
+    stage_decisions: dict[str, int] = field(default_factory=dict)
     # The progress seam's replacements this visit (town rebuild stage 3-3a):
     # [sequence, the producer's reason, the seam's reason].  Nothing decides
     # from it; stage 3-3 retires the seam and shows this list empty.  Since

@@ -74,7 +74,11 @@ class TradeReceiptTest(unittest.TestCase):
         self.assertEqual(policy._owner_retired_no_progress_count, 2)
         self.handle(policy, board(STASHED, store_type=7))
         retire(policy); self.handle(policy)
-        self.assertEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
+        # No progress: the count rises.  Since town rebuild 3-5 the count is
+        # the record's and the third no longer stops the visit (the stages'
+        # deadlines do).
+        self.assertEqual(policy._owner_retired_no_progress_count, 3)
+        self.assertNotEqual(policy.last_reason, 'town:blocked:owner-retired-burst')
 
 
 if __name__ == "__main__":

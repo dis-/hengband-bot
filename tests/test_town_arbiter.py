@@ -14,6 +14,7 @@ from unittest import mock
 from hengbot import town_hold
 from hengbot.cli import _write_decision
 from hengbot.model import parse_snapshot
+from hengbot import town_visit_plan
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_types import StoreVisit, StoreVisitPhase
 from store_visit_alternation_gate import measure as measure_visit_alternation
@@ -172,6 +173,13 @@ class TownTurnArbiterAcceptanceTest(unittest.TestCase):
         snapshot = self._postlevel_snapshot()
         policy = HengbotPolicy()
         budget = policy._town_turn_arbiter.registry["home-scan"].budget
+        # Town rebuild 3-5: on this frozen board the Home stage's deadline
+        # (town_visit_plan.STAGE_DEADLINES, 112) stops the visit before the
+        # arbiter's budget (300); this pin is the arbiter's, so the deadline
+        # is lifted here (test_town_visit_plan pins the deadline's stop).
+        lifted = mock.patch.dict(town_visit_plan.STAGE_DEADLINES, {"home": budget + 10})
+        lifted.start()
+        self.addCleanup(lifted.stop)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.jsonl"
             for index in range(budget + 2):

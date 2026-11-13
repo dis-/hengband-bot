@@ -331,21 +331,22 @@ class TownDefinedEndRetiredBurstTest(unittest.TestCase):
         self.assertEqual(set(reasons[:-1]), {"town:wait-restock:general"})
         self.assertTrue(self.case["retirements"][-1].endswith("stopping"))
 
-    def test_burst_ends_by_its_named_stop(self):
+    def test_the_third_retirement_no_longer_stops_the_visit(self):
+        """Town rebuild 3-5 (owner 2026-11-12): the recorded third retirement
+        stopped this visit as owner-retired-burst; it is now forgiven, and the
+        visit's stage deadlines (town_visit_plan.STAGE_DEADLINES) bound it."""
         policy, board = self.boundary()
-        # The departure minimum fails (no Recall carried): the burst cannot
-        # depart and keeps its own named stop.
         self.assertEqual(policy._visit_departure_minimum(board)[0]["failed"][0],
                          "recall_departure_ready")
         # DECLARED RECONSTRUCTED: the visit's two forgiven retirements
         # (bot-stderr "continuing" rows); the third is labelled here.
         cli._observe_owner_retired_progress(policy, board, "5")
-        policy._owner_retired_no_progress_count = cli.OWNER_RETIRED_LOG_ONLY_LIMIT - 1
+        policy._owner_retired_no_progress_count = 2
         policy.last_reason = "town:blocked:owner-retired"
         args = SimpleNamespace(owner_retired_log_only=True, decision_log=None)
         key = cli._handle_owner_retirement(args, board, "5", policy)
-        self.assertEqual(policy.last_reason, "town:blocked:owner-retired-burst")
-        self.assertTrue(cli._policy_final_stop_required(policy))
+        self.assertEqual(policy._owner_retired_no_progress_count, 3)
+        self.assertFalse(cli._policy_final_stop_required(policy))
         self.assertEqual(key, "5")
 
     def test_no_owner_stops_under_the_unmet_survival_leaf(self):

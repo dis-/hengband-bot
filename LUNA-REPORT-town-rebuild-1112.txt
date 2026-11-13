@@ -526,3 +526,63 @@ Z. 確認（前景）
     両方赤 39（同じ名前）、main で赤く枝で通る 1（V で直した件2のテスト）、時間切れ 0。
   - 3-4b: 同じ lint とマニフェスト、町の繰り返しと梯子に触れるテスト33モジュール: 両方通る 20、両方赤 13（同じ名前）、差 0。
   - 新しい確かめ: test_town_visit_plan の LadderRowsTest（順位が前と同じ・town:cycle-break も計画の行）。
+
+
+追記7（2026-11-14）: 段3-5（owner-retired-burst を段ごとの期限へ）
+================================================================
+
+AA. 測り方（所有者の答え 2026-11-14 「ループと止まり以外の全訪問で測る」）
+  - 再生の窓での測り（記録と分かれた所で止まる）は訪問の全体を数えていなかった。記録の journal で数えると、
+    出発まで進んだ訪問でも鑑定 13・装備 21・町の移動（ズルの往復）27 があり、再生の測りの2倍では健全な訪問が止まる
+    （test_town_weight_torch_1112_recorded が鑑定の9回目で止まった）。
+  - 記録の journal（C:\hengband-backups の town-arrival 264件、2026-11-03〜11-14）で、ループと止まりで終わった訪問を除いて測る:
+    数えた 92件（出発まで進んだ 84件は出発の行まで、死亡で終わった 6件、ズルの往復 2件）、除いた 172件
+    （loop-detected・stuck-prompt・繰り返しの強制の出発、town:blocked:*・quest:blocked:*・departure-unsatisfiable・
+    owner-retired-burst・no-key-exhausted などの止まり）。台本は scripts/town_stage_deadline_measure.py。
+  - 期限 = 3つの測り（journal・再生 11-13・再生 11-14）の最大の2倍:
+
+     段              | journal | 再生11-13 | 再生11-14 | 期限
+     クエスト        |   149   |   118     |   118     |  298
+     買う            |    59   |   108     |   108     |  216
+     自宅            |    31   |    56     |    56     |  112
+     資金集め        |     0   |    48     |    48     |   96
+     出発            |    43   |    35     |     1     |   86
+     装備            |    21   |    12     |    12     |   42
+     鑑定            |    13   |     4     |     4     |   26
+     売る            |    12   |     8     |     6     |   24
+     町の移動・噂    |    79*  |     3     |     3     |  158
+     * journal のズルの往復2件は、この段で外す burst で途中で切れていた（27回）。記録の盤面の歩き
+       （n1-b life-345、tests/test_n1b_345_zul_1108_recorded、ズルの入口から塔まで）が 79回なので、ズルの往復はそれで測った
+       （調整役の「ズルの往復を含める」に沿った読み。所有者の確認が要るなら問い）。
+
+BB. 変えたこと（31646cd8e5）
+  - TownVisit.stage_decisions に訪問の段ごとの決定の数（割り込みは数えない）。choose_key の出口で、その段がこの訪問で
+    すでに期限の数だけ決定していれば、その決定を段の名前つきの止まり town:blocked:stage-deadline:<段> にする
+    （POLICY_FINAL_STOP_PREFIXES に足し、止まりの説明の文も足した）。
+  - CLI の log-only の引退は数えるだけ（記録の retirements_without_progress）で、いつも許す。burst の強制の出発と止まり、
+    _owner_retired_burst_reason を削除。許さない引退（独立した止まり）の記録は、その止まりのキーと理由のまま。
+  - town_visit_plan_lint: 測りの無い段、期限が最大の測りの2倍でない段で失敗。
+  - 測りの台本 scripts/town_stage_deadline_measure.py（記録の場所を引数に、ループと止まりの訪問を除いて段ごとの最大を出す）。
+
+CC. 設計どおりの差（テストの期待を理由つきで直した）
+  - burst を確かめていたテスト: test_owner_retired_log_only・test_owner_retirement_slice1（記録の16件の提案を含む）・
+    test_town_defined_end_recorded・test_owner_retired_trade_receipts_1106・test_keep_running_a0 は、
+    「どの引退も許され、数えられ、止まらない・強制の出発もしない」に直した。test_home_loops_0446 は「壊すのは進み」の上限を数字の3で残した。
+  - 作った固まった盤面の2本（test_town_arbiter の裁定役の予算300、test_absorbing_states の自宅の上限）は、期限（自宅112・装備42）が
+    先に止めるようになった（設計どおりの効き目）。それぞれの上限を確かめるため、そのテストの中だけ期限を外した。
+  - 記録の burst の訪問32件は、どれも今の期限の手前（止まらずに続く）。記録の全体で期限を超えるのは4件で、すべてループか止まりで終わった
+    訪問（n1-c life-116 の自宅449・装備151、life-184 の装備367、life-121 の me-staff の止まりの装備48 ×2）。
+  - 再生（町到着の記録）: main 6e291bf540 対 枝（取り込み前）、main 5da0c9b4fd 対 31646cd8e5（取り込み後）とも
+    233件・222件・2,362行、キーと理由の差 0、順位の差 0、期限で止まった行 0。
+
+DD. 確認
+  - import OK、マニフェスト 1979 candidates・zero unmapped（stage_deadline_stop を data として審査に足した）、dungeon_ladder_lint 0、
+    departure_rescue_lint 0、town_visit_plan_lint 0、所有の lint の未宣言 39。
+  - 町と引退のテスト150モジュールを main 6e291bf540 と枝で: 両方通る 70、両方赤 79（同じ名前）、差は3つ
+    （test_n1b_345_zul_1108 → 町の移動の期限を 158 にして通る、test_absorbing_states・test_town_arbiter → 上の CC）。
+    直した後、該当のテストは通る。
+  - main 5da0c9b4fd（town-stops-1114am の3件）を取り込み、3-5 を当て直した。tests/test_n1c_207_wait_recall_1114_recorded の2本は
+    main 5da0c9b4fd でも赤い（24行目が帰還の読みでなく自宅への入り直し shop:travel:await-entry になる。town-stops の変更による）。
+
+EE. answer 4（「掃除を終えてから出発」）: .scratch\wip_a4.patch に保留。town-stops の直しで24行目の流れが変わったので、
+    当て直す前に、24行目で掃除の続きを誰が受け持つかを確かめ直す。

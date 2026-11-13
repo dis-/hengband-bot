@@ -84,6 +84,7 @@ from hengbot.policy_constants import (
     POLICY_FINAL_STOP_REASONS,
     POLICY_FINAL_STOP_PREFIXES,
     RETURN_STATIONARY_REASONS,
+    STAGE_DEADLINE_STOP_PREFIX,
     TOWN_END_SURVIVAL_STOP_PREFIX,
     TOWN_END_UNMET_STOP_PREFIX,
     SKILL_KNOWLEDGE_MACRO,
@@ -531,18 +532,16 @@ def _declaration_requires_no_send(key: str | None, reason: str | None) -> bool:
         "ownership:declaration-"))
 
 
-OWNER_RETIRED_LOG_ONLY_LIMIT = 3
-
-
-def _owner_retired_log_only_allows(policy, retirements=1) -> bool:
+def _count_owner_retirements(policy, retirements=1) -> None:
     """Count retirements since admitted work last made observed progress.
 
-    This checkpointed counter is independent of arbiter forgiveness. There is
-    no elapsed-time window, and different owners share the same visit counter.
+    The count is the retirement record's (retirements_without_progress); it
+    no longer stops the visit.  Owner 2026-11-12: the owner-retired burst (the
+    third retirement without progress) became the town visit's per-stage
+    deadlines (town_visit_plan.STAGE_DEADLINES, town rebuild stage 3-5).
     """
-    count = getattr(policy, "_owner_retired_no_progress_count", 0) + retirements
-    policy._owner_retired_no_progress_count = count
-    return count < OWNER_RETIRED_LOG_ONLY_LIMIT
+    policy._owner_retired_no_progress_count = (
+        getattr(policy, "_owner_retired_no_progress_count", 0) + retirements)
 
 
 # Bookkeeping (periodic save/dump, character dump) runs between errand steps
@@ -724,50 +723,28 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
         policy._owner_retired_handled_sequence = sequence
         owners = arbiter.pending_retirement_owners if arbiter is not None else ()
         counted = 0 if _bookkeeping_retirement(policy, owners) else max(1, len(owners))
-        allowed = _owner_retired_log_only_allows(policy, counted)
-        _record_owner_retired_log_only(args, snapshot, key, policy, forgive=allowed)
-        if allowed:
-            policy._owner_retired_forgiven_sequence = sequence
-            if snapshot.store is not None:
-                if policy.last_reason in IN_STORE_OPERATION_REASONS:
-                    # The retired in-store operation ends with its own exit:
-                    # ESC under the operation's reason is an in-store buy
-                    # without prompt gates, which the executor refuses and
-                    # the in-store breaker turns into a stop (D28, 2026-10-30
-                    # n1-c life-045 and four more captures).
-                    key = policy._in_store_leave(snapshot, IN_STORE_DONE_REASON)
-                else:
-                    key = LEAVE_STORE_KEY
-                from hengbot.town_work import bind_driver_override
-                bind_driver_override(policy, key, site='cli.py:_handle_owner_retirement')
-            return key
-        departure = policy.force_visit_departure(snapshot, "owner-retired-burst")
-        if departure is not None:
-            policy._owner_retired_forgiven_sequence = sequence
-            if arbiter is not None:
-                arbiter.forgive_retirement()
+        _count_owner_retirements(policy, counted)
+        # Every retirement is logged and forgiven; the visit's stage
+        # deadlines bound it instead of a burst (town rebuild stage 3-5).
+        _record_owner_retired_log_only(args, snapshot, key, policy, forgive=True)
+        policy._owner_retired_forgiven_sequence = sequence
+        if snapshot.store is not None:
+            if policy.last_reason in IN_STORE_OPERATION_REASONS:
+                # The retired in-store operation ends with its own exit:
+                # ESC under the operation's reason is an in-store buy
+                # without prompt gates, which the executor refuses and
+                # the in-store breaker turns into a stop (D28, 2026-10-30
+                # n1-c life-045 and four more captures).
+                key = policy._in_store_leave(snapshot, IN_STORE_DONE_REASON)
+            else:
+                key = LEAVE_STORE_KEY
             from hengbot.town_work import bind_driver_override
-            bind_driver_override(policy, departure, site='cli.py:_handle_owner_retirement')
-            return departure
-        policy.last_reason = _owner_retired_burst_reason(policy.last_reason)
+            bind_driver_override(policy, key, site='cli.py:_handle_owner_retirement')
+        return key
     else:
         policy.last_reason = "town:blocked:owner-retired"
     # Route empty/poll retirements through the existing final-stop machinery.
     return WAIT_KEY
-
-
-def _owner_retired_burst_reason(raw_reason) -> str:
-    """The final reason of an owner-retired burst after the decision ``raw_reason``.
-
-    A typed ``town:blocked:*`` wait whose retirement ended the burst names the
-    stop (``town:blocked:owner-retired-burst:after:<the wait>``), so the stop
-    says which wait ran the budget out instead of the generic burst.  The stop
-    itself is the same.
-    """
-    raw = raw_reason or ""
-    if raw.startswith("town:blocked:") and not raw.startswith("town:blocked:owner-retired"):
-        return OWNER_RETIRED_BURST_AFTER_PREFIX + raw
-    return "town:blocked:owner-retired-burst"
 
 
 def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True) -> None:
@@ -813,10 +790,10 @@ def _record_owner_retired_log_only(args, snapshot, key, policy, *, forgive=True)
         "matched_effect_identity": settlement.get("matched_effect_identity", []),
         "raw_key": key,
         "raw_reason": policy.last_reason,
-        "final_key": (WAIT_KEY if not forgive else
-                      LEAVE_STORE_KEY if snapshot.store is not None else key),
-        "final_reason": (_owner_retired_burst_reason(policy.last_reason) if not forgive
-                         else policy.last_reason),
+        # An unforgiven retirement keeps the independent final stop it came
+        # with (no burst since town rebuild 3-5): its key and reason stand.
+        "final_key": (LEAVE_STORE_KEY if forgive and snapshot.store is not None else key),
+        "final_reason": policy.last_reason,
     }
     record = {
         "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -859,6 +836,9 @@ def _policy_final_stop_banner(reason: str) -> str:
                 "or distance progress, the last on the typed wait "
                 f"{reason[len(OWNER_RETIRED_BURST_AFTER_PREFIX):]}; "
                 "stopping the bot for investigation")
+    if reason.startswith(STAGE_DEADLINE_STOP_PREFIX):
+        return (f"<{reason}> this town visit spent the stage's deadline of decisions "
+                "(twice the measured per-visit maximum); stopping the bot for investigation")
     if reason.startswith(TOWN_END_UNMET_STOP_PREFIX):
         return (f"<{reason}> no town owner answered, this departure condition "
                 "is unmet and the mining cycle cannot leave; stopping the bot "

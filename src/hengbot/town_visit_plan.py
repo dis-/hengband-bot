@@ -132,6 +132,49 @@ def progress_defect_reason(winner: str, progress: str) -> str:
     producer's reason ``winner`` and the progress action that replaced it."""
     return f"{PROGRESS_DEFECT_PREFIX}{winner}=>{progress}"
 
+# -- the stages' deadlines (town rebuild stage 3-5) --------------------------
+# Owner 2026-11-12 (the owner-retired burst becomes per-stage deadlines),
+# 2026-11-13 「測った最大の2倍を期限に」 and 2026-11-14 「ループと止まり以外の全訪問で測る」:
+# a visit's decisions in one stage (interrupts not counted) past the stage's
+# deadline stop the visit under the stage's name (STAGE_DEADLINE_STOP_PREFIX +
+# stage).  Each deadline is twice the largest of three measurements of the
+# stage's per-visit maximum:
+#   journals: the 264 recorded town-arrival journals under C:\hengband-backups
+#     (2026-11-03 .. 11-14), measured 2026-11-14 with
+#     scripts/town_stage_deadline_measure.py.  Counted are the 92 visits that
+#     did not end in a loop or a stop: 84 that reached their departure (counted
+#     up to the recall read/wait or the stairs), 6 that ended in the player's
+#     death and the 2 Zul round trips.  Excluded are the 172 visits that ended
+#     in a town loop (loop-detected, stuck-prompt, a forced repetition
+#     departure) or a named stop (town:blocked:*, quest:blocked:*,
+#     departure-unsatisfiable, owner-retired-burst, no-key-exhausted ...).
+#   travel: the two Zul round trips in the journals were cut short by the
+#     owner-retired burst this stage removes (27 decisions); the recorded walk
+#     of n1-b life-345 from its Zul entry board to the Tower
+#     (tests/test_n1b_345_zul_1108_recorded) takes 79, so the Zul round trip
+#     is measured by that walk.
+#   replay 2026-11-13 and 2026-11-14: the 222 replayable visits of 233 such
+#     records replayed through choose_key until they left the record (main
+#     9f3df0a310 and 5bfd83ac0b); they stop early, which shrinks a stage
+#     (departure 35 -> 1), so they only set a floor.
+# 2026-11-13 の再生の測り×2、観戦のボットが超えたら見直す
+STAGE_MEASURED: dict[str, tuple[int, int, int]] = {
+    # stage: (journals 2026-11-14, replay 2026-11-13, replay 2026-11-14)
+    "home": (31, 56, 56),
+    "identification": (13, 4, 4),
+    "equipment": (21, 12, 12),
+    "sell": (12, 8, 6),
+    "buy": (59, 108, 108),
+    "quest": (149, 118, 118),
+    "travel": (79, 3, 3),  # the life-345 Zul walk; the journals' 27 were cut short
+    "fundraising": (0, 48, 48),
+    "departure": (43, 35, 1),
+}
+STAGE_DEADLINES: dict[str, int] = {
+    stage: 2 * max(measured) for stage, measured in STAGE_MEASURED.items()
+}
+STAGE_DEADLINE_STOP_PREFIX = "town:blocked:stage-deadline:"
+
 # A visit's trace keeps its newest segments only.
 SEGMENT_LIMIT = 200
 # A visit keeps its newest seam replacements and transitions only.
@@ -151,7 +194,8 @@ def note_decision(policy: Any, snapshot: Any) -> None:
     from hengbot.town_visit import town_visit
     stage = stage_of(claim_family_of(policy, policy.last_reason))
     sequence = getattr(policy, "_decision_sequence", None)
-    segments = town_visit(policy).plan_segments
+    visit = town_visit(policy)
+    segments = visit.plan_segments
     if stage == INTERRUPT:
         if segments:
             segments[-1][2] = sequence
@@ -159,6 +203,7 @@ def note_decision(policy: Any, snapshot: Any) -> None:
         else:
             segments.append([INTERRUPT, sequence, sequence, 0, 1])
         return
+    visit.stage_decisions[stage] = visit.stage_decisions.get(stage, 0) + 1
     if segments and segments[-1][0] in {stage, INTERRUPT} and segments[-1][3] == 0:
         # The visit opened on interrupts: they belong to its first stage.
         segments[-1][0] = stage
@@ -168,6 +213,25 @@ def note_decision(policy: Any, snapshot: Any) -> None:
     else:
         segments.append([stage, sequence, sequence, 1, 0])
         del segments[:-SEGMENT_LIMIT]
+
+
+def stage_deadline_stop(policy: Any, snapshot: Any) -> str | None:
+    """The named stop of a town decision whose stage spent its deadline.
+
+    The decision about to be made belongs to the stage of its reason; when
+    the visit already made that stage's deadline of decisions, this one is the
+    stage's stop instead (STAGE_DEADLINE_STOP_PREFIX + stage).  An interrupt,
+    the rewrite stage and a dungeon board have no deadline.
+    """
+    if not (snapshot.in_town or snapshot.store is not None):
+        return None
+    from hengbot.town_hold import claim_family_of
+    from hengbot.town_visit import town_visit
+    stage = stage_of(claim_family_of(policy, policy.last_reason))
+    deadline = STAGE_DEADLINES.get(stage)
+    if deadline is None or town_visit(policy).stage_decisions.get(stage, 0) < deadline:
+        return None
+    return STAGE_DEADLINE_STOP_PREFIX + stage
 
 
 def note_transition(policy: Any, name: str) -> None:

@@ -30,16 +30,21 @@ class OwnerRetiredLogOnlyTest(unittest.TestCase):
 
 
 class OwnerRetiredLogOnlyBurstTest(unittest.TestCase):
-    def test_third_retirement_without_productive_work_stops_again(self):
+    def test_retirements_are_counted_and_never_stop_the_visit(self):
+        """Town rebuild 3-5 (owner 2026-11-12, the burst becomes the stages'
+        deadlines): the third retirement without progress used to stop the
+        visit (owner-retired-burst).  The count stays for the record; the
+        visit's stage deadlines bound it (town_visit_plan.STAGE_DEADLINES)."""
         from hengbot import cli
 
         class Policy:
             pass
 
         policy = Policy()
-        self.assertTrue(cli._owner_retired_log_only_allows(policy))
-        self.assertTrue(cli._owner_retired_log_only_allows(policy))
-        self.assertFalse(cli._owner_retired_log_only_allows(policy))
+        for retirements in (1, 2, 3, 4):
+            cli._count_owner_retirements(policy)
+            self.assertEqual(policy._owner_retired_no_progress_count, retirements)
+        self.assertFalse(hasattr(cli, "_owner_retired_log_only_allows"))
 
 
 if __name__ == "__main__":

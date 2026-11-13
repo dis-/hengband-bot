@@ -8,6 +8,7 @@ from types import MethodType, SimpleNamespace
 import absorbing_state_catalog as cat
 from absorbing_state_catalog import SEEDED_STATES, TownWorld
 from absorbing_state_harness import AbsorbingState, drive
+from hengbot import town_visit_plan
 from hengbot.model import TVAL_POTION
 from hengbot.policy import CALIBRATION_HOME_VISIT_LIMIT
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
@@ -454,6 +455,13 @@ class AbsorbingStateHarnessTest(unittest.TestCase):
             base_apply(self, key)
 
         type(world).apply = frozen_apply
+        # Town rebuild 3-5: the frozen walk's equipment stage would reach its
+        # deadline (town_visit_plan.STAGE_DEADLINES) before this ceiling; the
+        # pin is the ceiling's, so the deadlines are lifted here.
+        lifted = unittest.mock.patch.dict(town_visit_plan.STAGE_DEADLINES,
+                            {stage: 10 ** 6 for stage in town_visit_plan.STAGE_DEADLINES})
+        lifted.start()
+        self.addCleanup(lifted.stop)
         terminal_decision = None
         reasons = []
         for i in range(2 * CALIBRATION_HOME_VISIT_LIMIT):
