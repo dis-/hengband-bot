@@ -175,6 +175,19 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         for kept in ("マン・ゴーシュ (1d5) (+3,+10)", "カオス・ブレード (6d5) (+3,+6)"):
             self.assertIsNone(names[kept], kept)
 
+    def test_unidentified_average_gloves_are_rated_with_their_base_ac(self):
+        # Owner 2026-11-13: the worn セスタス [5] {並} prints its base AC; the
+        # board emits no ac for an unidentified item.  Rated AC 0 it lost to
+        # the 革グローブ [1,+3] once the single-slot search grew over the
+        # chosen sets' neighbourhoods; with its base AC 5 and to_a 0 it stays.
+        policy = self._copy()
+        worn = next(item for item in self.board.equipment if item.slot == "arms")
+        self.assertEqual((worn.name, worn.known, worn.pseudo_feeling, worn.ac, worn.to_a),
+                         ("セスタス [5] {並}", False, "average", 5, 0))
+        arms = dict(self._loadout(policy).slots)["arms"]
+        self.assertEqual((arms.origin, arms.item.name), ("equipped", "セスタス [5] {並}"))
+        self.assertTrue(arms.evaluable)
+
     def test_selected_dominance_implies_plain_gear(self):
         # M3: plain armour R1-dominated by the selected loadout is plain gear.
         policy = self._copy()
