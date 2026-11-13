@@ -170,10 +170,36 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         # Owner 2026-11-09 「耐性の無い素の防具は不要」: plain armour the
         # optimizer did not select is not needed without a special property,
         # even when its numbers beat the selected piece.
-        for unneeded in ("鋼鉄ヘルメット [6,+5]", "鋼鉄ヘルメット [6,+4]", "金属帽子 [3,+7]"):
+        for unneeded in ("鋼鉄ヘルメット [6,+4]", "金属帽子 [3,+7]"):
             self.assertEqual(names[unneeded], "plain-gear", unneeded)
+        # Since n1-c life-205 2026-11-13 the single-slot search grows over the
+        # chosen sets' neighbourhoods and reaches the helmet step the one-swap
+        # search left for the next visit: the selected 鋼鉄ヘルメット [6,+5]
+        # (AC 11, light radius 2) beats the worn 闇の陣笠 [4,+4] {r暗;闇} (AC 8,
+        # its darkness lowers the radius to 1; 2026-10-23 「合計で比べる」 on the
+        # whole loadout) by margin 3.139 vs 3.097, beyond the 1% band; resist
+        # dark is no requirement of the 30F band.  The selected helmet stays.
+        head = dict(self._loadout(policy).slots)["head"]
+        self.assertEqual(head.item.name, "鋼鉄ヘルメット [6,+5]")
+        self.assertIsNone(names["鋼鉄ヘルメット [6,+5]"])
         for kept in ("マン・ゴーシュ (1d5) (+3,+10)", "カオス・ブレード (6d5) (+3,+6)"):
             self.assertIsNone(names[kept], kept)
+
+    def test_unidentified_average_gloves_are_rated_with_their_base_ac(self):
+        # Owner 2026-11-13: the worn セスタス [5] {並} prints its base AC; the
+        # board emits no ac for an unidentified item.  Rated AC 0 it lost to
+        # the 革グローブ [1,+3] once the single-slot search grew over the
+        # chosen sets' neighbourhoods; with its base AC 5 and to_a 0 it stays.
+        policy = self._copy()
+        worn = next(item for item in self.board.equipment if item.slot == "arms")
+        self.assertEqual((worn.name, worn.known, worn.pseudo_feeling, worn.ac, worn.to_a),
+                         ("セスタス [5] {並}", False, "average", 5, 0))
+        arms = dict(self._loadout(policy).slots)["arms"]
+        self.assertEqual((arms.origin, arms.item.name), ("equipped", "セスタス [5] {並}"))
+        # The worn piece is rated with its printed base AC (no C screen of
+        # this board shows the mutations, so {average} is not trusted for a
+        # Home or pack copy; the worn one stays the seed of the search).
+        self.assertEqual((arms.item.ac, arms.item.to_a), (5, 0))
 
     def test_selected_dominance_implies_plain_gear(self):
         # M3: plain armour R1-dominated by the selected loadout is plain gear.

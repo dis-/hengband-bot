@@ -30,7 +30,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import _consume_response_sequence
-from hengbot.equipment_optimizer import _prefer
+from hengbot.equipment_optimizer import EvaluatedLoadout, Loadout, _prefer
 from hengbot.policy import staged_prompt_chain_matches
 
 import test_calibration_crlf_dump_recorded as crlf_pin
@@ -73,6 +73,8 @@ class EquipmentMarginRatioRecordedTest(unittest.TestCase):
                     policy.commit_staged_prompt_chain(
                         {"outcome": "released", "posted": str(key)})
             cls.preparation = policy._equipment_optimization_preparation
+            cls.evaluator = policy._warrior_evaluator_cache.evaluator
+            cls.catalog = tuple(policy._equipment_catalog.items)
             # The worn set: every catalog item the candidates draw from the
             # equipment (only the last tie breaker of _prefer reads it).
             cls.worn_ids = frozenset(
@@ -83,11 +85,23 @@ class EquipmentMarginRatioRecordedTest(unittest.TestCase):
             )
 
     def _pair(self):
-        by_rings = {}
-        for entry in self.preparation.result.top_candidates:
-            by_rings.setdefault(_rings(entry), entry)
-        protection = by_rings[frozenset({RESIST_CONF, PROTECTION})]
-        damage = by_rings[frozenset({DAMAGE, RESIST_CONF})]
+        """The chosen damage-ring set and the same set wearing the protection ring.
+
+        The two sets are compared directly: since n1-c life-205 2026-11-13 the
+        single-slot search grows over the chosen sets' neighbourhoods, and the
+        top three of that field no longer need to hold the protection set.
+        """
+        damage = self.preparation.result.best
+        self.assertEqual(_rings(damage), frozenset({DAMAGE, RESIST_CONF}))
+        protection_ring = next(owned for owned in self.catalog
+                               if owned.item.name == PROTECTION)
+        slots = tuple(
+            (slot, protection_ring if owned.item.name == DAMAGE else owned)
+            for slot, owned in damage.loadout.slots
+        )
+        loadout = Loadout(slots, damage.loadout.hand_mode)
+        protection = EvaluatedLoadout(loadout, self.evaluator(loadout).metrics)
+        self.assertEqual(_rings(protection), frozenset({RESIST_CONF, PROTECTION}))
         return protection, damage
 
     def test_live_ring_set_metrics(self):
