@@ -75,9 +75,38 @@ FAMILY_STAGE: dict[str, str] = {
     "misc": INTERRUPT,
 }
 
+# The owners' stage transitions (town rebuild stage 3-3e).  After the owner of
+# a town decision has spoken, the plan may move the visit to another owner's
+# step: these are every replacement the progress step
+# (``_town_procurement_decision``) makes, each named and owned by the family
+# whose stage the result belongs to.  name -> (owner family, the TownMixin
+# method that decides it), in the order the step consults them.  A method
+# returns ``STAY`` when its transition does not apply (the step goes on), and
+# declares its name with ``note_transition`` when it replaces the decision.
+# scripts/town_visit_plan_lint.py fails on a family without a stage, the
+# rewrite stage, or a method the policy lacks.
+TRANSITIONS: dict[str, tuple[str, str]] = {
+    # Closing equipment over an overweight pack shows Home's weight relief.
+    "closing-equipment-weight": ("home-visit", "_closing_equipment_weight_transition"),
+    # A Home sequence holding the store router keeps the holder's step.
+    "holder-keeps-store-router": ("store-router", "_store_router_hold_transition"),
+    # An admitted town-loot walk continues until the pickup.
+    "committed-loot": ("floor-loot", "_committed_loot_transition"),
+    # A repeated, ineffective step to a bounty's cell names its route.
+    "bounty-route-nonprogress": ("quest-request", "_bounty_route_nonprogress_transition"),
+    # A posted shop operation's await is its defect, not a new errand.
+    "posted-shop-operation": ("shop-buy", "_posted_shop_operation_transition"),
+    # The identify-staff shortage keeps its direct supplier route.
+    "identify-staff-supplier": ("fundraising", "_identify_staff_supplier_transition"),
+    # A town step that makes no progress hands over to the supplier walk.
+    "progress-handover": ("store-router", "_progress_handover_transition"),
+}
+# A transition method's answer when its transition does not apply.
+STAY = object()
+
 # A visit's trace keeps its newest segments only.
 SEGMENT_LIMIT = 200
-# A visit keeps its newest seam replacements only.
+# A visit keeps its newest seam replacements and transitions only.
 REWRITE_LIMIT = 100
 
 
@@ -113,23 +142,38 @@ def note_decision(policy: Any, snapshot: Any) -> None:
         del segments[:-SEGMENT_LIMIT]
 
 
-def note_seam(policy: Any, snapshot: Any, before: tuple, key: Any) -> None:
-    """Record a town decision the progress seam (``_town_procurement_decision``)
-    replaced: its key or its reason changed across the seam (stage 3-3a).
+def note_transition(policy: Any, name: str) -> None:
+    """Declare that this decision's owner transition ``name`` replaces it."""
+    from hengbot.town_visit import town_visit
+    town_visit(policy).transition_declared = name
 
-    The ``town-plan`` family counts only the decisions whose reason the seam
-    renamed into its own family; a seam that keeps the producer's reason and
+
+def note_seam(policy: Any, snapshot: Any, before: tuple, key: Any) -> None:
+    """Record a town decision the progress step (``_town_procurement_decision``)
+    replaced: its key or its reason changed across the step (stage 3-3a).
+
+    A replacement an owner's transition declared (``note_transition``, stage
+    3-3e) is that owner's stage transition (``plan_transitions``); any other is
+    a seam rewrite (``plan_rewrites``), the late layer stage 3 retires.  The
+    ``town-plan`` family counts only the decisions whose reason was renamed
+    into its own family; a replacement that keeps the producer's reason and
     changes the key, or relabels under another family, is counted here.
     Nothing decides from it.
     """
+    from hengbot.town_visit import town_visit
+    visit = town_visit(policy)
+    declared, visit.transition_declared = visit.transition_declared, None
     if not (snapshot.in_town or snapshot.store is not None):
         return
     if (key, policy.last_reason) == before:
         return
-    from hengbot.town_visit import town_visit
-    rewrites = town_visit(policy).plan_rewrites
-    rewrites.append([getattr(policy, "_decision_sequence", None), before[1], policy.last_reason])
-    del rewrites[:-REWRITE_LIMIT]
+    sequence = getattr(policy, "_decision_sequence", None)
+    if declared is not None:
+        visit.plan_transitions.append([sequence, declared, before[1], policy.last_reason])
+        del visit.plan_transitions[:-REWRITE_LIMIT]
+        return
+    visit.plan_rewrites.append([sequence, before[1], policy.last_reason])
+    del visit.plan_rewrites[:-REWRITE_LIMIT]
 
 
 def facts(policy: Any) -> dict:
@@ -147,4 +191,5 @@ def facts(policy: Any) -> dict:
         "interrupts": interrupts,
         "flow": [segment[0] for segment in segments[-12:]],
         "seam_rewrites": len(visit.plan_rewrites),
+        "stage_transitions": len(visit.plan_transitions),
     }

@@ -19,6 +19,7 @@ from hengbot.model import (
 )
 from hengbot.policy_constants import HOME_KNOWLEDGE_MACRO
 from hengbot.home_errand import HomeErrandRequest
+from hengbot.town_visit import town_visit
 from hengbot.policy import (
     FOOD_TYPE_MANA,
     DIRECTION_KEYS,
@@ -497,6 +498,12 @@ class TownProgressInvariantTest(unittest.TestCase):
             policy._town_progress_invariant_defect["marker"],
             "TOWN_PROGRESS_INVARIANT_DEFECT",
         )
+        # Town rebuild 3-3e: the handover is the store router's named stage
+        # transition, not a seam rewrite.
+        visit = town_visit(policy)
+        self.assertEqual(visit.plan_rewrites, [])
+        self.assertEqual(visit.plan_transitions[-1][1:3], ["progress-handover", "seek-loot"])
+        self.assertIsNone(visit.transition_declared)
 
     def test_detector_fires_for_revisited_equipment_macro(self):
         policy, snapshot, _store = self._case(on_door=False)

@@ -16,7 +16,9 @@ from unittest.mock import patch
 from hengbot import town_visit_plan
 from hengbot.town_hold import claim_family_of
 from hengbot.town_visit import TownVisit
-from hengbot.town_visit_plan import INTERRUPT, facts, note_decision, note_seam, stage_of
+from hengbot.town_visit_plan import (
+    INTERRUPT, facts, note_decision, note_seam, note_transition, stage_of,
+)
 from test_keep_running_a0 import ready_board
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -46,6 +48,16 @@ class StageTableLintTest(unittest.TestCase):
             found = town_visit_plan_lint.problems()
         self.assertIn("family 'shop-buy' has no stage row", found)
         self.assertIn("FAMILY_STAGE: 'no-such-family' is no owner family (stale row)", found)
+
+    def test_a_transition_without_an_owner_stage_or_method_is_a_gap(self):
+        rows = dict(town_visit_plan.TRANSITIONS)
+        rows["rewritten"] = ("town-plan", "_progress_handover_transition")
+        rows["lost"] = ("store-router", "_no_such_transition")
+        with patch.object(town_visit_plan, "TRANSITIONS", rows):
+            found = town_visit_plan_lint.problems()
+        self.assertIn("TRANSITIONS: 'rewritten' belongs to 'town-plan', no owner's stage", found)
+        self.assertIn("TRANSITIONS: 'lost' names '_no_such_transition', which the policy lacks",
+                      found)
 
 
 class TraceTest(unittest.TestCase):
@@ -87,6 +99,23 @@ class SeamTest(unittest.TestCase):
         self.assertEqual(policy._town_visit.plan_rewrites, [
             [4, "shop:travel", "town-progress-invariant:continue-observed-shop"]])
         note_seam(policy, SimpleNamespace(in_town=False, store=None), ("7", "x"), "8")
+        self.assertEqual(len(policy._town_visit.plan_rewrites), 1)
+
+    def test_a_declared_transition_is_the_owners_not_a_seam_rewrite(self):
+        """Stage 3-3e: an owner's named transition is recorded as a transition."""
+        policy = double("shop:approach", 9)
+        note_transition(policy, "progress-handover")
+        policy.last_reason = "town-progress-invariant:defect:shop:approach=>shop:travel"
+        note_seam(policy, TOWN, ("7", "shop:approach"), "8")
+        self.assertEqual(policy._town_visit.plan_rewrites, [])
+        self.assertEqual(policy._town_visit.plan_transitions, [
+            [9, "progress-handover", "shop:approach", policy.last_reason]])
+        self.assertEqual(facts(double("x", 0)), {})
+        # The declaration lasts one decision, on a dungeon board too.
+        note_transition(policy, "committed-loot")
+        note_seam(policy, SimpleNamespace(in_town=False, store=None), ("7", "x"), "8")
+        self.assertIsNone(policy._town_visit.transition_declared)
+        note_seam(policy, TOWN, ("7", "x"), "8")
         self.assertEqual(len(policy._town_visit.plan_rewrites), 1)
 
 

@@ -6,7 +6,9 @@ usage: PYTHONPATH=src python scripts/town_visit_plan_lint.py
 Checks hengbot.town_visit_plan.FAMILY_STAGE against the one family list
 (town_arbiter.owner_families): every family has a row, every row names a
 registered family, and every row's stage is one of STAGES, INTERRUPT or
-REWRITE.  Every stage of STAGES is some family's.  Exit status 1 on a gap.
+REWRITE.  Every stage of STAGES is some family's.  Every owner's stage
+transition (TRANSITIONS, stage 3-3e) names a family with a stage that is not
+the rewrite stage and a method the policy has.  Exit status 1 on a gap.
 """
 from __future__ import annotations
 
@@ -19,7 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def problems() -> list[str]:
     sys.path.insert(0, str(ROOT / "src"))
     from hengbot.town_arbiter import owner_families
-    from hengbot.town_visit_plan import FAMILY_STAGE, INTERRUPT, REWRITE, STAGES
+    from hengbot.policy import HengbotPolicy
+    from hengbot.town_visit_plan import FAMILY_STAGE, INTERRUPT, REWRITE, STAGES, TRANSITIONS
 
     families = set(owner_families())
     found = []
@@ -33,6 +36,11 @@ def problems() -> list[str]:
     for stage in STAGES:
         if stage not in FAMILY_STAGE.values():
             found.append(f"STAGES: {stage!r} is no family's stage")
+    for name, (family, method) in TRANSITIONS.items():
+        if FAMILY_STAGE.get(family, REWRITE) == REWRITE:
+            found.append(f"TRANSITIONS: {name!r} belongs to {family!r}, no owner's stage")
+        if not callable(getattr(HengbotPolicy, method, None)):
+            found.append(f"TRANSITIONS: {name!r} names {method!r}, which the policy lacks")
     return found
 
 

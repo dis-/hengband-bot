@@ -10279,10 +10279,33 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_town.py:TownMixin._bounty_route_nonprogress_transition": {
+    "classification": "adapter",
+    "rows": [
+      "quest-service",
+      "plan-routing"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_town.py:TownMixin._build_town_errand_plan": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._closing_equipment_weight_transition": {
+    "classification": "adapter",
+    "rows": [
+      "home-relief",
+      "plan-routing"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._committed_loot_transition": {
+    "classification": "adapter",
+    "rows": [
+      "loot-exploration"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -10384,6 +10407,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_town.py:TownMixin._identify_staff_supplier_transition": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach",
+      "fundraising"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_town.py:TownMixin._mining_walk_in_return_key": {
     "classification": "producer",
     "rows": [
@@ -10422,6 +10453,24 @@
     ],
     "delegation": "no independent success"
   },
+  "policy_town.py:TownMixin._posted_shop_operation_transition": {
+    "classification": "adapter",
+    "rows": [
+      "supply-buy",
+      "mining-buy",
+      "quest-buy",
+      "optional-buy"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._progress_handover_transition": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach",
+      "plan-routing"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_town.py:TownMixin._read_dungeon_recall_scroll_key": {
     "classification": "producer",
     "rows": [
@@ -10449,6 +10498,14 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_town.py:TownMixin._store_router_hold_transition": {
+    "classification": "adapter",
+    "rows": [
+      "store-approach",
+      "plan-routing"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_town.py:TownMixin._supply_stockout_mining_dispatch_key": {
     "classification": "producer",
