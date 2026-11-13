@@ -5379,6 +5379,41 @@ class TownMixin:
             ranged_order=not monster.friendly,
         )
 
+    # The (index, race) of the monster the hunt walks to; read only while
+    # ``_town_hunt_target`` (its cell) is set, so every reset of the cell ends it.
+    _town_hunt_commit: tuple[int, int] | None = None
+
+    def _town_hunt_order(
+        self, snapshot: Snapshot, targets: list[MonsterState]
+    ) -> list[MonsterState]:
+        """``targets`` with the monster the hunt walks to kept first.
+
+        The hunt re-picked the nearest visible monster on every board, so a
+        target that left sight on one step was traded for another and the
+        next step went back: n1-b life-389 (2026-11-13 14:09, Outpost) walked
+        '8' at (24,59) toward a sleeping urchin at (9,62) and '2' at (23,59),
+        where the urchin was out of sight, toward a sleeping mercenary at
+        (40,57), for 400+ boards.  The kept monster stays first until it is
+        killed or out of sight (the last-known walk below then goes to its
+        cell, an empty list here), unreachable, or no longer a target; a
+        monster beside the player is still fought first.
+        """
+        committed = self._town_hunt_commit if self._town_hunt_target is not None else None
+        if committed is None:
+            return targets
+        here = snapshot.player.position
+        if any(here.distance_to(monster.position) <= 1 for monster in targets):
+            return targets
+        kept = [monster for monster in targets if (monster.index, monster.race_id) == committed]
+        if kept:
+            return kept + [monster for monster in targets if monster is not kept[0]]
+        if any((monster.index, monster.race_id) == committed
+               for monster in snapshot.visible_monsters):
+            # In sight but no longer a target (a pet, or no longer beatable).
+            self._town_hunt_commit = None
+            return targets
+        return []
+
     @claims(ClaimOwner.SURVIVAL)
     def _town_kill_mob_key(self, snapshot: Snapshot) -> str | None:
         """Approach and kill every visible town monster except the player's pets.
@@ -5457,6 +5492,7 @@ class TownMixin:
         # For the town hold (S2b.1b): the last-known cell this producer may be
         # walking to, before the loop below overwrites it.
         last_known = self._town_hunt_target
+        targets = self._town_hunt_order(snapshot, targets)
         for target in targets:
             self._town_hunt_target = target.position
             if player.position.distance_to(target.position) <= 1:
@@ -5500,6 +5536,7 @@ class TownMixin:
                     owners=(ClaimOwner.SURVIVAL,),
                 )
                 self.last_reason = "town:kill-mob-approach"
+                self._town_hunt_commit = (target.index, target.race_id)
                 self._declare_monster((target.index, target.race_id))
                 key = self._step_toward(snapshot, step)
                 if key is not None:
