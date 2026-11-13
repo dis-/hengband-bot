@@ -5569,10 +5569,7 @@ def _run_follow(
                         if multiplier_combat_grace
                         else LOOP_WINDOW
                     )
-                    # Inside a ping-pong guard's window the guard owns the alternation
-                    # (pingpong_guard: it escalates the same pair again to the livelock leave).
-                    if (_is_looping(recent_cells, window=loop_window)
-                            and not pingpong_guard.holds_loop_stop(policy, snapshot)):
+                    if _loop_stop_due(recent_cells, loop_window, policy, snapshot):
                         # The driver's own stop report; see the stalled-command
                         # write above for why the ledger is not offered it.
                         _write_decision(
@@ -5762,6 +5759,14 @@ def _game_process_alive(pid) -> bool:
         return code.value == STILL_ACTIVE
     finally:
         kernel32.CloseHandle(handle)
+
+
+def _loop_stop_due(recent_cells, window: int, policy, snapshot) -> bool:
+    """The confined-walk stop (``_is_looping``), except inside a ping-pong guard's window: the
+    guard owns that alternation and escalates the same pair again to the livelock leave
+    (pingpong_guard ``holds_loop_stop``)."""
+    return (_is_looping(recent_cells, window=window)
+            and not pingpong_guard.holds_loop_stop(policy, snapshot))
 
 
 def _is_looping(recent_cells, *, window: int = LOOP_WINDOW) -> bool:
