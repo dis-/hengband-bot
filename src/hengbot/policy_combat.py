@@ -2280,8 +2280,13 @@ class CombatMixin:
         # beside the 3-turn ``predicted >= hp`` and the other conditions, which stay.  Like the
         # plans' rung it holds whatever exempts the board (a Q31 hold, a committed unique fight).
         # Its hostiles are threat_tiers.engagement, the set the plans' rung and the telemetry
-        # read (see there why it may differ from ``hostiles``).
-        if not instant_death and hostiles:
+        # read (see there why it may differ from ``hostiles``), asked even when ``hostiles`` is
+        # empty: the awake detected monsters are in the engagement only.  n1-b life-391
+        # (Angband 80F, 2026-11-13 18:54:35): 竜の『ファフナー』 and 黄金竜『スマウグ』, known by
+        # telepathy alone, read next-action p95 537 (two fire breaths through the player's
+        # fire resistance) against HP 533, and the board explored on because no hostile was
+        # in view; the two breaths killed it before the next board.
+        if not instant_death:
             instant_death = threat_tiers.instant_death(self, snapshot).next_action
         unseen_spell_hit = (
             self._unseen_attack_evidence is not None

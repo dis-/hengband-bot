@@ -214,9 +214,11 @@ def engagement(policy, snapshot) -> list:
 
     One set for every reader of 即死: the telemetry (``facts``), the plans' rung and the shared
     ladder's 1-turn test in ``_emergency_item``.  That ladder's own ``hostiles`` differ in two
-    ways that change no 1-turn damage: they leave out the awake detected ones (out of view), and
-    an approved strategy drops its distant never-moving races with no ranged damage, summons,
-    breeding or TELE_TO (``_quest_strategy_emergency_hostiles``), which deal nothing from there."""
+    ways: they leave out the awake detected ones (out of view), which may still reach the player
+    before its next action (a breath from a cell it steps to; n1-b life-391's two dragons), so
+    the 1-turn test reads this set even when ``hostiles`` is empty; and an approved strategy
+    drops its distant never-moving races with no ranged damage, summons, breeding or TELE_TO
+    (``_quest_strategy_emergency_hostiles``), which deal nothing from there."""
     visible = survival_preemption.emergency_hostiles(
         policy, snapshot, policy._strategic_hostiles(snapshot), policy._physical_hostiles(snapshot))
     seen = {monster.index for monster in visible}

@@ -132,7 +132,12 @@ class RqT1TargetRecordedTest(unittest.TestCase):
         _, decided = self.replay()
         for turn in (*HUNTED, 2321139):
             self.assertFalse(decided[turn][1].startswith("hunt:"), (turn, decided[turn]))
-        self.assertEqual({decided[turn] for turn in HUNTED}, {("rg", "sensed-t1:teleport")})
+        self.assertEqual({decided[turn] for turn in HUNTED if turn != LETHAL},
+                         {("rg", "sensed-t1:teleport")})
+        # 2467 holds 即死 (next_action_p95 408 >= HP 365, the target shown by detection only):
+        # the shared ladder's 1-turn test reads the engagement on every board (n1-b life-391),
+        # and owner 2026-11-09 B 「即死はテレポートで逃げる」 reads the same scroll first.
+        self.assertEqual(decided[LETHAL], ("rg", "emergency:teleport"))
 
     def test_the_target_is_judged_from_contact_as_a_t1(self):
         policy = self.policy(self.rows[0])
