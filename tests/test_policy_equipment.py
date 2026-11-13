@@ -5083,7 +5083,11 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
             policy._prepare_equipment_optimization(town, depth_override=1)
         state = policy.equipment_optimization_state(None)
 
-        selected_factory.assert_called_once()
+        # Once per chosen set's neighbourhood (optimize_single_slot_closure,
+        # n1-c life-205 2026-11-13), the first from the worn loadout.
+        selected_factory.assert_called()
+        self.assertEqual(
+            selected_factory.call_args_list[0].kwargs["seed"].slots, ())
         self.assertEqual(
             state["search_strategy"], "enumerate_single_slot_variants"
         )
