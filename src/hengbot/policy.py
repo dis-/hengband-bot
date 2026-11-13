@@ -9255,16 +9255,27 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return not self._is_dark(snapshot)
 
     def _can_read_now(self, snapshot: Snapshot) -> bool:
-        """The game's read rule: ``cmd_limit_blind`` (blind or ``no_lite``)
-        and ``cmd_limit_confused`` (cmd-read.cpp, cmd-item.cpp)."""
-        return (
-            not snapshot.player.blind
-            and not snapshot.player.confused
-            and self._can_read_scrolls(snapshot)
-        )
+        """The game's read rule (``_can_read_scrolls``)."""
+        return self._can_read_scrolls(snapshot)
 
     def _can_read_scrolls(self, snapshot: Snapshot) -> bool:
-        """Return whether Hengband permits reading on the current grid now."""
+        """Return whether Hengband permits reading a scroll now.
+
+        The game's rule (cmd-read.cpp do_cmd_read_scroll): ``cmd_limit_blind``
+        (blind, or ``no_lite`` on the own grid) and ``cmd_limit_confused``
+        refuse the read with no game time spent.  The confusion test was left
+        to each caller; the ones that forgot it read on and on.  n1-b life-392
+        (2026-11-13 19:52, オークの洞窟19階): confused by the claws of a
+        <スラーネッシュ>の女悪魔, the low-HP walk gate read Word of Recall
+        (``rf``) twenty times, each refused 「混乱していてできない！」, and
+        the character died there.
+        """
+        if snapshot.player.blind or snapshot.player.confused:
+            return False
+        return self._own_grid_readable(snapshot)
+
+    def _own_grid_readable(self, snapshot: Snapshot) -> bool:
+        """The ``no_lite`` half of the read rule: the own grid is lit or visible."""
         if snapshot.can_see_own_grid is not None:
             # The reported own grid is the game's answer at every depth: an
             # unlit town street at night refuses the read like a dark room.
