@@ -59,8 +59,8 @@ def _q1_affordable_targets(requirements, offers, gold, floor):
     Owner 2026-10-31 「Q1の要求値を下げ、受注可能にする」: each category is
     first bought up to its floor (``carry_floor``, never above its full
     target); the gold left then buys further units toward the full targets in
-    requirement order, cheapest first.  None when the floors cost more than
-    ``gold``.
+    requirement order, cheapest first, as far as the shelves hold them.  None
+    when the floors cost more than ``gold`` or the shelves cannot fill them.
     """
     left = {id(item): item.count for _, item in offers}
     rows = sorted(offers, key=lambda row: row[1].price)
@@ -257,17 +257,21 @@ class OpeningRouteMixin:
         owned = [item for item in (*snapshot.inventory, *snapshot.equipment)
                  if item.is_digging_tool and not self._equip_blocked_by_identification(item)]
         reserve, first, unstocked = _q1_reserve(requirements, offers)
-        if unstocked is not None:
-            return "stop:stock:" + unstocked, None, None, 0, 0
         self._quest_carry_lowered = None
-        if reserve > snapshot.player.gold:
-            # 「Q1の要求値を下げ、受注可能にする」 (owner 2026-10-31): buy what the
-            # gold allows down to the strategy's carry floor; readiness and
-            # entry read the same lowered counts (_strategy_force_for_snapshot).
+        if unstocked is not None or reserve > snapshot.player.gold:
+            # 「Q1の要求値を下げ、受注可能にする」 (owner 2026-10-31; QUEST_1
+            # carry_floor 「携行品を全部は買えない時の下限」): buy what the gold
+            # and the shelves allow down to the strategy's carry floor; readiness
+            # and entry read the same lowered counts (_strategy_force_for_snapshot).
+            # A short shelf is one way of not being able to buy them all (n1-b
+            # life-387 2026-11-13 12:30: 14 torches, four on the General Store's
+            # shelf, Magic-Eater floor 9, stopped as stop:stock).
             lowered = _q1_affordable_targets(
                 requirements, offers, snapshot.player.gold,
                 carry_floor(self.approved_quest_strategy(1).required_force,
                             snapshot.player.class_id))
+            if lowered is None and unstocked is not None:
+                return "stop:stock:" + unstocked, None, None, 0, 0
             if lowered is None:
                 return ("stop:unaffordable-quest-reserve", None, None, 0,
                         reserve - snapshot.player.gold)
