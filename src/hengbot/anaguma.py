@@ -519,6 +519,31 @@ def _step(policy, snapshot: Snapshot, target: Position, reason: str) -> str | No
     return policy._step_toward(snapshot, step)
 
 
+SITE_LOST = "site-lost"
+
+
+def _site_lost(snapshot: Snapshot, current: Plan) -> bool:
+    """Off the tunnel (on the walk to the start, or back to it), the plan no longer fits the
+    board: the start is not open, or past the cells already open a cell to dig is open,
+    permanent or off the floor (``geo.zigzag`` with the open leading cells as dug, unknown
+    grids still presumed rock).  A plan presumes the rock it cannot see; the cells it reaches
+    on the way are checked as they come into view, as the dig checks each cell as it opens.
+
+    n1-b life-393 (dungeon 20, 45F, 2026-11-14 01:40, loop-detected): a plan made at (7,185)
+    on unseen grids put its start at (4,182) and its cells up to row 0.  The walk showed the
+    room open where the cells were to be dug, and a *Destruction* at (5,183) turned the start
+    into a quartz vein; the plan stayed and ``anaguma:walk`` sent '7' into the vein twelve
+    times (「石英の鉱脈が行く手をはばんでいる。」) until the loop guard stopped the bot."""
+    if current.phase not in ("walk", "dig") or _index(current, snapshot.player.position) is not None:
+        return False
+    tunnel = current.tunnel
+    dug = 0
+    while dug < current.length and geo.open_cell(snapshot.grid_at(tunnel.cells[dug])):
+        dug += 1
+    return geo.zigzag(snapshot, tunnel.start, tunnel.axis, tunnel.side, current.length,
+                      dug=dug) is None
+
+
 def _index(current: Plan, position: Position) -> int:
     """-1 on the start cell, k-1 on c_k, None off the tunnel."""
     if position == current.tunnel.start:
@@ -801,6 +826,9 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
         _release(policy, "unreachable")   # a pack that cannot come never comes to the mouth
         policy._anaguma_veto = "unreachable"
         return None
+    if current is not None and _site_lost(snapshot, current):
+        _release(policy, SITE_LOST)   # planned on presumed rock: plan again from this board
+        current = None
     if current is None:
         found = _pack(policy, snapshot)
         if found is None:
