@@ -139,7 +139,9 @@ class N1c203IdentifyFirst1112RecordedTest(unittest.TestCase):
         fallback = me_staff_sequence._FALLBACK_KINDS
         self.assertEqual(morivant_tower.recharge_all_price(wand, definitions, fallback), 4050)
         supplies = me_staff_sequence.supply_cost(policy, board)
-        self.assertEqual(me_staff_sequence._expedition_cost(board, supplies), 11135)
+        # The expedition's own departure (with the recall scroll it reads), as the run's target
+        # 11,285 was priced; the run's mode no longer leaves the scroll out (n1-b life-394).
+        self.assertEqual(me_staff_sequence._expedition_cost(board, supplies), 11285)
         self.assertEqual(board.player.gold, 7856)
         key = policy.choose_key(board)
         self.assertEqual((key, policy.last_reason), (f"mAf{wand.slot}", "identify:device"))

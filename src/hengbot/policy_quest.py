@@ -1265,14 +1265,10 @@ class QuestMixin(OpeningRouteMixin):
 
     def _conquest_departure_ready(self, snapshot: Snapshot) -> bool:
         """Apply the ordinary recall departure gate, independent of fundraising."""
-        fundraising_mode = self._fundraising_mode
-        try:
-            self._fundraising_mode = None
+        with self._outside_fundraising():
             return self._town_departure_ready(snapshot) and self._combat_weapon_ready(
                 snapshot
             )
-        finally:
-            self._fundraising_mode = fundraising_mode
 
     @claims(ClaimOwner.HOME_VISIT)
     def _morivant_home_item_key(self, snapshot: Snapshot) -> str | None:

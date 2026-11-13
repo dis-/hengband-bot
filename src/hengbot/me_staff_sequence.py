@@ -650,10 +650,22 @@ def supply_cost(policy, snapshot) -> int:
     ``recharge_cost``, so food is not priced twice.  A quest's carry list is
     the quest strategy's own procurement, not this run's.  An unknown price
     adds nothing here (the ordinary reserve refuses optional spending for it).
+
+    The supplies are those of the departure the expedition makes, outside any
+    fundraising run: the ledger read outside the run's mode
+    (``policy._outside_fundraising``, as the ordinary departure gate reads
+    it).  A run's own mode reshapes the recall requirement (none while
+    mining, no scroll read at the walk-in departure while preparing), which
+    is not the expedition's.  n1-b life-394 (Lv7, 2026-11-14 01:51, quest:blocked:me-staff
+    fundraise-target-drift:rumor-travel-recharge:3672): with 3,508 gold the
+    run opened for 3,672 priced 3,429 while preparing (the departure's recall
+    scroll left out), ``_expedition_run_unneeded`` ended it, the next board
+    priced 3,672 again and opened another; four boards made the six met runs.
     """
     excluded = frozenset({"food"}) if staple_food(snapshot) is not None else frozenset()
-    reserve = policy._required_departure_supply_reserve(
-        snapshot, excluded_kinds=excluded, quest_carry=False)
+    with policy._outside_fundraising():
+        reserve = policy._required_departure_supply_reserve(
+            snapshot, excluded_kinds=excluded, quest_carry=False)
     return reserve or 0
 
 
