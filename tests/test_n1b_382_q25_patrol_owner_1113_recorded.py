@@ -21,7 +21,7 @@ Two roots, two rules:
  * Ownership (kill_all_patrol ``_plan_running``): a plan with a phase still running owns every move
    of its floor; the patrol starts only when the plan has ended (owner 2026-11-13 「全滅クエストで作戦を
    完了しても終了しない場合、周回して敵を探す」), for Q25 from its own ``_after_the_phases``.
- * The plan's count (quest25_battle ``_tome_gone``): every cell that sees the never-moving tome's
+ * The plan's count (quest25_battle ``_immobile_gone``): every cell that sees the never-moving tome's
    grid reached with it unseen, it is not there (as the pen's ``_pen_sight`` counts the
    Ipsissimus escaped); the tome phase ends, kept over the phases and the record.
 
@@ -77,9 +77,12 @@ def _shown(key) -> bool:
     return key in "12346789" or key in ("bA", "bB", "bC", battle.RECHARGE_REST_KEY, "5")
 
 
-def new_policy(directory: Path, device_lists, record=None):
-    boards = CASE["second"]["boards"]
-    record = dict(record or CASE["battle_record"], turn=boards[0]["turn"])   # DECLARED (module note)
+def new_policy(directory: Path, device_lists, record=None, case=None):
+    """A fresh policy restoring ``record`` (else the case's) through the real path; ``case``: a
+    fixture cut like this module's (default this module's)."""
+    case = CASE if case is None else case
+    boards = case["second"]["boards"]
+    record = dict(record or case["battle_record"], turn=boards[0]["turn"])   # DECLARED (module note)
     (directory / "q25-battle.json").write_text(json.dumps(record), encoding="utf-8")
     policy = ConservativePolicy(monrace_knowledge=q25.RACES, quest_knowledge=q25.QUESTS,
                                 quest_strategies=q25.STRATEGIES)
@@ -88,8 +91,8 @@ def new_policy(directory: Path, device_lists, record=None):
     first = copy.deepcopy(boards[0])
     policy.prime(parse_snapshot(first, policy._monrace_knowledge))
     policy.consume_skill_knowledge(dict(
-        copy.deepcopy(CASE["skill"]), turn=first["turn"],
-        player=dict(CASE["skill"]["player"], level=first["player"]["level"])))
+        copy.deepcopy(case["skill"]), turn=first["turn"],
+        player=dict(case["skill"]["player"], level=first["player"]["level"])))
     policy._me_device_lists = device_lists
     return policy
 
@@ -102,6 +105,7 @@ def _rest_prompt():
 
 
 class _Replay(harness.ProductionHarness):
+    case = CASE   # the fixture replayed (tests/test_n1b_384_q25_walk_sight_1113_recorded reuses this)
 
     def post(self, policy, raw, key, following):
         """``key`` through the production executor; the game then shows ``following``."""
@@ -123,10 +127,10 @@ class _Replay(harness.ProductionHarness):
     def drive(self, device_lists, record=None):
         """[(sequence, cell, key, reason, phase)] of the restarted process's boards 4-48, to the
         first key whose prompts the recording does not hold (``_shown``)."""
-        boards, recorded = CASE["second"]["boards"], CASE["second"]["recorded"]
+        boards, recorded = self.case["second"]["boards"], self.case["second"]["recorded"]
         answers = []
         with TemporaryDirectory() as directory:
-            policy = new_policy(Path(directory), device_lists, record)
+            policy = new_policy(Path(directory), device_lists, record, self.case)
             for index in range(4, len(boards)):
                 raw = boards[index]
                 snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
