@@ -18353,5 +18353,60 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the explore's path to the reachable remembered frontier nearest loot the loot walk noted without a route on STEER_AFTER_BOARDS boards (owner 2026-11-13 「その品の方へ探索を寄せる」); _explore_step records and walks it as its own FRONTIER goal."
+  },
+  "quest25_battle.py:_confirm_tome_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the tome phase's detection to confirm the tome (owner 2026-11-13 「可能なら感知して存在を確認する」)."
+  },
+  "quest25_battle.py:_detect_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the sweep's and the tome phase's detection (absorbed or carried Rod of Detection / Staff of Detect Evil)."
+  },
+  "quest25_battle.py:_leave_fire": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the first step of the least exposed walk out of the casters' fire (_withdraw, the tome phase's rest)."
+  },
+  "quest25_battle.py:_refill_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the spent-attack refill: a fight first, the phase's own steps, then the between-phases rest."
+  },
+  "quest25_battle.py:_tome_unarmed": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the tome phase with no attack: out of the fire, detect, rest (owner 2026-11-13 「休んで充填を待つ」)."
   }
 }

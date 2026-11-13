@@ -96,6 +96,7 @@ from hengbot import (
     attack_expectation,
     breeder_area_attack,
     combat_answer,
+    hunt_target,
     me_capability,
     me_device_attacks,
     me_powers,
@@ -293,6 +294,8 @@ class Battle:
     recharge_rest_turn: int | None = None  # the turn the last counted recharge rest was keyed
     recharge_rests: int = 0        # this phase's counted recharge rests (``RECHARGE_REST_LIMIT``)
     gone: frozenset = frozenset()  # never-moving races not on their grid (``_immobile_gone``)
+    tome_detect: int | None = None  # the turn a detection to confirm the tome was keyed
+    tome_shown: bool = False       # a detection showed the tome on its grid this phase
     rest_cut: bool = False         # a sensed moving hostile cut that rest short
     fire_rest: tuple | None = None     # (decision, HP) of the last rest out of the casters' fire
     blind_sights: frozenset = frozenset()  # (target, cell): sight cells reached, the target not seen
@@ -713,9 +716,16 @@ def _safe_cells(ctx: _Ctx, fire) -> set:
 
 def _withdraw(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
     """Out of the fire by the least exposed walk, then the rest there."""
+    if ctx.here not in _fire(ctx):
+        return _rest_out_of_fire(ctx)
+    return _leave_fire(ctx, reason)
+
+
+def _leave_fire(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
+    """In the fire: the first step of the least exposed walk out of it; else None."""
     fire = _fire(ctx)
     if ctx.here not in fire:
-        return _rest_out_of_fire(ctx)
+        return None
     refused = _refused(ctx)
     safe = _safe_cells(ctx, fire) - refused
     occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
@@ -1547,16 +1557,24 @@ def _recharging_area_attack(ctx: _Ctx) -> bool:
 _FACED = frozenset({geo.IPSISSIMUS, geo.DREADMASTER})
 
 
+def _refill_key(ctx: _Ctx, *before: Callable[[], str | None]) -> str | None:
+    """Spent, not missing: refill them (the between-phases rest, ``_recharge_key``), fighting
+    what comes first; ``before``: the phase's own steps ahead of the rest, in order."""
+    targets = _fight_targets(ctx)
+    if targets:
+        return _engage(ctx, targets) or _hold(ctx)
+    for step in before:
+        if (key := step()) is not None:
+            return key
+    return _recharge_key(ctx)
+
+
 def _quyls(ctx: _Ctx, plan=None) -> str | None:
     plan = _quyl_plan(ctx) if plan is None else plan
     if plan is None:
         if not _recharging_area_attack(ctx):
             return None
-        # Spent, not missing: refill them (the between-phases rest), fighting what comes first.
-        targets = _fight_targets(ctx)
-        if targets:
-            return _engage(ctx, targets) or _hold(ctx)
-        return _recharge_key(ctx)
+        return _refill_key(ctx)
     # 「テレポート・アウェイを受けるとイプシシマスの残党やドリードマスターと相対する可能性がある。
     # その場合は加速して討伐を試みる。」
     faced = [monster for monster in ctx.in_view() if monster.race_id in _FACED]
@@ -1580,7 +1598,15 @@ def _quyls(ctx: _Ctx, plan=None) -> str | None:
 
 
 def _tome_done(ctx: _Ctx) -> bool:
+    if _tome_absent(ctx):
+        ctx.battle.gone = ctx.battle.gone | {geo.TOME}
     return ctx.kills(geo.TOME) >= geo.ROSTER[geo.TOME] or _immobile_gone(ctx, geo.TOME)
+
+
+def _placed(ctx: _Ctx, race: int):
+    """The plan's cell of the never-moving ``race`` (the battlefield's placements), else None."""
+    return next((tuple(cell) for cell, placed in ctx.navigator.battlefield.monster_placements
+                 if placed == race), None)
 
 
 def _immobile_gone(ctx: _Ctx, race: int) -> bool:
@@ -1602,8 +1628,7 @@ def _immobile_gone(ctx: _Ctx, race: int) -> bool:
     battle = ctx.battle
     if race in battle.gone:
         return True
-    cell = next((tuple(cell) for cell, placed in ctx.navigator.battlefield.monster_placements
-                 if placed == race), None)
+    cell = _placed(ctx, race)
     reached = {sight for aimed, sight in _blind_pairs(ctx) if aimed == cell}
     if cell is None or not reached or _seen_at(ctx, race, {cell}):
         return False
@@ -1650,12 +1675,65 @@ def _tome(ctx: _Ctx) -> str | None:
             return _walk(ctx, {stands[0]})
         return _haste(ctx) or _fire_at(ctx, tome, geo.TOME, missiles=seen)
     if far <= 0:
-        return None
+        return _tome_unarmed(ctx, tome)
     if _hopeless(ctx, hp, far):
         return _withdraw(ctx)
     if seen:
         return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
     return _walk_to_sight(ctx, tome, sights)
+
+
+def _tome_unarmed(ctx: _Ctx, tome) -> str | None:
+    """No attack reaches the tome and it may still be there (cells that see it are left).
+
+    Owner 2026-11-13 (the open question of n1-b life-382): 「休んで充填を待つ。また、可能なら感知して
+    存在を確認する。」  Out of the casters' fire first (the formation's 「クイル・破壊集大成・ドルジの
+    射線のマスでは待たず、休まない」), a detection that shows its race from where it reaches the
+    tome's grid (``_confirm_tome_key``; one not showing it there ends the phase, ``_tome_absent``),
+    then the between-phases rest (``_recharge_key``) until a charge is back and the phase's attack
+    answers again."""
+    return _refill_key(ctx, lambda: _leave_fire(ctx), lambda: _confirm_tome_key(ctx, tome))
+
+
+def _confirm_tome_key(ctx: _Ctx, tome) -> str | None:
+    """「可能なら感知して存在を確認する」: once per phase until it shows the tome (a cast that failed
+    is cast again), the sweep's detection (``_detect_key``) when its effect shows the tome's race
+    (hunt_target.REVEALS: the Rod of Detection every monster, Detect Evil the evil; 557 is EVIL)
+    and the tome's grid is within its reach (spells-detection.cpp detect_monsters_*:
+    Grid::calc_distance to the player within DETECT_RAD_DEFAULT)."""
+    battle = ctx.battle
+    if battle.tome_shown or battle.tome_detect is not None:
+        return None
+    found = _detector(ctx)
+    if found is None or quest_exposure.game_distance(ctx.here, tuple(tome)) > me_powers.DETECT_RAD:
+        return None
+    effect = (found[1] if found[0] == "power"
+              else me_powers.BY_KEY[(found[1], found[2].sval)]).effect
+    if not hunt_target.REVEALS[effect](hunt_target.race_flags(ctx.policy, geo.TOME)):
+        return None
+    key = _detect_key(ctx)
+    if key is not None:
+        battle.tome_detect = int(ctx.snapshot.turn)
+    return key
+
+
+def _tome_absent(ctx: _Ctx) -> bool:
+    """The board after the tome's detection (``_confirm_tome_key``), read as the sweep reads its
+    own (``_detection_failed``): a cast that failed is forgotten (cast again); else the tome is
+    shown on its grid (the phase goes on) or it is not there (the phase ends, as
+    ``_immobile_gone``)."""
+    battle = ctx.battle
+    cast = battle.tome_detect
+    if cast is None or ctx.snapshot.turn <= cast:
+        return False
+    battle.tome_detect = None
+    if _detection_failed(ctx, cast):
+        return False
+    tome = _placed(ctx, geo.TOME)
+    battle.tome_shown = any(monster.race_id == geo.TOME
+                            and (monster.position.y, monster.position.x) == tome
+                            for monster in ctx.hostiles())
+    return not battle.tome_shown
 
 
 def _note_glow(ctx: _Ctx) -> None:
@@ -1943,11 +2021,12 @@ def _sweep_targets(ctx: _Ctx) -> list:
             if monster.race_id not in {geo.DRUJ, geo.STAIRWAY}]
 
 
-def _detection_failed(ctx: _Ctx) -> bool:
-    """The board after the sweep's detection says the cast or the use failed (and shows nothing)."""
+def _detection_failed(ctx: _Ctx, turn: int | None = None) -> bool:
+    """The board after a detection keyed on ``turn`` (default the sweep's) says the cast or the use
+    failed (and shows nothing)."""
     from hengbot import kill_all_patrol
 
-    if ctx.snapshot.turn == ctx.battle.detect_turn:
+    if ctx.snapshot.turn == (ctx.battle.detect_turn if turn is None else turn):
         return False
     texts = [message_text(message) for message in ctx.snapshot.messages]
     return (any(line in text for text in texts for line in kill_all_patrol.FAILED_LINES)
