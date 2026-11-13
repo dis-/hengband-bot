@@ -213,11 +213,15 @@ class GuardTest(unittest.TestCase):
         self.assertFalse(pingpong_guard.holds_loop_stop(policy, board))
 
     def test_a_relocation_is_not_a_walk(self):
+        """A relocation (two cells and more) ends the alternation read so far: a round trip,
+        a teleport there and back, and one more round trip are not two round trips."""
         policy = HengbotPolicy()
-        far = Position(28, 93)
-        moves = [("explore", Q), ("seek-loot", P), ("explore", Q), ("seek-loot", far)]
-        _board, reports = self._walk(policy, moves)  # (26,93)->(28,93) is two cells
-        self.assertEqual(reports, [None] * 4)
+        far = Position(25, 93)
+        moves = [("explore", Q), ("seek-loot", P), ("emergency:teleport", far),
+                 ("emergency:teleport", P), ("explore", Q), ("seek-loot", P)]
+        board, reports = self._walk(policy, moves)
+        self.assertEqual(reports, [None] * 6)
+        self.assertFalse(left_cells.refused(policy, board))
 
     def test_the_same_pair_again_escalates_to_the_livelock_leave(self):
         policy = HengbotPolicy()
