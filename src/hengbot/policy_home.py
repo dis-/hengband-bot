@@ -4150,9 +4150,16 @@ class HomeMixin:
     @claims(ClaimOwner.HOME_VISIT)
 
     def _confirm_home_withdrawal_address(
-        self, signature: tuple[str, int, int], posted_index: int | None
+        self, signature: tuple[str, int, int], posted_index: int | None,
+        taken: int | None = None,
     ) -> None:
-        """Apply shelf-slot movement only after a Home take is observed."""
+        """Apply shelf-slot movement only after a Home take is observed.
+
+        ``taken`` is the observed take: the catalogue's stack loses it, and a stack
+        taken whole leaves the catalogue (n1-c life-207 2026-11-14 05:50: the
+        whole 知能の薬 stack the drink take carried out stayed listed, and the Home
+        sweep filed the take of that absent stack once the stat reached its maximum).
+        """
         index = posted_index
         if index is None:
             index = next(
@@ -4190,6 +4197,22 @@ class HomeMixin:
             )
         if owner_indices and index <= min(owner_indices):
             self._invalidate_home_observation()
+        self._remove_taken_from_home_catalogue(signature, index, taken)
+
+    def _remove_taken_from_home_catalogue(
+        self, signature: tuple[str, int, int], index: int, taken: int | None
+    ) -> None:
+        """The observed take leaves the catalogue's stack at ``index`` (the game
+        removes an emptied stack and shifts the later slots up)."""
+        items = list(self._home_knowledge_items)
+        if (taken is None or taken <= 0 or index >= len(items)
+                or self._item_signature(items[index]) != signature):
+            return
+        if items[index].count <= taken:
+            del items[index]
+        else:
+            items[index] = replace(items[index], count=items[index].count - taken)
+        self._home_knowledge_items = tuple(items)
 
     def _home_catalog_identification_source(
         self, snapshot: Snapshot, item

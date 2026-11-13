@@ -5,119 +5,116 @@ journal rows 0-34 and sidecar files (tests/extract_n1c_207_wait_recall_1114_fixt
 through the public choose_key; the keys are posted through the production
 executor (``_ExecutorInputPort``).
 
-Row 21 began the Home junk sweep (policy_home ``_begin_home_junk_sweep``): the two
-Potions of Intelligence on the Home shelf were surplus, Intelligence being at the
-character's maximum (consumable_policy.DRINK_AT_ONCE, f3c7369b38).  Row 24 read the
-recall (town:recall-to-alt-dungeon) and row 25 stepped off the Home entrance.  The
-relief in ``_decide`` runs before the departure's recall guard (ladder_objectives
-town:wait-recall), so row 32 walked the sweep back onto the entrance ('1' under the
-label town:wait-recall); the page was left for the recall (town:wait-recall-leave)
-and the entrance re-entered (shop:travel:await-entry '5'), 40 decisions in 7
-seconds, until the supervisor stopped the owner.
+Row 21 began the Home junk sweep (policy_home ``_begin_home_junk_sweep``) on the two
+Potions of Intelligence it took for surplus, Intelligence being at the character's
+maximum.  Row 24 read the recall (town:recall-to-alt-dungeon) and row 25 stepped off the
+Home entrance.  The relief in ``_decide`` ran before the departure's recall guard
+(ladder_objectives town:wait-recall), so row 32 walked the sweep back onto the entrance
+('1' under the label town:wait-recall); the page was left for the recall
+(town:wait-recall-leave) and the entrance re-entered (shop:travel:await-entry '5'), 40
+decisions in 7 seconds, until the supervisor stopped the owner.  Fix c4e02d7694: the relief
+waits while a town recall counts down.
 
-The relief now waits while a town recall counts down: the departure keeps the
-countdown off the entrance.
+stat-potion-ownership-1114: those two potions were not in Home.  Row 16 had taken the whole
+stack (``5pl2``) and rows 18 and 20 drank both; the confirmed take left the emptied stack in
+the catalogue, and the sweep filed the take of that absent stack.  The take now leaves the
+catalogue (policy_home._remove_taken_from_home_catalogue), so row 21 starts no sweep: it takes
+the Potions of Strength, drinks them and reads the recall
+(tests/test_stat_potion_ownership_1114_recorded.py).  The recorded rows from 21 on follow the
+old sweep and are not replayed; the countdown guard is pinned on the new flow's own read.
+
+DECLARED CONSTRUCTED: the Home and its entrance (StatPotionHomeGame); the countdown's boards
+after the read (the recall is set, each wait spends a turn).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
-import json
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import unittest
+from dataclasses import replace
 
+from hengbot import item_use_route
 from hengbot.model import STORE_HOME, parse_snapshot
-from hengbot.policy import WAIT_KEY, staged_prompt_chain_matches
-from support.town_arrival_fixture import load
+from hengbot.policy import WAIT_KEY
 from tests.support import recorded as executor_harness
+from tests.test_stat_potion_ownership_1114_recorded import (
+    INT_KIND, INTELLIGENCE, StatPotionOwnership1114RecordedTest, store_row,
+)
 
-FIXTURE = Path(__file__).with_name("fixtures") / "n1c-207-wait-recall-1114"
-READ_RECALL_ROW = 24
-STEP_ONTO_HOME_ROW = 32
-AWAIT_ENTRY_ROW = 34
+DIRECTIONS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
+              "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 
 
-class N1c207WaitRecall1114RecordedTest(executor_harness.RecordedHarness):
+class N1c207WaitRecall1114RecordedTest(StatPotionOwnership1114RecordedTest,
+                                       executor_harness.RecordedHarness):
     @classmethod
     def setUpClass(cls):
         pass  # The dungeon-1031 corpus of RecordedHarness is not read.
 
-    def setUp(self):
-        scratch = TemporaryDirectory()
-        self.addCleanup(scratch.cleanup)
-        self.policy, self.recorded, self.steps = load(FIXTURE, Path(scratch.name))
+    # The inherited pins run in their own module.
+    test_the_whole_taken_stack_leaves_the_catalogue = None
+    test_row_21_takes_the_useful_stack_and_never_the_absent_one = None
+    test_a_surplus_home_stack_is_the_sweeps_and_sold = None
+    test_a_carried_potion_past_the_maximum_is_released_to_the_sale = None
 
-    def raw(self, row):
-        entry = self.recorded[row]
-        return json.loads(entry["line"] if entry["line"] is not None else entry["inputs"][-1])
+    def read_recall(self):
+        """Row 21 on: the Strength take, both drunk, the recall read; the read's board."""
+        policy, board = self.to_row_21()
+        key = policy.choose_key(board)
+        shelf = [store_row(item) for item in policy._home_knowledge_items]
+        game, reasons = self.drive(policy, board, key, shelf)
+        self.assertEqual(reasons[-1], ("rei", "town:recall-to-alt-dungeon"), reasons)
+        self.assertEqual(game.quaffed, ["腕力の薬", "腕力の薬"], reasons)
+        self.assertIsNone(policy._home_full_relief)
+        policy.confirm_key_posted("rei")
+        # DECLARED CONSTRUCTED: the read's effect, the recall counting down.
+        raw = self.later(game._state(), turns=1)
+        raw["player"] = dict(raw["player"], recalling=True)
+        return policy, raw
 
-    def confirm(self, key):
-        policy = self.policy
-        if key:
-            policy.confirm_key_posted(key)
-            chain = policy.peek_staged_prompt_chain()
-            if chain is not None and staged_prompt_chain_matches(chain, key):
-                policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
-
-    def replay_to(self, end):
-        """Decide rows [0, end) posting the recorded keys; rows from the read on match."""
-        for row in range(end):
-            board = self.steps[row][1]()
-            key = self.policy.choose_key(board)
-            recorded = self.recorded[row]
-            if row >= READ_RECALL_ROW:
-                self.assertEqual((key, self.policy.last_reason),
-                                 (recorded["key"], recorded["reason"]), row)
-            # Rows 19 and 21 hold the CLI's periodic character dump, which it
-            # posts in place of the policy's key (not journalled).
-            self.confirm(recorded["key"])
-
-    def test_recall_countdown_stays_off_the_home_entrance(self):
-        self.replay_to(STEP_ONTO_HOME_ROW)
-        board = self.steps[STEP_ONTO_HOME_ROW][1]()
-        self.assertTrue(board.player.recalling)
-        self.assertIsNotNone(self.policy._home_full_relief)   # the sweep began at row 21
+    def test_the_visit_ends_in_the_recall_without_a_sweep(self):
+        policy, raw = self.read_recall()
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         entrance = next(grid.position for grid in board.grids.values()
                         if grid.store_number == STORE_HOME)
-        self.assertEqual(entrance.distance_to(board.player.position), 1)
-        # Recorded: '1' onto the Home entrance under town:wait-recall.
-        self.assertEqual((self.recorded[STEP_ONTO_HOME_ROW]["key"],
-                          self.recorded[STEP_ONTO_HOME_ROW]["reason"]), ("1", "town:wait-recall"))
-        raw = self.raw(STEP_ONTO_HOME_ROW)
+        self.assertEqual(board.player.position, entrance)
+        self.assertTrue(board.player.recalling)
+
+    def test_recall_countdown_stays_off_the_home_entrance(self):
+        policy, raw = self.read_recall()
+        # DECLARED CONSTRUCTED: a surplus ware on the Home shelf, the Home sweep's (the old row 21's
+        # 知能の薬 x2, now real): the countdown still never walks back to Home for it.
+        catalogue = list(policy._home_knowledge_items)
+        potion = next(index for index, item in enumerate(catalogue) if item.tval == INT_KIND[0])
+        catalogue.insert(potion, replace(catalogue[potion], name="知能の薬", sval=INTELLIGENCE,
+                                         count=2))
+        policy.consume_home_knowledge(tuple(catalogue))
+        board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        home_int = next(item for item in policy._home_knowledge_items
+                        if (item.tval, item.sval) == INT_KIND)
+        self.assertTrue(item_use_route.surplus(policy, board, home_int))
+        entrance = board.player.position
+        # On the entrance the countdown steps off (the recorded row 25 '9').
+        key = policy.choose_key(board)
+        self.assertEqual(policy.last_reason, "town:wait-recall-step-off")
+        self.assertIn(key, DIRECTIONS)
+        dy, dx = DIRECTIONS[key]
+        following = self.later(raw)
+        following["player"] = dict(following["player"], y=raw["player"]["y"] + dy,
+                                   x=raw["player"]["x"] + dx)
+        self.assertEqual(self.post(policy, raw, key, [], following), [key])
+        policy.confirm_key_posted(key)
+        raw = following
         reasons = []
         for _ in range(8):
-            key = self.policy.choose_key(board)
-            reasons.append((key, self.policy.last_reason))
-            self.assertEqual(reasons[-1], (WAIT_KEY, "town:wait-recall"), reasons)
-            # DECLARED CONSTRUCTED: the countdown's next board (the wait spends a turn).
-            following = self.later(raw)
-            self.assertEqual(self.post(self.policy, raw, key, [], following), [key])
-            self.confirm(key)
-            raw = following
-            board = parse_snapshot(copy.deepcopy(raw), self.policy._monrace_knowledge)
+            board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
             self.assertEqual(board.player.position.distance_to(entrance), 1)
-
-    def test_on_the_entrance_the_countdown_steps_off(self):
-        self.replay_to(STEP_ONTO_HOME_ROW)
-        # The recorded run: '1' onto the entrance, the page left for the recall.
-        for row in (STEP_ONTO_HOME_ROW, STEP_ONTO_HOME_ROW + 1):
-            board = self.steps[row][1]()
-            key = self.policy.choose_key(board)
-            if row == STEP_ONTO_HOME_ROW + 1:
-                self.assertEqual((key, self.policy.last_reason),
-                                 ("\x1b", "town:wait-recall-leave"))
-            self.confirm(self.recorded[row]["key"])
-        board = self.steps[AWAIT_ENTRY_ROW][1]()
-        here = board.grid_at(board.player.position)
-        self.assertEqual((here.store_number, board.player.recalling), (STORE_HOME, True))
-        # Recorded: '5' shop:travel:await-entry re-entered Home.
-        self.assertEqual((self.recorded[AWAIT_ENTRY_ROW]["key"],
-                          self.recorded[AWAIT_ENTRY_ROW]["reason"]),
-                         ("5", "shop:travel:await-entry"))
-        key = self.policy.choose_key(board)
-        self.assertEqual((key, self.policy.last_reason), ("9", "town:wait-recall-step-off"))
-        raw = self.raw(AWAIT_ENTRY_ROW)
-        self.assertEqual(self.post(self.policy, raw, key, [], self.later(raw)), [key])
+            key = policy.choose_key(board)
+            reasons.append((key, policy.last_reason))
+            self.assertEqual(reasons[-1], (WAIT_KEY, "town:wait-recall"), reasons)
+            following = self.later(raw)
+            self.assertEqual(self.post(policy, raw, key, [], following), [key])
+            policy.confirm_key_posted(key)
+            raw = following
 
 
 if __name__ == "__main__":
