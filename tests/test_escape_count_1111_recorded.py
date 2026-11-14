@@ -22,7 +22,7 @@ the locusts; the active Word of Recall (``player.recalling``) of the last case.
 
 Owner 2026-11-13 「射線にT1が入っていない=感知しただけはカウントしない」: on 4229938 no awake
 hostile known (the five 1244, the two 746, the 812) has a line of fire to the player at (22,53),
-so that sensed-T1 Teleportation is no escape (threat_tiers.counts_as_escape;
+so that sensed-T1 Teleportation is no escape (line_of_fire.counted;
 test_a_sensed_t1_out_of_the_line_of_fire_is_no_escape).  The C1 cases need it to count: they
 declare it in the line of fire (``in_line_of_fire``), the case the 11-13 rule still counts.
 """
@@ -32,7 +32,7 @@ import copy
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, threat_tiers
+from hengbot import destruction_use, line_of_fire, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -51,7 +51,7 @@ def flash(raw):
 def in_line_of_fire():
     """DECLARED CONSTRUCTED: the sensed T1 left on 4229938 reads as in the line of fire."""
     def note(policy, snapshot, strong):
-        setattr(policy, threat_tiers.IN_LINE_OF_FIRE, True)
+        setattr(policy, line_of_fire.RECORD, True)
     return mock.patch.object(threat_tiers, "note_line_of_fire", note)
 
 

@@ -53,6 +53,7 @@ from hengbot import (
     disenchant_avoid,
     hunt_target,
     left_cells,
+    line_of_fire,
     retreat_veto_life,
     speed_dose,
     survival_preemption,  # noqa: F401 -- re-exported (tests patch threat_tiers.survival_preemption)
@@ -510,9 +511,10 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     if destruction_only:
         # The random quest floor (``destruction_only_here``): the use alone, never a leave.
         return destruction_use.key(policy, snapshot, leaving=strong)
-    # Owner 2026-11-13 「射線にT1が入っていない=感知しただけはカウントしない」: the leave below is
-    # counted as an escape (escape_count, the two-escape return) only when a T1 it leaves is in
-    # the line of fire; policy_observation reads this on the next board.
+    # Owner 2026-11-13 「射線にT1が入っていない=感知しただけはカウントしない」 (2026-11-14 for every
+    # escape, line_of_fire): the leave below is counted as an escape (escape_count, the
+    # two-escape return) only when a T1 it leaves is in the line of fire; policy_observation
+    # reads this on the next board.
     note_line_of_fire(policy, snapshot, strong)
     stairs = policy._escape_by_stairs(snapshot)
     if stairs is not None:
@@ -548,22 +550,10 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     return None
 
 
-IN_LINE_OF_FIRE = "_sensed_t1_in_line_of_fire"
-
-
 def note_line_of_fire(policy, snapshot, strong) -> None:
-    """Whether a T1 the sensed leave leaves has a line of fire to the player on this board."""
-    origin = snapshot.player.position
-    setattr(policy, IN_LINE_OF_FIRE, any(
-        policy._has_line_of_fire(snapshot, monster.position, origin) for monster in strong))
-
-
-def counts_as_escape(policy, reason) -> bool:
-    """A sensed T1 leave counts only when a T1 it left was in the line of fire (owner
-    2026-11-13); every other counted reason counts as before."""
-    if not (reason or "").startswith(SENSED_LEAVE_PREFIX):
-        return True
-    return getattr(policy, IN_LINE_OF_FIRE, True)
+    """Whether a T1 the sensed leave leaves has a line of fire to the player on this board
+    (line_of_fire, the escape count's one owner of it)."""
+    line_of_fire.note(policy, snapshot, strong)
 
 
 def _sensed_strong(policy, snapshot) -> tuple[list, list]:

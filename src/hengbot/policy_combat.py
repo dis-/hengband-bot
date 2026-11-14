@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
@@ -2550,8 +2550,22 @@ class CombatMixin:
         if lethal or summoner_open:
             self._emergency_escape_pending = True
             self._emergency_return_active = True
+            # Owner 2026-11-14 「テレポートを使い逃げにカウントするのは射線が通っている場合のみ
+            # にしたい。」: the escape this ladder takes on this board counts (and may latch the
+            # return as the second) only when one of its causes has a line of fire to the
+            # player; the damage that reached the player (an unseen attacker's loss, the
+            # observed or carried loss) stands for one, as the owner's 「数える」 of the same day.
+            in_fire = line_of_fire.note(
+                self, snapshot, line_of_fire.ladder_causes(self, snapshot, hostiles, [
+                    monster for monster in summoners
+                    if summoner_open and self._summoner_may_summon_next_turn(snapshot, monster)]),
+                proof=(unseen_lethal or unseen_caster_in_combat or observed_loss_lethal
+                       or carried_escape
+                       or threat_projection.unseen_correction(
+                           self, snapshot, threat_tiers.engagement(self, snapshot)) > 0))
             if (
                 not guardian_reposition
+                and in_fire
                 and self._dive_emergencies + 1 >= EMERGENCY_RETURN_COUNT
             ):
                 self._note_return_start((

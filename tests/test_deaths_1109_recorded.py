@@ -49,7 +49,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, fear_cover, sent_away_t1, status_cure, threat_tiers
+from hengbot import destruction_use, fear_cover, line_of_fire, sent_away_t1, status_cure, threat_tiers
 from hengbot.cli import _PolicyObserverScope
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.me_device_attacks import observe_lists
@@ -233,7 +233,7 @@ class EveryEscapeCountsRecordedTest(DeathsRecordedHarness):
         # recorded none has one (test_escape_count_1111_recorded), and owner 2026-11-13
         # 「射線にT1が入っていない=感知しただけはカウントしない」 counts it only then.
         def in_line_of_fire(policy, snapshot, strong):
-            setattr(policy, threat_tiers.IN_LINE_OF_FIRE, True)
+            setattr(policy, line_of_fire.RECORD, True)
         with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
                                lambda self, *args, **kwargs: frozenset()),                 mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire):
             policy, answers = self.replay("life-355", 4229948, without=(DESTRUCTION_NAME,))

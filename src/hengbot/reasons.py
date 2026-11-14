@@ -115,7 +115,8 @@ _rows(RELOCATING, "policy", _RULE_ALL, "flee:scroll", "flee:stairs", "flee:stair
       "threat:scroll")
 # the sensed T1 leave (threat_tiers.sensed_t1_leave_key, SENSED_LEAVE_PREFIX + ...; blind, through
 # threat_escape.blind_teleport_key).  Owner 2026-11-13 「射線にT1が入っていない=感知しただけは
-# カウントしない」: counted only when a T1 left was in the line of fire (threat_tiers.counts_as_escape).
+# カウントしない」: counted only when a T1 left was in the line of fire (line_of_fire, 2026-11-14 for
+# every counted reason).
 _rows(RELOCATING, ("threat_tiers", "threat_escape"), _RULE_ALL,
       "sensed-t1:teleport", "sensed-t1:teleport:absorbed-power", "sensed-t1:teleport-staff",
       "sensed-t1:phase", "sensed-t1:stairs", "sensed-t1:recall")

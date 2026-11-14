@@ -6,7 +6,7 @@ those boards showed it).
 
 1. 「遠い品は拾ってよい」 (summoner_far_loot): life-200 Angband 49F, the remembered summoners'
    block held seven items 4-9 cells away with nothing in sight (live: explore, then Recall).
-2. 「射線にT1が入っていない=感知しただけはカウントしない」 (threat_tiers.counts_as_escape):
+2. 「射線にT1が入っていない=感知しただけはカウントしない」 (line_of_fire.counted):
    life-205 Angband 46F, two sensed-T1 teleports at full HP with nothing in sight made the two
    escapes that read Recall (21:35:57 and 21:37:22).
 3. 「価値の低い品を捨てて拾う」 (full_pack_exchange): life-205 Angband 62F quest 46, 23 of 23
@@ -25,7 +25,7 @@ import json
 from pathlib import Path
 import unittest
 
-from hengbot import full_pack_exchange, loot_frontier, me_powers, summoner_far_loot, threat_tiers
+from hengbot import full_pack_exchange, line_of_fire, loot_frontier, me_powers, summoner_far_loot, threat_tiers
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -94,7 +94,7 @@ class N1cLootRules1113RecordedTest(unittest.TestCase):
         policy.confirm_key_posted(key)
         self.assertEqual(policy.last_reason, "sensed-t1:teleport")
         self.assertEqual(snapshot.player.hp, snapshot.player.max_hp)
-        self.assertFalse(getattr(policy, threat_tiers.IN_LINE_OF_FIRE))
+        self.assertFalse(getattr(policy, line_of_fire.RECORD))
         self.replay(policy, boards[48:49])
         self.assertEqual(policy._dive_emergencies, 0)
 
