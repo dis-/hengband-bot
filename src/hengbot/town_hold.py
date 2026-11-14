@@ -1276,6 +1276,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("emergency:seek-upstairs", R, WALK_TARGET),
         ("flee", T, EFFECT),
         ("flee:stairs", O, FLOOR_CHANGE),
+        ("flee:seek-upstairs", R, WALK_TARGET),
         ("combat:disengage", T, EFFECT),
         ("combat:disengage-recall", O, FLOOR_CHANGE),
         ("combat:disengage-stairs", O, FLOOR_CHANGE),

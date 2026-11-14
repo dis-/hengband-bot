@@ -15,7 +15,7 @@ view the pre-combat layer chose (ladder_pre_combat.MiningViews).
 """
 from __future__ import annotations
 
-from hengbot import combat_answer, destruction_use, disenchant_avoid, immobile_threat_memory, me_ranged_first, paralyzer_contact, threat_tiers, town_last_stand
+from hengbot import combat_answer, destruction_use, disenchant_avoid, immobile_threat_memory, me_ranged_first, paralyzer_contact, threat_tiers, town_last_stand, walkout_stairs
 from functools import partial
 from hengbot.dungeon_ladder import PASS
 from hengbot.policy_constants import DETECTED_THREAT_HOLD_MAX_GAME_TURNS, ExplorationPathOutcome, SUMMONER_CHOKE_NEIGHBORS, SUMMONER_EXPOSED_NEIGHBORS, SUMMONER_RANGED_KILL_SHOTS, UP_STAIRS_KEY, WAIT_KEY
@@ -168,6 +168,15 @@ def key(
         tiers_leave = threat_tiers.leave_due(policy, snapshot, strategic_hostiles)
         tiers_walk = not tiers_leave or threat_tiers.walk_leaves(
             policy, snapshot, strategic_hostiles)
+        # A declared walk-out whose up-stair the player reaches before any hostile comes beside
+        # the route walks on to it rather than away from the hostiles (n1-c life-209, Yeek cave
+        # 1F: the flee step walked away from a stair two steps off into the mouse swarm).
+        toward = walkout_stairs.step(policy, snapshot) if tiers_walk else None
+        if toward is not None:
+            policy.last_reason = "flee:seek-upstairs"  # walkout_stairs.REASON
+            policy._declare_reach(toward[1])
+            return policy._town_producer_entry(
+                "_step_toward:escape", lambda: policy._step_toward(snapshot, toward[0]), family="escape")
         step = (policy._town_producer_entry("_flee_step#2", lambda: policy._flee_step(snapshot, strategic_hostiles))
                 if tiers_walk else None)
         if step is not None:

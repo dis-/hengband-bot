@@ -19272,5 +19272,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "walkout_stairs.py:step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: the combat layer's flee rung (ladder_combat.key) asks it; it returns None in town (snapshot.in_town) and on a locked quest floor.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the first step and the up-stair of the declared walk-out's route (_nearest_goal_route) when no visible hostile can come beside it first; the flee rung sends the step (_step_toward:escape, flee:seek-upstairs).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
