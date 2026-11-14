@@ -49,6 +49,8 @@ def main(roots: list[str]) -> int:
 
     arbiter = _new_town_turn_arbiter()
     peak: collections.Counter = collections.Counter()
+    source: dict[str, str] = {}
+    having: collections.Counter = collections.Counter()
     counted: collections.Counter = collections.Counter()
     skipped = 0
     for root in roots:
@@ -69,10 +71,14 @@ def main(roots: list[str]) -> int:
                 for row in rows[:span[0]]
                 if not is_walking(row.get("key"), row.get("reason")))
             for stage in STAGE_MEASURED:
-                peak[stage] = max(peak[stage], stages[stage])
+                if stages[stage]:
+                    having[stage] += 1
+                if stages[stage] > peak[stage]:
+                    peak[stage], source[stage] = stages[stage], str(capture)
     print(f"counted {dict(counted)}, excluded (loop or stop) {skipped}")
     for stage, measured in STAGE_MEASURED.items():
-        print(f"{stage:15s} journals {peak[stage]:4d}  STAGE_MEASURED {measured}")
+        print(f"{stage:15s} journals {peak[stage]:4d} (visits with the stage {having[stage]:3d})"
+              f"  STAGE_MEASURED {measured}  max from {source.get(stage, '-')}")
     return 0
 
 

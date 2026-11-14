@@ -138,35 +138,40 @@ def progress_defect_reason(winner: str, progress: str) -> str:
 # and 2026-11-14 「歩きは数えない」: a visit's own operations in one stage (no
 # interrupt, no walk: is_walking) past the stage's deadline stop the visit
 # under the stage's name (STAGE_DEADLINE_STOP_PREFIX + stage).  Each deadline
-# is twice the larger of two measurements of the stage's per-visit maximum,
-# both taken 2026-11-14 without walks:
-#   journals: the 264 recorded town-arrival journals under C:\hengband-backups
-#     (2026-11-03 .. 11-14), scripts/town_stage_deadline_measure.py.  Counted
-#     are the 92 visits that did not end in a loop or a stop: 84 that reached
-#     their departure (counted up to the recall read or the stairs and through
-#     the recall countdown), 6 that ended in the player's death and the 2 Zul
-#     round trips.  Excluded are the 172 visits that ended in a town loop
-#     (loop-detected, stuck-prompt, a forced repetition departure) or a named
-#     stop (town:blocked:*, quest:blocked:*, departure-unsatisfiable,
-#     owner-retired-burst, no-key-exhausted ...).
-#   replay: the 222 replayable visits of 233 such records replayed through
-#     choose_key (main 8093ea6c6c) until they left the record; it stops early,
-#     so it only sets a floor.
+# is twice the largest of three measurements of the stage's per-visit
+# maximum, all taken 2026-11-14 without walks and over the visits that did not
+# end in a loop or a stop:
+#   journals: the 270 recorded town-arrival journals under C:\hengband-backups
+#     (2026-11-03 .. 11-14), scripts/town_stage_deadline_measure.py: 92 visits
+#     (84 that reached their departure, counted up to the recall read or the
+#     stairs and through the recall countdown; 6 that ended in the player's
+#     death; the 2 Zul round trips).  Excluded are the 178 visits that ended
+#     in a town loop (loop-detected, stuck-prompt, a forced repetition
+#     departure) or a named stop (town:blocked:*, quest:blocked:*,
+#     departure-unsatisfiable, owner-retired-burst, no-key-exhausted ...).
+#   replay: the same records' visits replayed through choose_key (main
+#     8093ea6c6c) until they left the record, the 75 of them that did not end
+#     in a loop or a stop.
+#   recorded tests: the 172 town visits of the passing *_recorded tests (the
+#     recorded boards under the current code, whose original stop may have
+#     been fixed since), run with the deadlines lifted, but for the 3 that end
+#     in a stop; the equipment maximum is n1-c life-202's swap session of
+#     2026-11-12 (tests/test_town_weight_torch_1112_recorded, 30).
 # The first deadlines (2026-11-13/14 morning) counted walks too: n1-a life-522
 # and n1-b life-395/396 stopped at town:blocked:stage-deadline:equipment while
 # walking to Home (approach-home, town:kill-mob-approach).
 # 2026-11-13 の再生の測り×2、観戦のボットが超えたら見直す
-STAGE_MEASURED: dict[str, tuple[int, int]] = {
-    # stage: (journals, replay), 2026-11-14, walks not counted
-    "home": (30, 20),
-    "identification": (13, 4),
-    "equipment": (14, 11),
-    "sell": (12, 6),
-    "buy": (18, 11),
-    "quest": (14, 8),
-    "travel": (1, 1),
-    "fundraising": (0, 48),
-    "departure": (55, 1),
+STAGE_MEASURED: dict[str, tuple[int, int, int]] = {
+    # stage: (journals, replay, recorded tests), 2026-11-14, walks not counted
+    "home": (30, 8, 26),
+    "identification": (13, 4, 10),
+    "equipment": (14, 6, 30),
+    "sell": (12, 5, 6),
+    "buy": (18, 8, 17),
+    "quest": (14, 8, 7),
+    "travel": (1, 1, 1),
+    "fundraising": (0, 0, 1),
+    "departure": (55, 1, 9),
 }
 STAGE_DEADLINES: dict[str, int] = {
     stage: 2 * max(measured) for stage, measured in STAGE_MEASURED.items()

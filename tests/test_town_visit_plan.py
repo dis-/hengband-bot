@@ -143,8 +143,8 @@ class StageDeadlineTest(unittest.TestCase):
     def test_deadlines_are_twice_the_larger_measurement(self):
         # Owner 2026-11-14 「ループと止まり以外の全訪問で測る」 and 「歩きは数えない」.
         self.assertEqual(town_visit_plan.STAGE_DEADLINES, {
-            "quest": 28, "buy": 36, "home": 60, "fundraising": 96, "departure": 110,
-            "equipment": 28, "sell": 24, "identification": 26, "travel": 2})
+            "quest": 28, "buy": 36, "home": 60, "fundraising": 2, "departure": 110,
+            "equipment": 60, "sell": 24, "identification": 26, "travel": 2})
 
     def test_a_stage_past_its_deadline_is_its_named_stop(self):
         policy = double("x", 0)
