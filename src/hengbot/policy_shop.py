@@ -30,7 +30,7 @@ from hengbot.home_visit import HomeVisitKind
 from hengbot.quest_strategies import heal_potion_sval, is_heal_potion_for
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
 from math import ceil
-from hengbot.equipment_optimizer import equipment_identity
+from hengbot.equipment_optimizer import equipment_identity, random_teleport_is_suppressed
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.store_sale import has_positive_sale_value, sale_monrace
 from hengbot.model import SPELLBOOK_TVALS, TVAL_HISSATSU_BOOK
@@ -4673,7 +4673,9 @@ class ShopMixin(InStoreMixin):
                 prefix = reserved_item_command(self, snapshot, "inscribe", item, "shop-sell")
                 if prefix is None:
                     continue
-                inscribe_parts.append(prefix + exact_tag + "\r")
+                inscribe_parts.append(
+                    prefix + self._sale_tag_text(item, digit) + "\r"
+                )
             sale = self._batch_sale_entry(snapshot, item, digit)
             if sale is None:
                 self._batch_sell_pending = None
@@ -4724,6 +4726,24 @@ class ShopMixin(InStoreMixin):
     def _sale_inscription_text(item: InventoryItem) -> str:
         """Return the inscription even when the emitter only decorates ``name``."""
         return item.inscription or item.name
+
+    @staticmethod
+    def _sale_tag_text(item: InventoryItem, tag: str) -> str:
+        """The inscription a sale writes to address ``item`` by ``@<tag>``.
+
+        The game's inscription prompt opens on the old text and its first key
+        replaces it, so the tag alone would erase the random-teleport
+        suppression's '.' (equipment-txn inscribes every carried TR_TELEPORT
+        item so the optimizer may weigh it).  That producer then left the store
+        to write it back and the sale re-entered to tag it again, until the
+        livelock stop (n1-b life-397 2026-11-14 19:24, an unselected
+        (トランプ) トライデント at the Weaponsmith).  The tag keeps the '.'.
+        """
+        suppressed = (
+            "." in item.inscription if item.inscription
+            else random_teleport_is_suppressed(item)
+        )
+        return f"@{tag}." if suppressed else f"@{tag}"
 
     @classmethod
     def _item_has_sale_tag(cls, item: InventoryItem, tag: str) -> bool:
