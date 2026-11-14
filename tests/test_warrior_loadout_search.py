@@ -10,9 +10,13 @@ from hengbot.equipment_optimizer import (
     SLOT_BODY,
     SLOT_LIGHT,
     SLOT_MAIN_HAND,
+    SLOT_ARMS,
     SLOT_MAIN_RING,
+    SLOT_NECK,
     SLOT_SUB_RING,
     TR_AGGRAVATE,
+    TR_FREE_ACT,
+    TR_TELEPATHY,
     Loadout,
     OwnedEquipment,
     hand_configurations,
@@ -719,6 +723,37 @@ class WarriorSingleSlotSearchTest(unittest.TestCase):
             frozenset({"light", "home-weapon", "cur-body", "home-ring"}), id_sets
         )
         self.assertLess(len(variants), 20)
+
+    def test_a_requirement_repair_pairs_the_next_bands_ability_with_a_lost_one(self):
+        # n1-b life-397 2026-11-14 (tests/test_n1b_397_50f_gate_1114_recorded.py):
+        # the telepathy amulet (50F) displaces the worn Free Action amulet, which a
+        # Home glove puts back; one swap at a time reaches neither set.
+        free_action, telepathy = TR_FREE_ACT, TR_TELEPATHY
+        light = self._equipped("light", 39, SLOT_LIGHT)
+        weapon = self._equipped("cur-weapon", 23, SLOT_MAIN_HAND)
+        sage = self._equipped("sage", 40, SLOT_NECK, flags=(free_action,))
+        gloves = self._equipped("slaying", 31, SLOT_ARMS, to_h=2, to_d=5)
+        amulet = owned("telepathy", 40, flags=(telepathy,))
+        fa_gloves = owned("fa-gloves", 31, flags=(free_action,), ac=5)
+        plain_gloves = owned("plain-gloves", 31, ac=9)
+        items = (light, weapon, sage, gloves, amulet, fa_gloves, plain_gloves)
+        current = frozenset({"light", "cur-weapon", "sage", "slaying"})
+        pair = frozenset({"light", "cur-weapon", "telepathy", "fa-gloves"})
+
+        def variants(repair_flags):
+            return [loadout.item_ids for loadout in enumerate_single_slot_variants(
+                items, current_item_ids=current, require_light=True,
+                required_flags=frozenset({free_action}), repair_flags=repair_flags)]
+
+        repaired = variants(frozenset({free_action, telepathy}))
+        self.assertIn(pair, repaired)
+        # Never a set that drops a worn depth ability, nor the amulet alone.
+        self.assertNotIn(frozenset({"light", "cur-weapon", "telepathy", "plain-gloves"}), repaired)
+        self.assertNotIn(frozenset({"light", "cur-weapon", "telepathy", "slaying"}), repaired)
+        # Without repair flags (an intrinsic telepathy, say) only single swaps.
+        single = variants(frozenset())
+        self.assertNotIn(pair, single)
+        self.assertEqual(set(repaired) - set(single), {pair})
 
     def test_large_ring_catalog_does_not_explode(self):
         light = self._equipped("light", 39, SLOT_LIGHT)

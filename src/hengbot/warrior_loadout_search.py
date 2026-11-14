@@ -680,6 +680,9 @@ class WarriorSingleSlotSearch:
     required_flags: frozenset[int] = frozenset()
     # The loadout whose neighbours are yielded; None is the worn loadout.
     seed: Loadout | None = None
+    # The depth-ability flags (ABILITY_FLAG) the items must supply, those the
+    # character lacks intrinsically: the flags of the requirement repairs.
+    repair_flags: frozenset[int] = frozenset()
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
@@ -734,6 +737,26 @@ class WarriorSingleSlotSearch:
             seen.add(key)
             return loadout
 
+        # Every single swap, accepted or not, as (slot changes, hand mode);
+        # the requirement repairs below pair them.
+        moves: list[tuple[dict[str, OwnedEquipment | None], str | None]] = []
+
+        def build(chosen) -> Loadout | None:
+            new_slots = dict(base)
+            mode = current.hand_mode
+            for changes, hand_mode in chosen:
+                for name, item in changes.items():
+                    if item is None:
+                        new_slots.pop(name, None)
+                    else:
+                        new_slots[name] = item
+                if hand_mode is not None:
+                    mode = hand_mode
+            ids = [item.id for item in new_slots.values()]
+            if len(ids) != len(set(ids)):
+                return None
+            return Loadout(tuple(new_slots.items()), mode)
+
         # Always keep the current loadout as a candidate so the optimizer can
         # retain it when no single swap improves on it.
         kept = accept(current)
@@ -766,6 +789,7 @@ class WarriorSingleSlotSearch:
                         if other_item is not None and other_item.id == choice_id:
                             continue
                     new_slots[slot] = choice
+                moves.append(({slot: choice}, None))
                 variant = accept(Loadout(tuple(new_slots.items()), current.hand_mode))
                 if variant is not None:
                     yield variant
@@ -797,9 +821,41 @@ class WarriorSingleSlotSearch:
                 new_slots[SLOT_MAIN_HAND] = hands.main
             if hands.sub is not None:
                 new_slots[SLOT_SUB_HAND] = hands.sub
+            moves.append(({SLOT_MAIN_HAND: hands.main, SLOT_SUB_HAND: hands.sub},
+                          hands.mode))
             variant = accept(Loadout(tuple(new_slots.items()), hands.mode))
             if variant is not None:
                 yield variant
+
+        # Requirement repairs: a swap that adds a depth ability (the
+        # DEPTH_ABILITY_REQUIREMENTS flags in ``repair_flags``) but takes off one
+        # the seed wears, paired with a swap in another slot that puts every lost
+        # one back.  One swap at a time could never reach such a set: n1-b
+        # life-397 (2026-11-14) kept the 賢者のアミュレット for its Free Action
+        # while the テレパシーのアミュレット (the 50F addition) waited in the
+        # Home with four Free Action gauntlets, so the amulet alone lost Free
+        # Action (refused, required from 20F) and the gauntlets alone unlocked
+        # nothing; the destination stayed at 49F.  A pair keeps every depth
+        # ability the seed wears, so it never drops a requirement the seed
+        # meets; the optimizer's band descent still decides whether it wins.
+        depth_flags = self.repair_flags
+        held = current.flags & depth_flags
+        for gain in moves:
+            gained_set = build((gain,))
+            if gained_set is None:
+                continue
+            added = (gained_set.flags & depth_flags) - held
+            if not added or held.issubset(gained_set.flags):
+                continue
+            for repair in moves:
+                if repair is gain or set(repair[0]) & set(gain[0]):
+                    continue
+                pair = build((gain, repair))
+                if pair is None or not (held | added).issubset(pair.flags):
+                    continue
+                variant = accept(pair)
+                if variant is not None:
+                    yield variant
 
 
 def enumerate_single_slot_variants(
@@ -811,9 +867,11 @@ def enumerate_single_slot_variants(
     require_light: bool = False,
     required_flags: frozenset[int] = frozenset(),
     seed: Loadout | None = None,
+    repair_flags: frozenset[int] = frozenset(),
 ) -> WarriorSingleSlotSearch:
-    """Yield ``seed`` (the current loadout by default) plus its single-slot-swap neighbours."""
+    """Yield ``seed`` (the current loadout by default) plus its single-slot-swap
+    neighbours and the requirement repairs of ``repair_flags``."""
     return WarriorSingleSlotSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
-        require_light, required_flags, seed,
+        require_light, required_flags, seed, repair_flags,
     )

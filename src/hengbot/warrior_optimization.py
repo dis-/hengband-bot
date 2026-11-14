@@ -946,6 +946,13 @@ def prepare_warrior_optimization(
         for item in items
     )
     required_flags = frozenset(required_candidate_flags)
+    # The depth abilities the items must supply: a set that adds one of them
+    # (the next band's) while another slot keeps every one worn is searched
+    # as a pair (WarriorSingleSlotSearch's requirement repairs).
+    repair_flags = frozenset(
+        flag for ability, flag in ABILITY_FLAG.items()
+        if ability not in intrinsic_abilities
+    )
     flag_sets = [required_flags]
     if free_action_wearable(
         items, required_flags, intrinsic_abilities, search_excluded_item_ids
@@ -986,6 +993,8 @@ def prepare_warrior_optimization(
                 require_light=require_light,
                 required_flags=flags,
                 **({} if seed is None else {"seed": seed}),
+                **({"repair_flags": repair_flags}
+                   if search_factory is enumerate_single_slot_variants else {}),
             )
 
         if search_factory is enumerate_single_slot_variants:
