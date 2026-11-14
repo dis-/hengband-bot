@@ -182,8 +182,18 @@ class JunkPlainGearRecordedTest(unittest.TestCase):
         head = dict(self._loadout(policy).slots)["head"]
         self.assertEqual(head.item.name, "鋼鉄ヘルメット [6,+5]")
         self.assertIsNone(names["鋼鉄ヘルメット [6,+5]"])
-        for kept in ("マン・ゴーシュ (1d5) (+3,+10)", "カオス・ブレード (6d5) (+3,+6)"):
-            self.assertIsNone(names[kept], kept)
+        self.assertIsNone(names["マン・ゴーシュ (1d5) (+3,+10)"])
+        # Since n1-b life-397 2026-11-14 the search also pairs a swap that adds
+        # a depth ability but drops a worn one with a swap that puts it back
+        # (tests/test_n1b_397_50f_gate_1114_recorded.py).  It reaches the 49F
+        # band here (the 30F band before) with the Home's ☆カオス・ブレード
+        # 『ドゥランノン』, so the plain カオス・ブレード of the same base is
+        # judged against an artifact main weapon (owner Q-D 2026-10-22) and
+        # is worse than it.
+        main = dict(self._loadout(policy).slots)["main_hand"]
+        self.assertEqual(main.item.name,
+                         "☆カオス・ブレード『ドゥランノン』 (6d5) (+16,+20) (+4) {+知r沌/人}")
+        self.assertEqual(names["カオス・ブレード (6d5) (+3,+6)"], "plain-gear")
 
     def test_unidentified_average_gloves_are_rated_with_their_base_ac(self):
         # Owner 2026-11-13: the worn セスタス [5] {並} prints its base AC; the
