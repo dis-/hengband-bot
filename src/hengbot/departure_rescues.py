@@ -27,6 +27,10 @@ The rescues are the owner rules' remedies, each an existing owner's own key:
 ``stockout-mining``  one mining run when no supplier serves it
                      (``_supply_stockout_mining_key``, at most three);
 ``overweight-sale``  sell the overweight surplus (``_overweight_surplus_sale_key``);
+``purchase-deposit`` when every carried item is retained and the pack is still
+                     over the limit, release just enough of this visit's
+                     purchases for Home's weight deposit and walk to Home
+                     (owner 2026-11-15 「今回買った品を要る分だけ預ける」);
 ``home-settle``      walk back to Home to settle a pending Home transfer;
 ``rest``             rest off HP, mana and a temporary status.
 
@@ -72,7 +76,8 @@ RESCUES: dict[str, Rescue] = {
     "remove_curse_ready": _SUPPLY,
     "identify_staff_ready": Rescue(("supplier-visit", "cross-town")),
     # Weight: Home's deposit answers first (overweight_home_key); then the sale.
-    "inventory_weight_ready": Rescue(("overweight-sale",)),
+    # Owner 2026-11-15: with nothing left to sell, this visit's purchases.
+    "inventory_weight_ready": Rescue(("overweight-sale", "purchase-deposit")),
     # A pending Home withdrawal: walk back to Home while Home was not tried
     # this visit (its executor settles it there).
     "home_atomic_withdraw_clear": _HOME_SETTLE,
@@ -233,6 +238,74 @@ def _overweight_sale(policy: Any, board: Any, leaf: str) -> str | None:
     return policy._overweight_surplus_sale_key(board)
 
 
+def purchase_release(policy: Any) -> dict[tuple, int]:
+    """This visit's purchases released for Home's weight deposit, by signature."""
+    latch = getattr(policy, "_overweight_purchase_release", None)
+    if not latch or latch[0] != getattr(policy, "_town_visit_epoch", None):
+        return {}
+    return dict(latch[1])
+
+
+def _purchase_release_choice(policy: Any, board: Any, excess: int) -> dict[tuple, int]:
+    """The fewest of this visit's purchases whose weight clears ``excess``.
+
+    Only an item held by nothing but its purchase this visit (the retention
+    branch ``visit-purchase``) is released, and only the units the excess needs:
+    one item that clears it alone, the lightest such; otherwise the heaviest
+    first until the excess is cleared.  An empty answer when they cannot clear it.
+    """
+    held = []
+    for item in board.inventory:
+        reserved, branch = policy._retention_reservation_detail(board, item)
+        if branch == "visit-purchase" and reserved > 0 and item.weight > 0:
+            held.append((item, reserved))
+    singles = []
+    for item, reserved in held:
+        units = -(-excess // item.weight)
+        if units <= reserved:
+            singles.append((units * item.weight, units, item.slot, item))
+    if singles:
+        _, units, _, item = min(singles, key=lambda entry: entry[:3])
+        return {policy._item_signature(item): units}
+    chosen: dict[tuple, int] = {}
+    remaining = excess
+    for item, reserved in sorted(held, key=lambda entry: (-entry[0].weight * entry[1], entry[0].slot)):
+        units = min(reserved, -(-remaining // item.weight))
+        chosen[policy._item_signature(item)] = units
+        remaining -= units * item.weight
+        if remaining <= 0:
+            return chosen
+    return {}
+
+
+def _purchase_deposit(policy: Any, board: Any, leaf: str) -> str | None:
+    """Owner 2026-11-15 「今回買った品を要る分だけ預ける」 (n1-c life-208 23:11).
+
+    The pack is over the limit with every carried item retained (the weight
+    relief's ``retained-only``) and Home has room: release just enough of this
+    visit's purchases (``_purchase_release_choice``) and take Home's route, where
+    the weight relief deposits them like any surplus; then the visit departs.
+    """
+    if (not policy._inventory_overweight(board) or not policy._home_available(board)
+            or policy._home_is_full(board)):
+        return None
+    if not purchase_release(policy):
+        relief = policy._weight_relief_selection(board)
+        if relief.route != "retained-only":
+            return None
+        chosen = _purchase_release_choice(policy, board, relief.excess)
+        if not chosen:
+            return None
+        policy._overweight_purchase_release = (policy._town_visit_epoch, tuple(chosen.items()))
+        print(f"<purchase-deposit> release={chosen} excess={relief.excess}", flush=True)
+    key = _approach(policy, board, STORE_HOME)
+    if key is not None and not key.startswith("\x1b`"):
+        # A walking step of the router's approach, not the decision's
+        # earlier offer (the Home knowledge scan it set before the town end).
+        policy.last_reason = "shop:approach"
+    return key
+
+
 def _home_settle(policy: Any, board: Any, leaf: str) -> str | None:
     if not policy._home_available(board) or STORE_HOME in policy._town_store_attempted:
         return None
@@ -256,6 +329,7 @@ ACTIONS: dict[str, Callable[[Any, Any, str], str | None]] = {
     "cross-town": _cross_town,
     "stockout-mining": _stockout_mining,
     "overweight-sale": _overweight_sale,
+    "purchase-deposit": _purchase_deposit,
     "home-settle": _home_settle,
     "rest": _rest,
 }
