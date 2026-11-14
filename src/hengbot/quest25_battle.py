@@ -250,6 +250,24 @@ _LATER_IMMOBILE = frozenset({geo.IPSISSIMUS, geo.TOME, geo.QUYL, geo.DRUJ, geo.S
 _IDLE_REASONS = frozenset({HOLD_REASON, WALK_REASON, SEARCH_REASON, DISARM_REASON})
 _KILL_LINES = KILL_LINES
 _KILL_LINES_EN = KILL_LINES_EN
+# The other deaths the game prints after the victim's name (monster-damage.cpp show_kill_message
+# prints a non-empty note as name + note): the player's auras (combat/aura-counterattack.cpp),
+# the projections' own death notes (effect/effect-monster-*.cpp note_dies), an explosion
+# (monrace-definition.cpp get_died_message) and a kill by another monster (melee-postprocess.cpp).
+# n1-c life-208 (2026-11-15, turn 3965900): 「幽体ティラノサウルスは灰の山になった。」 -- the fire aura
+# killed the spectral tyrannosaurus and no kill was counted (quest25_presence).
+_DEATH_NOTES = (
+    "は灰の山になった。", "は燃え殻の山になった。", "は凍りついた。", "はズタズタになった。", "は倒れた。",
+    "はドロドロに溶けた！", "は蒸発した！", "は観測されなくなった。", "は消えてしまった。", "は消滅してしまった。",
+    "は深淵に堕ちてしまった。", "は光を受けてしぼんでしまった！", "の精神は崩壊し、肉体は抜け殻となった。",
+    "は爆発して粉々になった。", "は破壊された。", "は殺された。",
+)
+_DEATH_NOTES_EN = (
+    " turns into a pile of ash.", " turns into a pile of cinders.", " was frozen.", " is torn to pieces.",
+    " is destroyed.", " dissolves!", " evaporates!", "'s wave function collapses.", " has disappeared.",
+    " has vanished.", " has fallen into the abyss.", " shrivels away in the light!",
+    " collapses, a mindless husk.", " explodes into tiny shreds.", " is killed.",
+)
 _UNSEEN = ("何か", "it", "It")
 _ECHIZEN = ECHIZEN_PREFIX
 
@@ -314,6 +332,15 @@ class Battle:
     # Owner 2026-11-12 (quest25_sealed_room): the room landed in, (name, actions, step, last
     # counted turn, shots at the clear's target); None off the sealed rooms.
     room: tuple | None = None
+    # quest25_presence (owner 2026-11-13 「可能なら感知して存在を確認する」, 2026-11-15): the roster
+    # races a board showed are not on the floor (race -> game turn), the plan's detection whose
+    # result the next board shows ((turn, origin, effect, presence_quiet and recheck before it)),
+    # the quiet count at this phase's last presence check, and a check due at once (a battle
+    # restored from an older save, quest25_battle_record ``_before_the_save``).
+    absent: dict = field(default_factory=dict)
+    cast: tuple | None = None
+    presence_quiet: int = 0
+    recheck: bool = False
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -330,7 +357,7 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "kill_turns", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone", "absent", "cast", "recheck")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -414,7 +441,12 @@ class _Ctx:
                 if monster.hostile and monster.perception != "detected"]
 
     def kills(self, race: int) -> int:
-        return self.battle.kills.get(race, 0)
+        """The kills read of ``race``; a race a board showed is not on the floor (``Battle.absent``,
+        quest25_presence) counts as its whole roster: none of it is left to wait for or shoot."""
+        killed = self.battle.kills.get(race, 0)
+        if race in self.battle.absent:
+            return max(killed, geo.ROSTER.get(race, killed))
+        return killed
 
 
 def _ctx(policy, snapshot):
@@ -442,6 +474,12 @@ def _killed_name(text: str) -> str | None:
     for line in _KILL_LINES_EN:
         if text.startswith(line) and text.endswith("."):
             return text[len(line):-1].removeprefix("the ").removeprefix("The ")
+    for note in _DEATH_NOTES:
+        if text.endswith(note):
+            return text[:-len(note)]
+    for note in _DEATH_NOTES_EN:
+        if text.endswith(note):
+            return text[:-len(note)].removeprefix("the ").removeprefix("The ")
     return None
 
 
@@ -500,9 +538,12 @@ def _note_pen_shot(ctx: _Ctx) -> None:
 def _note_arrivals(ctx: _Ctx) -> None:
     """A new monster in view this phase restarts the 50-action wait; Ipsissimus out of the
     pen is escaped."""
+    from hengbot import quest25_presence
+
     seen = {monster.index for monster in ctx.hostiles()}
     new = seen - ctx.battle.seen
-    if new:
+    # What the plan's own detection shows did not come (quest25_presence): no restart of the wait.
+    if new and not quest25_presence.cast_board(ctx):
         ctx.battle.quiet = 0
     if new and any(summon_response.summons_of(message) for message in ctx.snapshot.messages):
         ctx.battle.summoned = ctx.battle.summoned | new
@@ -1580,7 +1621,8 @@ def _quyl_plan(ctx: _Ctx):
     None, None): it is shot directly from a cell with a line to it."""
     radii = sorted({row[1] for row in _balls(ctx, geo.QUYL)}, reverse=True)
     left = [cell for cell, race in ctx.navigator.battlefield.monster_placements
-            if race == geo.QUYL and cell not in ctx.battle.quyls_done]
+            if race == geo.QUYL and cell not in ctx.battle.quyls_done
+            and geo.QUYL not in ctx.battle.absent]
     for cell in left:
         for radius in radii:
             for stand in geo.QUYL_STANDS:
@@ -1969,6 +2011,8 @@ def _masses_seen(ctx: _Ctx) -> list:
 
 
 def _masses_done(ctx: _Ctx) -> bool:
+    if geo.MASS in ctx.battle.absent:
+        return True   # none left on the floor (quest25_presence)
     return (ctx.here == geo.MASS_STAND and not ctx.door_closed(geo.MASS_DOOR) and ctx.battle.lit
             and not _masses_seen(ctx))
 
@@ -2105,16 +2149,24 @@ def _detector(ctx: _Ctx):
     return None
 
 
-def _detect_key(ctx: _Ctx) -> str | None:
+def _detect_key(ctx: _Ctx, reason: str = DETECT_REASON) -> str | None:
+    """The plan's detection (``_detector``) under ``reason``; the next board reads what it showed
+    (quest25_presence ``note_cast``)."""
+    from hengbot import quest25_presence
+
     found = _detector(ctx)
     if found is None:
         return None
+    effect = quest25_presence.detector_effect(found)
     if found[0] == "power":
-        ctx.policy.last_reason = f"{DETECT_REASON}:{found[1].effect}"
-        return found[1].key
-    key = reserved_item_command(ctx.policy, ctx.snapshot, found[1], found[2])
+        ctx.policy.last_reason = f"{reason}:{effect}"
+        key = found[1].key
+    else:
+        key = reserved_item_command(ctx.policy, ctx.snapshot, found[1], found[2])
+        if key is not None:
+            ctx.policy.last_reason = reason
     if key is not None:
-        ctx.policy.last_reason = DETECT_REASON
+        quest25_presence.note_cast(ctx, effect)
     return key
 
 
@@ -2327,19 +2379,22 @@ class Phase:
     act: Callable          # the phase's own step
     wait_at: tuple | None = None   # where its wait is counted (None: anywhere, once ready; else also ``no_way``)
     wait_limit: str | int | None = None  # the wait_limits item (or a number): actions without an arrival that end it
+    waits_for: tuple = ()  # the roster races the wait is for (quest25_presence ``presence_key``)
 
 
 PHASES = (
-    Phase("ambush", "phase1", False, _ambush_done, _ambush, None, "long_wait_actions"),
+    Phase("ambush", "phase1", False, _ambush_done, _ambush, None, "long_wait_actions",
+          (geo.HOUND, geo.SKELETAL_T, geo.VAMPIRE, geo.SPECTRAL_T)),
     Phase("wall-passers", "phase1_wall_passers", True, _wall_passers_done, _wall_passers,
-          geo.WALL_PASSER_STAND, "wall_passer_quiet_actions"),
+          geo.WALL_PASSER_STAND, "wall_passer_quiet_actions", (geo.SPECTRE, geo.SHADOW)),
     Phase("ipsissimus", "phase2", True, _ipsissimus_done, _ipsissimus),
     Phase("stragglers", "phase1_wall_passers", False, _stragglers_done, _stragglers,
-          geo.STRAGGLER_STAND, "quiet_actions"),
+          geo.STRAGGLER_STAND, "quiet_actions", (geo.SPECTRE, geo.SHADOW, geo.IPSISSIMUS)),
     Phase("quylthulgs", "phase3", False, _quyls_done, _quyls),
     Phase("tome", "phase3", True, _tome_done, _tome),
     Phase("corpse-masses", "phase4", False, _masses_done, _masses),
-    Phase("dreadmaster", "phase5", False, _dreadmaster_done, _dreadmaster, None, "long_wait_actions"),
+    Phase("dreadmaster", "phase5", False, _dreadmaster_done, _dreadmaster, None, "long_wait_actions",
+          (geo.DREADMASTER,)),
     Phase("sweep", "phase6_sweep", False, _sweep_done, _sweep),
     Phase("stairway", "phase6", True, _stairway_done, _stairway),
     Phase("druj", "phase7_druj", False, _druj_done, _druj),
@@ -2446,6 +2501,8 @@ def _observe(ctx: _Ctx) -> None:
     that does not come, and 「50回来なければ終える」.  n1-c life-207 (2026-11-14 20:49-21:24): the
     stragglers' rest on [5,1] was cut at turn 8011366, a shadow demon stayed sensed on [11,4], the
     phase was never ready and held there 35 minutes to the stall stop, its wait never counted."""
+    from hengbot import quest25_presence
+
     board = (ctx.snapshot.turn, id(ctx.snapshot))
     if ctx.battle.observed == board:
         return
@@ -2460,6 +2517,7 @@ def _observe(ctx: _Ctx) -> None:
     _note_strong(ctx)
     _note_glow(ctx)
     _note_tome_health(ctx)
+    quest25_presence.note_absent(ctx)
     phase = current_phase(ctx)
     waiting = ctx.battle.ready or (ctx.battle.rest_cut and bool(_sensed_movers(ctx)))
     if (phase is not None and phase.wait_limit is not None and waiting
@@ -2487,10 +2545,10 @@ def _phase_key(policy, snapshot) -> str | None:
         # The druj is dead: what the anti-teleport piece displaced goes back on.
         return (quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
                 or _after_the_phases(ctx))
-    from hengbot import quest25_sealed_room
+    from hengbot import quest25_presence, quest25_sealed_room
 
     return (_adjacent_mass_key(ctx) or quest25_sealed_room.key(ctx)
-            or _prepare(ctx, phase) or _act(ctx, phase))
+            or _prepare(ctx, phase) or quest25_presence.presence_key(ctx, phase) or _act(ctx, phase))
 
 
 def _after_the_phases(ctx: _Ctx) -> str | None:
@@ -2740,4 +2798,4 @@ def describe(policy, snapshot) -> dict | None:
         return None
     phase = current_phase(ctx)
     return {"phase": None if phase is None else phase.name, "kills": dict(ctx.battle.kills),
-            "ready": ctx.battle.ready}
+            "ready": ctx.battle.ready, "absent": dict(ctx.battle.absent)}

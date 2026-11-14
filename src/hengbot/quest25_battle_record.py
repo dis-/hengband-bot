@@ -119,15 +119,23 @@ def _before_the_save(battle, turn: int):
     began at the ambush with no kills, and would have waited its 5000 actions (long_wait_actions)
     for the four monsters killed at 17:23.  A kill read at a game turn at or before the save's
     happened in the game the save holds; one read after it did not, and is not carried.  Nothing
-    else is: what the later turns saw is not in the reloaded game."""
+    else is: what the later turns saw is not in the reloaded game.
+
+    The same holds for a roster race a board showed was not on the floor (``Battle.absent``,
+    quest25_presence): shown at or before the save's turn, none of it is in the game the save holds
+    either, so it is carried with its turn (n1-c life-211, 2026-11-15: the save of turn 4034788,
+    the record of 4035146).  The first presence check of the restored battle is due at once
+    (``Battle.recheck``): it waited for nothing the save holds, and what the kills cannot end the
+    board may (quest25_presence)."""
     from hengbot.quest25_battle import Battle
     kept = tuple((int(race), int(at)) for race, at in battle.kill_turns if int(at) <= turn)
-    if not kept:
+    absent = {int(race): int(at) for race, at in battle.absent.items() if int(at) <= turn}
+    if not kept and not absent:
         return None
     kills = {}
     for race, _at in kept:
         kills[race] = kills.get(race, 0) + 1
-    return Battle(kills=kills, kill_turns=kept)
+    return Battle(kills=kills, kill_turns=kept, absent=absent, recheck=True)
 
 
 def take(policy, snapshot):
