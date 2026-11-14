@@ -168,9 +168,17 @@ class TownVisit:
     # [stage, first sequence, last sequence, decisions, interrupts] per run
     # of decisions in one stage.  Nothing decides from it yet.
     plan_segments: list[list] = field(default_factory=list)
-    # The visit's decisions per stage (interrupts not counted), which the
+    # The visit's decisions per stage (interrupts and walks not counted) since
+    # the stage last completed an observed unit of its work, which the
     # stages' deadlines read (town rebuild stage 3-5, town_visit_plan).
     stage_decisions: dict[str, int] = field(default_factory=dict)
+    # The observed work states this visit's boards showed (gold, the pack and
+    # the equipment: town_visit_plan.work_state), and the stage of the
+    # decision before this one: a board that shows a state the visit has not
+    # seen is that stage's completed unit of work, which restarts the stage's
+    # deadline count (2026-11-15, town_visit_plan.note_observed_progress).
+    observed_work_states: set = field(default_factory=set)
+    previous_decision_stage: str | None = None
     # The progress seam's replacements this visit (town rebuild stage 3-3a):
     # [sequence, the producer's reason, the seam's reason].  Nothing decides
     # from it; stage 3-3 retires the seam and shows this list empty.  Since
