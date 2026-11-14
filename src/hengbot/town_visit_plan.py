@@ -151,11 +151,13 @@ def progress_defect_reason(winner: str, progress: str) -> str:
 #     in a town loop (loop-detected, stuck-prompt, a forced repetition
 #     departure) or a named stop (town:blocked:*, quest:blocked:*,
 #     departure-unsatisfiable, owner-retired-burst, no-key-exhausted ...).
-#   replay: the same 95 visits replayed through choose_key (main a83aeca784
-#     with this counting, deadlines lifted) until they left the record.
-#   recorded tests: the town visits of the 362 passing *_recorded tests (582
-#     modules) run with the deadlines lifted, 265 visits that did not end in
-#     a loop or a stop.
+#   replay: the same 95 visits replayed through choose_key (this counting on
+#     main 5602f6e110, deadlines lifted) until they left the record.
+#   recorded tests: the town visits of the 583 *_recorded test modules (2887
+#     passing tests) run with the deadlines lifted, the 634 visits of passing
+#     tests that did not end in a loop or a stop.  Left out are n1-b
+#     life-300's visit (tests/test_n1b_300_identification_wait_recorded),
+#     which ends in a forced repetition departure when driven to its end.
 # The first deadlines (2026-11-13/14 morning) counted walks too: n1-a life-522
 # and n1-b life-395/396 stopped at town:blocked:stage-deadline:equipment while
 # walking to Home (approach-home, town:kill-mob-approach).  The deadlines of
@@ -171,22 +173,22 @@ STAGE_MEASURED: dict[str, tuple[int, int, int]] = {
     # stage: (journals, replay, recorded tests), 2026-11-15, the count since
     # the stage's last observed unit of work, walks not counted
     "home": (8, 3, 11),
-    "identification": (2, 1, 4),
+    "identification": (2, 1, 6),
     "equipment": (5, 4, 9),
     "sell": (2, 2, 3),
-    "buy": (9, 6, 6),
-    "quest": (2, 2, 3),
-    "travel": (1, 1, 1),
+    "buy": (9, 5, 6),
+    "quest": (2, 2, 6),
+    "travel": (1, 1, 2),
     "fundraising": (0, 0, 1),
-    "departure": (65, 42, 21),
+    "departure": (65, 42, 22),
 }
 # Owner 2026-11-14 「期限を付けず数が貯まったら測る」: the travel (cross-town,
 # rumor) and fundraising stages have no deadline yet: the records hold too few
-# of their visits (travel 1 journal visit, fundraising none).  Their walking
-# ping-pong and loops are the ping-pong guard's and the loop detector's.  Once
-# each has MEASURE_AT_VISITS visits that did not end in a loop or a stop
-# (scripts/town_stage_deadline_measure.py prints the count), its deadline
-# becomes twice that measurement.
+# of their visits (2026-11-15: travel 2 journal visits, fundraising none).
+# Their walking ping-pong and loops are the ping-pong guard's and the loop
+# detector's.  Once each has MEASURE_AT_VISITS visits that did not end in a
+# loop or a stop (scripts/town_stage_deadline_measure.py prints the count),
+# its deadline becomes twice that measurement.
 UNMEASURED_STAGES: frozenset[str] = frozenset({"travel", "fundraising"})
 MEASURE_AT_VISITS = 5
 STAGE_DEADLINES: dict[str, int | None] = {
@@ -210,7 +212,8 @@ def is_walking(key: Any, reason: str | None) -> bool:
         return True
     return any(marker in (reason or "") for marker in WALKING_REASON_MARKERS)
 
-# Owner 2026-11-15 「期限は止まった段を捕まえるため」: a stage's deadline counts
+# 2026-11-15 (n1-b life-397's stop; a deadline catches a stage that is stuck,
+# not one that keeps completing its work): a stage's deadline counts
 # its operations since the stage last completed a unit of its work, judged
 # from the observed game state, not from the bot's own claim.  A board whose
 # work state (the gold, the pack and the equipment: work_state) the visit has

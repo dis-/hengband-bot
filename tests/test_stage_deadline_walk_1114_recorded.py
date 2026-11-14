@@ -45,7 +45,10 @@ class StageDeadlineWalk1114RecordedTest(unittest.TestCase):
         self.assertEqual(steps[-1][0]["reason"], STOP)
         walks = sum(town_visit_plan.is_walking(row["key"], row["reason"]) for row, _ in steps)
         # The stage trace keeps every equipment decision (the old deadline's
-        # count, walks included); the deadline counts the operations only.
+        # count, walks included); the deadline counts the operations only,
+        # since the stage last completed an observed unit of its work
+        # (2026-11-15, town_visit_plan.note_observed_progress; the visits'
+        # operations without that restart were 5 and 8).
         traced = sum(segment[3] for segment in policy._town_visit.plan_segments
                      if segment[0] == "equipment")
         operations = policy._town_visit.stage_decisions.get("equipment", 0)
@@ -56,13 +59,13 @@ class StageDeadlineWalk1114RecordedTest(unittest.TestCase):
         self.assertGreaterEqual(walks, 32)
         self.assertEqual(last, ("5", "equipment-transaction:travel-home:await-entry"))
         self.assertGreaterEqual(traced, 42)
-        self.assertEqual(operations, 5)
+        self.assertEqual(operations, 3)
 
     def test_n1b_396_equips_instead_of_stopping(self):
         _policy, last, _walks, traced, operations = self.replay("n1b396")
         self.assertEqual(last, ("win", "equipment-transaction:equip"))
         self.assertGreaterEqual(traced, 42)
-        self.assertEqual(operations, 8)
+        self.assertEqual(operations, 1)
 
 
 if __name__ == "__main__":

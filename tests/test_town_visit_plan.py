@@ -144,8 +144,8 @@ class StageDeadlineTest(unittest.TestCase):
         # Owner 2026-11-14 「ループと止まり以外の全訪問で測る」 and 「歩きは数えない」;
         # 2026-11-15 the count restarts at each observed unit of work.
         self.assertEqual(town_visit_plan.STAGE_DEADLINES, {
-            "quest": 6, "buy": 18, "home": 22, "fundraising": None, "departure": 130,
-            "equipment": 18, "sell": 6, "identification": 8, "travel": None})
+            "quest": 12, "buy": 18, "home": 22, "fundraising": None, "departure": 130,
+            "equipment": 18, "sell": 6, "identification": 12, "travel": None})
         # 「期限を付けず数が貯まったら測る」: travel and fundraising wait for visits.
         self.assertEqual(town_visit_plan.UNMEASURED_STAGES, {"travel", "fundraising"})
 
@@ -202,7 +202,7 @@ class StageDeadlineTest(unittest.TestCase):
         self.assertFalse(town_visit_plan.is_walking("p", "home:atomic-withdraw"))
 
     def test_an_observed_unit_of_work_restarts_its_stage(self):
-        """Owner 2026-11-15: the deadline counts the decisions since the stage
+        """2026-11-15: the deadline counts the decisions since the stage
         last completed a unit of its work, read from the board's state.
         DECLARED CONSTRUCTED from n1-b life-397's stop (2026-11-15 00:48:40,
         town:blocked:stage-deadline:sell): inscribe and sell, each sale

@@ -11,7 +11,7 @@ death, and a Zul round trip (a visit with ``town:zul:`` decisions).  A forced re
 departure is a loop.  Each recorded reason is put in its stage as the stage trace does (the
 arbiter's census family, town_visit_plan.stage_of); a walk is not counted
 (town_visit_plan.is_walking).
-Owner 2026-11-15 「進んでいる段は止めない」: a stage's count starts again when a board shows a
+2026-11-15 (n1-b life-397's stop at the sell deadline): a stage's count starts again when a board shows a
 work state (town_visit_plan.work_state) the visit has not seen after a decision of the stage,
 as the deadline counts it (town_visit_plan.note_observed_progress); the measurement is the
 largest such count a visit reached.  ``total`` is the former measurement (every operation of
