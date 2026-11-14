@@ -127,7 +127,8 @@ def cast_key(policy, snapshot, power, direction: str = "", *, blind_ok: bool = F
     return power.key + (direction if power.aimed else "")
 
 
-def cast(policy, snapshot, ident: tuple, reason: str, direction: str = "") -> str | None:
+def cast(policy, snapshot, ident: tuple, reason: str, direction: str = "", *,
+         blind_ok: bool = False, hallucination_ok: bool = False) -> str | None:
     """The cast of the ``POWERS`` row ``ident`` with its owner, else None.
 
     The key and the owner are set together: ``reason`` + ``CAST_SUFFIX`` is the owner
@@ -137,7 +138,8 @@ def cast(policy, snapshot, ident: tuple, reason: str, direction: str = "") -> st
     Anaguma detection sent ``mCg`` under its bare reason while the rod charged and
     stopped on the unowned power prompt).  A row outside ``POWERS`` is a KeyError:
     no table would answer its prompts."""
-    key = cast_key(policy, snapshot, _powers()[ident], direction)
+    key = cast_key(policy, snapshot, _powers()[ident], direction, blind_ok=blind_ok,
+                   hallucination_ok=hallucination_ok)
     if key is not None:
         policy.last_reason = reason + CAST_SUFFIX
     return key

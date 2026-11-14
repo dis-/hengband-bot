@@ -9,8 +9,11 @@ floor has ended -- no step left (``_quest_execute_key`` answered None, the navig
 over:
 
  1. a hostile known (seen, detected, or by telepathy, ESP shows it as detected): beside the player
-    the blow, else the walk to it (the fight then goes by the floor's ordinary combat rungs);
- 2. a monster detection the character holds, once per round (re-read after a cast that failed):
+    the blow, else a shot at one in view (quest_plan_base._shot, as the plans shoot), else the walk
+    to it.  On an approved quest floor the navigator's answer ends the ladder (dungeon_ladder's
+    plan-approved-quest layer), so no ordinary combat rung fights for this rung;
+ 2. a monster detection the character holds, once per round (asked again after a cast that failed,
+    and after one whose prompt the menu walk closed, the list showing it charging or empty):
     the absorbed Rod of Detection, then the absorbed Staff of Detect Evil, then a carried rod or
     staff of them (detection.cpp detect_all shows every monster, Detect Evil only the evil);
  3. else the round: the nearest remembered floor cell no stand of this round came within
@@ -22,7 +25,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from hengbot import combat_answer, left_cells, me_capability, me_powers
+from hengbot import combat_answer, left_cells, me_absorbed_substitutes
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
     Position, SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF)
@@ -33,6 +36,10 @@ WALK_REASON = f"{REASON}:walk"
 HUNT_REASON = f"{REASON}:hunt"
 MELEE_REASON = "quest-strategy:melee"   # the quest plans' blow
 DETECT_REASON = f"{REASON}:detect"
+# The absorbed detection's owner: me_device_attacks_input answers its kind question and power prompt
+# from the game's list, and closes the prompt with ESC when the list shows the power charging or
+# empty (me_absorbed_substitutes.cast).
+ABSORBED_DETECT_REASON = DETECT_REASON + me_absorbed_substitutes.CAST_SUFFIX
 STOP_REASON = "quest:blocked:quest-patrol-rounds"
 COVER = 4        # a cell within this many steps of a stand is looked at by the round
 ROUNDS = 5       # rounds before the named stop
@@ -109,8 +116,16 @@ def key(policy, snapshot) -> str | None:
 
 
 def _settle_detection(patrol: Patrol, snapshot) -> None:
-    """The board after a cast: one that failed is asked again this round."""
-    if patrol.detect_turn is None or snapshot.turn == patrol.detect_turn:
+    """The board after a cast: one that failed is asked again this round, and so is one the menu
+    walk closed: the game's list on the board shows the power charging or empty and no game time
+    passed (cmd-magiceat.cpp select_magic_eater returns nullopt on ESC and do_cmd_magic_eater
+    resets the energy), so the next detection is chosen from that list."""
+    if patrol.detect_turn is None:
+        return
+    if snapshot.turn == patrol.detect_turn:
+        if getattr(snapshot, "magic_eater_power_list", None) is not None:
+            patrol.detected_round = patrol.round - 1
+            patrol.detect_turn = None
         return
     texts = [str(getattr(message, "text", message)) for message in snapshot.messages]
     if any(line in text for text in texts for line in FAILED_LINES) and not any(
@@ -120,6 +135,13 @@ def _settle_detection(patrol: Patrol, snapshot) -> None:
 
 
 def _hunt(policy, snapshot, hostiles) -> str | None:
+    """The blow beside, else the shot in view, else the step toward the nearest.
+
+    n1-c life-208 (2026-11-15 04:48, Quest 25, every phase over): the Nexus quylthulg left
+    (MonraceDefinitions 480: NEVER_MOVE, INVISIBLE, BLINK and TELE_AWAY 1_IN_1; the player sees
+    invisible) was in view at 3, 2 and 6 grids and this rung only walked toward it; each time it
+    teleported the player away, the five rounds ran out and ``STOP_REASON`` repeated until the
+    loop guard stopped the bot (twice, then the escalation)."""
     here = snapshot.player.position
     beside = [monster for monster in hostiles if max(abs(monster.position.y - here.y),
                                                      abs(monster.position.x - here.x)) <= 1]
@@ -127,6 +149,15 @@ def _hunt(policy, snapshot, hostiles) -> str | None:
         answer = combat_answer.adjacent_attack(policy, snapshot, beside[:1], MELEE_REASON)
         if answer is not None and answer.key is not None:
             return answer.key
+    from hengbot import quest_plan_base   # it imports the navigator, which imports this module
+
+    in_view = sorted((monster for monster in snapshot.visible_monsters
+                      if monster.hostile and monster not in beside),
+                     key=lambda monster: here.distance_to(monster.position))
+    for target in in_view:
+        shot = quest_plan_base._shot(policy, snapshot, target)
+        if shot is not None:
+            return shot
     nearest = min(hostiles, key=lambda monster: here.distance_to(monster.position))
     target = nearest.position
     step = _toward(policy, snapshot, lambda cell: max(abs(cell[0] - target.y),
@@ -155,14 +186,22 @@ def _toward(policy, snapshot, goal) -> Position | None:
 
 
 def _detect_key(policy, snapshot) -> str | None:
+    """The absorbed detection under its menu owner (``ABSORBED_DETECT_REASON``), else a carried one.
+
+    The remembered list is the one the game last displayed, so after a cast it still shows the
+    rod ready while it charges.  n1-c life-208 (2026-11-15 04:48 and 04:49, Quest 25): this rung
+    sent ``mCg`` under its bare reason, no table of me_device_attacks_input owned it, and with the
+    Rod of Detection charging the game kept 「('*'で一覧, ESCで中断) どの魔力を使いますか？」 over
+    「g) 全感知 充填: 1/ 1」 unanswered (``stuck-prompt owner=quest-patrol:detect ... reason=unowned``)
+    twice; the Anaguma pocket had stopped the same way (n1-c life-187/191)."""
     player = snapshot.player
-    for ident in (("rod", SV_ROD_DETECTION), ("staff", SV_STAFF_DETECT_EVIL)):
-        if (not player.confused and me_capability.has(policy, snapshot, *ident)
-                and me_capability.charges(policy, snapshot, *ident) > 0):
-            power = me_powers.BY_KEY.get(ident)
-            if power is not None:
-                policy.last_reason = DETECT_REASON
-                return power.key
+    for ident in me_absorbed_substitutes.DETECTION:
+        # The game refuses the ``m`` command only while confused (cmd-magiceat.cpp
+        # do_cmd_magic_eater cmd_limit_confused): a blind or hallucinating player casts it too.
+        cast = me_absorbed_substitutes.cast(policy, snapshot, ident, DETECT_REASON,
+                                            blind_ok=True, hallucination_ok=True)
+        if cast is not None:
+            return cast
     if player.blind or player.confused:
         return None
     for tval, sval, verb in ((TVAL_ROD, SV_ROD_DETECTION, "rod"),

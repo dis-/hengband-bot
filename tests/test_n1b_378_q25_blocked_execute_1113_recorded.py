@@ -124,7 +124,8 @@ class BlockedExecuteRecordedTest(unittest.TestCase):
         answers, _phase = replay(patches=NO_AFTER)
         self.assertNotIn(BLOCKED, {reason for _key, reason in answers})
         self.assertTrue({reason for _key, reason in answers} <= {
-            kill_all_patrol.WALK_REASON, kill_all_patrol.DETECT_REASON, kill_all_patrol.HUNT_REASON})
+            kill_all_patrol.WALK_REASON, kill_all_patrol.DETECT_REASON,
+            kill_all_patrol.ABSORBED_DETECT_REASON, kill_all_patrol.HUNT_REASON})
 
     def test_the_walk_goes_on_without_turning_back(self):
         with TemporaryDirectory() as directory:
