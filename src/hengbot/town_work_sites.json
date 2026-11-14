@@ -3706,6 +3706,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_inn_refill.py:entry_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_inn_refill.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_loadout_offense.py:held_attack_powers": {
     "classification": "data",
     "rows": [

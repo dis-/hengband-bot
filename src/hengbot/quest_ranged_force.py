@@ -12,18 +12,24 @@ The launcher: the game's own figures on the ammunition's name, "(68/shot 121/tur
 shots per turn of the worn launcher), which is what the player reads.  A stack counts
 when its figure per shot meets ``shot_average``.
 
-A device, for a class in ``device_classes``: an absorbed attack power with a charge, or
-a carried attack wand or rod.  Its figure is the expected damage of one use against the
+A device, for a class in ``device_classes``: an absorbed attack power, or a carried attack
+wand or rod with a charge.  Its figure is the expected damage of one use against the
 reference race, success rate included (me_device_attacks.expected_damage and the game's
 rate of an absorbed power, me_power_success; attack_expectation's use chance of a carried
 one).  It takes one player turn, so that figure is both its per-use and its per-turn figure.
-It counts when it meets ``shot_average``, and then each charge (a rod's ready count) is one
-shot: charges and qualifying ammunition add up towards ``ammo``.  The turn figure is the
-best single one of the launcher's and the devices'; they are not added.
+It counts when it meets ``shot_average``, and then each charge is one shot: charges and
+qualifying ammunition add up towards ``ammo``.  The turn figure is the best single one of
+the launcher's and the devices'; they are not added.
 
-An absorbed power's rate is the unstunned one (owner 2026-11-14 「95%じゃないのか」): a stun
-ends before the quest is entered (the inn's stay ends it, cmd-building/cmd-inn.cpp
-back_to_health), so the stun of the list's board or of this one does not lower the gate.
+An absorbed power counts at its capacity, its count (the displayed ``max``: a staff's or
+wand's charges, a rod's copies), not at the charges it holds now (owner 2026-11-14 「ドラゴンの
+火炎の魔法棒ならもっと威力があるし成功率も担保できている。比較方法が怠惰ではないか？」): the
+inn's stay refills every absorbed staff and wand and readies every rod
+(cmd-building/cmd-inn.cpp charge_magic_eating_energy), and the bot stays there before it
+enters such a quest (me_inn_refill).  The same stay ends a stun (back_to_health), so the
+rate is the unstunned one.  n1-b life-397 (Lv45, 2026-11-14 15:56) held Dragon's Flame
+(wand, 7 charges, all spent) at 200 against イプシシマス: the gate read only the charged
+衰弱 at the stunned list's 75% (93.75 < 120), where the refilled flame reads 200 x 95%.
 """
 
 from __future__ import annotations
@@ -67,13 +73,27 @@ GATE_STUN = 0
 
 
 def _absorbed(policy, snapshot, flags):
-    """(expected damage per use, charges) of each absorbed attack power with a charge."""
+    """(expected damage per use, charges) of each absorbed attack power at its capacity."""
     level = snapshot.player.level
     for power, row in me_device_attacks.held_powers(policy):
-        if not power.group_only and me_device_attacks._available(power, row):
+        if not power.group_only:
             success = me_device_attacks.power_success(policy, snapshot, power, row, stun=GATE_STUN)
             yield (success * me_device_attacks.expected_damage(power, level, flags),
-                   me_capability.charges(policy, snapshot, power.kind, power.sval))
+                   me_capability.count(policy, snapshot, power.kind, power.sval))
+
+
+def absorbed_short(policy, snapshot, ranged) -> bool:
+    """An absorbed power the requirement counts (at its capacity it meets ``shot_average``)
+    holds less than that capacity now: the inn's stay before entry refills it (me_inn_refill)."""
+    if snapshot.player.class_id not in ranged.get("device_classes", ()):
+        return False
+    flags = _reference_flags(policy, ranged)
+    floor, level = float(ranged["shot_average"]), snapshot.player.level
+    return any(
+        not power.group_only and not me_device_attacks.row_full(power, row)
+        and me_device_attacks.power_success(policy, snapshot, power, row, stun=GATE_STUN)
+        * me_device_attacks.expected_damage(power, level, flags) >= floor
+        for power, row in me_device_attacks.held_powers(policy))
 
 
 def _carried(snapshot, flags):

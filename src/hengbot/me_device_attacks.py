@@ -281,6 +281,14 @@ def _available(power, row):
     return isinstance(row.get("current"), int) and row["current"] > 0
 
 
+def row_full(power, row) -> bool:
+    """Whether a displayed row holds its capacity: every rod ready, a staff's or wand's
+    charges at its count (what the inn's stay leaves, cmd-inn.cpp charge_magic_eating_energy)."""
+    if power.kind == "rod":
+        return row.get("charging") == 0
+    return isinstance(row.get("current"), int) and row.get("current") == row.get("max")
+
+
 def row_is(power, row) -> bool:
     """Whether a displayed list row is ``power``."""
     return row.get("name") in power.names

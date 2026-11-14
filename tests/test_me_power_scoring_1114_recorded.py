@@ -32,11 +32,19 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import me_device_attacks, me_power_success, me_powers, quest_ranged_force
+from hengbot import me_device_attacks, me_inn_refill, me_power_success, me_powers, quest_ranged_force
+from hengbot.input_executor import ScreenKind
+from hengbot.model import Position, QuestState
+from hengbot.observed_input import compile_observed_input
+from hengbot.policy_constants import QUEST_STATUS_TAKEN
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-397-q25-gate-1114"
+IPSISSIMUS = 571
 DRAGONS_FLAME, DRAGONS_FROST, ACID_BOLT, TELEPORT_OTHER = 26, 27, 16, 3
+INN = Position(37, 119)          # the Outpost inn (building 0) on the town map
+BESIDE_INN = Position(38, 119)   # its step north enters it
+Q25_ENTRANCE = Position(44, 72)
 
 
 class MePowerScoring1114RecordedTest(unittest.TestCase):
@@ -45,6 +53,8 @@ class MePowerScoring1114RecordedTest(unittest.TestCase):
         self.addCleanup(scratch.cleanup)
         self.policy, _, steps = load(FIXTURE, Path(scratch.name))
         self.board = steps[0][1]()
+        self.ranged = self.policy._strategy_force_for_snapshot(
+            self.board, self.policy.approved_quest_strategy(25))["ranged"]
 
     # -- helpers
 
@@ -57,6 +67,16 @@ class MePowerScoring1114RecordedTest(unittest.TestCase):
         board = board or self.board
         return dataclasses.replace(board, player=dataclasses.replace(
             board.player, stunned=False, stun_rank=0))
+
+    @staticmethod
+    def taken(board, position=None):
+        """DECLARED CONSTRUCTED: Q25 taken; the player at ``position``."""
+        quests = dict(board.quests)
+        quests[25] = QuestState(25, name="幽霊屋敷", status=QUEST_STATUS_TAKEN, type=1, fixed=True)
+        board = dataclasses.replace(board, quests=quests)
+        if position is not None:
+            board = dataclasses.replace(board, player=dataclasses.replace(board.player, position=position))
+        return board
 
     # -- the recording
 
@@ -129,13 +149,6 @@ class MePowerScoring1114RecordedTest(unittest.TestCase):
             player, stat_index=tuple(index)))
         self.assertEqual(rate(smarter, 0), 95)
 
-    def test_the_q25_gate_reads_the_charged_powers_unstunned(self):
-        ranged = self.policy._strategy_force_for_snapshot(
-            self.board, self.policy.approved_quest_strategy(25))["ranged"]
-        found = quest_ranged_force.score(self.policy, self.board, ranged)
-        # 衰弱 (wand, 125 against イプシシマス) at 95%, not the stunned list's 75% (93.75).
-        self.assertAlmostEqual(found.turn, 125 * 0.95)
-
     def test_without_the_stat_index_the_displayed_row_loses_the_stun_it_was_shown_under(self):
         # DECLARED CONSTRUCTED: an emitter without stat_index; the wand list shown again on
         # this (stunned NORMAL) board, so its stun is recorded with it.
@@ -151,6 +164,71 @@ class MePowerScoring1114RecordedTest(unittest.TestCase):
             self.policy, board, "wand", level, row=flame, stun=0), 95)
         self.assertEqual(me_power_success.success_percent(
             self.policy, board, "wand", level, row=flame, stun=1), 85)
+
+    # -- defect A: the gate counts the refillable capacity
+
+    def test_the_q25_gate_counts_dragons_flame_at_its_capacity(self):
+        found = quest_ranged_force.score(self.policy, self.board, self.ranged)
+        self.assertAlmostEqual(found.turn, 200 * 0.95)
+        self.assertGreaterEqual(found.turn, 120)  # condition 2
+        self.assertGreaterEqual(found.turn, 180)  # condition 1
+        self.assertGreaterEqual(found.shots, 40)
+        flags = self.policy._monrace_knowledge.get(IPSISSIMUS).flags
+        best = max(quest_ranged_force._absorbed(self.policy, self.board, flags))
+        self.assertEqual(best, (190.0, 7))  # Dragon's Flame: its 7 charges once refilled
+
+    def test_the_policy_readiness_passes_its_ranged_row(self):
+        self.policy._evaluate_fixed_quest_readiness(self.board, 25, require_target_town=False)
+        force = self.policy._fixed_quest_readiness["strategy_force"]
+        self.assertEqual(force["hp"]["required"], 850)  # condition 1's row
+        self.assertEqual(force["ranged"]["turn"], {"measured": 190.0, "required": 180.0})
+        self.assertNotIn("ranged", force["failed"])
+        # What remains are carries the shops sell.
+        self.assertEqual(force["failed"], ["required_potions.restore_exp", "required_potions.restore_str"])
+
+    def test_combat_still_refuses_a_power_without_a_charge(self):
+        usable = {(power.kind, power.sval) for power, _ in me_device_attacks.usable_powers(
+            self.policy, self.unstunned())}
+        self.assertNotIn(("wand", DRAGONS_FLAME), usable)
+        self.assertNotIn(("wand", DRAGONS_FROST), usable)
+        self.assertIn(("wand", ACID_BOLT), usable)
+
+    # -- defect A: the inn's night before the entry
+
+    def test_the_entry_stays_at_the_inn_first_then_enters(self):
+        policy = self.policy
+        self.assertEqual(policy.choose_key(self.board), "Cf\ry\x1b\x1b")  # recorded row 0
+        self.assertTrue(quest_ranged_force.absorbed_short(policy, self.board, self.ranged))
+        # On the Q25 entrance itself the walk turns to the inn.
+        key = policy._fixed_quest_key(self.taken(self.board, Q25_ENTRANCE), [])
+        self.assertEqual(policy.last_reason, me_inn_refill.APPROACH_REASON)
+        self.assertNotEqual(key, ">")
+        # Beside the inn: the step in carries the night and the leave.
+        key = policy._fixed_quest_key(self.taken(self.board, BESIDE_INN), [])
+        self.assertEqual((key, policy.last_reason), ("8r\x1b", me_inn_refill.REST_REASON))
+        self.assertEqual(me_inn_refill.state(policy).posted_turn, self.board.turn)
+        first, steps = compile_observed_input(key, ScreenKind.COMMAND, {}, policy.last_reason, [])
+        self.assertEqual(first, "8")
+        self.assertEqual([(step.kinds, step.keys) for step in steps],
+                         [(frozenset({ScreenKind.BUILDING}), "r"),
+                          (frozenset({ScreenKind.BUILDING}), "\x1b")])
+        # The night is posted once: the entrance then enters.
+        key = policy._fixed_quest_key(self.taken(self.board, Q25_ENTRANCE), [])
+        self.assertEqual((key, policy.last_reason), (">", "quest:enter"))
+        # A quest floor starts a new stay in town.
+        policy.choose_key(dataclasses.replace(self.unstunned(), floor_key=(0, 0, 25)))
+        self.assertIsNone(getattr(policy, "_me_inn_refill_stay", None))
+
+    def test_counter_full_powers_enter_without_the_inn(self):
+        # DECLARED CONSTRUCTED: every counted wand and rod at its capacity.
+        for kind, (turn, rows) in list(self.policy._me_device_lists.items()):
+            full = tuple(dict(row, current=row["max"]) if "current" in row else dict(row, charging=0)
+                         for row in rows)
+            self.policy._me_device_lists[kind] = (turn, full)
+        self.assertFalse(quest_ranged_force.absorbed_short(self.policy, self.board, self.ranged))
+        self.policy.choose_key(self.board)
+        key = self.policy._fixed_quest_key(self.taken(self.board, Q25_ENTRANCE), [])
+        self.assertEqual((key, self.policy.last_reason), (">", "quest:enter"))
 
 
 if __name__ == "__main__":

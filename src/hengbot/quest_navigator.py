@@ -231,6 +231,12 @@ class QuestFloorNavigator:
             # No public entrance fact exists yet.  Waiting cannot reveal one;
             # hand control back to the existing town explorer instead.
             return None
+        # Owner 2026-11-14: a night at the inn refills the absorbed powers a quest's ranged
+        # requirement counted full (me_inn_refill) before the walk into the quest.
+        from hengbot import me_inn_refill
+        refill = me_inn_refill.entry_key(owner, snapshot, quest_id)
+        if refill is not None:
+            return refill
         if snapshot.player.position in positions:
             if not owner._quest_equipment_entry_allowed(snapshot, quest_id):
                 return None
