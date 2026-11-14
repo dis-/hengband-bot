@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, fallback_depth_floor, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, escape_count, disenchant_avoid, fallback_depth_floor, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -465,8 +465,11 @@ class ObservationMixin:
             if self.last_reason in PICKUP_REASONS:
                 self._dive_loot += 1
             elif self.last_reason in EMERGENCY_ESCAPE_REASONS:
-                escape_count.count(self)
-            elif self.last_reason in RELOCATING_ESCAPE_REASONS and threat_tiers.counts_as_escape(
+                # Owner 2026-11-14 「テレポートを使い逃げにカウントするのは射線が通っている場合のみ
+                # にしたい。」: counted only when a cause had a line of fire (line_of_fire).
+                if line_of_fire.counted(self, self.last_reason):
+                    escape_count.count(self)
+            elif self.last_reason in RELOCATING_ESCAPE_REASONS and line_of_fire.counted(
                     self, self.last_reason) and (
                 previous_floor != snapshot.floor_key
                 or (
@@ -488,6 +491,7 @@ class ObservationMixin:
             # Owner 2026-11-11 「逃げは階が変わればリセット。」: the escape that left a floor
             # was counted for it above; the new floor starts at 0 (escape_count).
             escape_count.after_board(self, snapshot, previous_floor)
+            line_of_fire.new_board(self, snapshot)
         elif prev_dungeon != 0 and self._dive_dungeon is not None:
             # A dive just ended. Judge only normal dives of the recall target —
             # fundraising mining of the Yeek Cave is a separate mode, not a dive.

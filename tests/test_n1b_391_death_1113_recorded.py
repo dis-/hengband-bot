@@ -43,11 +43,12 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import lzma
 import pickle
 import unittest
+from unittest import mock
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import destruction_use, me_capability, me_power_success, threat_tiers
+from hengbot import deep_teleport, destruction_use, me_capability, me_power_success, threat_tiers
 from hengbot.me_absorbed_substitutes import TELEPORTATION
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
@@ -133,11 +134,25 @@ class N1b391Death1113RecordedTest(unittest.TestCase):
         self.assertEqual(rows[SMAUG]["ranged_prediction"], 2000 // 3 * 34 // 100)
 
     def test_death_board_teleports(self):
-        """6409: owner 2026-11-09 B, the Teleportation scroll (live: the explore step)."""
+        """6409: owner 2026-11-09 B, the Teleportation scroll (live: the explore step).
+        DECLARED CONSTRUCTED: the 50F+ rule of 2026-11-14 walled off (deep_teleport.allows)."""
         self.assertEqual(live(6409), ("2", "explore"))
-        _, board, key, reason = self.decided[6409]
+        with mock.patch.object(deep_teleport, "allows", lambda policy, snapshot: True):
+            _, board, key, reason = decide(6409)
         scroll = next(item for item in board.inventory if item.is_teleport_scroll)
         self.assertEqual((key, reason), ("r" + scroll.slot, TELEPORT_REASON))
+
+    def test_death_board_destroys_under_the_50f_teleport_rule(self):
+        """6409 as recorded, owner 2026-11-14 「50F以降のテレポートの条件を厳しくする。…射線の通って
+        いる敵の合計予測被害95%が現在HPを上回るとき=即死のときのみ。当てはまらない時は破壊または
+        近寄って破壊を試みる。」: neither dragon has a line of fire to the player on this board
+        (their breaths of the 即死 test come after a step), so the sum of those with one is 0 and
+        *Destruction* (87%) is used in the scroll's place."""
+        policy, board, key, reason = self.decided[6409]
+        self.assertTrue(threat_tiers.instant_death(policy, board).next_action)
+        self.assertEqual(deep_teleport.fire_p95(policy, board), 0)
+        self.assertEqual((key, reason), (DESTRUCTION[0], "emergency:destruction"
+                                         + deep_teleport.DESTRUCTION_SUFFIX + ":absorbed-power"))
 
     def test_death_board_without_a_scroll_destroys(self):
         """6409 with no Teleportation scroll in the pack (DECLARED CONSTRUCTED): the dragons,
@@ -152,8 +167,11 @@ class N1b391Death1113RecordedTest(unittest.TestCase):
 
     def test_blind_death_board_reads_the_surer_power(self):
         """6409 blind (DECLARED CONSTRUCTED): no scroll can be read.  Owner 2026-11-13 「成功率の
-        高い方を先に」: the absorbed Teleportation (92% shown) before *Destruction* (87%)."""
-        policy, board, key, reason = decide(6409, blind)
+        高い方を先に」: the absorbed Teleportation (92% shown) before *Destruction* (87%).
+        DECLARED CONSTRUCTED too: the 50F+ rule of 2026-11-14 walled off (deep_teleport.allows);
+        under it the cast gives way to *Destruction* (test_death_board_destroys_under_...)."""
+        with mock.patch.object(deep_teleport, "allows", lambda policy, snapshot: True):
+            policy, board, key, reason = decide(6409, blind)
         self.assertEqual(threat_tiers.blind_teleport_success(policy, board), 92)
         self.assertEqual(destruction_use.success(policy, board), 87)
         self.assertEqual((key, reason), BLIND_TELEPORT)

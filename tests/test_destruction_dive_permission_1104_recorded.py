@@ -9,6 +9,9 @@ the public town key as test_unsafe_recall_fallback_recorded does.
 DECLARED CONSTRUCTED: class 16 and the displayed absorbed list (rate and charges) on
 that board; the scrolls of the warrior variant (the module's stocked stack); the
 floor of the mid-dive variants (51F, the means held and then spent).
+
+Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた時点で
+帰還させる。」: the mid-dive floor without the means is a gap too (destruction_use.gap_here).
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -82,7 +85,10 @@ class DivePermissionTest(_RecordedDestructionBoard, unittest.TestCase):
     def deep(self, board, level=51):
         return replace(board, floor_key=(DUNGEON_ANGBAND, level, 0), town_flag=False)
 
-    def test_means_spent_on_51f_refuses_the_descent_but_is_no_gap(self):
+    def test_means_spent_on_51f_refuses_the_descent_and_is_a_gap(self):
+        # Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた
+        # 時点で帰還させる。」: the floor where the means was held and spent is left at once
+        # (before, owner 2026-11-04 governed arrivals and descents only and it was no gap).
         policy, board = self.magic_eater(20)
         floor = self.deep(board)
         destruction_use.observe(policy, floor)
@@ -91,19 +97,20 @@ class DivePermissionTest(_RecordedDestructionBoard, unittest.TestCase):
         self.assertIn(DESTRUCTION_GATE_LABEL, policy._missing_required_abilities(floor, 52))
         missing = policy._missing_required_abilities(floor, 51)
         self.assertIn(DESTRUCTION_GATE_LABEL, missing)
-        self.assertEqual(destruction_use.gap_here(policy, floor, missing), frozenset())
-        policy._should_start_town_return(floor)
-        self.assertNotEqual(policy._last_return_trigger, "resist-gap")
+        self.assertEqual(destruction_use.gap_here(policy, floor, missing),
+                         frozenset({DESTRUCTION_GATE_LABEL}))
+        self.assertTrue(policy._should_start_town_return(floor))
+        self.assertEqual(policy._last_return_trigger, destruction_use.MEANS_SPENT_TRIGGER)
 
     def test_a_floor_reached_without_the_means_stays_a_gap(self):
-        # A warrior's trapdoor from 49F: the existing resist-gap return answers it.
+        # A warrior's trapdoor from 49F: the return answers it (owner 2026-11-14's trigger).
         policy = self._independent()
         floor = self.deep(self.board, level=50)
         destruction_use.observe(policy, floor)
         missing = policy._missing_required_abilities(floor, 50)
         self.assertIn(DESTRUCTION_GATE_LABEL, destruction_use.gap_here(policy, floor, missing))
         self.assertTrue(policy._should_start_town_return(floor))
-        self.assertEqual(policy._last_return_trigger, "resist-gap")
+        self.assertEqual(policy._last_return_trigger, destruction_use.MEANS_SPENT_TRIGGER)
 
 
 if __name__ == "__main__":

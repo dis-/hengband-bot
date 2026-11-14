@@ -180,7 +180,12 @@ def device_teleport_key(policy, snapshot, means, reason: str, staff_reason: str)
     """The cast of the absorbed Teleportation (``reason`` + the cast suffix, the owner
     me_device_attacks_input answers the power prompt for) or the use of the carried staff
     (``staff_reason``) of a ``teleport_means`` answer other than the scroll, setting
-    ``last_reason``; None when its key cannot be composed."""
+    ``last_reason``; None when its key cannot be composed.  The 50F+ rule's substitute
+    (deep_teleport) answers in the teleport's place where it refuses it."""
+    from hengbot import deep_teleport
+
+    if (instead := deep_teleport.substitute(policy, snapshot)) is not None:
+        return instead
     kind, item = means
     if kind == "absorbed":
         power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]

@@ -197,6 +197,11 @@ def _first_read_spent(policy, snapshot) -> bool:
 
 def _read_teleport(policy, snapshot) -> str | None:
     scroll = policy._escape_scroll(snapshot, teleport_only=True)
+    # The 50F+ rule's substitute (deep_teleport) keeps its own reason; no teleport is read.
+    from hengbot import deep_teleport
+
+    if (instead := deep_teleport.scroll_substitute(policy, snapshot, scroll)) is not None:
+        return instead
     key = policy._read_key(snapshot, scroll) if scroll is not None else None
     if key is not None:
         setattr(policy, _READ, (snapshot.floor_key, snapshot.turn))

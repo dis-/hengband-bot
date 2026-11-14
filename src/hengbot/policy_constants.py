@@ -828,10 +828,11 @@ DESTRUCTION_GATE_LABEL = "destruction"
 # 50F+ is reached only by a character holding a means destruction_use can use
 # (``destruction_use.holds_means``: a staff or an absorbed power at 80%+, with a
 # charge); scrolls do not count.  Everyone else's deepest permitted arrival or
-# descent is DESTRUCTION_GATE_DEPTH - 1 (49F).  This governs new arrivals and
-# descents only: a character whose means ran out on 51F is not made to leave by
-# it (destruction_use.entitled_here).  The two functions below are the whole
-# surface; ``holds_means`` is a callable, asked only for a depth at the gate.
+# descent is DESTRUCTION_GATE_DEPTH - 1 (49F).  Owner 2026-11-14 「50F以降で破壊手段
+# なしの探索は許可しない。」: a character whose means ran out on 51F returns at once
+# (destruction_use.gap_here / means_spent_recall_key; a quest floor excepted).  The
+# two functions below are the whole surface of the arrival and descent rule;
+# ``holds_means`` is a callable, asked only for a depth at the gate.
 
 def destruction_dive_permitted(depth: int, holds_means) -> bool:
     """Whether ``depth`` may be reached at all under the 50F+ rule."""
