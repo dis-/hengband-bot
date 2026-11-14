@@ -295,7 +295,7 @@ def _free_devices(policy, snapshot, target) -> float:
     flags, level, best = _race_flags(policy, target), snapshot.player.level, 0.0
     if me_device_attacks.can_use_powers(snapshot):
         seen_missile = False
-        for power, success in me_device_attacks.usable_powers(policy):
+        for power, success in me_device_attacks.usable_powers(policy, snapshot):
             seen_missile = seen_missile or (power.kind, power.sval) == me_device_attacks.MISSILE
             if power.group_only or power.shape == "sight":
                 continue

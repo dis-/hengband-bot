@@ -14,12 +14,16 @@ when its figure per shot meets ``shot_average``.
 
 A device, for a class in ``device_classes``: an absorbed attack power with a charge, or
 a carried attack wand or rod.  Its figure is the expected damage of one use against the
-reference race, success rate included (me_device_attacks.expected_damage and the
-displayed rate of an absorbed power; attack_expectation's use chance of a carried one).
-It takes one player turn, so that figure is both its per-use and its per-turn figure.
+reference race, success rate included (me_device_attacks.expected_damage and the game's
+rate of an absorbed power, me_power_success; attack_expectation's use chance of a carried
+one).  It takes one player turn, so that figure is both its per-use and its per-turn figure.
 It counts when it meets ``shot_average``, and then each charge (a rod's ready count) is one
 shot: charges and qualifying ammunition add up towards ``ammo``.  The turn figure is the
 best single one of the launcher's and the devices'; they are not added.
+
+An absorbed power's rate is the unstunned one (owner 2026-11-14 「95%じゃないのか」): a stun
+ends before the quest is entered (the inn's stay ends it, cmd-building/cmd-inn.cpp
+back_to_health), so the stun of the list's board or of this one does not lower the gate.
 """
 
 from __future__ import annotations
@@ -58,11 +62,16 @@ def _reference_flags(policy, ranged) -> frozenset:
     return knowledge.flags if knowledge is not None else frozenset()
 
 
+# The stun the gate scores an absorbed power under: none, the inn's stay ends it.
+GATE_STUN = 0
+
+
 def _absorbed(policy, snapshot, flags):
     """(expected damage per use, charges) of each absorbed attack power with a charge."""
     level = snapshot.player.level
-    for power, success in me_device_attacks.usable_powers(policy):
-        if not power.group_only:
+    for power, row in me_device_attacks.held_powers(policy):
+        if not power.group_only and me_device_attacks._available(power, row):
+            success = me_device_attacks.power_success(policy, snapshot, power, row, stun=GATE_STUN)
             yield (success * me_device_attacks.expected_damage(power, level, flags),
                    me_capability.charges(policy, snapshot, power.kind, power.sval))
 

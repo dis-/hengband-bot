@@ -138,12 +138,15 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
 
     def test_stunned_pocket_board_destroys(self):
         """7975: the pocket's blow was the live answer; stunned (slight), the absorbed
-        *Destruction* reads 87% (97% shown, cmd-magiceat.cpp:485 and player-stun.cpp:135-153),
-        still reliable: owner 2026-11-13, *Destruction* before the sensed leave's scroll."""
+        *Destruction* reads 88% (cmd-magiceat.cpp:485 and player-stun.cpp:135-153), still
+        reliable: owner 2026-11-13, *Destruction* before the sensed leave's scroll.  The rate is
+        the game's from this board (me_power_success, 2026-11-14): INT index 26 floors it at 2%;
+        the checkpoint's list (97%, every floor row at 3% and Striking at 13%, the formula's 7%)
+        was shown at a lower INT index and carries no board of its own."""
         policy, board, key, reason = self.decided[7975]
         self.assertEqual(live(7975), ("7", "melee:anaguma"))
         self.assertEqual((board.player.stunned, board.player.stun_rank), (True, 1))
-        self.assertEqual(me_powers.stunned_success(policy, board, destruction_use.POWER), 87)
+        self.assertEqual(me_powers.stunned_success(policy, board, destruction_use.POWER), 88)
         self.assertEqual((key, reason), DESTRUCTION)
 
     def test_summoned_bodak_is_not_sent_away_before_destruction(self):
@@ -155,17 +158,17 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
         self.assertEqual((key, reason), DESTRUCTION)
 
     def test_stunned_teleport_away_gives_way(self):
-        """7976: the absorbed Teleport Away at 87% stunned was live; stunned *Destruction* (87%,
+        """7976: the absorbed Teleport Away at 88% stunned was live; stunned *Destruction* (88%,
         owner 2026-11-13) answers first now."""
         policy, board, key, reason = self.decided[7976]
         self.assertEqual(live(7976), TELEPORT_AWAY)
         self.assertEqual((board.player.stunned, board.player.stun_rank), (True, 1))
-        self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 87)
+        self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 88)
         self.assertEqual((key, reason), DESTRUCTION)
 
     def test_harder_stun_gives_way_to_the_scroll(self):
         """7976 at a normal stun (DECLARED CONSTRUCTED: stun_rank 2 for the recorded 1): the
-        penalty is 20 (player-stun.cpp:135-153), *Destruction* and Teleport Away read 77%, below
+        penalty is 20 (player-stun.cpp:135-153), *Destruction* and Teleport Away read 78%, below
         the reliable 80%; the scroll has no penalty at this stun (:162-178) and is read."""
         policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoints"][7976])
         with TemporaryDirectory() as scratch:
@@ -174,8 +177,8 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
                 knowledge_ledger_path=Path(scratch) / "k.jsonl")
         board = policy.with_known_skill_exp(boards[-1])
         board = replace(board, player=replace(board.player, stun_rank=2))
-        self.assertEqual(me_powers.stunned_success(policy, board, destruction_use.POWER), 77)
-        self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 77)
+        self.assertEqual(me_powers.stunned_success(policy, board, destruction_use.POWER), 78)
+        self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 78)
         key = str(policy.choose_key(board))
         self.assertEqual((key, policy.last_reason), SCROLL_LEAVE)
 

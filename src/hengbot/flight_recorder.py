@@ -222,6 +222,8 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         "_me_power_floor",
         # The Q2 Stone to Mud recharge trip to Morivant (owner 2026-10-31).
         "_q2_tower_recharge",
+        # The stun and inputs of the board each absorbed-device list was shown on (owner 2026-11-14).
+        "_me_device_list_boards",
         # The armour smith's attempts and trip of this stay in town (owner 2026-11-04).
         "_armor_smith_stay",
         # The Stone to Mud wands' Tower recharge of this stay in town (owner 2026-11-10).

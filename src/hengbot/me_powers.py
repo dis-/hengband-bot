@@ -111,7 +111,7 @@ from hengbot.me_staff_sequence import (
     POWER_NAMES, SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_EVIL, SV_STAFF_DETECT_TRAP,
     SV_STAFF_LITE, SV_STAFF_MAPPING,
 )
-from hengbot import attack_answer, hunt_target, me_capability, me_ranged_first
+from hengbot import attack_answer, hunt_target, me_capability, me_power_success, me_ranged_first
 from hengbot.me_device_policy import devices
 from hengbot.model import (
     SV_ROD_DETECTION, SV_ROD_DISARMING, SV_ROD_MAPPING, SV_ROD_TELEPORT_AWAY, SV_STAFF_SPEED, SV_WAND_DISARMING,
@@ -621,26 +621,36 @@ def _status_rung_first(policy, snapshot, monster) -> bool:
 
 # A stunned player (timed-effect/player-stun.cpp, by ``stun_rank``, PlayerStunRank 0-5): the
 # Magic-Eater's failure chance adds get_magic_chance_penalty (:135-153) before its cap of 95
-# (cmd-magiceat.cpp:484-487); a scroll's read fails on get_item_chance_penalty (:162-178,
-# object-use/item-use-checker.cpp check_stun, read-execution.cpp:94).
-STUN_MAGIC_PENALTY = (0, 10, 20, 30, 50, 100)
+# (cmd-magiceat.cpp:484-487; me_power_success owns it); a scroll's read fails on
+# get_item_chance_penalty (:162-178, object-use/item-use-checker.cpp check_stun,
+# read-execution.cpp:94).
+STUN_MAGIC_PENALTY = me_power_success.STUN_MAGIC_PENALTY
 STUN_ITEM_PENALTY = (0, 0, 0, 5, 10, 100)
-MAX_FAILURE = 95
+MAX_FAILURE = me_power_success.MAX_FAILURE
+_stun_rank = me_power_success.stun_rank
 
 
-def _stun_rank(player) -> int:
-    rank = player.stun_rank if player.stun_rank is not None else int(bool(player.stunned))
-    return max(0, min(rank, len(STUN_MAGIC_PENALTY) - 1))
+def _base_level(ident) -> int | None:
+    """The BaseitemDefinitions level of a power the bot knows it of (the attack powers and
+    the survival powers), else None."""
+    from hengbot.me_device_attacks import POWERS
+    from hengbot.me_loadout_offense import SURVIVAL_POWERS
+
+    ident = tuple(ident)
+    if ident in POWERS:
+        return POWERS[ident].level
+    survival = SURVIVAL_POWERS.get(ident)
+    return survival[1] if survival is not None else None
 
 
 def stunned_success(policy, snapshot, ident) -> int | None:
-    """The power's success percent now: the displayed failure (the last list shown) with the
-    stun's penalty added, capped as the game caps it; None without a displayed row.  A list
-    shown while already stunned counts the penalty twice: the lower reading."""
+    """The power's success percent under the board's current stun (me_power_success: the game's
+    rate, else the displayed row less the stun it was shown under); None without a displayed
+    row, which is what says the power is absorbed."""
     row = me_capability.observed_row(policy, *ident)
-    if row is None or not isinstance(row.get("fail"), int):
+    if row is None:
         return None
-    return 100 - min(MAX_FAILURE, row["fail"] + STUN_MAGIC_PENALTY[_stun_rank(snapshot.player)])
+    return me_power_success.success_percent(policy, snapshot, ident[0], _base_level(ident), row=row)
 
 
 def _stunned_scroll_first(ctx, power) -> bool:

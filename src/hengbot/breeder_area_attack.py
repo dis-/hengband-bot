@@ -295,7 +295,7 @@ def _means(policy, snapshot) -> list[Means]:
         means += [Means(power, success,
                         lambda direction, power=power: me_device_attacks.device_key(policy, power, direction),
                         lambda grid, power=power: me_device_attacks.device_target_key(policy, power, grid))
-                  for power, success in me_device_attacks.usable_powers(policy)]
+                  for power, success in me_device_attacks.usable_powers(policy, snapshot)]
     means += _carried(policy, snapshot)
     if me_device_attacks.sight_hits_bystander(snapshot):
         means = [each for each in means if each.power.shape != "sight"]
