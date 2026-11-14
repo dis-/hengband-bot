@@ -2612,6 +2612,14 @@ class CombatMixin:
             pack_teleport = bool(
                 followers and lethal and teleport_follower.pack_due(self, snapshot)
                 and teleport_follower.pack_teleport_means(self, snapshot) is not None)
+            # Owner 2026-11-14 「付いてくる敵だけで死なないなら読む」: on the 即死 board with fewer
+            # followers, the same teleport when the followers alone cannot kill (their own
+            # next-action p95 below the HP; teleport_follower.survivable_due), after *Destruction*
+            # and before Teleport Other (n1-a life-522: マレキス beside, 14 Teleportation unread).
+            survivable_teleport = bool(
+                followers and instant_death and not pack_teleport
+                and teleport_follower.survivable_due(self, snapshot)
+                and teleport_follower.pack_teleport_means(self, snapshot) is not None)
             # Blind beside a faster monster whose blows blind, the cure is undone before the
             # next action (status_cure.outpacing_blinders): an escape usable blind goes first,
             # and Teleport Other at that monster is one (a wand or rod zaps blind).
@@ -2630,7 +2638,7 @@ class CombatMixin:
                      or destruction_use.usable(self, snapshot, leaving=engagement)
                      or ((followers or blinders)
                          and teleport_follower.away_usable(self, snapshot))
-                     or pack_teleport)
+                     or pack_teleport or survivable_teleport)
             )
             # Owner 2026-11-13 「成功率が足りれば *破壊* を先」: stunned (not blind), when the
             # stun-adjusted *Destruction* is reliable and would be the escape, it goes before the
@@ -2734,8 +2742,11 @@ class CombatMixin:
                         used := destruction_use.key(self, snapshot, leaving=engagement)
                 ) is not None:
                     return used
-                if pack_teleport and (
-                        teleported := teleport_follower.pack_teleport_key(self, snapshot)) is not None:
+                if (pack_teleport or survivable_teleport) and (
+                        teleported := teleport_follower.pack_teleport_key(
+                            self, snapshot,
+                            teleport_follower.PACK_REASON if pack_teleport
+                            else teleport_follower.SURVIVABLE_REASON)) is not None:
                     if self._fundraising_mode in {"mine", "scavenge"}:
                         self._note_return_start(self._last_return_trigger)
                         self._returning_to_town = True

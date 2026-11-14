@@ -13939,6 +13939,13 @@
     ],
     "delegation": "No independent success; the emergency ladder selects the command."
   },
+  "teleport_away_carry.py:retained_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "teleport_follower.py:_absorbed": {
     "classification": "data",
     "rows": [

@@ -40,11 +40,23 @@ With ``PACK_MIN`` or more followers engaged (``pack``) on a lethal board the eme
 answers *Destruction*, then the teleport itself (``pack_teleport_key``: the scroll, the absorbed
 Teleportation, the carried staff), then Teleport Other and the fight as before; with fewer the
 11-09 order stands.
+
+Followers that cannot kill alone (owner 2026-11-14, n1-a life-522, verbatim): 「付いてくる敵だけで
+死なないなら読む」.  n1-a life-522 (warrior Lv40, 49階): 魔王『マレキス』 (race 628: Lv47, TPORT, no
+RES_TELE) stood beside the player while 迷路の神『アイホート』 and three ショゴス (RES_TELE) closed
+in; the 即死 board kept the 14 Teleportation scrolls unread (a follower was beside it) and, with
+no *Destruction* and no Teleport Other carried, quaffed Cure Light Wounds three times and died.
+On the 即死 board (``instant_death``) with fewer than ``PACK_MIN`` followers engaged, when the
+followers' own next-action p95 (instant_death.instant_death read on them alone: whatever comes
+along is at worst all of them) stays below the HP (``survivable_due``), the pack rung's teleport
+(``pack_teleport_key`` with ``SURVIVABLE_REASON``) goes after *Destruction* and before Teleport
+Other: the followers come along with their level in percent, every other monster stays behind.
 """
 
 from __future__ import annotations
 
 from hengbot import me_absorbed_substitutes, me_capability, quest_no_teleport
+from hengbot.instant_death import instant_death
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
     SV_ROD_TELEPORT_AWAY, SV_STAFF_TELEPORTATION, SV_WAND_TELEPORT_AWAY, TVAL_ROD, TVAL_STAFF,
@@ -92,8 +104,6 @@ def followed(policy, snapshot) -> bool:
 # Owner 2026-11-12 「テレポート追尾が3体以上で致死的なとき」.
 PACK_MIN = 3
 PACK_REASON = "emergency:teleport-follower:pack-teleport"
-# The carried Staff of Teleportation's suffix (threat_escape.STAFF_REASON_SUFFIX's form).
-PACK_STAFF_REASON = PACK_REASON + "-staff"
 
 
 def pack(policy, snapshot) -> list:
@@ -123,6 +133,17 @@ def pack(policy, snapshot) -> list:
 def pack_due(policy, snapshot) -> bool:
     """``PACK_MIN`` or more followers engaged, one of them adjacent (else nothing follows)."""
     return followed(policy, snapshot) and len(pack(policy, snapshot)) >= PACK_MIN
+
+
+# Owner 2026-11-14 「付いてくる敵だけで死なないなら読む」.
+SURVIVABLE_REASON = "emergency:teleport-follower:survivable-teleport"
+
+
+def survivable_due(policy, snapshot) -> bool:
+    """Followers adjacent whose own next-action p95 (the 即死 test read on them alone) stays
+    below the HP: a teleport that brings every one of them along does not die to them."""
+    chosen = followers(policy, snapshot)
+    return bool(chosen) and not instant_death(policy, snapshot, chosen).next_action
 
 
 def pack_teleport_means(policy, snapshot):
@@ -160,15 +181,18 @@ def teleport_means(policy, snapshot, *, beside_followers=False):
     return None if staff is None else ("staff", staff)
 
 
-def pack_teleport_key(policy, snapshot) -> str | None:
+def pack_teleport_key(policy, snapshot, reason: str = PACK_REASON) -> str | None:
     """The teleport of ``pack_teleport_means`` as an emergency escape (counted at the read like
-    the ladder's own: reasons.EMERGENCY, ``_latch_repeat_emergency_return``), else None."""
+    the ladder's own: reasons.EMERGENCY, ``_latch_repeat_emergency_return``), else None.
+    ``reason``: ``PACK_REASON`` for the pack, ``SURVIVABLE_REASON`` for ``survivable_due``; the
+    carried staff's use carries the ``-staff`` suffix (threat_escape.STAFF_REASON_SUFFIX's form),
+    the absorbed cast the cast suffix."""
     means = pack_teleport_means(policy, snapshot)
     if means is None:
         return None
     if means[0] == "scroll":
-        return policy._issue_emergency_consumable(snapshot, means[1], PACK_REASON)
-    key = device_teleport_key(policy, snapshot, means, PACK_REASON, PACK_STAFF_REASON)
+        return policy._issue_emergency_consumable(snapshot, means[1], reason)
+    key = device_teleport_key(policy, snapshot, means, reason, reason + "-staff")
     if key is None:
         return None
     policy._emergency_return_active = True

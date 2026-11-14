@@ -261,7 +261,8 @@ DELEGATED = {
     "light and oil": "light rules, supply-ledger:oil",
     "food": "supply-ledger:food",
     "books": "the book sale and junk rules",
-    "devices of other classes": "_find_device_sale / _is_useful_device / identify-staff cap",
+    "devices of other classes": ("_find_device_sale / _is_useful_device / identify-staff cap; "
+                                 "the carried Teleport Other device: teleport_away_carry"),
     "unidentified items": "identification",
     "potions and scrolls the table marks 「捨てる」": "the junk path (table-discard)",
 }

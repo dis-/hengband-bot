@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
+from hengbot import teleport_away_carry
 from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.policy_constants import UNSEEN_REVERSE_REASON
 from hengbot.item_reservation import reserved_item_command
@@ -1287,6 +1288,12 @@ class SupplyMixin:
                 if candidate.tval == item.tval and candidate.sval == item.sval
             )
             return max(0, potion_target[0] - carried)
+        if (teleport_away_carry.is_device(item)
+                and any(item is stock for stock in self._home_knowledge_items)):
+            # Owner 2026-11-14 「1本持ち歩く」: the Home Teleport Other device is taken out when
+            # the pack keeps none (teleport_away_carry.home_missing); before the zombie's mana
+            # food reading of a charged wand.
+            return teleport_away_carry.home_missing(self, snapshot, item)
         kind = next(
             (name for name in SUPPLY_STORES if self._store_item_is_supply(item, name)),
             None,
