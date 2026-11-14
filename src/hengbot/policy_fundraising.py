@@ -408,11 +408,32 @@ class FundraisingMixin:
             return False
         if not snapshot.in_town:
             return bool(getattr(self, "_scavenge_without_digger", False))
-        page = self._current_town_supplier_page(snapshot, STORE_GENERAL)
+        page = (self._current_town_supplier_page(snapshot, STORE_GENERAL)
+                or self._general_shelf_evidence_page(snapshot))
         return bool(
             self._count_treasure_detection_scrolls(snapshot) > 0 and page is not None
             and not any(item.is_digging_tool and item.price <= snapshot.player.gold
                         for item in page.items))
+
+    def _general_shelf_evidence_page(self, snapshot: Snapshot):
+        """The General store's remembered page the town plan trusts, else None.
+
+        The need registry skips a stop whose shelf was observed within its
+        restock window (policy_instore ``_shelf_evidence_skips_need``, design
+        3.3.3), so a General shelf seen on the previous visit is never seen
+        again on this one.  n1-c life-210 (2026-11-15 04:58, Lv8 after Q1, 481
+        gold, no digger, 11 Treasure Detection): the General page of 100978
+        (シャベル 1,186, no affordable digger) kept the General stop out of the
+        104379 visit, ``_current_town_supplier_page`` found no page of this
+        visit, the set stayed in ``prepare`` and stopped on
+        town:blocked:survival:recall_departure_ready (1 of 9).  The same
+        evidence that drops the stop answers this question.
+        """
+        record = self._in_store_attribute("_shelf_evidence").get("pages", {}).get(
+            (self._effective_town_id(snapshot), STORE_GENERAL))
+        if record is None or not self._shelf_evidence_valid(record, snapshot.turn):
+            return None
+        return self._shelf_page_after_trades(record)
 
     def _scavenge_allowed(self, snapshot: Snapshot) -> bool:
         """The fundraising poverty exceptions that walk 1F instead of mining."""

@@ -172,6 +172,8 @@ LADDER = (
         *E("_blocking_escape_melee_key"),
         *I("combat:disengage-clear-path"),
         *D("town_last_stand.key", "me_ranged_first.outpaced_afraid_key"),
+        # n1-c life-209: a declared walk-out that wins the race to its up-stair walks on to it.
+        *I("flee:seek-upstairs"),
         *E("_flee_step#2"),
         *I("flee"),
         *D("destruction_use.key"),

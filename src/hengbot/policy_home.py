@@ -3481,7 +3481,13 @@ class HomeMixin:
         # stage 1 is worked, identified or not (me_staff_sequence.stows).
         from hengbot.me_staff_sequence import stows as staff_sequence_stows
         if snapshot is not None and staff_sequence_stows(self, snapshot, item):
-            return True
+            # A staff a retention reservation keeps (a mana eater's food, the
+            # 'mana-device' branch) is refused by the Home page's deposit
+            # (item_available): routing Home for it only closed the page as
+            # home:route-claim-unfulfilled until the home-visit owner retired
+            # (n1-c life-210, 2026-11-15 05:00, 杖 (20回分), then
+            # town:blocked:survival:food_ready).
+            return self._retention_surplus(snapshot, item) > 0
         full = bool(
             item.known
             and item_requires_full_identification(item)

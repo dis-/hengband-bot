@@ -167,5 +167,11 @@ def follow(policy, snapshot, predicate, fresh_path, fresh_pass, entrance_cells):
     return TownMapRoute(path[-1], path[0], len(path))
 
 
+def committed_path(policy, predicate) -> list | None:
+    """The cells (first step to the goal) of the route this goal kind last committed, else None."""
+    commitment = _commitments(policy).get(goal_kind(predicate))
+    return None if commitment is None else list(commitment.path)
+
+
 def forget(policy, predicate) -> None:
     _commitments(policy).pop(goal_kind(predicate), None)
