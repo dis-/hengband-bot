@@ -1129,6 +1129,48 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "deep_teleport.py:KEEPS_TELEPORT": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:_walk_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:concerned": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:fire_p95.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:scroll_substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "departure_readiness.py:ReadinessTable.items": {
     "classification": "data",
     "rows": [
@@ -1230,6 +1272,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:means_spent_recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "destruction_use.py:sight_trigger_key": {
     "classification": "data",
@@ -1766,6 +1815,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "glass_reach.py:stops": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "goal_route.py:_commitments": {
     "classification": "data",
@@ -3366,6 +3422,27 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
+  },
+  "line_of_fire.py:_stops": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:in_fire": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:reaches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "locked_doors.py:pick_key": {
     "classification": "data",
@@ -6988,6 +7065,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._low_hp_next_turn_damage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._may_block_projection": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11065,6 +11149,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_types.py:in_flight_clause": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "projection_path.py:projection_path": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

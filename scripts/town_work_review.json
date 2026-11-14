@@ -19129,5 +19129,104 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:fire_p95.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the next action's p95 summed over the engagement's monsters with a line of fire (line_of_fire.in_fire), memoised per decision.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:concerned": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the awake engagement hostiles that hurt from contact, but the floor's guardian and the quest target *Destruction* spares.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:_walk_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "Owner 2026-11-14 (50F+ self-teleport only on instant death by monsters with a line of fire, else *Destruction* or walk to it): a step toward the nearest grid within the sure radius 13 of a concerned monster while the means is held and the floor is destroyable (sensed-t1:approach-destruction, a walk); None in reach or without a path; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "Owner 2026-11-14: the key in place of a 50F+ self-teleport the rule refuses -- destruction_use.key (suffix :deep-teleport) on the concerned monsters, else threat_tiers.approach_key, else _walk_key; None (read the teleport as before) when allowed or with no answer; asked by every self-teleport read and cast; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:scroll_substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "substitute for a read of Teleportation or Phase Door only (asked from _read_key, _issue_emergency_consumable, the breeders' read and the enclosure's read); None for any other item; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "destruction_use.py:means_spent_recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: destruction_use.means_spent holds (dungeon_level >= 50 where threat_tiers.acts_here holds, not a quest floor, the *Destruction* means not held).",
+    "evidence": "Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた時点で帰還させる。」: latches the town return (emergency-destruction-means-spent) and reads Word of Recall through once_quest_recall.read_key (return:recall) first in the above-emergency layer; None without a read; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "line_of_fire.py:_stops": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: a grid stops a projection (off the board, unknown, or policy._may_block_projection).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:reaches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the game's projectable (projection-path-calculator.cpp, range 18) between two grids over the known board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:in_fire": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: a monster has a line of fire to the player (reaches).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
