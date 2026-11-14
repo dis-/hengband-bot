@@ -25,6 +25,7 @@ from hengbot.policy_constants import (
     MORIVANT_TOWN_ID,
     PACK_CAPACITY,
     QUEST_STATUS_COMPLETED,
+    QUEST_STATUS_FAILED,
     QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
@@ -131,7 +132,8 @@ class QuestWorkMaterial:
 # The fixed-quest terminals the shopping hold refuses (not the floor reward).
 QUEST_WORK_TERMINALS = frozenset({
     "quest-prepare-return", "quest-travel", "quest-claim",
-    "quest-request-building", "quest-entry", "quest-descent",
+    "quest-report-failed", "quest-request-building", "quest-entry",
+    "quest-descent",
 })
 
 
@@ -1085,6 +1087,9 @@ def fixed_quest_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
         return TerminalRef("quest-travel", (target_town,))
     if quest.status == QUEST_STATUS_COMPLETED:
         return TerminalRef("quest-claim", (quest_id,))
+    if quest.status == QUEST_STATUS_FAILED:
+        # The report of a failed quest at its building (no reward follows).
+        return TerminalRef("quest-report-failed", (quest_id,))
     if quest.status == QUEST_STATUS_UNTAKEN:
         return TerminalRef("quest-request-building", (quest_id,))
     if quest.status != QUEST_STATUS_TAKEN:

@@ -14137,6 +14137,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_quest.py:QuestMixin._fixed_quest_report_failed_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The report of a FAILED fixed quest whose building in this town still holds it (market/building-quest.cpp castle_quest: FAILED -> FAILED_DONE), delegated to the existing _fixed_quest_building_key (fixedquest:report-failed, no reward latch). Called by _fixed_quest_key; the quest-report-failed terminal.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_optional_carry.py:scan_key": {
     "classification": "data",
     "rows": [

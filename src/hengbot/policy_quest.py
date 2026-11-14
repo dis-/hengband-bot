@@ -275,9 +275,11 @@ from hengbot.policy_constants import (
     QUEST_POTION_SVALS,
     QUEST_SCROLL_SVALS,
     QUEST_STATUS_COMPLETED,
+    QUEST_STATUS_FAILED,
     QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED,
     QUEST_STATUS_TAKEN,
+    REPORT_FAILED_REASON,
     REST_MACRO,
     RETURN_STATIONARY_REASONS,
     SPEED_POTION_BONUS,
@@ -4681,6 +4683,9 @@ class QuestMixin(OpeningRouteMixin):
         quest = self._known_fixed_quests(snapshot).get(quest_id)
         if quest is None:
             return None
+        if quest.status == QUEST_STATUS_FAILED:
+            return (self._fixed_quest_report_failed_key(snapshot, quest_id)
+                    if snapshot.in_town else None)
         if quest_id == 2:
             travel = self._telmora_q2_travel_key(snapshot, quest)
             if travel is not None:
@@ -4751,6 +4756,20 @@ class QuestMixin(OpeningRouteMixin):
             return None
         return self._fixed_quest_building_key(
             snapshot, quest_id, "fixedquest:request", set_reward_pending=False
+        )
+
+    def _fixed_quest_report_failed_key(self, snapshot: Snapshot, quest_id: int) -> str | None:
+        """Report a FAILED quest at its building: enter it and select the quest.
+
+        market/building-quest.cpp castle_quest shows the quest's text and turns
+        FAILED into FAILED_DONE, with no prompt (print_questinfo only writes
+        the screen), and asks for the town to be rebuilt, which leaving the
+        building does (cmd-building.cpp do_cmd_building: ``leaving``).  The
+        building's 'q' is BACT_QUEST (lib/edit/towns buildingRules, action 6),
+        the same keys as a request or a claim; no reward follows.
+        """
+        return self._fixed_quest_building_key(
+            snapshot, quest_id, REPORT_FAILED_REASON, set_reward_pending=False
         )
 
     def _fixed_quest_prepare_return_required(self, snapshot: Snapshot) -> bool:
@@ -5085,7 +5104,9 @@ class QuestMixin(OpeningRouteMixin):
         quest = self._fixed_quest_head(snapshot)
         if quest is None or not supported(quest.id):
             return None
-        if quest.status in {QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED}:
+        if quest.status in {
+            QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED, QUEST_STATUS_FAILED,
+        }:
             return quest.id
         if (
             quest.status == QUEST_STATUS_UNTAKEN
@@ -5153,6 +5174,21 @@ class QuestMixin(OpeningRouteMixin):
         ]
         if completed:
             return min(completed, key=self._fixed_quest_order)
+
+        # A FAILED quest whose building in this town still holds it is
+        # reported there (``_fixed_quest_report_failed_key``): until then the
+        # town map keeps the building on the failed quest and the chain's next
+        # quest is never offered (lib/edit/towns 01_Outpost_Full.jsonc: Q25
+        # only at $QUEST18 4 or 6; n1-b life-397 and n1-c life-207 recalled out
+        # of Q18 and never saw Q25).  The report only; a failed quest is never
+        # entered again.
+        failed = [
+            quest for quest in known_quests.values()
+            if supported(quest) and quest.status == QUEST_STATUS_FAILED
+            and self._fixed_quest_is_offered(snapshot, quest.id)
+        ]
+        if failed:
+            return min(failed, key=self._fixed_quest_order)
 
         # Q1 and Q34 are both level-five quests, so the generic (level, id)
         # ordering otherwise selects Q1 immediately after Q34's torches become

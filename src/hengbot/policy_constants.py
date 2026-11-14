@@ -621,6 +621,22 @@ QUEST_STATUS_REWARDED = 3
 
 QUEST_STATUS_FINISHED = 4
 
+# QuestStatusType (system/dungeon/quest-definition.h): a FAILED quest stays
+# with its building until the character enters it and selects it
+# (market/building-quest.cpp castle_quest: FAILED -> FAILED_DONE and the town
+# is rebuilt); the town maps keep the building on the failed quest while it is
+# 5 and move it on to the chain's next quest at 6 (lib/edit/towns, e.g.
+# 01_Outpost_Full.jsonc "Quest 18 failed, wait for the player to enter the
+# castle").
+QUEST_STATUS_FAILED = 5
+
+QUEST_STATUS_FAILED_DONE = 6
+
+# The reason of the FAILED quest's report at its building (policy_quest
+# ``_fixed_quest_report_failed_key``); its approach is REPORT_FAILED_REASON +
+# ":approach", the reason ``_fixed_quest_building_key`` composes.
+REPORT_FAILED_REASON = "fixedquest:report-failed"
+
 QUEST_ID_THIEF = 1
 
 WIN_QUEST_IDS = frozenset({8, 9})
