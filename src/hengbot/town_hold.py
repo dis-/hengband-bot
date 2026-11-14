@@ -1161,6 +1161,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("fixedquest:prepare-return:unsatisfiable", T, EFFECT),
         ("fixedquest:seek-exit", R, WALK_TARGET),
         ("fixedquest:enter", O, FLOOR_CHANGE),
+        # Owner 2026-11-14: the inn's night before a quest that counted the absorbed powers full.
+        ("fixedquest:inn-refill:approach", R, ENTRANCE),
+        ("fixedquest:inn-refill:rest", T, EFFECT),
         ("fixedquest:exit", O, FLOOR_CHANGE),
         ("quest:", T, EFFECT),
         ("quest:enter:approach", R, ENTRANCE),

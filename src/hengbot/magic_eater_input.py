@@ -79,7 +79,12 @@ class AbsorbedUseMenu(MagicEaterMenu):
     terminal_name = "magic-eater"
     stall_text = "Magic-Eater menu made no progress"
     unexpected_text = "unexpected prompt after Magic-Eater answer"
-    unasked_stages = frozenset({"aim"})
+    # The direction and the Identify power's item are both asked only after the
+    # use succeeds (cmd-magiceat.cpp: a failure prints its message and ends the
+    # command).  A monster's turn in the same game turn can replace that message
+    # on the screen, so the command screen itself is the game's answer (n1-b
+    # life-397 2026-11-14 17:24, 49F: 'mAfl' stopped at the target stage).
+    unasked_stages = frozenset({"aim", "target"})
     spent_texts = EMPTY
     # A ValueError raised while the answer is posted (and from what the post
     # goes on to run) is handled as a refusal, unlike the other uses.

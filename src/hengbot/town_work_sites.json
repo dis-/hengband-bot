@@ -3706,6 +3706,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_inn_refill.py:entry_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_inn_refill.py:state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_loadout_offense.py:held_attack_powers": {
     "classification": "data",
     "rows": [
@@ -3764,6 +3779,13 @@
       "plan-routing",
       "loot-exploration",
       "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_power_success.py:_displayed_fail": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -8213,14 +8235,28 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_home.py:HomeMixin._weight_deposit_candidates": {
+  "policy_home.py:HomeMixin._weight_deposit_holds": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_home.py:HomeMixin._weight_deposit_candidates.priority": {
+  "policy_home.py:HomeMixin._weight_deposit_holds.hold": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._weight_deposit_holds.priority": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._weight_deposit_holds.required_supply_categories": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14925,6 +14961,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "none"
+  },
+  "trap_warning.py:_monster_could_warn": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "trap_warning.py:last_way_key": {
     "classification": "data",

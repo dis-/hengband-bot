@@ -465,7 +465,7 @@ def devices_against(policy, snapshot, race_id, *, area_only: bool = False) -> fl
     flags = me_device_attacks.race_id_flags(policy, race_id)
     level, best = snapshot.player.level, 0.0
     if me_device_attacks.can_use_powers(snapshot):
-        for power, success in me_device_attacks.usable_powers(policy):
+        for power, success in me_device_attacks.usable_powers(policy, snapshot):
             if power.group_only or power.shape == "sight" or (
                     area_only and power.shape not in me_device_attacks.TARGETABLE_SHAPES):
                 continue

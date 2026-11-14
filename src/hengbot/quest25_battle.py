@@ -116,6 +116,7 @@ from hengbot import (
     speed_dose,
     summon_response,
     threat_tiers,
+    trap_warning,
 )
 from hengbot.game_messages import ECHIZEN_PREFIX, KILL_LINES, KILL_LINES_EN
 from hengbot.item_reservation import reserved_item_command
@@ -262,6 +263,7 @@ class Battle:
     kills: dict = field(default_factory=dict)        # race -> kills read from kill lines
     ready: bool = False            # this phase's preparation is done
     quiet: int = 0                 # actions without a new arrival (the 50-action waits)
+    no_way: tuple | None = None    # the cell the last walk held on with no way on (``_walk``)
     seen: frozenset = frozenset()  # monster indices seen in this phase
     summoned: frozenset = frozenset()  # of those, the ones first seen on a board with a summon cast
     escaped: frozenset = frozenset()   # Ipsissimus indices seen out of the pen
@@ -551,8 +553,30 @@ def _refused(ctx: _Ctx) -> frozenset:
     n1-c life-200 (2026-11-12 12:03): after the refusal of (6,29)->(5,29) the walk aimed at
     (5,29) again on every decision; the gate turned the step into a wait and the wait into a
     flee, so the plan went back and forth.  The plan's walks go round them like an occupied cell,
-    and a walk with no way round holds (``_step``)."""
-    return frozenset((cell.y, cell.x) for cell in getattr(ctx.policy, "_warning_refused_cells", ()))
+    and a walk with no way round holds (``_step``).
+
+    Only while a known monster could still raise that warning (trap_warning ``_monster_could_warn``,
+    the test that latched it: awake, hostile, within the game's 12 cells, beside the cell or with a
+    line to it; warning.cpp process_warning).  n1-c life-207 (2026-11-14 17:23:53): the ambush's
+    step onto [9,1] was warned of the spectral tyrannosaur beside it and refused; it was killed two
+    decisions later, and the latch stayed for the floor.  [9,1] is the only way from [10,1] to the
+    wall-passers' stand [7,1], so the phase held on [10,1] for over 5,300 decisions with nothing in
+    reach of [9,1].  A latch whose monsters are gone is the stale one ``_unlatch_stale`` lifts when
+    the plan steps onto it; a trap's latch (``_trap_warning_cells``) stays as it was."""
+    policy, snapshot = ctx.policy, ctx.snapshot
+    traps = getattr(policy, "_trap_warning_cells", {})
+    return frozenset((cell.y, cell.x) for cell in getattr(policy, "_warning_refused_cells", ())
+                     if cell in traps or trap_warning._monster_could_warn(policy, snapshot, cell))
+
+
+def _unlatch_stale(ctx: _Ctx, cell) -> None:
+    """Before the plan steps onto ``cell``: a refusal's latch no known monster could raise again
+    (not in ``_refused``) is lifted, so the step gate (``_warning_step_refused``) lets the step
+    through.  Should the game warn again (a monster the board does not show), the prompt is
+    refused and latched as on any step (trap_warning ``note_warned``)."""
+    target = Position(*cell)
+    if target in getattr(ctx.policy, "_warning_refused_cells", ()) and tuple(cell) not in _refused(ctx):
+        ctx.policy._release_warning_refusal(target)
 
 
 def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
@@ -574,6 +598,7 @@ def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> 
         return _hold(ctx)   # the refused cell is not stepped onto: the plan holds where it is
     if guard and (held := _fire_guard(ctx, cell)) is not None:
         return held
+    _unlatch_stale(ctx, cell)
     ctx.policy.last_reason = reason
     return ctx.policy._step_toward(ctx.snapshot, Position(*cell))
 
@@ -628,13 +653,19 @@ def _shunned_hold(ctx: _Ctx, toward) -> str:
         if len(path) >= 2:
             ctx.policy._declare_reach(Position(*path[-1]))
             return _step(ctx, path[1], WALK_REASON, guard=False)
+    ctx.battle.no_way = ctx.here
     return _engage(ctx, targets) or _hold(ctx)
 
 
 def _walk(ctx: _Ctx, goals, reason: str = WALK_REASON, *, taken=frozenset()) -> str | None:
     """The next step toward ``goals`` (the trap rule first); None there or with no way.
     ``taken``: cells the walk does not cross besides the monsters in view.  Never toward a shunned
-    mover (``_shunned``): with no other way, the hold where the player stands."""
+    mover (``_shunned``): with no other way, the hold where the player stands.
+
+    ``battle.no_way``: the cell this walk found no way on from (none at all, or only toward the
+    shunned, ``_shunned_hold``'s hold), else None; a phase's wait counts there as on its stand
+    (``_observe``)."""
+    ctx.battle.no_way = None
     goals = {tuple(goal) for goal in goals}
     if ctx.here in goals:
         return None
@@ -644,6 +675,7 @@ def _walk(ctx: _Ctx, goals, reason: str = WALK_REASON, *, taken=frozenset()) -> 
     if len(path) < 2 and toward and len(_path(ctx, goals, taken)) >= 2:
         return _shunned_hold(ctx, toward)
     if len(path) < 2:
+        ctx.battle.no_way = ctx.here
         return None
     nxt = path[1]
     trap = _trap_key(ctx, nxt)
@@ -952,7 +984,7 @@ def _ball_powers(ctx: _Ctx, race: int):
     level = snapshot.player.level
     found = []
     if me_device_attacks.can_use_powers(snapshot):
-        for power, success in me_device_attacks.usable_powers(policy):
+        for power, success in me_device_attacks.usable_powers(policy, snapshot):
             if power.shape in me_device_attacks.TARGETABLE_SHAPES and not power.group_only:
                 found.append((success * me_device_attacks.expected_damage(power, level, flags),
                               me_device_attacks.AREA_RADIUS[power.shape], power.shape,
@@ -1004,7 +1036,7 @@ def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
         return None
     flags = me_device_attacks.race_id_flags(ctx.policy, race)
     best = None
-    for power, success in me_device_attacks.usable_powers(ctx.policy):
+    for power, success in me_device_attacks.usable_powers(ctx.policy, snapshot):
         share = _beam_share(power)
         if share <= 0 or power.group_only:
             continue
@@ -1229,6 +1261,19 @@ def _ambush_enlightenment(ctx: _Ctx) -> str | None:
     return key
 
 
+def _door_to_close(ctx: _Ctx, door) -> bool:
+    """An open door on ``door``, the one ``c`` closes beside the player.
+
+    do_cmd_close (cmd-open-close.cpp) takes the direction itself only when easy_open counts
+    exactly one open door around the player (count_doors_traps, GridCountKind::OPEN); with none
+    it asks 「方向 (ESCで中断)?」.  n1-c life-207 (2026-11-14 18:49:13): the west door [9,1] was
+    gone (the board shows FLOOR there since 17:24), the restarted process began the ambush again
+    (its battle record was of a later game turn than the reloaded save, quest25_battle_record),
+    keyed 'c' on [10,1], and the direction prompt stopped the bot (stuck-prompt)."""
+    grid = ctx.snapshot.grid_at(Position(*door))
+    return grid is not None and grid.known and grid.is_door and not grid.is_closed_door
+
+
 def _ambush(ctx: _Ctx) -> str | None:
     battle = ctx.battle
     if (potion := _ambush_enlightenment(ctx)) is not None:
@@ -1244,6 +1289,7 @@ def _ambush(ctx: _Ctx) -> str | None:
             return key
         if ctx.door_closed(door):
             if quest_exposure.game_distance(ctx.here, door) <= 1:
+                _unlatch_stale(ctx, door)
                 ctx.policy.last_reason = OPEN_REASON
                 return ctx.policy._step_toward(ctx.snapshot, Position(*door))
             return _walk(ctx, {(door[0] + 1, door[1])})
@@ -1259,7 +1305,7 @@ def _ambush(ctx: _Ctx) -> str | None:
                   if quest_exposure.game_distance((monster.position.y, monster.position.x), door) <= 1]
         if coming:
             return _step(ctx, door, ENGAGE_REASON)
-        if not targets:
+        if not targets and _door_to_close(ctx, door):
             ctx.policy.last_reason = CLOSE_REASON
             return "c"     # easy_open closes the one open door beside, asking no direction
     return _hold(ctx)
@@ -2245,7 +2291,7 @@ class Phase:
     full_hp: bool          # 「全快にして」 before its first step
     done: Callable
     act: Callable          # the phase's own step
-    wait_at: tuple | None = None   # where its wait is counted (None: anywhere, once ready)
+    wait_at: tuple | None = None   # where its wait is counted (None: anywhere, once ready; else also ``no_way``)
     wait_limit: str | int | None = None  # the wait_limits item (or a number): actions without an arrival that end it
 
 
@@ -2348,7 +2394,14 @@ def _note_room_kill(ctx: _Ctx) -> None:
 
 
 def _observe(ctx: _Ctx) -> None:
-    """Once per board (``key`` and ``walk_key`` may both read it)."""
+    """Once per board (``key`` and ``walk_key`` may both read it).
+
+    A phase's wait counts on its stand (``wait_at``), and where the phase's last walk to it held
+    with no way on (``battle.no_way``): the owner's 「道が無ければ今いる召喚を受けないマスで迎え撃つ」
+    (2026-11-12, ``_shunned_hold``) meets them there, and the wait for arrivals 「50回来なければ
+    終える」 (2026-11-06) is the same wait wherever it is held, so it ends instead of holding on.
+    n1-c life-207 (2026-11-14): with no way to [7,1] the wall-passers' wait never counted, and the
+    phase held on [10,1] for over 5,300 decisions."""
     board = (ctx.snapshot.turn, id(ctx.snapshot))
     if ctx.battle.observed == board:
         return
@@ -2365,7 +2418,7 @@ def _observe(ctx: _Ctx) -> None:
     _note_tome_health(ctx)
     phase = current_phase(ctx)
     if (phase is not None and phase.wait_limit is not None and ctx.battle.ready
-            and phase.wait_at in (None, ctx.here)):
+            and (phase.wait_at in (None, ctx.here) or ctx.battle.no_way == ctx.here)):
         ctx.battle.quiet += 1
 
 

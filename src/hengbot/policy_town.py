@@ -1405,11 +1405,20 @@ class TownMixin:
         if (slot is not None and (
                 (decision_reason.startswith("bounty:")
                  and slot[0] == "quest-request")
-                or (decision_reason.startswith("town:cross-town")
-                    and slot[0] == "cross-town"))
+                or (slot[0] == "cross-town"
+                    and self._town_turn_arbiter.owner_for_reason(decision_reason)
+                    == "cross-town"))
                 and slot[1].kind == "Reach" and slot[1].cell is not None):
             # The producer's declared destination is authoritative.  A shop
             # route left by an earlier errand cannot judge this owner's walk.
+            # Every reason the arbiter files under cross-town is that walk's
+            # (town_arbiter: town:cross-town, town:morivant, town:arena:,
+            # town:zul:, town:wand-recharge:): n1-b life-397 2026-11-14 17:18
+            # arrived in Zul at (64,1) and the Zul trip's step over the
+            # mountains toward its declared Chaos Tower (town:zul:approach-tower)
+            # was judged against no goal, handed over to an Alchemist walk that
+            # native travel cannot route over the mountains, and the visit
+            # stopped no-key-exhausted.
             goal = Position(*slot[1].cell)
             if direction is not None:
                 route = self._town_map_goal_route(snapshot, goal)

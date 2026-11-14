@@ -42,26 +42,16 @@ from typing import Iterable
 
 from hengbot import me_device_attacks
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.warrior_equipment_evaluator import modify_stat_value, stat_index, trunc_div
+# The fail chance and its tables live with the one owner of an absorbed power's rate
+# (me_power_success); the names stay importable from here.
+from hengbot.me_power_success import (  # noqa: F401
+    ADJ_MAG_FAIL, ADJ_MAG_STAT, PERSONALITY_TO_M_CHANCE, TR_DEC_MANA, TR_EASY_SPELL, TR_HARD_SPELL,
+    fail_percent_at_index,
+)
+from hengbot.warrior_equipment_evaluator import modify_stat_value, stat_index
 
 
 TR_INT = 1
-TR_EASY_SPELL = 39
-TR_DEC_MANA = 70
-TR_HARD_SPELL = 135
-
-# player/player-status-table.cpp adj_mag_stat / adj_mag_fail, indexed by stat_index.
-ADJ_MAG_STAT = (
-    0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3,
-    4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-)
-ADJ_MAG_FAIL = (
-    99, 99, 99, 99, 99, 50, 30, 20, 15, 12, 11, 10, 9, 8, 7, 6, 6, 5, 5, 5,
-    4, 4, 4, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 0, 0, 0,
-)
-
-# player/player-personality-types.h and calc_to_magic_chance.
-PERSONALITY_TO_M_CHANCE = {1: 1, 2: -3, 7: 10, 10: 1, 12: 5}
 
 
 @dataclass(frozen=True)
@@ -128,35 +118,10 @@ def absorbed_power_fail_percent(
     personality_id: int = 0,
     flags: frozenset[int] = frozenset(),
 ) -> int:
-    """The displayed fail% of an absorbed power (cmd-magiceat.cpp)."""
-    index = stat_index(intelligence)
-    level = trunc_div(base_level * 5, 6) - 5 if kind == "rod" else base_level
-    chance = trunc_div(level * 4, 5) + 20
-    chance -= 3 * (ADJ_MAG_STAT[index] - 1)
-    level = trunc_div(level, 2)
-    if player_level > level:
-        chance -= 3 * (player_level - level)
-    hard = TR_HARD_SPELL in flags
-    easy = TR_EASY_SPELL in flags
-    dec_mana = TR_DEC_MANA in flags
-    # mod_spell_chance_1
-    chance += PERSONALITY_TO_M_CHANCE.get(personality_id, 0)
-    if hard:
-        chance += 20
-    if dec_mana and easy:
-        chance -= 4
-    elif easy:
-        chance -= 3
-    elif dec_mana:
-        chance -= 2
-    chance = max(chance, ADJ_MAG_FAIL[index])
-    chance = min(chance, 95)
-    # mod_spell_chance_2
-    if dec_mana:
-        chance -= 1
-    if hard:
-        chance += 5
-    return max(chance, 0)
+    """The displayed fail% of an absorbed power (cmd-magiceat.cpp), unstunned: an
+    equipment comparison (me_power_success.fail_percent_at_index)."""
+    return fail_percent_at_index(kind, base_level, player_level, stat_index(intelligence),
+                                 personality_id=personality_id, flags=flags)
 
 
 def held_attack_powers(device_lists) -> tuple[tuple[str, int], ...]:

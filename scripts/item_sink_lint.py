@@ -27,6 +27,9 @@ NON_ITEM_COMPOSITIONS = {
     ('policy_constants.py', '<module>'): ("RUMOR_KEY + '\\r'",),
     ('morivant_tower.py', '<module>'): ("RECHARGE_ALL_ACTION_KEY + 'y'",
                                        "RECHARGE_ALL_ACTION_KEY + 'y' + LEAVE_STORE_KEY"),
+    # The inn's "Rest for the night" ('r', BACT_REST) and its leave: a building menu key.
+    ('me_inn_refill.py', '<module>'): ("f'[1-9]{REST_KEY}{LEAVE_STORE_KEY}'",),
+    ('me_inn_refill.py', 'entry_key'): ('REST_KEY + LEAVE_STORE_KEY',),
 }
 PREFIXES = {'d', 'p', 'k', 'w', 't', '{', '}', 'r', 'q', 'E', 'u',
             'a', 'z', 'f', 'v', '\\F'}

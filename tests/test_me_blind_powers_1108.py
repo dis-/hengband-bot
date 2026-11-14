@@ -24,7 +24,9 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 import unittest
 
+from hengbot import me_power_success
 from hengbot.me_device_attacks import DEVICE_REASON
+from hengbot.model import parse_snapshot
 from hengbot.magic_eater import MISSILE_REASON
 from tests import test_me_mining_death_recorded as mining_death
 from tests import test_n1c_156_blind_maze_recorded as maze
@@ -49,6 +51,12 @@ def new_policy(rows=(FIRE_BOLT_ROW,)):
                                   monraces={RACE: d57.CASE_085["monraces"][RACE]})
     policy._me_device_lists = ({"wand": (maze.LIST_TURN, tuple(dict(row) for row in rows))}
                                if rows else {})
+    if rows:
+        # The reconstructed list is the one shown on these boards' inputs (me_power_success
+        # reads a shown rate on the inputs it was shown on, else the game's formula: 27% for
+        # Fire Bolts at this Lv20 character's INT 17).
+        me_power_success.observe_list_board(policy, "wand", parse_snapshot(
+            maze.boards()[0], policy._monrace_knowledge))
     return policy
 
 

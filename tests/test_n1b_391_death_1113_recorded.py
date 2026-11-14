@@ -48,7 +48,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import deep_teleport, destruction_use, me_capability, threat_tiers
+from hengbot import deep_teleport, destruction_use, me_capability, me_power_success, threat_tiers
 from hengbot.me_absorbed_substitutes import TELEPORTATION
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
@@ -183,6 +183,9 @@ class N1b391Death1113RecordedTest(unittest.TestCase):
         row = me_capability.observed_row(policy, *TELEPORTATION)
         row.update(fail=13, success=87)
         board = blind(board)
+        # The constructed row is the list shown on this board (me_power_success reads a shown
+        # rate on the inputs it was shown on, else the game's formula).
+        me_power_success.observe_list_board(policy, TELEPORTATION[0], board)
         self.assertEqual(threat_tiers.blind_teleport_success(policy, board), 87)
         self.assertEqual((str(policy.choose_key(board)), policy.last_reason), DESTRUCTION)
 
