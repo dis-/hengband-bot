@@ -2038,8 +2038,19 @@ class TownMixin:
             and self._home_atomic_withdraw_pending is None
         ):
             return STAY
+        home_full = self._home_is_full(snapshot)
+        if (not home_full
+                and not self._overweight_home_bound_exhausted()
+                and self._find_home_deposit(snapshot) is not None):
+            # A deposit refused by a full Home is not a failed weight gate
+            # once Home has room again and a deposit is left for it: the
+            # full-Home relief's sale freed a slot and filed its retry batch,
+            # and Home's weight route takes it under Home's own bounds (n1-b
+            # life-397 2026-11-14 22:40, the sword and the crossbow refused
+            # earlier kept this stop over the retry of the scale mail).
+            return STAY
         town_visit_plan.note_transition(self, "closing-equipment-weight")
-        if self._home_is_full(snapshot):
+        if home_full:
             return self._town_producer_entry("_home_full_relief_key",
                 lambda: self._home_full_relief_key(snapshot), family="home-visit")
         self._town_blocked_reason = "overweight-home-unreachable"
