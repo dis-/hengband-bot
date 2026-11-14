@@ -4,6 +4,7 @@ from hengbot import bm_destruction_fund, item_fate, mining_oil_sale, spare_gear,
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
+    reservation_verdict,
     reserved_item_command,
     store_item_key,
 )
@@ -48,6 +49,10 @@ class WeightRelief(NamedTuple):
     retention surplus: a Home deposit while the Home has a free slot, else a
     sale, else a destruction (owner 2026-10-10). Without a deposit route,
     insufficient surplus leaves retained weight above the departure limit.
+    Held items whose owner still takes them out of the pack (the equipment
+    transaction's Home deposit, an identification with its source carried)
+    make the route ``owner-pending``: those owners go first.  ``retained``
+    names every other carried item with the reason it is held.
     """
     weight: int
     limit: int | None
@@ -231,8 +236,15 @@ class HomeMixin:
                 shed[item.slot] = item.weight * self._retention_surplus(snapshot, item)
             for _, _, item, count, _ in relief.surplus:
                 shed[item.slot] = max(shed.get(item.slot, 0), item.weight * count)
-            if (relief.route == "home-relief" and sum(shed.values()) >= relief.excess
-                    and not state.get("home_relief_exhausted")):
+            if ((relief.route == "home-relief" and sum(shed.values()) >= relief.excess
+                    and not state.get("home_relief_exhausted"))
+                    # The owners still taking held items out of the pack go
+                    # first (_weight_relief_selection); the need router files
+                    # this state again if a sale is still needed after them.
+                    # n1-a life-522 2026-11-14 16:34: a state filed on the
+                    # board before stopped the visit ahead of the equipment
+                    # transaction's Home deposits.
+                    or relief.route == "owner-pending"):
                 # The carried surplus no longer clears the excess, but Home's
                 # relief (sell Home's surplus for a slot, then deposit) is open
                 # (it did not set this state on giving up) and its deposits
@@ -3033,11 +3045,27 @@ class HomeMixin:
         self, snapshot: Snapshot, *, include_ammo: bool = True,
         assume_overweight: bool = False,
     ) -> list[InventoryItem]:
-        if (
-            self._equipment_mutation.state.name != "IDLE"
-            or not (assume_overweight or self._inventory_overweight(snapshot))
-        ):
-            return []
+        return self._weight_deposit_holds(
+            snapshot, include_ammo=include_ammo,
+            assume_overweight=assume_overweight)[0]
+
+    def _weight_deposit_holds(
+        self, snapshot: Snapshot, *, include_ammo: bool = True,
+        assume_overweight: bool = False,
+    ) -> tuple[list[InventoryItem], dict[str, str]]:
+        """The Home weight deposits, and why each other carried item is held.
+
+        One rule names both: a carried item is a deposit candidate exactly
+        when no hold below applies to it, and the first hold that applies is
+        the reason the weight relief records for it (owner 2026-10-10: always
+        record the retention reasons; n1-a life-522 2026-11-14 16:34 recorded
+        None for the Identify staves and for the two weapons the equipment
+        transaction was taking to Home).
+        """
+        if self._equipment_mutation.state.name != "IDLE":
+            return [], {item.slot: "equipment-mutation" for item in snapshot.inventory}
+        if not (assume_overweight or self._inventory_overweight(snapshot)):
+            return [], {}
 
         blocking_categories = {
             spec.category
@@ -3066,7 +3094,7 @@ class HomeMixin:
         ):
             surplus_identify_staff = None
 
-        def required_supply(item: InventoryItem) -> bool:
+        def required_supply_categories(item: InventoryItem) -> set[str]:
             categories = set(self._cross_town_item_categories(item))
             categories.update(
                 category.split(":", 1)[0]
@@ -3104,7 +3132,10 @@ class HomeMixin:
                     categories.add("fundraising-digger")
                 if item.is_light:
                     categories.add("fundraising-light")
-            return bool(categories & blocking_categories)
+            return categories & blocking_categories
+
+        def required_supply(item: InventoryItem) -> bool:
+            return bool(required_supply_categories(item))
 
         def unreserved_required_supply(item: InventoryItem) -> bool:
             # Reserved only as "bought this visit" is no carry target: that
@@ -3124,15 +3155,54 @@ class HomeMixin:
             "prepare", "mine", "scavenge"
         }
 
-        candidates = [
-            item
-            for item in snapshot.inventory
-            if (include_ammo or not item.is_ammo) and item.weight > 0 and (self._retention_surplus(snapshot, item) > 0) and (self._junk_class(snapshot, item) is None) and (not (self._identification_flow_owns(item) and self._find_identification_source(snapshot, full=bool(item.known and item_requires_full_identification(item) and (not item.fully_known)), reliable_only=True, reservation_target=self._item_signature(item)) is not None)) and (not unreserved_required_supply(item)) and (not item.is_bounty) and (not self._is_wanted_jewelry(snapshot, item)) and (self._item_signature(item) not in self._home_rejected_deposits) and (self._item_signature(item) not in []) and (self._item_signature(item) not in self._home_pending_batch) and (item.slot != self._home_pending_slot) and (item.slot != self._pending_disposal_slot)
-        ]
+        def hold(item: InventoryItem) -> str | None:
+            """The first reason ``item`` is no Home weight deposit, or None."""
+            if self._retention_surplus(snapshot, item) <= 0:
+                # The record names the reservation's branch first
+                # (_weight_relief_selection's ``retained``).
+                return ("equipment-transaction"
+                        if self._equipment_transaction_owns_item(item) else "reserved")
+            if self._junk_class(snapshot, item) is not None:
+                return "junk"
+            if (self._identification_flow_owns(item)
+                    and self._find_identification_source(
+                        snapshot,
+                        full=bool(item.known and item_requires_full_identification(item)
+                                  and not item.fully_known),
+                        reliable_only=True,
+                        reservation_target=self._item_signature(item)) is not None):
+                return "identification-flow"
+            if unreserved_required_supply(item):
+                return "required-supply:" + ",".join(sorted(required_supply_categories(item)))
+            if item.is_bounty:
+                return "bounty"
+            if self._is_wanted_jewelry(snapshot, item):
+                return "wanted-jewelry"
+            signature = self._item_signature(item)
+            if signature in self._home_rejected_deposits:
+                return "home-rejected-deposit"
+            if signature in self._home_pending_batch or item.slot == self._home_pending_slot:
+                return "home-pending-take"
+            if item.slot == self._pending_disposal_slot:
+                return "pending-disposal"
+            return None
+
+        holds: dict[str, str] = {}
+        candidates = []
+        for item in snapshot.inventory:
+            if not (include_ammo or not item.is_ammo) or item.weight <= 0:
+                continue
+            reason = hold(item)
+            if reason is None:
+                candidates.append(item)
+            else:
+                holds[item.slot] = reason
         launcher = self._equipped_launcher(snapshot)
         ordinary = [item for item in candidates
                     if launcher is None or item.tval != launcher.ammo_tval]
         if ordinary:
+            holds.update((item.slot, "ammo-after-ordinary-surplus")
+                         for item in candidates if item not in ordinary)
             candidates = ordinary
         def priority(item: InventoryItem) -> tuple[int, int, str]:
             category = (
@@ -3142,9 +3212,17 @@ class HomeMixin:
             )
             return category, -item.weight * self._retention_surplus(snapshot, item), item.slot
 
-        candidates = [item for item in candidates
-                      if item_available(self, snapshot, item, "home-visit", "weight-deposit")]
-        return sorted(candidates, key=priority)
+        available = []
+        for item in candidates:
+            verdict = reservation_verdict(self, snapshot, item, "home-visit", "weight-deposit")
+            if verdict.owner is None:
+                available.append(item)
+            elif self._equipment_transaction_deposit_owns_item(item):
+                # The transaction takes it to Home itself (a pending owner).
+                holds[item.slot] = "equipment-transaction:deposit"
+            else:
+                holds[item.slot] = f"reserved:{verdict.owner}"
+        return sorted(available, key=priority), holds
 
     def _weight_relief_selection(
         self, snapshot: Snapshot, *, include_ammo: bool = True, plan: bool = True,
@@ -3163,9 +3241,10 @@ class HomeMixin:
         # The overweight test is the one the deposit candidates own.
         if not (assume_overweight and not plan) and not self._inventory_overweight(snapshot):
             return WeightRelief(weight, limit, 0, (), (), False, "none", ())
-        deposits = tuple(self._weight_deposit_candidates(
+        deposits, holds = self._weight_deposit_holds(
             snapshot, include_ammo=include_ammo,
-            assume_overweight=assume_overweight and not plan))
+            assume_overweight=assume_overweight and not plan)
+        deposits = tuple(deposits)
         if not plan:
             return WeightRelief(weight, limit, excess, deposits, (), False,
                                 "unplanned", ())
@@ -3199,8 +3278,30 @@ class HomeMixin:
                                        and fact[2] == self._effective_town_id(snapshot))
             home_room = bool(home and home_capacity_known and fact[0] < fact[1])
         surplus = tuple(self._overweight_surplus_candidates(snapshot))
+        shed = {item.slot for item in deposits} | {entry[2].slot for entry in surplus}
+        # A held item whose owner is still taking it out of the pack (the
+        # equipment transaction's own Home deposit into a Home with room) or
+        # still identifying it with a carried source (it is kept, deposited
+        # or sold once identified) is no retained weight: its owner goes
+        # first and the relief asks again on the board after (owner
+        # 2026-11-04 「使わない装備を持ったまま出発しない・自宅に仕舞う」).  n1-a
+        # life-522 2026-11-14 16:34: the transaction's deposits of two
+        # weapons and the *Identify* of two more were read as retained-only
+        # and the visit stopped over the limit.
+        session = self._equipment_transaction_session
+        transaction_deposits = (session is not None and session.executable
+                                and not self._home_is_full(snapshot))
+        owner_pending = any(
+            item.weight > 0 and item.slot not in shed
+            and ((holds.get(item.slot) == "identification-flow"
+                  and self._identification_acts_on(snapshot, item))
+                 or (transaction_deposits
+                     and self._equipment_transaction_deposit_owns_item(item)))
+            for item in snapshot.inventory)
         if deposits and home_room:
             route = "deposit"
+        elif owner_pending:
+            route = "owner-pending"
         elif deposits and home and not home_capacity_known and self._home_full_relief is None:
             # Observe unknown capacity before opening another route. A pending
             # full-Home relief already owns that observation and stays intact.
@@ -3214,10 +3315,10 @@ class HomeMixin:
             route = "home-relief" if home else "home-unreachable"
         else:
             route = "retained-only"
-        shed = {item.slot for item in deposits} | {entry[2].slot for entry in surplus}
         retained = tuple(
             (item.slot, item.name, max(0, item.weight) * max(1, item.count),
              self._retention_reservation_detail(snapshot, item)[1]
+             or holds.get(item.slot)
              or ("identification-flow" if self._identification_flow_owns(item)
                  else None))
             for item in snapshot.inventory
@@ -3225,6 +3326,19 @@ class HomeMixin:
         )
         return WeightRelief(weight, limit, excess, deposits, surplus, home_room,
                             route, retained)
+
+    def _identification_acts_on(self, snapshot: Snapshot, item: InventoryItem) -> bool:
+        """Whether the identification identifies this carried item now.
+
+        The carried target's own rule (town_terminal.carried_identification_target
+        skips a deferred or unidentifiable item) and its source tier
+        (item_fate.can_identify_now: a known item takes *Identify*).
+        """
+        signature = self._item_signature(item)
+        return (signature not in self._deferred_home_items
+                and signature not in self._unidentifiable_sigs
+                and signature not in self._town_unidentifiable_carried_sigs
+                and item_fate.can_identify_now(self, snapshot, item))
 
     def _release_home_full_relief_for_weight(
         self, snapshot: Snapshot, weight_relief: WeightRelief | None,
@@ -3254,13 +3368,17 @@ class HomeMixin:
 
         No retained item is chosen here: the record shows which retention
         reasons hold the weight over the limit (owner 2026-10-10: always record).
+        A block reached while held items still have a pending owner
+        (``owner-pending``) is named and recorded the same way, with its route:
+        those owners did not act before the block.
         """
         relief = self._weight_relief_selection(snapshot)
-        if relief.route != "retained-only":
+        if relief.route not in ("retained-only", "owner-pending"):
             return False
         record = dict(
             time=datetime.now(timezone.utc).isoformat(),
             reason="town:blocked:overweight-retained-only",
+            route=relief.route,
             weight=relief.weight, limit=relief.limit, excess=relief.excess,
             retained=[list(entry) for entry in relief.retained],
             visit_epoch=self._town_visit_epoch,
