@@ -285,7 +285,8 @@ class InStoreMixin:
                 prefix = reserved_item_command(self, snapshot, "inscribe", sale, "shop-sell")
                 if prefix is None:
                     return None
-                return {"op": "inscribe", "would_key": prefix + "@" + digit + "\r",
+                return {"op": "inscribe",
+                        "would_key": prefix + self._sale_tag_text(sale, digit) + "\r",
                         "target": target}
             item = (
                 completed_disposal_successor.item
