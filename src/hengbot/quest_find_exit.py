@@ -316,6 +316,23 @@ def approaching(navigator, snapshot, monster) -> bool:
     return farthest - now >= APPROACH_CELLS
 
 
+def _outwaited(navigator, monster) -> bool:
+    """A far monster that only stood beside the walk ahead through a choke's whole enemy bound.
+
+    Owner (QUEST_18 formation): 「次の隘路までの道の隣に来る敵がいると分かっている間は進まない」 and
+    「200手の打ち切りで終えた隘路は戻さない」: the bound (``choke_enemy_wait_turns``) ends the wait
+    for it, and the walk goes on.  n1-a life 523 (2026-11-15 05:37, warrior Lv35, floor (0,35,18),
+    three loop stops): the giant squid 482 on (5,26), beside the dig (5,25) and known by ESP only,
+    held the choke (1,19) its 200 actions; still beside the walk ahead of (1,19), it then sent the
+    walk to the choke behind, and on (2,18), where the walk ahead ends at (1,19), it was no reason,
+    so the walk turned back: (1,19) '1' exit-to-choke, (2,18) '9' exit-walk, until the stop.  Game:
+    it never came: its distance 9 (monster-update.cpp, cdis) is over its vision 8
+    (MonraceDefinitions) and its cell was never in the player's view, so it is not processed at
+    all (monster-processor.cpp decide_process_continue).  Seen to close in (``approaching``) it
+    is a reason again."""
+    return navigator.exit_outwaited.get(monster.index) == monster.race_id
+
+
 def _count_action(navigator, snapshot) -> None:
     """One player action per board (``key`` and ``walk_key`` may both read one)."""
     if navigator.exit_action_turn != snapshot.turn:
@@ -399,13 +416,20 @@ class _Board:
         # What sends the walk to a choke or stops a dig: one in view, a far one seen to
         # close in, or one beside the walk ahead (in the way, moving or not).  A far one
         # that does not come is no reason (owner 2026-11-06).
+        # One a choke's enemy bound already outwaited there (``_outwaited``) is no reason
+        # beside the walk ahead until it is seen to close in.
         far = [monster for monster in self.reachable_awake if monster.perception == "detected"]
         leg = (_next_leg(navigator, _plan_of(profile), position)
-               if any(not approaching(navigator, snapshot, monster) for monster in far) else [])
+               if any(not approaching(navigator, snapshot, monster)
+                      and not _outwaited(navigator, monster) for monster in far) else [])
         self.mobile_awake = [*self.coming_in_view, *(
             monster for monster in far
             if approaching(navigator, snapshot, monster)
-            or any(monster.position.distance_to(cell) <= 1 for cell in leg)), *remembered]
+            or (not _outwaited(navigator, monster)
+                and any(monster.position.distance_to(cell) <= 1 for cell in leg))), *remembered]
+        # Of those, the far ones only beside the walk ahead (what ``_hold``'s bound outwaits).
+        self.beside_leg = [monster for monster in far if monster in self.mobile_awake
+                           and not approaching(navigator, snapshot, monster)]
         self.adjacent_mobile = [monster for monster in self.coming_in_view
                                 if monster.position.distance_to(position) <= 1]
         # What the melee cap counts: what comes (in view within its wait, far and closing in,
@@ -527,6 +551,9 @@ def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
         if quiet:
             navigator.exit_quiet_spent = {**navigator.exit_quiet_spent,
                                           position: navigator.exit_actions}
+        else:
+            navigator.exit_outwaited = {**navigator.exit_outwaited,
+                                        **{monster.index: monster.race_id for monster in board.beside_leg}}
         navigator.exit_fought_at = None
         return None
     shot = (policy._ranged_attack_key(snapshot, board.coming_in_view, [])
@@ -581,6 +608,9 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
         held = _hold(policy, snapshot, navigator, plan, position, board)
         if held is not None:
             return held
+        if board.mobile_awake and all(monster in board.beside_leg and _outwaited(navigator, monster)
+                                      for monster in board.mobile_awake):
+            return None  # the bound outwaited all that held it: the walk goes on (_outwaited)
         chokes = _chokes(navigator, plan, board)
     path = _least_exposed(navigator, plan, position, chokes, board.occupied, as_it_is=True)
     if len(path) < 2:
