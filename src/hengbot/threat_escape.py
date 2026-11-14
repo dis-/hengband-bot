@@ -163,6 +163,11 @@ def blind_teleport_key(policy, snapshot, reason: str) -> str | None:
     means = blind_teleport_means(policy, snapshot)
     if means is None:
         return None
+    # The 50F+ rule (deep_teleport): *Destruction* or the walk to it in the cast's place.
+    from hengbot import deep_teleport
+
+    if (instead := deep_teleport.substitute(policy, snapshot)) is not None:
+        return instead
     if means == ABSORBED:
         policy.last_reason = reason + me_absorbed_substitutes.CAST_SUFFIX
         return me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION].key

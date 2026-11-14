@@ -49,7 +49,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, fear_cover, line_of_fire, sent_away_t1, status_cure, threat_tiers
+from hengbot import deep_teleport, destruction_use, fear_cover, line_of_fire, sent_away_t1, status_cure, threat_tiers
 from hengbot.cli import _PolicyObserverScope
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.me_device_attacks import observe_lists
@@ -304,11 +304,19 @@ class TeleportOrDestructionRecordedTest(DeathsRecordedHarness):
         # recorded pack (``test_the_board_before_reads_the_awake_one_t2_with_the_pack``), so the
         # sensed T1 leave this pin's board follows is not taken; hiding the supplies on that board
         # alone keeps it T1 as recorded.
-        policy, answers = self.replay("life-355", 4230087, at_turn(4230081, hidden_supplies))
+        # DECLARED CONSTRUCTED too: the 50F+ rule of 2026-11-14 walled off (deep_teleport.allows),
+        # under which the leave's Teleportation on 4230081 gives way to *Destruction* (below).
+        with mock.patch.object(deep_teleport, "allows", lambda policy, snapshot: True):
+            policy, answers = self.replay("life-355", 4230087, at_turn(4230081, hidden_supplies))
         self.assertEqual(answers[4230081][2], "sensed-t1:teleport")
         raw = answers[4230087][0]
         self.assertTrue(all(m["asleep"] for m in raw["visible_monsters"]))
         self.assertEqual(answers[4230087][2], DESTRUCTION_REASON)
+        # Owner 2026-11-14 「50F以降のテレポートの条件を厳しくする。」: the T1 on 4230081 has no line
+        # of fire to the player, so the leave's Teleportation is *Destruction* there.
+        policy, answers = self.replay("life-355", 4230081, at_turn(4230081, hidden_supplies))
+        self.assertEqual(answers[4230081][2], DESTRUCTION_REASON[:len("emergency:destruction")]
+                         + deep_teleport.DESTRUCTION_SUFFIX + ":absorbed-power")
 
 
     def test_the_board_before_reads_the_awake_one_t2_with_the_pack(self):

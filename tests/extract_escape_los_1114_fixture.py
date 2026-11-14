@@ -7,6 +7,8 @@ server (jsonlog/snapshots) to C:/hengband-backups/pdca/escape-los-1114:
   arrival on 60F by Recall) to 7836540 (snapshots-20261114-165937-92bfcf).
 * ``1629``: b1629.jsonl.gz, 2026-11-14 16:29:40-16:29:42, turns 7730790 to 7730840
   (snapshots-20261114-164408-89bb4b).
+* ``1651``: b1651.jsonl.gz, 2026-11-14 16:51:19-16:51:25, turns 7824431 (the arrival on 60F) to
+  7824700 (snapshots-20261114-165937-92bfcf).
 
     python tests/extract_escape_los_1114_fixture.py
 """
@@ -16,7 +18,8 @@ from pathlib import Path
 
 CAPTURE = Path("C:/hengband-backups/pdca/escape-los-1114")
 TARGET = Path(__file__).with_name("fixtures") / "escape-los-1114.jsonl.gz"
-CASES = {"1654": ("b1654.jsonl.gz", 7836301, 7836540), "1629": ("b1629.jsonl.gz", 7730790, 7730840)}
+CASES = {"1654": ("b1654.jsonl.gz", 7836301, 7836540), "1629": ("b1629.jsonl.gz", 7730790, 7730840),
+         "1651": ("b1651.jsonl.gz", 7824431, 7824700)}
 
 
 def main() -> None:

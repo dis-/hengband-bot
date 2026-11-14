@@ -46,7 +46,7 @@ from hengbot.policy import HengbotPolicy
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "escape-los-1114.jsonl.gz"
-FIXTURE_SHA256 = "2c7104e3b60179f2e0e19a1af6700b719246bb530818dc63f7c6783332ac91d6"
+FIXTURE_SHA256 = "bd7a897acf9b3bb2a5f604dcc053cda87023989d3ec762d72f23f2a8e1fdbab3"
 EDIT = Path(r"C:\hengband\lib\edit")
 BALROG, HELL_WYRM = 940, 1192
 
