@@ -23,6 +23,9 @@ One board per recorded decision (each decided turn has one ``player_turn`` row h
    from the capture 20261114-184915-stuck-prompt-quest25-close-door (copied to capture-184915),
    cut the same way (``restarted``), with jsonlog/q25-battle.json as that process left it
    (``q25-battle-1849.json``: phase 0, no kills; the reloaded save's turn 8010826).
+ * ``kill_lines``: every decision of the 17:23 process before 17:27 whose messages carry a kill line
+   (game_messages KILL_LINES), as sequence, turn and messages: the floor's kills before the 17:54
+   save (q25-memory-loss-1114).
  * ``hold``: decisions 4072-4211 (17:24:04-17:24:2x), the wall-passers' phase holding on [10,1]
    (``quest-strategy:hold`` '5', nothing in view, the nine shadow demons sensed in the walls).
    Between these boards (and between the stop's) only ``turn``, ``clock``, ``messages``,
@@ -42,6 +45,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from hengbot.game_messages import KILL_LINES
 from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from tests import extract_n1b_382_q25_patrol_owner_1113_fixture as capture
 
@@ -94,6 +98,9 @@ def main():
         return dict(board, messages=row["messages"]), recorded
 
     refusal = [cut(sequence) for sequence in REFUSAL]
+    kill_lines = [{"sequence": sequence, "turn": row["turn"], "messages": row["messages"]}
+                  for sequence, row in sorted(decisions.items())
+                  if any(line in text for text in row["messages"] or () for line in KILL_LINES)]
     hold = [cut(sequence) for sequence in HOLD]
     assert all(row["key"] == "5" and row["reason"] == "quest-strategy:hold" for _board, row in hold)
     capture.ROOT = ROOT
@@ -112,6 +119,7 @@ def main():
                 hold=dict(compact([board for board, _row in hold]),
                           recorded=[row for _board, row in hold]),
                 stop=dict(compact(stop_boards), recorded=stop_recorded),
+                kill_lines=kill_lines,
                 close=dict(boards=close_boards, recorded=close_recorded,
                            battle_record=json.loads(
                                (ROOT / "q25-battle-1849.json").read_text(encoding="utf-8"))),

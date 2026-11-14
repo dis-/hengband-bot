@@ -13,10 +13,11 @@ left (written at the ``choose_key`` exit).  Like breeder_floor_record, the first
 process restores it only on the same quest floor at the same or a later game turn: the game does
 not advance between the two processes, and every decision the previous process made on another
 floor (the town, another dungeon level) rewrote the record without a battle, so a new visit to
-Q25 starts clean.  Nothing is invented: the kills restored are the ones the previous process read
-from the game's kill lines.  The board the previous process last decided is recorded by its turn
-and messages; when the restarted process is shown that board again, its kill lines and its quiet
-action were already counted and are not counted twice.
+Q25 starts clean (a game reloaded from an older save of the floor keeps only the kills read
+before it, ``_before_the_save``).  Nothing is invented: the kills restored are the ones the
+previous process read from the game's kill lines.  The board the previous process last decided
+is recorded by its turn and messages; when the restarted process is shown that board again, its
+kill lines and its quiet action were already counted and are not counted twice.
 """
 from __future__ import annotations
 
@@ -99,9 +100,34 @@ def observe(policy, snapshot) -> None:
     except (OSError, ValueError, KeyError, TypeError, IndexError):
         return
     if (snapshot.in_town or floor_key != tuple(snapshot.floor_key)
-            or floor_key[2] != geo.QUEST_ID or snapshot.turn < turn):
+            or floor_key[2] != geo.QUEST_ID):
         return
+    if snapshot.turn < turn:
+        battle, board = _before_the_save(battle, int(snapshot.turn)), None
+        if battle is None:
+            return
     policy._q25_battle_restored = (floor_key, battle, board)
+
+
+def _before_the_save(battle, turn: int):
+    """The battle of a game reloaded from an older save of the same floor visit: only its kills
+    read at or before the save's ``turn`` (``Battle.kill_turns``); the phases run again from the
+    first, ending at once where those kills end them.  None when no such kill was read.
+
+    n1-c life-207 (2026-11-14 18:49): the 17:54 stop's save (turn 8010826) was loaded after a
+    process had played on to turn 8033912 unsaved; the record of that turn was dropped, the plan
+    began at the ambush with no kills, and would have waited its 5000 actions (long_wait_actions)
+    for the four monsters killed at 17:23.  A kill read at a game turn at or before the save's
+    happened in the game the save holds; one read after it did not, and is not carried.  Nothing
+    else is: what the later turns saw is not in the reloaded game."""
+    from hengbot.quest25_battle import Battle
+    kept = tuple((int(race), int(at)) for race, at in battle.kill_turns if int(at) <= turn)
+    if not kept:
+        return None
+    kills = {}
+    for race, _at in kept:
+        kills[race] = kills.get(race, 0) + 1
+    return Battle(kills=kills, kill_turns=kept)
 
 
 def take(policy, snapshot):

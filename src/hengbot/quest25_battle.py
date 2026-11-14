@@ -261,6 +261,7 @@ class Battle:
     """One floor visit of the plan (``QuestFloorNavigator.phase_battle``)."""
     phase: int = 0
     kills: dict = field(default_factory=dict)        # race -> kills read from kill lines
+    kill_turns: tuple = ()         # (race, game turn) of each of those kills (quest25_battle_record)
     ready: bool = False            # this phase's preparation is done
     quiet: int = 0                 # actions without a new arrival (the 50-action waits)
     no_way: tuple | None = None    # the cell the last walk held on with no way on (``_walk``)
@@ -284,6 +285,7 @@ class Battle:
     teleports: int = 0             # 「〜がテレポートした。」 lines naming an Ipsissimus
     pen_shot: bool = False         # the last key was a shot at the pen
     pen_misses: int = 0            # pen shots in a row with no hit or kill line
+    pen_no_way: int = 0            # phase-2 holds in a row with sight cells left and no way to them
     assumed_escaped: int = 0       # 「当たらない撃ちで補う」: counted escaped after the misses
     aimed_quyl: tuple | None = None    # the quylthulg cell the last shot was aimed at
     displaced: tuple | None = None     # (slot, signature) the druj's anti-teleport piece displaced
@@ -325,7 +327,7 @@ def _memory(navigator, policy=None, snapshot=None) -> Battle:
 
 def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
-        "phase", "kills", "searches", "cleared", "found", "escaped", "quyls_done",
+        "phase", "kills", "kill_turns", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
         "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone")}
     kept["phase"] += 1
@@ -445,6 +447,7 @@ def _killed_name(text: str) -> str | None:
 def _note_kills(ctx: _Ctx) -> None:
     races = {name: race for race in geo.ROSTER for name in _names(ctx.policy, race)}
     kills = dict(ctx.battle.kills)
+    logged = list(ctx.battle.kill_turns)
     for message in ctx.snapshot.messages:
         victim = _killed_name(message_text(message))
         if victim is None:
@@ -454,9 +457,11 @@ def _note_kills(ctx: _Ctx) -> None:
             race = ctx.battle.aimed_race
         if race is not None:
             kills[race] = kills.get(race, 0) + 1
+            logged.append((race, int(ctx.snapshot.turn)))
             if race == geo.QUYL and ctx.battle.aimed_quyl is not None:
                 ctx.battle.quyls_done = ctx.battle.quyls_done | {ctx.battle.aimed_quyl}
     ctx.battle.kills = kills
+    ctx.battle.kill_turns = tuple(logged)
     ipsissimus = _names(ctx.policy, geo.IPSISSIMUS)
     for message in ctx.snapshot.messages:
         text = message_text(message)
@@ -1492,13 +1497,32 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
 
 def _pen_sight(ctx: _Ctx, aim) -> str | None:
     """Unseen, no attack aimed at the grid: to a cell that sees the pen's ``aim``; none left (each
-    reached with no Ipsissimus seen), the ones not killed nor seen out are counted escaped."""
-    if (key := _walk_to_sight(ctx, aim, _sights(ctx, aim))) is not None:
-        return key
+    reached with no Ipsissimus seen), the ones not killed nor seen out nor sensed in the pen are
+    counted escaped.
+
+    Owner 2026-11-06 phase2: escaped is read from 「〜がテレポートした。」 (「テレポートしたメッセージで
+    判断」) and, with neither telepathy nor evil ESP, from ten shots at [7,17] without a hit
+    (「当たらない撃ちで補う」); this count is the walk's version of the latter.  So it is counted only
+    when every cell that sees the pen was reached: with cells left and no way to them (a refused
+    cell, the shunned movers; ``battle.no_way``) the phase holds, its attacks recharging, and an
+    Ipsissimus telepathy or evil ESP senses in the pen is not escaped (n1-c life-207 tests,
+    2026-11-14: with no way on from [10,1] all three were counted escaped at once and phase 2
+    ended with them in the pen).  The hold with no way is the phase-2 wait (owner 2026-11-06
+    「50ターン待っても来なくなったら」, ``wait_limits.quiet_actions``): that many holds in a row and
+    the count is made as when every cell was reached (the same life's wall-passers held on [10,1]
+    for over 5,300 decisions with no way on)."""
     battle = ctx.battle
+    if (key := _walk_to_sight(ctx, aim, _sights(ctx, aim))) is not None:
+        battle.pen_no_way = 0
+        return key
+    if _sights(ctx, aim) - {ctx.here} and battle.pen_no_way < ctx.values.quiet_actions:
+        battle.pen_no_way += 1
+        return _hold(ctx)
+    sensed = sum(1 for monster in ctx.hostiles() if monster.race_id == geo.IPSISSIMUS
+                 and (monster.position.y, monster.position.x) in geo.IPSISSIMUS_PEN)
     battle.assumed_escaped = max(0, geo.ROSTER[geo.IPSISSIMUS] - ctx.kills(geo.IPSISSIMUS)
-                                 - _escaped_count(ctx, assumed=False))
-    return None
+                                 - _escaped_count(ctx, assumed=False) - sensed)
+    return _hold(ctx) if sensed else None
 
 
 def _summons_in_view(ctx: _Ctx, others) -> list:
