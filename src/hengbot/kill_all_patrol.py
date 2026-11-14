@@ -9,7 +9,9 @@ floor has ended -- no step left (``_quest_execute_key`` answered None, the navig
 over:
 
  1. a hostile known (seen, detected, or by telepathy, ESP shows it as detected): beside the player
-    the blow, else the walk to it (the fight then goes by the floor's ordinary combat rungs);
+    the blow, else a shot at one in view (quest_plan_base._shot, as the plans shoot), else the walk
+    to it.  On an approved quest floor the navigator's answer ends the ladder (dungeon_ladder's
+    plan-approved-quest layer), so no ordinary combat rung fights for this rung;
  2. a monster detection the character holds, once per round (asked again after a cast that failed,
     and after one whose prompt the menu walk closed, the list showing it charging or empty):
     the absorbed Rod of Detection, then the absorbed Staff of Detect Evil, then a carried rod or
@@ -133,6 +135,13 @@ def _settle_detection(patrol: Patrol, snapshot) -> None:
 
 
 def _hunt(policy, snapshot, hostiles) -> str | None:
+    """The blow beside, else the shot in view, else the step toward the nearest.
+
+    n1-c life-208 (2026-11-15 04:48, Quest 25, every phase over): the Nexus quylthulg left
+    (MonraceDefinitions 480: NEVER_MOVE, INVISIBLE, BLINK and TELE_AWAY 1_IN_1; the player sees
+    invisible) was in view at 3, 2 and 6 grids and this rung only walked toward it; each time it
+    teleported the player away, the five rounds ran out and ``STOP_REASON`` repeated until the
+    loop guard stopped the bot (twice, then the escalation)."""
     here = snapshot.player.position
     beside = [monster for monster in hostiles if max(abs(monster.position.y - here.y),
                                                      abs(monster.position.x - here.x)) <= 1]
@@ -140,6 +149,15 @@ def _hunt(policy, snapshot, hostiles) -> str | None:
         answer = combat_answer.adjacent_attack(policy, snapshot, beside[:1], MELEE_REASON)
         if answer is not None and answer.key is not None:
             return answer.key
+    from hengbot import quest_plan_base   # it imports the navigator, which imports this module
+
+    in_view = sorted((monster for monster in snapshot.visible_monsters
+                      if monster.hostile and monster not in beside),
+                     key=lambda monster: here.distance_to(monster.position))
+    for target in in_view:
+        shot = quest_plan_base._shot(policy, snapshot, target)
+        if shot is not None:
+            return shot
     nearest = min(hostiles, key=lambda monster: here.distance_to(monster.position))
     target = nearest.position
     step = _toward(policy, snapshot, lambda cell: max(abs(cell[0] - target.y),

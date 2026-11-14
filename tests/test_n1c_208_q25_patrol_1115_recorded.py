@@ -52,7 +52,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import kill_all_patrol, me_capability, quest25_battle as battle
-from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
+from hengbot.cli import PostingContract, _ExecutorInputPort, _policy_final_stop_required, _send_new_decision_key
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX
 from hengbot.model import SV_STAFF_DETECT_EVIL, SV_STAFF_SPEED, parse_snapshot
 from tests.support import q25_house as q25
@@ -260,6 +260,31 @@ class TheDetectionTest(_Replay):
         patrol.detected_round = patrol.round - 1
         key = decide(policy, board("stuck", STOP))
         self.assertEqual((policy.last_reason, key), (OWNED, "mAp"))
+
+
+class TheHuntTest(_Replay):
+    def test_the_quylthulg_in_view_is_shot(self):
+        _policy, decided = self.replay("loop", boards("loop")[0]["turn"], max(QUYL_IN_VIEW), lists())
+        shots = {turn: (reason, key) for turn, reason, key in decided if turn in QUYL_IN_VIEW}
+        self.assertEqual(set(shots), set(QUYL_IN_VIEW))
+        for turn, (reason, key) in shots.items():
+            self.assertTrue(reason.startswith(("ranged:", "ranged:magic-eater-device")), (turn, reason, key))
+            self.assertNotEqual(reason, kill_all_patrol.HUNT_REASON, turn)
+
+    def test_the_recorded_shot_is_posted(self):
+        policy, decided = self.replay("loop", boards("loop")[0]["turn"], QUYL_IN_VIEW[0], lists())
+        turn, reason, key = decided[-1]
+        self.assertEqual((turn, reason, key), (QUYL_IN_VIEW[0], "ranged:fire-target", "fr*t5\x1b"))
+        raw = board("loop", turn)
+        accepted, sent, result, _after = self.post(policy, raw, key, [], following=board("loop", QUYL_IN_VIEW[1]))
+        self.assertTrue(sent, result.stop_line)
+        self.assertEqual(result.outcome, "completed", result.reason)
+        self.assertEqual("".join(accepted), key)
+
+    def test_the_rounds_stop_is_a_named_final_stop(self):
+        policy = new_policy(self.directory, "loop", lists())
+        policy.last_reason = kill_all_patrol.STOP_REASON
+        self.assertTrue(_policy_final_stop_required(policy))
 
 
 if __name__ == "__main__":
