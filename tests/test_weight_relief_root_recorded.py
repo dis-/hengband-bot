@@ -200,16 +200,20 @@ class WeightReliefRootRecordedTest(unittest.TestCase):
     def test_retained_only_weight_is_named_with_numbers(self):
         policy, snapshot = self._retained_only_board()
         relief = policy._weight_relief_selection(snapshot)
+        # The weapons wait for an identification whose source is carried: that
+        # owner goes first (owner-pending, n1-a life-522 2026-11-14).  A block
+        # reached on this board is still named and recorded, with its route.
         self.assertEqual((relief.route, relief.weight, relief.limit, relief.excess),
-                         ("retained-only", 1908, LIMIT, 158))
+                         ("owner-pending", 1908, LIMIT, 158))
         held = {slot: reason for slot, _, _, reason in relief.retained}
         self.assertEqual({held[slot] for slot in "mno"}, {"identification-flow"})
         self.assertTrue(policy._record_weight_relief_retained_only(snapshot))
         record = json.loads(policy._overweight_surplus_record_path.read_text(
             encoding="utf8").splitlines()[-1])
-        self.assertEqual((record["reason"], record["weight"], record["limit"],
+        self.assertEqual((record["reason"], record["route"], record["weight"], record["limit"],
                           record["excess"]),
-                         ("town:blocked:overweight-retained-only", 1908, LIMIT, 158))
+                         ("town:blocked:overweight-retained-only", "owner-pending",
+                          1908, LIMIT, 158))
         self.assertIn("town:blocked:overweight-retained-only", POLICY_FINAL_STOP_REASONS)
         self.assertIn("only retained items remain above the weight limit",
                       _policy_final_stop_banner("town:blocked:overweight-retained-only"))

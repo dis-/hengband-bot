@@ -80,14 +80,14 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
             policy._town_blocked_reason = "overweight-home-unreachable"
         return policy, snapshot
 
-    def post(self, policy, snapshot, key):
+    def post(self, policy, snapshot, key, screens=(), accepted=None):
         """Follow execution using constructed replies at real input barriers."""
         game = executor_harness.FaithfulHookGame()
         raw = copy.deepcopy(self.captures[0 if snapshot.turn == 556321 else 1]["board"])
         game.state = raw
         game.screen = executor_harness.command_screen(snapshot.turn)
-        game.states = [dict(raw, turn=snapshot.turn + 1)]
-        game.screens = [executor_harness.command_screen(snapshot.turn + 1)]
+        game.states = [dict(raw, turn=snapshot.turn + 1) for _ in range(len(screens) + 1)]
+        game.screens = [*screens, executor_harness.command_screen(snapshot.turn + 1)]
         _, _, executor = self.make(game)
         self.assertEqual(executor.observe_boundary(deadline=time.monotonic() + 10).outcome, "ready")
         port = _ExecutorInputPort(executor, tunnel_macros_ready=True, request_budget=2)
@@ -100,7 +100,8 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         self.assertTrue(sent, getattr(port.last_result, "reason", None))
         self.assertEqual(port.last_result.outcome, "completed")
         # Follow maps the registered General Store travel macro to Ctrl-K.
-        self.assertEqual(game.accepted, ["\x0b"] if str(key) == "\x1b`n!." else [str(key)])
+        self.assertEqual(game.accepted, accepted if accepted is not None else
+                         ["\x0b"] if str(key) == "\x1b`n!." else [str(key)])
         self.assertFalse(game.term_fifo)
 
     # The board wears a light crossbow over a lantern: this pin is the torch carry
@@ -118,14 +119,29 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
                         if policy._item_signature(i) == tuple(entry["signature"]))
             self.assertEqual(policy._retention_reservation_detail(snapshot, item),
                              (entry["reservation"], entry["branch"]))
-        key = policy.choose_key(snapshot)
-        self.assertEqual((str(key), policy.last_reason),
-                         ("9", "town:blocked:overweight-retained-only"))
+        # The グレイブ (n) waits for the *Identify* scrolls carried for it: that
+        # owner goes first (owner-pending, n1-a life-522 2026-11-14), so the
+        # board identifies it instead of stopping over the limit by 6.  A block
+        # reached on this board is still named and records its numbers.
+        relief = policy._weight_relief_selection(snapshot)
+        self.assertEqual((relief.route, relief.excess), ("owner-pending", 6))
+        self.assertEqual({slot: reason for slot, _, _, reason in relief.retained}["n"],
+                         "identification-flow")
+        self.assertTrue(policy._record_weight_relief_retained_only(snapshot))
         record = json.loads(policy._overweight_surplus_record_path.read_text(
             encoding="utf-8").splitlines()[-1])
         self.assertEqual((record["weight"], record["limit"], record["excess"]), (1656, 1650, 6))
         self.assertEqual({entry[0] for entry in record["retained"]}, set("abcdefghijklmno"))
-        self.post(policy, snapshot, key)
+        key = policy.choose_key(snapshot)
+        self.assertEqual((str(key), policy.last_reason),
+                         ("rgn" + "\x1b" * 8, "identify:full"))
+        # CONSTRUCTED: the read and *Identify* prompts (spells-perception.cpp
+        # identify_fully); the result pages' Escapes are released only at
+        # observed result screens.
+        self.post(policy, snapshot, key, screens=[
+            executor_harness.prompt_screen("(持ち物:a-z, ESCで中断) どの巻物を読みますか?"),
+            executor_harness.prompt_screen("(持ち物:a-z, ESCで中断) どのアイテムを*鑑定*しますか?"),
+        ], accepted=["r", "g", "n"])
 
     def test_recorded_exhausted_home_uses_legal_surplus(self):
         policy, snapshot = self.replay(1)
