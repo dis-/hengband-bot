@@ -2690,6 +2690,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         area_mapping.observe(self, snapshot)
         quest_target_search.observe(self, snapshot)
         destruction_use.observe(self, snapshot)
+        # The landing of the last 50F+ Teleportation (owner 2026-11-14 「前の着地が射線内なら次は *破壊*」).
+        deep_teleport.observe(self, snapshot)
         summon_response.observe(self, snapshot)
         tunnel_feasibility.observe(self, snapshot)
         # Two owners stepping opposite ways in turn (owner 2026-11-13 「1と2だけ」, part 2).

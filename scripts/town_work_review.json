@@ -19250,5 +19250,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:_substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "Owner 2026-11-14: substitute's answer -- on the instant-death board refused only for the previous Teleportation's landing in fire (owner 「前の着地が射線内なら次は *破壊*」) destruction_use.key (suffix :teleport-landed-in-fire) leaving those monsters, else None (the teleport is read); off it destruction_use.key (suffix :deep-teleport) on the concerned monsters, else threat_tiers.approach_key, else _walk_key; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:landed_threats": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the engagement's monsters the previous Teleportation on this floor landed in the line of fire of, within the sure radius 13, when destruction_use.usable holds on them; else [].",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
