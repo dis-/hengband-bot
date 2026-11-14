@@ -104,6 +104,10 @@ from hengbot.threat_escape import (  # noqa: F401
     blind_teleport_success,
     escape_restorable,
     need_not_fight,
+    CANNOT_REACH,
+    OUT_OF_REACH,
+    UNREACHABLE,
+    out_of_reach,
 )
 from hengbot.threat_projection import (  # noqa: F401
     T1,
@@ -267,31 +271,20 @@ def _assess(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Asse
         return result
     hp, max_hp = player.hp, max(1, player.max_hp)
 
-    # 3.1 即死
-    death, one_turn = _instant_death(policy, snapshot, hostiles, melee_slots, contact)
-    result.next_action_p95 = death.next_action_p95
-    result.unseen_correction = death.unseen_correction
-    result.instant_death = death.holds
-    result.instant_death_reasons = death.reasons
-
-    # 3.2-3.4 the tier
-    # The budget read here, at call time: a patched threat_tiers.PROJECTION_COST_BUDGET applies.
-    projection = Projection(policy, snapshot, hostiles, one_turn, melee_slots, contact,
-                            budget=PROJECTION_COST_BUDGET)
-
     rows = {row_monster.index: row for row_monster, row in zip(
         hostiles, policy.threat_prediction(snapshot, hostiles, 3, melee_slots=melee_slots,
                                            contact=contact)["monsters"])}
-    attacks = {monster.index: free_attack(policy, snapshot, monster, contact,
-                                          row=rows.get(monster.index))
-               for monster in hostiles}
-    result.free_damage = {index: damage for index, (damage, _) in attacks.items()}
-    result.free_self_damage = {index: cost for index, (_, cost) in attacks.items() if cost > 0}
-
-    try:
-        _tier(policy, snapshot, projection, result, hp, max_hp)
-    except CostExceeded:
-        result.tier, result.supply_plan, result.skipped = None, None, "cost"
+    quest_races = _quest_races(policy, snapshot)
+    hunted = hunt_target.target_race(policy, snapshot)
+    reasons = {monster.index: need_not_fight(
+        policy, snapshot, monster, rows.get(monster.index),
+        protected=bool(monster.race_id in quest_races
+                       or (hunted is not None and monster.race_id == hunted)))
+        for monster in hostiles}
+    # Owner 2026-11-14 「外す」 (4.3 ``out_of_reach``): 即死 and the tier are read without them.
+    counted = [monster for monster in hostiles if reasons[monster.index] != OUT_OF_REACH]
+    if counted:
+        _classify(policy, snapshot, counted, rows, melee_slots, contact, result, hp, max_hp)
 
     # 4.2 逃げられるか
     result.escape_means = escape_means(policy, snapshot, hostiles)
@@ -299,12 +292,10 @@ def _assess(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Asse
     result.escape_restorable = result.cannot_escape and escape_restorable(policy, snapshot)
 
     # per monster: flags and the selection
-    quest_races = _quest_races(policy, snapshot)
-    hunted = hunt_target.target_race(policy, snapshot)
     for monster in hostiles:
         entry = MonsterAssessment(index=monster.index, race_id=monster.race_id,
                                   name=monster.name, speed=monster.speed,
-                                  free_damage=result.free_damage[monster.index])
+                                  free_damage=result.free_damage.get(monster.index, 0.0))
         entry.irreversible = irreversible_kinds(policy, snapshot, monster)
         entry.worsens_with_time = worsens_kinds(policy, monster)
         selected = []
@@ -318,12 +309,35 @@ def _assess(policy, snapshot, hostiles, melee_slots=None, contact=False) -> Asse
         if entry.reward:
             selected.append("reward")
         entry.selected = tuple(selected)
-        entry.need_not_fight = need_not_fight(
-            policy, snapshot, monster, rows.get(monster.index),
-            protected=bool(monster.race_id in quest_races
-                           or (hunted is not None and monster.race_id == hunted)))
+        entry.need_not_fight = reasons[monster.index]
         result.per_monster[monster.index] = entry
     return result
+
+
+def _classify(policy, snapshot, hostiles, rows, melee_slots, contact, result, hp, max_hp) -> None:
+    """3.1 即死 and 3.2-3.4 the tier of ``hostiles`` into ``result``."""
+    # 3.1 即死
+    death, one_turn = _instant_death(policy, snapshot, hostiles, melee_slots, contact)
+    result.next_action_p95 = death.next_action_p95
+    result.unseen_correction = death.unseen_correction
+    result.instant_death = death.holds
+    result.instant_death_reasons = death.reasons
+
+    # 3.2-3.4 the tier
+    # The budget read here, at call time: a patched threat_tiers.PROJECTION_COST_BUDGET applies.
+    projection = Projection(policy, snapshot, hostiles, one_turn, melee_slots, contact,
+                            budget=PROJECTION_COST_BUDGET)
+
+    attacks = {monster.index: free_attack(policy, snapshot, monster, contact,
+                                          row=rows.get(monster.index))
+               for monster in hostiles}
+    result.free_damage = {index: damage for index, (damage, _) in attacks.items()}
+    result.free_self_damage = {index: cost for index, (_, cost) in attacks.items() if cost > 0}
+
+    try:
+        _tier(policy, snapshot, projection, result, hp, max_hp)
+    except CostExceeded:
+        result.tier, result.supply_plan, result.skipped = None, None, "cost"
 
 
 # ---------------------------------------------------------------- acting on the tiers (steps 6-8)
@@ -415,10 +429,11 @@ def leave_due(policy, snapshot, hostiles, melee_slots=None) -> bool | None:
 
 
 def cannot_reach_all(assessment, hostiles) -> bool:
-    """Every hostile of the engagement reads 4.3 ``need_not_fight`` "cannot-reach"."""
+    """Every hostile of the engagement reads 4.3 ``need_not_fight`` "cannot-reach" (or, never
+    moving, "out-of-reach")."""
     return bool(hostiles) and all(
         (entry := assessment.per_monster.get(monster.index)) is not None
-        and entry.need_not_fight == "cannot-reach"
+        and entry.need_not_fight in UNREACHABLE
         for monster in hostiles)
 
 

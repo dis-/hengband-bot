@@ -222,8 +222,17 @@ def escape_restorable(policy, snapshot) -> bool:
                for item in snapshot.equipment)
 
 
+# 4.3 reasons: a monster that cannot reach the player at all; of those, a never-moving one the
+# player cannot walk beside and with no projectable line to the player (``OUT_OF_REACH``), which
+# the tier leaves out (owner 2026-11-14, ``out_of_reach``).
+CANNOT_REACH = "cannot-reach"
+OUT_OF_REACH = "out-of-reach"
+UNREACHABLE = frozenset({CANNOT_REACH, OUT_OF_REACH})
+
+
 def need_not_fight(policy, snapshot, monster, row, protected: bool) -> str | None:
-    """4.3: ``fearful``, or a monster that cannot reach the player at all.
+    """4.3: ``fearful``, or a monster that cannot reach the player at all (``OUT_OF_REACH``
+    when ``out_of_reach`` also holds, else ``CANNOT_REACH``).
 
     The 3-board distance history ("not approaching") is a later step's new policy attribute."""
     if protected:
@@ -243,4 +252,22 @@ def need_not_fight(policy, snapshot, monster, row, protected: bool) -> str | Non
         return None
     if monster.can_summon and policy._summoner_may_summon_next_turn(snapshot, monster):
         return None
-    return "cannot-reach"
+    return OUT_OF_REACH if out_of_reach(policy, snapshot, monster, knowledge) else CANNOT_REACH
+
+
+def out_of_reach(policy, snapshot, monster, knowledge) -> bool:
+    """A monster that cannot reach the player (``need_not_fight``) that also never moves
+    (NEVER_MOVE, monster-move.cpp:430), that the player has no known walk to beside
+    (``_monster_path_distance``: known enterable grids only; a walk found later counts it
+    again), and from which no line projects to the player (``_may_project``: unknown grids open,
+    glass stops).
+
+    Owner 2026-11-14 (recall-churn-1114 question 3, verbatim 「外す」): such a monster need not
+    be fought and is left out of the tier.  n1-c life-207 (ガラスの城 60F, 2026-11-14 04:26:45):
+    14 金色の宝箱 and 6 あつくもえるてき in a vault walled with glass made the 43-monster arrival
+    read T1 (the free attacks could not clear them), and the bot walked away and drank Speed.
+    A monster that comes beside the player as it approaches, or whose spell or breath reaches,
+    counts as before."""
+    return (knowledge is not None and "NEVER_MOVE" in knowledge.flags
+            and policy._monster_path_distance(snapshot, monster.position) is None
+            and not policy._may_project(snapshot, monster.position, snapshot.player.position))
