@@ -19283,5 +19283,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "quest25_presence.py:_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of Q25's presence check: a roster race's MonraceDefinitions flags (hunt_target.race_flags).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_presence.py:detector_effect": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of Q25's presence check: the effect (detect-all / detect-evil) of the plan's detector answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_presence.py:shown_by": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of Q25's presence check: whether a detection effect shows a race (hunt_target.REVEALS).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_presence.py:presence_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. The long wait's presence check (owner 2026-11-13 「可能なら感知して存在を確認する」, n1-c life-211 2026-11-15): the plan's detection (quest25_battle._detect_key), or a walk to a cell it covers."
   }
 }
