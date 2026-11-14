@@ -35,9 +35,23 @@ walk toward one (confused, the means spent or unreliable, the guardian in the ci
 use's fallback, no known way), the teleport is read as before.  Owner 2026-11-14 「50F以降で
 破壊手段なしの探索は許可しない。」: without the means the floor is already being left
 (destruction_use.gap_here), so this branch is the means held but not usable on this board.
+
+The landing in fire.  Owner 2026-11-14 (n1-c life-207, 金鉱80F, a small cave floor: five
+Teleportation scrolls each landed within the ストーム・ワイアーム's line of fire, spells-teleport.cpp
+teleport_player_aux picking among the farther half of the floor's few cells), verbatim
+「前の着地が射線内なら次は *破壊*」: on the 即死 board, when the previous Teleportation on this floor
+(scroll, staff or absorbed power; not Phase Door, whose short hop lands in sight by design) landed
+with a monster that had a line of fire before it still having one on the landing board, and that
+monster is now within *Destruction*'s sure radius and *Destruction* can be used on it, ``allows``
+refuses the next teleport and ``substitute`` answers with *Destruction* leaving those monsters.
+The first teleport keeps the 11-13 order (the scroll before *Destruction*).  ``note_teleport``
+remembers each Teleportation ``substitute`` lets through; ``observe`` settles it on the next board
+of the floor (a board where the player has not moved forgets it: the read was not taken).
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 from hengbot import line_of_fire
 from hengbot.item_reservation import decision_memo
@@ -46,6 +60,24 @@ from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL,
 DEPTH = 50  # the owner's 「50F以降」
 SCROLL_SVALS = frozenset({SV_SCROLL_TELEPORT, SV_SCROLL_PHASE_DOOR})
 DESTRUCTION_SUFFIX = ":deep-teleport"
+LANDED_SUFFIX = ":teleport-landed-in-fire"
+MEMORY = "_deep_teleport_landing"
+
+
+@dataclass
+class Landing:
+    """``pending``: (floor, turn, position, indices with a line of fire) of the Teleportation let
+    through; ``landed``: (floor, indices still with one on its landing board)."""
+    pending: tuple | None = None
+    landed: tuple | None = None
+
+
+def _memory(policy) -> Landing:
+    memory = getattr(policy, MEMORY, None)
+    if memory is None:
+        memory = Landing()
+        setattr(policy, MEMORY, memory)
+    return memory
 
 
 def applies(policy, snapshot) -> bool:
@@ -76,7 +108,57 @@ def allows(policy, snapshot) -> bool:
     """The self-teleport may be read or cast on this board."""
     if not applies(policy, snapshot):
         return True
-    return fire_p95(policy, snapshot) >= snapshot.player.hp
+    return fire_p95(policy, snapshot) >= snapshot.player.hp and not landed_threats(policy, snapshot)
+
+
+def _monsters(snapshot) -> list:
+    return [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            if monster.hostile]
+
+
+def note_teleport(policy, snapshot) -> None:
+    """A Teleportation is let through on this board: remember who has a line of fire now."""
+    if not applies(policy, snapshot):
+        return
+    in_fire = frozenset(monster.index for monster in _monsters(snapshot)
+                        if line_of_fire.in_fire(policy, snapshot, monster))
+    _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position, in_fire)
+
+
+def observe(policy, snapshot) -> None:
+    """Every decision: settle the Teleportation let through on the previous board."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None:
+        return
+    if memory.landed is not None and memory.landed[0] != snapshot.floor_key:
+        memory.landed = None
+    if memory.pending is None or snapshot.turn <= memory.pending[1]:
+        return
+    floor, _turn, position, in_fire = memory.pending
+    memory.pending = None
+    if snapshot.floor_key != floor or snapshot.player.position == position:
+        return
+    still = frozenset(monster.index for monster in _monsters(snapshot)
+                      if monster.index in in_fire and line_of_fire.in_fire(policy, snapshot, monster))
+    memory.landed = (floor, still) if still else None
+
+
+def landed_threats(policy, snapshot) -> list:
+    """The engagement's monsters the previous Teleportation on this floor landed in the line of
+    fire of, now within *Destruction*'s sure radius, when *Destruction* can be used on them."""
+    from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
+
+    memory = getattr(policy, MEMORY, None)
+    landed = None if memory is None else memory.landed
+    if landed is None or landed[0] != snapshot.floor_key:
+        return []
+    here = snapshot.player.position
+    threats = [monster for monster in threat_tiers.engagement(policy, snapshot)
+               if monster.index in landed[1]
+               and game_distance(here, monster.position) <= destruction_use.GUARANTEED_RADIUS]
+    if not threats or not destruction_use.usable(policy, snapshot, leaving=threats):
+        return []
+    return threats
 
 
 def concerned(policy, snapshot) -> list:
@@ -124,12 +206,25 @@ def KEEPS_TELEPORT(policy, snapshot) -> None:  # noqa: N802 -- the named branch 
     return None
 
 
-def substitute(policy, snapshot) -> str | None:
-    """The key in place of a self-teleport ``allows`` refuses here, else None (read it)."""
+def substitute(policy, snapshot, *, teleportation: bool = True) -> str | None:
+    """The key in place of a self-teleport ``allows`` refuses here, else None (read it).
+    ``teleportation``: the teleport is a Teleportation (not Phase Door); one let through is
+    remembered for its landing (``note_teleport``)."""
+    instead = _substitute(policy, snapshot)
+    if instead is None and teleportation:
+        note_teleport(policy, snapshot)
+    return instead
+
+
+def _substitute(policy, snapshot) -> str | None:
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
     if allows(policy, snapshot):
         return None
+    if fire_p95(policy, snapshot) >= snapshot.player.hp:
+        # The 即死 board refused only for the landing in fire: *Destruction*, else the teleport.
+        return destruction_use.key(policy, snapshot, leaving=landed_threats(policy, snapshot),
+                                   suffix=LANDED_SUFFIX)
     targets = concerned(policy, snapshot)
     if not targets:
         return KEEPS_TELEPORT(policy, snapshot)
@@ -148,4 +243,6 @@ def substitute(policy, snapshot) -> str | None:
 
 def scroll_substitute(policy, snapshot, item) -> str | None:
     """``substitute`` for a read of ``item`` (only Teleportation and Phase Door)."""
-    return substitute(policy, snapshot) if is_self_teleport_scroll(item) else None
+    if not is_self_teleport_scroll(item):
+        return None
+    return substitute(policy, snapshot, teleportation=item.sval == SV_SCROLL_TELEPORT)

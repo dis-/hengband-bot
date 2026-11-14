@@ -1136,6 +1136,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "deep_teleport.py:_substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "deep_teleport.py:_walk_key": {
     "classification": "producer",
     "rows": [
@@ -1151,6 +1158,13 @@
     "delegation": "selected child; no independent success"
   },
   "deep_teleport.py:fire_p95.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:landed_threats": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
