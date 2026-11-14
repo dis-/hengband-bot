@@ -8278,9 +8278,10 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
     def test_q34_carry_purchase_stops_at_existing_gold_reserve(self):
         # 2026-10-30 「松明20本はキープして。」: Q34 carries the fixed 20 torches (the recount 11 is reverted).
         policy = self._policy()
+        # store.cpp: a General Store torch is stocked at FUEL_TORCH / 2 (2500 turns).
         torch = StoreItem(
             letter="a", name="Torch", count=20, tval=TVAL_LITE,
-            sval=SV_LITE_TORCH, price=10, aware=True, known=True,
+            sval=SV_LITE_TORCH, price=10, aware=True, known=True, fuel=2500,
         )
         quest = QuestState(id=34, status=0, fixed=True, level=5)
         base = Snapshot(
