@@ -3352,9 +3352,13 @@ class HomeOneOperationPerEntryTest(unittest.TestCase):
             )],
         ))
         self.assertTrue(policy._home_knowledge_current)
-        self.assertLess(
-            policy._home_knowledge_valid_before, len(policy._home_knowledge_items)
-        )
+        # The take shortened the addressable prefix to the target's slot (30) and,
+        # taken whole, the target left the catalogue (stat-potion-ownership-1114).
+        self.assertEqual(policy._home_knowledge_valid_before, 30)
+        self.assertNotIn(policy._item_signature(target),
+                         [policy._item_signature(ware) for ware in policy._home_knowledge_items])
+        self.assertIn(policy._item_signature(restore),
+                      [policy._item_signature(ware) for ware in policy._home_knowledge_items])
         self.assertIsNone(policy._equipment_transaction_session)
 
     def test_open_transaction_owns_withdraw_ahead_of_calibration_restore(self):

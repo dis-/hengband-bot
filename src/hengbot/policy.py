@@ -4479,7 +4479,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if tracked is not None and tracked[0] == signature:
                     self._withdrawal_unsatisfied_for = None
                 self._confirm_home_withdrawal_address(
-                    signature, self._home_atomic_withdraw_index
+                    signature, self._home_atomic_withdraw_index,
+                    taken=quantity,
                 )
                 if not suspended_same_item:
                     if signature == self._home_pending_item:

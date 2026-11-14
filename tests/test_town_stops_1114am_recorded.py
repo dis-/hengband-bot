@@ -46,6 +46,8 @@ from replay_town_arrival import adopt_calibration, decisions, restore
 from tests.support import recorded as executor_harness
 
 FIXTURES = Path(__file__).with_name("fixtures") / "town-stops-1114am"
+# n1-a life-522: the board where the corrected Home catalogue identifies at once.
+IDENTIFY_AT_ONCE_ROW = 37
 
 
 class Visit:
@@ -117,8 +119,16 @@ class TownStops1114RecordedTest(executor_harness.RecordedHarness):
         policy = visit.policy
         for recorded, supply in visit.rows[:52]:
             key = policy.choose_key(supply())
-            self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]),
-                             recorded["row"])
+            if recorded["row"] == IDENTIFY_AT_ONCE_ROW:
+                # Recorded: '6' town:entrance-step-off:shop:observed-operation-uncomposable,
+                # then row 38's identify.  Rows 35 and 36 took two stacks whole; the confirmed
+                # takes now leave the catalogue (stat-potion-ownership-1114), so no stale
+                # operation is left to compose and the taken item is identified at once.
+                self.assertEqual((key, policy.last_reason),
+                                 (visit.rows[IDENTIFY_AT_ONCE_ROW + 1][0]["key"], "identify:full"))
+            else:
+                self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]),
+                                 recorded["row"])
             visit.post(key)
         # Row 52, on another shop's entrance: the filed take walks to Home at once
         # (recorded: one step off first).  Rows 53-54 are the recorded walk and
