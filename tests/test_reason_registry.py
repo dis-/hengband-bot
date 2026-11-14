@@ -89,12 +89,20 @@ NEWLY_COUNTED_1112 = frozenset({
     "emergency:teleport-follower:pack-teleport:absorbed-power",
     "emergency:teleport-follower:pack-teleport-staff",
 })
+# Owner 2026-11-14 「付いてくる敵だけで死なないなら読む」: the same teleport from fewer followers on the
+# 即死 board when they alone cannot kill (teleport_follower.survivable_due), counted the same way.
+NEWLY_COUNTED_1114 = frozenset({
+    "emergency:teleport-follower:survivable-teleport",
+    "emergency:teleport-follower:survivable-teleport:absorbed-power",
+    "emergency:teleport-follower:survivable-teleport-staff",
+})
 
 
 class DerivedSetsTest(unittest.TestCase):
     def test_emergency_escape_reasons_are_the_old_literals(self):
         self.assertEqual(policy_constants.EMERGENCY_ESCAPE_REASONS,
-                         OLD_EMERGENCY_ESCAPE_REASONS | NEWLY_COUNTED_1112)
+                         OLD_EMERGENCY_ESCAPE_REASONS | NEWLY_COUNTED_1112
+                         | NEWLY_COUNTED_1114)
 
     def test_relocating_escape_reasons_are_the_old_literals(self):
         self.assertEqual(policy_constants.RELOCATING_ESCAPE_REASONS,

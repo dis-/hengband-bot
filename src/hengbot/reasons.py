@@ -92,6 +92,12 @@ _rows(EMERGENCY, "teleport_follower", _RULE_EMERGENCY,
       "emergency:teleport-follower:pack-teleport",
       "emergency:teleport-follower:pack-teleport:absorbed-power",
       "emergency:teleport-follower:pack-teleport-staff")
+# Owner 2026-11-14 「付いてくる敵だけで死なないなら読む」: the same teleport from fewer followers on
+# the 即死 board when they alone cannot kill (teleport_follower.survivable_due).
+_rows(EMERGENCY, "teleport_follower", _RULE_EMERGENCY,
+      "emergency:teleport-follower:survivable-teleport",
+      "emergency:teleport-follower:survivable-teleport:absorbed-power",
+      "emergency:teleport-follower:survivable-teleport-staff")
 
 # ================================================================ counted once relocated
 # User 2026-10-02 13:4x 「逃走も緊急脱出に数える」: the relocating escapes from an unresisted
