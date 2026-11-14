@@ -6,10 +6,11 @@ Owner 2026-11-04: 「成功率80%以上の*破壊*を使えるとき、強敵か
 ターゲットは巻き込まない場面に限定する。」; 「治して階の探索を続ける。破壊の回数だけでは
 帰還しない。」; 「巻物が無くても使う」 (with no Teleportation, before Phase Door and Recall).
 50F+ 「使える手段がある時だけ解く」: ``holds_means`` is the one predicate of
-policy_constants.destruction_dive_permitted, for arrivals and descents only.  With the
-means gone on such a floor (rate below 80%, charges spent) no further descent or new
-arrival is allowed and the existing return rules decide when to leave: the floor itself
-is no gap (``gap_here``), and a charged list after the inn permits it again.
+policy_constants.destruction_dive_permitted, for arrivals and descents.  Owner 2026-11-14
+(verbatim): 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた時点で帰還
+させる。」  With the means gone on such a floor (rate below 80%, charges spent) the floor is a
+gap too (``gap_here``) and the return starts at once (``means_spent_recall_key``, above the
+emergency ladder); a charged list after the inn permits 50F+ again.
 
 Game (C:/hengband/src):
  * spell-kind/spells-floor.cpp destroy_area: refused on a fixed quest floor and on
@@ -189,14 +190,59 @@ def holds_means(policy, snapshot) -> bool:
             or _reliable_carried_staff(policy, snapshot) is not None)
 
 
+MEANS_SPENT_TRIGGER = "emergency-destruction-means-spent"
+MEANS_SPENT_REASON = "return:recall"
+
+
+def _quest_floor(policy, snapshot) -> bool:
+    """A fixed or random quest floor: its own rules (the plans, the random quest's give-up and
+    exit lock) decide leaving it."""
+    return snapshot.floor_key[2] != 0 or policy._on_random_quest_floor(snapshot)
+
+
 def gap_here(policy, snapshot, missing) -> frozenset:
-    """``missing`` of the floor the player stands on: the *Destruction* label is no
-    gap on a floor where the means was held; a floor reached without it (a warrior's
-    trapdoor to 50F) keeps the label and returns."""
+    """``missing`` of the floor the player stands on.  Owner 2026-11-14 「50F以降で破壊手段なし
+    の探索は許可しない。」: the *Destruction* label is a gap on every 50F+ floor without the
+    means, the floor where it was held and spent included (before, that floor was no gap:
+    owner 2026-11-04's 「使える手段がある時だけ解く」 governed arrivals and descents only).
+    A quest floor keeps the 11-04 reading (the floor where the means was held is no gap): its
+    own rules decide leaving it (a random quest's exit lock refuses the Recall)."""
     memory = getattr(policy, MEMORY, None)
-    if memory is not None and memory.entitled_floor == snapshot.floor_key:
+    if (_quest_floor(policy, snapshot) and memory is not None
+            and memory.entitled_floor == snapshot.floor_key):
         return frozenset(missing) - {DESTRUCTION_GATE_LABEL}
     return frozenset(missing)
+
+
+def means_spent(policy, snapshot) -> bool:
+    """A 50F+ floor where the tiers act and *Destruction* touches, no quest floor (``gap_here``),
+    without the means."""
+    from hengbot import threat_tiers  # import cycle
+
+    return (snapshot.dungeon_level >= DESTRUCTION_GATE_DEPTH
+            and threat_tiers.acts_here(policy, snapshot)
+            and _floor_destroyed(policy, snapshot)
+            and not _quest_floor(policy, snapshot)
+            and not holds_means(policy, snapshot))
+
+
+def means_spent_recall_key(policy, snapshot) -> str | None:
+    """Owner 2026-11-14 「敵への対処以前に手段が尽きた時点で帰還させる。」: on a ``means_spent``
+    floor the town return starts (``MEANS_SPENT_TRIGGER``, a survival return: no loot sweep
+    delays it) and Word of Recall is read before any enemy is answered, when this floor lets
+    one be read (once_quest_recall.read_key: not while recalling, blind or confused, on a
+    locked quest floor or without a scroll).  Without a read the return stays latched and its
+    own rungs leave the floor; the rungs below answer the enemies meanwhile."""
+    from hengbot import once_quest_recall  # import cycle
+
+    if not means_spent(policy, snapshot):
+        return None
+    if not policy._returning_to_town or policy._last_return_trigger != MEANS_SPENT_TRIGGER:
+        if not policy._returning_to_town:
+            policy._note_return_start(MEANS_SPENT_TRIGGER)
+        policy._returning_to_town = True
+        policy._last_return_trigger = MEANS_SPENT_TRIGGER
+    return once_quest_recall.read_key(policy, snapshot, MEANS_SPENT_REASON)
 
 
 # -- the scene ------------------------------------------------------------------

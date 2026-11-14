@@ -38,7 +38,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import line_of_fire, threat_tiers
+from hengbot import destruction_use, line_of_fire, threat_tiers
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import GridState, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -51,9 +51,24 @@ EDIT = Path(r"C:\hengband\lib\edit")
 BALROG, HELL_WYRM = 940, 1192
 
 
-def no_depth_gate():
-    return mock.patch.object(HengbotPolicy, "_missing_required_abilities",
-                             lambda self, *args, **kwargs: frozenset())
+class no_depth_gate:
+    """DECLARED CONSTRUCTED: the depth gate walled off, and with it the owner's 2026-11-14 rule
+    「50F以降で破壊手段なしの探索は許可しない。」 (destruction_use.means_spent): the fresh process
+    has not listed the live one's absorbed *Destruction*, and these cases pin the count alone."""
+
+    def __enter__(self):
+        self.patches = [
+            mock.patch.object(HengbotPolicy, "_missing_required_abilities",
+                              lambda self, *args, **kwargs: frozenset()),
+            mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False)]
+        for patch in self.patches:
+            patch.start()
+        return self
+
+    def __exit__(self, *exc):
+        for patch in reversed(self.patches):
+            patch.stop()
+        return False
 
 
 class EscapeLineOfFireRecordedTest(unittest.TestCase):

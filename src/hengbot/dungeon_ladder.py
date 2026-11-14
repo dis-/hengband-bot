@@ -70,6 +70,7 @@ NO_ATTACKER = "its own test declines with a hostile about or a hit just taken"
 QUEST_FLOOR = "a quest floor: survival_preemption.preempts never refuses there"
 TOWN_ONLY = "town only: survival_preemption.preempts never refuses there"
 WALK_OUT = "the approved walk-out past breeders (survival_preemption's docstring)"
+MEANS_SPENT = "owner 2026-11-14 「敵への対処以前に手段が尽きた時点で帰還させる」: the Recall read first"
 # No rule says so: named for the owner's question (D21 asked of these, not answered).
 NOT_DECIDED = "walks or shoots while attacked: not refused, and no rule decided it"
 
@@ -84,6 +85,9 @@ LADDER = (
         *E("quest_find_exit.key", "quest25_battle.key", "quest_room_sweep.key"),
     )),
     Layer("above-emergency", "the emergency ladder and everything below", (
+        # Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた
+        # 時点で帰還させる。」: the Recall read on a 50F+ floor without the means.
+        *D("destruction_use.means_spent_recall_key", exempt=MEANS_SPENT),
         *E("_esp_threat_hunt_key"),
     )),
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
@@ -460,6 +464,10 @@ class OwnerRule(NamedTuple):
 
 
 _ABOVE_EMERGENCY = {
+    "destruction_use.means_spent_recall_key": "owner 2026-11-14 「50F以降で破壊手段なしの探索は"
+                                              "許可しない。敵への対処以前に手段が尽きた時点で帰還"
+                                              "させる。」: a Recall read, before any enemy is "
+                                              "answered",
     "zul_trip.global_key": "the Zul trip's global-map walk (owner 2026-11-07): the global map "
                            "shows no monster; an ambush leaves it for a local map",
     "_wilderness_survival_key": "the global map's own survival rung",

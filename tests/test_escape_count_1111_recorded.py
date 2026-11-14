@@ -19,6 +19,9 @@ per-floor case (the boards from 4229938 on one floor up, as a Teleport Level wou
 locust board again after the escapes with the HP at 2000 (so it is no 即死 board and the ladder
 takes *Destruction*, test_deaths_1109 C raises the HP the same way) and its flash board without
 the locusts; the active Word of Recall (``player.recalling``) of the last case.
+DECLARED CONSTRUCTED too: the owner's 2026-11-14 rule 「50F以降で破壊手段なしの探索は許可しない。」
+walled off (destruction_use.means_spent): the replays without *Destruction* listed would read
+Recall on 80F at once, and these cases pin the count.
 
 Owner 2026-11-13 「射線にT1が入っていない=感知しただけはカウントしない」: on 4229938 no awake
 hostile known (the five 1244, the two 746, the 812) has a line of fire to the player at (22,53),
@@ -61,6 +64,12 @@ def no_depth_gate():
 
 
 class EscapeCountRecordedTest(deaths.DeathsRecordedHarness):
+    def setUp(self):
+        super().setUp()
+        patch = mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def listed(self, policy, raw):
         """The displayed lists again, *Destruction* included (as the replay shows them)."""
         for kind, (_, rows) in sorted(self.payload[LIFE]["lists"].items(),

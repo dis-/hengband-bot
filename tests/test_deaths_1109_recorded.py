@@ -234,8 +234,11 @@ class EveryEscapeCountsRecordedTest(DeathsRecordedHarness):
         # 「射線にT1が入っていない=感知しただけはカウントしない」 counts it only then.
         def in_line_of_fire(policy, snapshot, strong):
             setattr(policy, line_of_fire.RECORD, True)
+        # DECLARED CONSTRUCTED too: the owner's 2026-11-14 rule 「50F以降で破壊手段なしの探索は許可
+        # しない。」 walled off (destruction_use.means_spent): without *Destruction* listed the
+        # 80F floor would read Recall at once.
         with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
-                               lambda self, *args, **kwargs: frozenset()),                 mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire):
+                               lambda self, *args, **kwargs: frozenset()),                 mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire),                 mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False):
             policy, answers = self.replay("life-355", 4229948, without=(DESTRUCTION_NAME,))
         self.assertEqual(answers[4229931][2], "emergency:teleport")
         self.assertEqual(answers[4229938][2], "sensed-t1:teleport")

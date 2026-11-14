@@ -31,9 +31,13 @@ Every decision is the public ``choose_key`` of one policy built as the live one
 (the floor's second detection, before the mages were first seen); the decisive keys (the
 step after the zone step, and the key at 2922547) are posted through the production
 executor port (cli._ExecutorInputPort).
-DECLARED RESTORED (policy-state.json of the stop): the staff record ``_me_staff_sequence``, the
-absorbed powers' uses on the floor before 2921424 (``_me_power_floor``) and the floor's
-*Destruction* entitlement (the arrival's absorbed *Destruction*, 2921097).
+DECLARED RESTORED (policy-state.json of the stop): the staff record ``_me_staff_sequence`` and
+the absorbed powers' uses on the floor before 2921424 (``_me_power_floor``).
+DECLARED CONSTRUCTED: the owner's 2026-11-14 rule 「50F以降で破壊手段なしの探索は許可しない。」
+walled off (destruction_use ``means_spent`` and ``gap_here`` as the floor's *Destruction*
+entitlement of 2026-11-04 read it: the arrival's absorbed *Destruction*, 2921097, spent).  Under
+that rule the live character, without the means, reads Recall on its first board here; this case
+pins the summoner zone of the floor it explored on.
 DECLARED CONSTRUCTED: the rod and wand lists show Teleport Away with a charge (the recorded
 ``mCn4`` and ``mBd4`` are the rod and wand rows, rod 13 and wand 3 in the stop's power uses;
 the 5% fail rate is constructed).
@@ -54,7 +58,7 @@ from hengbot import me_staff_sequence as sequence
 from hengbot.cli import SendResult, _ExecutorInputPort
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
-from hengbot.policy_constants import DIRECTION_KEYS
+from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, DIRECTION_KEYS
 from hengbot.policy_combat import IMMOBILE_SUMMONER_AVOID_REASON
 from tests.support.recorded import (
     EDIT, FaithfulHookGame, ProductionHarness, _policy, command_screen)
@@ -75,7 +79,6 @@ def _restore(policy, case):
     for name, value in case["sequence"].items():
         setattr(record, name, frozenset(value) if name == "bought"
                 else tuple(value) if name == "remaining" else value)
-    destruction_use._memory(policy).entitled_floor = FLOOR
     floor = case["me_power_floor"]
     policy._me_power_floor = me_powers.FloorMemory(tuple(floor["floor"]), START, [
         me_powers.Use(tuple(use["served"]), tuple(use["used"]), use["trigger"],
@@ -115,6 +118,13 @@ class SummonerZoneGlassRecordedTest(ProductionHarness):
         _restore(policy, cls.case)
         policy.consume_skill_knowledge(_skill(cls.case, boards[0]))
         cls.rows = []
+        entitled = mock.patch.object(destruction_use, "gap_here", lambda policy, snapshot, missing:
+                                     frozenset(missing) - {DESTRUCTION_GATE_LABEL})
+        spent = mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False)
+        entitled.start()
+        spent.start()
+        cls.addClassCleanup(entitled.stop)
+        cls.addClassCleanup(spent.stop)
         for raw in boards:
             board = parse_snapshot(copy.deepcopy(raw), races)
             key = str(policy.choose_key(board))
