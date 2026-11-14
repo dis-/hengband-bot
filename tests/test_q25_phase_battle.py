@@ -812,7 +812,10 @@ class Q25SweepTest(unittest.TestCase):
         at_phase(policy, raw, "sweep", kills=dict(self.ALL_BUT_LAST))
         key = choose(policy, raw)
         self.assertEqual((key, policy.last_reason), ("zl", battle.DETECT_REASON))
-        raw["detected_monsters"] = []
+        # The detection (detect_all) shows every monster left: the stairway and the druj, not yet
+        # killed.  A race it does not show is gone (quest25_presence, n1-c life-211 2026-11-15).
+        raw["detected_monsters"] = [monster(geo.STAIRWAY, 13, 29, index=970),
+                                    monster(geo.DRUJ, 11, 18, index=971)]
         choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "stairway")
 

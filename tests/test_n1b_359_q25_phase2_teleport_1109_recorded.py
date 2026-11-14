@@ -154,10 +154,13 @@ class PhaseTest(unittest.TestCase):
             seen[sequence] = (battle.PHASES[ctx.battle.phase].name, ctx.kills(geo.SHADOW), ctx.kills(geo.SPECTRE))
 
         replay(probe=probe, recorded_wait=True, observed=range(816, SECOND_TELEPORT))
-        self.assertEqual(seen[805], ("wall-passers", 4, 1))
-        self.assertEqual(seen[806], ("ipsissimus", 4, 1))
-        self.assertEqual(seen[FIRST_TELEPORT], ("ipsissimus", 4, 1))
-        self.assertEqual(seen[SECOND_TELEPORT], ("ipsissimus", 4, 1))
+        # Five shadow demons: the recorded board 107's 「シャドウ・デーモンは光を受けてしぼんでしまった！」
+        # (effect-monster-lite-dark.cpp note_dies) is a death too (quest25_battle ``_DEATH_NOTES``,
+        # n1-c life-211 2026-11-15); the kill reader counted four before it read the death notes.
+        self.assertEqual(seen[805], ("wall-passers", 5, 1))
+        self.assertEqual(seen[806], ("ipsissimus", 5, 1))
+        self.assertEqual(seen[FIRST_TELEPORT], ("ipsissimus", 5, 1))
+        self.assertEqual(seen[SECOND_TELEPORT], ("ipsissimus", 5, 1))
 
 
 class WallPasserWaitTest(unittest.TestCase):
