@@ -3223,6 +3223,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # for that take, and the loop made the owner-retired-burst.
             self._store_entrance_step_off = None
         self._release_observed_store_exit(snapshot)
+        town_visit_plan.note_observed_progress(self, snapshot)
         deadline_stop = town_visit_plan.stage_deadline_stop(self, snapshot, key)
         if deadline_stop is not None:
             # Owner 2026-11-12/13: the visit's stage spent its deadline (town

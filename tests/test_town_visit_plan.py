@@ -141,10 +141,11 @@ class StageDeadlineTest(unittest.TestCase):
     """Stage 3-5 (owner 2026-11-13 「測った最大の2倍を期限に」)."""
 
     def test_deadlines_are_twice_the_larger_measurement(self):
-        # Owner 2026-11-14 「ループと止まり以外の全訪問で測る」 and 「歩きは数えない」.
+        # Owner 2026-11-14 「ループと止まり以外の全訪問で測る」 and 「歩きは数えない」;
+        # 2026-11-15 the count restarts at each observed unit of work.
         self.assertEqual(town_visit_plan.STAGE_DEADLINES, {
-            "quest": 28, "buy": 36, "home": 60, "fundraising": None, "departure": 110,
-            "equipment": 60, "sell": 24, "identification": 26, "travel": None})
+            "quest": 6, "buy": 18, "home": 22, "fundraising": None, "departure": 130,
+            "equipment": 18, "sell": 6, "identification": 8, "travel": None})
         # 「期限を付けず数が貯まったら測る」: travel and fundraising wait for visits.
         self.assertEqual(town_visit_plan.UNMEASURED_STAGES, {"travel", "fundraising"})
 
@@ -199,6 +200,57 @@ class StageDeadlineTest(unittest.TestCase):
                              "town:blocked:stage-deadline:equipment")
         self.assertTrue(town_visit_plan.is_walking("7", "town:kill-mob-approach"))
         self.assertFalse(town_visit_plan.is_walking("p", "home:atomic-withdraw"))
+
+    def test_an_observed_unit_of_work_restarts_its_stage(self):
+        """Owner 2026-11-15: the deadline counts the decisions since the stage
+        last completed a unit of its work, read from the board's state.
+        DECLARED CONSTRUCTED from n1-b life-397's stop (2026-11-15 00:48:40,
+        town:blocked:stage-deadline:sell): inscribe and sell, each sale
+        raising the gold."""
+        policy = double("x", 0)
+
+        def board(gold, count):
+            item = SimpleNamespace(tval=40, sval=1, count=count, aware=True, known=True,
+                                   fully_known=False, is_ego=False, artifact_id=0,
+                                   is_cursed=False, pval=0, to_h=0, to_d=0, to_a=0)
+            return SimpleNamespace(in_town=True, store=None, player=SimpleNamespace(gold=gold),
+                                   inventory=[item], equipment=[])
+
+        INSCRIBE = "{a@0" + chr(13)  # the recorded inscription command (CR ends it)
+
+        def decide(snapshot, family, reason, key):
+            policy.last_reason = reason
+            town_visit_plan.note_observed_progress(policy, snapshot)
+            with patch("hengbot.town_hold.claim_family_of", return_value=family):
+                note_decision(policy, snapshot, key)
+
+        decide(board(100, 3), "shop-sell", "shop:in-store-inscribe", INSCRIBE)
+        decide(board(100, 3), "shop-sell", "shop:in-store-sell", "d0y")
+        self.assertEqual(policy._town_visit.stage_decisions, {"sell": 2})
+        # The sale shows on the next board: the sell stage starts again.
+        decide(board(150, 2), "shop-sell", "shop:in-store-inscribe", INSCRIBE)
+        self.assertEqual(policy._town_visit.stage_decisions, {"sell": 1})
+        decide(board(150, 2), "shop-sell", "shop:in-store-sell", "d0y")
+        # A state the visit already saw (bought back) is no progress.
+        decide(board(100, 3), "shop-sell", "shop:in-store-sell", "d0y")
+        self.assertEqual(policy._town_visit.stage_decisions, {"sell": 3})
+        # A change after an interrupt (a potion quaffed) restarts no stage.
+        decide(board(100, 3), "survival", "restore:quaff-str", "qg")
+        decide(board(100, 4), "shop-sell", "shop:in-store-sell", "d0y")
+        self.assertEqual(policy._town_visit.stage_decisions, {"sell": 4})
+        # An inscription or a device's charges are no unit of work.
+        changed = board(100, 4)
+        changed.inventory[0].inscription, changed.inventory[0].charges = "@0", 3
+        self.assertEqual(town_visit_plan.work_state(changed),
+                         town_visit_plan.work_state(board(100, 4)))
+        # Past the deadline the stage still stops.
+        policy._town_visit.stage_decisions["sell"] = town_visit_plan.STAGE_DEADLINES["sell"]
+        with patch("hengbot.town_hold.claim_family_of", return_value="shop-sell"):
+            self.assertEqual(town_visit_plan.stage_deadline_stop(policy, TOWN, "d0y"),
+                             "town:blocked:stage-deadline:sell")
+        policy._town_visit.begin(home_candidate_waiting=lambda: False)
+        self.assertEqual(policy._town_visit.observed_work_states, set())
+        self.assertIsNone(policy._town_visit.previous_decision_stage)
 
     def note_interrupts(self, policy):
         # Interrupts are not counted against any stage.

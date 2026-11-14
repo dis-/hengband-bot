@@ -134,44 +134,51 @@ def progress_defect_reason(winner: str, progress: str) -> str:
 
 # -- the stages' deadlines (town rebuild stage 3-5) --------------------------
 # Owner 2026-11-12 (the owner-retired burst becomes per-stage deadlines),
-# 2026-11-13 「測った最大の2倍を期限に」, 2026-11-14 「ループと止まり以外の全訪問で測る」
-# and 2026-11-14 「歩きは数えない」: a visit's own operations in one stage (no
-# interrupt, no walk: is_walking) past the stage's deadline stop the visit
-# under the stage's name (STAGE_DEADLINE_STOP_PREFIX + stage).  Each deadline
-# is twice the largest of three measurements of the stage's per-visit
-# maximum, all taken 2026-11-14 without walks and over the visits that did not
-# end in a loop or a stop:
-#   journals: the 270 recorded town-arrival journals under C:\hengband-backups
-#     (2026-11-03 .. 11-14), scripts/town_stage_deadline_measure.py: 92 visits
-#     (84 that reached their departure, counted up to the recall read or the
+# 2026-11-13 「測った最大の2倍を期限に」, 2026-11-14 「ループと止まり以外の全訪問で測る」,
+# 2026-11-14 「歩きは数えない」 and 2026-11-15 (a deadline catches a stuck stage,
+# not one that keeps completing its work): a visit's own operations in one
+# stage (no interrupt, no walk: is_walking) since the stage last completed an
+# observed unit of its work (note_observed_progress) past the stage's deadline
+# stop the visit under the stage's name (STAGE_DEADLINE_STOP_PREFIX + stage).
+# Each deadline is twice the largest of three measurements of the stage's
+# per-visit maximum of that count, all taken 2026-11-15 under this counting
+# and over the visits that did not end in a loop or a stop:
+#   journals: the 280 recorded town-arrival journals under C:\hengband-backups
+#     (2026-11-03 .. 11-15), scripts/town_stage_deadline_measure.py: 95 visits
+#     (86 that reached their departure, counted up to the recall read or the
 #     stairs and through the recall countdown; 6 that ended in the player's
-#     death; the 2 Zul round trips).  Excluded are the 178 visits that ended
+#     death; the 3 Zul round trips).  Excluded are the 185 visits that ended
 #     in a town loop (loop-detected, stuck-prompt, a forced repetition
 #     departure) or a named stop (town:blocked:*, quest:blocked:*,
 #     departure-unsatisfiable, owner-retired-burst, no-key-exhausted ...).
-#   replay: the same records' visits replayed through choose_key (main
-#     8093ea6c6c) until they left the record, the 75 of them that did not end
-#     in a loop or a stop.
-#   recorded tests: the 172 town visits of the passing *_recorded tests (the
-#     recorded boards under the current code, whose original stop may have
-#     been fixed since), run with the deadlines lifted, but for the 3 that end
-#     in a stop; the equipment maximum is n1-c life-202's swap session of
-#     2026-11-12 (tests/test_town_weight_torch_1112_recorded, 30).
+#   replay: the same 95 visits replayed through choose_key (main a83aeca784
+#     with this counting, deadlines lifted) until they left the record.
+#   recorded tests: the town visits of the 362 passing *_recorded tests (582
+#     modules) run with the deadlines lifted, 265 visits that did not end in
+#     a loop or a stop.
 # The first deadlines (2026-11-13/14 morning) counted walks too: n1-a life-522
 # and n1-b life-395/396 stopped at town:blocked:stage-deadline:equipment while
-# walking to Home (approach-home, town:kill-mob-approach).
+# walking to Home (approach-home, town:kill-mob-approach).  The deadlines of
+# 2026-11-14 counted every operation of the visit: n1-b life-397 2026-11-15
+# 00:48:40 stopped at town:blocked:stage-deadline:sell in a run of sales
+# (tests/test_stage_deadline_sell_1115_recorded).  Their measurements, the
+# whole visit's operations, were (journals, replay, recorded tests): home
+# (30, 8, 26), identification (13, 4, 10), equipment (14, 6, 30), sell (12, 5,
+# 6), buy (18, 8, 17), quest (14, 8, 7), travel (1, 1, 1), fundraising (0, 0,
+# 1), departure (55, 1, 9).
 # 2026-11-13 の再生の測り×2、観戦のボットが超えたら見直す
 STAGE_MEASURED: dict[str, tuple[int, int, int]] = {
-    # stage: (journals, replay, recorded tests), 2026-11-14, walks not counted
-    "home": (30, 8, 26),
-    "identification": (13, 4, 10),
-    "equipment": (14, 6, 30),
-    "sell": (12, 5, 6),
-    "buy": (18, 8, 17),
-    "quest": (14, 8, 7),
+    # stage: (journals, replay, recorded tests), 2026-11-15, the count since
+    # the stage's last observed unit of work, walks not counted
+    "home": (8, 3, 11),
+    "identification": (2, 1, 4),
+    "equipment": (5, 4, 9),
+    "sell": (2, 2, 3),
+    "buy": (9, 6, 6),
+    "quest": (2, 2, 3),
     "travel": (1, 1, 1),
     "fundraising": (0, 0, 1),
-    "departure": (55, 1, 9),
+    "departure": (65, 42, 21),
 }
 # Owner 2026-11-14 「期限を付けず数が貯まったら測る」: the travel (cross-town,
 # rumor) and fundraising stages have no deadline yet: the records hold too few
@@ -203,6 +210,50 @@ def is_walking(key: Any, reason: str | None) -> bool:
         return True
     return any(marker in (reason or "") for marker in WALKING_REASON_MARKERS)
 
+# Owner 2026-11-15 「期限は止まった段を捕まえるため」: a stage's deadline counts
+# its operations since the stage last completed a unit of its work, judged
+# from the observed game state, not from the bot's own claim.  A board whose
+# work state (the gold, the pack and the equipment: work_state) the visit has
+# not seen before is the completed unit of the decision before it (an item
+# sold, bought, identified, deposited, withdrawn, worn or taken off): when
+# that decision belonged to a stage (not an interrupt), the stage's count
+# starts again.  A state the visit already saw (an item bought back, a pack
+# toggled between two shapes) is no progress, so a stage going round in a
+# circle still spends its deadline.  n1-b life-397 2026-11-15 00:48:40: the
+# sell stage stopped at its deadline in the middle of a run of sales that
+# each raised the gold.
+
+
+def work_state(snapshot: Any) -> tuple:
+    """The observed state a town stage's work changes: the gold and every
+    carried and worn item's identity, count and identification.  Neither an
+    inscription (the sale's preparation) nor a device's charges or a light's
+    fuel (spent by an operation that may complete nothing) is part of it."""
+    def items(entries: Any) -> tuple:
+        return tuple(sorted(
+            (item.tval, item.sval, item.count, item.aware, item.known, item.fully_known,
+             item.is_ego, item.artifact_id, item.is_cursed, item.pval,
+             item.to_h, item.to_d, item.to_a)
+            for item in entries or ()))
+    return (snapshot.player.gold, items(snapshot.inventory), items(snapshot.equipment))
+
+
+def note_observed_progress(policy: Any, snapshot: Any) -> None:
+    """Restart the deadline count of the stage whose decision this board shows
+    completed: a town board with a work state the visit has not seen.  Runs
+    on every town decision before the deadline is read (stage_deadline_stop)."""
+    if not (snapshot.in_town or snapshot.store is not None):
+        return
+    from hengbot.town_visit import town_visit
+    visit = town_visit(policy)
+    state = work_state(snapshot)
+    if state in visit.observed_work_states:
+        return
+    visit.observed_work_states.add(state)
+    if visit.previous_decision_stage in visit.stage_decisions:
+        visit.stage_decisions[visit.previous_decision_stage] = 0
+
+
 # A visit's trace keeps its newest segments only.
 SEGMENT_LIMIT = 200
 # A visit keeps its newest seam replacements and transitions only.
@@ -225,6 +276,7 @@ def note_decision(policy: Any, snapshot: Any, key: Any = None) -> None:
     stage = stage_of(claim_family_of(policy, policy.last_reason))
     sequence = getattr(policy, "_decision_sequence", None)
     visit = town_visit(policy)
+    visit.previous_decision_stage = stage
     segments = visit.plan_segments
     if stage == INTERRUPT:
         if segments:
