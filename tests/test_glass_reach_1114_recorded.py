@@ -27,7 +27,7 @@ from dataclasses import replace
 from hengbot import glass_reach, threat_tiers
 from hengbot.cli import _ExecutorInputPort, SendResult
 from tests.support import recorded as executor_pins
-from tests.test_floor_visit_memory_1114_recorded import ARRIVAL, consumed, live, raw_board
+from tests.test_floor_visit_memory_1114_recorded import ARRIVAL, MAP_NAME, consumed, live, raw_board
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
 
@@ -35,7 +35,6 @@ MIMIC = 1                  # 金色の宝箱 at (14, 106), cdis 15 across the gl
 BA_LITE_RACE = 1124        # BA_LITE (no BR_LITE): crosses glass within get_max_range()
 BR_LITE_RACE = 504         # BR_LITE: crosses glass only within get_max_range() / 2
 BR_DARK_RACE = 663         # BR_DARK: never crosses glass
-SPEED_NAME = "スピード"
 
 
 def awake_in_view(board):
@@ -89,13 +88,15 @@ class GlassReach1114RecordedTest(executor_pins.ProductionHarness):
     def test_the_arrival_key_goes_through_the_executor(self):
         policy, board = consumed(ARRIVAL)
         key = policy.choose_key(board)
-        self.assertEqual((key, policy.last_reason), ("mAw", "emergency:quaff-speed:absorbed-power"))
+        # Owner 2026-11-14 「外す」 (test_out_of_reach_1114_recorded): the never-moving mimics out
+        # of reach no longer read T1, so the arrival maps the floor instead of drinking Speed.
+        self.assertEqual((key, policy.last_reason), ("mAj", "me-power:new-floor:map-area"))
         raw = copy.deepcopy(raw_board(ARRIVAL))
         game = executor_pins.FaithfulHookGame()
         game.state = raw
         game.screen = executor_pins.command_screen(raw["turn"])
         game.screens = [prompt("[A] 杖, [B] 魔法棒, [C] ロッド:"),
-                        power_screen("staff", [("w", SPEED_NAME, 3, 3, 5)]),
+                        power_screen("staff", [("j", MAP_NAME, 3, 3, 5)]),
                         executor_pins.command_screen(raw["turn"] + 10)]
         game.states = [dict(raw, turn=raw["turn"] + 10) for _ in game.screens]
         _, _, executor = self.make(game)
@@ -104,7 +105,7 @@ class GlassReach1114RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(port(key, decision={"reason": policy.last_reason,
                                              "sequence": policy._decision_sequence}),
                          SendResult.SENT, port.last_result.reason)
-        self.assertEqual(game.accepted, ["m", "A", "w"])
+        self.assertEqual(game.accepted, ["m", "A", "j"])
 
 
 if __name__ == "__main__":
