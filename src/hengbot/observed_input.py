@@ -14,6 +14,7 @@ from collections.abc import Mapping
 
 from hengbot.arena import ENTER_KEY, ENTER_KEY_PATTERN, ENTER_REASON, POSTER_KEY, POSTER_KEY_PATTERN, POSTER_REASON
 from hengbot.armor_smith import RAISE_KEY_PATTERN, RAISE_REASON
+from hengbot.me_inn_refill import REST_KEY, REST_KEY_PATTERN, REST_REASON
 from hengbot.input_executor import (
     BUILDING_ENCHANT_PROMPTS, Continuation, RECALL_DUNGEON_PROMPTS, ScreenKind,
     WIELD_SLOT_PROMPTS,
@@ -197,6 +198,12 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
         # released only on the observed building menu.
         cures = [_answer(ScreenKind.BUILDING, CURE_KEY, optional=True) for _ in key[1:-1]]
         return key[0], [*cures, _answer(ScreenKind.BUILDING, "", optional=True), *continuations]
+    if owner == REST_REASON and re.fullmatch(REST_KEY_PATTERN, key):
+        # cmd-building/cmd-inn.cpp stay_inn: no question; the stay prints its message over
+        # the kept menu (a short purse, or a poisoned or cut character, prints its refusal
+        # instead).  Both answers are released only on the observed building menu.
+        return key[0], [_answer(ScreenKind.BUILDING, REST_KEY, optional=True),
+                        _answer(ScreenKind.BUILDING, "", optional=True), *continuations]
     if owner == RAISE_REASON and re.fullmatch(RAISE_KEY_PATTERN, key):
         raises = [step for label in key[3::3] for step in _building_raise(label)]
         return key[0], [*raises, _answer(ScreenKind.BUILDING, "\x1b"), *continuations]

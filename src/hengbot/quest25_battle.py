@@ -952,7 +952,7 @@ def _ball_powers(ctx: _Ctx, race: int):
     level = snapshot.player.level
     found = []
     if me_device_attacks.can_use_powers(snapshot):
-        for power, success in me_device_attacks.usable_powers(policy):
+        for power, success in me_device_attacks.usable_powers(policy, snapshot):
             if power.shape in me_device_attacks.TARGETABLE_SHAPES and not power.group_only:
                 found.append((success * me_device_attacks.expected_damage(power, level, flags),
                               me_device_attacks.AREA_RADIUS[power.shape], power.shape,
@@ -1004,7 +1004,7 @@ def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
         return None
     flags = me_device_attacks.race_id_flags(ctx.policy, race)
     best = None
-    for power, success in me_device_attacks.usable_powers(ctx.policy):
+    for power, success in me_device_attacks.usable_powers(ctx.policy, snapshot):
         share = _beam_share(power)
         if share <= 0 or power.group_only:
             continue

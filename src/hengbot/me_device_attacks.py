@@ -25,9 +25,11 @@ monster flags are the race knowledge the bot already models
 (``policy._monrace_knowledge``); an unknown race counts as having no flags,
 so powers that need a property (light-sensitive, evil, living) score zero.
 
-Score = success (100 - displayed fail%) x min(average damage after the known
-resistance, the target's estimated hp).  Ties prefer a rod and then the
-lower base level.  Every absorbed power refills on its own (owner 2026-11-12
+Score = success x min(average damage after the known resistance, the target's estimated
+hp).  The success is the game's own rate under the board's current stun
+(me_power_success, owner 2026-11-14 「95%じゃないのか」): a list displayed while stunned
+shows the stun's penalty, and reading it back counted that stun long after it ended.
+Ties prefer a rod and then the lower base level.  Every absorbed power refills on its own (owner 2026-11-12
 「杖も魔法棒も自動回復する。」; hpmp/hp-mp-regenerator.cpp:119-159 regenmagic, every
 world tick, regen_amount = PY_REGEN_NORMAL 197, x2 resting, x2 with regeneration,
 mult = 30 + adj_mag_mana[INT]): a staff or wand power gains
@@ -61,6 +63,7 @@ breath_shape).  The blast is over-approximated: walls that block it
 from dataclasses import dataclass
 from typing import Callable
 
+from hengbot import me_power_success
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import Position, game_distance
 from hengbot.policy_constants import DIRECTION_KEYS
@@ -230,14 +233,17 @@ def observe_lists(policy, snapshot) -> None:
     """Remember the last displayed list of each kind (per life, class 16)."""
     if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
         policy._me_device_lists = {}
+        me_power_success.forget_list_boards(policy)
         return
     lists = getattr(policy, "_me_device_lists", None) or {}
     if any(turn > snapshot.turn for turn, _ in lists.values()):
         lists = {}  # the game turn went backwards: a new life
+        me_power_success.forget_list_boards(policy)
     listed = getattr(snapshot, "magic_eater_power_list", None)
     if isinstance(listed, dict) and listed.get("kind") in KIND_LETTER:
         lists[listed["kind"]] = (snapshot.turn, tuple(
             dict(row) for row in listed.get("rows", ()) if isinstance(row, dict)))
+        me_power_success.observe_list_board(policy, listed["kind"], snapshot)
     policy._me_device_lists = lists
 
 
@@ -273,6 +279,14 @@ def _available(power, row):
         return isinstance(row.get("charging"), int) and isinstance(row.get("max"), int) \
             and row["charging"] < row["max"]
     return isinstance(row.get("current"), int) and row["current"] > 0
+
+
+def row_full(power, row) -> bool:
+    """Whether a displayed row holds its capacity: every rod ready, a staff's or wand's
+    charges at its count (what the inn's stay leaves, cmd-inn.cpp charge_magic_eating_energy)."""
+    if power.kind == "rod":
+        return row.get("charging") == 0
+    return isinstance(row.get("current"), int) and row.get("current") == row.get("max")
 
 
 def row_is(power, row) -> bool:
@@ -315,20 +329,38 @@ def can_use_powers(snapshot) -> bool:
                      or power_command_refused(snapshot)))
 
 
-def usable_powers(policy):
-    """(power, success) of every absorbed attack power whose last displayed row had a charge."""
-    for kind, (_, rows) in getattr(policy, "_me_device_lists", {}).items():
+def held_powers(policy):
+    """(power, row) of every absorbed attack power in the last displayed lists, charged or not.
+
+    The game lists only absorbed powers (count > 0, cmd-magiceat.cpp), so a listed row is
+    held whatever its charge."""
+    for kind, (_, rows) in (getattr(policy, "_me_device_lists", None) or {}).items():
         for row in rows:
             power = _BY_NAME.get((kind, row.get("name")))
-            if power is not None and _available(power, row):
-                yield power, max(0, min(100, int(row.get("success", 0)))) / 100
+            if power is not None:
+                yield power, row
+
+
+def power_success(policy, snapshot, power, row=None, *, stun=None) -> float:
+    """The success ratio of ``power`` (me_power_success: the game's rate; ``stun`` None is the
+    board's current stun)."""
+    return me_power_success.success(policy, snapshot, power.kind, power.level, row=row, stun=stun)
+
+
+def usable_powers(policy, snapshot):
+    """(power, success) of every absorbed attack power whose last displayed row had a charge,
+    its success under the board's current stun.  A power without a charge cannot be used
+    (cmd-magiceat.cpp refuses an empty power), whatever it holds once refilled."""
+    for power, row in held_powers(policy):
+        if _available(power, row):
+            yield power, power_success(policy, snapshot, power, row)
 
 
 def _candidates(policy, snapshot, target, direction):
     flags = race_flags(policy, target)
     level = snapshot.player.level
     bystander = sight_hits_bystander(snapshot)
-    for power, success in usable_powers(policy):
+    for power, success in usable_powers(policy, snapshot):
         if power.group_only or (power.shape == "sight" and bystander):
             continue
         if catches_unbeatable_friendly(policy, snapshot, power, target, direction):

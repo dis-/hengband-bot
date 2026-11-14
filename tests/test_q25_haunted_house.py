@@ -24,6 +24,7 @@ from unittest.mock import patch
 
 from hengbot import policy_quest as policy_quest_module
 from hengbot import quest_no_teleport
+from hengbot import me_power_success
 from hengbot import consumable_policy, destruction_use, once_quest_recall, quest_optional_carry, quest_room_light, quest_room_sweep, quest_exposure, quest_force_rows, quest_ranged_force, threat_tiers, trap_warning
 from hengbot.cli import _cell_loop_guard_applies
 from hengbot.model import (
@@ -1414,6 +1415,10 @@ class Q25AcceptanceTest(unittest.TestCase):
         if lists is not None:
             policy._me_device_lists = lists
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        for kind in lists or ():
+            # The constructed lists are the ones shown on this board (me_power_success reads a
+            # shown rate on the inputs it was shown on, else the game's formula).
+            me_power_success.observe_list_board(policy, kind, snapshot)
         with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=damage), \
                 patch.object(ConservativePolicy, "_main_hand_dps", return_value=damage), \
                 patch.object(ConservativePolicy, "_inventory_overweight", return_value=False), \
