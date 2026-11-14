@@ -16,16 +16,23 @@ along when ``randint1(100) <= 47``), so the 14 Teleportation scrolls were not an
 (teleport_follower).  With no *Destruction* and no Teleport Other on it, the ladder quaffed Cure
 Light Wounds three times and died.  マレキス alone reads a next-action p95 of 205-223.
 
-Owner 2026-11-14, verbatim: 「付いてくる敵だけで死なないなら読む」 -- *Destruction* first; without it, on the 即死 board with
+Owner 2026-11-14, verbatim:
+1. 「付いてくる敵だけで死なないなら読む」 -- *Destruction* first; without it, on the 即死 board with
    1-2 adjacent followers whose own p95 is below the HP, the Teleportation scroll is read before
    Teleport Other (teleport_follower.survivable_due / SURVIVABLE_REASON).
+2. 「1本持ち歩く」 -- a non-Magic-Eater carries one Teleport Other device (a rod first, else the
+   wand with the most charges), taken out of Home when there, never shelved (teleport_away_carry).
+   The Home page of 2915708 held the rod and two wands (24 charges).
 
 DECLARED RESTORED: the skill knowledge before each decision (tests/support/recorded.skill), as
 the other recorded follower tests do.
 
 DECLARED CONSTRUCTED (each named at its test): the HP lowered below the follower's p95; a
-carried Wand of Teleport Other; a carried Staff of *Destruction* with the device skill raised
-(both built on the recorded pack's Rod of Recall).
+carried Wand of Teleport Other; a carried Staff of *Destruction* with the device skill raised;
+the Home catalogue adopted from the recorded Home page (the live catalogue was complete; the
+fresh replay of the visit diverges at its first Home deposit, so the binder is asked on the
+recorded town board); the rod or the wands taken off that page; a Rod of Teleport Other in the
+pack (the recorded pack's Rod of Recall re-labelled); the class changed to the Magic-Eater.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -35,15 +42,17 @@ import lzma
 from pathlib import Path
 import unittest
 
-from hengbot import teleport_follower
+from hengbot import teleport_away_carry, teleport_follower
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.instant_death import instant_death
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import (
-    SV_ROD_RECALL, SV_SCROLL_TELEPORT, SV_STAFF_DESTRUCTION,
+    SV_ROD_RECALL, SV_ROD_TELEPORT_AWAY, SV_SCROLL_TELEPORT, SV_STAFF_DESTRUCTION,
     SV_WAND_TELEPORT_AWAY, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, parse_snapshot,
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
+from hengbot.policy_constants import UNUSED_DIVE_LIMIT
 from tests.support.recorded import EDIT, skill
 
 FIXTURE = Path(__file__).with_name("fixtures") / "teleport-follower-n1a-522-1114.json.xz"
@@ -199,6 +208,69 @@ class SurvivableTeleportConstructedTest(Harness):
         raw, key, reason, _snapshot, _policy = answers[FIRST]
         self.assertNotEqual(reason, teleport_follower.SURVIVABLE_REASON)
         self.assertEqual(key, "u" + letter(raw, TVAL_STAFF, SV_STAFF_DESTRUCTION))
+
+
+class TeleportAwayCarryTest(Harness):
+    """Answer 2 on the recorded town board and Home page."""
+
+    def town(self, home_change=None, board_change=None):
+        town = self.payload["town"]
+        board_raw = copy.deepcopy(town["board"])
+        if board_change is not None:
+            board_change(board_raw)
+        home_raw = copy.deepcopy(town["home"])
+        if home_change is not None:
+            home_change(home_raw)
+        board = parse_snapshot(board_raw, self.races)
+        policy = self.fresh(board_raw)
+        # DECLARED CONSTRUCTED: the recorded Home page adopted as the complete catalogue.
+        policy._adopt_home_catalogue(tuple(parse_snapshot(home_raw, self.races).store.items))
+        return policy, board
+
+    def test_the_home_rod_is_taken_out(self):
+        """The recorded pack holds no Teleport Other device; the Home rod is bound, one."""
+        policy, board = self.town()
+        self.assertIsNone(teleport_away_carry.carried_device(board))
+        self.assertTrue(policy._queue_home_catalogue_shortages(board))
+        self.assertEqual(policy._home_pending_item[1:], (TVAL_ROD, SV_ROD_TELEPORT_AWAY))
+        self.assertEqual(policy._home_pending_quantities[policy._home_pending_item], 1)
+
+    def test_without_the_rod_the_wands_are_taken_out(self):
+        """CONSTRUCTED: the rod taken off the Home page: the wand stack (24 charges) is bound."""
+        def no_rod(raw):
+            raw["store"]["items"] = [
+                item for item in raw["store"]["items"]
+                if (item["tval"], item.get("sval")) != (TVAL_ROD, SV_ROD_TELEPORT_AWAY)]
+        policy, board = self.town(home_change=no_rod)
+        self.assertTrue(policy._queue_home_catalogue_shortages(board))
+        self.assertEqual(policy._home_pending_item[1:], (TVAL_WAND, SV_WAND_TELEPORT_AWAY))
+
+    def test_a_carried_rod_takes_nothing_and_is_never_shelved(self):
+        """CONSTRUCTED: a Rod of Teleport Other in the pack, unused for UNUSED_DIVE_LIMIT dives
+        (the idle-item rule shelved the live rod 2026-11-13): reserved, not a deposit."""
+        def rod(raw):
+            raw["inventory"].append(device_like(raw, TVAL_ROD, SV_ROD_TELEPORT_AWAY,
+                                                "テレポート・アウェイのロッド"))
+            relabel(raw)
+        policy, board = self.town(board_change=rod)
+        carried = teleport_away_carry.carried_device(board)
+        self.assertEqual((carried.tval, carried.sval), (TVAL_ROD, SV_ROD_TELEPORT_AWAY))
+        home_rod = next(item for item in policy._home_knowledge_items
+                        if (item.tval, item.sval) == (TVAL_ROD, SV_ROD_TELEPORT_AWAY))
+        self.assertEqual(teleport_away_carry.home_missing(policy, board, home_rod), 0)
+        policy._item_idle_dives[policy._item_signature(carried)] = UNUSED_DIVE_LIMIT
+        self.assertEqual(policy._retention_reservation_detail(board, carried),
+                         (1, teleport_away_carry.RETENTION_BRANCH))
+        self.assertFalse(policy._home_deposit_candidate(carried, board))
+
+    def test_the_magic_eater_is_outside_the_rule(self):
+        """CONSTRUCTED: the class changed to the Magic-Eater: nothing is taken out for it."""
+        def magic_eater(raw):
+            raw["player"]["class_id"] = PLAYER_CLASS_MAGIC_EATER
+        policy, board = self.town(board_change=magic_eater)
+        home_rod = next(item for item in policy._home_knowledge_items
+                        if (item.tval, item.sval) == (TVAL_ROD, SV_ROD_TELEPORT_AWAY))
+        self.assertEqual(teleport_away_carry.home_missing(policy, board, home_rod), 0)
 
 
 if __name__ == "__main__":

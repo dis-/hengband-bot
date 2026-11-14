@@ -19,7 +19,7 @@ from hengbot import home_identification, home_pass_charge
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
-from hengbot import consumable_policy, item_use_route
+from hengbot import consumable_policy, item_use_route, teleport_away_carry
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -2485,6 +2485,10 @@ class HomeMixin:
             # The departure's recall read (_recall_supply_units): one rod is
             # kept on the pack, never sold, shelved or destroyed.
             return min(item.count, 1), "supply-ledger:recall-rod"
+        if kept_away := teleport_away_carry.retained_count(snapshot, item):
+            # Owner 2026-11-14 「1本持ち歩く」: the carried Teleport Other device (a rod first,
+            # else the wand with the most charges) is never shelved, sold or destroyed.
+            return kept_away, teleport_away_carry.RETENTION_BRANCH
         optional_carry = quest_optional_carry.retained(self, snapshot, item)
         if optional_carry:
             return optional_carry, quest_optional_carry.RETENTION_BRANCH
@@ -6102,6 +6106,8 @@ class HomeMixin:
             )
             or item.is_treasure_detection_scroll
             or item.is_digging_tool
+            # Owner 2026-11-14 「1本持ち歩く」: the Home Teleport Other device to carry.
+            or teleport_away_carry.home_missing(self, snapshot, item) > 0
         )
 
     def _queue_home_catalogue_shortages(

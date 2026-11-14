@@ -14148,6 +14148,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "teleport_away_carry.py:retained_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the retention authority (policy_home._retention_reservation_baseline_detail) in town and in the dungeon alike: the carried Teleport Other device's kept count.",
+    "evidence": "The retained count of the carried Teleport Other device (owner 2026-11-14 「1本持ち歩く」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._fixed_quest_request_key": {
     "classification": "producer",
     "rows": [
