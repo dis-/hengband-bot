@@ -2425,7 +2425,14 @@ def _observe(ctx: _Ctx) -> None:
     (2026-11-12, ``_shunned_hold``) meets them there, and the wait for arrivals 「50回来なければ
     終える」 (2026-11-06) is the same wait wherever it is held, so it ends instead of holding on.
     n1-c life-207 (2026-11-14): with no way to [7,1] the wall-passers' wait never counted, and the
-    phase held on [10,1] for over 5,300 decisions."""
+    phase held on [10,1] for over 5,300 decisions.
+
+    The wait counts too while the phase's preparation waits for a sensed mover that cut its
+    recharge rest (``_prepare``: owner 2026-11-09 「持ち場へ歩き静まれば休む」, treated as a hostile in
+    view, the phase's step runs): a straggler sensed in the walls that never comes is an arrival
+    that does not come, and 「50回来なければ終える」.  n1-c life-207 (2026-11-14 20:49-21:24): the
+    stragglers' rest on [5,1] was cut at turn 8011366, a shadow demon stayed sensed on [11,4], the
+    phase was never ready and held there 35 minutes to the stall stop, its wait never counted."""
     board = (ctx.snapshot.turn, id(ctx.snapshot))
     if ctx.battle.observed == board:
         return
@@ -2441,7 +2448,8 @@ def _observe(ctx: _Ctx) -> None:
     _note_glow(ctx)
     _note_tome_health(ctx)
     phase = current_phase(ctx)
-    if (phase is not None and phase.wait_limit is not None and ctx.battle.ready
+    waiting = ctx.battle.ready or (ctx.battle.rest_cut and bool(_sensed_movers(ctx)))
+    if (phase is not None and phase.wait_limit is not None and waiting
             and (phase.wait_at in (None, ctx.here) or ctx.battle.no_way == ctx.here)):
         ctx.battle.quiet += 1
 
