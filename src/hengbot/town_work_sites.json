@@ -8235,14 +8235,28 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_home.py:HomeMixin._weight_deposit_candidates": {
+  "policy_home.py:HomeMixin._weight_deposit_holds": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_home.py:HomeMixin._weight_deposit_candidates.priority": {
+  "policy_home.py:HomeMixin._weight_deposit_holds.hold": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._weight_deposit_holds.priority": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._weight_deposit_holds.required_supply_categories": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
