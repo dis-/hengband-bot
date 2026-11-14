@@ -36,15 +36,13 @@ from hengbot import item_use_route
 from hengbot.model import STORE_HOME, parse_snapshot
 from hengbot.policy import WAIT_KEY
 from tests.support import recorded as executor_harness
-from tests.test_stat_potion_ownership_1114_recorded import (
-    INT_KIND, INTELLIGENCE, StatPotionOwnership1114RecordedTest, store_row,
-)
+from tests import test_stat_potion_ownership_1114_recorded as ownership
 
 DIRECTIONS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1),
               "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 
 
-class N1c207WaitRecall1114RecordedTest(StatPotionOwnership1114RecordedTest,
+class N1c207WaitRecall1114RecordedTest(ownership.StatPotionOwnership1114RecordedTest,
                                        executor_harness.RecordedHarness):
     @classmethod
     def setUpClass(cls):
@@ -60,7 +58,7 @@ class N1c207WaitRecall1114RecordedTest(StatPotionOwnership1114RecordedTest,
         """Row 21 on: the Strength take, both drunk, the recall read; the read's board."""
         policy, board = self.to_row_21()
         key = policy.choose_key(board)
-        shelf = [store_row(item) for item in policy._home_knowledge_items]
+        shelf = [ownership.store_row(item) for item in policy._home_knowledge_items]
         game, reasons = self.drive(policy, board, key, shelf)
         self.assertEqual(reasons[-1], ("rei", "town:recall-to-alt-dungeon"), reasons)
         self.assertEqual(game.quaffed, ["腕力の薬", "腕力の薬"], reasons)
@@ -84,13 +82,13 @@ class N1c207WaitRecall1114RecordedTest(StatPotionOwnership1114RecordedTest,
         # DECLARED CONSTRUCTED: a surplus ware on the Home shelf, the Home sweep's (the old row 21's
         # 知能の薬 x2, now real): the countdown still never walks back to Home for it.
         catalogue = list(policy._home_knowledge_items)
-        potion = next(index for index, item in enumerate(catalogue) if item.tval == INT_KIND[0])
-        catalogue.insert(potion, replace(catalogue[potion], name="知能の薬", sval=INTELLIGENCE,
+        potion = next(index for index, item in enumerate(catalogue) if item.tval == ownership.INT_KIND[0])
+        catalogue.insert(potion, replace(catalogue[potion], name="知能の薬", sval=ownership.INTELLIGENCE,
                                          count=2))
         policy.consume_home_knowledge(tuple(catalogue))
         board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         home_int = next(item for item in policy._home_knowledge_items
-                        if (item.tval, item.sval) == INT_KIND)
+                        if (item.tval, item.sval) == ownership.INT_KIND)
         self.assertTrue(item_use_route.surplus(policy, board, home_int))
         entrance = board.player.position
         # On the entrance the countdown steps off (the recorded row 25 '9').
