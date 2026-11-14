@@ -145,6 +145,17 @@ def parse_character_sheet(raw: bytes, *, encoding: str | None = None) -> Charact
             raise CharacterSheetUnavailable("partial-stat-table")
         colon = line.find(":", match.end())
         if colon < 0:
+            # A stat at its race/class maximum (stat_max == stat_max_max) is
+            # marked by a '!' the game prints over the name's ':'
+            # (display-player-stat-info.cpp process_stats: stat_col + 6 in
+            # Japanese, the ':' column of "腕力 :" and "腕力x:"), so the
+            # fields start at the same cell.  In English the mark lands on
+            # stat_col + 4 ("STR!: ") and the ':' stays.  n1-b life-397
+            # (2026-11-14 16:15) reached the STR and CON maxima and every
+            # later dump was partial-stat-table: the equipment optimizer
+            # never ran again and the telepathy amulet stayed in the Home.
+            colon = line.find("!", match.end())
+        if colon < 0:
             raise CharacterSheetUnavailable("partial-stat-table")
         numeric = _cells(line[colon + 1:])
         fields = [numeric[a:b].strip() for a, b in

@@ -38,8 +38,12 @@ def extract(visit: Path, target: Path, rows: int, left_out: frozenset = frozense
         {"manifest": manifest, "files": files}, ensure_ascii=False).encode("utf-8"), preset=PRESET))
 
 
-def load(fixture: Path, scratch: Path):
-    """(arrival policy, journal rows, [(recorded row, board supplier)])."""
+def load(fixture: Path, scratch: Path, *, adopt_recorded_calibration: bool = True):
+    """(arrival policy, journal rows, [(recorded row, board supplier)]).
+
+    ``adopt_recorded_calibration=False`` keeps the calibration state the arrival
+    policy held (a rejected dump's reason, say) instead of the sidecar file's.
+    """
     from replay_town_arrival import adopt_calibration, decisions, journal, restore
     visit = scratch / "town-arrival"
     (visit / SIDECAR_DIRECTORY).mkdir(parents=True)
@@ -55,6 +59,6 @@ def load(fixture: Path, scratch: Path):
     runtime.mkdir()
     policy = restore(visit, runtime)
     calibration = visit / SIDECAR_DIRECTORY / "_character_calibration_path"
-    if calibration.is_file():
+    if adopt_recorded_calibration and calibration.is_file():
         adopt_calibration(policy, calibration, runtime)
     return policy, journal(visit), list(decisions(policy, visit, runtime))
