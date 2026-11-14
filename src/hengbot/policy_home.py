@@ -2451,6 +2451,10 @@ class HomeMixin:
                     item.count if signature in self._town_visit_purchases else 0,
                 ),
             )
+            # The town end's purchase-deposit rescue released these units for
+            # Home's weight deposit (owner 2026-11-15 「今回買った品を要る分だけ預ける」).
+            from hengbot.departure_rescues import purchase_release
+            purchased = max(0, purchased - purchase_release(self).get(signature, 0))
 
         target = 0
         branch = None
