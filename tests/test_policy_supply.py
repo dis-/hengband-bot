@@ -4537,7 +4537,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
     def test_remembered_affordable_torch_prevents_false_abandonment(self):
         force = {"throwing_items": {"lit_torch": 5}}
         profile = SimpleNamespace(required_force=force, engagement_plan={})
-        torch = store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3)
+        torch = store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3, fuel=2500)
         town = self._town(gold=9869)
         policy = HengbotPolicy()
         policy._town_store_attempted[STORE_GENERAL] = town.turn
@@ -4758,7 +4758,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
             (
                 "throwing_items.lit_torch",
                 STORE_GENERAL,
-                store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3),
+                store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3, fuel=2500),
                 "quest-throwing-items",
             ),
             (
@@ -4995,7 +4995,7 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
 
         with patch.object(policy, "_carry_procurement_strategy", return_value=profile):
             gate = policy._purchase_has_fresh_home_absence(
-                town, store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3)
+                town, store_item("a", TVAL_LITE, SV_LITE_TORCH, price=3, fuel=2500)
             )
 
         self.assertEqual(gate, policy_module.ProcurementHomeGate.HOME_FIRST)

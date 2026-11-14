@@ -817,14 +817,28 @@ class QuestMixin(OpeningRouteMixin):
             return None
         return QUEST_AMMO_TVALS.get(str(launcher.get("ammo", "")))
 
+    @staticmethod
+    def _is_lit_torch(item: InventoryItem | StoreItem) -> bool:
+        """A torch the quest's ``lit_torch`` carry counts: one with light left.
+
+        specific-object/torch.cpp is_active_torch: only a torch with fuel
+        burns when thrown (torch_flags: TR_BRAND_FIRE, TR_KILL_UNDEAD,
+        TR_THROW; throw-execution.cpp's 1d6).  The carry's item match and its
+        count read this one predicate: n1-b life-396 2026-11-14 11:05 matched
+        a burnt-out torch to the carry without counting it, so the retention
+        allotted it one of the twenty in pack order and kept nineteen of the
+        twenty bought (one Home deposit), while the count asked one more (one
+        General Store buy), 41 buys and 47 deposits until the stage deadline.
+        """
+        return item.is_torch and item.fuel > 0
+
     def _quest_named_item_count(
         self, snapshot: Snapshot, category: str, name: str
     ) -> int:
         if category == "throwing_items":
             if name == "lit_torch":
                 return sum(
-                    it.count for it in snapshot.inventory
-                    if it.is_torch and it.fuel > 0
+                    it.count for it in snapshot.inventory if self._is_lit_torch(it)
                 )
             tval = (
                 self._equipped_launcher(snapshot).ammo_tval
@@ -1124,7 +1138,7 @@ class QuestMixin(OpeningRouteMixin):
         if isinstance(throwing, dict):
             for name, value in throwing.items():
                 matches = (
-                    (item.tval == TVAL_LITE and item.sval == SV_LITE_TORCH)
+                    self._is_lit_torch(item)
                     if name == "lit_torch"
                     else item.tval == (
                         launcher_ammo

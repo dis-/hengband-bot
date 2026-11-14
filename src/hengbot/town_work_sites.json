@@ -8955,6 +8955,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_quest.py:QuestMixin._is_lit_torch": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._kill_quest_descent_allowed": {
     "classification": "data",
     "rows": [
