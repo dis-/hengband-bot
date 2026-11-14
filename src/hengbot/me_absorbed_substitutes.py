@@ -27,7 +27,7 @@ from hengbot.magic_eater_devices import power_command_refused
 from hengbot.me_staff_sequence import cast_blocked
 from hengbot.model import (
     SV_ROD_DETECTION, SV_ROD_HEALING, SV_ROD_TELEPORT_AWAY, SV_STAFF_CURE_LIGHT,
-    SV_STAFF_DETECT_EVIL, SV_STAFF_TELEPORTATION, SV_WAND_TELEPORT_AWAY,
+    SV_STAFF_DETECT_EVIL, SV_STAFF_REMOVE_CURSE, SV_STAFF_TELEPORTATION, SV_WAND_TELEPORT_AWAY,
 )
 
 
@@ -57,6 +57,9 @@ _UNAIMED_RODS = frozenset({SV_ROD_HEALING})
 CURE_LIGHT = ("staff", SV_STAFF_CURE_LIGHT)
 # Teleportation, the escape a blind player casts (threat_tiers.blind_teleport_key).
 TELEPORTATION = ("staff", SV_STAFF_TELEPORTATION)
+# Remove Curse, the ordinary use before a rest when the Powerful Activation's cost would reach the
+# low-HP line (curse_cure, owner 2026-11-15 「強力発動を先にする」).
+REMOVE_CURSE = ("staff", SV_STAFF_REMOVE_CURSE)
 # Teleport Other, aimed at a monster that follows the player's teleport (teleport_follower).
 TELEPORT_AWAY = (("rod", SV_ROD_TELEPORT_AWAY), ("wand", SV_WAND_TELEPORT_AWAY))
 # The detections the Anaguma pocket casts after its wait (anaguma._detect_key, owner 2026-11-10
@@ -69,6 +72,7 @@ def _build_powers() -> dict:
     powers = {ident: _cast_power(ident) for ident in me_capability.substitute_powers()}
     powers[CURE_LIGHT] = _cast_power(CURE_LIGHT)
     powers[TELEPORTATION] = _cast_power(TELEPORTATION)
+    powers[REMOVE_CURSE] = _cast_power(REMOVE_CURSE)
     for ident in (*TELEPORT_AWAY, *DETECTION):
         powers[ident] = _cast_power(ident)
     # Healing in the arena, where no potion works (arena.py); neither asks for a direction.

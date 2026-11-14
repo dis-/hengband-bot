@@ -19283,5 +19283,82 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "curse_cure.py:_message_text": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: never selected on its own.",
+    "evidence": "The message without the game's repeat counter; read only by curse_cure._announced_name.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "curse_cure.py:_announced_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: never selected on its own.",
+    "evidence": "The worn item a summoning / drain-HP curse message names (inventory-curse.cpp curse_call_monster, curse_drain_hp); read only by curse_cure.observe.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "curse_cure.py:targets": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: never selected on its own.",
+    "evidence": "The worn cursed items a removal may serve (not proven permanent, or permanent with an announced summoning / drain-HP curse); read only by curse_cure.removal_key and _means.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "curse_cure.py:removal_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by curse_cure._dungeon (not in town, dungeon_level >= 1, not the arena); see evidence.",
+    "evidence": "Owner 2026-11-15 「呪われていれば休む前に解く」「強力発動を先にする」: the Magic-Eater's absorbed Remove Curse, Powerful Activation (curse-cure:powerful) while me_powerful_activation.pays_safely, else the ordinary use (curse-cure:normal:absorbed-power), on a safe dungeon board; no town errand and no effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "curse_cure.py:before_rest": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by curse_cure._dungeon (not in town, dungeon_level >= 1, not the arena); see evidence.",
+    "evidence": "The quest plans' hook before a rest or wait key (quest_plan_base._rest, quest25_battle holds and rests, the navigator hold): removal_key only.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "curse_cure.py:recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only, not a quest floor: curse_cure.remains holds (a summoning or drain-HP curse worn and no removal to be had).",
+    "evidence": "Owner 2026-11-15 「クエストの階は残って続ける」: on a normal floor latches the town return (emergency-curse-summons-remain) and reads Word of Recall through once_quest_recall.read_key (return:recall) in the safe-now layer; None without a read; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "curse_cure.py:key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Excluded by curse_cure._dungeon (not in town, dungeon_level >= 1, not the arena); see evidence.",
+    "evidence": "The dungeon ladder's safe-now rung: removal_key, then recall_key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
