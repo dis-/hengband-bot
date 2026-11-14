@@ -141,10 +141,10 @@ class StageDeadlineTest(unittest.TestCase):
     """Stage 3-5 (owner 2026-11-13 「測った最大の2倍を期限に」)."""
 
     def test_deadlines_are_twice_the_larger_measurement(self):
-        # Owner 2026-11-14 「ループと止まり以外の全訪問で測る」, never below the replays.
+        # Owner 2026-11-14 「ループと止まり以外の全訪問で測る」 and 「歩きは数えない」.
         self.assertEqual(town_visit_plan.STAGE_DEADLINES, {
-            "quest": 298, "buy": 216, "home": 112, "fundraising": 96, "departure": 86,
-            "equipment": 42, "sell": 24, "identification": 26, "travel": 158})
+            "quest": 28, "buy": 36, "home": 60, "fundraising": 96, "departure": 110,
+            "equipment": 28, "sell": 24, "identification": 26, "travel": 2})
 
     def test_a_stage_past_its_deadline_is_its_named_stop(self):
         policy = double("x", 0)
@@ -164,6 +164,39 @@ class StageDeadlineTest(unittest.TestCase):
             self.assertIsNone(town_visit_plan.stage_deadline_stop(policy, TOWN))
         policy._town_visit.begin(home_candidate_waiting=lambda: False)
         self.assertEqual(policy._town_visit.stage_decisions, {})
+
+    def test_walks_are_not_counted_and_never_stop(self):
+        """Owner 2026-11-14 「歩きは数えない」.  DECLARED CONSTRUCTED from the
+        reasons of n1-a life-522's stop (2026-11-14 08:34:58,
+        town:blocked:stage-deadline:equipment): 32 walks toward Home
+        (equipment-transaction:approach-home) and 19 steps toward a town
+        monster (town:kill-mob-approach) were counted against the equipment
+        stage while its swaps progressed."""
+        policy = double("x", 0)
+        walks = ([("7", "equipment-transaction:approach-home")] * 32
+                 + [("\x1b`n%.", "equipment-transaction:approach-home")]
+                 + [("5", "shop:travel:await-entry")])
+        for sequence, (key, reason) in enumerate(walks, 1):
+            policy.last_reason = reason
+            policy._decision_sequence = sequence
+            with patch("hengbot.town_hold.claim_family_of", return_value="equipment-txn"):
+                note_decision(policy, TOWN, key)
+        self.assertEqual(policy._town_visit.stage_decisions, {})
+        for sequence in range(1, 4):
+            policy.last_reason = "equipment-transaction:deposit"
+            with patch("hengbot.town_hold.claim_family_of", return_value="equipment-txn"):
+                note_decision(policy, TOWN, "dp2\r")
+        self.assertEqual(policy._town_visit.stage_decisions, {"equipment": 3})
+        # Past the deadline, a walk is still no stop; an operation is.
+        policy._town_visit.stage_decisions["equipment"] = town_visit_plan.STAGE_DEADLINES["equipment"]
+        with patch("hengbot.town_hold.claim_family_of", return_value="equipment-txn"):
+            policy.last_reason = "equipment-transaction:approach-home"
+            self.assertIsNone(town_visit_plan.stage_deadline_stop(policy, TOWN, "7"))
+            policy.last_reason = "equipment-transaction:deposit"
+            self.assertEqual(town_visit_plan.stage_deadline_stop(policy, TOWN, "dp2\r"),
+                             "town:blocked:stage-deadline:equipment")
+        self.assertTrue(town_visit_plan.is_walking("7", "town:kill-mob-approach"))
+        self.assertFalse(town_visit_plan.is_walking("p", "home:atomic-withdraw"))
 
     def note_interrupts(self, policy):
         # Interrupts are not counted against any stage.

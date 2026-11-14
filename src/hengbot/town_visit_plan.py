@@ -134,46 +134,59 @@ def progress_defect_reason(winner: str, progress: str) -> str:
 
 # -- the stages' deadlines (town rebuild stage 3-5) --------------------------
 # Owner 2026-11-12 (the owner-retired burst becomes per-stage deadlines),
-# 2026-11-13 「測った最大の2倍を期限に」 and 2026-11-14 「ループと止まり以外の全訪問で測る」:
-# a visit's decisions in one stage (interrupts not counted) past the stage's
-# deadline stop the visit under the stage's name (STAGE_DEADLINE_STOP_PREFIX +
-# stage).  Each deadline is twice the largest of three measurements of the
-# stage's per-visit maximum:
+# 2026-11-13 「測った最大の2倍を期限に」, 2026-11-14 「ループと止まり以外の全訪問で測る」
+# and 2026-11-14 「歩きは数えない」: a visit's own operations in one stage (no
+# interrupt, no walk: is_walking) past the stage's deadline stop the visit
+# under the stage's name (STAGE_DEADLINE_STOP_PREFIX + stage).  Each deadline
+# is twice the larger of two measurements of the stage's per-visit maximum,
+# both taken 2026-11-14 without walks:
 #   journals: the 264 recorded town-arrival journals under C:\hengband-backups
-#     (2026-11-03 .. 11-14), measured 2026-11-14 with
-#     scripts/town_stage_deadline_measure.py.  Counted are the 92 visits that
-#     did not end in a loop or a stop: 84 that reached their departure (counted
-#     up to the recall read/wait or the stairs), 6 that ended in the player's
-#     death and the 2 Zul round trips.  Excluded are the 172 visits that ended
-#     in a town loop (loop-detected, stuck-prompt, a forced repetition
-#     departure) or a named stop (town:blocked:*, quest:blocked:*,
-#     departure-unsatisfiable, owner-retired-burst, no-key-exhausted ...).
-#   travel: the two Zul round trips in the journals were cut short by the
-#     owner-retired burst this stage removes (27 decisions); the recorded walk
-#     of n1-b life-345 from its Zul entry board to the Tower
-#     (tests/test_n1b_345_zul_1108_recorded) takes 79, so the Zul round trip
-#     is measured by that walk.
-#   replay 2026-11-13 and 2026-11-14: the 222 replayable visits of 233 such
-#     records replayed through choose_key until they left the record (main
-#     9f3df0a310 and 5bfd83ac0b); they stop early, which shrinks a stage
-#     (departure 35 -> 1), so they only set a floor.
+#     (2026-11-03 .. 11-14), scripts/town_stage_deadline_measure.py.  Counted
+#     are the 92 visits that did not end in a loop or a stop: 84 that reached
+#     their departure (counted up to the recall read or the stairs and through
+#     the recall countdown), 6 that ended in the player's death and the 2 Zul
+#     round trips.  Excluded are the 172 visits that ended in a town loop
+#     (loop-detected, stuck-prompt, a forced repetition departure) or a named
+#     stop (town:blocked:*, quest:blocked:*, departure-unsatisfiable,
+#     owner-retired-burst, no-key-exhausted ...).
+#   replay: the 222 replayable visits of 233 such records replayed through
+#     choose_key (main 8093ea6c6c) until they left the record; it stops early,
+#     so it only sets a floor.
+# The first deadlines (2026-11-13/14 morning) counted walks too: n1-a life-522
+# and n1-b life-395/396 stopped at town:blocked:stage-deadline:equipment while
+# walking to Home (approach-home, town:kill-mob-approach).
 # 2026-11-13 の再生の測り×2、観戦のボットが超えたら見直す
-STAGE_MEASURED: dict[str, tuple[int, int, int]] = {
-    # stage: (journals 2026-11-14, replay 2026-11-13, replay 2026-11-14)
-    "home": (31, 56, 56),
-    "identification": (13, 4, 4),
-    "equipment": (21, 12, 12),
-    "sell": (12, 8, 6),
-    "buy": (59, 108, 108),
-    "quest": (149, 118, 118),
-    "travel": (79, 3, 3),  # the life-345 Zul walk; the journals' 27 were cut short
-    "fundraising": (0, 48, 48),
-    "departure": (43, 35, 1),
+STAGE_MEASURED: dict[str, tuple[int, int]] = {
+    # stage: (journals, replay), 2026-11-14, walks not counted
+    "home": (30, 20),
+    "identification": (13, 4),
+    "equipment": (14, 11),
+    "sell": (12, 6),
+    "buy": (18, 11),
+    "quest": (14, 8),
+    "travel": (1, 1),
+    "fundraising": (0, 48),
+    "departure": (55, 1),
 }
 STAGE_DEADLINES: dict[str, int] = {
     stage: 2 * max(measured) for stage, measured in STAGE_MEASURED.items()
 }
 STAGE_DEADLINE_STOP_PREFIX = "town:blocked:stage-deadline:"
+# Owner 2026-11-14 「歩きは数えない」: a stage's deadline counts the stage's
+# own operations only.  A walk (a step or a native travel toward a store, the
+# Home, an entrance or a monster; its approach, travel, seek, step-off or walk
+# reason) is not counted and is never the deadline's stop; walking ping-pong
+# is the ping-pong guard's and the loop detector's.
+WALKING_REASON_MARKERS: tuple[str, ...] = ("approach", "travel", "seek-", "step-off", "walk")
+
+
+def is_walking(key: Any, reason: str | None) -> bool:
+    """Whether a town decision is a walk, which no stage deadline counts."""
+    from hengbot.policy_constants import DIRECTION_KEYS
+    from hengbot.town_travel import is_travel_macro
+    if isinstance(key, str) and (key in DIRECTION_KEYS.values() or is_travel_macro(key)):
+        return True
+    return any(marker in (reason or "") for marker in WALKING_REASON_MARKERS)
 
 # A visit's trace keeps its newest segments only.
 SEGMENT_LIMIT = 200
@@ -186,8 +199,10 @@ def stage_of(family: str | None) -> str:
     return FAMILY_STAGE.get(family or "", INTERRUPT)
 
 
-def note_decision(policy: Any, snapshot: Any) -> None:
-    """Record the stage of the town decision just made (no decision reads it)."""
+def note_decision(policy: Any, snapshot: Any, key: Any = None) -> None:
+    """Record the stage of the town decision just made: the visit's trace, and
+    the stage's count of its own operations (a walk is not counted) that the
+    stage deadlines read."""
     if not (snapshot.in_town or snapshot.store is not None):
         return
     from hengbot.town_hold import claim_family_of
@@ -203,7 +218,8 @@ def note_decision(policy: Any, snapshot: Any) -> None:
         else:
             segments.append([INTERRUPT, sequence, sequence, 0, 1])
         return
-    visit.stage_decisions[stage] = visit.stage_decisions.get(stage, 0) + 1
+    if not is_walking(key, policy.last_reason):
+        visit.stage_decisions[stage] = visit.stage_decisions.get(stage, 0) + 1
     if segments and segments[-1][0] in {stage, INTERRUPT} and segments[-1][3] == 0:
         # The visit opened on interrupts: they belong to its first stage.
         segments[-1][0] = stage
@@ -215,15 +231,17 @@ def note_decision(policy: Any, snapshot: Any) -> None:
         del segments[:-SEGMENT_LIMIT]
 
 
-def stage_deadline_stop(policy: Any, snapshot: Any) -> str | None:
+def stage_deadline_stop(policy: Any, snapshot: Any, key: Any = None) -> str | None:
     """The named stop of a town decision whose stage spent its deadline.
 
     The decision about to be made belongs to the stage of its reason; when
     the visit already made that stage's deadline of decisions, this one is the
     stage's stop instead (STAGE_DEADLINE_STOP_PREFIX + stage).  An interrupt,
-    the rewrite stage and a dungeon board have no deadline.
+    the rewrite stage, a walk and a dungeon board have no deadline.
     """
     if not (snapshot.in_town or snapshot.store is not None):
+        return None
+    if is_walking(key, policy.last_reason):
         return None
     from hengbot.town_hold import claim_family_of
     from hengbot.town_visit import town_visit
