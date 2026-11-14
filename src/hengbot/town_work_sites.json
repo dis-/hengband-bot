@@ -9813,6 +9813,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_shop.py:ShopMixin._sale_tag_text": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_shop.py:ShopMixin._shop": {
     "classification": "adapter",
     "rows": [
