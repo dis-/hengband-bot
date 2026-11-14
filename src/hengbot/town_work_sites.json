@@ -8906,6 +8906,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_quest.py:QuestMixin._fixed_quest_report_failed_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_quest.py:QuestMixin._fixed_quest_request_key": {
     "classification": "producer",
     "rows": [
