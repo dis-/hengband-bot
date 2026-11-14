@@ -11,7 +11,8 @@ transition (TRANSITIONS, stage 3-3e) names a family with a stage that is not
 the rewrite stage and a method the policy has.  The claim ladder ranks the
 plan's rows from the plan's names (stage 3-4): the progress step's rung and
 the progress invariant's reasons.  Every stage of STAGES has a deadline
-(STAGE_DEADLINES, stage 3-5) of twice its larger measurement.  Exit status 1 on
+(STAGE_DEADLINES, stage 3-5) of twice its larger measurement, but for the
+unmeasured stages (UNMEASURED_STAGES), which have none.  Exit status 1 on
 a gap.
 """
 from __future__ import annotations
@@ -29,7 +30,7 @@ def problems() -> list[str]:
     from hengbot import town_hold
     from hengbot.town_visit_plan import (
         FAMILY_STAGE, INTERRUPT, PLAN_DETECTOR_REASONS, PROGRESS_INVARIANT_RUNG, REWRITE,
-        STAGE_DEADLINES, STAGE_MEASURED, STAGES, STEP_RUNG, TRANSITIONS,
+        STAGE_DEADLINES, STAGE_MEASURED, STAGES, STEP_RUNG, TRANSITIONS, UNMEASURED_STAGES,
     )
 
     families = set(owner_families())
@@ -52,6 +53,9 @@ def problems() -> list[str]:
     for stage in STAGES:
         if stage not in STAGE_MEASURED:
             found.append(f"STAGE_MEASURED: stage {stage!r} has no measurement")
+        elif stage in UNMEASURED_STAGES:
+            if STAGE_DEADLINES.get(stage) is not None:
+                found.append(f"STAGE_DEADLINES: {stage!r} is unmeasured and has a deadline")
         elif STAGE_DEADLINES.get(stage) != 2 * max(STAGE_MEASURED[stage]):
             found.append(f"STAGE_DEADLINES: {stage!r} is not twice its larger measurement")
     for stage in sorted(set(STAGE_MEASURED) - set(STAGES)):

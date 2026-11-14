@@ -45,7 +45,9 @@ def visit_span(reasons: list[str], kind: str) -> tuple[int, str] | None:
 
 def main(roots: list[str]) -> int:
     from hengbot.town_arbiter import _new_town_turn_arbiter
-    from hengbot.town_visit_plan import STAGE_MEASURED, is_walking, stage_of
+    from hengbot.town_visit_plan import (
+        MEASURE_AT_VISITS, STAGE_MEASURED, UNMEASURED_STAGES, is_walking, stage_of,
+    )
 
     arbiter = _new_town_turn_arbiter()
     peak: collections.Counter = collections.Counter()
@@ -76,6 +78,8 @@ def main(roots: list[str]) -> int:
                 if stages[stage] > peak[stage]:
                     peak[stage], source[stage] = stages[stage], str(capture)
     print(f"counted {dict(counted)}, excluded (loop or stop) {skipped}")
+    print(f"unmeasured stages {sorted(UNMEASURED_STAGES)} get a deadline at "
+          f"{MEASURE_AT_VISITS} visits with the stage")
     for stage, measured in STAGE_MEASURED.items():
         print(f"{stage:15s} journals {peak[stage]:4d} (visits with the stage {having[stage]:3d})"
               f"  STAGE_MEASURED {measured}  max from {source.get(stage, '-')}")

@@ -173,8 +173,18 @@ STAGE_MEASURED: dict[str, tuple[int, int, int]] = {
     "fundraising": (0, 0, 1),
     "departure": (55, 1, 9),
 }
-STAGE_DEADLINES: dict[str, int] = {
-    stage: 2 * max(measured) for stage, measured in STAGE_MEASURED.items()
+# Owner 2026-11-14 「期限を付けず数が貯まったら測る」: the travel (cross-town,
+# rumor) and fundraising stages have no deadline yet: the records hold too few
+# of their visits (travel 1 journal visit, fundraising none).  Their walking
+# ping-pong and loops are the ping-pong guard's and the loop detector's.  Once
+# each has MEASURE_AT_VISITS visits that did not end in a loop or a stop
+# (scripts/town_stage_deadline_measure.py prints the count), its deadline
+# becomes twice that measurement.
+UNMEASURED_STAGES: frozenset[str] = frozenset({"travel", "fundraising"})
+MEASURE_AT_VISITS = 5
+STAGE_DEADLINES: dict[str, int | None] = {
+    stage: None if stage in UNMEASURED_STAGES else 2 * max(measured)
+    for stage, measured in STAGE_MEASURED.items()
 }
 STAGE_DEADLINE_STOP_PREFIX = "town:blocked:stage-deadline:"
 # Owner 2026-11-14 「歩きは数えない」: a stage's deadline counts the stage's
