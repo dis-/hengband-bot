@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
@@ -4182,7 +4182,7 @@ class CombatMixin:
             and self._equipped_digging_tool(snapshot) is not None
         ):
             restore = self._restore_mining_combat_hand_key(
-                snapshot, "melee:restore-weapon"
+                snapshot, "melee:restore-weapon", goal=mining_loadout.ROLLBACK_GOAL
             )
             if restore is not None:
                 return restore
@@ -4507,7 +4507,7 @@ class CombatMixin:
             and self._equipped_digging_tool(snapshot) is not None
         ):
             restore = self._restore_mining_combat_hand_key(
-                snapshot, "melee:restore-weapon"
+                snapshot, "melee:restore-weapon", goal=mining_loadout.ROLLBACK_GOAL
             )
             if restore is not None:
                 return restore
@@ -4546,8 +4546,24 @@ class CombatMixin:
         # first step resets the stall streak and re-locks the floor (#47 D60,
         # n1-c life-098, 鉄獄12階 random quest 43, 2026-11-01 20:01: one step
         # every 61 decisions until livelock-exhausted).
+        # A mining floor walks to its up-stairs without spending Recall while a
+        # remembered route reaches one (the breakthrough route, the swarm's cells
+        # walkable to clear).  With none the walk-out is discovery through the
+        # swarm, and a corridor the breeders refill is no way out: n1-a life-525
+        # (2026-11-15 16:54, Lv37 Warrior, Yeek cave 1F) killed a 巨大ハツカネズミ
+        # nearly every action at (5,34) toward a frontier while the up-stairs at
+        # (60,57) had no remembered route, until the loop detector stopped it with
+        # ten Recall scrolls carried.  Such a floor leaves by Recall like any other.
+        here = snapshot.grid_at(snapshot.player.position)
+        mining_walks_to_stairs = (
+            self._fundraising_mode == "mine"
+            and (
+                (here is not None and self._is_upstairs_target(here))
+                or self._breeder_breakthrough_step(snapshot) is not None
+            )
+        )
         if (
-            self._fundraising_mode != "mine"
+            not mining_walks_to_stairs
             and (
                 abandon
                 or self._active_fixed_quest_id(snapshot) is None
