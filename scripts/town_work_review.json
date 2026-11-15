@@ -19569,5 +19569,15 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "equipment_utility.py:with_destruction_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the loadout metrics with the *Destruction* means bonus on the survival side when the loadout's device skill makes an owned staff reliable (owner 2026-11-15 「深さに関係なく持っていく」); read by the warrior optimizer's scoring; no command",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

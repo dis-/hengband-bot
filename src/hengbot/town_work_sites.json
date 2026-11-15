@@ -1392,6 +1392,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:_charged_staves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_reliable_carried_staff": {
     "classification": "data",
     "rows": [
@@ -1428,6 +1435,20 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "destruction_use.py:sight_trigger_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:staff_carry_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:staff_home_items": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1935,6 +1956,20 @@
     "delegation": "selected child; no independent success"
   },
   "equipment_transaction_session.py:planned_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_utility.py:destruction_means_bonus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_utility.py:with_destruction_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
