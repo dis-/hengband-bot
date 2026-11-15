@@ -18,6 +18,11 @@ all seventeen at Home (recorded: the General Store trip that bought torches); th
 (equipment_swap_weight): it may go on because the crossbow releases the torches; without the
 owner's release it would end at 1465 kept and is refused.
 
+Owner 2026-11-15 「Q1 の後は松明20本をやめる」: Q1 completed, its twenty torches are no carry, so
+the recorded torch errand (row 111) no longer happens.  Rows 0-110 are compared with the record;
+from row 111 the recorded boards are observed with the recorded keys posted (DECLARED
+CONSTRUCTED), and only the board's own torch-release facts are pinned on row 137.
+
 Walls, each declared:
 - row 1's ``periodic:character-dump`` writes the dump file the restored policy reads at row 2;
   the replay writes the dump the live game wrote there (the restarted arrival's sidecar copy,
@@ -57,6 +62,10 @@ WITHDRAW_ROW = 130
 WORN_ROW = 136
 STASH_ROW = 137
 STOP_ROW = 143
+# Owner 2026-11-15 「Q1 の後は松明20本をやめる」: the recorded visit's errand for Q1's torches
+# (row 111, the General Store) no longer happens; the rows from here on are the recorded
+# boards with the recorded keys posted (DECLARED CONSTRUCTED: not decided by the chooser).
+DIVERGENCE_ROW = 111
 LIMIT = 1350
 TORCHES = 17
 TORCH_WEIGHT = 30
@@ -95,9 +104,12 @@ class TownWeightTorch1112RecordedTest(unittest.TestCase):
             board = supply()
             visit_before = copy.copy(policy._store_visit)
             chosen = policy.choose_key(board)
-            self.assertEqual((chosen, policy.last_reason),
-                             (recorded[row["row"]]["key"], recorded[row["row"]]["reason"]),
-                             row["row"])
+            if row["row"] < DIVERGENCE_ROW:
+                self.assertEqual((chosen, policy.last_reason),
+                                 (recorded[row["row"]]["key"], recorded[row["row"]]["reason"]),
+                                 row["row"])
+            else:
+                chosen = recorded[row["row"]]["key"]
             key = policy.validate_read_key(board, chosen)
             key = _handle_owner_retirement(LOG_ONLY, board, key, policy, visit_before)
             if key:
@@ -133,29 +145,14 @@ class TownWeightTorch1112RecordedTest(unittest.TestCase):
         self.assertEqual(torch_release.throwing_torch_target(policy, board, 10), 0)
         self.assertTrue(policy._home_deposit_candidate(torch, board))
         self.assertIsNone(policy._find_light_sale(board))
-        key = policy.choose_key(board)
-        self.assertEqual((key, policy.last_reason), ("5", "equipment-transaction:atomic-deposit"))
-        deposit = policy._home_atomic_deposit_pending[0]
-        self.assertEqual([(entry[0][1:], entry[1], entry[2]) for entry in deposit],
-                         [((39, 0), TORCHES, TORCHES)])
+        # Dropped (owner 2026-11-15 「Q1 の後は松明20本をやめる」): the recorded row 137 decision
+        # (the atomic deposit of the seventeen) is the chooser's past DIVERGENCE_ROW, not replayed.
         # Shelved, the pack is under the limit with room for the recorded purchases (+30).
         self.assertLessEqual(policy._inventory_weight(board) - TORCHES * TORCH_WEIGHT + 30, LIMIT)
 
-    def test_swap_withdrawal_refused_without_the_torch_release(self):
-        """Row 130 without the owner's release: the kept pack cannot carry the crossbow.
-
-        Recorded (and with the release): ``po`` equipment-transaction:withdraw.  Without it the
-        swap ends at 1360 - 5 + 110 = 1465 kept, over 1350 and heavier than now: refused.
-        """
-        policy, recorded, steps = self.load()
-        self.assertEqual(recorded[WITHDRAW_ROW]["reason"], "equipment-transaction:withdraw")
-        with patch.object(torch_release, "CROSSBOW_SVALS", frozenset()):
-            self.replay_live(policy, recorded, steps[:WITHDRAW_ROW])
-            board = steps[WITHDRAW_ROW][1]()
-            key = policy.choose_key(board)
-        self.assertEqual((key, policy.last_reason),
-                         ("\x1b", "equipment-transaction:withdraw-overweight"))
-        self.assertIn("withdraw-overweight", policy._equipment_transaction_session.blockers)
+    # Dropped: test_swap_withdrawal_refused_without_the_torch_release.  Its refusal needed the
+    # seventeen torches kept by Q1's carry merged below Lv10, which owner 2026-11-15
+    # 「Q1 の後は松明20本をやめる」 removed.
 
     def test_mining_mode_keeps_recall_stock(self):
         """The recall stock of the planned depth is no surplus while mining (17:13 sale).
