@@ -1483,6 +1483,13 @@
     ],
     "delegation": "No independent success; existing wait, retreat or teleport owner."
   },
+  "engagement_avoid_seal.py:encloses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_capacity.py:plan_equipment_transactions": {
     "classification": "data",
     "rows": [
@@ -7896,6 +7903,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_helpers.py:PolicyHelpersMixin._is_completed_forgetting_maze": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_helpers.py:PolicyHelpersMixin._is_destruction_item": {
     "classification": "data",
     "rows": [
@@ -13470,6 +13484,13 @@
       "positioning"
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:encloses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "retreat_enclosure.py:melt_route": {
     "classification": "data",

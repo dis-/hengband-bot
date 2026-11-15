@@ -7953,11 +7953,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if sealed is not None:
                 self._stuck_escape_streak = 0
                 return sealed
-        step = self._least_visited_neighbor(snapshot)
-        if step is not None:
-            self.last_reason = "stuck:wander"
-            return self._step_toward(snapshot, step)
-
         # This fallback is reached only after exploration, secret-wall search,
         # known-stair routing, and local movement have all failed.  On a dungeon
         # floor the wait below cannot build the stuck counter, so a stale
@@ -7969,7 +7964,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # the wait lasted until the loop guard (retreat_enclosure).
         forgetting_maze = self._is_forgetting_maze(snapshot)
         completed_forgetting_maze = self._is_completed_forgetting_maze(snapshot)
-        if (
+        leave_answers = (
             not snapshot.in_town
             and snapshot.floor_key[2] == 0
             and (
@@ -7980,7 +7975,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not snapshot.player.recalling
             and not snapshot.player.blind
             and not snapshot.player.confused
-        ):
+        )
+        # Where that leave answers a wander with no step, the wander keeps off the walks' one
+        # veto (``_walk_veto``: a sleeper's area among it), as every other walker does.
+        # n1-b life-401 (Angband 49F, 2026-11-15 17:17): teleported to the dead end (20,1)-(20,3)
+        # of a corridor whose one way on ran past a sleeping バイクロプス on (20,11), the wander
+        # stepped '6' from (20,2) into its area (20,3), threat:avoid-engagement stepped '4' back
+        # (its veto would seal the pocket, engagement_avoid_seal, so none was made), the wander
+        # went '4' to (20,1) and '6' again, 18 times: each retreat reset the stuck count, and
+        # the four-move round over three cells was no two-cell alternation the ping-pong guard
+        # reads, so the loop detector stopped the bot twice.
+        step = self._least_visited_neighbor(snapshot, walk_veto=leave_answers)
+        if step is not None:
+            self.last_reason = "stuck:wander"
+            return self._step_toward(snapshot, step)
+
+        if leave_answers:
             teleport = retreat_enclosure.enclosed_key(self, snapshot)
             if teleport is not None:
                 self._stuck_escape_streak = 0
@@ -16703,8 +16713,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return self._borders_unexplored(snapshot, position)
 
 
-    def _least_visited_neighbor(self, snapshot: Snapshot) -> Position | None:
-        refused = self._engagement_avoid_cells | left_cells.refused(self, snapshot)
+    def _least_visited_neighbor(self, snapshot: Snapshot, *, walk_veto: bool = False) -> Position | None:
+        """The least visited walkable neighbour off the retreats' vetoes and the left-cell
+        registry; with ``walk_veto``, off the walks' whole veto (``_walk_veto``)."""
+        refused = (self._walk_veto(snapshot) if walk_veto
+                   else self._engagement_avoid_cells | left_cells.refused(self, snapshot))
         candidates = [
             candidate
             for candidate in self._walkable_neighbors(
