@@ -15109,6 +15109,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
         )
 
+    def _town_hunt_owns_detected(
+        self, snapshot: Snapshot, monsters: list[MonsterState]
+    ) -> bool:
+        """Whether the town hunt (``_town_kill_mob_key``) owns every monster: in town,
+        each one is a town monster this character defeats (not a pet, not unbeatable)."""
+        return (
+            snapshot.in_town
+            and snapshot.dungeon_level == 0
+            and bool(monsters)
+            and all(
+                not monster.pet and not self._town_monster_unbeatable(snapshot, monster)
+                for monster in monsters
+            )
+        )
+
     @staticmethod
     def _visible_channel_answers(monster: MonsterState) -> bool:
         """An awake hostile in view that the visible-monster channel can act on or be hit by:
@@ -15237,6 +15252,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._detected_threat_hold = None
             if route is not None:
                 self._release_claim_goal("choke-quest-plan-owns", route[1], owners=("positioning",))
+            self._detected_threat_route = None
+            return None
+        if self._town_hunt_owns_detected(
+            snapshot, [*breeders, *melee_threats, *committed]
+        ):
+            # In town the hunt approaches and kills every town monster this
+            # character defeats (_town_kill_mob_key).  Retreating from them when
+            # they leave sight handed the turn back to the hunt as soon as one came
+            # into view again: n1-a life-525 (2026-11-15 13:24-13:31, Lv37 Warrior,
+            # 857 HP) walked town:kill-mob-approach toward two 殺人蜂 and
+            # detected:prepare-choke back to a choke whenever they flew out of
+            # sight, for 200 boards, until the town-errand owner retired without
+            # progress and the town block stopped the bot.
+            self._detected_threat_hold = None
+            if route is not None:
+                self._release_claim_goal("choke-town-hunt-owns", route[1], owners=("positioning",))
             self._detected_threat_route = None
             return None
         if not breeders and len(melee_threats) < 2 and not committed:
