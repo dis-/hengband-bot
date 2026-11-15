@@ -1174,6 +1174,21 @@ class HomeMixin:
                 # Re-file only from current catalogue or page evidence; an
                 # absent target is an observed candidate miss and uses the
                 # same skip path as other unresolved relief items.
+                request = self._home_errand.request
+                if (self._home_errand.state.value == "done" and request is not None
+                        and request.purpose in {"full-home-sale", "full-home-discard"}
+                        and request.signature == signature):
+                    # The take was done, yet the ware is not carried: another
+                    # owner put it back on the shelf before the relief saw it
+                    # taken (the equipment transaction's deposit of the unworn
+                    # piece).  As when the relief sees the ware held
+                    # (sale-item-held below), the entry ends retained and
+                    # skipped; re-filing the take alternated it with the
+                    # deposit: n1-c life-214 2026-11-15 18:03, 麻痺知らずの指輪
+                    # {麻} taken and deposited for 67 rows until
+                    # town:blocked:stage-deadline:equipment.
+                    return self._town_producer_entry("_home_full_skip_key",
+                        lambda: self._home_full_skip_key("sale-item-held"))
                 observed = next((item for item in self._home_knowledge_items
                     if self._home_knowledge_current
                     and self._sale_item_identity(item) == sale_identity), None)
