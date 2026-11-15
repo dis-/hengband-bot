@@ -63,7 +63,9 @@ class AbsorbedRequirementTest(unittest.TestCase):
             return policy._missing_destruction_uses(board), report.get("*Destruction* uses")
 
     def test_destruction_counts_only_at_eighty_percent_success(self):
-        for fail, counted in ((20, 6), (15, 6), (21, 0)):
+        # In town the count the inn refills (owner 2026-11-15, n1-b life-405: cmd-inn.cpp
+        # charge_magic_eating_energy): nine, not the six left.
+        for fail, counted in ((20, 9), (15, 9), (21, 0)):
             with self.subTest(fail=fail):
                 policy, board = self.observed(power_list("staff", [("*破壊*", 6, 9, fail)]))
                 self.assertEqual(me_capability.replacing_charges(
@@ -71,7 +73,7 @@ class AbsorbedRequirementTest(unittest.TestCase):
                 self.assertEqual(policy._total_destruction_uses(board), counted)
                 self.assertEqual(policy._has_destruction_method(board), counted > 0)
                 missing, row = self.gate(policy, board)
-                # 50F asks five uses; six absorbed charges at 80%+ meet it.
+                # 50F asks five uses; nine absorbed at 80%+ meet it.
                 self.assertEqual(missing, 0 if counted else 5)
                 self.assertEqual(row is None, bool(counted), row)
 
