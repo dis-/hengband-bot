@@ -1385,6 +1385,27 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "destruction_means.py:Means.carry_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_means.py:Means.departure_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_means.py:Means.depth_gate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_absorbed_key": {
     "classification": "data",
     "rows": [
@@ -1399,28 +1420,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "destruction_use.py:_charged_staff": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "destruction_use.py:_charged_staves": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "destruction_use.py:_reliable_carried_staff": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "destruction_use.py:_reliable_staff": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1456,13 +1456,6 @@
     "delegation": "selected child; no independent success"
   },
   "destruction_use.py:staff_carry_uses": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "destruction_use.py:staff_home_items": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -8011,13 +8004,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_helpers.py:PolicyHelpersMixin._carried_destruction_uses": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_helpers.py:PolicyHelpersMixin._digging_tool_stays_carried": {
     "classification": "data",
     "rows": [
@@ -8040,27 +8026,6 @@
     "delegation": "selected child; no independent success"
   },
   "policy_helpers.py:PolicyHelpersMixin._is_completed_forgetting_maze": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy_helpers.py:PolicyHelpersMixin._is_destruction_item": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy_helpers.py:PolicyHelpersMixin._is_destruction_scroll": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy_helpers.py:PolicyHelpersMixin._is_destruction_staff": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -16,6 +16,10 @@ passes and no lint:
   (``monster_memory.forget_within`` for its KINDS, ``destruction_use.FORGET_VISIT``).
 - ``deep-teleport``: a self-teleport on 50F+ passes ``deep_teleport.substitute`` (the one rule
   of the five with a single point every read passes, ``policy._read_key``).
+- ``destruction-means`` (whole-bot review 2026-11-16, R1 stage 2): the six readers of "is there a
+  *Destruction* means" read one fact (destruction_means) with their own combinations; on a board
+  where their answers disagree the decision records ``disagree`` and each reader's answer (the
+  owner decides how to align them, review §6 Q1).
 
 This module only records.  The producers call ``produce`` where a rule applies and the
 registered points call ``consult``; ``end`` (the ``choose_key`` exit) settles the decision's
@@ -35,10 +39,14 @@ UNCURSE_BEFORE_REST = "uncurse-before-rest"
 ESCAPE_LINE_OF_FIRE = "escape-line-of-fire"
 DESTRUCTION_FORGET = "destruction-forget"
 DEEP_TELEPORT = "deep-teleport"
-RULES = (LEFT_CELLS, UNCURSE_BEFORE_REST, ESCAPE_LINE_OF_FIRE, DESTRUCTION_FORGET, DEEP_TELEPORT)
+DESTRUCTION_MEANS = "destruction-means"
+RULES = (LEFT_CELLS, UNCURSE_BEFORE_REST, ESCAPE_LINE_OF_FIRE, DESTRUCTION_FORGET, DEEP_TELEPORT,
+         DESTRUCTION_MEANS)
 
 CONSULTED = "consulted"
 NOT_CONSULTED = "not-consulted"
+DISAGREE = "disagree"   # destruction-means: the readers' answers differ on this board
+ERROR = "error"         # destruction-means: the readings raised (recorded, nothing decided)
 
 # The monster memories a *Destruction* does not forget (the flash board records each one that
 # still holds something).  scripts/cross_rule_lint.py derives the same list from the source and
@@ -162,8 +170,44 @@ def end(policy, snapshot, key) -> tuple:
             noted = (reason in PROOF_REASONS
                      or _consulted_before(ledger, ESCAPE_LINE_OF_FIRE, None))
             rows.append((ESCAPE_LINE_OF_FIRE, CONSULTED if noted else NOT_CONSULTED, reason))
+    means = _destruction_means_row(policy, snapshot)
+    if means is not None:
+        rows.append(means)
     ledger.result = tuple(dict.fromkeys(rows))  # in order, once each
     return ledger.result
+
+
+_ABSENT = object()
+# The lazily created records a reader may set on the policy (me_inn_refill.state): put back as
+# they were, so the observer stores nothing.
+_LAZY_RECORDS = ("_me_inn_refill_stay",)
+
+
+def _destruction_means_row(policy, snapshot) -> tuple | None:
+    """(DESTRUCTION_MEANS, DISAGREE, "holds=1/departure=0/...") when the six readers of the
+    *Destruction* means answer differently on this board (destruction_means.answers); None when
+    they agree or the policy is not the bot's."""
+    if (snapshot is None or getattr(snapshot, "player", None) is None
+            or getattr(snapshot, "inventory", None) is None
+            or not hasattr(policy, "_total_destruction_uses")):
+        return None
+    from hengbot import destruction_means
+
+    before = {name: getattr(policy, name, _ABSENT) for name in _LAZY_RECORDS}
+    try:
+        answers = destruction_means.answers(policy, snapshot)
+    except Exception as exc:  # record only: a reading that raises decides nothing
+        return (DESTRUCTION_MEANS, ERROR, type(exc).__name__)
+    finally:
+        for name, value in before.items():
+            if value is _ABSENT:
+                if name in getattr(policy, "__dict__", {}):
+                    delattr(policy, name)
+            elif getattr(policy, name, _ABSENT) is not value:
+                setattr(policy, name, value)
+    if len({answer for _name, answer in answers}) <= 1:
+        return None
+    return (DESTRUCTION_MEANS, DISAGREE, "/".join(f"{name}={int(answer)}" for name, answer in answers))
 
 
 def destruction_flash(policy, forgotten: tuple) -> None:

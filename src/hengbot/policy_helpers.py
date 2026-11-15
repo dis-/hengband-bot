@@ -4,6 +4,7 @@ from hengbot import spare_gear
 from hengbot import random_quest_hold
 from hengbot import dive_floor, fallback_depth_floor
 from hengbot import me_capped_pickup
+from hengbot import destruction_means
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 
 from dataclasses import replace
@@ -20,7 +21,7 @@ from hengbot.equipment_optimizer import awaits_identification, equipment_identit
 from hengbot.model import (
     DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE,
     GridState, InventoryItem, MonsterState, Position, Snapshot, StoreItem,
-    SV_LITE_TORCH, SV_ROD_LITE, SV_SCROLL_STAR_DESTRUCTION, SV_STAFF_DESTRUCTION,
+    SV_LITE_TORCH, SV_ROD_LITE,
     TVAL_AMULET, TVAL_ARROW, TVAL_BOOTS, TVAL_BOLT, TVAL_BOW, TVAL_CLOAK,
     TVAL_CROWN, TVAL_DIGGING, TVAL_DRAG_ARMOR, TVAL_FOOD, TVAL_GLOVES,
     TVAL_HAFTED, TVAL_HARD_ARMOR, TVAL_HELM, TVAL_LITE, TVAL_POLEARM,
@@ -780,18 +781,11 @@ class PolicyHelpersMixin:
         if speed >= 200:
             return 49
         return SPEED_ENERGY_90[speed - 90]
-    @staticmethod
-    def _is_destruction_scroll(item: InventoryItem | StoreItem) -> bool:
-        return item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_DESTRUCTION
-
-    @staticmethod
-    def _is_destruction_staff(item: InventoryItem | StoreItem) -> bool:
-        return item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION
-
-    @classmethod
-    def _is_destruction_item(cls, item: InventoryItem | StoreItem) -> bool:
-        """Either carrier of the 50F+ *Destruction* gate, shelf or pack."""
-        return cls._is_destruction_scroll(item) or cls._is_destruction_staff(item)
+    # The *Destruction* kinds and means are destruction_means' (maintainability review
+    # 2026-11-16 R1): these names stay for their callers.
+    _is_destruction_scroll = staticmethod(destruction_means.is_scroll)
+    _is_destruction_staff = staticmethod(destruction_means.is_staff)
+    _is_destruction_item = staticmethod(destruction_means.is_item)
 
     def _carried_destruction_uses(self, item: InventoryItem) -> int:
         """Uses one carried stack supplies.
@@ -801,20 +795,17 @@ class PolicyHelpersMixin:
         counted.  sval is emitted only for AWARE items and charges only for
         KNOWN ones (fair play), so an untried staff counts no charges.
         """
-        if self._is_destruction_scroll(item):
+        if destruction_means.is_scroll(item):
             return max(0, item.count)
-        if self._is_destruction_staff(item):
+        if destruction_means.is_staff(item):
             return self._stack_charges(item)
         return 0
 
     def _total_destruction_uses(self, snapshot: Snapshot) -> int:
-        from hengbot.me_capability import replacing_charges
-
-        # Class 16's absorbed staff counts at a displayed 80%+ success
-        # (owner 2026-10-31 21:30, me_capability.REPLACES).
-        return sum(
-            self._carried_destruction_uses(it) for it in snapshot.inventory
-        ) + replacing_charges(self, snapshot, (TVAL_STAFF, SV_STAFF_DESTRUCTION))
+        """destruction_means ``departure_uses``: the carried scrolls, every carried staff's
+        charges and class 16's absorbed staff at a displayed 80%+ success (owner 2026-10-31
+        21:30, me_capability.REPLACES; in town the inn-refilled count)."""
+        return destruction_means.Means(self, snapshot).departure_uses()
 
     def _has_destruction_method(self, snapshot: Snapshot) -> bool:
         """A *Destruction* scroll or a staff with charges left (the AGENTS.md 50F+
