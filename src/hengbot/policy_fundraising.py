@@ -841,16 +841,25 @@ class FundraisingMixin:
         self, snapshot: Snapshot, *, allow_recall: bool = True
     ) -> str:
         player = snapshot.player
+        if player.recalling:
+            # An active recall ends the floor by itself, at every depth and
+            # whoever read it.  Above RECALL_MIN_DEPTH this return reads none
+            # itself, but the livelock leave does: n1-a life-525 (2026-11-15
+            # 12:47, Yeek cave 1F, Lv37 Warrior) walked fundraise:seek-upstairs
+            # back and forth between (41,22) and (42,23) as a 白イモムシの大群
+            # stepped in and out of sight across the corridor to the stairs; the
+            # ping-pong guard escalated, livelock:recall-escape read Recall, and
+            # the walk went on alternating until the loop detector stopped the
+            # bot 25 decisions later, before the countdown ended.
+            self.last_reason = "fundraise:wait-recall"
+            self._offer_execution(
+                WAIT_KEY, producer="fundraising",
+                work_id="fundraise:return:recall-wait",
+                next_step="fundraising.observe-recall-arrival",
+                expected_effect="floor-change",
+            )
+            return WAIT_KEY
         if allow_recall and snapshot.dungeon_level >= RECALL_MIN_DEPTH:
-            if player.recalling:
-                self.last_reason = "fundraise:wait-recall"
-                self._offer_execution(
-                    WAIT_KEY, producer="fundraising",
-                    work_id="fundraise:return:recall-wait",
-                    next_step="fundraising.observe-recall-arrival",
-                    expected_effect="floor-change",
-                )
-                return WAIT_KEY
             recall = self._find_recall_scroll(snapshot)
             if (
                 recall is not None
