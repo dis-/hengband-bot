@@ -6,3 +6,4 @@ tests/fixtures/incident-magic-abandon-cycle-20260823.jsonl -text whitespace=-tra
 jsonlog/replay-*.jsonl -text whitespace=-trailing-space
 tests/fixtures/live36-weight.json -text
 tests/fixtures/mutation-calibration/bot-test_Autodump_2026-07-25_054022.txt -text
+tests/fixtures/stage-deadline-equipment-1115/n1c214/character-dump-row0.txt -text
