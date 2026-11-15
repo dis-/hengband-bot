@@ -262,8 +262,10 @@ def _routes(policy, snapshot: Snapshot) -> dict:
 
 
 def _avoided(policy, snapshot: Snapshot) -> frozenset:
-    """The cells every walk of the search keeps off (``_routes``)."""
-    return frozenset(walk_vetoes.retreat_left_route(policy, snapshot))
+    """The cells every walk of the search keeps off (``_routes``): the walks' one veto, the
+    unseen attacker's area included (owner 2026-11-15, maintainability review Q3 「全部読ませる」;
+    it read the retreat-left-route combination before)."""
+    return frozenset(walk_vetoes.walk(policy, snapshot))
 
 
 def _room_groups(cells: set) -> list:
