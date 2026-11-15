@@ -19590,5 +19590,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "item_fate.py:can_identify_now": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: bool from the absorbed Identify power command and the carried normal/full identification source (10-31 a Home take for identification needs a source now); emits no command and claims no progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_identification.py:IdentificationMixin._device_identification_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure selector: the first carried non-equipment _normal_identification_flow_candidate not deferred this visit, an unaware potion or scroll only while _unaware_consumable_identifiable_now (owner 2026-11-15); shared by _town_device_processing_key and town_terminal.device_identification_target; emits no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_identification.py:IdentificationMixin._unaware_consumable_identifiable_now": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: bool, item_fate.can_identify_now unless the identify failure watch gave the signature up (owner 2026-11-15 unaware potions/scrolls are identified with a carried means only); emits no command and claims no progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._end_home_sweep_identification": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Ends the junk sweep's identify-mode relief once its taken unaware potion/scroll is known (owner 2026-11-15): releases the identification observe claim, finishes the Home errand, invalidates the Home observation and clears the relief; returns None so the next producer acts. No key, no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

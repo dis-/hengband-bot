@@ -19,11 +19,11 @@ from tests.support import item_use_route_wall
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot.model import (STORE_HOME, TVAL_BOLT, TVAL_SCROLL,
+from hengbot.model import (STORE_HOME, SV_POTION_SLEEP, TVAL_BOLT, TVAL_SCROLL,
                            SV_SCROLL_STAR_REMOVE_CURSE, _parse_items,
                            parse_snapshot)
 from hengbot.latch_onset_capture import checkpoint, restore_checkpoint
-from hengbot.policy import HengbotPolicy
+from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_types import TownErrandPlan
 from hengbot.protocol import snapshot_protocol_version
 
@@ -186,6 +186,23 @@ class TownHomeCandidateStallRecordedTest(unittest.TestCase):
         board = replace(self.board, player=replace(
             self.board.player, two_weapon_skill=0, shield_skill=0,
         ))
+        # Owner 2026-11-15 「鑑定の手段で調べる」 (tests/test_home_unaware_
+        # consumables_1115_recorded): the carried unaware 紫色の薬 (e) is
+        # identified first with the carried Identify staff (i).
+        self.assertEqual(policy.choose_key(board), "uie")
+        self.assertEqual(policy.last_reason, "identify:device")
+        policy.confirm_key_posted("uie")
+        chain = policy.peek_staged_prompt_chain()
+        if chain is not None and staged_prompt_chain_matches(chain, "uie"):
+            policy.commit_staged_prompt_chain({"outcome": "released", "posted": "uie"})
+        # DECLARED CONSTRUCTED: the identification's effect (the potion named,
+        # one staff charge spent).
+        board = replace(board, turn=board.turn + 10, inventory=tuple(
+            replace(item, name="眠りの薬", sval=SV_POTION_SLEEP, aware=True, known=True)
+            if item.slot == "e"
+            else replace(item, charges=item.charges - 1) if item.slot == "i"
+            else item
+            for item in board.inventory))
         self.assertEqual(policy.choose_key(board), "\x1b`n(.")
         self.assertEqual(policy.last_reason, "shop:travel")
         self.assertEqual(policy._home_pending_item, policy._item_signature(reserve))
