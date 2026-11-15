@@ -32,6 +32,11 @@ one table; the policy's depth gates and the equipment optimizer both read it.
 Supporting rules:
 
 - Telepathy and the `*Destruction*` requirement begin at 50F, not 80F.
+- Short of 50F an owned `*Destruction*` staff is still carried once the worn
+  loadout's device skill makes it reliable, and the gear that does so is valued
+  like full telepathy in the loadout comparison, never forced (owner
+  2026-11-15 「深さに関係なく持っていく」; `equipment_utility`,
+  `destruction_use.staff_carry_uses`).
 - A spell may satisfy an ability requirement only when its success rate is at
   least 90 percent.
 - Weight is not an equipment comparison criterion.

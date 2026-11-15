@@ -829,7 +829,11 @@ class SupplyMixin:
         )
 
     def _required_destruction_uses(self, snapshot: Snapshot) -> int:
-        return required_destruction_uses(self._intended_dive_depth(snapshot))
+        """The depth table's uses from 50F; short of it the owned staff the worn loadout
+        makes reliable (owner 2026-11-15 「深さに関係なく持っていく」,
+        destruction_use.staff_carry_uses)."""
+        return (required_destruction_uses(self._intended_dive_depth(snapshot))
+                or destruction_use.staff_carry_uses(self, snapshot))
 
     def _missing_destruction_uses(self, snapshot: Snapshot) -> int:
         return max(
