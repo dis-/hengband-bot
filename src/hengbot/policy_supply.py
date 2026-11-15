@@ -35,7 +35,8 @@ from hengbot.policy_constants import (
     EMERGENCY_POTION_CARRY_TARGET, LANTERN_DIM_WARNING_FUEL,
     LANTERN_REFILL_FUEL, LEAVE_STORE_KEY, MANA_FOOD_CHARGE_TARGET,
     MANA_FOOD_DEVICE_TARGET, OIL_TARGET,
-    PACK_CAPACITY, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
+    PACK_CAPACITY, QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED,
+    QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, STAFF_IDENTIFY_MAX_COUNT,
     STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH,
     STARVING_FOOD_STATES, SUMMONER_CHOKE_NEIGHBORS, SUPPLY_STORES,
     TORCH_REFILL_FUEL, TORCH_THROW_TARGET, UP_STAIRS_KEY, USE_DEVICE_MIN,
@@ -125,6 +126,9 @@ def supply_ledger_observer_memo():
     finally:
         _SUPPLY_LEDGER_OBSERVER_MEMO.reset(token)
 
+
+# Q1 states in which its quest carries are no longer wanted (completed, rewarded, finished).
+Q1_DONE_STATUSES = frozenset({QUEST_STATUS_COMPLETED, QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED})
 
 class SupplyMixin:
 
@@ -1427,7 +1431,10 @@ class SupplyMixin:
         )
         if profile is not None and selected is None:
             return profile
-        if snapshot.player.level < 10:
+        # Owner 2026-11-15 「Q1 の後は松明20本をやめる」 (n1-b life-399 Lv8 stopped at
+        # 138.9 / 135.0 lb holding Q1's twenty Magic-Eater torches for Q14): Q1's
+        # torch count rides on the next quest only while Q1 is still to be done.
+        if snapshot.player.level < 10 and not self._q1_completed(snapshot):
             opening = self.approved_quest_strategy(1)
             if opening is not None:
                 opening_force = self._strategy_force_for_snapshot(snapshot, opening)
@@ -1443,6 +1450,11 @@ class SupplyMixin:
                 force["throwing_items"] = throwing
                 selected = replace(base, required_force=force)
         return selected
+
+    def _q1_completed(self, snapshot: Snapshot) -> bool:
+        """Q1 (the thieves' hideout) is completed: its torch carry has no quest left."""
+        q1 = self._known_fixed_quests(snapshot).get(1)
+        return q1 is not None and q1.status in Q1_DONE_STATUSES
 
     @claims(ClaimOwner.SURVIVAL)
     def _mana_food_loot_key(

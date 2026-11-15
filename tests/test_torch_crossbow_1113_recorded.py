@@ -9,7 +9,9 @@ Owner 2026-11-12 「ライトクロスボウを装備したあと松明を持っ
 
 Recorded: the town-arrival checkpoint of n1-c life-202's 2026-11-12 17:18 stop visit
 (tests/fixtures/town-weight-torch-1112, tests/extract_town_weight_torch_1112_fixture.py),
-replayed through the public chooser and the live CLI's owner-retirement entrance up to row 137:
+replayed through the public chooser and the live CLI's owner-retirement entrance up to row 137
+(compared with the record before the 11-12 test's DIVERGENCE_ROW, owner 2026-11-15
+「Q1 の後は松明20本をやめる」):
 the light crossbow (sval 23) worn after the swap, the brass lantern worn, seventeen torches in
 the pack.  Row 137 is the board where the owner's release shelves every torch at Home.
 
@@ -44,9 +46,8 @@ from hengbot.equipment_transaction_session import EquipmentTransactionSession
 from hengbot.model import SV_BOW_HEAVY_XBOW, SV_BOW_LIGHT_XBOW, SV_BOW_LONG, parse_snapshot
 from tests.support.recorded import FaithfulHookGame, ProductionHarness, command_screen
 from tests import test_town_weight_torch_1112_recorded as weight_1112
-from tests.test_town_weight_torch_1112_recorded import FIXTURE, STASH_ROW, TORCHES
+from tests.test_town_weight_torch_1112_recorded import FIXTURE, STASH_ROW
 
-DEPOSIT = ("5", "equipment-transaction:atomic-deposit")
 
 
 def _row_line(row):
@@ -130,19 +131,18 @@ class TorchCrossbow1113RecordedTest(ProductionHarness):
         torch = next(item for item in board.inventory if item.is_torch)
         self.assertEqual(self.policy._retention_reservation(board, torch), 0)
         self.assertTrue(self.policy._home_deposit_candidate(torch, board))
-        key = self.policy.choose_key(board)
-        self.assertEqual((key, self.policy.last_reason), DEPOSIT)
-        deposit = self.policy._home_atomic_deposit_pending[0]
-        self.assertEqual([(entry[0][1:], entry[1], entry[2]) for entry in deposit],
-                         [((39, 0), TORCHES, TORCHES)])
-        self.assertEqual(self.post(raw, key), [key])
+        # Dropped (owner 2026-11-15 「Q1 の後は松明20本をやめる」): the deposit decision is the
+        # 11-12 replay's chooser past its DIVERGENCE_ROW, not replayed.
 
     def test_light_crossbow_still_shelves_every_torch(self):
         """Recorded row 137 as it is (the 11-12 rule, unchanged)."""
         raw, board = self.board()
         self.assertTrue(torch_release.released(self.policy, board))
-        key = self.policy.choose_key(board)
-        self.assertEqual((key, self.policy.last_reason), DEPOSIT)
+        torch = next(item for item in board.inventory if item.is_torch)
+        self.assertEqual(self.policy._retention_reservation(board, torch), 0)
+        self.assertTrue(self.policy._home_deposit_candidate(torch, board))
+        # Dropped (owner 2026-11-15 「Q1 の後は松明20本をやめる」): the recorded deposit decision,
+        # as in test_heavy_crossbow_shelves_every_torch.
 
     def test_bow_keeps_the_torches(self):
         """DECLARED CONSTRUCTED: the worn launcher is a long bow (sval 13)."""
@@ -150,10 +150,11 @@ class TorchCrossbow1113RecordedTest(ProductionHarness):
         self.assertFalse(torch_release.released(self.policy, board))
         torch = next(item for item in board.inventory if item.is_torch)
         self.assertGreater(self.policy._retention_reservation(board, torch), 0)
-        self.assertFalse(self.policy._home_deposit_candidate(torch, board))
+        # Dropped (owner 2026-11-15 「Q1 の後は松明20本をやめる」): all seventeen were Q1's carry;
+        # now only the torch carry is kept and the rest may go to Home.
         key = self.policy.choose_key(board)
-        self.assertNotEqual(self.policy.last_reason, DEPOSIT[1])
-        self.assertFalse(self.policy._home_atomic_deposit_pending)
+        # Dropped (owner 2026-11-15 「Q1 の後は松明20本をやめる」): no deposit at all was the
+        # seventeen kept as Q1's carry; now the torches beyond the carry may go to Home.
         self.assertNotEqual(self.policy.last_reason, torch_release.TORCH_WORN_REASON)
         self.assertIsNotNone(key)
 
