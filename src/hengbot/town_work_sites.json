@@ -744,6 +744,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "bm_destruction_fund.py:_entry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "bm_destruction_fund.py:_open_shelf": {
     "classification": "data",
     "rows": [
@@ -751,14 +758,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "bm_destruction_fund.py:_shelf": {
+  "bm_destruction_fund.py:_rows": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "bm_destruction_fund.py:_staffs": {
+  "bm_destruction_fund.py:_shelf": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

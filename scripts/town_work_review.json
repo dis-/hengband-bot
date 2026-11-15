@@ -14955,7 +14955,7 @@
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure helper: the Black Market's observed Staff of *Destruction* (price) for this town stay, or None; read by shortfall (owner 2026-11-07); no key or offer.",
+    "evidence": "Pure helper: the observed priority ware (the Black Market's Staff of *Destruction*, or full telepathy on a shop's shelf, PRIORITY_WARES) and its price for this town stay, or None; read by shortfall (owner 2026-11-07, 2026-11-15); no key or offer.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -14971,13 +14971,24 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "bm_destruction_fund.py:_entry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: the PRIORITY_WARES row (Staff of *Destruction* or full telepathy, owner 2026-11-15 「完全なテレパシーを闇市で最優先で買う」) a shelf record names, the staff for a record older than the table; no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "bm_destruction_fund.py:page_purchase": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure helper: while the shelved Staff of *Destruction* is pending (owner 2026-11-15 「破壊の杖は最優先で購入」), (the staff ware or None,) for _next_purchase on the Black Market page or a Magic-Eater staff-sequence page; None otherwise; no key or offer.",
+    "evidence": "Pure helper: while the shelved priority ware (Staff of *Destruction* or full telepathy, PRIORITY_WARES) is pending (owner 2026-11-15 「破壊の杖は最優先で購入」「完全なテレパシーを闇市で最優先で買う」), (the ware or None,) for _next_purchase on its shop's page or a Magic-Eater staff-sequence page; None otherwise; no key or offer.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
