@@ -29,6 +29,7 @@ quiet floor: the low-HP walk gate rests through it and spends no scroll.
 
 from __future__ import annotations
 
+from hengbot import safety_watch
 from hengbot import breeder_quest, quest_no_teleport
 from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON, REST_MACRO, STUCK_ESCAPE_LIMIT
 
@@ -59,6 +60,7 @@ def _hit_by_unseen(policy, snapshot) -> bool:
     )
 
 
+@safety_watch.watched("once_quest_recall._quiet")  # record only (owner 2026-11-15 Q9)
 def _quiet(policy, snapshot) -> bool:
     return not (_enemy_about(snapshot) or _hit_by_unseen(policy, snapshot))
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import safety_watch
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
 from hengbot.item_reservation import (
@@ -2676,6 +2677,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._decision_entry_reason = self.last_reason
         # Record only: the cross-layer rules' reading of this decision (cross_rules).
         cross_rules.begin(self)
+        safety_watch.begin(self)  # record only: the safe-now gates' answers (owner 2026-11-15 Q9)
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
         self._home_full_relief = getattr(self, "_home_full_relief", None)
@@ -13843,6 +13845,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self._safety_deferred_loot.update(guarded_loot)
 
 
+    @safety_watch.watched("policy._loot_before_recall_calm")  # record only (owner 2026-11-15 Q9)
     def _loot_before_recall_calm(self, snapshot: Snapshot) -> bool:
         """Nothing on this board threatens the player.
 

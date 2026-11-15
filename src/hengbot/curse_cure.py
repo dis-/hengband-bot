@@ -53,6 +53,7 @@ me_powerful_activation.ATTEMPTS_PER_TARGET uses, so nothing loops on a curse it 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from hengbot import safety_watch
 import re
 
 from hengbot import cross_rules, me_absorbed_substitutes, me_capability, me_powers
@@ -161,6 +162,7 @@ def _dungeon(snapshot) -> bool:
             and not getattr(snapshot, "inside_arena", False))
 
 
+@safety_watch.watched("curse_cure.safe")  # record only (owner 2026-11-15 Q9)
 def safe(policy, snapshot) -> bool:
     """No enemy threatening: no hit taken and no visible hostile the combat ladder judges
     dangerous (me_powers.utility_device_permitted, the absorbed utility powers' rule), none

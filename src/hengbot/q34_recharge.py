@@ -1,11 +1,13 @@
 """Bounded recharge at Q34's approved, isolated throwing stands."""
 
+from hengbot import safety_watch
 from hengbot.model import Position
 
 
 REST_KEY = "R100\r"
 
 
+@safety_watch.watched("q34_recharge.safe_to_recharge")  # record only (owner 2026-11-15 Q9)
 def safe_to_recharge(policy, snapshot, profile, target):
     player = snapshot.player
     if (player.hp < player.max_hp or player.hungry or player.blind

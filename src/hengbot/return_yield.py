@@ -24,6 +24,7 @@ player, a latched emergency return reads Recall before any shot or blow
 (``quiet_recall_key``); sleepers and monsters known only by detection do not count.
 """
 
+from hengbot import safety_watch
 from hengbot import once_quest_recall
 from hengbot.town_hold import SURVIVAL_RETURN_TRIGGER_PREFIX
 
@@ -67,6 +68,7 @@ def awake_hostile_in_view(policy, snapshot) -> bool:
     )
 
 
+@safety_watch.watched("return_yield.quiet_recall_due")  # record only (owner 2026-11-15 Q9)
 def quiet_recall_due(policy, snapshot) -> bool:
     """An emergency return is latched and no awake hostile is in view."""
     player = snapshot.player

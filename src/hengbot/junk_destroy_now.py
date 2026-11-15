@@ -14,18 +14,14 @@ rungs (store visits own the pack there).
 
 from __future__ import annotations
 
+from hengbot import safety_watch
 from hengbot import safety_facts
 
 
+@safety_watch.watched("junk_destroy_now.safe")  # record only (owner 2026-11-15 Q9)
 def safe(policy, snapshot) -> bool:
     """No visible hostile, not just hit, no store, no impairment, no flight."""
-    facts = safety_facts.of(policy, snapshot)
-    return not (
-        facts.in_town or facts.in_store or facts.hostile_in_view or facts.took_damage
-        or facts.blind or facts.confused or facts.stunned
-        or facts.paralyzed or facts.hallucinated
-        or facts.escape_owner not in {None, "return"}
-    )
+    return safety_facts.strict_quiet(safety_facts.of(policy, snapshot))
 
 
 def destroy_now_key(policy, snapshot) -> str | None:
