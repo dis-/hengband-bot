@@ -560,12 +560,26 @@ def purchase(policy, snapshot):
     return _page_purchase(policy, snapshot)
 
 
+def _spendable_gold(policy, snapshot) -> int:
+    """The gold a staff purchase may spend: the carried gold less the inn fare home.
+
+    The store composer keeps the Outpost return fare away from the Outpost
+    (item_reservation.store_item_key, ``_outpost_return_fare``): a purchase past
+    it composes no key.  n1-c life-212 (Lv8, 2026-11-15 14:12, quest:blocked:me-staff
+    three times in 25 s): away from the Outpost with 1,141 gold, stage 2 went to buy the
+    794-gold ドア/階段感知の杖 that 1,141 - 500 could not pay; the composer refused it,
+    the outside page stepped off and on the Magic shop's entrance (shop:buy-device-food,
+    shop:observe-and-leave) until the sequence stopped as no progress.
+    """
+    return snapshot.player.gold - policy._outpost_return_fare(snapshot)
+
+
 def _page_purchase(policy, snapshot):
     if (snapshot.store is None or not applies(policy, snapshot)
             or not read_powers(policy, snapshot) or _phase(policy, snapshot) != "buy"):
         return None
     target = buy_target(policy, snapshot)
-    if target is None or snapshot.player.gold < target:
+    if target is None or _spendable_gold(policy, snapshot) < target:
         return None
     for sval in remaining_svals(policy):
         offer = offers(policy, snapshot).get(sval)
@@ -858,8 +872,18 @@ def _next_search_leg(policy, snapshot, supplies: int, unlocked: bool) -> str:
 
 
 def _give_up_town(policy, snapshot, supplies: int, unlocked: bool) -> str:
-    """This town cannot serve the search: note it and take the next leg."""
+    """This town cannot serve the search: note it and take the next leg.
+
+    Given up at Morivant, the round that closes with it is the Tower's here and now
+    (``_phase`` recharge or absorb): the carried staffs are taken up at once rather than
+    the next leg's fare home and back (n1-c life-212, 2026-11-15 14:12: the trip came to
+    Morivant for the Tower with 周辺感知 and 邪悪存在感知 carried, and the shelf's
+    ドア/階段感知 was past the gold its fare home leaves).
+    """
     state(policy).searched_towns[policy._effective_town_id(snapshot)] = snapshot.turn
+    phase = _phase(policy, snapshot)
+    if phase in {"recharge", "absorb"}:
+        return _phase_key(policy, snapshot, phase, current_stage(policy))
     return _next_search_leg(policy, snapshot, supplies, unlocked)
 
 
@@ -1199,7 +1223,8 @@ def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
             # shelves when the spare gold pays the trip, else one ordinary
             # mining run passes the restock time (mines_floor_out).
             return _next_search_leg(policy, snapshot, supplies, unlocked)
-        if gold < target + supplies:
+        # The fare home is kept as the store composer keeps it (_spendable_gold).
+        if _spendable_gold(policy, snapshot) < target + supplies:
             if away:
                 return _give_up_town(policy, snapshot, supplies, unlocked)
             return _fundraise(policy, snapshot, target + supplies, "staffs")
