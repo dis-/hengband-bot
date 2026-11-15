@@ -661,7 +661,7 @@ class FundraisingMixin:
         ):
             return None
         restore = self._restore_mining_combat_hand_key(
-            snapshot, "melee:restore-weapon"
+            snapshot, "melee:restore-weapon", goal=mining_loadout.ROLLBACK_GOAL
         )
         if restore is not None:
             return restore

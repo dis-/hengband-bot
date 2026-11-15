@@ -6879,9 +6879,13 @@ class ShopMixin(InStoreMixin):
         )
 
     def _restore_mining_combat_hand_key(
-        self, snapshot: Snapshot, reason: str
+        self, snapshot: Snapshot, reason: str, *, goal: str = "combat-loadout"
     ) -> str | None:
-        """Restore each combat hand displaced by the temporary mining loadout."""
+        """Restore each combat hand displaced by the temporary mining loadout.
+
+        ``goal`` is the executor goal of the takeoff and the wield.  The dungeon's
+        contact re-arm passes mining_loadout.ROLLBACK_GOAL (see there).
+        """
         main_hand = mining_loadout.worn_in_slot(snapshot, "main_hand")
         for target_slot, remembered_name, remembered_identity, optimal_known in (
             mining_loadout.remembered_hands(self)
@@ -6894,7 +6898,7 @@ class ShopMixin(InStoreMixin):
                 if main_hand is not None and not main_hand.is_digging_tool:
                     self._digger_wield_attempts = 0
                     key = self._equipment_takeoff(
-                        snapshot, "combat-loadout", EQUIPMENT_SLOT_KEY[target_slot]
+                        snapshot, goal, EQUIPMENT_SLOT_KEY[target_slot]
                     )
                     if key is not None:
                         self.last_reason = reason
@@ -6919,7 +6923,7 @@ class ShopMixin(InStoreMixin):
                 ):
                     self._digger_wield_attempts = 0
                     key = self._equipment_takeoff(
-                        snapshot, "combat-loadout", EQUIPMENT_SLOT_KEY[target_slot]
+                        snapshot, goal, EQUIPMENT_SLOT_KEY[target_slot]
                     )
                     if key is not None:
                         self.last_reason = reason
@@ -6939,7 +6943,7 @@ class ShopMixin(InStoreMixin):
                 self.last_reason = f"{reason}:abandon-unconfirmed-equip"
                 return None
             key = self._equipment_wield(
-                snapshot, "combat-loadout", replacement, target_slot
+                snapshot, goal, replacement, target_slot
             )
             if key is not None:
                 self.last_reason = reason

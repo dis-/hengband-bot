@@ -58,6 +58,13 @@ from hengbot.policy_constants import FLEE_HP_RATIO
 
 # Not one of the executor's opposing goals: undoing the swap's own strip is
 # not a mining<->combat flip, so the supersession guard does not refuse it.
+# The contact re-arm of a digger in hand (``_restore_mining_combat_hand_key``
+# after MINING_COMBAT_CONTACT_LIMIT contact decisions) undoes the swap too: as
+# combat-loadout it was refused while the fight changed neither gold, experience
+# nor items (equipment_mutation.progress_core).  n1-a life-525 (2026-11-15 16:54,
+# Lv37 Warrior, Yeek cave 1F) fought a 巨大ハツカネズミ swarm with the two diggers
+# for 90 decisions (467 of 513 blows missed: the two-weapon penalty,
+# player-status.cpp calc_double_weapon_penalty) until the loop detector stopped it.
 ROLLBACK_GOAL = "mining-loadout-rollback"
 REARM_REASON = "melee:rearm-empty-hand"
 STRIP_DEFERRED_REPORT = "mining-loadout:strip-deferred-hostile-in-view"
