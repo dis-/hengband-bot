@@ -358,7 +358,26 @@ class TownMixin:
             # recurrence and budget.
             shelf = self._shop_buy_shelf_store(snapshot)
             if shelf is not None:
-                return durable + (("shelf", owner, snapshot.floor_key, shelf),)
+                part = ("shelf", owner, snapshot.floor_key, shelf)
+                # The one-shot composed from this shelf's observed page is a
+                # later step of the same work than the observation: the
+                # observe-and-leave counted the shelf once and the staged
+                # operation's release on the re-opened page counted it again,
+                # so the release itself retired and its key became ESC on
+                # every round (n1-a life-527 2026-11-15 23:56, a digging tool
+                # at 88 with 161 gold, General Store [31,119],
+                # town:blocked:stage-deadline:buy).  The posted operation
+                # names its own step; a release that keeps failing returns to
+                # the bare observation, which recurs and stays bounded.
+                visit = getattr(self, "_store_visit", None)
+                if (
+                    visit is not None
+                    and visit.store_type == shelf
+                    and visit.operation_posted
+                    and visit.operation_key is not None
+                ):
+                    part += (("operation", visit.operation_key),)
+                return durable + (part,)
             return durable
         elif owner == "survival":
             goal = self._town_hunt_target
