@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot import arena, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
+from hengbot import bm_destruction_fund
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import item_use_route
@@ -2540,6 +2541,11 @@ class TownMixin:
             # Owner 2026-11-04: gear the departure does not use goes to Home.
             # It never stops a visit (town_terminal.gather_town_end drops it).
             "spare_gear_stowed": not spare_gear.stow_pending(self, snapshot),
+            # Owner 2026-11-15 「闇市で破壊の杖を見て所持金が足りない→予備装備売却処理→
+            # 購入→出発」: the shelved staff is bought (or its fund ran out) before
+            # the departure.  Like the spare gear it never stops a visit
+            # (town_terminal.gather_town_end drops it).
+            "destruction_staff_settled": bm_destruction_fund.settled(self, snapshot),
             # Never depart mid-calibration or with its supplies still at Home.
         }
 

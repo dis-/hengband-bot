@@ -4,6 +4,7 @@ from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
 from hengbot import heroism_potion, torch_release, town_pack_headroom
+from hengbot import bm_destruction_fund
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -2506,6 +2507,15 @@ class ShopMixin(InStoreMixin):
 
     def _next_purchase(self, snapshot: Snapshot, *, commit_churn: bool = False) -> StoreItem | None:
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
+        staff_first = bm_destruction_fund.page_purchase(self, snapshot)
+        if staff_first is not None:
+            # Owner 2026-11-15 「破壊の杖は最優先で購入」: the shelved staff owns
+            # the Black Market page (and holds the Magic-Eater staff buys) until
+            # it is bought or its fund runs out (bm_destruction_fund.staff_pending).
+            ware = staff_first[0]
+            if ware is None or acquisition_waits(self, snapshot):
+                return None
+            return ware if self._store_purchase_fits_pack(snapshot, ware) else None
         if acquisition_waits(self, snapshot):
             return None
         if self._opening_q1_shopping(snapshot):
@@ -2896,6 +2906,12 @@ class ShopMixin(InStoreMixin):
         ]
         if not optional:
             return None
+        if bm_destruction_fund.staff_pending(self, snapshot):
+            # Owner 2026-11-15 「最優先」: while the shelved staff waits for its
+            # fund, no other ware of this page is picked before it.
+            optional = [item for item in optional if self._is_destruction_staff(item)]
+            if not optional:
+                return None
 
         def held(item: StoreItem) -> int:
             if self._is_destruction_staff(item):

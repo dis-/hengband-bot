@@ -99,6 +99,7 @@ RESCUES: dict[str, Rescue] = {
     "free_pack_slots_ready": Rescue((), "the space owners (Home deposit, sale, destroy) answer before the town end"),
     "organization_complete": Rescue((), "the organization sale answers before the town end"),
     "spare_gear_stowed": Rescue((), "never stops a visit (gather_town_end drops it)"),
+    "destruction_staff_settled": Rescue((), "never stops a visit (gather_town_end drops it)"),
     "quest_carry_ready": Rescue((), "always ready: the quest-entry contract owns quest carry"),
     # Owner 2026-11-13 「足さない」: a stop-only leaf whose owner did not answer
     # (n1-c life-205 06:49, the Home catalogue check left in flight) gets no

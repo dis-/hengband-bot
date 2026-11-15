@@ -14960,6 +14960,39 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "bm_destruction_fund.py:_open_shelf": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: the Black Market's observed Staff of *Destruction* record for this town stay (open or closed), or None; read by _shelf and observe (owner 2026-11-15); no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "bm_destruction_fund.py:page_purchase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure helper: while the shelved Staff of *Destruction* is pending (owner 2026-11-15 「破壊の杖は最優先で購入」), (the staff ware or None,) for _next_purchase on the Black Market page or a Magic-Eater staff-sequence page; None otherwise; no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "bm_destruction_fund.py:settled": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure predicate: the departure leaf destruction_staff_settled (owner 2026-11-15 「購入→出発」), True once the shelved staff is bought or its fund ran out; no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "item_fate.py:sweep_ware": {
     "classification": "data",
     "rows": [
