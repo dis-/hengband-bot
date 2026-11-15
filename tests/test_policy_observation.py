@@ -1619,12 +1619,14 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
 
     def test_the_floor_refuses_every_landing_of_these_worlds(self):
         """Owner 2026-11-13: Angband 50 reached, floor 30.  The over-extension valve and the
-        guardian valve take nothing of 18-27; the bounce run stops visibly instead."""
+        guardian valve take no landing of 18-27; the bounce run stops visibly instead.  Owner
+        2026-11-15 (「城29F、山29Fをターゲットにして、浅いところから潜って辿り着く。」, dive_floor):
+        the over-extension valve dives the Mountain (landing 27, depth to 50) to the floor 30."""
         self._use_castle_destination()
         policy = self._policy(self.SHALLOWER)
         town = self._town(policy, self.ORC_CAVE, self.SHALLOWER, angband_unlocked=True)
         self.assertEqual(fallback_depth_floor.floor(policy, town), 30)
         policy._last_overextended_depth = 50
-        self.assertIsNone(policy._pick_alternate_dungeon(town, prefer_deepest=True))
+        self.assertEqual(policy._pick_alternate_dungeon(town, prefer_deepest=True), self.MOUNTAIN)
         self.assertIsNone(policy._pick_alternate_dungeon(
             town, guardian_bounced_dungeon=self.ORC_CAVE))

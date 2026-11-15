@@ -34,8 +34,10 @@ live value 0 (16:04:07).
 
 On this board the fallback floor is 29 (the deepest reached 49 less 20, owner 2026-11-13) and
 the only entered landing in 29-48 is the Chameleon cave 30, never a fallback, so the valve that
-now fires on d73 (16:12:38) finds no landing; with the floor lifted (DECLARED WALL) it takes the
-Mountain 25, the deepest that fits (owner 2026-11-10 「収まる中で一番深い所へ」).
+now fires on d73 (16:12:38) finds no landing; since owner 2026-11-15 (「想定は城か山。城29F、山29F
+をターゲットにして、浅いところから潜って辿り着く。」, dive_floor) it then dives the Mountain 25F to 29F
+(tests/test_n1c_214_dive_floor_1115_recorded.py).  With the floor lifted (DECLARED WALL) it takes
+the Mountain 25, the deepest that fits (owner 2026-11-10 「収まる中で一番深い所へ」).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -47,7 +49,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from hengbot import alternate_lease, escape_count, fallback_depth_floor
+from hengbot import alternate_lease, dive_floor, escape_count, fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND, parse_snapshot
 from hengbot.policy_constants import (
     EMPTY_DIVE_LIMIT, NO_DEPTH_PROGRESS_DIVE_LIMIT, OVEREXTEND_LOOT_MAX, PICKUP_REASONS,
@@ -145,14 +147,15 @@ class KeptHaulTest(N1c214Dives):
         # Unfixed: the seven pickups reset the streak and the valve was never asked.
         over_extension_asks = [answer for kwargs, answer in asked
                                if kwargs.get("prefer_deepest") and "max_entry_depth" not in kwargs]
-        self.assertEqual(over_extension_asks, [None])
+        # No landing fits (the floor 29, the Chameleon cave 30 is never a fallback): the dive to
+        # the floor answers, the Mountain (dive_floor).
+        self.assertEqual(over_extension_asks, [MOUNTAIN])
         self.assertEqual(policy._target_empty_dives, 0)
         self.assertEqual(policy._last_overextended_depth, 49)
-        # No landing fits: the floor 29, and the Chameleon cave 30 is never a fallback.
         self.assertEqual(fallback_depth_floor.floor(policy, arrival), 29)
         self.assertEqual(arrival.dungeon_recall_depths[CHAMELEON_CAVE], 30)
         self.assertFalse(policy._fallback_destination_allowed(CHAMELEON_CAVE))
-        self.assertIsNone(policy._alternate_dungeon)
+        self.assertEqual((policy._alternate_dungeon, dive_floor.target(policy)), (MOUNTAIN, 29))
 
     @floor_lifted()  # DECLARED WALL (tests/support/fallback_floor.py): the floor refuses every landing
     def test_with_the_floor_lifted_the_switch_lands_on_the_mountain(self):
@@ -198,12 +201,12 @@ class AngbandAlternateTest(N1c214Dives):
         arrival = self.dive("d65")
         self.assertTrue(arrival.angband_recall_unlocked)
         self.assertGreaterEqual(RECORD_17_03["_no_depth_progress_dives"], NO_DEPTH_PROGRESS_DIVE_LIMIT)
-        self.assertFalse(alternate_lease.diverts(self.policy, arrival))
         # Unfixed: the valve waited for no alternate and the count went on (92).
         self.assertEqual(self.policy._no_depth_progress_dives, 0)
-        # On this board no landing fits (floor 29): the Angband alternate stays.
-        self.assertEqual((self.policy._alternate_dungeon, self.policy._alternate_dungeon_reason),
-                         (DUNGEON_ANGBAND, "guardian_valve"))
+        # On this board no landing fits (floor 29): the dive to the floor (dive_floor, 11-15).
+        self.assertEqual((self.policy._alternate_dungeon, self.policy._alternate_dungeon_reason,
+                          dive_floor.target(self.policy)), (MOUNTAIN, "no_depth_progress", 29))
+        self.assertTrue(arrival.angband_recall_unlocked)
 
     @floor_lifted()  # DECLARED WALL (tests/support/fallback_floor.py): the floor refuses every landing
     def test_with_the_floor_lifted_it_switches_to_the_mountain(self):

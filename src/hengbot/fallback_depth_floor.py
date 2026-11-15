@@ -73,11 +73,14 @@ def landing_depth(policy, snapshot, dungeon_id: int) -> int:
 
 def settle(policy, snapshot) -> bool:
     """On a town board: end a held switch that lands under the floor.  True when ended."""
-    from hengbot import alternate_lease  # alternate_lease reads this module
+    from hengbot import alternate_lease, dive_floor  # both read this module
 
     alternate = policy._alternate_dungeon
+    # Owner 2026-11-15: a dive to the floor lands above it and goes down to its target.
+    dived_to = dive_floor.target(policy) or 0
     if (not snapshot.in_town or alternate is None
-            or landing_allowed(policy, snapshot, landing_depth(policy, snapshot, alternate))):
+            or landing_allowed(policy, snapshot,
+                               max(landing_depth(policy, snapshot, alternate), dived_to))):
         return False
     alternate_lease.end(policy, snapshot)
     return True

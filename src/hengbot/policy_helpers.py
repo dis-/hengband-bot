@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import spare_gear
 from hengbot import random_quest_hold
-from hengbot import fallback_depth_floor
+from hengbot import dive_floor, fallback_depth_floor
 from hengbot import me_capped_pickup
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 
@@ -668,6 +668,16 @@ class PolicyHelpersMixin:
                 best = info
         if best is not None:
             return best.id
+        # Owner 2026-11-15 「想定は城か山。城29F、山29Fをターゲットにして、浅いところから潜って
+        # 辿り着く。」: a switch made because a depth was too hard (the over-extension and the
+        # no-depth-progress valves) dives the Castle or the Mountain to the floor (dive_floor).
+        if (prefer_deepest and guardian_bounced_dungeon is None and refused_dungeon is None
+                and depth_floor and require_shallower):
+            too_hard = (max_entry_depth + 1 if max_entry_depth is not None
+                        else self._last_overextended_depth)
+            dived = dive_floor.pick(self, snapshot, too_hard=too_hard)
+            if dived is not None:
+                return dived
         # Owner decision 2026-10-27 (#47) sent the guardian valve to Angband
         # (via inn rumors when locked) once the entered alternatives were
         # exhausted; since 2026-11-07 Angband is asked first above, so an

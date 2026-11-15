@@ -12,7 +12,11 @@ to C:/hengband-backups/pdca/overextend-1115/ on 2026-11-15:
   followed a pickup decision (with the reason decided just before it), and of the arrival; the
   dive's counted escapes (the increments of the logged ``over_extension.dive_emergencies``) and
   pickup decisions; and the first raw board of the 17:07 checkpoint's own dive (turn 5268291),
-  the dungeon board the replay carries those packs on.
+  the dungeon board the replay carries those packs on;
+- dive-packs-1653.json.xz, the same for the seven Angband 49F dives of 16:50-16:53 (turns
+  5111361-5148266, after the 16:48:33 restart that re-used those turns: only the boards after
+  the snapshots' turn went back and the decisions after it), written by
+  server_dive_packs_1653.py (kept beside it) for the dive to the floor (dive_floor).
 
     PYTHONPATH="src;tests" python tests/extract_n1c_214_overextend_1115_fixture.py
 """
@@ -26,13 +30,16 @@ SOURCE = Path("C:/hengband-backups/pdca/overextend-1115")
 VISIT = SOURCE / "20261115-170745.397880470-turn5269763"
 TARGET = Path(__file__).with_name("fixtures") / "n1c-214-overextend-1115"
 DIVES = ("d64", "d65", "d66", "d67", "d73", "d74", "d75")
+DIVES_1653 = ("d94", "d95", "d96", "d97", "d98", "d99", "d100")
 
 
 def main() -> None:
     extract(VISIT, TARGET, 1, frozenset({"_loadout_report_path"}))
     packs = json.loads(lzma.decompress((SOURCE / "dive-packs.json.xz").read_bytes()))
     kept = {"template": packs["_template_dungeon"]}
-    for name in DIVES:
+    packs.update({name: dive for name, dive in json.loads(lzma.decompress(
+        (SOURCE / "dive-packs-1653.json.xz").read_bytes())).items() if name in DIVES_1653})
+    for name in DIVES + DIVES_1653:
         dive = packs[name]
         states = dive["states"]
         # The arrival: the first town board (the stay's later boards are not the dive's).

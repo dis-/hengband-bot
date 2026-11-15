@@ -7,7 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import material_threat
+from hengbot import dive_floor, material_threat
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -1411,6 +1411,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._dive_start_recall_depth: int | None = None
         self._dive_loot = 0  # acquisitions of the current dive (dive_haul)
         self._dive_kept_loot = 0  # the last judged dive's kept acquisitions (dive_haul)
+        self._alternate_dive_floor = None  # dive_floor: (dungeon, target depth) of the switch
         self._dive_start_units = None  # dive_haul: carried units by kind at the dive's start
         self._dive_pack_units = None  # dive_haul: carried units by kind on the board before
         self._dive_acquisitions = Counter()  # dive_haul: kind -> boards it rose on
@@ -15575,6 +15576,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         # Never onto a guardian floor the kit cannot pass (a shaft lands two floors down).
         if self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination):
+            return False
+        # Owner 2026-11-15 「城29F、山29Fをターゲットにして、浅いところから潜って辿り着く。」:
+        # a dive to the fallback floor stops at its target (dive_floor).
+        if dive_floor.capped(self, snapshot, destination):
             return False
         # Depth-requirement gate (AGENTS.md): never descend into a floor whose
         # mandatory resistances the character lacks — confusion / poison / chaos /
