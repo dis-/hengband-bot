@@ -268,13 +268,28 @@ def _reservation_row(policy, snapshot, item, view):
     return tuple(owners), retained
 
 
+def _session_reclaims(policy, item, method):
+    """Ask the live equipment session (a reduced test policy has none)."""
+    ask = getattr(policy, method, None)
+    return ask is not None and ask(item)
+
+
 def _transaction_source(policy, snapshot, item, signature, view):
     return (policy._equipment_transaction_deposit_owns_item(item)
-            or policy._equipment_transaction_owns_item(item))
+            or policy._equipment_transaction_owns_item(item)
+            # The piece the session reclaims from the retry ledger to wear
+            # passes to the session, never to no one (_retry_source).
+            or (signature in view["retry"]
+                and _session_reclaims(policy, item, "_equipment_transaction_wields_item")))
 
 
 def _retry_source(policy, snapshot, item, signature, view):
-    return signature in view["retry"]
+    # A live equipment session that wears (or deposits) a carried piece takes
+    # it back from the full-Home retry ledger: the parked deposit no longer
+    # owns the piece the plan puts on (n1-c life-214 2026-11-16 00:46 and
+    # 01:14, the wield after the takeoff refused as reserved).
+    return (signature in view["retry"]
+            and not _session_reclaims(policy, item, "_equipment_transaction_reclaims_retry"))
 
 
 def _deposit_source(policy, snapshot, item, signature, view):

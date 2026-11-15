@@ -18,7 +18,7 @@ import tests  # noqa: F401 -- isolate live runtime files
 from dataclasses import replace
 import unittest
 
-from hengbot import destruction_use
+from hengbot import destruction_use, me_inn_refill
 from hengbot.me_device_attacks import observe_lists
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL
 from tests.test_destruction_gate_procurement import _RecordedDestructionBoard
@@ -66,7 +66,14 @@ class DivePermissionTest(_RecordedDestructionBoard, unittest.TestCase):
         self.assertEqual(policy.last_reason, FALLBACK_REASON)
 
     def test_magic_eater_with_no_charge_may_not(self):
-        self.assert_refused(*self.magic_eater(20, current=0))
+        # Owner 2026-11-15 (n1-b life-405): in town the inn refills the absorbed staff
+        # (cmd-inn.cpp charge_magic_eating_energy) and the count holds; without the inn's night
+        # (the walk closed this stay) the charges left decide, as in the dungeon.
+        policy, board = self.magic_eater(20, current=0)
+        self.assertTrue(destruction_use.holds_means(policy, board))
+        me_inn_refill.state(policy).closed = True
+        self.assert_refused(policy, board)
+        self.assertFalse(destruction_use.holds_means(policy, self.deep(board)))
 
     def test_warrior_with_scrolls_may_not(self):
         policy = self._independent()

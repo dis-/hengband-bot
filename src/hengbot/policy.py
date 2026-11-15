@@ -7,7 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import cross_rules, dive_floor, material_threat, walk_vetoes
+from hengbot import cross_rules, dive_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -2502,6 +2502,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # impossible is closed for this physical town visit. Keep its evidence
         # with the no-replan latch.
         self._equipment_transaction_visit_closure: dict[str, object] | None = None
+        # The town-visit epoch in which a session was abandoned on its own
+        # failed action (_abandon_blocked_equipment_transaction).
+        self._equipment_transaction_abandoned_epoch: int | None = None
         self._equipment_transaction_route_terminal: str | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         # A structurally actionless failed transaction may retire for the
@@ -15533,6 +15536,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _defer_descent(self, snapshot: Snapshot) -> None:
         self._descent_blocked = True
         self._descent_block_countdown = DESCENT_BLOCK_DECISIONS
+        # 「逃げた階に戻らないための決定」 (owner 2026-10-31): the stair this escape lands on
+        # leads back to the saved floor it leaves (fled_floor_stairs).
+        fled_floor_stairs.note_flight(self, snapshot)
 
 
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
@@ -15543,6 +15549,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot, surface_dungeon(grid)):
             return False
         destination = down_destination(snapshot.dungeon_level, grid)
+        # The saved floor an escape by stairs left (fled_floor_stairs, owner 2026-10-31
+        # 「逃げた階に戻らないための決定」): another stair of this floor is a new floor.
+        if fled_floor_stairs.leads_back(self, snapshot, grid.position):
+            return False
         # #102: QUEST_ENTER carries DOWN_STAIRS, but arriving on it (or '>'
         # there) asks the quest-entry question that no descent owner answers.
         if self._step_raises_unintended_confirm(snapshot, grid.position):

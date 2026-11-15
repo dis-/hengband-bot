@@ -40,7 +40,9 @@ from pathlib import Path
 
 from hengbot.cli import _consume_response_sequence
 
-from hengbot import fallback_depth_floor
+from unittest import mock
+
+from hengbot import destruction_use, fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND
 from tests.support.fallback_floor import floor_lifted
 from tests.support.recorded import _policy
@@ -56,6 +58,18 @@ ORC_LETTER, CASTLE_LETTER = "c", "f"
 class AlternateDeepestVisit(RecordedVisit):
     fixtures = FIXTURES
     fixture = "visit"
+
+    def setUp(self):
+        super().setUp()
+        # DECLARED CONSTRUCTED: no *Destruction* means.  The character (class 16) has
+        # *Destruction* absorbed 21 times, its list displayed at 73% (fail 27); the game's rate
+        # with no stun is 93% (me_power_success), the 20 points a NORMAL stun adds
+        # (cmd-magiceat.cpp).  Since 2026-11-15 the 50F+ gate reads that rate (the owner's
+        # 2026-11-14 「95%じゃないのか」, defect B), which fits the Mountain's 50.  This
+        # recording's question is the deepest fit without the means, as the 73% read it then.
+        no_night = mock.patch.object(destruction_use, "holds_means", return_value=False)
+        no_night.start()
+        self.addCleanup(no_night.stop)
 
     def replay(self, last):
         """Rows 0..``last`` decided on the restored arrival policy."""
