@@ -224,6 +224,10 @@ _rows(EXCLUDED, "policy_supply", "the starving leave of a locked quest floor: no
       "survival:ascend", "survival:stairs-quest-fail")
 _rows(EXCLUDED, ("policy", "policy_quest"), "the quest regeneration's floor change (a plan, no enemy)",
       "quest:regen:ascend")
+_rows(EXCLUDED, "quest25_pocket",
+      "Q25's sealed pocket with no Stone to Mud (owner 2026-11-15 「溶かして撃つ・無ければ帰還」): the "
+      "plan gives the floor up and reads Recall; a plan's leave, no enemy prompted it",
+      "quest25:sealed-pocket-recall")
 
 # ================================================================ walks and waits
 _RULE_WALK = "owner 2026-11-09 「歩いての後退は数えない」: a walk, a wait or a step toward an exit"

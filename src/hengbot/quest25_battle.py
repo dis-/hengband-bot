@@ -341,6 +341,12 @@ class Battle:
     cast: tuple | None = None
     presence_quiet: int = 0
     recheck: bool = False
+    # quest25_pocket (owner 2026-11-15 「溶かして撃つ・無ければ帰還」): (target cell, granite wall,
+    # stand) of the sealed pocket the sweep opens, whether the last key shot at it, and the shots in
+    # a row with no hit, pain or kill line.
+    pocket: tuple | None = None
+    pocket_shot: bool = False
+    pocket_misses: int = 0
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -2242,13 +2248,22 @@ def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
         reachable = sorted((cell for cell in battle.detected if _sweep_reachable(ctx, cell)),
                            key=lambda cell: quest_exposure.game_distance(ctx.here, cell))
         if not reachable:
-            return _hold(ctx)   # only sealed cells are left (n1-c life-211, 2026-11-15: [7,4])
-        cell = reachable[0]
-        if quest_exposure.game_distance(ctx.here, cell) <= 1:
+            # Only sealed cells are left (n1-c life-211, 2026-11-15: [7,4]): the owner's
+            # 「溶かして撃つ・無ければ帰還」 (quest25_pocket); a cell no melt opens, the hold.  A
+            # cell the pocket's shots say is empty is forgotten, and the detection comes next.
+            from hengbot import quest25_pocket
+
+            key = quest25_pocket.key(ctx, battle.detected)
+            if key is not None:
+                return key
+            if battle.detected:
+                return _hold(ctx)
+        else:
+            cell = reachable[0]
+            if quest_exposure.game_distance(ctx.here, cell) > 1:
+                return _walk(ctx, _around(cell)) or _hold(ctx)
             left = tuple(spot for spot in battle.detected if spot != cell)
             battle.detected, battle.detect_turn = (left or None), -1
-        else:
-            return _walk(ctx, _around(cell)) or _hold(ctx)
     if battle.detect_turn < 0 and (detect := _detect_key(ctx)) is not None:
         battle.detect_turn = ctx.snapshot.turn
         return detect
@@ -2526,7 +2541,7 @@ def _observe(ctx: _Ctx) -> None:
     that does not come, and 「50回来なければ終える」.  n1-c life-207 (2026-11-14 20:49-21:24): the
     stragglers' rest on [5,1] was cut at turn 8011366, a shadow demon stayed sensed on [11,4], the
     phase was never ready and held there 35 minutes to the stall stop, its wait never counted."""
-    from hengbot import quest25_presence
+    from hengbot import quest25_pocket, quest25_presence
 
     board = (ctx.snapshot.turn, id(ctx.snapshot))
     if ctx.battle.observed == board:
@@ -2538,6 +2553,7 @@ def _observe(ctx: _Ctx) -> None:
     _note_kills(ctx)
     _note_room_kill(ctx)
     _note_pen_shot(ctx)
+    quest25_pocket.note_shot(ctx)
     _note_arrivals(ctx)
     _note_strong(ctx)
     _note_glow(ctx)

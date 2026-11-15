@@ -12108,6 +12108,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_pocket.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_presence.py:_checked": {
     "classification": "data",
     "rows": [
