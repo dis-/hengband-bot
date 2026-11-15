@@ -207,3 +207,25 @@ def sweep_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
             and (result := policy._home_full_sale_candidate(snapshot, item)) is not None
             and policy._can_add_item_without_overweight(snapshot, item)]
     return min(rows, key=lambda entry: sale_value(policy, entry[0][0])) if rows else None
+
+
+def sweep_identify_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
+    """The first shelved unaware potion or scroll a carried means identifies now.
+
+    Owner 2026-11-15 「自宅に未鑑定の薬と巻物を溜め込む問題」→「鑑定の手段で
+    調べる」: the Home junk sweep takes the stack, the carried means (the
+    Magic-Eater's absorbed Identify, the Identify staff or rod, an Identify
+    scroll: ``_unaware_consumable_identifiable_now``) identifies it, and the now-known kind is
+    kept, sold or destroyed by the existing rules.  With no means the stack
+    stays on the shelf.  ``(candidate, item)`` as the relief's identify list
+    holds it, or None.
+    """
+    for item in stock:
+        if not policy._unaware_consumable_awaits_identification(item):
+            continue
+        candidate = policy._home_full_discard_candidate(snapshot, item, identify=True)
+        if (candidate is not None
+                and policy._can_add_item_without_overweight(snapshot, item)
+                and policy._unaware_consumable_identifiable_now(snapshot, candidate)):
+            return candidate, item
+    return None

@@ -980,8 +980,7 @@ class IdentificationMixin:
             self._identification_candidate = signature
             self._request_identification("full" if full else "normal")
 
-    @classmethod
-    def _identification_waiting_item(cls, item: InventoryItem | StoreItem) -> bool:
+    def _identification_waiting_item(self, item: InventoryItem | StoreItem) -> bool:
         """Carried work that waits for an identification source.
 
         Equipment of the identification flow, and an unknown rod, wand or
@@ -990,9 +989,38 @@ class IdentificationMixin:
         waiting for identification are shelved at Home like equipment
         (「魔法道具も自宅に預ける」, extending 10-31 「鑑定待ちの装備は自宅に
         預け極力持ち歩かない」).  A known device (food, absorption) never waits.
+        An unaware potion or scroll waits the same way (owner 2026-11-15,
+        ``_unaware_consumable_awaits_identification``).
         """
-        return cls._identification_flow_candidate(item) or (
-            not item.is_equipment and cls._normal_identification_flow_candidate(item))
+        return self._identification_flow_candidate(item) or (
+            not item.is_equipment and self._normal_identification_flow_candidate(item))
+
+    def _device_identification_target(self, snapshot: Snapshot):
+        """The carried non-equipment item ``_town_device_processing_key``
+        identifies: an unknown device, or an unaware potion or scroll a
+        carried means identifies now (owner 2026-11-15)."""
+        return self._first_item(
+            snapshot,
+            lambda item: self._normal_identification_flow_candidate(item)
+            and not item.is_equipment
+            and self._item_signature(item) not in self._deferred_device_items
+            and (not self._unaware_consumable_awaits_identification(item)
+                 or self._unaware_consumable_identifiable_now(snapshot, item)),
+        )
+
+    def _unaware_consumable_identifiable_now(self, snapshot: Snapshot, item) -> bool:
+        """A carried means identifies this unaware potion or scroll now.
+
+        The one answer of the town device processor, the waiting deposit and
+        the Home junk sweep (item_fate.sweep_identify_ware): the absorbed
+        Identify, a carried Identify staff, rod or scroll
+        (``item_fate.can_identify_now``, what ``_carried_identify_command``
+        composes), unless that command's failure watch gave the kind up.
+        Owner 2026-11-15: with no means it is never bought for, sold or tried.
+        """
+        from hengbot import item_fate
+        return (self._item_signature(item) not in self._unidentifiable_sigs
+                and item_fate.can_identify_now(self, snapshot, item))
 
     @staticmethod
     def _equip_blocked_by_identification(
@@ -1401,6 +1429,9 @@ class IdentificationMixin:
                 and not item.fully_known
                 if full
                 else self._normal_identification_flow_candidate(item)
+                # No source is bought for an unaware potion or scroll
+                # (owner 2026-11-15, _unaware_consumable_identifiable_now).
+                and not self._unaware_consumable_awaits_identification(item)
             )
         )
         for owned in self._equipment_catalog.items:
@@ -1419,8 +1450,12 @@ class IdentificationMixin:
             # the equipment catalog; _find_home_candidate takes them back
             # (but a staff stage 1 keeps at Home, me_staff_sequence.stows).
             from hengbot.me_staff_sequence import stows as staff_sequence_stows
+            # A shelved unaware potion or scroll buys no source: the Home junk
+            # sweep takes it only when a carried one identifies it now
+            # (item_fate.sweep_identify_ware, owner 2026-11-15).
             count += sum(max(1, item.count) for item in self._home_knowledge_items
                          if not item.is_equipment and self._identification_waiting_item(item)
+                         and not self._unaware_consumable_awaits_identification(item)
                          and not staff_sequence_stows(self, snapshot, item)
                          and self._item_signature(item) not in self._deferred_home_items)
         return count
