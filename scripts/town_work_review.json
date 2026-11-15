@@ -1,4 +1,70 @@
 {
+  "walk_vetoes.py:walk": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns only the union of the retreats' cells, the left-cell record, the routes' engagement veto and the unseen attacker's area (policy._walk_veto's expression, maintainability stage 3); never chooses a key."
+  },
+  "walk_vetoes.py:route_left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns only the union of the routes' engagement veto and the left-cell record (the loot walk's veto, maintainability stage 3); never chooses a key."
+  },
+  "walk_vetoes.py:retreat_left_route": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns only the union of the retreats' cells, the left-cell record and the routes' engagement veto (the descent route and the quest target search, maintainability stage 3); never chooses a key."
+  },
+  "walk_vetoes.py:explore": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns only the union of the retreats' cells, the left-cell record, the warning's refused cells, the unseen attacker's area and the routes' engagement veto (the explore's avoided cells, maintainability stage 3); never chooses a key."
+  },
+  "policy_identification.py:IdentificationMixin._unseen_attack_area_veto": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Returns only the unseen attacker's area as a walk veto (frozenset of positions) and caches it per board in _unseen_attack_area_veto_cache; never chooses a key."
+  },
+  "cross_rules.py:_caller": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the name of the calling function, read from the interpreter's frames, for the cross-layer rules' record-only observer (cross_rules); it reads no policy or board state, writes nothing and returns no key."
+  },
   "home_pass_charge.py:charged": {
     "classification": "data",
     "rows": [

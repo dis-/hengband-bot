@@ -29,6 +29,7 @@ known hostiles that can hurt or summon (``known_causes``).  ``PROOF_REASONS`` co
 
 from __future__ import annotations
 
+from hengbot import cross_rules
 from hengbot.model import Position
 from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE
 from hengbot.projection_path import projection_path
@@ -100,6 +101,13 @@ def ladder_causes(policy, snapshot, hostiles, summoners=()) -> list:
 def note(policy, snapshot, causes, *, proof: bool = False) -> bool:
     """Record for the escape decided on this board whether a cause has a line of fire
     (``proof``: the damage reaching the player stands for it, as ``PROOF_REASONS``)."""
+    cross_rules.consult(policy, cross_rules.ESCAPE_LINE_OF_FIRE)
+    return _note(policy, snapshot, causes, proof=proof)
+
+
+def _note(policy, snapshot, causes, *, proof: bool = False) -> bool:
+    """``note`` without the observer's record: the count's own reading of an escape no
+    producer noted (``counts``)."""
     value = bool(proof) or any(in_fire(policy, snapshot, monster) for monster in causes)
     setattr(policy, RECORD, value)
     return value
@@ -112,7 +120,7 @@ def counts(policy, snapshot, reason) -> bool:
         return True
     noted = getattr(policy, RECORD, None)
     if noted is None:
-        noted = note(policy, snapshot, known_causes(snapshot))
+        noted = _note(policy, snapshot, known_causes(snapshot))
     return noted
 
 

@@ -47,7 +47,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
-from hengbot import engagement_avoid_seal, retreat_veto_life
+from hengbot import cross_rules, engagement_avoid_seal, retreat_veto_life
 from hengbot.model import Position
 
 MEMORY = "_left_cells"
@@ -169,6 +169,7 @@ def refused(policy, snapshot) -> frozenset:
     The engagement claim's cells always; the registry's own records unless the walk is a
     survival rung's (``survival_walks``), the record is the walking owner's own
     (``walking_as``), or they would leave the player no way on."""
+    cross_rules.consult(policy, cross_rules.LEFT_CELLS)
     claimed = frozenset(getattr(policy, "_engagement_owned_avoid_cells", ()))
     if getattr(policy, SURVIVAL, None):
         return claimed

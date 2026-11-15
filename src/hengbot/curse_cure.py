@@ -51,7 +51,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import re
 
-from hengbot import me_absorbed_substitutes, me_capability, me_powers
+from hengbot import cross_rules, me_absorbed_substitutes, me_capability, me_powers
 from hengbot import me_powerful_activation as powerful
 from hengbot.equipment_optimizer import (
     TR_CALL_ANIMAL, TR_CALL_DEMON, TR_CALL_DRAGON, TR_CALL_UNDEAD, TR_DRAIN_HP,
@@ -189,6 +189,7 @@ def removal_key(policy, snapshot) -> str | None:
     item it can serve.  Without a charge nothing is cast: the absorbed staff regains it, the
     rest goes on (owner 2026-10-31 「取り込んだ魔法道具は再充填される」 for the town's use).
     """
+    cross_rules.consult(policy, cross_rules.UNCURSE_BEFORE_REST)
     if not _magic_eater_staff(policy, snapshot) or not safe(policy, snapshot):
         return None
     items = targets(policy, snapshot)

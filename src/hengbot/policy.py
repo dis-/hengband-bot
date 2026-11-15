@@ -7,7 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import dive_floor, material_threat
+from hengbot import cross_rules, dive_floor, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -2671,6 +2671,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # producer that returns a key without naming it must not inherit it
         # (_home_relief_names_approach).
         self._decision_entry_reason = self.last_reason
+        # Record only: the cross-layer rules' reading of this decision (cross_rules).
+        cross_rules.begin(self)
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
         self._home_full_relief = getattr(self, "_home_full_relief", None)
@@ -3248,6 +3250,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._town_progress_note_command(key)
         quest25_battle_record.record(self, snapshot)
         warning_cell_record.record(self, snapshot)
+        cross_rules.end(self, snapshot, key)
         return key
 
     # -- The producers' side of the town hold (town_hold) -------------------
@@ -10680,6 +10683,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # it in place of a Teleportation or Phase Door the 50F+ rule refuses (deep_teleport).
         if (instead := deep_teleport.scroll_substitute(self, snapshot, item)) is not None:
             return instead
+        if snapshot.dungeon_level >= deep_teleport.DEPTH and deep_teleport.is_self_teleport_scroll(item):
+            cross_rules.produce(self, cross_rules.DEEP_TELEPORT)  # record only
         if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
             return takeoff
         if not suffix and item.is_recall_scroll and snapshot.dungeon_level == 0 \
@@ -13905,7 +13910,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         # For the town hold (rev 9.3 R2): see ``_nearest_goal_step``.
         capture = self.__dict__.get("_claim_target_capture")
-        refused = self._engagement_avoid_cells | left_cells.refused(self, snapshot)
+        refused = walk_vetoes.retreat_left(self, snapshot)
         while queue:
             position, first_step = queue.popleft()
             if position != start and position in targets:
@@ -16216,8 +16221,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         shrank to the cells nearer it and the explore stepped '3' straight back; at 20:44
         to 20:45 ``chest:approach`` walked toward a chest the loot walk kept off, between
         [4,38] and [5,39], until the loop detector stopped the bot three more times."""
-        return (frozenset(self._engagement_avoid_cells) | left_cells.refused(self, snapshot)
-                | self._engagement_route_veto(snapshot) | self._unseen_attack_area_veto(snapshot))
+        return walk_vetoes.walk(self, snapshot)
 
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
@@ -16753,7 +16757,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         """The least visited walkable neighbour off the retreats' vetoes and the left-cell
         registry; with ``walk_veto``, off the walks' whole veto (``_walk_veto``)."""
         refused = (self._walk_veto(snapshot) if walk_veto
-                   else self._engagement_avoid_cells | left_cells.refused(self, snapshot))
+                   else walk_vetoes.retreat_left(self, snapshot))
         candidates = [
             candidate
             for candidate in self._walkable_neighbors(
