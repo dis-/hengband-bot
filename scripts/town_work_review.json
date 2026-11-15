@@ -19130,6 +19130,31 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_inn_refill.py:destruction_key": {
+    "classification": "producer",
+    "rows": [
+      "departure",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-15 「破壊の取り込み数が5回あるので行動がおかしい」 (n1-b life-405): at the recall read (after the armor smith, the wand recharge and the arena errands), while the absorbed *Destruction* the 50F+ gate counted at the inn's count is short of it and the dive meets the gate, the walk to the town's inn and its 'r' night (cmd-inn.cpp charge_magic_eating_energy), once per stay in town; None reads the recall as before.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_inn_refill.py:_stay_key": {
+    "classification": "producer",
+    "rows": [
+      "quest-service",
+      "departure",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The inn walk shared by entry_key and destruction_key: the approach (morivant_tower.approach_key), then the step in carrying 'r' and the leave (REST_KEY + LEAVE_STORE_KEY), posted once per stay; the observed building answers are compiled by observed_input (REST_REASONS); a stalled or refused walk closes the stay (None).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_inn_refill.py:state": {
     "classification": "data",
     "rows": [

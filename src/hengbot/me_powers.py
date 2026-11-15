@@ -653,6 +653,17 @@ def stunned_success(policy, snapshot, ident) -> int | None:
     return me_power_success.success_percent(policy, snapshot, ident[0], _base_level(ident), row=row)
 
 
+def unstunned_success(policy, snapshot, ident) -> int:
+    """The power's success percent with no stun (me_power_success: the game's rate, else the
+    displayed row less the stun it was shown under); 0 without a displayed row."""
+    row = me_capability.observed_row(policy, *ident)
+    if row is None:
+        return 0
+    rate = me_power_success.success_percent(policy, snapshot, ident[0], _base_level(ident),
+                                            row=row, stun=0)
+    return int(row.get("success") or 0) if rate is None else rate
+
+
 def _stunned_scroll_first(ctx, power) -> bool:
     """Stunned, a readable Teleportation scroll is surer than the power: the THREAT power gives
     way and the leave reads the scroll (n1-b life-377, 80F 2026-11-12 13:46: stunned by a

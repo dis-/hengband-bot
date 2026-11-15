@@ -220,11 +220,22 @@ def _full_count(policy, snapshot, row, target) -> bool:
 
 
 def reliable(policy, snapshot, power: tuple) -> bool:
-    """The displayed success rate is at least ``RELIABLE_MIN_SUCCESS`` (only
-    the displayed list prints the failure percent, cmd-magiceat.cpp)."""
+    """The success rate is at least ``RELIABLE_MIN_SUCCESS``: the power's rate with no stun
+    (me_powers.unstunned_success), the displayed row only without a board.
+
+    A displayed list carries the stun it was shown under (cmd-magiceat.cpp adds the stun's
+    penalty to the failure), and this row is a capability, not this turn's cast: owner
+    2026-11-14 「取り込んだ魔法棒の成功率の出し方がおかしい。95%じゃないのか」 (the game's rate,
+    the stun of the moment only where a cast is chosen), as the 50F+ gate's 「キャラクターの
+    今の状態は問わない」 (destruction_use.holds_means)."""
     entry = observed_row(policy, *power)
-    return (_magic_eater(snapshot) and entry is not None
-            and int(entry.get("success") or 0) >= RELIABLE_MIN_SUCCESS)
+    if not _magic_eater(snapshot) or entry is None:
+        return False
+    if snapshot is None:
+        return int(entry.get("success") or 0) >= RELIABLE_MIN_SUCCESS
+    from hengbot import me_powers  # import cycle
+
+    return me_powers.unstunned_success(policy, snapshot, power) >= RELIABLE_MIN_SUCCESS
 
 
 def _reliable(policy, snapshot, row, target) -> bool:
@@ -254,8 +265,22 @@ WHEN = {
     "staff-sequence": _staff_sequence,
     "stage-staff": _stage_staff,
 }
+def town_refilled_charges(policy, snapshot, kind: str, sval: int) -> int:
+    """``charges``, but in a town whose inn refills the power (me_inn_refill.refill_open) the
+    power's count: cmd-building/cmd-inn.cpp charge_magic_eating_energy sets every absorbed
+    staff and wand to its full ``count * EATER_CHARGE``, and the departure stays the night
+    before a dive that needs it (me_inn_refill.destruction_key).  Owner 2026-11-15 (n1-b
+    life-405): 「破壊の取り込み数が5回あるので行動がおかしい」."""
+    from hengbot import me_inn_refill  # import cycle
+
+    if snapshot is not None and kind != "rod" and me_inn_refill.refill_open(policy, snapshot):
+        return count(policy, snapshot, kind, sval)
+    return max(0, charges(policy, snapshot, kind, sval))
+
+
 AMOUNT = {
     "charges": lambda policy, snapshot, kind, sval: max(0, charges(policy, snapshot, kind, sval)),
+    "town-refilled-charges": town_refilled_charges,
 }
 
 REPLACES = (
@@ -275,9 +300,11 @@ REPLACES = (
     Replacement(("wand", SV_WAND_STONE_TO_MUD), Carry("utility_tools", "wall_breach"),
                 amount="charges"),
     # 5 「*破壊*の杖のみ、成功率が80%以上なら取り込んだ魔力を要求に数える」 (the 50F+ gate).
-    # ``cast``: destruction_use casts it (owner 2026-11-04).
+    # ``cast``: destruction_use casts it (owner 2026-11-04).  In town the count the inn
+    # gives back (owner 2026-11-15 「破壊の取り込み数が5回あるので行動がおかしい」); in the
+    # dungeon the charges left (owner 2026-11-14 「手段が尽きた時点で帰還させる」).
     Replacement(("staff", SV_STAFF_DESTRUCTION), Kind(TVAL_STAFF, SV_STAFF_DESTRUCTION),
-                when="reliable", amount="charges", cast=True),
+                when="reliable", amount="town-refilled-charges", cast=True),
     # 2026-11-01 「スピードの杖の取り込み後、成功率が80%以上なら以降スピードの薬の購入、
     # 持ち歩きをやめる。スピードの薬を使用する場面では代わりに取り込んだ杖を試みる。」
     # (the scenes' dose: speed_dose).

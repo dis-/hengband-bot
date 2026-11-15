@@ -7442,6 +7442,12 @@ class TownMixin:
                 arena_errand = arena.town_key(self, snapshot)
                 if arena_errand is not None:
                     return arena_errand
+                # Owner 2026-11-15 (n1-b life-405): the 50F+ gate counted the absorbed
+                # *Destruction* at the count the inn gives back; the night before the recall.
+                from hengbot import me_inn_refill
+                night = me_inn_refill.destruction_key(self, snapshot)
+                if night is not None:
+                    return night
             if self._can_read_now(snapshot):
                 recall = self._town_recall_device(snapshot)
                 if recall is not None and guardian_blocked:
