@@ -66,6 +66,9 @@ from hengbot.policy_constants import (
 # again. The 2026-10-06 23F capture had unseen hits 8-110 game turns apart,
 # so the quiet window must exceed that gap or loot returns between hits.
 UNSEEN_LOOT_QUIET_TURNS = 200
+# Drops of a carried chest that never reached the game (the chest still carried
+# after game time passed) before the chest is left in the pack on this floor.
+CHEST_DROP_UNCONFIRMED_LIMIT = 3
 
 SOURCE_PROMPT = {
     USE_STAFF_KEY: ("どの杖を使いますか? ", "Use which staff? "),
@@ -176,8 +179,8 @@ class IdentificationMixin:
                     ),
                 )
                 self._chest_phase_counts = {}
-                self._chest_drop_origin = None
-                self._chest_drop_chest_count = None
+                self._clear_chest_drop()
+                self._chest_drop_unconfirmed = 0
                 self._chest_preopen_objects = None
             else:
                 carried_chest_count = sum(
@@ -189,11 +192,33 @@ class IdentificationMixin:
                     if self._chest_drop_chest_count is None
                     else carried_chest_count >= self._chest_drop_chest_count
                 )
-                if posted_chest_still_carried:
+                posting = getattr(self, "_chest_drop_posting", None)
+                if posted_chest_still_carried and posting is None:
+                    # A drop restored without its posting record (an older
+                    # checkpoint, a hand-set origin) dates from this board.
+                    posting = (self._decision_sequence, snapshot.turn, None)
+                    self._chest_drop_posting = posting
+                if posted_chest_still_carried and snapshot.turn <= posting[1]:
                     # The drop command has not yet reached the next stable snapshot.
                     # Keep ownership only while the posted chest remains carried.
                     self.last_reason = "chest:await-drop"
                     return WAIT_KEY
+                if posted_chest_still_carried:
+                    # Game time passed since the drop board and the chest is still
+                    # carried: the drop never reached the game (a later rung replaced
+                    # the key, or the game refused it).  Waiting can never change
+                    # that, so the claim ends here and the carried-chest branch below
+                    # posts the drop again, at most CHEST_DROP_UNCONFIRMED_LIMIT times.
+                    # n1-a life-526 (town, 2026-11-15 23:52-23:55): the recall's
+                    # arrival board posted ``dq`` (chest:drop), periodic:character-dump
+                    # replaced it, and chest:await-drop waited at [32,90] until the
+                    # stall detector retired the character.
+                    self._clear_chest_drop()
+                    self._chest_drop_unconfirmed = (
+                        getattr(self, "_chest_drop_unconfirmed", 0) + 1
+                    )
+                else:
+                    self._chest_drop_unconfirmed = 0
                 origin = self._chest_drop_origin
                 origin_grid = snapshot.grids.get(origin)
                 if player.position == origin or (
@@ -205,7 +230,7 @@ class IdentificationMixin:
                     self._chest_position = origin
                     self._chest_phase_counts = {}
                     self._chest_preopen_objects = None
-                self._chest_drop_origin = None
+                self._clear_chest_drop()
         if self._chest_position is not None:
             chest_pos = self._chest_position
             distance = player.position.distance_to(chest_pos)
@@ -419,6 +444,16 @@ class IdentificationMixin:
         )
         if chest is None:
             return None
+        if getattr(self, "_chest_drop_unconfirmed", 0) >= CHEST_DROP_UNCONFIRMED_LIMIT:
+            # The named end of the carried chest on this floor: its drop never
+            # reached the game this many times.  The chest stays in the pack
+            # (sale and disposal judge it like any other item); a new floor
+            # resets the count (policy_observation).
+            self._offer_execution_no_step(
+                producer="identification", work_id="chest:drop",
+                cause="chest-drop-unconfirmed-limit",
+            )
+            return None
         if player.hp < player.max_hp * CHEST_OPEN_MIN_HP_RATIO:
             # A chest trap can hurt; open on a healthy bar.
             return None
@@ -441,16 +476,10 @@ class IdentificationMixin:
                 # every path back to the chest's reserved square.  Waiting here
                 # can never change that routing evidence, so process the carried
                 # chest at the current safe, hostile-free position instead.
-                self._chest_drop_origin = player.position
-                self._chest_drop_chest_count = sum(
-                    self._is_processable_chest(item)
-                    for item in snapshot.inventory
-                )
-                self._chest_phase_counts = {}
-                self._chest_collecting = False
-                self._chest_preopen_objects = None
                 self.last_reason = "chest:drop-unreachable-reserved"
-                return CHEST_DROP_KEY + chest.slot
+                key = CHEST_DROP_KEY + chest.slot
+                self._record_chest_drop(snapshot, key)
+                return key
             self.last_reason = "chest:return-reserved-position"
             self._declare_reach(target)
             return self._step_toward(snapshot, step)
@@ -463,15 +492,39 @@ class IdentificationMixin:
             # pocket) walled itself in with three piles that way.  The chest
             # waits for a board off the entrance.
             return None
-        self._chest_drop_origin = player.position
+        self.last_reason = "chest:drop"
+        key = CHEST_DROP_KEY + chest.slot
+        self._record_chest_drop(snapshot, key)
+        return key
+
+    def _record_chest_drop(self, snapshot: Snapshot, key: str) -> None:
+        """Start the drop phase, bound to this decision's board and key.
+
+        The record lets the await phase tell a drop still on its way from one
+        that never reached the game (withdraw_unposted_chest_drop, and the
+        game-turn test in _chest_processing_key)."""
+        self._chest_drop_origin = snapshot.player.position
         self._chest_drop_chest_count = sum(
             self._is_processable_chest(item) for item in snapshot.inventory
         )
+        self._chest_drop_posting = (self._decision_sequence, snapshot.turn, key)
         self._chest_phase_counts = {}
         self._chest_collecting = False
         self._chest_preopen_objects = None
-        self.last_reason = "chest:drop"
-        return CHEST_DROP_KEY + chest.slot
+
+    def _clear_chest_drop(self) -> None:
+        self._chest_drop_origin = None
+        self._chest_drop_chest_count = None
+        self._chest_drop_posting = None
+
+    def withdraw_unposted_chest_drop(self, decision_sequence: int) -> None:
+        """A drop whose key a later rung replaced was never posted: forget it.
+
+        Kept, the await phase would wait for a chest that can never leave the
+        pack (n1-a life-526, periodic:character-dump over ``dq``)."""
+        posting = getattr(self, "_chest_drop_posting", None)
+        if posting is not None and posting[0] == decision_sequence:
+            self._clear_chest_drop()
 
     def _pack_pressure_identify_key(self, snapshot: Snapshot) -> str | None:
         """Identify an unknown while the pack is filling, so the disposal/sale
