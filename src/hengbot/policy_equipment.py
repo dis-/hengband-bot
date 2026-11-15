@@ -115,7 +115,6 @@ from hengbot.policy_constants import (
     DESTRUCTION_GATE_DEPTH,
     DESTRUCTION_GATE_LABEL,
     FUNDRAISING_START_GOLD,
-    PLAYER_CLASS_BERSERKER,
     SPEED_GATE_DEPTH,
     SPEED_GATE_LABEL,
     SPEED_GATE_MINIMUM,
@@ -3121,20 +3120,18 @@ class EquipmentMixin:
         reads it.  A Berserker's staff always fails (use-execution.cpp) and has no
         gate.
         """
-        from hengbot import destruction_use, device_skill, me_capability
+        from hengbot import destruction_means, device_skill
 
-        if (me_capability.replacing_charges(self, snapshot, destruction_use.STAFF) > 0
-                or any(self._is_destruction_scroll(item) and item.count > 0
-                       for item in snapshot.inventory)):
+        means = destruction_means.Means(self, snapshot)
+        if means.optimizer_without_gear():
             return True, None
-        if (snapshot.player.class_id == PLAYER_CLASS_BERSERKER
-                or not destruction_use.owns_charged_staff(self, snapshot)):
+        if not means.optimizer_staff_owned():
             return False, None
         stats = calibration.natural_stats or calibration.base_stats
         adjustments = calibration.intrinsic_adjustments or (0,) * 6
-        return False, device_skill.staff_gate(
+        return False, destruction_means.staff_gate(
             snapshot.player, current_loadout(catalog), stats[device_skill.INT],
-            adjustments[device_skill.INT], destruction_use.reliable_skill())
+            adjustments[device_skill.INT])
 
     def _equipment_departure_destination_depth(self, snapshot: Snapshot) -> int:
         """Use the planned departure's landing, not the optimizer's ceiling."""

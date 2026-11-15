@@ -61,24 +61,25 @@ from dataclasses import dataclass
 from functools import partial
 
 from hengbot import (
-    area_mapping, attack_expectation, device_skill, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
+    area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
 )
 from hengbot import cross_rules
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_STAFF, Position, game_distance
+from hengbot import destruction_means
+from hengbot.destruction_means import (  # noqa: F401  -- the readers' names stay here
+    HOME_STAFF, POWER, STAFF, STAFF_LEVEL, reliable_skill, staff_home_items, staff_success,
+)
+from hengbot.model import Position, game_distance
 from hengbot.town_hold import LOOT_OWNERS
 from hengbot.policy_constants import (
-    DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_LABEL, DESTRUCTION_USES_PER_STEP, EMERGENCY_RETURN_COUNT,
+    DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_LABEL, EMERGENCY_RETURN_COUNT,
     PLAYER_CLASS_BERSERKER, ExplorationPathOutcome,
 )
 
 
 REASON = "emergency:destruction"
-POWER = ("staff", SV_STAFF_DESTRUCTION)
-STAFF = (TVAL_STAFF, SV_STAFF_DESTRUCTION)
-STAFF_LEVEL = 50             # BaseitemDefinitions.jsonc id 307
 GUARANTEED_RADIUS = 13       # cmd-usestaff.cpp:282 13 + randint0(5)
 WORST_RADIUS = 17
 FLASH = ("燃えるような閃光が発生した！", "There is a searing blast of light!")
@@ -138,25 +139,13 @@ def _memory(policy) -> Memory:
 def _absorbed_key(policy, snapshot) -> str | None:
     """The reliable power (me_capability's counting row) with a charge here; stunned, the
     displayed failure with the stun's penalty (me_powers.stunned_success) is reliable too."""
-    if me_capability.replacing_charges(policy, snapshot, STAFF) <= 0:
+    if destruction_means.Means(policy, snapshot).absorbed_charges <= 0:
         return None
     if snapshot.player.stunned and (
             me_powers.stunned_success(policy, snapshot, POWER) or 0) < me_capability.RELIABLE_MIN_SUCCESS:
         return None
     return substitutes.cast_key(policy, snapshot, substitutes.POWERS[POWER], blind_ok=True,
                                 hallucination_ok=True)
-
-
-def staff_success(player, level: int) -> float:
-    """A carried staff's success percent (not confused): use-execution.cpp's chance
-    (attack_expectation) at the item's level; stunned, times the chance check_stun lets the
-    use through (me_powers.STUN_ITEM_PENALTY); a Berserker always fails."""
-    if player.class_id == PLAYER_CLASS_BERSERKER:
-        return 0.0
-    success = attack_expectation.device_use_success(player.device_skill, level) * 100
-    if player.stunned:
-        success *= (100 - me_powers.STUN_ITEM_PENALTY[me_powers._stun_rank(player)]) / 100
-    return success
 
 
 def absorbed_success(policy, snapshot, ident) -> int | None:
@@ -169,14 +158,10 @@ def absorbed_success(policy, snapshot, ident) -> int | None:
     return None if row is None else int(row.get("success") or 0)
 
 
-def _reliable_staff(snapshot) -> bool:
-    return staff_success(snapshot.player, STAFF_LEVEL) >= me_capability.RELIABLE_MIN_SUCCESS
-
-
 def _reliable_carried_staff(policy, snapshot):
-    if not _reliable_staff(snapshot):
-        return None
-    return _charged_staff(policy, snapshot.inventory)
+    """A known charged staff carried, when the worn loadout makes it reliable (stun included)."""
+    means = destruction_means.Means(policy, snapshot)
+    return means.carried_charged_staff if means.staff_reliable else None
 
 
 def _carried_key(policy, snapshot) -> str | None:
@@ -184,47 +169,19 @@ def _carried_key(policy, snapshot) -> str | None:
     return None if staff is None else reserved_item_command(policy, snapshot, "staff", staff)
 
 
-def _charged_staff(policy, items):
-    return next((item for item in items
-                 if policy._is_destruction_staff(item) and item.known and item.charges > 0), None)
-
-
-HOME_STAFF = "_destruction_home_staves"  # the last complete Home catalogue's charged staves
-
-
-def _home_staff(policy, snapshot):
-    """A charged staff in the Home, counted in town only: the departure withdraws it
-    (the Home-first take of ``_missing_destruction_uses``) once the intended depth is
-    50F+, or short of it once the worn loadout makes it reliable (``staff_carry_uses``),
-    and the departure requirement then asks it carried.
-
-    A Home mutation drops the page knowledge until the next scan
-    (policy_home._invalidate_home_observation) though the staves stay on the shelf; the
-    staves of the last complete catalogue (``HOME_STAFF``, ``observe``) stand in then, so
-    the optimizer's StaffGate does not come and go within a visit (n1-a life-525's 21:05
-    visit: 121 of its 155 asks found no Home staff) and swap the gear back and forth."""
-    return next(iter(staff_home_items(policy, snapshot)), None)
-
-
-def _charged_staves(policy, items) -> tuple:
-    return tuple(item for item in items
-                 if policy._is_destruction_staff(item) and item.known and item.charges > 0)
-
-
-def staff_home_items(policy, snapshot) -> tuple:
-    """The Home's charged staves, in town only: the page knowledge, else the last complete
-    catalogue's (``_home_staff``)."""
-    if not snapshot.in_town:
-        return ()
-    if getattr(policy, "_home_knowledge_current", False):
-        return _charged_staves(policy, getattr(policy, "_home_knowledge_items", ()))
-    return tuple(getattr(policy, HOME_STAFF, ()) or ())
-
-
 def owns_charged_staff(policy, snapshot) -> bool:
-    """A known staff with a charge, carried or (in town) in the Home."""
-    return (_charged_staff(policy, snapshot.inventory) is not None
-            or _home_staff(policy, snapshot) is not None)
+    """A known staff with a charge, carried or (in town) in the Home
+    (destruction_means ``owns_staff``).
+
+    A Home staff is counted in town only: the departure withdraws it (the Home-first take of
+    ``_missing_destruction_uses``) once the intended depth is 50F+, or short of it once the worn
+    loadout makes it reliable (``staff_carry_uses``), and the departure requirement then asks it
+    carried.  A Home mutation drops the page knowledge until the next scan
+    (policy_home._invalidate_home_observation) though the staves stay on the shelf; the staves of
+    the last complete catalogue (``HOME_STAFF``, ``observe``) stand in then, so the optimizer's
+    StaffGate does not come and go within a visit (n1-a life-525's 21:05 visit: 121 of its 155
+    asks found no Home staff) and swap the gear back and forth."""
+    return destruction_means.Means(policy, snapshot).owns_staff()
 
 
 def staff_carry_uses(policy, snapshot) -> int:
@@ -237,17 +194,7 @@ def staff_carry_uses(policy, snapshot) -> int:
     Home in town) is carried at every depth, as many charges as the 50F row asks
     (``DESTRUCTION_USES_PER_STEP``) and no more than are owned, so the shortage is the
     Home-first take's and never a purchase.  0 for a Berserker (his staff always fails)."""
-    if snapshot.player.class_id == PLAYER_CLASS_BERSERKER or not _reliable_staff(snapshot):
-        return 0
-    owned = sum(policy._stack_charges(item)
-                for item in (*snapshot.inventory, *staff_home_items(policy, snapshot))
-                if policy._is_destruction_staff(item) and item.known and item.charges > 0)
-    return min(DESTRUCTION_USES_PER_STEP, owned)
-
-
-def reliable_skill() -> int:
-    """The device skill at which the staff is a means (``RELIABLE_MIN_SUCCESS``)."""
-    return device_skill.reliable_staff_skill(STAFF_LEVEL, me_capability.RELIABLE_MIN_SUCCESS)
+    return destruction_means.Means(policy, snapshot).carry_uses()
 
 
 def holds_means(policy, snapshot) -> bool:
@@ -258,9 +205,7 @@ def holds_means(policy, snapshot) -> bool:
     2026-11-15 「装備で魔法道具使用能力を向上させて杖の成功率を上げることで先に進む
     ことができる」.  In town a Home staff counts too, so the gear that makes it
     reliable unlocks the 50F+ intent and the departure takes the staff."""
-    return (me_capability.replacing_charges(policy, snapshot, STAFF) > 0
-            or _reliable_carried_staff(policy, snapshot) is not None
-            or (_reliable_staff(snapshot) and _home_staff(policy, snapshot) is not None))
+    return destruction_means.Means(policy, snapshot).depth_gate()
 
 
 MEANS_SPENT_TRIGGER = "emergency-destruction-means-spent"
@@ -324,7 +269,7 @@ def _clear_headed(player) -> bool:
     """Owner 2026-11-08 「盲目でも使う」: blindness does not stop the use (neither the
     staff nor the ``m`` command refuses it, above); confusion still does.  A stun does not
     either (owner 2026-11-13; n1-b life-377 died stunned without it): the game only adds
-    its penalty, which ``_absorbed_key`` and ``_reliable_staff`` count.  Nor hallucination
+    its penalty, which ``_absorbed_key`` and destruction_means' ``staff_reliable`` count.  Nor hallucination
     (owner 2026-11-13 「幻覚でも使う」, no refusal of the game's): the board then redacts
     every monster's identity (bot-json-output.cpp make_visible_monster_json; model.py keeps
     the position and treats it as an awake hostile of unknown strength), and the same gates
@@ -495,7 +440,7 @@ def _race_in_range(policy, snapshot, target, *, applies) -> bool:
 def observe(policy, snapshot) -> None:
     """Every decision, before the board joins the map memory: settle the last use."""
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
-        setattr(policy, HOME_STAFF, _charged_staves(policy, getattr(policy, "_home_knowledge_items", ())))
+        setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
     if snapshot.dungeon_level >= DESTRUCTION_GATE_DEPTH and holds_means(policy, snapshot):
         _memory(policy).entitled_floor = snapshot.floor_key
     memory = getattr(policy, MEMORY, None)
