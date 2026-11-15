@@ -115,6 +115,9 @@ class QuestFloorNavigator:
     sweep_potion_due = False
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
+    # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
+    # player stands on, cells), bound by ``bind_left_cells``.  Same restored-checkpoint rule.
+    left_bound = None
 
     def __post_init__(self) -> None:
         self.door_searches: Counter[tuple[int, int]] = Counter()
@@ -464,7 +467,7 @@ class QuestFloorNavigator:
             if final_door_value is not None:
                 blocked.discard(Position(*final_door_value))
             loot.difference_update(blocked)
-            path = self._static_path(
+            path = self.walk_path(
                 snapshot.player.position, loot, blocked=blocked
             )
             if len(path) > 1:
@@ -497,7 +500,7 @@ class QuestFloorNavigator:
             self.post_clear_pickups = attempts + 1
             owner.last_reason = "quest:post-clear:pickup-gold"
             return PICKUP_KEY
-        path = self._static_path(
+        path = self.walk_path(
             snapshot.player.position, {cell}, blocked=door_gates(snapshot, plan)
         )
         if len(path) < 2:
@@ -518,7 +521,7 @@ class QuestFloorNavigator:
         profile = owner.approved_quest_strategy(self.quest_id)
         plan = profile.engagement_plan if profile is not None else {}
         blocked = avoided_doors(plan)
-        path = self._static_path(
+        path = self.walk_path(
             snapshot.player.position, {target}, blocked=blocked
         )
         if len(path) < 2:
@@ -592,7 +595,7 @@ class QuestFloorNavigator:
         goals: set[Position],
         blocked: set[Position] | None = None,
     ) -> Position | None:
-        path = self._static_path(start, goals, blocked=blocked)
+        path = self.walk_path(start, goals, blocked=blocked)
         return path[1] if len(path) > 1 else None
 
     def ranged_vantage_goals(
@@ -631,6 +634,35 @@ class QuestFloorNavigator:
             if Position(y, x).distance_to(target) <= max_distance
             and self._static_walkable(Position(y, x))
         }
+
+    def bind_left_cells(self, owner: Any, snapshot: Snapshot) -> "QuestFloorNavigator":
+        """Bind this board's left cells (left_cells ``refused``) for the walks (``walk_path``).
+
+        Owner 2026-11-15 (maintainability review Q2, 「記録は読ませる・危ない範囲は今のまま」): the
+        fixed-quest walks read the cells an owner left, as every other walker does; the areas
+        round a monster (the walks' ``_walk_veto``) they still do not read.  Bound where the
+        quest layers take the navigator, read only from the cell it was bound on."""
+        from hengbot import left_cells  # import cycle
+
+        cells = left_cells.refused(owner, snapshot) - {snapshot.player.position}
+        self.left_bound = (snapshot.floor_key, snapshot.player.position, frozenset(cells))
+        return self
+
+    def walk_path(
+        self,
+        start: Position,
+        goals: set[Position],
+        *,
+        blocked: set[Position] | None = None,
+    ) -> list[Position]:
+        """``_static_path`` for a walk: off the bound left cells (``bind_left_cells``) when a
+        way off them leads to a goal, else as before (a record never shuts the walk in)."""
+        bound = getattr(self, "left_bound", None)
+        if bound is not None and bound[0] == self.floor_key and bound[1] == start and bound[2]:
+            path = self._static_path(start, goals, blocked=set(blocked or ()) | bound[2])
+            if path:
+                return path
+        return self._static_path(start, goals, blocked=blocked)
 
     def _static_path(
         self,

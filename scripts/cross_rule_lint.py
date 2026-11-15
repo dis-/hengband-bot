@@ -119,8 +119,7 @@ class Index:
             if isinstance(sub, (ast.Name, ast.Attribute)):
                 for target in self.targets(module, sub):
                     found.add(target)
-                    if target[0] not in (POLICY, "*"):
-                        found.add(("*", target[1]))
+                    found.add(("*", target[1]))
         return found
 
     def reaches(self, module: str, node, points: frozenset, stop: frozenset) -> bool:

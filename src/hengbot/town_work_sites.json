@@ -12643,6 +12643,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_find_exit.py:_least_exposed.walk": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_find_exit.py:_melee_cap": {
     "classification": "data",
     "rows": [
@@ -12663,6 +12670,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_find_exit.py:_off_left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_find_exit.py:_off_the_pull_lines": {
     "classification": "producer",
@@ -12747,6 +12761,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_find_exit.py:_walk_off_left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_find_exit.py:_way_back": {
     "classification": "producer",
@@ -12889,6 +12910,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_navigator.py:QuestFloorNavigator.bind_left_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_navigator.py:QuestFloorNavigator.decide": {
     "classification": "dungeon-only",
     "rows": [
@@ -12912,6 +12940,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest_navigator.py:QuestFloorNavigator.route_to_static_goals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_navigator.py:QuestFloorNavigator.walk_path": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15540,13 +15575,6 @@
     "delegation": "selected child; no independent success"
   },
   "walk_vetoes.py:explore": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "walk_vetoes.py:retreat_left_route": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

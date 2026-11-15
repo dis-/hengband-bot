@@ -672,11 +672,15 @@ class NavigationMixin:
         self._clear_explore_path(ExplorationPathOutcome.ABANDON)
         origin = snapshot.player.position
         candidates = []
+        # The walks' one veto, as the explore (owner 2026-11-15, maintainability review Q3
+        # 「全部読ませる」: the break stepped into a cell an owner had just left).
+        walk_veto = self._walk_veto(snapshot)
         for dy, dx in NEIGHBOR_OFFSETS:
             neighbor = Position(origin.y + dy, origin.x + dx)
             grid = snapshot.grid_at(neighbor)
             if (
                 neighbor not in confined
+                and neighbor not in walk_veto
                 and grid is not None
                 and grid.passable
                 and not dungeon_shop.entrance(snapshot, grid)

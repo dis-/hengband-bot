@@ -19,12 +19,16 @@ The parts:
 
 The combinations (``COMBINATIONS``; tests/test_cross_rules.py pins each function to its row):
 
-    walk               retreat (frozen) | left | route | unseen-area   policy._walk_veto
+    walk               retreat (frozen) | left | route | unseen-area   policy._walk_veto (also the
+                                                                       quest target search, the
+                                                                       kill-all patrol's hunt, the
+                                                                       oscillation break and the
+                                                                       unknown probe: owner
+                                                                       2026-11-15 Q3)
     retreat-left       retreat | left                                  the nearest-target BFS,
                                                                        the least visited neighbour
     route-left         route | left                                    the loot walk's veto
-    retreat-left-route retreat | left | route                          the descent route,
-                                                                       the quest target search
+    retreat-left-route retreat | left | route                          the descent route
     explore            retreat | left | warning | unseen-cells | route the explore's goals
 
 The quest plans' own walks (quest25_battle, quest_room_sweep) read ``left_cells.refused_yx``

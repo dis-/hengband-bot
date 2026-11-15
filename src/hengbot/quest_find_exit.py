@@ -99,7 +99,7 @@ the navigator.
 
 from __future__ import annotations
 
-from hengbot import combat_answer, once_quest_recall, quest_exposure, quest_plan_base, resist_potion, summon_response
+from hengbot import combat_answer, left_cells, once_quest_recall, quest_exposure, quest_plan_base, resist_potion, summon_response
 from hengbot import threat_tiers
 from hengbot.model import Position
 from hengbot.policy_constants import TUNNEL_KEY, WAIT_KEY
@@ -403,6 +403,10 @@ class _Board:
                  if monster.hostile and monster.race_id not in sealed]
         self.in_view = [monster for monster in known if monster.perception != "detected"]
         self.occupied = {monster.position for monster in known}
+        # The cells an owner left (left_cells): the walks below keep off them while a way off
+        # them leads on (owner 2026-11-15, maintainability review Q2 「記録は読ませる・危ない範囲は
+        # 今のまま」; the areas round a monster stay out).
+        self.left = frozenset(left_cells.refused(policy, snapshot) - {snapshot.player.position})
         _track(navigator, snapshot, known)
         _count_action(navigator, snapshot)
         # A monster that cannot come is no reason to hold a choke; one beside the player
@@ -612,7 +616,7 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
                                       for monster in board.mobile_awake):
             return None  # the bound outwaited all that held it: the walk goes on (_outwaited)
         chokes = _chokes(navigator, plan, board)
-    path = _least_exposed(navigator, plan, position, chokes, board.occupied, as_it_is=True)
+    path = _walk_off_left(board, navigator, plan, position, chokes, board.occupied, as_it_is=True)
     if len(path) < 2:
         return None
     crowded = _crowded_step(policy, snapshot, navigator, plan, board, path[1])
@@ -657,7 +661,7 @@ def _back_to_a_choke(policy, snapshot, navigator, plan, board, cap: int) -> str 
     chokes = [Position(*cell) for cell in plan["choke_cells"] if not exposure.exposed(tuple(cell))]
     if position in chokes:
         return None
-    paths = [_least_exposed(navigator, plan, position, {choke}, board.occupied, as_it_is=True)
+    paths = [_walk_off_left(board, navigator, plan, position, {choke}, board.occupied, as_it_is=True)
              for choke in chokes]
     paths = sorted((path for path in paths if len(path) >= 2 and _crowd(board, path[1]) <= cap),
                    key=len)
@@ -733,14 +737,33 @@ def _choke_walk_under_way(policy, snapshot, navigator, plan, board) -> str | Non
 
 
 def _least_exposed(navigator, plan, start: Position, goals, blocked=(), *,
-                   as_it_is: bool = False) -> list[Position]:
-    """The least exposed walk over the planned floor, or (``as_it_is``) the present one."""
+                   as_it_is: bool = False, left=frozenset()) -> list[Position]:
+    """The least exposed walk over the planned floor, or (``as_it_is``) the present one; off
+    the ``left`` cells (the board's left cells) when a way off them leads to a goal."""
     opened = navigator.exit_dug if as_it_is else _planned_open(navigator, plan)
-    path = quest_exposure.least_exposed_path(
-        _opened_terrain(navigator, opened), _exposure_with(navigator, plan, opened), _cell(start),
-        {_cell(goal) for goal in goals}, frozenset(_cell(cell) for cell in blocked),
-        forbidden=pull_cells(navigator, plan) - {_cell(start)})
+
+    def walk(off) -> list:
+        return quest_exposure.least_exposed_path(
+            _opened_terrain(navigator, opened), _exposure_with(navigator, plan, opened),
+            _cell(start), {_cell(goal) for goal in goals},
+            frozenset(_cell(cell) for cell in off),
+            forbidden=pull_cells(navigator, plan) - {_cell(start)})
+
+    path = (walk(set(blocked) | set(left)) if left else []) or walk(blocked)
     return [Position(*cell) for cell in path]
+
+
+def _walk_off_left(board, navigator, plan, start: Position, goals, blocked=(), *,
+                   as_it_is: bool = False) -> list[Position]:
+    """``_least_exposed`` off the board's left cells while a way off them leads on (the walks'
+    one reading of the registry here, owner 2026-11-15 Q2)."""
+    return _least_exposed(navigator, plan, start, goals, blocked, as_it_is=as_it_is, left=board.left)
+
+
+def _off_left(board, walk, occupied: frozenset) -> list:
+    """``walk(blocked)`` off the board's left cells too when that leads on, else as before."""
+    left = frozenset(_cell(cell) for cell in board.left)
+    return (walk(occupied | left) if left else []) or walk(occupied)
 
 
 def _safe_region(navigator, plan) -> set:
@@ -769,7 +792,8 @@ def _way_back(policy, snapshot, navigator, plan, board) -> str | None:
     exposure = _exposure_with(navigator, plan, navigator.exit_dug)
     goals = _safe_region(navigator, plan)
     occupied = frozenset(_cell(cell) for cell in board.occupied)
-    path = (quest_exposure.least_exposed_path(terrain, exposure, position, goals, occupied)
+    path = (_off_left(board, lambda off: quest_exposure.least_exposed_path(
+                terrain, exposure, position, goals, off), occupied)
             or quest_exposure.least_exposed_path(terrain, exposure, position, goals))
     if len(path) < 2:
         return None
@@ -863,7 +887,7 @@ def _clear_key(policy, snapshot, navigator, plan, board) -> str | None:
         return WAIT_KEY
     if exposed and snapshot.player.hp_ratio < float(plan["rest_below_ratio"]):
         # The rest comes off the shouted cells, before the next sleeper.
-        path = _least_exposed(navigator, plan, position,
+        path = _walk_off_left(board, navigator, plan, position,
                               {Position(*cell) for cell in plan["choke_cells"]}, board.occupied,
                               as_it_is=True)
         if len(path) >= 2:
@@ -878,7 +902,7 @@ def _clear_key(policy, snapshot, navigator, plan, board) -> str | None:
     if beside is not None:
         return combat_answer.strike_key(policy, snapshot, beside, MELEE_REASON)
     stands = {Position(*cell) for cells in movers.values() for cell in cells}
-    path = _least_exposed(navigator, plan, position, stands, board.occupied, as_it_is=True)
+    path = _walk_off_left(board, navigator, plan, position, stands, board.occupied, as_it_is=True)
     if len(path) < 2:
         navigator.exit_clearing_done = True
         return None
@@ -891,7 +915,8 @@ def _pull_walk(policy, snapshot, navigator, plan, board) -> str | None:
     exposure = _exposure_with(navigator, plan, navigator.exit_dug)
     position, exit_cell = _cell(snapshot.player.position), {_cell(_exit_cell(navigator))}
     occupied = frozenset(_cell(cell) for cell in board.occupied)
-    path = (quest_exposure.least_exposed_path(terrain, exposure, position, exit_cell, occupied)
+    path = (_off_left(board, lambda off: quest_exposure.least_exposed_path(
+                terrain, exposure, position, exit_cell, off), occupied)
             or quest_exposure.least_exposed_path(terrain, exposure, position, exit_cell))
     if len(path) < 2:
         return None
@@ -913,8 +938,8 @@ def _off_the_pull_lines(policy, snapshot, navigator, plan, board) -> str | None:
     goals = {cell for cell, kind in terrain.items()
              if kind in {"deep_water", "shallow_water"} and cell not in pull}
     occupied = frozenset(_cell(cell) for cell in board.occupied)
-    path = quest_exposure.least_exposed_path(
-        terrain, exposure, _cell(snapshot.player.position), goals, occupied)
+    path = _off_left(board, lambda off: quest_exposure.least_exposed_path(
+        terrain, exposure, _cell(snapshot.player.position), goals, off), occupied)
     if len(path) < 2:
         return None
     policy.last_reason = PULLED_BACK_REASON
@@ -932,8 +957,8 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
         if clearing_finished(navigator):
             return _pull_walk(policy, snapshot, navigator, plan, board)
         return _off_the_pull_lines(policy, snapshot, navigator, plan, board)
-    through = _least_exposed(navigator, plan, position, {exit_cell})
-    around = _least_exposed(navigator, plan, position, {exit_cell}, board.occupied)
+    through = _walk_off_left(board, navigator, plan, position, {exit_cell})
+    around = _walk_off_left(board, navigator, plan, position, {exit_cell}, board.occupied)
     path = around if (
         around and len(around) <= len(through) + SIDESTEP_LIMIT
         and _exposed_count(navigator, plan, around) <= _exposed_count(navigator, plan, through)
