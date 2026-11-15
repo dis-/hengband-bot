@@ -18,7 +18,7 @@ race the board shows is gone, in every phase:
  * ``note_absent`` (every board the plan reads): a roster race no hostile of which is shown, and
    every cell of the map it could stand on is within what this board's telepathy shows of it, or
    within the detection the plan cast just before this board (its first board after the cast,
-   showing the game's 「…の存在を感じとった！」) --
+   the player still on the cell it was cast from; one that showed nothing counts) --
    that race is absent: none of it is left on the floor.  ``Battle.absent`` keeps it (race ->
    game turn), and ``quest25_battle._Ctx.kills`` counts such a race as its whole roster, so every
    phase that waits for it, counts it, or shoots it is over for it.
@@ -149,14 +149,15 @@ def _settle_cast(ctx):
     The first board after the cast settles it: one of the same game turn is a cast that did not go
     off (the menu walk closed a charging power's prompt: no game time passed, kill_all_patrol
     ``_settle_detection``), one with a failure line failed (``_detection_failed``); either is
-    forgotten and the check may be made again.  A detection that went off prints what it sensed
-    (spells-detection.cpp, DetectionNotice::ALWAYS: 「…の存在を感じとった！」); detect_all senses the
-    doors within its radius, and every cell of the Q25 map has one within DETECT_RAD_DEFAULT.  A
-    board without such a line is not read as the detection's (a Detect Evil with no evil left
-    prints nothing; a key that did not reach the game prints nothing either), and the check waits
-    its next window."""
-    from hengbot import kill_all_patrol
-
+    forgotten and the check may be made again.  Else the detection went off, and what it shows is
+    on this board -- nothing at all when it found nothing: spells-detection.cpp prints
+    「…の存在を感じとった！」 only for what it found (should_notify; detect_monsters_evil prints
+    nothing with no evil monster in reach), so an empty board is the strongest sign of absence
+    (n1-c life-211, 2026-11-15 09:03-09:07: 51 empty Detect Evil casts on the ambush read as
+    nothing, and the wait for the dead tyrannosaurus went on).  The detection does not move the
+    player: a board that shows the player off the cell the cast was keyed on is not its result (a
+    monster's teleport-to in between, or a replayed recording whose next board followed another
+    key), and is not read as one; the check then waits its next window."""
     battle = ctx.battle
     cast = battle.cast
     if cast is None:
@@ -166,8 +167,7 @@ def _settle_cast(ctx):
     if ctx.snapshot.turn <= turn or battle_mod._detection_failed(ctx, turn):
         battle.presence_quiet, battle.recheck = quiet_before, recheck_before
         return None
-    texts = [battle_mod.message_text(message) for message in ctx.snapshot.messages]
-    if not any(line in text for text in texts for line in kill_all_patrol.SENSED_LINES):
+    if ctx.here != tuple(origin):
         return None
     return tuple(origin), detect_radius(ctx), effect
 

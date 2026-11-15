@@ -275,18 +275,19 @@ class ThePresenceCheckTest(replay._Replay):
             self.assertEqual((decide(policy, failed), policy.last_reason), ("mCg", CAST))
             self.assertEqual((fight(policy).absent, phase_name(policy)), ({}, "ambush"))
 
-    def test_control_a_board_without_the_detections_lines_proves_nothing(self):
-        """DECLARED CONSTRUCTED: the board ten game turns on shows nothing and no 「…の存在を感じとった！」
-        (detect_all always senses the doors: such a board is not the detection's), so nothing is
-        absent and the check waits its next window: the ambush holds."""
+    def test_control_a_board_with_the_player_moved_is_not_the_detections(self):
+        """DECLARED CONSTRUCTED: the board ten game turns on shows nothing, with the player one cell
+        off the cell the detection was cast on (the detection does not move the player: such a board
+        followed another key), so nothing is absent and the check waits its next window."""
         with TemporaryDirectory() as directory:
             policy = self.stop_policy(directory)
             self.assertEqual(decide(policy, stop_board()), "mCg")
             policy.confirm_key_posted("mCg")
-            silent = dict(detected_board(stop_board()), detected_monsters=[], messages=[])
-            key = decide_past_reads(policy, silent)
+            moved = dict(detected_board(stop_board()), detected_monsters=[], messages=[])
+            moved["player"] = dict(moved["player"], y=11, x=1)
+            decide_past_reads(policy, moved)
             self.assertEqual(fight(policy).absent, {})
-            self.assertEqual((key, policy.last_reason, phase_name(policy)), ("5", battle.HOLD_REASON, "ambush"))
+            self.assertEqual(phase_name(policy), "ambush")
 
     def test_control_before_the_window_there_is_no_check(self):
         """DECLARED CONSTRUCTED: the record's quiet count below ``quiet_actions`` (50)."""
