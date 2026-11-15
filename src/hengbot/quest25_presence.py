@@ -169,6 +169,9 @@ def _settle_cast(ctx):
         return None
     if ctx.here != tuple(origin):
         return None
+    flags_shown = {monster.race_id for monster in ctx.hostiles()
+                   if shown_by(effect, _flags(ctx, monster.race_id))}
+    battle.presence_shown = battle.presence_shown | flags_shown
     return tuple(origin), detect_radius(ctx), effect
 
 
@@ -222,6 +225,13 @@ def presence_key(ctx, phase) -> str | None:
         return None
     left = _checked(ctx, phase)
     if not left or any(monster.race_id in left for monster in ctx.hostiles()):
+        return None
+    if set(left) & battle.presence_shown:
+        # A check showed one it waits for on the floor: the wait for it is the plan's own, and no
+        # further check (nor the walk to a covering cell and back) is made this phase.  n1-b
+        # life-399 (2026-11-15 16:46): from the ranged stand [13,1] the ambush walked to [12,2],
+        # cast, saw the spectral tyrannosaurus present and walked back, every 50 quiet actions,
+        # until the loop guard read the walks as no progress.
         return None
     window = ctx.values.quiet_actions
     if battle_mod._wait_limit(ctx, phase) - battle.quiet <= window:
