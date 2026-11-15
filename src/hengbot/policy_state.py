@@ -282,6 +282,9 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_threat_tier_memory", None)
     # The rest slot's ESP tier decided first on the floor (esp_tier_hold).
     restored.__dict__.setdefault("_esp_tier_hold", None)
+    # The escape's haste seen in its episode (_flee_sustain_key, n1-a life-525): a checkpoint
+    # from before it has seen none, so its first board at +0 asks as before.
+    restored.__dict__.setdefault("_escape_haste_seen", False)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(

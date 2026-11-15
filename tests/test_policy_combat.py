@@ -8932,6 +8932,47 @@ class UniqueCombatConsumableTest(unittest.TestCase):
         policy.last_reason = "return:seek-upstairs"
         self.assertEqual(policy._flee_sustain_key(snapshot, "4"), "4")
 
+    def test_haste_running_out_mid_escape_quaffs_speed_again(self):
+        """n1-a life-525 (2026-11-15): the haste on at the episode's start ran out while the
+        escape went on; the 09-18 condition is asked again (owner 2026-11-10 「接敵してしまっ
+        たらまず加速」), once per haste that ran out."""
+        unhasted, _, knowledge = self._snapshot(
+            hp=515,
+            max_hp=515,
+            speed=110,
+            monster_hp=1800,
+            monster_speed=120,
+            blow_sides=20,
+            inventory=[item("s", TVAL_POTION, SV_POTION_SPEED, count=9)],
+        )
+        unhasted = replace(unhasted, floor_key=(1, 49, 0))
+
+        def board(turn, speed, color):
+            return replace(unhasted, turn=turn, player=replace(
+                unhasted.player, speed=speed,
+                speed_display=(speed - 110, "", color, False)))
+
+        policy = HengbotPolicy(monrace_knowledge={9001: knowledge})
+        policy.last_reason = "emergency:seek-upstairs"
+        # The episode starts hasted: no dose.
+        self.assertEqual(policy._flee_sustain_key(board(1, 120, "yellow"), "4"), "4")
+        policy.last_reason = "emergency:seek-upstairs"
+        self.assertEqual(policy._flee_sustain_key(board(2, 120, "yellow"), "4"), "4")
+        # The haste ran out: Speed again, and the baseline is the speed read now.
+        policy.last_reason = "emergency:seek-upstairs"
+        self.assertEqual(policy._flee_sustain_key(board(3, 110, "white"), "4"), "qs")
+        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
+        self.assertEqual(policy._escape_speed_baseline, 110)
+        # The dose not shown yet: no second one.
+        policy.last_reason = "emergency:cornered-attack"
+        self.assertEqual(policy._flee_sustain_key(board(4, 110, "white"), "6"), "6")
+        # Its haste shows, then runs out in turn: the next dose.
+        policy.last_reason = "emergency:heal"
+        self.assertEqual(policy._flee_sustain_key(board(5, 120, "yellow"), "qc"), "qc")
+        policy.last_reason = "emergency:heal"
+        self.assertEqual(policy._flee_sustain_key(board(6, 110, "white"), "qc"), "qs")
+        self.assertEqual(policy.last_reason, "emergency:quaff-speed")
+
     def test_instant_escape_does_not_start_speed_episode(self):
         snapshot, _, knowledge = self._snapshot(
             hp=515,
