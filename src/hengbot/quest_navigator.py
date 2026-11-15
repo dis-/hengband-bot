@@ -522,6 +522,8 @@ class QuestFloorNavigator:
             snapshot.player.position, {target}, blocked=blocked
         )
         if len(path) < 2:
+            path = self._wet_path(snapshot.player.position, {target}, blocked=blocked)
+        if len(path) < 2:
             owner.last_reason = "quest:blocked:exit"
             return "5"
         nxt = path[1]
@@ -537,6 +539,31 @@ class QuestFloorNavigator:
             return "s"
         owner.last_reason = "quest:exit:route"
         return owner._step_toward(snapshot, nxt)
+
+    def _wet_path(
+        self,
+        start: Position,
+        goals: set[Position],
+        *,
+        blocked: set[Position] | None = None,
+    ) -> list[Position]:
+        """``_static_path`` through deep water too, for a start no dry walk leaves.
+
+        hp-mp-processor.cpp process_player_hp_mp drowns only an overweight player in deep water
+        (calc_inventory_weight > calc_weight_limit, randint1(level) a turn), so a walk out over it
+        is the way when nothing dry leads (quest_plan_base ``_least_exposed_walk``, quest_find_exit
+        ``_navigator`` read it the same).  n1-c life-211 (2026-11-15 14:01, Quest 25): a Nexus
+        quylthulg teleported the player into the Ipsissimus' pen [7,17]-[9,17], ringed by deep
+        water; the quest was won there, and the exit walk found no dry way to the stair [13,1]: it
+        held '5' (``quest:blocked:exit``) until the loop guard stopped the bot three times and the
+        character was replaced."""
+        if self.allow_deep_water:
+            return []
+        self.allow_deep_water = True
+        try:
+            return self._static_path(start, goals, blocked=blocked)
+        finally:
+            self.allow_deep_water = False
 
     def _static_walkable(self, pos: Position) -> bool:
         kind = self.battlefield.terrain.get((pos.y, pos.x))

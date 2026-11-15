@@ -19416,6 +19416,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. The sweep's sealed pocket (owner 2026-11-15 「溶かして撃つ・無ければ帰還」): the walk to the melt stand, Stone to Mud at the granite, the shot at the cell, or the Recall read."
   },
+  "quest_navigator.py:QuestFloorNavigator._wet_path": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by active quest floor predicate; see evidence.",
+    "evidence": "_choose_key obtains profile = approved_quest_strategy(snapshot.floor_key[2]); navigator.decide only runs under if profile is not None, requiring an approved nonzero quest id. decide owns _sweep/_exit and invokes _quest_execute_key; its Q2 helpers execute only under that active profile. _approved_quest_strategy_key is an uncalled compatibility probe (no production caller). Generated caller/predicate evidence pins each link. enter_from_town is a separately mapped town producer. _wet_path: _static_path over deep water too, for the exit walk with no dry way (hp-mp-processor.cpp drowns only the overweight; n1-c life-211 2026-11-15, the Q25 pen).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "deep_teleport.py:_recall_key": {
     "classification": "producer",
     "rows": [

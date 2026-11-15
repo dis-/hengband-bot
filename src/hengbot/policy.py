@@ -4406,9 +4406,34 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             pass
         return key
 
+    def _home_atomic_withdraw_after_count(self, snapshot: Snapshot) -> int:
+        """The pack's count of the posted Home take's kind on ``snapshot``."""
+        move_identity = getattr(self, "_home_atomic_withdraw_move_identity", None)
+        return (
+            self._home_take_count(snapshot, move_identity)
+            if move_identity is not None
+            else self._inventory_signature_count(
+                snapshot, self._home_atomic_withdraw_pending[0])
+        )
+
     @claims(ClaimOwner.HOME_VISIT)
     def _observe_home_atomic_withdrawal_outside(self, snapshot: Snapshot) -> None:
-        """Reconcile one posted single-item Home take on its outside board."""
+        """Reconcile one posted single-item Home take on its outside board.
+
+        The board is the take's outcome once the game turn moved past the posting
+        board, or once the pack already holds the take (its count of the kind grew
+        by the quantity).  The game emits a board before every command while the
+        player's energy lasts (core/player-processor.cpp: the energy a command costs
+        is ``randnor(100, 25)``), so the board after the store can carry the posting
+        board's own turn: n1-a life-525 (2026-11-15 13:40:36, Lv37 Warrior) took the
+        オークスレイヤーのパイク for the Home-full sale, stood outside on the same turn
+        8552723 with it in the pack, and this reconciliation skipped the board.  The
+        take was never settled: item processing then dropped the pending take, the
+        errand stayed posted, its take was composed again and ``HomeErrandExecutor.post``
+        raised "Home errand is not composable" (the bot crashed).  A same-turn board
+        whose pack does not hold the take is still the in-flight entrance board (the
+        stay key's board before the store UI consumes the take) and is not read.
+        """
         pending_withdrawal = self._home_atomic_withdraw_pending
         if (
             pending_withdrawal is not None
@@ -4421,6 +4446,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and (
                 self._home_atomic_withdraw_posted_turn is None
                 or snapshot.turn > self._home_atomic_withdraw_posted_turn
+                or self._home_atomic_withdraw_after_count(snapshot)
+                >= pending_withdrawal[1] + pending_withdrawal[3]
             )
         ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
@@ -4433,14 +4460,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                          and self._home_errand.request.signature == signature))
             )
             procurement_class = self._home_atomic_withdraw_procurement_class
-            move_identity = getattr(
-                self, "_home_atomic_withdraw_move_identity", None
-            )
-            after_count = (
-                self._home_take_count(snapshot, move_identity)
-                if move_identity is not None
-                else self._inventory_signature_count(snapshot, signature)
-            )
+            after_count = self._home_atomic_withdraw_after_count(snapshot)
             if getattr(self, "_home_visit", None) is not None:
                 self._home_visit.observe_outside(
                     effect_observed=after_count >= before_count + quantity
@@ -15089,6 +15109,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
         )
 
+    def _town_hunt_owns_detected(
+        self, snapshot: Snapshot, monsters: list[MonsterState]
+    ) -> bool:
+        """Whether the town hunt (``_town_kill_mob_key``) owns every monster: in town,
+        each one is a town monster this character defeats (not a pet, not unbeatable)."""
+        return (
+            snapshot.in_town
+            and snapshot.dungeon_level == 0
+            and bool(monsters)
+            and all(
+                not monster.pet and not self._town_monster_unbeatable(snapshot, monster)
+                for monster in monsters
+            )
+        )
+
     @staticmethod
     def _visible_channel_answers(monster: MonsterState) -> bool:
         """An awake hostile in view that the visible-monster channel can act on or be hit by:
@@ -15217,6 +15252,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._detected_threat_hold = None
             if route is not None:
                 self._release_claim_goal("choke-quest-plan-owns", route[1], owners=("positioning",))
+            self._detected_threat_route = None
+            return None
+        if self._town_hunt_owns_detected(
+            snapshot, [*breeders, *melee_threats, *committed]
+        ):
+            # In town the hunt approaches and kills every town monster this
+            # character defeats (_town_kill_mob_key).  Retreating from them when
+            # they leave sight handed the turn back to the hunt as soon as one came
+            # into view again: n1-a life-525 (2026-11-15 13:24-13:31, Lv37 Warrior,
+            # 857 HP) walked town:kill-mob-approach toward two 殺人蜂 and
+            # detected:prepare-choke back to a choke whenever they flew out of
+            # sight, for 200 boards, until the town-errand owner retired without
+            # progress and the town block stopped the bot.
+            self._detected_threat_hold = None
+            if route is not None:
+                self._release_claim_goal("choke-town-hunt-owns", route[1], owners=("positioning",))
             self._detected_threat_route = None
             return None
         if not breeders and len(melee_threats) < 2 and not committed:

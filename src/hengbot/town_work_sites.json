@@ -12704,6 +12704,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_navigator.py:QuestFloorNavigator._wet_path": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_navigator.py:QuestFloorNavigator.decide": {
     "classification": "dungeon-only",
     "rows": [
