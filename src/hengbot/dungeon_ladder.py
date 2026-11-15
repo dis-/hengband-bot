@@ -204,6 +204,10 @@ LADDER = (
         # Owner 2026-11-07 「分からない隣のマスにも攻撃する」: the blind board's unseen blow.
         *D("status_cure.dungeon_unseen_blow_key", exempt=FIGHTS),
         *D("status_cure.dungeon_wait_for_sight_key", exempt=NO_ATTACKER),
+        # Owner 2026-11-15 「呪われていれば休む前に解く」 / 「クエストの階は残って続ける」: the worn
+        # curse removed on a safe board above the rest layer, then the normal floor's Recall for a
+        # summoning or drain-HP curse left without a means (curse_cure).
+        *D("curse_cure.key", exempt=NO_ATTACKER),
         *E("_mana_food_loot_key"),
         *D("me_powers.power_key:FLOOR", "area_mapping.after_destruction_key",
            "area_mapping.picked_up_scroll_key", "quest_target_search.detection_key",

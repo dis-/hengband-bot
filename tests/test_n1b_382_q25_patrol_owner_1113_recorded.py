@@ -97,6 +97,13 @@ def new_policy(directory: Path, device_lists, record=None, case=None):
         copy.deepcopy(case["skill"]), turn=first["turn"],
         player=dict(case["skill"]["player"], level=first["player"]["level"])))
     policy._me_device_lists = device_lists
+    # DECLARED: the worn curses known permanent.  n1-b life-384 wore 耐混乱の指輪 and the boots
+    # 『炎の鉄ゲタ』 cursed; the in-dungeon removal before a rest (curse_cure, owner 2026-11-15
+    # 「呪われていれば休む前に解く」) would otherwise come first, and it is not what these replays pin
+    # (its own replay is tests/test_n1c_211_rest_curse_1115_recorded).
+    policy._permanent_cursed_items |= {policy._item_signature(item) for item in
+                                       parse_snapshot(first, policy._monrace_knowledge).equipment
+                                       if item.is_cursed}
     return policy
 
 

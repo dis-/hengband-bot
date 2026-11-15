@@ -2,7 +2,8 @@
 
 ``HengbotPolicy._decide`` asks this layer where its rows stand: below the combat layer
 (ladder_combat), above the objectives, rest, descent and idle.  The survival gate (starvation
-safety), the blind board's unseen blow and wait for sight, the mana food's loot, the floor
+safety), the blind board's unseen blow and wait for sight, the worn curse's removal (and the
+normal floor's Recall for a summoning curse left), the mana food's loot, the floor
 powers and mapping, the quest target's detection, the Magic-Eater's absorb, the junk to
 destroy now and the consumables to use now.  The rungs are asked top-down and the first key
 returned wins, as in ``_decide``; ``PASS`` hands the decision on to the layers below.
@@ -11,7 +12,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import area_mapping, consumable_policy, junk_destroy_now, magic_eater, me_powers, quest_target_search, status_cure
+from hengbot import area_mapping, consumable_policy, curse_cure, junk_destroy_now, magic_eater, me_powers, quest_target_search, status_cure
 from hengbot.dungeon_ladder import PASS
 
 
@@ -35,6 +36,12 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles):
     sight = status_cure.dungeon_wait_for_sight_key(policy, snapshot)
     if sight is not None:
         return sight
+    # Owner 2026-11-15 「呪われていれば休む前に解く」: worn cursed gear is cured on a safe board
+    # before the rest layer below; a summoning or drain-HP curse left without a means reads
+    # Word of Recall on a normal floor (「クエストの階は残って続ける」, curse_cure).
+    cure = curse_cure.key(policy, snapshot)
+    if cure is not None:
+        return cure
 
     mana_food_loot = policy._town_producer_entry("_mana_food_loot_key", lambda: policy._mana_food_loot_key(
         snapshot, strategic_hostiles

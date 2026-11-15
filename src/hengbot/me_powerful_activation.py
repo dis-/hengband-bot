@@ -322,7 +322,9 @@ def own_cost(policy, snapshot) -> bool:
         return False
     first_board = (memory.pending is not None and memory.pending[2] == paid[0]
                    or memory.__dict__.get("paid_board") == snapshot.turn)
-    return (first_board and snapshot.in_town
+    # In the dungeon too: the curse removal before a rest (curse_cure, owner 2026-11-15) pays
+    # the same cost, and counted as a hit it would close the rest and the next cure behind it.
+    return (first_board
             and 0 <= paid[1] - snapshot.player.hp <= cost(snapshot.player.level))
 
 
@@ -361,16 +363,19 @@ def town_key(policy, snapshot, hostiles) -> str | None:
     return _use(policy, snapshot, effect, target, signature)
 
 
-def _use(policy, snapshot, effect, target, signature) -> str:
+def _use(policy, snapshot, effect, target, signature, reason: str | None = None) -> str:
+    """The use's key, its attempt counted; ``reason``: the owner that sends it (the effect's own
+    by default; curse_cure names the dungeon's), which ``observe`` settles the use by."""
     memory = _memory(policy)
     memory.attempts[(effect.name, signature)] = memory.attempts.get((effect.name, signature), 0) + 1
     memory.pending = (effect, signature, snapshot.turn)
+    memory.__dict__["pending_reason"] = reason or effect.reason
     memory.__dict__["paid_from"] = (snapshot.turn, snapshot.player.hp)
     memory.rekey = ((equipment_identity(target), target.tval, target.sval)
                     if effect.name == IDENTIFY.name
                     and equipment_identity(target) in _planned_deposit_identities(policy)
                     else None)
-    policy.last_reason = effect.reason
+    policy.last_reason = reason or effect.reason
     return effect.key + (_address(target) if effect.targeted else "")
 
 
@@ -465,8 +470,8 @@ def observe(policy, snapshot) -> None:
     """Every decision: settle the previous use from player-visible evidence.
 
     A completed use whose curse stays on the item proves PERMA_CURSE (the
-    only curse remove_all_curse leaves), as a failed *Remove Curse* scroll
-    does (policy ``_observe_remove_curse``).
+    only curse remove_all_curse leaves, on every worn item), as a failed
+    *Remove Curse* scroll does (policy ``_observe_remove_curse``).
     """
     memory = getattr(policy, MEMORY, None)
     if memory is None:
@@ -483,14 +488,21 @@ def observe(policy, snapshot) -> None:
     if rekey is not None:
         _rekey_planned_deposit(policy, snapshot, *rekey)
     refusal = (snapshot.completed_operation_receipt or {}).get("refusal")
-    if (snapshot.completed_operation_owner != effect.reason
+    if (snapshot.completed_operation_owner != memory.__dict__.get("pending_reason", effect.reason)
             or (isinstance(refusal, str) and refusal.startswith("failed"))):
         return
     _count_use(policy, memory, effect)
     if effect is UNCURSE:
-        for item in snapshot.equipment:
-            if item.is_cursed and policy._item_signature(item) == signature:
-                policy.__dict__.setdefault("_permanent_cursed_items", set()).add(signature)
+        # remove_all_curse walks every worn slot (exe_curse_removal with all): whatever it left
+        # cursed is PERMA_CURSE, the use's target or not.
+        cursed = {policy._item_signature(item) for item in snapshot.equipment if item.is_cursed}
+        policy.__dict__.setdefault("_permanent_cursed_items", set()).update(cursed)
+        # A curse removed frees its item's count: the item cursed again later (the Q25 druj's
+        # CAUSE_3 curses the worn gear again and again, n1-c life-211) is the same name, and its
+        # earlier removals must not use up ``ATTEMPTS_PER_TARGET``.
+        for key in [key for key in memory.attempts
+                    if key[0] == UNCURSE.name and key[1] not in cursed]:
+            del memory.attempts[key]
 
 
 def _count_use(policy, memory, effect) -> None:
