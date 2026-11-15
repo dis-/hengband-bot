@@ -163,5 +163,44 @@ def walk(policy, snapshot):
         self.assertEqual(status, 0, out.getvalue())
 
 
+class WalkVetoNamesTest(unittest.TestCase):
+    """Stage 3: each named combination reads its parts in the table's order."""
+
+    PARTS = {"_engagement_avoid_cells": "retreat", "refused": "left",
+             "_engagement_route_veto": "route", "_unseen_attack_area_veto": "unseen-area",
+             "_unseen_attack_area_cells": "unseen-cells", "_warning_refused_cells": "warning"}
+
+    def test_each_function_is_its_row(self):
+        import ast
+        import inspect
+
+        from hengbot import walk_vetoes
+
+        tree = ast.parse(inspect.getsource(walk_vetoes))
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        for name, parts in walk_vetoes.COMBINATIONS.items():
+            node = functions[name.replace("-", "_")]
+            # ast.walk is breadth-first: order the reads by their place in the source.
+            read = [self.PARTS[sub.attr] for sub in sorted(
+                (sub for sub in ast.walk(node)
+                 if isinstance(sub, ast.Attribute) and sub.attr in self.PARTS),
+                key=lambda sub: (sub.lineno, sub.col_offset))]
+            self.assertEqual(tuple(read), parts, name)
+
+    def test_the_walk_veto_is_the_walk_row(self):
+        from hengbot import walk_vetoes
+
+        calls = []
+        policy = SimpleNamespace(
+            _engagement_avoid_cells={1},
+            _engagement_owned_avoid_cells=frozenset(),
+            _engagement_route_veto=lambda snapshot: calls.append("route") or frozenset({2}),
+            _unseen_attack_area_veto=lambda snapshot: calls.append("unseen") or frozenset({3}))
+        cells = walk_vetoes.walk(policy, SimpleNamespace(floor_key=(1, 1, 0)))
+        self.assertEqual(cells, frozenset({1, 2, 3}))
+        self.assertIsInstance(cells, frozenset)
+        self.assertEqual(calls, ["route", "unseen"])
+
+
 if __name__ == "__main__":
     unittest.main()

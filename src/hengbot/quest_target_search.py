@@ -146,7 +146,7 @@ from dataclasses import dataclass, field
 
 from hengbot import (
     area_mapping, hunt_target, left_cells, locked_doors, me_capability, me_powers, retreat_enclosure,
-    search_coverage,
+    search_coverage, walk_vetoes,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -263,8 +263,7 @@ def _routes(policy, snapshot: Snapshot) -> dict:
 
 def _avoided(policy, snapshot: Snapshot) -> frozenset:
     """The cells every walk of the search keeps off (``_routes``)."""
-    return frozenset(policy._engagement_avoid_cells | left_cells.refused(policy, snapshot)
-                     | policy._engagement_route_veto(snapshot))
+    return frozenset(walk_vetoes.retreat_left_route(policy, snapshot))
 
 
 def _room_groups(cells: set) -> list:

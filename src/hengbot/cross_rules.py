@@ -88,7 +88,8 @@ def _caller(depth: int) -> str:
         return "?"
     name = frame.f_code.co_name
     # The shared helpers name the producer that called them.
-    while name in _HELPERS and frame.f_back is not None:
+    while ((name in _HELPERS or frame.f_globals.get("__name__") in _HELPER_MODULES)
+           and frame.f_back is not None):
         frame = frame.f_back
         name = frame.f_code.co_name
     if name.startswith("<"):
@@ -98,6 +99,8 @@ def _caller(depth: int) -> str:
     return name
 
 
+# The named combinations of the cells a walk keeps off: the walker that called one is named.
+_HELPER_MODULES = frozenset({"hengbot.walk_vetoes"})
 _HELPERS = frozenset({"_path_step", "_step_toward", "refused_yx", "_walk_veto", "refused",
                       "removal_key", "before_rest", "note", "scroll_substitute", "substitute"})
 
