@@ -102,5 +102,66 @@ class CrossRuleObserverTest(unittest.TestCase):
         self.assertEqual(sites, ["some_walker"])
 
 
+class CrossRuleLintTest(unittest.TestCase):
+    """Stage 2: the registry and its lint (scripts/cross_rule_lint.py)."""
+
+    @staticmethod
+    def _lint():
+        import importlib.util
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parents[1] / "scripts" / "cross_rule_lint.py"
+        spec = importlib.util.spec_from_file_location("cross_rule_lint", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_a_walker_without_the_registry_is_a_gap(self):
+        import ast
+
+        lint = self._lint()
+        sources = {
+            "left_cells": """
+def refused(policy, snapshot):
+    return frozenset()
+""",
+            "good_walk": """
+from hengbot import left_cells
+def walk(policy, snapshot):
+    left_cells.refused(policy, snapshot)
+    return policy._step_toward(snapshot, None)
+""",
+            "bad_walk": """
+def walk(policy, snapshot):
+    return policy._step_toward(snapshot, None)
+""",
+            "helper_walk": """
+from hengbot import left_cells
+def _veto(policy, snapshot):
+    return left_cells.refused(policy, snapshot)
+def walk(policy, snapshot):
+    _veto(policy, snapshot)
+    return policy._step_toward(snapshot, None)
+""",
+        }
+        index = lint.Index({name: ast.parse(text) for name, text in sources.items()})
+        self.assertEqual(lint.gaps(index)[cross_rules.LEFT_CELLS], ["bad_walk:walk"])
+
+    def test_the_census_names_the_unforgotten_memories(self):
+        self.assertEqual(
+            {row.attribute for row in cross_rules.MONSTER_MEMORIES if row.forgotten_by is None},
+            set(cross_rules.UNFORGOTTEN_MONSTER_MEMORIES))
+
+    def test_the_source_has_no_new_gap(self):
+        import contextlib
+        import io
+
+        lint = self._lint()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            status = lint.main([])
+        self.assertEqual(status, 0, out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

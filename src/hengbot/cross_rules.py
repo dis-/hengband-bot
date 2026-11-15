@@ -183,3 +183,88 @@ def report(policy) -> list | None:
     if ledger is None or not ledger.result:
         return None
     return [f"cross-rule:{rule}:{state}:{site}" for rule, state, site in ledger.result]
+
+
+# -- the registry (stage 2): each rule's owner, its registered points and its producers --------
+#
+# scripts/cross_rule_lint.py lists every producer that does not reach its rule's point; the gaps
+# known on 2026-11-15 are kept in scripts/cross_rule_baseline.json (advisory) and a new one fails.
+
+# Modules and functions of the town (the rules are the dungeon's).
+TOWN_MODULES = (r"^(policy_(town|shop|home|instore|equipment)|town_|store|shop|home|cli$|input_executor"
+                r"|model$|zul_trip|arena|morivant|me_inn|armor_smith|wand_tower|q2_tower|cross_rules$)")
+TOWN_FUNCTIONS = r"town|store|shop|home|wilderness|morivant|telmora"
+# The rest and wait keys (uncurse-before-rest's producers return one).
+REST_KEY_NAMES = frozenset({"REST_MACRO", "REST_KEY", "REST_COMMAND", "WAIT_KEY", "SEARCH_KEY", "HOLD_KEY"})
+# The ladder layers below the safe-now rung curse_cure.key: a rest or wait they return was
+# preceded by that rung on the same decision (dungeon_ladder.LADDER).
+LAYERS_AFTER_SAFE_NOW = frozenset({"ladder_objectives", "ladder_rest", "ladder_descent", "ladder_idle"})
+# The calls that compose a read, a use or a cast (deep-teleport's producers call one).
+KEY_COMPOSERS = frozenset({"_read_key", "_issue_emergency_consumable", "_use_staff_key", "_staff_key",
+                           "_device_key", "device_teleport_key", "blind_teleport_key", "cast", "_use"})
+# The self-teleport means (deep-teleport's producers touch one).
+TELEPORT_MEANS = (r"^(SV_SCROLL_TELEPORT|SV_SCROLL_PHASE_DOOR|SV_STAFF_TELEPORTATION|_find_teleport_scroll"
+                  r"|_find_phase_scroll|pack_teleport_means|blind_teleport_means|TELEPORTATION)$")
+
+
+@dataclass(frozen=True)
+class CrossRule:
+    """``points``: the registered pass-through (``module:function`` or ``policy:method``);
+    ``helpers``: the shared step/compose helpers the producers call (not producers, and not
+    followed when reading whether a producer reaches the point); ``point_modules``: the
+    modules that are the rule's own machinery."""
+    name: str
+    owner: str
+    points: tuple
+    helpers: tuple = ()
+    point_modules: tuple = ()
+
+
+REGISTRY = (
+    CrossRule(LEFT_CELLS, "owner 2026-11-13 「1と2だけ」 (left_cells)",
+              points=("left_cells:refused", "left_cells:refused_yx", "policy:_walk_veto"),
+              helpers=("_step_toward", "_path_step", "walk_key"),
+              point_modules=("left_cells", "goal_route")),
+    CrossRule(UNCURSE_BEFORE_REST, "owner 2026-11-15 (curse_cure)",
+              points=("curse_cure:removal_key", "curse_cure:before_rest", "curse_cure:key"),
+              # The step's own refusal WAIT is the walk's, not a rest or a hold.
+              helpers=("_step_toward",),
+              point_modules=("curse_cure",)),
+    CrossRule(ESCAPE_LINE_OF_FIRE, "owner 2026-11-14 「射線が通っている場合のみ」 (line_of_fire)",
+              points=("line_of_fire:note",),
+              point_modules=("line_of_fire", "escape_count", "reasons", "policy_constants")),
+    CrossRule(DESTRUCTION_FORGET, "owner 2026-11-11 (destruction_use, monster_memory)",
+              points=("monster_memory:forget_within", "destruction_use:forget_circle"),
+              point_modules=("destruction_use", "monster_memory")),
+    CrossRule(DEEP_TELEPORT, "owner 2026-11-14 「50F以降のテレポートの条件を厳しくする」 (deep_teleport)",
+              points=("deep_teleport:substitute", "deep_teleport:scroll_substitute",
+                      "deep_teleport:no_means", "deep_teleport:movement_refused",
+                      "policy:_read_key", "policy:_issue_emergency_consumable"),
+              point_modules=("deep_teleport",)),
+)
+
+
+@dataclass(frozen=True)
+class MonsterMemory:
+    """A memory of monsters on the floor and what forgets it at a *Destruction*
+    (None: nothing, the flash board records it)."""
+    attribute: str
+    module: str
+    forgotten_by: str | None
+
+
+MONSTER_MEMORIES = (
+    MonsterMemory("_sleeper_reach_memory", "monster_memory", "monster_memory.KINDS"),
+    MonsterMemory("_sleeper_loot_block", "monster_memory", "monster_memory.KINDS"),
+    MonsterMemory("_disenchant_avoid_seen", "monster_memory", "monster_memory.KINDS"),
+    MonsterMemory("_immobile_summoner_memory", "summoner_wait", "destruction_use.FORGET_VISIT"),
+    MonsterMemory("_immobile_threat_memory", "immobile_threat_memory", "destruction_use.FORGET_VISIT"),
+    MonsterMemory("_hunt_target_memory", "hunt_target", "destruction_use.FORGET_VISIT"),
+    MonsterMemory("_left_cells", "left_cells", "destruction_use.FORGET_VISIT"),
+    *(MonsterMemory(attribute, module, None) for attribute, module in (
+        ("_breeder_quest_seen", "breeder_quest"), ("_oneshot_breath_visit", "oneshot_breath"),
+        ("_retreat_veto_life", "retreat_veto_life"), ("_summon_response_memory", "summon_response"),
+        ("_threat_tier_memory", "threat_tier_memory"), ("_sensed_approach_memory", "threat_tiers"),
+        ("_sent_away_t1", "sent_away_t1"), ("_deep_teleport_landing", "deep_teleport"),
+        ("_blind_strike_monsters", "blind_strike"))),
+)
