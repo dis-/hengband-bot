@@ -15,8 +15,9 @@ corridor a walk reaches, was never gone for.
 
 The fix (quest25_battle ``_sweep``, ``_sweep_reachable``): the sweep goes for the nearest monster or
 remembered cell a walk reaches (it or a cell beside it), and forgets only the cell it reached before it
-detects again.  A monster only in a sealed pocket is no goal; while only such cells are left the sweep
-holds as before -- the way into the pocket (melting the granite [9,3]) is the owner's to decide.
+detects again.  A monster only in a sealed pocket is no walk's goal; when only such cells are left,
+the pocket is opened by melting the granite [9,3] (owner 2026-11-15 「溶かして撃つ・無ければ帰還」,
+quest25_pocket).
 
 Recorded: tests/fixtures/n1c-211-q25-sweep-hold-1115.json.gz
 (tests/extract_n1c_211_q25_sweep_hold_1115_fixture.py): the boards of turns 4076000-4076300 and the
@@ -140,11 +141,14 @@ class TheSweepWalkTest(replay._Replay):
             self.assertEqual(fight.detected, (SEALED,))
             self.assertEqual((key, policy.last_reason), ("mCg", f"{battle.DETECT_REASON}:detect-all"))
 
-    def test_control_only_the_sealed_cell_left_holds_as_before(self):
-        """DECLARED CONSTRUCTED: the record remembering [7,4] alone (the owner's question)."""
+    def test_control_only_the_sealed_cell_left_goes_to_melt_it(self):
+        """DECLARED CONSTRUCTED: the record remembering [7,4] alone.  Owner 2026-11-15 「溶かして撃つ・
+        無ければ帰還」 (tests/test_n1c_211_q25_sealed_quylthulg_1115_recorded): the walk to [10,2]."""
+        from hengbot import quest25_pocket
+
         with TemporaryDirectory() as directory:
             policy, key = decided(directory, HELD_TURN, detected=(SEALED,))
-            self.assertEqual((key, policy.last_reason), ("5", battle.HOLD_REASON))
+            self.assertEqual((key, policy.last_reason), ("1", quest25_pocket.WALK_REASON))
             self.assertEqual(wait.phase_name(policy), "sweep")
 
 
