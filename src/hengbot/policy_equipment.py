@@ -3204,6 +3204,14 @@ class EquipmentMixin:
         # A preparation with no target keeps the worn kit (blocker_leaves_no_target).
         # Depth abilities are checked separately from the current ability_sources.
         cacheable = snapshot is self._map_predicate_snapshot
+        # While this policy's town recall read is armed, every reader of the
+        # leaf (the read point's canceller, the fixed-quest readiness, the
+        # departure gate) reads the board the read was authorised on.  On the
+        # countdown's own board a shop page aged out of shelf evidence, the
+        # optimizer re-searched, started a transaction for the same worn kit
+        # and the canceller undid the authorised recall (n1-c life-214
+        # 2026-11-16 06:26, recall-readiness-contradiction).
+        snapshot = self._recall_departure_board(snapshot)
         depth = (self._equipment_departure_destination_depth(snapshot)
                  if destination_depth is None else destination_depth)
         cache_token = (self._decision_sequence, depth)
