@@ -66,6 +66,9 @@ from hengbot.policy_constants import (
 # again. The 2026-10-06 23F capture had unseen hits 8-110 game turns apart,
 # so the quiet window must exceed that gap or loot returns between hits.
 UNSEEN_LOOT_QUIET_TURNS = 200
+# Drops of a carried chest that never reached the game (the chest still carried
+# after game time passed) before the chest is left in the pack on this floor.
+CHEST_DROP_UNCONFIRMED_LIMIT = 3
 
 SOURCE_PROMPT = {
     USE_STAFF_KEY: ("どの杖を使いますか? ", "Use which staff? "),
@@ -176,8 +179,8 @@ class IdentificationMixin:
                     ),
                 )
                 self._chest_phase_counts = {}
-                self._chest_drop_origin = None
-                self._chest_drop_chest_count = None
+                self._clear_chest_drop()
+                self._chest_drop_unconfirmed = 0
                 self._chest_preopen_objects = None
             else:
                 carried_chest_count = sum(
@@ -189,11 +192,33 @@ class IdentificationMixin:
                     if self._chest_drop_chest_count is None
                     else carried_chest_count >= self._chest_drop_chest_count
                 )
-                if posted_chest_still_carried:
+                posting = getattr(self, "_chest_drop_posting", None)
+                if posted_chest_still_carried and posting is None:
+                    # A drop restored without its posting record (an older
+                    # checkpoint, a hand-set origin) dates from this board.
+                    posting = (self._decision_sequence, snapshot.turn, None)
+                    self._chest_drop_posting = posting
+                if posted_chest_still_carried and snapshot.turn <= posting[1]:
                     # The drop command has not yet reached the next stable snapshot.
                     # Keep ownership only while the posted chest remains carried.
                     self.last_reason = "chest:await-drop"
                     return WAIT_KEY
+                if posted_chest_still_carried:
+                    # Game time passed since the drop board and the chest is still
+                    # carried: the drop never reached the game (a later rung replaced
+                    # the key, or the game refused it).  Waiting can never change
+                    # that, so the claim ends here and the carried-chest branch below
+                    # posts the drop again, at most CHEST_DROP_UNCONFIRMED_LIMIT times.
+                    # n1-a life-526 (town, 2026-11-15 23:52-23:55): the recall's
+                    # arrival board posted ``dq`` (chest:drop), periodic:character-dump
+                    # replaced it, and chest:await-drop waited at [32,90] until the
+                    # stall detector retired the character.
+                    self._clear_chest_drop()
+                    self._chest_drop_unconfirmed = (
+                        getattr(self, "_chest_drop_unconfirmed", 0) + 1
+                    )
+                else:
+                    self._chest_drop_unconfirmed = 0
                 origin = self._chest_drop_origin
                 origin_grid = snapshot.grids.get(origin)
                 if player.position == origin or (
@@ -205,7 +230,7 @@ class IdentificationMixin:
                     self._chest_position = origin
                     self._chest_phase_counts = {}
                     self._chest_preopen_objects = None
-                self._chest_drop_origin = None
+                self._clear_chest_drop()
         if self._chest_position is not None:
             chest_pos = self._chest_position
             distance = player.position.distance_to(chest_pos)
@@ -419,6 +444,16 @@ class IdentificationMixin:
         )
         if chest is None:
             return None
+        if getattr(self, "_chest_drop_unconfirmed", 0) >= CHEST_DROP_UNCONFIRMED_LIMIT:
+            # The named end of the carried chest on this floor: its drop never
+            # reached the game this many times.  The chest stays in the pack
+            # (sale and disposal judge it like any other item); a new floor
+            # resets the count (policy_observation).
+            self._offer_execution_no_step(
+                producer="identification", work_id="chest:drop",
+                cause="chest-drop-unconfirmed-limit",
+            )
+            return None
         if player.hp < player.max_hp * CHEST_OPEN_MIN_HP_RATIO:
             # A chest trap can hurt; open on a healthy bar.
             return None
@@ -441,16 +476,10 @@ class IdentificationMixin:
                 # every path back to the chest's reserved square.  Waiting here
                 # can never change that routing evidence, so process the carried
                 # chest at the current safe, hostile-free position instead.
-                self._chest_drop_origin = player.position
-                self._chest_drop_chest_count = sum(
-                    self._is_processable_chest(item)
-                    for item in snapshot.inventory
-                )
-                self._chest_phase_counts = {}
-                self._chest_collecting = False
-                self._chest_preopen_objects = None
                 self.last_reason = "chest:drop-unreachable-reserved"
-                return CHEST_DROP_KEY + chest.slot
+                key = CHEST_DROP_KEY + chest.slot
+                self._record_chest_drop(snapshot, key)
+                return key
             self.last_reason = "chest:return-reserved-position"
             self._declare_reach(target)
             return self._step_toward(snapshot, step)
@@ -463,15 +492,39 @@ class IdentificationMixin:
             # pocket) walled itself in with three piles that way.  The chest
             # waits for a board off the entrance.
             return None
-        self._chest_drop_origin = player.position
+        self.last_reason = "chest:drop"
+        key = CHEST_DROP_KEY + chest.slot
+        self._record_chest_drop(snapshot, key)
+        return key
+
+    def _record_chest_drop(self, snapshot: Snapshot, key: str) -> None:
+        """Start the drop phase, bound to this decision's board and key.
+
+        The record lets the await phase tell a drop still on its way from one
+        that never reached the game (withdraw_unposted_chest_drop, and the
+        game-turn test in _chest_processing_key)."""
+        self._chest_drop_origin = snapshot.player.position
         self._chest_drop_chest_count = sum(
             self._is_processable_chest(item) for item in snapshot.inventory
         )
+        self._chest_drop_posting = (self._decision_sequence, snapshot.turn, key)
         self._chest_phase_counts = {}
         self._chest_collecting = False
         self._chest_preopen_objects = None
-        self.last_reason = "chest:drop"
-        return CHEST_DROP_KEY + chest.slot
+
+    def _clear_chest_drop(self) -> None:
+        self._chest_drop_origin = None
+        self._chest_drop_chest_count = None
+        self._chest_drop_posting = None
+
+    def withdraw_unposted_chest_drop(self, decision_sequence: int) -> None:
+        """A drop whose key a later rung replaced was never posted: forget it.
+
+        Kept, the await phase would wait for a chest that can never leave the
+        pack (n1-a life-526, periodic:character-dump over ``dq``)."""
+        posting = getattr(self, "_chest_drop_posting", None)
+        if posting is not None and posting[0] == decision_sequence:
+            self._clear_chest_drop()
 
     def _pack_pressure_identify_key(self, snapshot: Snapshot) -> str | None:
         """Identify an unknown while the pack is filling, so the disposal/sale
@@ -980,8 +1033,7 @@ class IdentificationMixin:
             self._identification_candidate = signature
             self._request_identification("full" if full else "normal")
 
-    @classmethod
-    def _identification_waiting_item(cls, item: InventoryItem | StoreItem) -> bool:
+    def _identification_waiting_item(self, item: InventoryItem | StoreItem) -> bool:
         """Carried work that waits for an identification source.
 
         Equipment of the identification flow, and an unknown rod, wand or
@@ -990,9 +1042,38 @@ class IdentificationMixin:
         waiting for identification are shelved at Home like equipment
         (「魔法道具も自宅に預ける」, extending 10-31 「鑑定待ちの装備は自宅に
         預け極力持ち歩かない」).  A known device (food, absorption) never waits.
+        An unaware potion or scroll waits the same way (owner 2026-11-15,
+        ``_unaware_consumable_awaits_identification``).
         """
-        return cls._identification_flow_candidate(item) or (
-            not item.is_equipment and cls._normal_identification_flow_candidate(item))
+        return self._identification_flow_candidate(item) or (
+            not item.is_equipment and self._normal_identification_flow_candidate(item))
+
+    def _device_identification_target(self, snapshot: Snapshot):
+        """The carried non-equipment item ``_town_device_processing_key``
+        identifies: an unknown device, or an unaware potion or scroll a
+        carried means identifies now (owner 2026-11-15)."""
+        return self._first_item(
+            snapshot,
+            lambda item: self._normal_identification_flow_candidate(item)
+            and not item.is_equipment
+            and self._item_signature(item) not in self._deferred_device_items
+            and (not self._unaware_consumable_awaits_identification(item)
+                 or self._unaware_consumable_identifiable_now(snapshot, item)),
+        )
+
+    def _unaware_consumable_identifiable_now(self, snapshot: Snapshot, item) -> bool:
+        """A carried means identifies this unaware potion or scroll now.
+
+        The one answer of the town device processor, the waiting deposit and
+        the Home junk sweep (item_fate.sweep_identify_ware): the absorbed
+        Identify, a carried Identify staff, rod or scroll
+        (``item_fate.can_identify_now``, what ``_carried_identify_command``
+        composes), unless that command's failure watch gave the kind up.
+        Owner 2026-11-15: with no means it is never bought for, sold or tried.
+        """
+        from hengbot import item_fate
+        return (self._item_signature(item) not in self._unidentifiable_sigs
+                and item_fate.can_identify_now(self, snapshot, item))
 
     @staticmethod
     def _equip_blocked_by_identification(
@@ -1401,6 +1482,9 @@ class IdentificationMixin:
                 and not item.fully_known
                 if full
                 else self._normal_identification_flow_candidate(item)
+                # No source is bought for an unaware potion or scroll
+                # (owner 2026-11-15, _unaware_consumable_identifiable_now).
+                and not self._unaware_consumable_awaits_identification(item)
             )
         )
         for owned in self._equipment_catalog.items:
@@ -1419,8 +1503,12 @@ class IdentificationMixin:
             # the equipment catalog; _find_home_candidate takes them back
             # (but a staff stage 1 keeps at Home, me_staff_sequence.stows).
             from hengbot.me_staff_sequence import stows as staff_sequence_stows
+            # A shelved unaware potion or scroll buys no source: the Home junk
+            # sweep takes it only when a carried one identifies it now
+            # (item_fate.sweep_identify_ware, owner 2026-11-15).
             count += sum(max(1, item.count) for item in self._home_knowledge_items
                          if not item.is_equipment and self._identification_waiting_item(item)
+                         and not self._unaware_consumable_awaits_identification(item)
                          and not staff_sequence_stows(self, snapshot, item)
                          and self._item_signature(item) not in self._deferred_home_items)
         return count

@@ -885,6 +885,7 @@ class CombatMixin:
             self._escape_sustain_non_escape_decisions = 0
             self._escape_speed_baseline = None
             self._escape_speed_attempted = False
+            self._escape_haste_seen = False
             return key
 
         instant_escape = self.last_reason.startswith(
@@ -911,6 +912,7 @@ class CombatMixin:
             self._escape_sustain_active = True
             self._escape_speed_baseline = snapshot.player.speed
             self._escape_speed_attempted = False
+            self._escape_haste_seen = False
         self._escape_sustain_non_escape_decisions = 0
         if not hostiles:
             return key
@@ -960,8 +962,20 @@ class CombatMixin:
             self._escape_speed_baseline is not None
             and snapshot.player.speed > self._escape_speed_baseline
         )
+        # The haste of this episode (its own dose or one already on at its start) ran out
+        # while the escape goes on: the 09-18 condition is asked again, as on the first
+        # board, against the speed read now.  n1-a life-525 (2026-11-15 21:05, 49F): the
+        # haste on at the episode's start ended at decision 24016 (turn 12041302), and the
+        # last six 即死 boards stood at +0 beside +10..+30 enemies with 9 Potions of Speed
+        # carried (owner 2026-11-10 「接敵してしまったらまず加速」).
+        if haste_active:
+            self._escape_haste_seen = True
+            self._escape_speed_attempted = False
+        haste_ran_out = self._escape_haste_seen and not haste_active
+        if haste_ran_out:
+            self._escape_speed_baseline = snapshot.player.speed
         if (
-            episode_start
+            (episode_start or haste_ran_out)
             and faster_melee
             and not haste_active
             and not self._escape_speed_attempted
@@ -970,6 +984,7 @@ class CombatMixin:
                                    rearm=("_escape_speed_attempted", False))
             if speed is not None:
                 self._escape_speed_attempted = True
+                self._escape_haste_seen = False
                 return speed
         return key
     def _strategic_hostiles(self, snapshot: Snapshot) -> list[MonsterState]:

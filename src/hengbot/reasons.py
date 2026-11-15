@@ -229,6 +229,13 @@ _rows(WALK, "deep_teleport", "a search turn in place of a 50F+ self-teleport off
 _rows(NOT_ESCAPE, "deep_teleport", "the decision record's branch name, not a decision's reason: 50F+ off the "
       "instant-death board with no Recall and no *Destruction* answer, no self-teleport is offered and the "
       "ladder acts as without one (owner 2026-11-14)", "deep-teleport:no-means-fight")
+_rows(WALK, "recall_wait_teleport", "a search turn in place of a self-teleport withheld while Recall counts "
+      "down (neither the instant-death board nor a T1 with a line of fire) that reached the substitute past "
+      "the finders: nothing is read (owner 2026-11-15)", "recall-wait-teleport:hold")
+_rows(NOT_ESCAPE, "recall_wait_teleport", "the decision record's branch name, not a decision's reason: while "
+      "Recall counts down off the instant-death board with no T1 in the line of fire (or with three "
+      "Teleportation scrolls or fewer), no self-teleport is offered and the ladder acts as without one "
+      "(owner 2026-11-15)", "recall-wait-teleport:withheld")
 _rows(EXCLUDED, "policy_combat", "a reposition to fight the guardian from cover, not a leave",
       "guardian:teleport-to-cover")
 _rows(EXCLUDED, "policy_supply", "the starving leave of a locked quest floor: no enemy prompted it",

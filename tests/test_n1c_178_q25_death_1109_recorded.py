@@ -213,8 +213,11 @@ class LitHallSightTest(unittest.TestCase):
 
 def frost_only():
     """DECLARED CONSTRUCTED: the life's lists with Disintegrate, Dragon's Flame and Dragon's Breath
-    spent (count 0): the strongest attack at the tome's grid is Dragon's Frost, about 16 a turn."""
-    return lists({("wand", me_device_attacks.POWERS[("wand", sval)].names[0]): {"current": 0}
+    spent (count 0): the strongest attack at the tome's grid is Dragon's Frost, about 16 a turn.
+    (Disintegrate is no attack since the owner's ban of 2026-11-16, me_device_attacks
+    FORBIDDEN_POWERS; it stays spent so the constructed lists are unchanged.)"""
+    table = me_device_attacks.POWERS | me_device_attacks.FORBIDDEN_POWERS
+    return lists({("wand", table[("wand", sval)].names[0]): {"current": 0}
                   for sval in (25, 26, 28)})
 
 

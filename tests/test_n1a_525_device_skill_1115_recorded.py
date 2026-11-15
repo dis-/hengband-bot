@@ -11,7 +11,10 @@ TR_MAGIC_MASTERY and adj_int_dev of INT (player-status.cpp); the staff's chance 
 グローブ (+3, +24), the 魔法道具支配のアミュレット (+1, +8) and two 妖精の swords (+2,
 +16): +32 already makes 63 (84.6%).  The Home's テレパシーの鉄冠, though, is a weak-ESP
 crown (add_high_telepathy: eight ESP kinds, no TR_TELEPATHY), so 50F's telepathy is still
-missing and the real catalog keeps its 49F band: the recorded visit replays unchanged.
+missing and the real catalog keeps its 49F band.  Owner 2026-11-15 (after life-525 died on 49F
+with the staves in the Home), verbatim 「深さに関係なく持っていく」: the set that makes the staff
+reliable is weighed at every depth (equipment_utility.destruction_means_bonus), so from row 2
+the real visit walks to the Home to wear it (the record went on fundraising in the worn set).
 
 Recorded: the town-arrival checkpoint of the 17:36:10 visit, its 10 journal rows and the
 sidecar files (tests/extract_n1a_525_device_skill_1115_fixture.py).
@@ -151,10 +154,16 @@ class N1a525DeviceSkillRecordedTest(executor_harness.RecordedHarness):
         self.assertFalse(bands[80].satisfying_set_existed)
         self.assertEqual(result.chosen_depth, 49)
 
-    def test_the_real_visit_replays_unchanged(self):
-        for row, (decided, recorded) in enumerate(self.replayed):
+    def test_the_real_visit_walks_home_to_wear_the_gear(self):
+        for row, (decided, recorded) in enumerate(self.replayed[:2]):
             self.assertEqual(decided, recorded, row)
         self.assertEqual(self.journal[-1]["reason"], "descend")
+        # Row 2: the recorded step-off went on with the worn set; the 49F band now wears the
+        # gloves and the amulet (skill 63), walking to the Home for them.
+        self.assertEqual(self.replayed[2][0], ("`n(.", "equipment-transaction:travel-home"))
+        self.assertEqual(self.replayed[2][1][1],
+                         "town:entrance-step-off:equipment-transaction:"
+                         "stale-identity-invalidated:takeoff:missing")
 
     def test_c_the_optimizer_wears_the_gear_with_the_telepathy(self):
         policy, board = self.built, self.built_board

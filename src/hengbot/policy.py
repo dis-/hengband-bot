@@ -1770,6 +1770,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._chest_phase_counts: dict[str, int] = {}
         self._chest_drop_origin: Position | None = None
         self._chest_drop_chest_count: int | None = None
+        # (decision sequence, game turn, key) of the posted drop, and the drops
+        # that never reached the game on this floor (policy_identification).
+        self._chest_drop_posting: tuple[int, int, str | None] | None = None
+        self._chest_drop_unconfirmed = 0
         self._chest_collecting = False
         self._chest_preopen_objects: dict[Position, tuple[int, int]] | None = None
         self._processed_chest_positions: set[Position] = set()
@@ -1956,6 +1960,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._escape_sustain_non_escape_decisions = 0
         self._escape_speed_baseline: int | None = None
         self._escape_speed_attempted = False
+        self._escape_haste_seen = False
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
         self._unseen_retreat_floor: tuple[int, int, int] | None = None
@@ -5035,6 +5040,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._escape_sustain_non_escape_decisions = 0
             self._escape_speed_baseline = None
             self._escape_speed_attempted = False
+            self._escape_haste_seen = False
         latest_snapshot = snapshot
         self._decision_input_snapshot = latest_snapshot
         # Immutable, so the decision-row observer scope (cli
@@ -6422,6 +6428,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # The replaced key is never posted: what its owner waits for
             # cannot arrive, so its expectation of this decision is withdrawn.
             self._owner_expectations.withdraw_unposted(self._decision_sequence)
+            self.withdraw_unposted_chest_drop(self._decision_sequence)
         if key is None:
             def fallback():
                 self.last_reason = (
@@ -10766,19 +10773,37 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         }
         return posted_key
 
-    @classmethod
     def _normal_identification_flow_candidate(
-        cls, item: InventoryItem | StoreItem,
+        self, item: InventoryItem | StoreItem,
     ) -> bool:
-        """Union of carried/worn gear and device plain-Identify consumers.
-
-        Scrolls (tval 70) deliberately have no town-identification owner:
-        reading a scroll identifies its flavor through its normal use flow.
-        """
+        """Union of carried/worn gear, device and unaware-consumable
+        plain-Identify consumers."""
         return (
-            cls._identification_flow_candidate(item) and not item.known
+            self._identification_flow_candidate(item) and not item.known
         ) or (
             item.tval in {TVAL_WAND, TVAL_STAFF, TVAL_ROD} and not item.known
+        ) or self._unaware_consumable_awaits_identification(item)
+
+    def _unaware_consumable_awaits_identification(
+        self, item: InventoryItem | StoreItem,
+    ) -> bool:
+        """An unaware potion or scroll the identification flow owns.
+
+        Owner 2026-11-15 「自宅に未鑑定の薬と巻物を溜め込む問題」→「鑑定の
+        手段で調べる」: an unaware flavour is identified with the character's
+        means (Identify scroll, Staff/Rod of Perception, the Magic-Eater's
+        absorbed Identify) wherever it is (pack or Home), and the now-known
+        kind is then kept, sold or destroyed by the existing rules.  With no
+        means it stays as it is: never sold to learn it, never tried
+        (spells-perception.cpp identify_item makes the kind aware; the
+        Identify chooser's object_is_not_identified accepts it).  Where
+        unaware consumables are sold as they are (``_find_low_level_sale``:
+        shallower than 20F, or a scavenging run's haul) the sale keeps them.
+        """
+        return (
+            item.tval in {TVAL_POTION, TVAL_SCROLL}
+            and not item.aware
+            and not (self._deepest_level < 20 or self._sell_scavenged_consumables)
         )
 
 

@@ -32,6 +32,7 @@ from hengbot.equipment_transaction_planner import (
     plan_equipment_transactions,
 )
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
+from hengbot.equipment_utility import with_destruction_means
 from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
 from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -975,7 +976,10 @@ def prepare_warrior_optimization(
         def optimize(candidates):
             return optimize_loadout(
                 items,
-                lambda loadout: evaluator(loadout).metrics,
+                # Owner 2026-11-15 「深さに関係なく持っていく」: a set that makes an owned
+                # *Destruction* staff reliable earns its utility at every depth.
+                lambda loadout: with_destruction_means(
+                    evaluator(loadout).metrics, loadout, staff_gate),
                 depth=depth,
                 intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
                 has_destruction=has_destruction,

@@ -14,7 +14,8 @@ knew the launcher only, so every distant hostile was shot with arrows:
   the row.  The arrow hits it about 91% of the time (shooting 225 less the distance, against
   AC 12); the absorbed サンダー・ボルト rod (14d8) kills it at 96%.
 - decision 34326 (turn 8961440): ``fl8`` at a 二周目の小さな泡 (race 1155, 400 hp) four
-  grids north.  74 a turn at ~80% against the absorbed 分解 (Disintegrate, 245 at 88%).
+  grids north.  74 a turn at ~80% against the absorbed 分解 (Disintegrate, 245 at 88%);
+  since the owner's ban of 2026-11-16 the absorbed ドラゴンの火炎 answers instead.
 
 Every decision is the public ``choose_key`` of a fresh policy shown the frame's lists first
 (``observe_lists``, as the executor's menu reading would).
@@ -102,15 +103,20 @@ class RangedVersusDeviceRecordedTest(unittest.TestCase):
         self.assertAlmostEqual(launcher, (0.05 + 0.9 * (215 - 9) / 215) * 32)
         self.assertLess(launcher, device[0])
 
-    def test_the_absorbed_disintegrate_beats_the_arrow_at_the_bubble(self):
+    def test_the_absorbed_dragons_flame_beats_the_arrow_at_the_bubble(self):
+        # Owner 2026-11-16 「分解攻撃は…使用を禁止する」 (test_no_disintegrate_1116_recorded):
+        # the absorbed 分解 (``mBz8``, 245 at 88%) answered here until then; the next strongest
+        # absorbed power, ドラゴンの火炎 (wand sval 26, letter 0), answers in its place.
         key, reason, policy, snapshot = self.decide(self.case(34326))
-        self.assertEqual((key, reason), ("mBz8", DEVICE_REASON))
+        self.assertEqual((key, reason), ("mB08", DEVICE_REASON))
         target = self.monster(snapshot, BUBBLE, snapshot.player.position.__class__(5, 116))
         ammo = next(item for item in snapshot.inventory if item.slot == ARROWS)
         launcher = attack_expectation.launcher_shot(policy, snapshot, target, ammo)
         device = me_device_attacks.attack_choice(policy, snapshot, target, "8")
-        self.assertEqual(device[1].names[1], "Disintegrate")
-        self.assertGreater(device[0], 3 * launcher)
+        self.assertEqual(device[1].names[1], "Dragon's Flame")
+        self.assertGreater(device[0], launcher)
+        self.assertNotIn(("wand", 25), {(power.kind, power.sval) for _, power in
+                                        me_device_attacks.scored(policy, snapshot, target, "8")})
 
     def test_counter_a_low_displayed_success_keeps_the_arrow(self):
         # DECLARED CONSTRUCTED: every absorbed power shown at 20% success.

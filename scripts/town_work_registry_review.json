@@ -89,6 +89,9 @@
   "purchase:black-market:destruction": [
     "optional-buy"
   ],
+  "purchase:priority-ware:telepathy": [
+    "optional-buy"
+  ],
   "purchase:black-market:speed": [
     "optional-buy"
   ],

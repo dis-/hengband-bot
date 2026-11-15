@@ -744,6 +744,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "bm_destruction_fund.py:_entry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "bm_destruction_fund.py:_open_shelf": {
     "classification": "data",
     "rows": [
@@ -751,14 +758,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "bm_destruction_fund.py:_shelf": {
+  "bm_destruction_fund.py:_rows": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "bm_destruction_fund.py:_staffs": {
+  "bm_destruction_fund.py:_shelf": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1399,6 +1406,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:_charged_staves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_reliable_carried_staff": {
     "classification": "data",
     "rows": [
@@ -1435,6 +1449,20 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "destruction_use.py:sight_trigger_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:staff_carry_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:staff_home_items": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1942,6 +1970,20 @@
     "delegation": "selected child; no independent success"
   },
   "equipment_transaction_session.py:planned_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_utility.py:destruction_means_bonus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_utility.py:with_destruction_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2869,6 +2911,13 @@
     "delegation": "selected child; no independent success"
   },
   "instant_death.py:instant_death": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_fate.py:can_identify_now": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6706,6 +6755,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._unaware_consumable_awaits_identification": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._unknown_lantern_departure_refill_item": {
     "classification": "data",
     "rows": [
@@ -8141,6 +8197,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_home.py:HomeMixin._end_home_sweep_identification": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_home.py:HomeMixin._ensure_home_visit_request": {
     "classification": "data",
     "rows": [
@@ -8566,6 +8629,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_identification.py:IdentificationMixin._device_identification_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_identification.py:IdentificationMixin._dungeon_equipment_identify_key": {
     "classification": "dungeon-only",
     "rows": [
@@ -8687,6 +8757,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_identification.py:IdentificationMixin._probe_unknown_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_identification.py:IdentificationMixin._unaware_consumable_identifiable_now": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13414,6 +13491,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "recall_wait_teleport.py:withheld.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "resist_potion.py:_drink": {
     "classification": "producer",

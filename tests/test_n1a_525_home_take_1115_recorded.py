@@ -23,7 +23,10 @@ records after row 18 in the capture's snapshot tail, delivered as the CLI delive
 DECLARED CONSTRUCTED: row 1's character dump wrote a calibration the journal does not hold;
 the arrival calibration is re-adopted with its observed turn moved to row 1's board (the
 same character, level and stats; without it the equipment transaction of row 4 does not
-open).  The item-processing case leaves the store visit's operation unreleased.
+open).  The item-processing case leaves the store visit's operation unreleased.  The
+*Destruction* means bonus (equipment_utility, owner 2026-11-15 「深さに関係なく持っていく」, later
+than this visit) is held at 0: with it row 8's transaction wears the gear that makes the Home's
+staves reliable, a different set from the record's, and the take of row 18 is not reached.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -32,7 +35,9 @@ import lzma
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
+from hengbot import equipment_utility
 from hengbot.cli import _consume_response_sequence
 from hengbot.home_errand import HomeErrandState
 from hengbot.latch_onset_capture import checkpoint_bytes, restore_checkpoint_bytes
@@ -51,6 +56,9 @@ TURN = 8552723
 class N1a525HomeTake1115RecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # DECLARED CONSTRUCTED (module docstring): the visit before the 11-15 bonus.
+        cls.bonus = mock.patch.object(equipment_utility, "DESTRUCTION_MEANS_BONUS", 0.0)
+        cls.bonus.start()
         cls.scratch = TemporaryDirectory()
         scratch = Path(cls.scratch.name)
         policy, cls.journal, steps = load(FIXTURE, scratch)
@@ -78,6 +86,7 @@ class N1a525HomeTake1115RecordedTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls.bonus.stop()
         cls.scratch.cleanup()
 
     def setUp(self):
