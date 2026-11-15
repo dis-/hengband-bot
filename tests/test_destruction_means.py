@@ -1,9 +1,12 @@
-"""The *Destruction* means is one fact (hengbot.destruction_means) read by six named combinations.
+"""The *Destruction* means is one fact (hengbot.destruction_means) and every reader answers by the
+depth condition's definition.
 
-Whole-bot maintainability review 2026-11-16 (R1, stage 2), behaviour-preserving: each reader keeps
-the answer it gave before (main a44f4593e7), the record-only observer ``cross-rule:destruction-means``
-logs a board where the readers disagree without changing the decision, and
-scripts/destruction_means_lint.py fails on a new read of the kind outside the fact.
+Whole-bot maintainability review 2026-11-16 (R1).  Stage 2 gathered the readers' facts (main
+a44f4593e7's readings kept); stage 3, owner review section 6 Q1 verbatim 「深さの条件の定義に揃える」:
+every reader of "is there a *Destruction* means" answers by destruction_use.holds_means (a staff or
+the absorbed power at 80%+ with a charge, in town a Home staff at 80%; a scroll is no means, owner
+2026-11-04).  Counts keep their quantity but count only what the definition counts.  The invariant
+(destruction_means.violations) is recorded by ``cross-rule:destruction-means:broken``.
 
 Recorded: the n1-a life-525 21:05:39 town-arrival checkpoint (tests/fixtures/n1a-525-departure-1115,
 a Lv40 Warrior, device skill 32, twelve charged staves of *Destruction* in the Home), row 6's board
@@ -11,9 +14,9 @@ through the public choose_key.
 
 DECLARED CONSTRUCTED:
 * ``variant``: row 6's board with the pack, the device skill, the stun, the class and the town flag
-  named per case; the absorbed staff's charges (me_capability.replacing_charges) are given per case,
-  for the old and the new readings alike.
-* ``_old_*``: the six readings as main a44f4593e7 wrote them, the reference the fact must equal.
+  named per case; the absorbed staff's charges (me_capability.replacing_charges) are given per case.
+* ``_definition`` and the ``_ref_*`` helpers: the definition (holds_means as main a44f4593e7 wrote
+  it, unchanged) and the facts the expected answers are built from.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -38,60 +41,51 @@ import destruction_means_lint  # noqa: E402
 FIXTURE = Path(__file__).with_name("fixtures") / "n1a-525-departure-1115"
 
 
-# -- main a44f4593e7's readings (the reference) ----------------------------------------------
+# -- the definition (main a44f4593e7's holds_means, unchanged) and its facts ------------------
 
-def _old_reliable(snapshot):
+def _ref_reliable(snapshot):
     return destruction_use.staff_success(snapshot.player, 50) >= me_capability.RELIABLE_MIN_SUCCESS
 
 
-def _old_charged(policy, items):
+def _ref_charged(policy, items):
     return next((item for item in items if policy._is_destruction_staff(item) and item.known
                  and item.charges > 0), None)
 
 
-def _old_home(policy, snapshot):
+def _ref_home(policy, snapshot):
     return next(iter(destruction_use.staff_home_items(policy, snapshot)), None)
 
 
-def _old_holds_means(policy, snapshot):
-    return (me_capability.replacing_charges(policy, snapshot, destruction_use.STAFF) > 0
-            or (_old_reliable(snapshot) and _old_charged(policy, snapshot.inventory) is not None)
-            or (_old_reliable(snapshot) and _old_home(policy, snapshot) is not None))
+def _ref_absorbed(policy, snapshot):
+    return me_capability.replacing_charges(policy, snapshot, destruction_use.STAFF)
 
 
-def _old_total_uses(policy, snapshot):
-    def carried(item):
-        if item.tval == TVAL_SCROLL and item.sval == SV_SCROLL_STAR_DESTRUCTION:
-            return max(0, item.count)
-        if item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION:
-            return policy._stack_charges(item)
-        return 0
-    return sum(carried(item) for item in snapshot.inventory) + me_capability.replacing_charges(
-        policy, snapshot, (TVAL_STAFF, SV_STAFF_DESTRUCTION))
+def _ref_owned(policy, snapshot):
+    """A known charged staff carried or (town) in the Home, the success not asked."""
+    return (_ref_charged(policy, snapshot.inventory) is not None
+            or _ref_home(policy, snapshot) is not None)
 
 
-def _old_owns(policy, snapshot):
-    return (_old_charged(policy, snapshot.inventory) is not None
-            or _old_home(policy, snapshot) is not None)
+def _definition(policy, snapshot):
+    return (_ref_absorbed(policy, snapshot) > 0
+            or (_ref_reliable(snapshot) and _ref_charged(policy, snapshot.inventory) is not None)
+            or (_ref_reliable(snapshot) and _ref_home(policy, snapshot) is not None))
 
 
-def _old_carry(policy, snapshot):
-    if snapshot.player.class_id == PLAYER_CLASS_BERSERKER or not _old_reliable(snapshot):
+def _ref_departure_uses(policy, snapshot):
+    """The absorbed charges and, when reliable, the carried known staves' charges; no scroll."""
+    staves = sum(policy._stack_charges(item) for item in snapshot.inventory
+                 if policy._is_destruction_staff(item) and item.known and item.charges > 0)
+    return _ref_absorbed(policy, snapshot) + (staves if _ref_reliable(snapshot) else 0)
+
+
+def _ref_carry(policy, snapshot):
+    if snapshot.player.class_id == PLAYER_CLASS_BERSERKER or not _ref_reliable(snapshot):
         return 0
     owned = sum(policy._stack_charges(item)
                 for item in (*snapshot.inventory, *destruction_use.staff_home_items(policy, snapshot))
                 if policy._is_destruction_staff(item) and item.known and item.charges > 0)
     return min(DESTRUCTION_USES_PER_STEP, owned)
-
-
-def _old_optimizer_first(policy, snapshot):
-    """(the without-gear answer, the staff-owned answer) of _optimizer_destruction_means."""
-    if (me_capability.replacing_charges(policy, snapshot, destruction_use.STAFF) > 0
-            or any(policy._is_destruction_scroll(item) and item.count > 0
-                   for item in snapshot.inventory)):
-        return True, None
-    return False, not (snapshot.player.class_id == PLAYER_CLASS_BERSERKER
-                       or not _old_owns(policy, snapshot))
 
 
 def _item(slot, tval, sval, count, charges=0, known=True):
@@ -139,7 +133,7 @@ class DestructionMeansFactTest(unittest.TestCase):
         self.assertEqual(sum(item.count for item in destruction_use.staff_home_items(self.policy, self.board)), 12)
         self.assertEqual(self.board.player.device_skill, 32)
 
-    def test_every_reader_answers_as_before(self):
+    def test_every_reader_answers_by_the_definition(self):
         cases = itertools.product(PACKS, (32, 64, 120), (False, True),
                                   (self.board.player.class_id, PLAYER_CLASS_BERSERKER),
                                   (True, False), (0, 5))
@@ -149,42 +143,70 @@ class DestructionMeansFactTest(unittest.TestCase):
             with self.subTest(pack=pack, skill=skill, stunned=stunned, class_id=class_id,
                               in_town=in_town, absorbed=absorbed), \
                     mock.patch.object(me_capability, "replacing_charges", return_value=absorbed):
-                self.assertEqual(destruction_use.holds_means(policy, board),
-                                 _old_holds_means(policy, board))
-                self.assertEqual(policy._total_destruction_uses(board), _old_total_uses(policy, board))
-                self.assertEqual(policy._has_destruction_method(board),
-                                 _old_total_uses(policy, board) > 0)
+                definition = _definition(policy, board)
+                reliable = _ref_reliable(board)
+                self.assertEqual(destruction_use.holds_means(policy, board), definition)
+                self.assertEqual(policy._has_destruction_method(board), definition)
+                uses = policy._total_destruction_uses(board)
+                self.assertEqual(uses, _ref_departure_uses(policy, board))
+                self.assertTrue(uses == 0 or definition)
                 self.assertEqual(destruction_use.owns_charged_staff(policy, board),
-                                 _old_owns(policy, board))
+                                 reliable and _ref_owned(policy, board))
                 self.assertEqual(destruction_use.staff_carry_uses(policy, board),
-                                 _old_carry(policy, board))
+                                 _ref_carry(policy, board))
                 means = destruction_means.Means(policy, board)
-                without_gear, staff_owned = _old_optimizer_first(policy, board)
-                self.assertEqual(means.optimizer_without_gear(), without_gear)
-                if not without_gear:
-                    self.assertEqual(means.optimizer_staff_owned(), staff_owned)
+                self.assertEqual(means.staff_owned, _ref_owned(policy, board))
+                self.assertEqual(means.optimizer_without_gear(), absorbed > 0)
+                self.assertEqual(means.optimizer_staff_owned(),
+                                 class_id != PLAYER_CLASS_BERSERKER and _ref_owned(policy, board))
                 self.assertEqual(destruction_use._reliable_carried_staff(policy, board),
-                                 _old_charged(policy, board.inventory) if _old_reliable(board) else None)
+                                 _ref_charged(policy, board.inventory) if reliable else None)
+                for item in PACKS["both"]:
+                    self.assertEqual(policy._supplies_destruction(board, item),
+                                     policy._is_destruction_staff(item) and reliable)
+                self.assertEqual(destruction_means.violations(policy, board), ())
 
-    def test_disagreement_is_recorded_and_decides_nothing(self):
-        # The recorded board: the Home staves are owned (owns=1) but unreliable at skill 32.
+    def test_a_scroll_alone_is_no_means_for_any_reader(self):
+        # Stage 2's one replayed disagreement (72 decisions): *Destruction* scrolls only.
+        board = self.variant("scroll", 120, False, self.board.player.class_id, False)
+        with mock.patch.object(me_capability, "replacing_charges", return_value=0):
+            self.assertEqual(dict(destruction_means.answers(self.policy, board)),
+                             {name: False for name, _reader, _exact in destruction_means.COMBINATIONS})
+            self.assertEqual(self.policy._total_destruction_uses(board), 0)
+            self.assertFalse(self.policy._supplies_destruction(board, PACKS["scroll"][0]))
+
+    def test_an_unreliable_home_staff_is_owned_but_no_means(self):
+        # The recorded board: twelve Home staves at 32 device skill (below 80%).
+        means = destruction_means.Means(self.policy, self.board)
+        self.assertTrue(means.staff_owned)  # the gear search still sees the staves
+        self.assertFalse(destruction_use.owns_charged_staff(self.policy, self.board))
         answers = dict(destruction_means.answers(self.policy, self.board))
-        self.assertEqual(answers, {"holds": False, "departure": False, "owns": True, "carry": False,
-                                   "optimizer": False, "in-hand": False})
-        before = dict(vars(self.policy))
+        self.assertFalse(any(answers.values()), answers)
         cross_rules.begin(self.policy)
         cross_rules.end(self.policy, self.board, "5")
-        self.assertIn("cross-rule:destruction-means:disagree:"
-                      "holds=0/departure=0/owns=1/carry=0/optimizer=0/in-hand=0",
-                      cross_rules.report(self.policy))
-        self.assertEqual(set(vars(self.policy)), set(before))
-
-    def test_agreement_records_nothing(self):
-        board = self.variant("none", 32, False, self.board.player.class_id, False)
-        cross_rules.begin(self.policy)
-        cross_rules.end(self.policy, board, "5")
         self.assertFalse([row for row in cross_rules.report(self.policy) or ()
                           if row.startswith("cross-rule:destruction-means")])
+
+    def test_a_reliable_home_staff_is_held_in_town_only(self):
+        for in_town in (True, False):
+            board = self.variant("none", 120, False, self.board.player.class_id, in_town)
+            with self.subTest(in_town=in_town), \
+                    mock.patch.object(me_capability, "replacing_charges", return_value=0):
+                self.assertEqual(destruction_use.holds_means(self.policy, board), in_town)
+                self.assertEqual(destruction_use.owns_charged_staff(self.policy, board), in_town)
+                # Counted once carried: the departure takes it from the Home first.
+                self.assertEqual(self.policy._total_destruction_uses(board), 0)
+                self.assertEqual(destruction_means.violations(self.policy, board), ())
+
+    def test_a_broken_invariant_is_recorded_and_decides_nothing(self):
+        before = dict(vars(self.policy))
+        with mock.patch.object(destruction_use, "owns_charged_staff", return_value=True):
+            self.assertEqual(destruction_means.violations(self.policy, self.board), ("owns",))
+            cross_rules.begin(self.policy)
+            cross_rules.end(self.policy, self.board, "5")
+        self.assertIn("cross-rule:destruction-means:broken:holds=0/departure=0/departure-uses=0/"
+                      "owns=1/carry=0/optimizer=0/in-hand=0", cross_rules.report(self.policy))
+        self.assertEqual(set(vars(self.policy)), set(before))
 
 
 class DestructionMeansLintTest(unittest.TestCase):

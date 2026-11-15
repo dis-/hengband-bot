@@ -1,27 +1,39 @@
 """The *Destruction* means: the one fact every reader of "is there a *Destruction* means" reads.
 
-Maintainability review of the whole bot 2026-11-16 (R1, stage 2; behaviour-preserving).  Six
-readers asked the same question with four definitions, each reading the pack, the Home, the
-staff's success and the absorbed power on its own.  ``Means`` now gathers the raw facts once per
-ask, and each reader keeps today's combination under a name below (``COMBINATIONS``):
+Maintainability review of the whole bot 2026-11-16 (R1).  Stage 2 gathered the six readers' raw
+facts into ``Means`` with each reader's own combination; stage 3 (owner, review section 6 Q1,
+verbatim 「深さの条件の定義に揃える」) gives every reader the depth condition's definition
+(``depth_gate``, destruction_use.holds_means): a staff or the absorbed power at 80%+ with a
+charge, a scroll no means (owner 2026-11-04), in town a Home staff at 80% too.  A reader keeps its
+own quantity where it is a count, but the count holds only what the definition counts:
 
-| combination          | reader                                              | scroll | carried staff | 80% | absorbed | Home staff |
-|----------------------|-----------------------------------------------------|--------|---------------|-----|----------|------------|
-| ``depth_gate``       | destruction_use.holds_means                         | no     | yes           | yes | yes      | town, 80%  |
-| ``departure_uses``   | policy._total_destruction_uses / _has_destruction_method | yes | yes (all)  | no  | yes      | no         |
-| ``owns_staff``       | destruction_use.owns_charged_staff                  | no     | yes           | no  | no       | town       |
-| ``carry_uses``       | destruction_use.staff_carry_uses                    | no     | yes           | yes | no       | town       |
-| ``optimizer``        | policy_equipment._optimizer_destruction_means       | yes    | per loadout   | per loadout | yes | town  |
-| ``in_hand``          | destruction_use.usable / key (the means part)       | no     | yes           | yes (stun) | yes (stun, cast) | no |
+| reader                                        | answer / quantity                                    |
+|-----------------------------------------------|------------------------------------------------------|
+| destruction_use.holds_means                   | ``depth_gate``: the definition                       |
+| policy._has_destruction_method                | ``depth_gate``                                       |
+| policy._total_destruction_uses                | ``departure_uses``: the absorbed charges and the     |
+|                                               | carried staves' charges when the staff is reliable   |
+| destruction_use.owns_charged_staff            | ``staff_means``: the staff part of the definition    |
+| destruction_use.staff_carry_uses              | ``carry_uses``: the owned staff charges to carry,    |
+|                                               | when the staff part holds                            |
+| policy_equipment._optimizer_destruction_means | the absorbed power, else the owned staff per loadout |
+|                                               | at the definition's skill (``staff_gate``)           |
+| destruction_use.usable / key (the means part) | the absorbed cast, else a reliable carried staff     |
 
-The differences are kept as they are (the owner decides how to align them, review §6 Q1); the
-record-only observer ``cross-rule:destruction-means`` (cross_rules) logs the boards where the
-answers disagree.  scripts/destruction_means_lint.py fails when a module outside this one reads
-SV_STAFF_DESTRUCTION or the ``_is_destruction_*`` predicates at a site not on its list.
+``supplies(item)`` is the definition's test of one item: the departure's purchase, the Home-first
+take and their quantities count only an item that adds a means (a staff the worn loadout makes
+reliable).  ``staff_owned`` is the item fact without the success, read only where the gear search
+asks which loadout would make the staff a means (the optimizer's StaffGate, ability_gear's
+MAGIC_MASTERY search); it answers no "is there a means".
+
+The invariant (``violations``): no reader answers a means the definition denies, and the exact
+readers equal it.  cross_rules records ``cross-rule:destruction-means:broken`` on a board that
+breaks it (none is expected; the tests assert none).  scripts/destruction_means_lint.py fails
+when a module outside this one reads SV_STAFF_DESTRUCTION or the ``_is_destruction_*``
+predicates at a site not on its list.
 
 Every fact is computed on first read and only for the ``Means`` it belongs to (one ask, one
-board): a combination reads the facts in the order and with the short-circuits its reader had,
-and nothing is kept between asks.
+board): nothing is kept between asks.
 """
 
 from __future__ import annotations
@@ -117,16 +129,6 @@ class Means:
         return self.snapshot.player.class_id == PLAYER_CLASS_BERSERKER
 
     @cached_property
-    def scroll_count(self) -> int:
-        """The carried *Destruction* scrolls."""
-        return sum(max(0, item.count) for item in self.snapshot.inventory if is_scroll(item))
-
-    @cached_property
-    def carried_staff_charges(self) -> int:
-        """The charges of every carried staff stack (an untried staff shows none)."""
-        return sum(stack_charges(item) for item in self.snapshot.inventory if is_staff(item))
-
-    @cached_property
     def carried_charged_staff(self):
         """The first known carried staff with a charge, else None."""
         return next(iter(charged_staves(self.snapshot.inventory)), None)
@@ -161,72 +163,117 @@ class Means:
 
         return me_capability.replacing_charges(self.policy, self.snapshot, STAFF)
 
-    # -- the readers' combinations (kept as they are; review §6 Q1) --
-
-    def depth_gate(self) -> bool:
-        """destruction_use.holds_means: a staff or absorbed power at 80%+ with a charge; a scroll
-        is no means (owner 2026-11-04); in town a Home staff counts at 80%."""
-        return (self.absorbed_charges > 0
-                or (self.staff_reliable and self.carried_charged_staff is not None)
-                or (self.staff_reliable and next(iter(self.home_staves), None) is not None))
-
-    def departure_uses(self) -> int:
-        """policy._total_destruction_uses: scrolls, every carried staff's charges and the absorbed
-        charges, the success not asked (user decision 2026-09-23)."""
-        return self.scroll_count + self.carried_staff_charges + self.absorbed_charges
-
-    def owns_staff(self) -> bool:
-        """destruction_use.owns_charged_staff: a known charged staff carried or (town) in the Home."""
+    @cached_property
+    def staff_owned(self) -> bool:
+        """A known charged staff carried or (in town) in the Home, its success not asked: the
+        item fact the gear search reads (which loadout would make it a means), no means itself."""
         return (self.carried_charged_staff is not None
                 or next(iter(self.home_staves), None) is not None)
 
+    @cached_property
+    def staff_means(self) -> bool:
+        """The definition's staff part: an owned charged staff the worn loadout makes reliable."""
+        return self.staff_reliable and self.staff_owned
+
+    def supplies(self, item) -> bool:
+        """``item`` adds a *Destruction* means by the definition: a staff the worn loadout makes
+        reliable.  A scroll never does (owner 2026-11-04)."""
+        return is_staff(item) and self.staff_reliable
+
+    # -- the readers (owner 2026-11-16 「深さの条件の定義に揃える」) --
+
+    def depth_gate(self) -> bool:
+        """destruction_use.holds_means, the definition: the absorbed power at 80%+ with a charge,
+        or a charged staff at 80%+ carried or (town) in the Home; a scroll is no means."""
+        return self.absorbed_charges > 0 or self.staff_means
+
+    def departure_uses(self) -> int:
+        """policy._total_destruction_uses: the absorbed charges and, when the worn loadout makes
+        the staff reliable, every carried known staff's charges (user decision 2026-09-23 counts
+        the charges); a scroll counts nothing.  More than 0 only when ``depth_gate`` holds."""
+        carried = (sum(stack_charges(item) for item in charged_staves(self.snapshot.inventory))
+                   if self.staff_reliable else 0)
+        return carried + self.absorbed_charges
+
+    def owns_staff(self) -> bool:
+        """destruction_use.owns_charged_staff: the definition's staff part (``staff_means``)."""
+        return self.staff_means
+
     def carry_uses(self) -> int:
-        """destruction_use.staff_carry_uses: the owned staff charges carried short of 50F."""
-        if self.berserker or not self.staff_reliable:
+        """destruction_use.staff_carry_uses: the owned staff charges carried short of 50F, when the
+        definition's staff part holds."""
+        if not self.staff_means:
             return 0
         return min(DESTRUCTION_USES_PER_STEP, self.owned_staff_charges)
 
     def optimizer_without_gear(self) -> bool:
-        """policy_equipment._optimizer_destruction_means' first test: the absorbed power or a
-        carried scroll is a means in every loadout."""
-        return self.absorbed_charges > 0 or self.scroll_count > 0
+        """policy_equipment._optimizer_destruction_means' first test: the absorbed power is a
+        means in every loadout (a scroll is none)."""
+        return self.absorbed_charges > 0
 
     def optimizer_staff_owned(self) -> bool:
-        """The optimizer's second test: an owned charged staff, no Berserker's."""
-        return not self.berserker and self.owns_staff()
+        """The optimizer's second test: an owned charged staff, no Berserker's; its StaffGate
+        then asks the definition's skill per loadout."""
+        return not self.berserker and self.staff_owned
 
     def optimizer_worn(self) -> bool:
         """The optimizer's answer for the worn loadout (its StaffGate opens at the board's
-        device skill); the observer's reading, no decision asks it."""
+        device skill; the stun is not asked, the gear does not change with a stun)."""
         return self.optimizer_without_gear() or (
             self.optimizer_staff_owned()
             and self.snapshot.player.device_skill >= reliable_skill())
 
+    def in_hand(self) -> bool:
+        """destruction_use's means part of ``usable``/``key``: the absorbed cast, else a reliable
+        carried staff (the scene and the item's key not asked)."""
+        from hengbot import destruction_use
 
-# reader -> its combination (the observer's row order).
+        return (destruction_use._absorbed_key(self.policy, self.snapshot) is not None
+                or destruction_use._reliable_carried_staff(self.policy, self.snapshot) is not None)
+
+
+# (name, reader, exact) in the observer's row order.  An exact reader equals the definition;
+# the others are parts or counts of it and may answer no where it holds, never yes where it
+# does not.
 COMBINATIONS = (
-    ("holds", "destruction_use.holds_means", "depth_gate"),
-    ("departure", "policy._total_destruction_uses", "departure_uses"),
-    ("owns", "destruction_use.owns_charged_staff", "owns_staff"),
-    ("carry", "destruction_use.staff_carry_uses", "carry_uses"),
-    ("optimizer", "policy_equipment._optimizer_destruction_means", "optimizer_worn"),
-    ("in-hand", "destruction_use.usable", None),
+    ("holds", "destruction_use.holds_means", True),
+    ("departure", "policy._has_destruction_method", True),
+    ("departure-uses", "policy._total_destruction_uses", False),
+    ("owns", "destruction_use.owns_charged_staff", False),
+    ("carry", "destruction_use.staff_carry_uses", False),
+    ("optimizer", "policy_equipment._optimizer_destruction_means", False),
+    ("in-hand", "destruction_use.usable", False),
 )
 
 
 def answers(policy, snapshot) -> tuple:
-    """(name, bool) per reader on this board, for the record-only observer.  ``in-hand`` is
-    destruction_use's means part of ``usable``/``key`` (the absorbed cast, else a reliable carried
-    staff), the scene and the item's key not asked."""
+    """(name, bool) per reader on this board, through the readers' own entry points."""
     from hengbot import destruction_use
 
     means = Means(policy, snapshot)
-    rows = []
-    for name, _reader, combination in COMBINATIONS:
-        if combination is None:
-            value = (destruction_use._absorbed_key(policy, snapshot) is not None
-                     or destruction_use._reliable_carried_staff(policy, snapshot) is not None)
-        else:
-            value = getattr(means, combination)()
-        rows.append((name, bool(value)))
-    return tuple(rows)
+    readers = {
+        "holds": lambda: destruction_use.holds_means(policy, snapshot),
+        "departure": lambda: policy._has_destruction_method(snapshot),
+        "departure-uses": lambda: policy._total_destruction_uses(snapshot) > 0,
+        "owns": lambda: destruction_use.owns_charged_staff(policy, snapshot),
+        "carry": lambda: destruction_use.staff_carry_uses(policy, snapshot) > 0,
+        "optimizer": means.optimizer_worn,
+        "in-hand": means.in_hand,
+    }
+    return tuple((name, bool(readers[name]())) for name, _reader, _exact in COMBINATIONS)
+
+
+def violations(policy, snapshot) -> tuple:
+    """The readers that break the invariant on this board: an exact reader that differs from the
+    definition, or any reader that answers a means the definition denies.  The optimizer's worn
+    answer does not ask the stun (the gear's reading), so it is not compared on a stunned board."""
+    rows = answers(policy, snapshot)
+    definition = dict(rows)["holds"]
+    stunned = bool(snapshot.player.stunned)
+    broken = []
+    for (name, answer), (_name, _reader, exact) in zip(rows, COMBINATIONS):
+        if name == "optimizer" and stunned:
+            continue
+        if (exact and answer != definition) or (answer and not definition):
+            broken.append(name)
+    return tuple(broken)

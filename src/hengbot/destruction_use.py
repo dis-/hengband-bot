@@ -174,8 +174,10 @@ def _carried_key(policy, snapshot) -> str | None:
 
 
 def owns_charged_staff(policy, snapshot) -> bool:
-    """A known staff with a charge, carried or (in town) in the Home
-    (destruction_means ``owns_staff``).
+    """A known staff with a charge, carried or (in town) in the Home, that the worn loadout
+    makes reliable (destruction_means ``owns_staff``: the depth condition's staff part, owner
+    2026-11-16 「深さの条件の定義に揃える」; a staff below 80% is no means).  The gear search
+    reads the staff without its success (destruction_means ``Means.staff_owned``).
 
     A Home staff is counted in town only: the departure withdraws it (the Home-first take of
     ``_missing_destruction_uses``) once the intended depth is 50F+, or short of it once the worn
