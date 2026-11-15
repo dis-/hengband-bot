@@ -3235,22 +3235,31 @@ class QuestMixin(OpeningRouteMixin):
             if phase == 2:
                 navigator = self._quest_navigators.get(profile.quest_id)
                 if navigator is not None and goals:
+                    # The reviewed plan routes to the hold nearest the landing
+                    # (QUEST_22 「着地点から…最短経路の地点へ移動」).  Until a hold is
+                    # reached, every board is measured again: an emergency
+                    # teleport lands somewhere else, and the hold picked from the
+                    # first landing can then lie across the camp (n1-b life-398
+                    # 2026-11-15: picked [15,2] from (19,23), then walked west
+                    # from (9,53), six steps from [9,58], through fifteen
+                    # teleports to its death).  Along a shortest route the
+                    # picked hold stays the nearest, so the choice is stable.
+                    # Without a static route from here the earlier pick stays.
                     hold = self._quest_strategy_hold_positions.get(profile.quest_id)
-                    if hold is None:
-                        routes = [
-                            navigator._static_path(snapshot.player.position, {goal})
-                            for goal in goals
-                        ]
-                        routes = [route for route in routes if route]
-                        if routes:
-                            route = min(
-                                routes,
-                                key=lambda candidate: (
-                                    len(candidate), candidate[-1].y, candidate[-1].x
-                                ),
-                            )
-                            hold = route[-1]
-                            self._quest_strategy_hold_positions[profile.quest_id] = hold
+                    routes = [
+                        navigator._static_path(snapshot.player.position, {goal})
+                        for goal in goals
+                    ]
+                    routes = [route for route in routes if route]
+                    if routes:
+                        route = min(
+                            routes,
+                            key=lambda candidate: (
+                                len(candidate), candidate[-1].y, candidate[-1].x
+                            ),
+                        )
+                        hold = route[-1]
+                        self._quest_strategy_hold_positions[profile.quest_id] = hold
                     if hold is not None and snapshot.player.position == hold:
                         self._quest_strategy_opening_phase[profile.quest_id] = 3
                     elif hold is not None and not adjacent:
