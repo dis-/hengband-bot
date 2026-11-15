@@ -94,15 +94,21 @@ def _without_walk_veto():
 _WALKS = {}
 
 
-def _walk(decisions=120, *, fixed=True):
+def _walk(decisions=120, *, fixed=True, guard_cells=pingpong_guard.CYCLE_MAX_CELLS):
     """``_walked`` once per configuration (the replay takes seconds); the policy and board are
     the replay's own, shared by the tests that read them."""
-    if (decisions, fixed) not in _WALKS:
-        _WALKS[(decisions, fixed)] = _walked(decisions, fixed=fixed)
-    return _WALKS[(decisions, fixed)]
+    if (decisions, fixed, guard_cells) not in _WALKS:
+        _WALKS[(decisions, fixed, guard_cells)] = _walked(decisions, fixed=fixed,
+                                                          guard_cells=guard_cells)
+    return _WALKS[(decisions, fixed, guard_cells)]
 
 
-def _walked(decisions, *, fixed):
+def _two_cell_guard():
+    """The ping-pong guard as it was before the owner's 2026-11-15 「6マスまで広げる」: two cells."""
+    return mock.patch.object(pingpong_guard, "CYCLE_MAX_CELLS", 2)
+
+
+def _walked(decisions, *, fixed, guard_cells=pingpong_guard.CYCLE_MAX_CELLS):
     """(rows, the decision the CLI loop detector tripped on, the ping-pong events, policy, the
     raw board of the last decision): each row (cell, key, reason); the walk stops at a leave."""
     directory = TemporaryDirectory()
@@ -116,7 +122,9 @@ def _walked(decisions, *, fixed):
     used = defaultdict(int)
     position, turn = DEAD_END[1], LANDING_TURN
     patch = nullcontext() if fixed else _without_walk_veto()
-    with patch:
+    guard = nullcontext() if guard_cells == pingpong_guard.CYCLE_MAX_CELLS else (
+        mock.patch.object(pingpong_guard, "CYCLE_MAX_CELLS", guard_cells))
+    with patch, guard:
         for index in range(len(BEFORE_LANDING) + decisions):
             if index < len(BEFORE_LANDING):
                 raw = copy.deepcopy(BEFORE_LANDING[index])
@@ -190,10 +198,11 @@ class RecordedWindowTest(unittest.TestCase):
 
 
 class WithoutTheFixTest(unittest.TestCase):
-    """The control: the wander off the retreats' vetoes and the registry only."""
+    """The control: the wander off the retreats' vetoes and the registry only, with the
+    ping-pong guard of the live process (two cells; 2026-11-15 Q1 widened it, see below)."""
 
     def test_the_live_round_and_the_loop_stop(self):
-        rows, tripped, events, _policy_, _raw, _directory = _walk(fixed=False)
+        rows, tripped, events, _policy_, _raw, _directory = _walk(fixed=False, guard_cells=2)
         reasons = [reason for _cell, _key, reason in rows]
         self.assertIn(RETREAT, reasons)
         retreats = [(cell, key) for cell, key, reason in rows if reason == RETREAT]
@@ -238,7 +247,8 @@ class WithoutTheFixTest(unittest.TestCase):
 
         with mock.patch.object(engagement_avoid_seal, "seals", logged), \
                 mock.patch.object(HengbotPolicy, "_observe", counted):
-            rows, tripped, _events, _policy_, _raw, _directory = _walked(STUCK_ESCAPE_LIMIT, fixed=False)
+            rows, tripped, _events, _policy_, _raw, _directory = _walked(
+                STUCK_ESCAPE_LIMIT, fixed=False, guard_cells=2)
         self.assertIsNotNone(tripped)
         retreats = sum(1 for _cell, _key, reason in rows if reason == RETREAT)
         self.assertGreaterEqual(sum(1 for _cell, _key, reason in rows[:tripped + 1] if reason == RETREAT), 10)
@@ -248,6 +258,34 @@ class WithoutTheFixTest(unittest.TestCase):
         self.assertLess(max(streak for _sequence, _reason, streak in streaks), STUCK_ESCAPE_LIMIT)
         # Reset on every retreat.
         self.assertTrue(all(streak == 0 for _sequence, reason, streak in streaks if reason == RETREAT))
+
+
+class SixCellGuardTest(unittest.TestCase):
+    """Owner 2026-11-15 「6マスまで広げる」 (maintainability review Q1): the ping-pong guard reads a
+    round of up to six cells, the loop detector's own bound.  Without the wander's root fix the
+    live round (wander 1->2, wander 2->3, retreat 3->2, wander 2->1: four moves over three
+    cells) is read on its second turn, and the same round again escalates to the existing
+    livelock leave, which reads Recall before the loop detector would stop the bot."""
+
+    def test_the_three_cell_round_is_read_and_left_before_the_loop_stop(self):
+        rows, tripped, events, _policy_, _raw, _directory = _walk(fixed=False)
+        round_ = f"{WANDER}/{WANDER}/{RETREAT}/{WANDER}"
+        self.assertEqual([event for _index, event in events],
+                         [f"pingpong:{round_}", f"pingpong-escalate:{round_}"])
+        first, escalated = (index for index, _event in events)
+        # Read on the board after the round's second turn (the eight moves before it).
+        self.assertEqual([(cell, key, reason) for cell, key, reason in rows[first - 8:first]],
+                         [(DEAD_END[0], "6", WANDER), (DEAD_END[1], "6", WANDER),
+                          (DEAD_END[2], "4", RETREAT), (DEAD_END[1], "4", WANDER)] * 2)
+        # The escalation's board answers with the livelock leave, before the loop detector.
+        self.assertEqual(rows[escalated][2], "livelock:recall-escape", rows[escalated])
+        self.assertIsNotNone(tripped)
+        self.assertLess(escalated, tripped)
+
+    def test_the_two_cell_guard_reads_nothing_in_the_round(self):
+        """The control of the widening: the two-cell guard reads no event (as live)."""
+        _rows, _tripped, events, _policy_, _raw, _directory = _walk(fixed=False, guard_cells=2)
+        self.assertEqual(events, [])
 
 
 class FixedTest(nokey.PostedKey):

@@ -14,16 +14,22 @@ guard sees the alternation before the detector does.
 Rule.  Every board (``observe``, before the ladder) reads the previous board's move: the cell
 the player stood on, the cell it stands on now (the one step the previous decision's walk key
 sent it, from that cell toward this one) and the previous decision's owner (its reason) and ladder rung.  When the last
-``2 * ROUND_TRIPS`` moves on the floor (the town included, a store not) are A p->q, B q->p,
-A p->q, B q->p, keyed by (A, B) -- the same reason twice included:
+``k * ROUND_TRIPS`` moves on the floor (the town included, a store not) are one round of ``k``
+moves repeated, the round a closed walk back to its first cell over at most
+``CYCLE_MAX_CELLS`` cells -- A p->q, B q->p twice for two cells (k = 2), wander 1->2, wander
+2->3, retreat 3->2, wander 2->1 twice for three (n1-b life-401, k = 4) -- keyed by the round's
+owners in order (A, B, ...), the same reason more than once included (the shortest round is
+read first, so a two-cell alternation is read as before):
 
-- the winner is the owner whose rung ranks higher in the ladder (town_hold's rank: the ladder
-  asks it first, so its reason is the higher-priority one); with no rank to compare (a rung the
-  census does not know) it is the owner that moved first, A;
+- the winner is the move whose owner's rung ranks highest in the ladder (town_hold's rank: the
+  ladder asks it first, so its reason is the higher-priority one; the first of equals); with a
+  rank missing in the round (a rung the census does not know) it is the round's first move, A;
+- the loser is the move that steps into the cell the winner left (the move before the winner's
+  in the round; for two cells the other one);
 - a survival reason (reasons.survival: the counted escapes and the walking retreats) is never
-  the loser: such a pair is left to the survival rungs, which always win;
+  the loser: such a round is left to the survival rungs, which always win;
 - the cell the winner left is recorded in the registry for ``GUARD_BOARDS`` decisions, owner
-  ``pingpong:<A>/<B>`` (left_cells ``leave`` with ``boards``, its only-way-out rule included),
+  ``pingpong:<A>/<B>/...`` (left_cells ``leave`` with ``boards``, its only-way-out rule included),
   so the loser's walk refuses the step back for that window while the winner keeps its move;
 - the event ``pingpong:<A>/<B>`` is this board's ``report`` (the decision log's ``pingpong``);
 - inside the window the driver's loop detector does not stop the bot (``holds_loop_stop``).
@@ -40,7 +46,10 @@ GUARD_BOARDS is the loop detector's own window (loop_detection.LOOP_WINDOW, 40 d
 time the driver already allows a confined walk before calling it stuck.  The guard holds the
 step back that long and no longer; a pair that would alternate after it is the stuck state the
 detector was for.  ROUND_TRIPS is the brief's "twice" (A p->q, B q->p, twice): one round trip is
-an ordinary hand-over between owners.  No other number.
+an ordinary hand-over between owners.  CYCLE_MAX_CELLS is the loop detector's own bound
+(loop_detection.LOOP_MAX_DISTINCT, 6 cells: owner 2026-11-15 「6マスまで広げる」, the
+maintainability review's Q1, on 「往復の守りは2マスだけ。3マス以上の巡回で通り抜ける」).  No other
+number.
 """
 
 from __future__ import annotations
@@ -49,7 +58,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from hengbot import left_cells, reasons
-from hengbot.loop_detection import LOOP_WINDOW
+from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.model import Position
 from hengbot.policy_constants import DIRECTION_KEYS
 
@@ -58,6 +67,7 @@ EVENT = "pingpong"
 ESCALATE_EVENT = "pingpong-escalate"
 GUARD_BOARDS = LOOP_WINDOW
 ROUND_TRIPS = 2
+CYCLE_MAX_CELLS = LOOP_MAX_DISTINCT
 WALK_OFFSETS = {key: offset for offset, key in DIRECTION_KEYS.items()}
 
 
@@ -73,8 +83,8 @@ class Move:
 class Guard:
     floor_key: tuple | None = None
     last: Position | None = None               # where the previous board stood
-    moves: deque = field(default_factory=lambda: deque(maxlen=2 * ROUND_TRIPS))
-    windows: dict = field(default_factory=dict)  # (A, B) -> last decision of the pair's window
+    moves: deque = field(default_factory=lambda: deque(maxlen=CYCLE_MAX_CELLS * ROUND_TRIPS))
+    windows: dict = field(default_factory=dict)  # (A, B, ...) -> last decision of the round's window
     escalated: str | None = None               # this board's escalation event
     report: str | None = None                  # this board's event (decision log)
 
@@ -95,25 +105,34 @@ def _previous_rank(policy) -> int | None:
     return rung.rank if rung is not None and rung.rank >= 0 else None
 
 
-def _alternation(moves) -> tuple | None:
-    """(A p->q, B q->p) when the moves are those repeated ROUND_TRIPS times (A may be B)."""
-    if len(moves) < 2 * ROUND_TRIPS:
-        return None
-    first, second = moves[0], moves[1]
-    if first.step != second.origin or second.step != first.origin:
-        return None
-    for index, move in enumerate(moves):
-        model = first if index % 2 == 0 else second
-        if (move.owner, move.origin, move.step) != (model.owner, model.origin, model.step):
+def _round(moves) -> tuple | None:
+    """The round of ``k`` moves (2 <= k <= CYCLE_MAX_CELLS, the shortest first) that the last
+    ``k * ROUND_TRIPS`` moves repeat, a closed walk back to its first cell (A may be B)."""
+    for k in range(2, CYCLE_MAX_CELLS + 1):
+        if len(moves) < k * ROUND_TRIPS:
             return None
-    return first, second
+        tail = list(moves)[-k * ROUND_TRIPS:]
+        model = tail[:k]
+        if model[-1].step != model[0].origin:
+            continue
+        if len({move.origin for move in model}) > CYCLE_MAX_CELLS:
+            continue
+        if all((move.owner, move.origin, move.step)
+               == (model[index % k].owner, model[index % k].origin, model[index % k].step)
+               for index, move in enumerate(tail)):
+            return tuple(model)
+    return None
 
 
-def _winner(first: Move, second: Move) -> tuple[Move, Move]:
-    """(winner, loser): the higher-ranked rung, else the first mover."""
-    if first.rank is not None and second.rank is not None and second.rank < first.rank:
-        return second, first
-    return first, second
+def _winner(round_: tuple) -> tuple[Move, Move]:
+    """(winner, loser): the highest-ranked rung (the first of equals), else the first move; the
+    loser is the move into the cell the winner left."""
+    winner = 0
+    if all(move.rank is not None for move in round_):
+        for index, move in enumerate(round_):
+            if move.rank < round_[winner].rank:
+                winner = index
+    return round_[winner], round_[winner - 1]
 
 
 def observe(policy, snapshot) -> None:
@@ -138,15 +157,15 @@ def observe(policy, snapshot) -> None:
         guard.moves.clear()  # a relocation, a move no owner named, or not the owner's walk
         return
     guard.moves.append(Move(previous, here, owner, _previous_rank(policy)))
-    pair = _alternation(guard.moves)
-    if pair is None:
+    round_ = _round(guard.moves)
+    if round_ is None:
         return
-    winner, loser = _winner(*pair)
+    winner, loser = _winner(round_)
     if reasons.survival(loser.owner):
         return  # the survival rungs always win; nothing is refused to them
     guard.moves.clear()
-    names = (pair[0].owner, pair[1].owner)
-    label = f"{names[0]}/{names[1]}"
+    names = tuple(move.owner for move in round_)
+    label = "/".join(names)
     if names in guard.windows:
         guard.report = guard.escalated = f"{ESCALATE_EVENT}:{label}"
         guard.windows[names] = -1  # the window ends: the driver's loop detector is free again
