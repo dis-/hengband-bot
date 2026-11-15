@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import area_mapping, dive_floor, dungeon_shop, combat_answer, dark_recall, deep_teleport, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import area_mapping, cross_rules, dive_floor, dungeon_shop, combat_answer, dark_recall, deep_teleport, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -2098,6 +2098,9 @@ class NavigationMixin:
                 # through the final entrance-WAIT safety envelope.
                 self._intentional_entrance_activation = True
             return WAIT_KEY + tail
+        if snapshot.dungeon_level > 0:
+            # Record only: a dungeon walk's step, for the left-cells rule (cross_rules).
+            cross_rules.produce(self, cross_rules.LEFT_CELLS)
         if quest_find_exit.pull_step_refused(self, snapshot, step):
             self.last_reason = quest_find_exit.PULL_REFUSED_REASON
             return WAIT_KEY

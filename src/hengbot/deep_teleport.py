@@ -85,7 +85,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot import line_of_fire
+from hengbot import cross_rules, line_of_fire
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL, game_distance
 from hengbot.policy_constants import SEARCH_KEY
@@ -394,6 +394,7 @@ def substitute(policy, snapshot, *, teleportation: bool = True) -> str | None:
     """The key in place of a self-teleport ``allows`` refuses here, else None (read it).
     ``teleportation``: the teleport is a Teleportation (not Phase Door); one let through is
     remembered for its landing (``note_teleport``)."""
+    cross_rules.consult(policy, cross_rules.DEEP_TELEPORT)
     instead = _substitute(policy, snapshot)
     if instead is None and teleportation:
         note_teleport(policy, snapshot)

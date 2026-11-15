@@ -1150,6 +1150,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "cross_rules.py:_caller": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no independent success"
+  },
   "curse_cure.py:_announced_name": {
     "classification": "data",
     "rows": [

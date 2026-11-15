@@ -64,6 +64,7 @@ from hengbot import (
     area_mapping, attack_expectation, device_skill, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
 )
+from hengbot import cross_rules
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_STAFF, Position, game_distance
@@ -471,6 +472,9 @@ def observe(policy, snapshot) -> None:
         monster_memory.forget_within(policy, snapshot, position, GUARANTEED_RADIUS,
                                      lambda monster: _survives(policy, snapshot, monster))
         area_mapping.note_destruction(policy, snapshot, position, WORST_RADIUS, GUARANTEED_RADIUS)
+        # Record only (cross_rules): what the flash forgot, and the memories it does not.
+        cross_rules.destruction_flash(policy, ("monster_memory.KINDS", *(
+            module.__name__.rsplit(".", 1)[-1] for module in FORGET_VISIT)))
     elif snapshot.turn != turn:
         memory.pending = None
         memory.fallback = floor
