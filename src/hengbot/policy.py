@@ -8732,12 +8732,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _find_teleport_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         if quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot):
             return None
+        # 50F+ with no means (deep_teleport.no_means): Teleportation is not offered; Teleport
+        # Level, which the owner's rule does not cover, still is.
+        svals = (TELEPORT_SCROLL_SVALS - {SV_SCROLL_TELEPORT}
+                 if deep_teleport.no_means(self, snapshot) else TELEPORT_SCROLL_SVALS)
         return self._first_item(
-            snapshot, lambda it: it.is_scroll and it.aware and it.sval in TELEPORT_SCROLL_SVALS
+            snapshot, lambda it: it.is_scroll and it.aware and it.sval in svals
         )
 
     def _find_phase_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
-        if quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot):
+        if (quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot)
+                or deep_teleport.no_means(self, snapshot)):
             return None
         return self._first_item(
             snapshot,

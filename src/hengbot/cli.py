@@ -44,7 +44,7 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
-from hengbot import pingpong_guard
+from hengbot import deep_teleport, pingpong_guard
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON
 from hengbot.policy import (
@@ -2392,6 +2392,8 @@ def _write_decision(
                 record["carried_spare_gear"] = facts["carried_spare_gear"]
             if policy is not None and (pingpong := pingpong_guard.report(policy)) is not None:
                 record["pingpong"] = pingpong
+            if policy is not None and (deep := deep_teleport.report(policy)) is not None:
+                record["deep_teleport"] = deep
             if policy is not None:
                 from hengbot.town_work import current_record, receipts
                 arbiter = getattr(policy, "_town_turn_arbiter", None)

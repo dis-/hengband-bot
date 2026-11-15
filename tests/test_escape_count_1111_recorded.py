@@ -35,7 +35,7 @@ import copy
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, line_of_fire, threat_tiers
+from hengbot import deep_teleport, destruction_use, line_of_fire, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -69,6 +69,10 @@ class EscapeCountRecordedTest(deaths.DeathsRecordedHarness):
         patch = mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False)
         patch.start()
         self.addCleanup(patch.stop)
+        # DECLARED CONSTRUCTED: the 50F+ teleport rule (deep_teleport, owner 2026-11-14 「…即死のときのみ」) walled off: these cases pin the count, written while a teleport off the 即死 board with no *Destruction* answer was still read; under the rule Recall is read there, or no teleport is offered (tests/test_n1b_397_deep_stuck_1115_recorded).
+        rule = mock.patch.object(deep_teleport, "applies", lambda policy, snapshot: False)
+        rule.start()
+        self.addCleanup(rule.stop)
 
     def listed(self, policy, raw):
         """The displayed lists again, *Destruction* included (as the replay shows them)."""

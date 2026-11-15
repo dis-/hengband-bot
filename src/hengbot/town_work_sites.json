@@ -1185,13 +1185,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "deep_teleport.py:KEEPS_TELEPORT": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "deep_teleport.py:_recall_key": {
     "classification": "producer",
     "rows": [
@@ -1242,6 +1235,13 @@
     "delegation": "selected child; no independent success"
   },
   "deep_teleport.py:landed_threats": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:no_means.compute": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

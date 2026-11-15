@@ -26,7 +26,9 @@ Angband 18F, an awake ゲイザー whose retreat's next board out of its sight w
 awake one moves, so its last cell seen empty does not forget it: it is forgotten when shown
 again (then remembered where shown), killed, sent away by a teleport (「<name>が消え去った！」,
 sleeper_loot_block ``shows_sent_away``; n1-b life-397), on the floor's change or after the
-window (sleeper_loot_block ``remembered_gone``).
+window (sleeper_loot_block ``remembered_gone``).  Either one whose last cell lies in the sure
+radius of the player's own *Destruction* is forgotten on its flash, a QUESTOR excepted
+(monster_memory ``forget_within``, destruction_use ``observe``): the circle deletes it.
 
 Owner 2026-11-09 「最後の位置の周りを避ける」(麻痺させる敵から離れた時も、見えなくなった敵の最後の位置の
 周りを避けるマスに入れ、歩きで近づかない): a paralyser the 09-18 rung left (policy_combat

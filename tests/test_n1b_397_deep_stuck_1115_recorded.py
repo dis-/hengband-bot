@@ -47,7 +47,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import area_mapping, deep_teleport, retreat_enclosure, sealed_pocket, sleeper_loot_block, sleeper_reach_memory
+from hengbot import (area_mapping, deep_teleport, destruction_use, monster_memory, retreat_enclosure, sealed_pocket,
+                     sleeper_loot_block, sleeper_reach_memory)
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import Position, parse_snapshot
@@ -91,17 +92,21 @@ def _listed(policy, raw, turn, listed):
                                               _magic_eater_power_list=listed), MONRACE))
 
 
-def _replay(*, sent_away=True, level=None):
+def _replay(*, sent_away=True, level=None, rod=True):
     """The visit replayed up to the first stuck escape (or its end): (policy, raw, key, reasons),
     the policy and raw of the board before that decision (deep copies, decided again by each
     test), the decided key and every reason decided."""
-    config = (sent_away, level)
+    config = (sent_away, level, rod)
     if config not in _REPLAYS:
         directory = TemporaryDirectory()
         boards = copy.deepcopy(BOARDS)
         if level is not None:
             for raw in boards:
                 raw["floor"]["level"] = level
+        if not rod:
+            # The use's flash on the board after it, in place of the live Teleport Away's line.
+            after = next(raw for raw in boards if raw["turn"] == SENT_AWAY_TURN)
+            after["messages"] = [destruction_use.FLASH[0]]
         policy = _policy(Path(directory.name), MONRACE)
         first = parse_snapshot(copy.deepcopy(boards[0]), MONRACE)
         policy.prime(first)
@@ -109,8 +114,9 @@ def _replay(*, sent_away=True, level=None):
         _listed(policy, boards[0], boards[0]["turn"] - 2, power_list(
             "staff", row("*破壊*", 5, current=6, count=9), row("周辺感知", 5, current=3, count=3),
             row("ドア/階段感知", 5, current=3, count=3)))
-        _listed(policy, boards[0], boards[0]["turn"] - 1, power_list(
-            "rod", row("テレポート・アウェイ", 5, charging=False, count=1)))
+        if rod:
+            _listed(policy, boards[0], boards[0]["turn"] - 1, power_list(
+                "rod", row("テレポート・アウェイ", 5, charging=False, count=1)))
         policy._defer_descent(first)
         reasons, previous, result = [], None, None
         patch = (nullcontext() if sent_away else mock.patch.object(
@@ -206,6 +212,46 @@ class SentAwayForgottenTest(unittest.TestCase):
         self.assertFalse(sleeper_loot_block.shows_sent_away(board, "イークの観光客"))
         self.assertFalse(sleeper_loot_block.shows_sent_away(
             replace(board, messages=(SHADOW + "は消え去った！",)), SHADOW))
+
+
+class DestroyedForgottenTest(unittest.TestCase):
+    """DECLARED CONSTRUCTED: the rod テレポート・アウェイ not listed, so on 5734453 the fresh policy
+    answers the shadow beside it with its own *Destruction* (the window's other means) instead;
+    the recorded board after it carries the use's flash 「燃えるような閃光が発生した！」 in place of the
+    live Teleport Away's 「…が消え去った！」 (and no sent-away line is read).  destroy_area deletes every monster in the circle but a QUESTOR
+    (spell-kind/spells-floor.cpp, delete_monster, no line), so the shadow's remembered cell is
+    forgotten on the flash."""
+
+    def test_the_destroyed_shadow_is_forgotten_and_the_way_down_stays(self):
+        policy, _before, raw, key, reasons = _replay(sent_away=False, rod=False)
+        self.assertIn((SENT_AWAY_TURN - 4, "emergency:destruction:absorbed-power"), reasons)
+        self.assertEqual(raw["turn"], LIVE_TURN)  # no stuck escape through the window
+        self.assertFalse([reason for _turn, reason in reasons if reason.startswith(STUCK_REASONS)])
+        board = parse_snapshot(copy.deepcopy(raw), MONRACE)
+        self.assertNotIn(SHADOW, [m.name for m in sleeper_reach_memory.remembered(policy, board)])
+        self.assertNotIn(ARRIVAL_STAIRS, policy._nav_ledger.expired_targets("descend"))
+        self.assertNotIn(CORRIDOR, policy._engagement_danger_cells(board))
+
+    def test_a_questor_in_the_circle_is_kept(self):
+        """destroy_area heals and teleports a QUESTOR away, it does not delete it: the memory
+        keeps it (destruction_use ``_survives``: here the active quest's target, DECLARED
+        CONSTRUCTED as the race of a yeek the stuck board's detection shows)."""
+        policy, _before, raw, _key, _reasons = _replay(sent_away=False, rod=False)
+        board = parse_snapshot(copy.deepcopy(raw), MONRACE)
+        yeek = next(monster for monster in board.detected_monsters if monster.hostile)
+        remembered = {(yeek.index, yeek.race_id): (yeek, board.turn)}
+
+        def flash(target_race):
+            monster_memory.put(policy, board, monster_memory.SLEEPER_REACH, dict(remembered))
+            with mock.patch.object(destruction_use, "_target_race",
+                                   lambda policy, snapshot: target_race):
+                monster_memory.forget_within(
+                    policy, board, yeek.position, destruction_use.GUARANTEED_RADIUS,
+                    lambda monster: destruction_use._survives(policy, board, monster))
+            return monster_memory.entries(policy, board, monster_memory.SLEEPER_REACH)
+
+        self.assertEqual(flash(yeek.race_id), remembered)
+        self.assertEqual(flash(None), {})
 
 
 class DeepStuckTest(nokey.PostedKey):
@@ -333,6 +379,23 @@ class TeleportAskersTest(unittest.TestCase):
         teleport = next(item for item in board.inventory if item.is_teleport_scroll)
         self.assertEqual((policy._read_key(board, teleport), policy.last_reason),
                          ("s", deep_teleport.HOLD_REASON))
+
+    def test_with_a_threat_and_no_means_no_teleport_is_offered(self):
+        """DECLARED CONSTRUCTED: the stuck board without the Recall scrolls and with *Destruction*
+        unusable (its gates patched): the awake yeeks are concerned, nothing answers them, so the
+        finders offer no Teleportation or Phase Door at all and the record names the branch."""
+        raw = copy.deepcopy(_replay(sent_away=False)[2])
+        raw["inventory"] = [item for item in raw["inventory"] if item["sval"] != 11 or item["tval"] != 70]
+        policy, board = self.board(raw)
+        with mock.patch.object(destruction_use, "usable", lambda *args, **kwargs: False),                 mock.patch.object(destruction_use, "holds_means", lambda *args, **kwargs: False):
+            self.assertTrue(deep_teleport.concerned(policy, board))
+            self.assertTrue(deep_teleport.no_means(policy, board))
+            self.assertTrue(any(item.is_teleport_scroll for item in board.inventory))
+            self.assertIsNone(policy._find_teleport_scroll(board))
+            self.assertIsNone(policy._escape_scroll(board))
+            self.assertIsNone(policy._find_phase_scroll(board))
+        self.assertEqual(deep_teleport.report(policy),
+                         {"branch": deep_teleport.NO_MEANS_BRANCH, "turn": board.turn})
 
 if __name__ == "__main__":
     unittest.main()

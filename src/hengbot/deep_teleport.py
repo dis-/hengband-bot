@@ -40,9 +40,19 @@ teleport as before; n1-b life-397 (Angband 79F, 10:48) read Teleportation so at 
 monster in view (the sum with a line of fire 0), landed beside a dragon pit and died before its
 next turn, and the life had read twenty such teleports in three hours on 64F, 79F and 80F.
 Recall is not read on a quest floor (it fails the quest), nor while it is already counting
-down (a second read cancels it), nor blind or confused: then, with no concerned monster,
-nothing is read (``HOLD_REASON``, a search turn); with a concerned monster the teleport is the
-last means left (``KEEPS_TELEPORT``).
+down (a second read cancels it), nor blind or confused.
+
+No means (``no_means``, ``NO_MEANS_BRANCH``): no Recall, and no concerned monster or none
+*Destruction* answers (no use on it, no walk toward one).  The owner's rule has no teleport here
+either, so the self-teleport is not offered at all: the finders of the Teleportation and Phase Door scrolls
+(policy ``_find_teleport_scroll``, ``_find_phase_scroll``), the blind and the follower ladders'
+staff and absorbed Teleportation (threat_escape ``blind_teleport_means``, teleport_follower
+``pack_teleport_means``) and the breeders' read answer none, and the combat and survival ladder
+acts as it does without a teleport (the heal, the Speed dose, the fight, the choke).  The
+decision record carries ``{"branch": "deep-teleport:no-means-fight"}`` (``report``).  Until
+2026-11-15 the teleport was read there as the last means; no other answer is given in its
+place.  A read that still reaches ``substitute`` there (none is known) is refused with a search
+turn under ``HOLD_REASON``.
 
 The movement teleports (``movement_refused``): the stuck and livelock escapes, the
 *Destruction* circle's leave and the veto enclosure's leave read a teleport with no monster
@@ -94,6 +104,9 @@ CAST_SUFFIX = ":absorbed-power"  # me_absorbed_substitutes.CAST_SUFFIX (import c
 # The stuck escape's steps on the way to a goal: the stuck count holds (policy_observation).
 STUCK_HELD_REASONS = frozenset({STUCK_WALK_REASON, STUCK_MELT_REASON, STUCK_MELT_REASON + CAST_SUFFIX})
 STUCK_MEMORY = "_deep_stuck_reached"  # (floor_key, frozenset of the goals reached)
+NO_MEANS_BRANCH = "deep-teleport:no-means-fight"
+NO_MEANS_NOTE = "_deep_teleport_no_means"    # the turn the finders held the teleport back on
+_NO_MEANS_BUSY = "_deep_teleport_no_means_busy"  # the predicate is being computed (re-entry)
 
 
 @dataclass
@@ -159,6 +172,7 @@ def note_teleport(policy, snapshot) -> None:
 
 def observe(policy, snapshot) -> None:
     """Every decision: settle the Teleportation let through on the previous board."""
+    setattr(policy, NO_MEANS_NOTE, None)
     memory = getattr(policy, MEMORY, None)
     if memory is None:
         return
@@ -233,12 +247,6 @@ def _walk_key(policy, snapshot, targets) -> str | None:
     return policy._step_toward(snapshot, step)
 
 
-def KEEPS_TELEPORT(policy, snapshot) -> None:  # noqa: N802 -- the named branch of the docstring
-    """A concerned monster, no *Destruction*, no walk toward it and no Recall: the teleport is
-    the last means left on this board."""
-    return None
-
-
 def movement_refused(policy, snapshot) -> bool:
     """A teleport no monster prompts (the stuck and livelock escapes) is not read here: 50F+
     where the tiers act, off the 即死 board (the module docstring)."""
@@ -265,14 +273,76 @@ def _recall_key(policy, snapshot, reason: str) -> str | None:
     return key
 
 
-def _refused_key(policy, snapshot, *, threat: bool) -> str | None:
-    """Off the 即死 board, nothing *Destruction* answers: Recall, else with no ``threat`` a search
-    turn (nothing is read), else the teleport as the last means (``KEEPS_TELEPORT``)."""
+def _recall_available(policy, snapshot) -> bool:
+    """``_recall_key`` would read Recall here (no state is changed)."""
+    player = snapshot.player
+    return (snapshot.floor_key[2] == 0 and not player.recalling and not player.blind
+            and not player.confused and policy._can_read_scrolls(snapshot)
+            and policy._find_recall_scroll(snapshot) is not None)
+
+
+def _walk_available(policy, snapshot, targets) -> bool:
+    """``_walk_key`` (and the approach, whose gates it holds) would step here (no state)."""
+    from hengbot import destruction_use
+
+    if (not destruction_use.holds_means(policy, snapshot)
+            or not destruction_use._clear_headed(snapshot.player)
+            or not destruction_use._floor_destroyed(policy, snapshot)):
+        return False
+    here = snapshot.player.position
+    radius = destruction_use.GUARANTEED_RADIUS
+    if any(game_distance(here, monster.position) <= radius for monster in targets):
+        return False
+    return policy._nearest_goal_step(snapshot, lambda grid: any(
+        game_distance(grid.position, monster.position) <= radius for monster in targets)) is not None
+
+
+def no_means(policy, snapshot) -> bool:
+    """50F+ off the 即死 board with no Recall, and no concerned monster or no *Destruction* use on
+    the concerned ones and no walk toward one: the self-teleport is not offered (the module
+    docstring).  Pure, memoised for the decision; False while it is being computed (a finder
+    asked from inside)."""
+    if getattr(policy, _NO_MEANS_BUSY, False) or not applies(policy, snapshot):
+        return False
+
+    def compute():
+        from hengbot import destruction_use
+
+        capture = policy.__dict__.pop("_claim_target_capture", None)
+        setattr(policy, _NO_MEANS_BUSY, True)
+        try:
+            if fire_p95(policy, snapshot) >= snapshot.player.hp:
+                return False
+            if _recall_available(policy, snapshot):
+                return False
+            targets = concerned(policy, snapshot)
+            return not targets or (not destruction_use.usable(policy, snapshot, leaving=targets)
+                                   and not _walk_available(policy, snapshot, targets))
+        finally:
+            setattr(policy, _NO_MEANS_BUSY, False)
+            if capture is not None:
+                policy._claim_target_capture = capture
+    held = decision_memo(policy, "deep_teleport.no_means", snapshot, None, compute)
+    if held:
+        setattr(policy, NO_MEANS_NOTE, snapshot.turn)
+    return held
+
+
+def report(policy) -> dict | None:
+    """The decision record's field: the branch, when the finders held the teleport back."""
+    turn = getattr(policy, NO_MEANS_NOTE, None)
+    return None if turn is None else {"branch": NO_MEANS_BRANCH, "turn": turn}
+
+
+def _refused_key(policy, snapshot) -> str | None:
+    """Off the 即死 board, nothing *Destruction* answers: Recall, else a search turn (nothing is
+    read).  Without Recall the finders hold the teleport back first (``no_means``), so this
+    search only answers a read that bypassed them (a read whose *Destruction* answer
+    ``no_means`` foresaw and the use then refused)."""
     recall = _recall_key(policy, snapshot, RECALL_REASON)
     if recall is not None:
         return recall
-    if threat:
-        return KEEPS_TELEPORT(policy, snapshot)
+    setattr(policy, NO_MEANS_NOTE, snapshot.turn)
     policy.last_reason = HOLD_REASON
     return SEARCH_KEY
 
@@ -341,7 +411,7 @@ def _substitute(policy, snapshot) -> str | None:
                                    suffix=LANDED_SUFFIX)
     targets = concerned(policy, snapshot)
     if not targets:
-        return _refused_key(policy, snapshot, threat=False)
+        return _refused_key(policy, snapshot)
     if destruction_use.usable(policy, snapshot, leaving=targets):
         used = destruction_use.key(policy, snapshot, leaving=targets, suffix=DESTRUCTION_SUFFIX)
         if used is not None:
@@ -352,7 +422,7 @@ def _substitute(policy, snapshot) -> str | None:
     walk = _walk_key(policy, snapshot, targets)
     if walk is not None:
         return walk
-    return _refused_key(policy, snapshot, threat=True)
+    return _refused_key(policy, snapshot)
 
 
 def scroll_substitute(policy, snapshot, item) -> str | None:

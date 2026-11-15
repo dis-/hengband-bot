@@ -61,8 +61,8 @@ from dataclasses import dataclass
 from functools import partial
 
 from hengbot import (
-    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, pingpong_guard,
-    summoner_wait,
+    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
+    pingpong_guard, summoner_wait,
 )
 from hengbot import me_absorbed_substitutes as substitutes
 from hengbot.item_reservation import reserved_item_command
@@ -438,10 +438,22 @@ def observe(policy, snapshot) -> None:
         escape_count.destroyed(policy, snapshot, position, GUARANTEED_RADIUS)
         _end_emergency(policy, snapshot)
         forget_circle(policy, position)
+        monster_memory.forget_within(policy, snapshot, position, GUARANTEED_RADIUS,
+                                     lambda monster: _survives(policy, snapshot, monster))
         area_mapping.note_destruction(policy, snapshot, position, WORST_RADIUS, GUARANTEED_RADIUS)
     elif snapshot.turn != turn:
         memory.pending = None
         memory.fallback = floor
+
+
+def _survives(policy, snapshot, monster) -> bool:
+    """A monster the circle does not delete: a QUESTOR, healed and teleported away
+    (spell-kind/spells-floor.cpp destroy_area): a race whose definition carries the flag, or the
+    active quest's target (a random quest's bounty carries it from the start,
+    birth/game-play-initializer.cpp:148, dungeon/dungeon-processor.cpp:110).  Uniques are
+    deleted like any other."""
+    flags = getattr(policy._monrace_knowledge.get(monster.race_id), "flags", ())
+    return "QUESTOR" in flags or monster.race_id == _target_race(policy, snapshot)
 
 
 def _end_emergency(policy, snapshot) -> None:

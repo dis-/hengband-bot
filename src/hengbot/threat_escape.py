@@ -182,11 +182,14 @@ ABSORBED = "absorbed"
 
 def blind_teleport_means(policy, snapshot):
     """``blind_teleport_key``'s means: ``ABSORBED``, the carried staff, else None."""
+    from hengbot import deep_teleport
+
     player = snapshot.player
     if (not player.blind or player.confused or snapshot.store is not None
             or policy._teleport_blocked_by_equipment(snapshot)
             or quest_no_teleport.forbids(policy, snapshot)
-            or teleport_follower.followed(policy, snapshot)):
+            or teleport_follower.followed(policy, snapshot)
+            or deep_teleport.no_means(policy, snapshot)):
         return None
     power = me_absorbed_substitutes.TELEPORTATION
     # The menu walk of the blind cast is the one status_cure.absorbed_cure_key uses.
