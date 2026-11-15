@@ -1409,7 +1409,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._saw_dungeon_recall = False
         self._dive_dungeon: int | None = None  # dungeon id of the dive in progress
         self._dive_start_recall_depth: int | None = None
-        self._dive_loot = 0  # items grabbed on the current dive
+        self._dive_loot = 0  # acquisitions of the current dive (dive_haul)
+        self._dive_kept_loot = 0  # the last judged dive's kept acquisitions (dive_haul)
+        self._dive_start_units = None  # dive_haul: carried units by kind at the dive's start
+        self._dive_pack_units = None  # dive_haul: carried units by kind on the board before
+        self._dive_acquisitions = Counter()  # dive_haul: kind -> boards it rose on
         self._dive_emergencies = 0  # escapes counted on the current floor (escape_count)
         self._dive_escapes_total = 0  # escapes counted on the current dive (over_extension)
         self._floor_escape_causes: list[dict] = []  # each counted escape's causes (escape_count)
