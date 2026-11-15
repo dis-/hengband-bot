@@ -683,6 +683,9 @@ class WarriorSingleSlotSearch:
     # The depth-ability flags (ABILITY_FLAG) the items must supply, those the
     # character lacks intrinsically: the flags of the requirement repairs.
     repair_flags: frozenset[int] = frozenset()
+    # device_skill.StaffGate of an owned *Destruction* staff: the device-skill
+    # completions below build the sets that make it reliable.
+    staff_gate: object | None = None
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
@@ -857,6 +860,85 @@ class WarriorSingleSlotSearch:
                 if variant is not None:
                     yield variant
 
+        yield from self._device_skill_completions(current, moves, build, accept)
+
+    def _device_skill_completions(self, current, moves, build, accept) -> Iterator[Loadout]:
+        """The sets that make an owned *Destruction* staff reliable (``staff_gate``).
+
+        Owner 2026-11-15 「装備で魔法道具使用能力を向上させて杖の成功率を上げることで
+        先に進むことができる」: n1-a life-525 (a Lv37 warrior, device skill 31) owned
+        eleven staves of *Destruction* at 1.4% while the Home held the 魔力支配の革
+        グローブ (+3) and the 魔法道具支配のアミュレット (+1): +32 makes 63, 84.6%.
+        No one swap reaches the skill and none scores better alone, so the 50F
+        band never had a set.  Each combination of the swaps that raise the skill
+        (one swap per slot, none added once the skill is reached) is built
+        with every swap in another slot that adds a missing depth ability (the
+        telepathy from 50F), and, when the set takes off one the seed wears, with
+        a swap in a further slot that puts every lost one back.  A set never
+        drops a depth ability the seed wears; the band descent decides whether it
+        wins.
+        """
+        gate = self.staff_gate
+        if gate is None or gate.opens(current):
+            return
+        seed_skill = gate.skill(current)
+        raising = [move for move in moves
+                   if (one := build((move,))) is not None and gate.skill(one) > seed_skill]
+        depth_flags = self.repair_flags
+        held = current.flags & depth_flags
+
+        def slots(chosen) -> set[str]:
+            return {name for changes, _mode in chosen for name in changes}
+
+        # One swap per slot group (a ring slot, the two hands, each armour slot),
+        # the groups taken in order; a combination that reaches the skill is not
+        # extended, so no swap is added past the skill.
+        groups: dict[frozenset[str], list] = {}
+        for move in raising:
+            groups.setdefault(frozenset(move[0]), []).append(move)
+        order = list(groups.values())
+        least: list[tuple] = []
+
+        def extend(start: int, chosen: tuple) -> None:
+            for index in range(start, len(order)):
+                for move in order[index]:
+                    combined = chosen + (move,)
+                    loadout = build(combined)
+                    if loadout is None:
+                        continue
+                    if gate.opens(loadout):
+                        least.append(combined)
+                    else:
+                        extend(index + 1, combined)
+
+        extend(0, ())
+        for chosen in least:
+            taken = slots(chosen)
+            gains = [()] + [(gain,) for gain in moves
+                            if not set(gain[0]) & taken
+                            and (one := build((gain,))) is not None
+                            and (one.flags & depth_flags) - held]
+            for gain in gains:
+                combined = build(chosen + gain)
+                if combined is None or not gate.opens(combined):
+                    continue
+                wanted = held | (combined.flags & depth_flags)
+                if held.issubset(combined.flags):
+                    variant = accept(combined)
+                    if variant is not None:
+                        yield variant
+                    continue
+                for repair in moves:
+                    if set(repair[0]) & (taken | slots(gain)):
+                        continue
+                    repaired = build(chosen + gain + (repair,))
+                    if (repaired is None or not gate.opens(repaired)
+                            or not wanted.issubset(repaired.flags)):
+                        continue
+                    variant = accept(repaired)
+                    if variant is not None:
+                        yield variant
+
 
 def enumerate_single_slot_variants(
     items: Iterable[OwnedEquipment],
@@ -868,10 +950,12 @@ def enumerate_single_slot_variants(
     required_flags: frozenset[int] = frozenset(),
     seed: Loadout | None = None,
     repair_flags: frozenset[int] = frozenset(),
+    staff_gate=None,
 ) -> WarriorSingleSlotSearch:
     """Yield ``seed`` (the current loadout by default) plus its single-slot-swap
-    neighbours and the requirement repairs of ``repair_flags``."""
+    neighbours, the requirement repairs of ``repair_flags`` and the device-skill
+    completions of ``staff_gate``."""
     return WarriorSingleSlotSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
-        require_light, required_flags, seed, repair_flags,
+        require_light, required_flags, seed, repair_flags, staff_gate,
     )

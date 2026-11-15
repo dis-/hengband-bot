@@ -11790,10 +11790,6 @@
     "classification": "data",
     "evidence": "Data/selector result; no independent command or effect credit. pure property: the effect's power list name from the device policy table, read by the executor's row match."
   },
-  "policy_helpers.py:PolicyHelpersMixin._has_destruction_method": {
-    "classification": "data",
-    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: _total_destruction_uses > 0 (carried *Destruction* uses plus the absorbed staff's REPLACES charges)."
-  },
   "policy_observation.py:ObservationMixin._missing_required_abilities": {
     "classification": "data",
     "evidence": "Data/selector result; no independent command or effect credit. pure list: the required abilities the board lacks (the *Destruction* gate reads _has_destruction_method); no command by itself."
@@ -12790,6 +12786,10 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:_charged_staff": {
+    "classification": "data",
+    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the first known Staff of *Destruction* with a charge among the given items (the pack or the remembered Home list); read by _reliable_carried_staff, _home_staff and owns_charged_staff."
   },
   "destruction_use.py:_reliable_carried_staff": {
     "classification": "data",

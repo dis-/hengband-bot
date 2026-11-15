@@ -61,7 +61,7 @@ from dataclasses import dataclass
 from functools import partial
 
 from hengbot import (
-    area_mapping, attack_expectation, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
+    area_mapping, attack_expectation, device_skill, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
 )
 from hengbot import me_absorbed_substitutes as substitutes
@@ -174,8 +174,7 @@ def _reliable_staff(snapshot) -> bool:
 def _reliable_carried_staff(policy, snapshot):
     if not _reliable_staff(snapshot):
         return None
-    return next((item for item in snapshot.inventory
-                 if policy._is_destruction_staff(item) and item.known and item.charges > 0), None)
+    return _charged_staff(policy, snapshot.inventory)
 
 
 def _carried_key(policy, snapshot) -> str | None:
@@ -183,11 +182,42 @@ def _carried_key(policy, snapshot) -> str | None:
     return None if staff is None else reserved_item_command(policy, snapshot, "staff", staff)
 
 
+def _charged_staff(policy, items):
+    return next((item for item in items
+                 if policy._is_destruction_staff(item) and item.known and item.charges > 0), None)
+
+
+def _home_staff(policy, snapshot):
+    """A charged staff in the Home, counted in town only: the departure withdraws it
+    (the Home-first take of ``_missing_destruction_uses``) once the intended depth is
+    50F+, and the departure requirement then asks it carried."""
+    if not snapshot.in_town:
+        return None
+    return _charged_staff(policy, getattr(policy, "_home_knowledge_items", ()))
+
+
+def owns_charged_staff(policy, snapshot) -> bool:
+    """A known staff with a charge, carried or (in town) in the Home."""
+    return (_charged_staff(policy, snapshot.inventory) is not None
+            or _home_staff(policy, snapshot) is not None)
+
+
+def reliable_skill() -> int:
+    """The device skill at which the staff is a means (``RELIABLE_MIN_SUCCESS``)."""
+    return device_skill.reliable_staff_skill(STAFF_LEVEL, me_capability.RELIABLE_MIN_SUCCESS)
+
+
 def holds_means(policy, snapshot) -> bool:
     """A staff or absorbed power at 80%+ with a charge; the character's status now
-    does not matter and a scroll is no means (owner 2026-11-04)."""
+    does not matter and a scroll is no means (owner 2026-11-04).
+
+    The staff's success is the worn loadout's (the board's device skill): owner
+    2026-11-15 「装備で魔法道具使用能力を向上させて杖の成功率を上げることで先に進む
+    ことができる」.  In town a Home staff counts too, so the gear that makes it
+    reliable unlocks the 50F+ intent and the departure takes the staff."""
     return (me_capability.replacing_charges(policy, snapshot, STAFF) > 0
-            or _reliable_carried_staff(policy, snapshot) is not None)
+            or _reliable_carried_staff(policy, snapshot) is not None
+            or (_reliable_staff(snapshot) and _home_staff(policy, snapshot) is not None))
 
 
 MEANS_SPENT_TRIGGER = "emergency-destruction-means-spent"

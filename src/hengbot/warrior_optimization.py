@@ -388,6 +388,7 @@ def warrior_optimizer_input_key(
     knowledge_key: str | None = None,
     curse_pinned_item_ids: frozenset[str] = frozenset(),
     magic_eater_powers: tuple[tuple[str, int], ...] = (),
+    staff_gate=None,
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
@@ -433,6 +434,10 @@ def warrior_optimizer_input_key(
         # Class 16 scores its held powers (me_loadout_offense); only
         # present then, so every other key stays as it was.
         inputs["magic_eater_powers"] = tuple(magic_eater_powers)
+    if staff_gate is not None:
+        # Only present with an owned *Destruction* staff, so every other key
+        # stays as it was.
+        inputs["staff_gate"] = staff_gate.key()
     encoded = json.dumps(
         _canonical_optimizer_input(inputs),
         ensure_ascii=False,
@@ -767,8 +772,14 @@ def prepare_warrior_optimization(
     obtainable_ammunition: tuple[InventoryItem | StoreItem, ...] | None = None,
     curse_pinned_item_ids: frozenset[str] = frozenset(),
     magic_eater_powers: tuple[tuple[str, int], ...] = (),
+    staff_gate=None,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command.
+
+    ``staff_gate`` (device_skill.StaffGate): an owned *Destruction* staff that is
+    the 50F+ means of a loadout whose device skill makes it reliable; the search
+    then also builds the sets that reach that skill (WarriorSingleSlotSearch's
+    device-skill completions).
 
     ``magic_eater_powers`` are the (kind, sval) of the held absorbed attack
     and survival powers (me_loadout_offense.held_magic_eater_powers); class 16
@@ -982,6 +993,7 @@ def prepare_warrior_optimization(
                     if obtainable_ammunition is None
                     else obtainable_ammunition
                 ),
+                staff_gate=staff_gate,
             )
 
         def search(seed=None, flags=flags):
@@ -993,7 +1005,7 @@ def prepare_warrior_optimization(
                 require_light=require_light,
                 required_flags=flags,
                 **({} if seed is None else {"seed": seed}),
-                **({"repair_flags": repair_flags}
+                **({"repair_flags": repair_flags, "staff_gate": staff_gate}
                    if search_factory is enumerate_single_slot_variants else {}),
             )
 

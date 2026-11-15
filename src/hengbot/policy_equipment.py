@@ -115,6 +115,7 @@ from hengbot.policy_constants import (
     DESTRUCTION_GATE_DEPTH,
     DESTRUCTION_GATE_LABEL,
     FUNDRAISING_START_GOLD,
+    PLAYER_CLASS_BERSERKER,
     SPEED_GATE_DEPTH,
     SPEED_GATE_LABEL,
     SPEED_GATE_MINIMUM,
@@ -1191,7 +1192,8 @@ class EquipmentMixin:
         cached_blockers = getattr(
             self._equipment_optimization_preparation, "blockers", ()
         )
-        has_destruction = self._has_destruction_method(snapshot)
+        has_destruction, staff_gate = self._optimizer_destruction_means(
+            snapshot, catalog, calibration)
         quest_strategy = (
             self._carry_procurement_strategy(snapshot)
             or self._quest_strategy_for_errand_or_floor(snapshot)
@@ -1325,6 +1327,9 @@ class EquipmentMixin:
                 self._obtainable_launcher_ammunition(snapshot)),
         ) + ((("curse-pinned", tuple(sorted(curse_pinned))),) if curse_pinned else ()) + (
             (("magic-eater-powers", me_powers),) if me_powers else ()) + (
+            # The owned *Destruction* staff's gate (device_skill.StaffGate): the
+            # 50F+ band of a loadout depends on it.
+            (("staff-gate", staff_gate.key()),) if staff_gate is not None else ()) + (
             # The search catalogue treats an item awaiting *Identify* as
             # suppressed, so its inscription never reached the key and a hit
             # kept the pending-random-teleport-suppression blocker after the
@@ -1358,6 +1363,7 @@ class EquipmentMixin:
                         calibration,
                         has_destruction=has_destruction,
                         speed_bonus=cached_best.metrics.speed_bonus,
+                        staff_gate=staff_gate,
                     )
                 )
             self._equipment_optimization_telemetry["result_source"] = (
@@ -1456,6 +1462,7 @@ class EquipmentMixin:
                 knowledge_key=self._equipment_optimizer_knowledge_key,
                 curse_pinned_item_ids=curse_pinned,
                 magic_eater_powers=me_powers,
+                staff_gate=staff_gate,
             )
             self._offer_optimizer_result(
                 self._equipment_optimization_preparation,
@@ -1494,6 +1501,7 @@ class EquipmentMixin:
             knowledge_key=self._equipment_optimizer_knowledge_key,
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
+            staff_gate=staff_gate,
         )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
@@ -1563,11 +1571,12 @@ class EquipmentMixin:
             self._monrace_knowledge,
             depth=optimization_depth,
             home_scan_complete=self._equipment_catalog.home_scan_complete,
-            # The AGENTS.md 50F+ gate: an identified *Destruction* scroll or a
-            # charged staff in the pack (same detection as the descent gate).
+            # The 50F+ gate (_optimizer_destruction_means): the absorbed power,
+            # or an owned staff in a loadout whose device skill makes it reliable.
             # A hard-coded False here rejected EVERY 50F+ loadout and blocked
-            # departure even when the character already carried the scroll.
+            # departure even when the character already carried the means.
             has_destruction=has_destruction,
+            staff_gate=staff_gate,
             preserve_pack_item_ids=preserve,
             search_excluded_item_ids=search_excluded,
             identification_exempt_item_ids=identification_exempt,
@@ -1637,6 +1646,7 @@ class EquipmentMixin:
                     calibration,
                     has_destruction=has_destruction,
                     speed_bonus=best.metrics.speed_bonus,
+                    staff_gate=staff_gate,
                 )
             )
         loadout = getattr(best, "loadout", None)
@@ -3097,6 +3107,34 @@ class EquipmentMixin:
         return self._equipment_town_outcome(
             WAIT_KEY, label="invalid-equip-action",
         )
+
+    def _optimizer_destruction_means(self, snapshot: Snapshot, catalog, calibration):
+        """(has_destruction, staff_gate): the 50F+ means the optimizer's bands read.
+
+        The absorbed power needs no equipment, and a carried scroll keeps the
+        optimizer's former reading (a 50F+ depth it is asked for keeps a valid
+        loadout; the gate itself, destruction_use.holds_means, never counts a
+        scroll, owner 2026-11-04).  An owned charged staff (carried, or in the
+        Home in town) is a means only in a loadout whose device skill makes it
+        reliable (owner 2026-11-15 「装備で魔法道具使用能力を向上させて杖の成功率を
+        上げることで先に進むことができる」, device_skill.StaffGate), as the gate
+        reads it.  A Berserker's staff always fails (use-execution.cpp) and has no
+        gate.
+        """
+        from hengbot import destruction_use, device_skill, me_capability
+
+        if (me_capability.replacing_charges(self, snapshot, destruction_use.STAFF) > 0
+                or any(self._is_destruction_scroll(item) and item.count > 0
+                       for item in snapshot.inventory)):
+            return True, None
+        if (snapshot.player.class_id == PLAYER_CLASS_BERSERKER
+                or not destruction_use.owns_charged_staff(self, snapshot)):
+            return False, None
+        stats = calibration.natural_stats or calibration.base_stats
+        adjustments = calibration.intrinsic_adjustments or (0,) * 6
+        return False, device_skill.staff_gate(
+            snapshot.player, current_loadout(catalog), stats[device_skill.INT],
+            adjustments[device_skill.INT], destruction_use.reliable_skill())
 
     def _equipment_departure_destination_depth(self, snapshot: Snapshot) -> int:
         """Use the planned departure's landing, not the optimizer's ceiling."""

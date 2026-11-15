@@ -302,14 +302,26 @@ def required_abilities(depth: int) -> frozenset[str]:
     return _required_abilities_for_depth(depth)
 
 
+def destruction_means(loadout: "Loadout", has_destruction: bool, staff_gate) -> bool:
+    """The 50F+ *Destruction* means with ``loadout`` worn: one that needs no
+    equipment (``has_destruction``), or an owned staff this loadout's device
+    skill makes reliable (owner 2026-11-15 「装備で魔法道具使用能力を向上させて杖の
+    成功率を上げることで先に進むことができる」, device_skill.StaffGate)."""
+    return has_destruction or (staff_gate is not None and staff_gate.opens(loadout))
+
+
 def divable_depth(
     loadout: "Loadout",
     *,
     intrinsic_abilities: frozenset[str] = frozenset(),
     has_destruction: bool = False,
     speed_bonus: int = 0,
+    staff_gate=None,
 ) -> int:
-    """Classify a selected loadout into its deepest authoritative depth band."""
+    """Classify a selected loadout into its deepest authoritative depth band.
+
+    ``staff_gate`` (device_skill.StaffGate) is an owned *Destruction* staff that
+    is a means at 50F+ only in a loadout giving its reliable device skill."""
     abilities = set(intrinsic_abilities)
     for name, flag in ABILITY_FLAG.items():
         if flag in loadout.flags:
@@ -319,7 +331,8 @@ def divable_depth(
     for depth, next_band in zip(bands, (*bands[1:], SPEED_GATE_DEPTH + 1)):
         if not required_abilities(depth).issubset(abilities):
             break
-        if depth >= DESTRUCTION_GATE_DEPTH and not has_destruction:
+        if depth >= DESTRUCTION_GATE_DEPTH and not destruction_means(
+                loadout, has_destruction, staff_gate):
             break
         if depth >= SPEED_GATE_DEPTH and speed_bonus < 25:
             break
@@ -1169,6 +1182,7 @@ def _meets_requirements(
     intrinsic_abilities: frozenset[str],
     has_destruction: bool,
     require_light: bool = True,
+    staff_gate=None,
 ) -> bool:
     if not metrics.evaluation_complete:
         return False
@@ -1178,6 +1192,7 @@ def _meets_requirements(
         intrinsic_abilities=intrinsic_abilities,
         has_destruction=has_destruction,
         require_light=require_light,
+        staff_gate=staff_gate,
     ):
         return False
     if depth is not None and depth >= 81 and metrics.speed_bonus < 25:
@@ -1249,6 +1264,7 @@ def _meets_static_requirements(
     intrinsic_abilities: frozenset[str],
     has_destruction: bool,
     require_light: bool = True,
+    staff_gate=None,
 ) -> bool:
     """Reject loadouts whose failure does not depend on combat evaluation."""
     if require_light and not _loadout_lights(loadout):
@@ -1263,7 +1279,8 @@ def _meets_static_requirements(
             abilities.add(name)
     if depth is not None and not required_abilities(depth).issubset(abilities):
         return False
-    if depth is not None and depth >= 50 and not has_destruction:
+    if (depth is not None and depth >= DESTRUCTION_GATE_DEPTH
+            and not destruction_means(loadout, has_destruction, staff_gate)):
         return False
     return True
 
@@ -1719,8 +1736,12 @@ def optimize_loadout(
     identification_exempt_item_ids: frozenset[str] = frozenset(),
     obtainable_ammunition: Iterable[EquipmentItem] = (),
     require_armor_slots: frozenset[str] | None = None,
+    staff_gate=None,
 ) -> OptimizationResult:
-    """Find the best complete loadout, failing closed if exact search times out."""
+    """Find the best complete loadout, failing closed if exact search times out.
+
+    ``staff_gate`` (device_skill.StaffGate): an owned *Destruction* staff is the
+    50F+ means of the loadouts whose device skill makes it reliable."""
     catalog = tuple(items)
     ammunition = tuple(obtainable_ammunition)
     launcher_damage = {
@@ -1783,6 +1804,7 @@ def optimize_loadout(
             intrinsic_abilities=intrinsic_abilities,
             has_destruction=has_destruction,
             require_light=require_light,
+            staff_gate=staff_gate,
         ):
             invalid += 1
             return
@@ -1823,6 +1845,7 @@ def optimize_loadout(
             intrinsic_abilities=intrinsic_abilities,
             has_destruction=has_destruction,
             require_light=require_light,
+            staff_gate=staff_gate,
         ):
             invalid += 1
             continue
@@ -1875,6 +1898,7 @@ def optimize_loadout(
                     intrinsic_abilities=intrinsic_abilities,
                     has_destruction=has_destruction,
                     require_light=require_light,
+                    staff_gate=staff_gate,
                 )
             ]
             if not satisfying:
@@ -1939,6 +1963,7 @@ def optimize_loadout(
                 intrinsic_abilities=intrinsic_abilities,
                 has_destruction=has_destruction,
                 speed_bonus=best.metrics.speed_bonus,
+                staff_gate=staff_gate,
             )
 
     alternatives = tuple(

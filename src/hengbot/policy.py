@@ -9135,6 +9135,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         *,
         has_destruction: bool,
         speed_bonus: int,
+        staff_gate=None,
     ) -> int:
         return divable_depth(
             loadout,
@@ -9143,6 +9144,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             ),
             has_destruction=has_destruction,
             speed_bonus=speed_bonus,
+            staff_gate=staff_gate,
         )
 
 
