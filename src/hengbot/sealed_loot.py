@@ -41,6 +41,7 @@ is not such a means.
 
 from __future__ import annotations
 
+from hengbot import safety_watch
 import heapq
 from collections import deque
 
@@ -64,6 +65,7 @@ DEVICE_USES_PER_TRAP = CHEST_DISARM_BUDGET
 _DEVICE_MEMORY = "_sealed_loot_trap_device_uses"
 
 
+@safety_watch.watched("sealed_loot._safe")  # record only (owner 2026-11-15 Q9)
 def _safe(snapshot) -> bool:
     """No hostile in sight or sensed (the owner's 「安全な時」)."""
     return not any(monster.hostile

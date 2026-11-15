@@ -317,6 +317,34 @@ def _visit_memory(tree, constants) -> str | None:
     return None
 
 
+def _floor_keyed(index: Index) -> dict:
+    """attribute -> module: every policy attribute the source stores the floor key in (as the
+    value, or the first of a tuple), directly or by ``setattr`` with a module constant."""
+    def keyed(value) -> bool:
+        if isinstance(value, ast.Tuple) and value.elts:
+            value = value.elts[0]
+        return (isinstance(value, ast.Attribute) and value.attr == "floor_key"
+                and isinstance(value.value, ast.Name) and value.value.id == "snapshot")
+
+    found = {}
+    for module, tree in index.modules.items():
+        constants = _string_constants(tree)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and keyed(node.value):
+                for target in node.targets:
+                    if (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
+                            and target.value.id in POLICY_NAMES):
+                        found.setdefault(target.attr, module)
+            elif (isinstance(node, ast.Call) and getattr(node.func, "id", None) == "setattr"
+                    and len(node.args) == 3 and keyed(node.args[2])):
+                name = node.args[1]
+                attribute = (name.value if isinstance(name, ast.Constant) else
+                             constants.get(name.id) if isinstance(name, ast.Name) else None)
+                if attribute:
+                    found.setdefault(attribute, module)
+    return found
+
+
 def registry_problems(index: Index) -> list:
     problems = []
     for rule in cross_rules.REGISTRY:
@@ -359,6 +387,15 @@ def registry_problems(index: Index) -> list:
             problems.append(f"destruction-forget: {row.module} has no forget_floor_visit")
         elif row.how == "keys" and "forget_destroyed" not in names:
             problems.append(f"destruction-forget: {row.module} has no forget_destroyed")
+    # Owner 2026-11-15 Q7: a memory keyed by the floor key alone is forgotten on every floor
+    # change (floor_visit_memory.VISIT_MEMORIES), or kept on purpose with its reason (KEPT).
+    from hengbot import floor_visit_memory
+    covered = {row[0] for row in floor_visit_memory.VISIT_MEMORIES} | set(floor_visit_memory.KEPT)
+    for attribute, module in sorted(_floor_keyed(index).items()):
+        if attribute not in covered and not module.startswith(("policy_town", "town_", "policy_shop",
+                                                                "policy_home", "cli")):
+            problems.append(f"floor-visit: {attribute} ({module}) keeps the floor key and is "
+                            "neither in floor_visit_memory.VISIT_MEMORIES nor KEPT")
     if cross_rules.UNFORGOTTEN_MONSTER_MEMORIES:
         problems.append("destruction-forget: UNFORGOTTEN_MONSTER_MEMORIES lists "
                         f"{sorted(cross_rules.UNFORGOTTEN_MONSTER_MEMORIES)}")

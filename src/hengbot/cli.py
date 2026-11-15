@@ -44,7 +44,7 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
-from hengbot import cross_rules, deep_teleport, pingpong_guard
+from hengbot import cross_rules, deep_teleport, pingpong_guard, safety_watch
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON
 from hengbot.policy import (
@@ -2398,6 +2398,11 @@ def _write_decision(
                 record["deep_teleport"] = deep
             if policy is not None and (crossing := cross_rules.report(policy)) is not None:
                 record["cross_rule"] = crossing  # record only (cross_rules)
+            if policy is not None and (gates := safety_watch.report()):
+                # Record only (safety_watch): each safe-now gate's answer beside the strict one.
+                record["safety_gates"] = [
+                    [name, answer, strict, list(safety_watch.differences(facts))]
+                    for name, answer, strict, facts in gates]
             if policy is not None:
                 from hengbot.town_work import current_record, receipts
                 arbiter = getattr(policy, "_town_turn_arbiter", None)

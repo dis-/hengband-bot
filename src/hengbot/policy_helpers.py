@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot import safety_watch
 from hengbot import spare_gear
 from hengbot import random_quest_hold
 from hengbot import dive_floor, fallback_depth_floor
@@ -203,6 +204,7 @@ class PolicyHelpersMixin:
             )
         self._look_floor_items = records
         self._look_probe_inflight = False
+    @safety_watch.watched("policy._periodic_filler_is_safe")  # record only (owner 2026-11-15 Q9)
     def _periodic_filler_is_safe(self, snapshot: Snapshot) -> bool:
         visit = self._store_visit
         if (

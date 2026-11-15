@@ -15,6 +15,7 @@ summoner in view, a detected hostile, or a remembered breeder keeps the whole fl
 
 from __future__ import annotations
 
+from hengbot import safety_watch
 from hengbot import monster_memory, sleeper_reach_memory
 from hengbot.model import game_distance
 
@@ -22,6 +23,7 @@ from hengbot.model import game_distance
 FAR_LOOT_DISTANCE = 20
 
 
+@safety_watch.watched("summoner_far_loot._quiet")  # record only (owner 2026-11-15 Q9)
 def _quiet(snapshot) -> bool:
     return not any(monster.hostile for monster in snapshot.visible_monsters) and not any(
         monster.hostile for monster in snapshot.detected_monsters)

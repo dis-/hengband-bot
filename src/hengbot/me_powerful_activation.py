@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
+from hengbot import safety_watch
 from hengbot import me_capability, me_powers
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS, average_hides_modifiers, equipment_identity, equipment_move_identity,
@@ -328,6 +329,7 @@ def own_cost(policy, snapshot) -> bool:
             and 0 <= paid[1] - snapshot.player.hp <= cost(snapshot.player.level))
 
 
+@safety_watch.watched("me_powerful_activation._safe")  # record only (owner 2026-11-15 Q9)
 def _safe(policy, snapshot) -> bool:
     """Survival first: no hit this turn and no hostile beside the player."""
     player = snapshot.player

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import safety_watch
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
 from hengbot.item_reservation import (
@@ -2676,6 +2677,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._decision_entry_reason = self.last_reason
         # Record only: the cross-layer rules' reading of this decision (cross_rules).
         cross_rules.begin(self)
+        safety_watch.begin(self)  # record only: the safe-now gates' answers (owner 2026-11-15 Q9)
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
         self._home_full_relief = getattr(self, "_home_full_relief", None)
@@ -7817,9 +7819,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if profile is not None
             else weighed_hostiles
         )
-        # The above-emergency layer: a committed STRONG-tier hunt (ladder_above_emergency).
-        above_emergency = ladder_above_emergency.key(
-            self, snapshot, strategic_hostiles=strategic_hostiles)
+        # The above-emergency layer: the 50F+ Recall without the means (ladder_above_emergency).
+        above_emergency = ladder_above_emergency.key(self, snapshot)
         if above_emergency is not PASS:
             return above_emergency
         # The emergency layer: the emergency consumables and the survival rungs after them
@@ -7838,10 +7839,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if emergency is not PASS:
                 return emergency
 
-        # The summoner-shots layer: what dies 被害無く, then the last shots at a summoner
-        # (ladder_summoner_shots).
+        # The summoner-shots layer: the committed STRONG-tier hunt (owner 2026-11-15 Q8), what
+        # dies 被害無く, then the last shots at a summoner (ladder_summoner_shots).
         summoner_shots = ladder_summoner_shots.key(
-            self, snapshot, emergency_hostiles=emergency_hostiles)
+            self, snapshot, emergency_hostiles=emergency_hostiles,
+            strategic_hostiles=strategic_hostiles)
         if summoner_shots is not PASS:
             return summoner_shots
 
@@ -13843,6 +13845,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 self._safety_deferred_loot.update(guarded_loot)
 
 
+    @safety_watch.watched("policy._loot_before_recall_calm")  # record only (owner 2026-11-15 Q9)
     def _loot_before_recall_calm(self, snapshot: Snapshot) -> bool:
         """Nothing on this board threatens the player.
 

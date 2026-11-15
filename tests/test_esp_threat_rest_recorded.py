@@ -490,24 +490,21 @@ class EspThreatRestTest(unittest.TestCase):
         self.assertEqual((key, reason), ("8", "melee:esp-threat-hunt"))
         policy.confirm_key_posted(key)
 
-        # HP 38 in contact: 38 - 20 < 19 -> drink (not the emergency ladder).
-        # (Was HP 70: 70 - 40 < 35 with the per-action maximum.)
+        # HP 38 in contact: the emergency ladder answers first and drinks (owner 2026-11-15,
+        # maintainability review Q8 「緊急の逃げの後に回す」: the hunt drank here by its own
+        # estimate, 38 - 20 < 19, before the emergency ladder was asked).
         board = self._next_board(board, 38)
         key, reason, _assessment = self._decide(policy, board)
-        self.assertEqual((key, reason), ("qd", "esp-threat:hunt-heal"))
-        self.assertEqual(policy._esp_threat_hunt["turn_damage"], 20)
+        self.assertEqual((key, reason), ("qd", "item:heal"))
         policy.confirm_key_posted(key)
 
-        # HP 38 with only the two reserve potions left: the hunt ends
-        # "reserve" and takes the existing leave path.
+        # HP 38 with only the two reserve potions left: the emergency ladder, asked first since
+        # Q8, drinks one of them (the hunt ended "reserve" and read Recall here before).
         board = replace(
             self._with_potions(board, healing=2), player=board.player
         )
         key, reason, _assessment = self._decide(policy, board)
-        self.assertEqual((key, reason), ("rg", "esp-threat:leave-recall"))
-        self.assertIsNone(policy._esp_threat_hunt)
-        self.assertEqual(policy._esp_threat_hunt_end, "reserve")
-        self.assertTrue(policy._returning_to_town)
+        self.assertEqual((key, reason), ("qd", "item:heal"))
 
     def test_e9_committed_hunt_ends_infeasible_or_cleared(self):
         # Infeasible: the monk joins in sight at HP 400.  One turn is now

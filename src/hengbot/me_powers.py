@@ -105,6 +105,7 @@ from dataclasses import dataclass, field, replace
 from functools import cached_property
 from typing import Callable
 
+from hengbot import safety_watch
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_staff_sequence import (
@@ -788,6 +789,7 @@ def _activation():
     return me_powerful_activation
 
 
+@safety_watch.watched("me_powers._when_safe")  # record only (owner 2026-11-15 Q9)
 def _when_safe(ctx) -> bool:
     """「安全なら」: no visible hostile, not just hit, and the HP cost leaves the
     character above the ladder's low-HP rungs (me_powerful_activation.pays_safely)."""
@@ -809,6 +811,7 @@ def _charges(ctx, power) -> int:
     return me_capability.charges(ctx.policy, ctx.snapshot, *power.ident)
 
 
+@safety_watch.watched("me_powers._gate")  # record only (owner 2026-11-15 Q9)
 def _gate(policy, snapshot) -> bool:
     player = snapshot.player
     return (
@@ -832,6 +835,7 @@ def visible_threat(policy, snapshot) -> bool:
         or policy._is_material_threat(snapshot, hostiles))
 
 
+@safety_watch.watched("me_powers._hostiles_allow")  # record only (owner 2026-11-15 Q9)
 def _hostiles_allow(ctx, power) -> bool:
     if power.against_hostile:
         return True
@@ -840,6 +844,7 @@ def _hostiles_allow(ctx, power) -> bool:
     return not ctx.hostile_visible or (power.beside_harmless and not ctx.threat_visible)
 
 
+@safety_watch.watched("me_powers.utility_device_permitted")  # record only (owner 2026-11-15 Q9)
 def utility_device_permitted(policy, snapshot) -> bool:
     """The mapping row's hostile rule, for a carried device of the same effect."""
     return not getattr(policy, "_took_damage", False) and (

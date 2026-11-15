@@ -88,7 +88,6 @@ LADDER = (
         # Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた
         # 時点で帰還させる。」: the Recall read on a 50F+ floor without the means.
         *D("destruction_use.means_spent_recall_key", exempt=MEANS_SPENT),
-        *E("_esp_threat_hunt_key"),
     )),
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
         *E("_emergency_item", exempt=ANSWERS_DANGER),
@@ -104,6 +103,9 @@ LADDER = (
     )),
     # Owner 2026-11-06 「命に関わる時の後へ回す」: below the emergency ladder.
     Layer("summoner-shots", "the summons rules, floor avoidance, combat and all below", (
+        # Owner 2026-11-15 (maintainability review Q8 「緊急の逃げの後に回す」): the committed
+        # STRONG-tier hunt (owner 2026-09-22) after the emergency escapes.
+        *E("_esp_threat_hunt_key", exempt=FIGHTS),
         # Threat tiers plan step 11 (design 4.4, 10a): directly above the summoner shots (D2).
         *D("worsens_kill.key", exempt=FIGHTS),
         *E("_summoner_ranged_kill_key", exempt=FIGHTS),
@@ -480,8 +482,6 @@ _ABOVE_EMERGENCY = {
     "quest_find_exit.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "quest25_battle.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "quest_room_sweep.key": "a plan answers survival inside itself (FLOOR_PLANS)",
-    "_esp_threat_hunt_key": "a committed hunt drinks by its own estimate (owner 2026-09-22); "
-                            "whether it stays here is the review's open question",
 }
 
 OWNER_RULES = (
@@ -505,6 +505,9 @@ OWNER_RULES = (
             "confuser_contact.leave_key": "leaves a faster confuser before its blow takes the "
                                           "scrolls away: survival (owner 2026-11-14 "
                                           "「混乱する前に離れるだけ」)",
+            "_esp_threat_hunt_key": "a committed STRONG-tier hunt fights its target (owner "
+                                    "2026-09-22); it stood above the summons rule before and "
+                                    "only went after survival (owner 2026-11-15 Q8)",
             "worsens_kill.key": "kills a summoner / breeder / shrieker that dies 被害無く, after "
                                 "survival (threat tiers design 4.4, 10a); a summons rule due "
                                 "on the board skips it",
