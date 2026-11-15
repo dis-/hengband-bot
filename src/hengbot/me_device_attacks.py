@@ -115,7 +115,7 @@ def _power(kind, sval, ja, en, level, element, shape, damage, beam=0, group_only
 # Dragon's Breath: rand_choice of five (damage, element) pairs.
 _DRAGON_BREATH = ((240, "ACID"), (210, "ELEC"), (240, "FIRE"), (210, "COLD"), (180, "POIS"))
 
-POWERS = {(power.kind, power.sval): power for power in (
+_ALL_POWERS = (
     # cmd-zapwand.cpp wand_effect (rad 2, lev = player level).
     _power("wand", 7, "光", "Light", 3, "LITE_WEAK", "beam", lambda lev: _dice(6, 8)),
     _power("wand", 12, "衰弱", "Hypodynamia", 50, "HYPODYNAMIA", "bolt", lambda lev: 80 + lev),
@@ -161,7 +161,23 @@ POWERS = {(power.kind, power.sval): power for power in (
     _power("staff", 24, "邪悪存在退散", "Dispel Evil", 50, "DISP_EVIL", "sight", lambda lev: 80),
     _power("staff", 25, "力", "Power", 70, "DISP_ALL", "sight", lambda lev: 150),
     _power("staff", 26, "聖浄", "Holiness", 70, "DISP_EVIL", "sight", lambda lev: 150),
-)}
+)
+
+# Owner 2026-11-16 「分解攻撃は地形を壊して状況を悪化させ、アイテムを破損させるので使用を禁止する」:
+# no attack of these elements is ever used.  DISINTEGRATE (the 分解 wand, wand_effect
+# SV_WAND_DISINTEGRATE, fire_ball rad 2) turns every CAN_DISINTEGRATE grid in its blast that is
+# not PERMANENT into floor (effect-feature.cpp case DISINTEGRATE, cave_alter_feat: granite,
+# rubble, doors, glass) and is stopped by nothing but permanent walls (range-calc.cpp
+# is_prevent_blast, in_disintegration_range), and it destroys every floor item in the blast
+# but an artifact (effect-item.cpp: do_kill, 「蒸発してしまった！」).  The ban is here, the
+# one table every attack chooser reads (POWERS: the absorbed powers, the carried wands and rods,
+# the breeder area attack, the Q25 plans, the supply and threat counts): a forbidden power is
+# not an attack at all.  Absorbing and carrying the device are left to me_device_policy.json.
+FORBIDDEN_ELEMENTS = frozenset({"DISINTEGRATE"})
+FORBIDDEN_POWERS = {(power.kind, power.sval): power for power in _ALL_POWERS
+                    if power.element in FORBIDDEN_ELEMENTS}
+POWERS = {(power.kind, power.sval): power for power in _ALL_POWERS
+          if power.element not in FORBIDDEN_ELEMENTS}
 _BY_NAME = {(power.kind, name): power for power in POWERS.values() for name in power.names}
 
 # The monster's side of each element, one row per element (a new attack power names one of
