@@ -118,3 +118,19 @@ def _lift(policy, snapshot, life: Life, ended: set) -> None:
 
 def forget_floor_visit(policy) -> None:
     setattr(policy, MEMORY, None)
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    life = getattr(policy, MEMORY, None)
+    if life is None:
+        return
+    life.threats = {key: threat for key, threat in life.threats.items() if key not in keys}
+    owners = {}
+    for cell, holders in life.owners.items():
+        kept = {holder for holder in holders if holder not in keys}
+        if kept:
+            owners[cell] = kept
+    life.owners = owners

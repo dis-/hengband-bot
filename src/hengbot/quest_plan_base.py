@@ -14,7 +14,7 @@ Nothing here is persisted: the floor's state is the QuestFloorNavigator's (quest
 
 from __future__ import annotations
 
-from hengbot import curse_cure, me_ranged_first, once_quest_recall, quest_exposure, quest_no_teleport, quest_room_light, speed_dose, status_cure
+from hengbot import me_ranged_first, once_quest_recall, quest_exposure, quest_no_teleport, quest_room_light, speed_dose, status_cure
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
@@ -214,9 +214,6 @@ def _rest(policy, snapshot, plan, board) -> str | None:
     if (player.hp_ratio >= float(plan["rest_below_ratio"]) or player.confused or board.pulling
             or player.food_state not in {"normal", "full", "gorged"}):
         return None
-    # Owner 2026-11-15 「呪われていれば休む前に解く」 (curse_cure).
-    if (cure := curse_cure.before_rest(policy, snapshot)) is not None:
-        return cure
     policy.last_reason = "rest"
     return REST_MACRO
 

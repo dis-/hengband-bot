@@ -59,6 +59,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
+from types import SimpleNamespace
 
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
@@ -115,13 +116,16 @@ POSITION_DICTS = (
 )
 # Collections of (kind, Position):
 KIND_POSITION_COLLECTIONS = ("_unverified_stairs", "_stair_rejection_strikes")
-# Module memories of monsters and holds that may stand in the circle.
-FORGET_VISIT = (summoner_wait, immobile_threat_memory, hunt_target, left_cells, pingpong_guard)
+# The memories of monsters and holds a flash forgets: monster_memory.DESTRUCTION_FORGETS (the one
+# registry, owner 2026-11-15 Q6).
 
 
 @dataclass
 class Memory:
     pending: tuple | None = None   # (floor, turn, position) of the last use
+    # The hostiles known on the board of the last use: ((index, race, y, x, name), ...).  A class
+    # default: restored checkpoints predate it.
+    pending_monsters: tuple = ()
     fallback: tuple | None = None  # the floor whose next ask is the rung's own read
     entitled_floor: tuple | None = None  # the 50F+ floor where the means was last held
 
@@ -390,7 +394,11 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None)
     if used is None:
         return None
     policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
-    _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
+    memory = _memory(policy)
+    memory.pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
+    memory.pending_monsters = tuple(
+        (monster.index, monster.race_id, monster.position.y, monster.position.x, monster.name)
+        for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters) if monster.hostile)
     return used
 
 
@@ -458,15 +466,31 @@ def observe(policy, snapshot) -> None:
         escape_count.destroyed(policy, snapshot, position, GUARANTEED_RADIUS)
         _end_emergency(policy, snapshot)
         forget_circle(policy, position)
-        monster_memory.forget_within(policy, snapshot, position, GUARANTEED_RADIUS,
-                                     lambda monster: _survives(policy, snapshot, monster))
+        keys, names = _deleted(policy, snapshot, memory, position)
+        monster_memory.forget_destroyed(policy, snapshot, position, GUARANTEED_RADIUS,
+                                        lambda monster: _survives(policy, snapshot, monster),
+                                        keys, names)
         area_mapping.note_destruction(policy, snapshot, position, WORST_RADIUS, GUARANTEED_RADIUS)
         # Record only (cross_rules): what the flash forgot, and the memories it does not.
-        cross_rules.destruction_flash(policy, ("monster_memory.KINDS", *(
-            module.__name__.rsplit(".", 1)[-1] for module in FORGET_VISIT)))
+        cross_rules.destruction_flash(policy, ("monster_memory.DESTRUCTION_FORGETS",))
     elif snapshot.turn != turn:
         memory.pending = None
         memory.fallback = floor
+
+
+def _deleted(policy, snapshot, memory, centre) -> tuple[frozenset, frozenset]:
+    """The hostiles known on the board of the use that the circle deleted: within the radius it
+    always destroys, not spared (``_survives``: the quest's target, a QUESTOR), and not shown
+    on the flash board.  (keys (index, race), names)."""
+    shown = {monster.index for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)}
+    keys, names = set(), set()
+    for index, race, y, x, name in getattr(memory, "pending_monsters", ()):
+        known = SimpleNamespace(index=index, race_id=race, position=Position(y, x), name=name)
+        if (game_distance(centre, known.position) <= GUARANTEED_RADIUS and index not in shown
+                and not _survives(policy, snapshot, known)):
+            keys.add((index, race))
+            names.add(name)
+    return frozenset(keys), frozenset(names)
 
 
 def _survives(policy, snapshot, monster) -> bool:
@@ -522,8 +546,6 @@ def forget_circle(policy, centre: Position) -> None:
              lambda area: game_distance(centre, Position(area[0], area[1])) <= WORST_RADIUS + area[2])
     _release_goals(policy, in_circle)
     _restart_progress_marks(policy)
-    for module in FORGET_VISIT:
-        module.forget_floor_visit(policy)
 
 
 def _release_goals(policy, in_circle) -> None:

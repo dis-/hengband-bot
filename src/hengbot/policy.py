@@ -2880,6 +2880,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return chosen
 
             key = choose_ladder()
+            # Owner 2026-11-15 「呪われていれば休む前に解く」, maintainability review Q4 「1か所で
+            # まとめ構えも含める」: the one place a dungeon rest or wait (a stance's hold included)
+            # removes a worn curse first (curse_cure).
+            cure = curse_cure.before_rest_or_wait(self, snapshot, key)
+            if cure is not None:
+                key = cure
             # The producers below commit the store visit to the key they return:
             # an in-store leave arms _store_leave_inflight and a composed one-shot
             # marks operation_posted.  Every rewrite between here and the return

@@ -203,3 +203,12 @@ def decided_sides(policy, snapshot, hostiles) -> list:
     return [{"index": monster.index, "tier": entry.tier, "leave": entry.leave}
             for monster in hostiles
             if (entry := memory.decided.get((monster.index, monster.race_id))) is not None]
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    memory = getattr(policy, TIER_MEMORY, None)
+    if memory is not None and memory.decided:
+        memory.decided = {key: decided for key, decided in memory.decided.items() if key not in keys}

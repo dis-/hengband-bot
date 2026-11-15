@@ -8,7 +8,7 @@ from enum import Enum
 import re
 from typing import Any
 
-from hengbot import breeder_quest, curse_cure, kill_all_patrol, locked_doors
+from hengbot import breeder_quest, kill_all_patrol, locked_doors
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
@@ -368,9 +368,6 @@ class QuestFloorNavigator:
                     if self.hold_turns > budget:
                         owner.last_reason = "quest:blocked:hold"
                         return "5"
-                    # Owner 2026-11-15 「呪われていれば休む前に解く」 (curse_cure).
-                    if (cure := curse_cure.before_rest(owner, snapshot)) is not None:
-                        return cure
                 else:
                     self.hold_turns = 0
                 return action

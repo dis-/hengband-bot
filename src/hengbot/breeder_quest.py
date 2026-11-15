@@ -68,7 +68,7 @@ TELEPORT_REASON = "breeder-breakthrough:teleport"
 # A bite reaches the eight neighbours; the breeder's own cell is occupied.
 _BITE_RING = NEIGHBOR_OFFSETS + ((0, 0),)
 # The perceived breeders of the pursued floor, kept at their last shown cell out of sight.
-BREEDER_SEEN = monster_memory.Kind("_breeder_quest_seen")
+BREEDER_SEEN = monster_memory.BREEDER_SEEN  # the memory is declared there (DESTRUCTION_FORGETS)
 
 
 def response(policy, snapshot) -> str | None:

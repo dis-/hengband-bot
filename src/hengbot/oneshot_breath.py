@@ -239,3 +239,12 @@ def key(policy, snapshot) -> str | None:
 
 def forget_floor_visit(policy) -> None:
     setattr(policy, MEMORY, None)
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    visit = getattr(policy, MEMORY, None)
+    if visit is not None and visit.threats:
+        visit.threats = {key: threat for key, threat in visit.threats.items() if key not in keys}

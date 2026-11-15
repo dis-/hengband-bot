@@ -72,14 +72,14 @@ class CrossRuleObserverTest(unittest.TestCase):
                          [f"cross-rule:escape-line-of-fire:consulted:{reason}"])
 
     def test_destruction_flash_lists_the_memories_left(self):
+        """Since Q6 (2026-11-15) no memory is left: the flash records what forgot."""
         policy = _Policy()
         policy._retreat_veto_life = object()
         cross_rules.begin(policy)
-        cross_rules.destruction_flash(policy, ("monster_memory.KINDS",))
+        cross_rules.destruction_flash(policy, ("monster_memory.DESTRUCTION_FORGETS",))
         cross_rules.end(policy, _board(level=0, in_town=True), "")
         self.assertEqual(cross_rules.report(policy), [
-            "cross-rule:destruction-forget:consulted:monster_memory.KINDS",
-            "cross-rule:destruction-forget:not-consulted:_retreat_veto_life"])
+            "cross-rule:destruction-forget:consulted:monster_memory.DESTRUCTION_FORGETS"])
 
     def test_nothing_is_stored_on_the_policy(self):
         policy = _Policy()
@@ -147,10 +147,16 @@ def walk(policy, snapshot):
         index = lint.Index({name: ast.parse(text) for name, text in sources.items()})
         self.assertEqual(lint.gaps(index)[cross_rules.LEFT_CELLS], ["bad_walk:walk"])
 
-    def test_the_census_names_the_unforgotten_memories(self):
-        self.assertEqual(
-            {row.attribute for row in cross_rules.MONSTER_MEMORIES if row.forgotten_by is None},
-            set(cross_rules.UNFORGOTTEN_MONSTER_MEMORIES))
+    def test_every_memory_is_forgotten_by_the_registry(self):
+        from hengbot import monster_memory
+
+        self.assertEqual(cross_rules.UNFORGOTTEN_MONSTER_MEMORIES, ())
+        attributes = {row.attribute for row in monster_memory.DESTRUCTION_FORGETS}
+        for attribute in ("_breeder_quest_seen", "_oneshot_breath_visit", "_retreat_veto_life",
+                          "_summon_response_memory", "_threat_tier_memory",
+                          "_sensed_approach_memory", "_sent_away_t1", "_deep_teleport_landing",
+                          "_blind_strike_monsters"):
+            self.assertIn(attribute, attributes)
 
     def test_the_source_has_no_new_gap(self):
         import contextlib

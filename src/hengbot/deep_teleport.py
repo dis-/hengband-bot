@@ -132,7 +132,10 @@ def applies(policy, snapshot) -> bool:
 
 
 def fire_p95(policy, snapshot) -> int:
-    """The next action's p95 of the engagement's monsters with a line of fire."""
+    """The next action's p95 of the engagement's monsters with a line of fire, read as the
+    damage estimate reads it (policy ``_monster_in_line_of_fire``: owner 2026-11-15,
+    maintainability review Q5 「被害の見積りと同じにする」; it read line_of_fire.in_fire, which
+    takes an unknown grid for a wall, before)."""
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
     from hengbot.threat_projection import _with_adjusted_speed
@@ -145,7 +148,7 @@ def fire_p95(policy, snapshot) -> int:
         rows = policy.threat_prediction(snapshot, hostiles, 1).get("monsters", ())
         return sum(row.get("operational_contribution", 0)
                    for monster, row in zip(hostiles, rows)
-                   if line_of_fire.in_fire(policy, snapshot, monster))
+                   if policy._monster_in_line_of_fire(snapshot, monster))
     return decision_memo(policy, "deep_teleport.fire_p95", snapshot, None, compute)
 
 
@@ -446,3 +449,20 @@ def scroll_substitute(policy, snapshot, item) -> str | None:
     if not is_self_teleport_scroll(item):
         return None
     return substitute(policy, snapshot, teleportation=item.sval == SV_SCROLL_TELEPORT)
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None:
+        return
+    indices = {index for index, _race in keys}
+    if memory.pending is not None:
+        floor, turn, position, in_fire = memory.pending
+        memory.pending = (floor, turn, position, frozenset(in_fire) - indices)
+    if memory.landed is not None:
+        floor, still = memory.landed
+        kept = frozenset(still) - indices
+        memory.landed = (floor, kept) if kept else None

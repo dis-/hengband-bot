@@ -17,9 +17,9 @@ printed as an advisory list.  The lint fails on:
 
 - a gap not in the baseline (a new producer outside the rule's point);
 - a registry point that names nothing in the source;
-- the monster-memory census (``cross_rules.MONSTER_MEMORIES``) disagreeing with the source: a
-  ``monster_memory.Kind`` or a module's ``forget_floor_visit`` over monsters that is not
-  declared, or ``UNFORGOTTEN_MONSTER_MEMORIES`` not being the census's unforgotten rows.
+- the registry of what a *Destruction* forgets (``monster_memory.DESTRUCTION_FORGETS``)
+  disagreeing with the source: a ``monster_memory.Kind``, a module's ``forget_floor_visit`` over
+  monsters or a ``forget_destroyed`` that is not a row, or a row whose way is missing.
 
     python scripts/cross_rule_lint.py [--write-baseline] [--print]
 """
@@ -269,18 +269,32 @@ def producers(index: Index, rule) -> list:
 COUNTS: dict = {}  # rule -> producers found (for the printout)
 
 
+def _exit_asks(index, module: str, function: str, call: str) -> bool:
+    """Whether ``module``'s ``function`` (a top-level function or a method) calls ``call``."""
+    if module not in index.modules:
+        return False
+    for node in _functions(index.modules[module]):
+        if node.name == function:
+            return _calls(node, {call})
+    return False
+
+
 def gaps(index: Index) -> dict:
     """rule -> sorted 'module:function' producers that do not reach the rule's point."""
     out = {}
     for rule in cross_rules.REGISTRY:
         if rule.name == cross_rules.DESTRUCTION_FORGET:
-            out[rule.name] = sorted(f"memory:{row.attribute}" for row in cross_rules.MONSTER_MEMORIES
-                                    if row.forgotten_by is None)
-            COUNTS[rule.name] = len(cross_rules.MONSTER_MEMORIES)
+            from hengbot import monster_memory
+            out[rule.name] = sorted(f"memory:{attribute}"
+                                    for attribute in cross_rules.UNFORGOTTEN_MONSTER_MEMORIES)
+            COUNTS[rule.name] = len(monster_memory.DESTRUCTION_FORGETS)
             continue
         points, stop = _qualified(rule.points), frozenset(rule.helpers)
         found = producers(index, rule)
         COUNTS[rule.name] = len({(module, node.name) for module, node in found})
+        if rule.exit_point is not None and _exit_asks(index, *rule.exit_point):
+            out[rule.name] = []  # every key passes the exit, which asks the point
+            continue
         out[rule.name] = sorted({f"{module}:{node.name}"
                                  for module, node in found
                                  if not index.reaches(module, node, points, stop)})
@@ -309,8 +323,11 @@ def registry_problems(index: Index) -> list:
         for point in _qualified(rule.points):
             if not index.defs.get(point):
                 problems.append(f"{rule.name}: point {point[0]}:{point[1]} names nothing")
-    # The monster-memory census against the source.
-    declared = {row.attribute: row for row in cross_rules.MONSTER_MEMORIES}
+    # The memories a *Destruction* forgets (monster_memory.DESTRUCTION_FORGETS, the one registry)
+    # against the source: every monster_memory Kind, every module forgetting a floor visit of
+    # monsters, every module with a ``forget_destroyed`` is a row, and every row's way is there.
+    from hengbot import monster_memory
+    declared = {row.attribute: row for row in monster_memory.DESTRUCTION_FORGETS}
     found = {}
     for module, tree in index.modules.items():
         constants = _string_constants(tree)
@@ -318,36 +335,33 @@ def registry_problems(index: Index) -> list:
             if isinstance(node, ast.Call):
                 func = node.func
                 name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
-                if name == "Kind" and node.args and isinstance(node.args[0], ast.Constant) \
-                        and module in ("monster_memory", "breeder_quest") or (
-                        name == "Kind" and node.args and isinstance(node.args[0], ast.Constant)
-                        and "monster_memory" in ast.unparse(func)):
+                if (name == "Kind" and node.args and isinstance(node.args[0], ast.Constant)
+                        and (module == "monster_memory" or "monster_memory" in ast.unparse(func))):
                     found[node.args[0].value] = module
         source = (SRC / f"{module}.py").read_text(encoding="utf-8")
         if "def forget_floor_visit" in source and re.search(r"race_id|\(index, race\)", source):
             memory = _visit_memory(tree, constants)
             found[memory or f"<{module}>"] = module
+        if "def forget_destroyed" in source and module not in {
+                row.module for row in monster_memory.DESTRUCTION_FORGETS}:
+            found[f"<{module}.forget_destroyed>"] = module
     for attribute, module in sorted(found.items()):
         if attribute not in declared:
             problems.append(f"destruction-forget: monster memory {attribute} ({module}) is not "
-                            f"declared in cross_rules.MONSTER_MEMORIES")
-    unforgotten = tuple(row.attribute for row in cross_rules.MONSTER_MEMORIES if row.forgotten_by is None)
-    if set(unforgotten) != set(cross_rules.UNFORGOTTEN_MONSTER_MEMORIES):
-        problems.append("destruction-forget: UNFORGOTTEN_MONSTER_MEMORIES is not the census's "
-                        f"unforgotten rows {sorted(unforgotten)}")
-    from hengbot import destruction_use, monster_memory
-    forgotten = {kind.attribute for kind in monster_memory.KINDS}
-    for module in destruction_use.FORGET_VISIT:
-        name = module.__name__.rsplit(".", 1)[-1]
-        tree = index.modules[name]
-        forgotten.add(_visit_memory(tree, _string_constants(tree)))
-    for row in cross_rules.MONSTER_MEMORIES:
-        if row.forgotten_by in ("monster_memory.KINDS", "destruction_use.FORGET_VISIT") \
-                and row.attribute not in forgotten:
-            problems.append(f"destruction-forget: {row.attribute} is declared forgotten by "
-                            f"{row.forgotten_by} but is not in it")
-        if row.forgotten_by is None and row.attribute in forgotten:
-            problems.append(f"destruction-forget: {row.attribute} is forgotten but declared not")
+                            f"declared in monster_memory.DESTRUCTION_FORGETS")
+    kinds = {kind.attribute for kind in (*monster_memory.KINDS, monster_memory.BREEDER_SEEN)}
+    for row in monster_memory.DESTRUCTION_FORGETS:
+        tree = index.modules.get(row.module)
+        names = {node.name for node in _functions(tree)} if tree is not None else set()
+        if row.how == "kind" and row.attribute not in kinds:
+            problems.append(f"destruction-forget: {row.attribute} is no monster_memory Kind")
+        elif row.how == "visit" and "forget_floor_visit" not in names:
+            problems.append(f"destruction-forget: {row.module} has no forget_floor_visit")
+        elif row.how == "keys" and "forget_destroyed" not in names:
+            problems.append(f"destruction-forget: {row.module} has no forget_destroyed")
+    if cross_rules.UNFORGOTTEN_MONSTER_MEMORIES:
+        problems.append("destruction-forget: UNFORGOTTEN_MONSTER_MEMORIES lists "
+                        f"{sorted(cross_rules.UNFORGOTTEN_MONSTER_MEMORIES)}")
     return problems
 
 

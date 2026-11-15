@@ -352,3 +352,12 @@ def key(policy, snapshot) -> str | None:
 def action_due(policy, snapshot) -> bool:
     """A rule outranks the older three-shot summoner rung below the emergency ladder."""
     return recall_due(policy, snapshot) or leave_due(policy, snapshot)
+
+
+def forget_destroyed(policy, keys, names=frozenset()) -> None:
+    """The casters a *Destruction* deleted leave this visit's casters (owner 2026-11-15,
+    maintainability review Q6 「全部から消す」): a caster is remembered by its name, so the names of
+    the deleted monsters (``names``) leave it; the counts of the visit stay."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is not None and memory.casters and names:
+        memory.casters = set(memory.casters) - set(names)
