@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from hengbot import __version__ as HENGBOT_VERSION
-from hengbot import spare_gear, torch_release
+from hengbot import dive_floor, spare_gear, torch_release
 
 _CONTROL_OWNER_HANDLES: dict[int, object] = {}
 _TOWN_IDLE_D0_SESSION_ID = uuid.uuid4().hex
@@ -1649,6 +1649,7 @@ def _over_extension_state(policy) -> dict:
         "alternate_dungeon_id": alternate,
         "alternate_dungeon": name(alternate),
         "last_overextended_depth": getattr(policy, "_last_overextended_depth", 0),
+        "alternate_target_depth": dive_floor.target(policy),
         "dive_loot": getattr(policy, "_dive_loot", 0),
         "dive_kept_loot": getattr(policy, "_dive_kept_loot", 0),
         "dive_emergencies": getattr(policy, "_dive_emergencies", 0),

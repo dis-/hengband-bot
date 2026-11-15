@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -599,6 +599,7 @@ class ObservationMixin:
                     "guardian_bounce_valve" if guardian_bounces_only
                     else "over_extended_dives"
                 )
+                dive_floor.bind(self, snapshot, alt)
                 if not guardian_bounces_only:
                     alternate_lease.switched(self, previous_alternate, previous_reason)
                 # The safety valve must demote even a latched conquest target.
@@ -640,6 +641,7 @@ class ObservationMixin:
                 previous_reason = self._alternate_dungeon_reason
                 self._alternate_dungeon = alt
                 self._alternate_dungeon_reason = "no_depth_progress"
+                dive_floor.bind(self, snapshot, alt)
                 self._conquest_committed = None
                 alternate_lease.switched(self, previous_alternate, previous_reason)
             self._no_depth_progress_dives = 0

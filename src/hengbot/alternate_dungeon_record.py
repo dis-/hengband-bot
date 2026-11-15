@@ -36,10 +36,16 @@ FIELDS = (
     "_alternate_dives",
 )
 LEASE_FIELDS = ("_alternate_lease", "_alternate_dives")
+# The dive to the fallback floor's (dungeon, target depth) (dive_floor, owner 2026-11-15);
+# absent from older records.
+DIVE_FLOOR_FIELD = "_alternate_dive_floor"
 
 
 def _carried(policy) -> dict:
-    return {name: getattr(policy, name, None) for name in FIELDS}
+    carried = {name: getattr(policy, name, None) for name in FIELDS}
+    dived = getattr(policy, DIVE_FLOOR_FIELD, None)
+    carried[DIVE_FLOOR_FIELD] = None if not dived else [int(dived[0]), int(dived[1])]
+    return carried
 
 
 def restore(policy, snapshot) -> None:
@@ -58,6 +64,8 @@ def restore(policy, snapshot) -> None:
         reason = None if reason is None else str(reason)
         counters = {name: int((state.get(name) if name in LEASE_FIELDS else state[name]) or 0)
                     for name in FIELDS[2:]}
+        dived = state.get(DIVE_FLOOR_FIELD)
+        dived = None if not dived else (int(dived[0]), int(dived[1]))
     except (OSError, ValueError, KeyError, TypeError):
         return
     if snapshot.turn < turn:
@@ -73,6 +81,7 @@ def restore(policy, snapshot) -> None:
     policy._alternate_dungeon_reason = reason
     for name, value in counters.items():
         setattr(policy, name, value)
+    setattr(policy, DIVE_FLOOR_FIELD, dived)
     if alternate is not None:
         # The switch demoted the conquest latch when it was made.
         policy._conquest_committed = None
