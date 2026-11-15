@@ -44,6 +44,15 @@ from hengbot.policy import (
 )
 
 
+def hauled(board, count):
+    """``board`` carrying ``count`` Potions of Speed picked up on the dive (none at its start):
+    the haul the over-extension judgement counts is what is kept (dive_haul, owner 2026-11-15)."""
+    if count <= 0:
+        return board
+    return replace(board, inventory=[
+        item("a", TVAL_POTION, SV_POTION_SPEED, count=count, name="スピードの薬")])
+
+
 class StatusTest(unittest.TestCase):
     def test_flees_instead_of_meleeing_when_afraid(self):
         grids = {
@@ -170,17 +179,18 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         )
         pol.last_reason = "descend"
         pol._observe(dung)  # prev=town -> dive begins
-        for _ in range(loot):
+        for picked in range(1, loot + 1):
             pol.last_reason = "victory:pickup"
-            pol._observe(dung)  # counts a pickup
+            pol._observe(hauled(dung, picked))  # one more item in the pack
+        dung = hauled(dung, loot)
         for _ in range(emergencies):
             pol.last_reason = "emergency:teleport"
             pol._observe(dung)  # counts an emergency escape
         pol.last_reason = "town:return"
-        pol._observe(self._town(
+        pol._observe(hauled(self._town(
             clvl=clvl, recall_depth=recall_depth, abilities=abilities,
             conquered=conquered, angband_unlocked=angband_unlocked,
-        ))  # dive ends
+        ), loot))  # dive ends, the haul kept (dive_haul, owner 2026-11-15)
 
     # An over-extended dive mirrors the real telemetry: one trivial pickup and a
     # run of emergency teleports that drain the escape kit.
@@ -839,10 +849,10 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             angband_recall_unlocked=angband_unlocked,
         )
 
-    def _town(self, policy, recall_dungeon, landings, *, angband_unlocked):
-        board = self._board(
+    def _town(self, policy, recall_dungeon, landings, *, angband_unlocked, carried=0):
+        board = hauled(self._board(
             (0, 0, 0), recall_dungeon, landings, angband_unlocked=angband_unlocked
-        )
+        ), carried)
         policy._observe(board)
         return board
 
@@ -856,9 +866,10 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
         )
         policy.last_reason = "town:recall-to-alt-dungeon"
         policy._observe(dungeon)  # the recall landed: a dive begins
-        for _ in range(pickups):
+        for picked in range(1, pickups + 1):
             policy.last_reason = "pickup"
-            policy._observe(dungeon)
+            policy._observe(hauled(dungeon, picked))
+        dungeon = hauled(dungeon, pickups)
         for _ in range(emergencies):
             policy.last_reason = "emergency:teleport"
             policy._observe(dungeon)
@@ -867,7 +878,8 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
             and policy._last_return_trigger == "guardian-kit-insufficient"
         )
         policy.last_reason = "return:recall"
-        self._town(policy, target, landings, angband_unlocked=angband_unlocked)
+        self._town(policy, target, landings, angband_unlocked=angband_unlocked,
+                   carried=pickups)
         return target, bounced
 
     def _drive(self, policy, landings, *, angband_unlocked, start):

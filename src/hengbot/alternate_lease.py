@@ -36,6 +36,21 @@ def _leased(policy) -> bool:
             and policy._alternate_dungeon_reason in LEASED_REASONS)
 
 
+def diverts(policy, snapshot) -> bool:
+    """A held alternate leads the dives away from the target the observation selected.
+
+    Angband held as the alternate while its recall is open is that target itself: the guardian
+    valve's Angband first (reason ``guardian_valve``, owner 2026-11-07) and the deepest
+    destination a lease ends on (``deepest_destination``, C5) hold it, without a lease, only to
+    keep a demoted conquest target away.  n1-c life-214 (2026-11-15, Angband 49F): held as
+    ``guardian_valve`` it blocked the no-depth-progress switch for 91 dives of Angband that
+    never went deeper.  A leased Angband alternate is a switch still running and diverts.
+    """
+    alternate = policy._alternate_dungeon
+    return alternate is not None and not (
+        alternate == DUNGEON_ANGBAND and snapshot.angband_recall_unlocked and not _leased(policy))
+
+
 def switched(policy, previous_alternate, previous_reason) -> None:
     """The valve just set a leased alternate: its lease and a fresh dive count."""
     lease = getattr(policy, "_alternate_lease", 0) or 0

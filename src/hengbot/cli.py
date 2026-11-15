@@ -1650,6 +1650,7 @@ def _over_extension_state(policy) -> dict:
         "alternate_dungeon": name(alternate),
         "last_overextended_depth": getattr(policy, "_last_overextended_depth", 0),
         "dive_loot": getattr(policy, "_dive_loot", 0),
+        "dive_kept_loot": getattr(policy, "_dive_kept_loot", 0),
         "dive_emergencies": getattr(policy, "_dive_emergencies", 0),
         "last_return_trigger": getattr(policy, "_last_return_trigger", None),
     }

@@ -4,7 +4,10 @@ One judgement per finished normal dive (``policy_observation._observe``), read
 by the valve in town (``EMPTY_DIVE_LIMIT`` dives in a row switch to a
 shallower already-entered dungeon, ``_pick_alternate_dungeon``):
 
-- a real haul (more than ``OVEREXTEND_LOOT_MAX`` pickups) clears the streak;
+- a real haul (more than ``OVEREXTEND_LOOT_MAX`` items worth bringing back: acquired on the
+  dive and still carried, not junk, at its town arrival, ``dive_haul``; owner 2026-11-15
+  「持ち帰るべき有効な品を5つ以上拾う、に条件を引き上げる。壊す、捨てる品をカウントしない。」)
+  clears the streak;
 - else at least ``OVEREXTEND_EMERGENCY_MIN`` emergency escapes of the dive advance it (the
   dive's total, ``escape_count.dive_total``: the return's count is per floor since owner
   2026-11-11, this judgement keeps counting the whole dive);
@@ -34,7 +37,7 @@ from hengbot.policy_constants import OVEREXTEND_EMERGENCY_MIN, OVEREXTEND_LOOT_M
 
 def judge_dive(policy, *, guardian_bounce: bool) -> None:
     """Advance, clear or hold ``_target_empty_dives`` for the dive that just ended."""
-    if policy._dive_loot > OVEREXTEND_LOOT_MAX:
+    if getattr(policy, "_dive_kept_loot", 0) > OVEREXTEND_LOOT_MAX:
         policy._target_empty_dives = 0
         policy._guardian_bounce_dives = 0
     elif escape_count.dive_total(policy) >= OVEREXTEND_EMERGENCY_MIN:
