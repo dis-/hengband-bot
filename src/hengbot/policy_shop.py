@@ -2854,7 +2854,9 @@ class ShopMixin(InStoreMixin):
         affordable = [
             item
             for item in store.items
-            if self._is_destruction_item(item)
+            # Owner 2026-11-16 「深さの条件の定義に揃える」: only a ware that adds the
+            # means (a staff the worn loadout makes reliable; a scroll never does).
+            if self._supplies_destruction(snapshot, item)
             and item.count > 0
             and item.price <= snapshot.player.gold
             and snapshot.player.gold - item.price >= reserve
@@ -3063,7 +3065,7 @@ class ShopMixin(InStoreMixin):
             "mandatory:destruction",
             "destruction",
             lambda: self._missing_destruction_uses(snapshot) > 0,
-            lambda i: self._is_destruction_item(i) and destruction_affordable(i),
+            lambda i: self._supplies_destruction(snapshot, i) and destruction_affordable(i),
             current=lambda: self._total_destruction_uses(snapshot),
             target=lambda: self._required_destruction_uses(snapshot),
             rationale="destruction-gate",
@@ -4169,9 +4171,12 @@ class ShopMixin(InStoreMixin):
                 self._outstanding_identification_count(snapshot, full=full),
             )
         elif self._is_destruction_item(item):
-            # Uses, not stacks: one staff supplies its charges, one scroll one
-            # use (user 2026-09-23, the Identify-staff counting rule).
-            missing = self._missing_destruction_uses(snapshot)
+            # Uses, not stacks: one staff supplies its charges (user 2026-09-23,
+            # the Identify-staff counting rule); a ware that adds no means by the
+            # depth condition's definition (a scroll, an unreliable staff) supplies
+            # none (owner 2026-11-16 「深さの条件の定義に揃える」).
+            missing = (self._missing_destruction_uses(snapshot)
+                       if self._supplies_destruction(snapshot, item) else 0)
             per_unit = max(1, item.pval) if item.tval == TVAL_STAFF else 1
             needed = (missing + per_unit - 1) // per_unit
             if (self._is_destruction_staff(item) and snapshot.store is not None

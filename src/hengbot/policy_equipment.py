@@ -3139,10 +3139,9 @@ class EquipmentMixin:
     def _optimizer_destruction_means(self, snapshot: Snapshot, catalog, calibration):
         """(has_destruction, staff_gate): the 50F+ means the optimizer's bands read.
 
-        The absorbed power needs no equipment, and a carried scroll keeps the
-        optimizer's former reading (a 50F+ depth it is asked for keeps a valid
-        loadout; the gate itself, destruction_use.holds_means, never counts a
-        scroll, owner 2026-11-04).  An owned charged staff (carried, or in the
+        The depth condition's definition (owner 2026-11-16 「深さの条件の定義に揃える」,
+        destruction_use.holds_means): the absorbed power needs no equipment; a scroll
+        is no means (owner 2026-11-04).  An owned charged staff (carried, or in the
         Home in town) is a means only in a loadout whose device skill makes it
         reliable (owner 2026-11-15 「装備で魔法道具使用能力を向上させて杖の成功率を
         上げることで先に進むことができる」, device_skill.StaffGate), as the gate

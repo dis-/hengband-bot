@@ -1277,8 +1277,11 @@ class SupplyMixin:
         if self._is_destruction_item(item):
             # Home-first: a stored *Destruction* item is withdrawn before the
             # shop purchase, and the shortage is the same one the departure
-            # requirement publishes.
-            return self._missing_destruction_uses(snapshot)
+            # requirement publishes.  Only an item that adds the means by the depth
+            # condition's definition is taken (owner 2026-11-16 「深さの条件の定義に
+            # 揃える」: a scroll or an unreliable staff counts no use).
+            return (self._missing_destruction_uses(snapshot)
+                    if self._supplies_destruction(snapshot, item) else 0)
         strategy = self._carry_procurement_strategy(snapshot)
         if item_class == (TVAL_LITE, SV_LITE_TORCH):
             target, carried = self._torch_carry_requirement(snapshot, item, strategy)

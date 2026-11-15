@@ -1488,9 +1488,8 @@ class ObservationMixin:
         if not destruction_dive_permitted(
                 depth, lambda: destruction_use.holds_means(self, snapshot)):
             missing.add(DESTRUCTION_GATE_LABEL)
-        elif DESTRUCTION_GATE_LABEL in missing and (
-                self._has_destruction_method(snapshot)
-                or destruction_use.owns_charged_staff(self, snapshot)):
+        else:
+            # Below 50F the label is never missing; at 50F+ the means is held.
             missing.discard(DESTRUCTION_GATE_LABEL)
         if SPEED_GATE_LABEL in missing and snapshot.player.speed >= SPEED_GATE_MINIMUM:
             # player.speed includes temporary boosts; a hasted check at the

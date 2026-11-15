@@ -1406,6 +1406,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_means.py:Means.supplies": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_means.py:charged_staves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_means.py:is_staff": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_means.py:stack_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_absorbed_key": {
     "classification": "data",
     "rows": [
@@ -8059,6 +8087,13 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_helpers.py:PolicyHelpersMixin._supplies_destruction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_helpers.py:PolicyHelpersMixin._total_destruction_uses": {
     "classification": "data",

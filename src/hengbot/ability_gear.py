@@ -37,7 +37,7 @@ the gap as it does without a shelf (``town_terminal``).
 
 from __future__ import annotations
 
-from hengbot import destruction_use, device_skill
+from hengbot import destruction_means, destruction_use, device_skill
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.model import STORE_HOME
 from hengbot.policy_constants import (
@@ -96,7 +96,8 @@ def _device_need(policy, snapshot) -> int | None:
     charged staff is owned and the owned gear cannot reach the skill; None otherwise."""
     if (DESTRUCTION_GATE_LABEL not in _landing_missing(policy, snapshot)
             or snapshot.player.class_id == PLAYER_CLASS_BERSERKER
-            or not destruction_use.owns_charged_staff(policy, snapshot)
+            # The item fact, not the means: the staff the gear would make reliable.
+            or not destruction_means.Means(policy, snapshot).staff_owned
             or device_skill.TR_MAGIC_MASTERY in _bought_flags(policy)):
         return None
     need = destruction_use.reliable_skill()

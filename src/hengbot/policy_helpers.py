@@ -789,31 +789,24 @@ class PolicyHelpersMixin:
     _is_destruction_staff = staticmethod(destruction_means.is_staff)
     _is_destruction_item = staticmethod(destruction_means.is_item)
 
-    def _carried_destruction_uses(self, item: InventoryItem) -> int:
-        """Uses one carried stack supplies.
-
-        User decision 2026-09-23: the staff's remaining charges and the number
-        of scrolls count together, the way the Identify staff's 20 charges are
-        counted.  sval is emitted only for AWARE items and charges only for
-        KNOWN ones (fair play), so an untried staff counts no charges.
-        """
-        if destruction_means.is_scroll(item):
-            return max(0, item.count)
-        if destruction_means.is_staff(item):
-            return self._stack_charges(item)
-        return 0
-
     def _total_destruction_uses(self, snapshot: Snapshot) -> int:
-        """destruction_means ``departure_uses``: the carried scrolls, every carried staff's
-        charges and class 16's absorbed staff at a displayed 80%+ success (owner 2026-10-31
-        21:30, me_capability.REPLACES; in town the inn-refilled count)."""
+        """destruction_means ``departure_uses``: class 16's absorbed staff at a displayed 80%+
+        success (owner 2026-10-31 21:30, me_capability.REPLACES; in town the inn-refilled
+        count) and, when the worn loadout makes the staff reliable, every carried staff's
+        charges (user decision 2026-09-23).  A scroll counts nothing (owner 2026-11-16
+        「深さの条件の定義に揃える」: the depth condition's definition, owner 2026-11-04)."""
         return destruction_means.Means(self, snapshot).departure_uses()
 
+    def _supplies_destruction(self, snapshot: Snapshot, item) -> bool:
+        """``item`` adds a *Destruction* means by the depth condition's definition
+        (destruction_means ``supplies``: a staff the worn loadout makes reliable; a
+        scroll never does): the departure buys, takes from the Home and counts it."""
+        return destruction_means.Means(self, snapshot).supplies(item)
+
     def _has_destruction_method(self, snapshot: Snapshot) -> bool:
-        """A *Destruction* scroll or a staff with charges left (the AGENTS.md 50F+
-        gate). sval is emitted only for AWARE items and charges only for KNOWN
-        ones (fair play), so an untried staff conservatively does not count."""
-        return self._total_destruction_uses(snapshot) > 0
+        """The depth condition's *Destruction* means (destruction_means ``depth_gate``,
+        destruction_use.holds_means; owner 2026-11-16 「深さの条件の定義に揃える」)."""
+        return destruction_means.Means(self, snapshot).depth_gate()
 
     def _release_warning_refusal(self, target: Position) -> None:
         """A trap's latch ends when its cell is crossed; an engagement claim on it stays."""

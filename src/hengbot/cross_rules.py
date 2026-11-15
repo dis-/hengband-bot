@@ -16,10 +16,11 @@ passes and no lint:
   (``monster_memory.forget_destroyed`` over its registry ``DESTRUCTION_FORGETS``).
 - ``deep-teleport``: a self-teleport on 50F+ passes ``deep_teleport.substitute`` (the one rule
   of the five with a single point every read passes, ``policy._read_key``).
-- ``destruction-means`` (whole-bot review 2026-11-16, R1 stage 2): the six readers of "is there a
-  *Destruction* means" read one fact (destruction_means) with their own combinations; on a board
-  where their answers disagree the decision records ``disagree`` and each reader's answer (the
-  owner decides how to align them, review §6 Q1).
+- ``destruction-means`` (whole-bot review 2026-11-16, R1): the readers of "is there a
+  *Destruction* means" read one fact (destruction_means) by the depth condition's definition
+  (owner, review section 6 Q1 「深さの条件の定義に揃える」).  The invariant (destruction_means
+  ``violations``): no reader answers a means the definition denies and the exact readers equal
+  it; a board that breaks it records ``broken`` with each reader's answer (none is expected).
 
 This module only records.  The producers call ``produce`` where a rule applies and the
 registered points call ``consult``; ``end`` (the ``choose_key`` exit) settles the decision's
@@ -45,7 +46,7 @@ RULES = (LEFT_CELLS, UNCURSE_BEFORE_REST, ESCAPE_LINE_OF_FIRE, DESTRUCTION_FORGE
 
 CONSULTED = "consulted"
 NOT_CONSULTED = "not-consulted"
-DISAGREE = "disagree"   # destruction-means: the readers' answers differ on this board
+BROKEN = "broken"       # destruction-means: a reader breaks the invariant on this board
 ERROR = "error"         # destruction-means: the readings raised (recorded, nothing decided)
 
 # The monster memories a *Destruction* does not forget (the flash board records each one that
@@ -175,9 +176,10 @@ _LAZY_RECORDS = ("_me_inn_refill_stay",)
 
 
 def _destruction_means_row(policy, snapshot) -> tuple | None:
-    """(DESTRUCTION_MEANS, DISAGREE, "holds=1/departure=0/...") when the six readers of the
-    *Destruction* means answer differently on this board (destruction_means.answers); None when
-    they agree or the policy is not the bot's."""
+    """(DESTRUCTION_MEANS, BROKEN, "holds=0/departure=0/...") when a reader of the *Destruction*
+    means breaks the invariant on this board (destruction_means.violations): it answers a means
+    the definition denies, or an exact reader differs from it; None when the invariant holds or
+    the policy is not the bot's."""
     if (snapshot is None or getattr(snapshot, "player", None) is None
             or getattr(snapshot, "inventory", None) is None
             or not hasattr(policy, "_total_destruction_uses")):
@@ -186,7 +188,8 @@ def _destruction_means_row(policy, snapshot) -> tuple | None:
 
     before = {name: getattr(policy, name, _ABSENT) for name in _LAZY_RECORDS}
     try:
-        answers = destruction_means.answers(policy, snapshot)
+        broken = destruction_means.violations(policy, snapshot)
+        answers = destruction_means.answers(policy, snapshot) if broken else ()
     except Exception as exc:  # record only: a reading that raises decides nothing
         return (DESTRUCTION_MEANS, ERROR, type(exc).__name__)
     finally:
@@ -196,9 +199,9 @@ def _destruction_means_row(policy, snapshot) -> tuple | None:
                     delattr(policy, name)
             elif getattr(policy, name, _ABSENT) is not value:
                 setattr(policy, name, value)
-    if len({answer for _name, answer in answers}) <= 1:
+    if not broken:
         return None
-    return (DESTRUCTION_MEANS, DISAGREE, "/".join(f"{name}={int(answer)}" for name, answer in answers))
+    return (DESTRUCTION_MEANS, BROKEN, "/".join(f"{name}={int(answer)}" for name, answer in answers))
 
 
 def destruction_flash(policy, forgotten: tuple) -> None:
