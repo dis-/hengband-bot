@@ -132,7 +132,10 @@ def applies(policy, snapshot) -> bool:
 
 
 def fire_p95(policy, snapshot) -> int:
-    """The next action's p95 of the engagement's monsters with a line of fire."""
+    """The next action's p95 of the engagement's monsters with a line of fire, read as the
+    damage estimate reads it (policy ``_monster_in_line_of_fire``: owner 2026-11-15,
+    maintainability review Q5 「被害の見積りと同じにする」; it read line_of_fire.in_fire, which
+    takes an unknown grid for a wall, before)."""
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
     from hengbot.threat_projection import _with_adjusted_speed
@@ -145,7 +148,7 @@ def fire_p95(policy, snapshot) -> int:
         rows = policy.threat_prediction(snapshot, hostiles, 1).get("monsters", ())
         return sum(row.get("operational_contribution", 0)
                    for monster, row in zip(hostiles, rows)
-                   if line_of_fire.in_fire(policy, snapshot, monster))
+                   if policy._monster_in_line_of_fire(snapshot, monster))
     return decision_memo(policy, "deep_teleport.fire_p95", snapshot, None, compute)
 
 

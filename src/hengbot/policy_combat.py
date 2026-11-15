@@ -3691,22 +3691,7 @@ class CombatMixin:
                 if contact
                 else self._monster_path_distance(snapshot, monster.position)
             )
-            # An unknown grid is not a wall (owner 2026-11-08 「未知のマスを壁と見ない」) for an
-            # awake monster: the remembered line, else projectable() over the known map with
-            # the unknown grids open (``_may_project``).  n1-a life-514 (2026-11-12, Angband
-            # 49F): the never-moving あつくもえるてき at distance 10 behind grids the board had
-            # never shown predicted 0 while its fire balls reached the player.  A sleeping
-            # monster casts nothing until it wakes (monster-processor.cpp:198-200: a
-            # sleeping monster's turn ends at awake_monster), so its unknown grids stay
-            # closed: opened, every sleeper telepathy shows through unexplored rock reads as
-            # reaching (the same floor's fifteen sleeping 巨大首なし read as a lethal swarm on
-            # arrival at full HP).  Waking one is the ranged rung's question
-            # (``_sleeper_not_to_wake``).
-            in_line_of_fire = contact or self._has_line_of_fire(
-                snapshot, monster.position, snapshot.player.position,
-                remembered=self._remembered_grids,
-            ) or (not monster.asleep and self._may_project(
-                snapshot, monster.position, snapshot.player.position))
+            in_line_of_fire = contact or self._monster_in_line_of_fire(snapshot, monster)
             knowledge = self._monrace_knowledge.get(monster.race_id)
             never_moves = bool(
                 knowledge is not None and "NEVER_MOVE" in knowledge.flags
@@ -4928,6 +4913,27 @@ class CombatMixin:
         ) or bool(glass_reach.passing_abilities(
             self, snapshot, monster, self._monrace_knowledge.get(monster.race_id), cell))
         return reaches and self._predicted_damage(snapshot, [monster], turns=1) > 0
+
+    def _monster_in_line_of_fire(self, snapshot: Snapshot, monster) -> bool:
+        """The monster has a line of fire to the player, as the damage estimate reads it (the
+        one reading: ``threat_prediction`` and the 50F+ instant-death judgement, deep_teleport
+        ``fire_p95``, owner 2026-11-15 maintainability review Q5 「被害の見積りと同じにする」).
+
+        An unknown grid is not a wall (owner 2026-11-08 「未知のマスを壁と見ない」) for an awake
+        monster: the remembered line, else projectable() over the known map with the unknown
+        grids open (``_may_project``).  n1-a life-514 (2026-11-12, Angband 49F): the
+        never-moving あつくもえるてき at distance 10 behind grids the board had never shown
+        predicted 0 while its fire balls reached the player.  A sleeping monster casts nothing
+        until it wakes (monster-processor.cpp:198-200: a sleeping monster's turn ends at
+        awake_monster), so its unknown grids stay closed: opened, every sleeper telepathy shows
+        through unexplored rock reads as reaching (the same floor's fifteen sleeping 巨大首なし
+        read as a lethal swarm on arrival at full HP).  Waking one is the ranged rung's question
+        (``_sleeper_not_to_wake``)."""
+        return self._has_line_of_fire(
+            snapshot, monster.position, snapshot.player.position,
+            remembered=self._remembered_grids,
+        ) or (not monster.asleep and self._may_project(
+            snapshot, monster.position, snapshot.player.position))
 
     def _has_line_of_fire(self, snapshot: Snapshot, origin: Position, target: Position, *,
                           remembered: dict | None = None, across_glass: bool = False) -> bool:
