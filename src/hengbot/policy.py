@@ -2498,6 +2498,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # impossible is closed for this physical town visit. Keep its evidence
         # with the no-replan latch.
         self._equipment_transaction_visit_closure: dict[str, object] | None = None
+        # The town-visit epoch in which a session was abandoned on its own
+        # failed action (_abandon_blocked_equipment_transaction).
+        self._equipment_transaction_abandoned_epoch: int | None = None
         self._equipment_transaction_route_terminal: str | None = None
         self._equipment_transaction_failed_items: set[str] = set()
         # A structurally actionless failed transaction may retire for the

@@ -870,7 +870,7 @@ class HomeMixin:
                 # effects. Return the relieved deposit to its original owner;
                 # keep any unrelated Home batch entries for after the session.
                 reserved = {self._item_signature(item) for item in snapshot.inventory
-                            if self._equipment_transaction_deposit_owns_item(item)}
+                            if self._equipment_transaction_reclaims_retry(item)}
                 self._home_full_retry_deposits = tuple(
                     entry for entry in retry if entry[0] not in reserved) or None
                 return self._town_producer_entry(
@@ -5189,7 +5189,7 @@ class HomeMixin:
                 self._item_signature(item) in signatures
                 # Relief may reclaim space for equipment work, but its retry
                 # cannot take over the item's deposit or its observed effect.
-                and not self._equipment_transaction_deposit_owns_item(item)
+                and not self._equipment_transaction_reclaims_retry(item)
                 and self._home_deposit_quantity(snapshot, item) > 0)
         if self._home_deposit_abandoned:
             return None
