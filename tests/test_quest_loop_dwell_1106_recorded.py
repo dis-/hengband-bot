@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from test_floor_dwell_seen_floor_recorded import EDIT, _Replay
 
-from hengbot import hunt_target, quest_target_search, retreat_enclosure
+from hengbot import deep_teleport, hunt_target, quest_target_search, retreat_enclosure
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import SEARCH_LIMIT
@@ -80,6 +80,12 @@ class WalledOffBoards(loops.ItemCommandBoards):
     # (``test_the_t1_target_gives_the_floor_up_at_its_first_detection``).  These pins are the
     # vetoes' walls, not the target (DECLARED CONSTRUCTED).
     judge_target = False
+    # The 50F+ teleport rule (deep_teleport, owner 2026-11-14 「50F以降のテレポートの条件を厳しく
+    # する。」 and 2026-11-15 「岩石溶解で掘る・だめなら帰還」) refuses every Teleportation of this floor
+    # (Angband 50F): no monster prompts it.  These pins are the 11-06 ladder of the vetoes' walls
+    # (the floor's first Teleportation, the openers, Teleportation again or Recall), so the rule is
+    # walled off (DECLARED CONSTRUCTED); ``WalledOffAt50F`` pins the rule on the floor.
+    deep_teleport_rule = False
 
     @classmethod
     def setUpClass(cls):
@@ -93,6 +99,10 @@ class WalledOffBoards(loops.ItemCommandBoards):
             verdict = mock.patch.object(hunt_target, "_judge_quest_target", lambda *_: None)
             verdict.start()
             self.addCleanup(verdict.stop)
+        if not self.deep_teleport_rule:
+            rule = mock.patch.object(deep_teleport, "applies", lambda policy, snapshot: False)
+            rule.start()
+            self.addCleanup(rule.stop)
 
     def replay(self, until=None):
         """The recorded entry through choose_key, as far as ``until`` answers True."""
@@ -209,6 +219,21 @@ class WalledOffHuntAndSearch(WalledOffBoards):
         board, _key, reason = self.at_the_stop(replay)
         self.assertFalse(retreat_enclosure.holds_ground(policy, board))
         self.assertEqual(reason, quest_target_search.LOOP_REASON)
+
+
+class WalledOffAt50F(WalledOffBoards):
+    """The 50F+ teleport rule in force on this floor (Angband 50F, random quest 40)."""
+
+    deep_teleport_rule = True
+
+    def test_a_search_walled_off_by_the_column_melts_with_no_teleportation(self):
+        """The stop's board: the floor's first Teleportation is not read; the openers' Stone to
+        Mud walks toward the route's first wall."""
+        replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
+        board, key, reason = self.at_the_stop(replay, edit=shown)
+        self.assertTrue(deep_teleport.movement_refused(replay.policy, board))
+        self.assertEqual(reason, retreat_enclosure.MELT_REASON)
+        self.assertIn(key, set("12346789"))
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import area_mapping, dungeon_shop, combat_answer, dark_recall, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import area_mapping, dungeon_shop, combat_answer, dark_recall, deep_teleport, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -778,7 +778,14 @@ class NavigationMixin:
                 self.last_reason = "livelock:seek-upstairs"
                 self._declare_reach(step_target)
                 return self._step_toward(snapshot, step)
-        if (
+        if deep_teleport.movement_refused(self, snapshot):
+            # 50F+ off the 即死 board no teleport relocates (owner 2026-11-14):
+            # Stone to Mud toward a goal, else Recall (owner 2026-11-15
+            # 「岩石溶解で掘る・だめなら帰還」, deep_teleport.stuck_key).
+            deep = deep_teleport.stuck_key(self, snapshot)
+            if deep is not None:
+                return deep
+        elif (
             not player.blind
             and not player.confused
             and self._can_read_scrolls(snapshot)

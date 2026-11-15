@@ -16060,6 +16060,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
             if restore is not None:
                 return restore
+        # 50F+ off the 即死 board no teleport leaves (owner 2026-11-14), and the
+        # stuck floor is dug out with Stone to Mud, else left by Recall (owner
+        # 2026-11-15 「岩石溶解で掘る・だめなら帰還」; n1-b life-397, 79F: the
+        # Teleportation below landed beside a dragon pit).
+        if deep_teleport.movement_refused(self, snapshot):
+            return deep_teleport.stuck_key(self, snapshot)
         # After the player's own *Destruction* on this floor, Teleportation comes
         # before Recall (owner 2026-11-04 「治して階の探索を続ける」; n1-b life-367
         # recalled at full HP from 17 of 41 dives from 46F on, 2026-11-10).

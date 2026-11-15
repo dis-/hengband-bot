@@ -29,6 +29,18 @@ So the hostiles that block the loot in view (the material threat, else the awake
 the survival rung retreats from, ``_unresisted_melee_status_threats``, which preempt the loot) are
 remembered.  An awake one moves, so it is not forgotten when its last cell is seen empty: only
 when it is shown again (judged in view), killed, on the floor's change or after the window.
+
+Sent away (``shows_sent_away``): a remembered monster the board prints 「<name>が消え去った！」 for
+is forgotten, asleep or awake.  The game prints it for a monster that Teleport Away (or any
+effect with a teleport distance) moved (effect/effect-monster.cpp:546
+effect_damage_makes_teleport, teleport_away to a cell up to the distance away), so its last
+shown cell no longer holds it.  n1-b life-397 (Angband 79F, 2026-11-15 10:47:48): the absorbed
+Teleport Away sent a 闇のエルフの影 off from beside the player at (20,69); remembered awake at
+its last cell, its area (rows 13-29 around (21,70)) stayed the routes' veto (policy
+``_engagement_danger_cells``) across the one corridor south, so the descent walk expired the
+reachable down stairs it had arrived by, the explore found no frontier, the secret-wall search
+ran the stuck count to its limit and the stuck escape read Teleportation at full HP; the player
+landed beside a dragon pit and died.
 """
 
 from __future__ import annotations
@@ -36,11 +48,13 @@ from __future__ import annotations
 from hengbot import monster_memory
 from hengbot.breeder_stalemate import shows_kill
 from hengbot.policy_constants import LOOT_THREAT_DAMAGE_RATIO
+from hengbot.unseen_strike import message_text
 
 KIND = monster_memory.LOOT_BLOCK
 # (floor_key, {(index, race): (MonsterState, the turn the block was last shown)}); a policy
 # pickled before monster_memory holds (floor_key, {(index, race): MonsterState}, turn).
 MEMORY = KIND.attribute
+SENT_AWAY_LINES = ("が消え去った！", " disappears!")  # effect/effect-monster.cpp:546
 
 
 def _material(policy, snapshot, monsters) -> bool:
@@ -49,26 +63,36 @@ def _material(policy, snapshot, monsters) -> bool:
         snapshot.player.hp * LOOT_THREAT_DAMAGE_RATIO)
 
 
+def shows_sent_away(snapshot, name: str) -> bool:
+    """This board prints the game's line for a monster called ``name`` that a teleport moved
+    (the module docstring)."""
+    return any(message_text(message) == name + line
+               for message in snapshot.messages for line in SENT_AWAY_LINES)
+
+
 def sleeper_gone(policy, snapshot, monster) -> bool:
     """Whether the ``monster`` remembered asleep at its cell is no longer there: shown awake,
-    elsewhere or with another race on its index, killed, or its cell seen empty."""
+    elsewhere or with another race on its index, killed, sent away, or its cell seen empty."""
     now = next((shown for shown in snapshot.visible_monsters
                 if shown.index == monster.index), None)
     if now is not None:
         return (now.race_id != monster.race_id or not now.asleep
                 or now.position != monster.position)
     return (shows_kill(snapshot, monster.name)
+            or shows_sent_away(snapshot, monster.name)
             or policy._player_can_see_empty_cell(
                 snapshot, monster.position, race_id=monster.race_id))
 
 
 def remembered_gone(policy, snapshot, monster) -> bool:
     """Whether a remembered ``monster`` is no longer to be judged at its last shown cell: a
-    sleeper by ``sleeper_gone``; an awake one, which moves, once shown again or killed."""
+    sleeper by ``sleeper_gone``; an awake one, which moves, once shown again, killed or sent
+    away."""
     if monster.asleep:
         return sleeper_gone(policy, snapshot, monster)
     return (any(shown.index == monster.index for shown in snapshot.visible_monsters)
-            or shows_kill(snapshot, monster.name))
+            or shows_kill(snapshot, monster.name)
+            or shows_sent_away(snapshot, monster.name))
 
 
 def status_threats(policy, snapshot) -> list:

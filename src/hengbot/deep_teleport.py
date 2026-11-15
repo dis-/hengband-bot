@@ -30,11 +30,33 @@ tiers judge a far monster), but the floor's guardian and the active quest's targ
 the staff and absorbed casts pass ``threat_escape.blind_teleport_key`` or
 ``teleport_follower.device_teleport_key``: the substitute is asked there.
 
-``KEEPS_TELEPORT``: with no concerned monster, or none *Destruction* can be used on now and no
-walk toward one (confused, the means spent or unreliable, the guardian in the circle, a failed
-use's fallback, no known way), the teleport is read as before.  Owner 2026-11-14 「50F以降で
-破壊手段なしの探索は許可しない。」: without the means the floor is already being left
-(destruction_use.gap_here), so this branch is the means held but not usable on this board.
+No teleport off the 即死 board (``_refused_key``).  With no concerned monster, or none
+*Destruction* can be used on now and no walk toward one (confused, the means spent or
+unreliable, the guardian in the circle, a failed use's fallback, no known way), the floor is
+left by Word of Recall (``RECALL_REASON``), not by the teleport: the owner's rule names the
+即死 board as the only one the teleport is read on, and 2026-11-14 「50F以降で破壊手段なしの探索
+は許可しない。敵への対処以前に手段が尽きた時点で帰還させる。」  Until 2026-11-15 this branch read the
+teleport as before; n1-b life-397 (Angband 79F, 10:48) read Teleportation so at full HP with no
+monster in view (the sum with a line of fire 0), landed beside a dragon pit and died before its
+next turn, and the life had read twenty such teleports in three hours on 64F, 79F and 80F.
+Recall is not read on a quest floor (it fails the quest), nor while it is already counting
+down (a second read cancels it), nor blind or confused: then, with no concerned monster,
+nothing is read (``HOLD_REASON``, a search turn); with a concerned monster the teleport is the
+last means left (``KEEPS_TELEPORT``).
+
+The movement teleports (``movement_refused``): the stuck and livelock escapes, the
+*Destruction* circle's leave and the veto enclosure's leave read a teleport with no monster
+prompting it, so their askers do not reach the read on 50F+ off the 即死 board.  Owner
+2026-11-15, asked how the stuck escape leaves without it: 「岩石溶解で掘る・だめなら帰還」.
+``stuck_key`` answers in their place: the walk to the nearest known staircase the floor may
+be left by or the nearest frontier when one is reachable after all (``STUCK_WALK_REASON``),
+else Stone to Mud along the route that melts the fewest walls to one (retreat_enclosure's
+route, the absorbed power before a carried wand; ``STUCK_MELT_REASON``), else Recall
+(``STUCK_RECALL_REASON``).  The walk and the melt hold the stuck count, so the escape goes on
+until the player stands on a goal; there the count restarts and the floor's own ladder (the
+explore, the stairs) takes over, and that goal is not walked to again on the floor visit.  A
+wall the beam left me_powers.FAILURES_PER_PLACE times is no route (retreat_enclosure
+``meltable``), so a dig that does not get out ends in Recall.  No new number.
 
 The landing in fire.  Owner 2026-11-14 (n1-c life-207, 金鉱80F, a small cave floor: five
 Teleportation scrolls each landed within the ストーム・ワイアーム's line of fire, spells-teleport.cpp
@@ -56,12 +78,22 @@ from dataclasses import dataclass
 from hengbot import line_of_fire
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL, game_distance
+from hengbot.policy_constants import SEARCH_KEY
 
 DEPTH = 50  # the owner's 「50F以降」
 SCROLL_SVALS = frozenset({SV_SCROLL_TELEPORT, SV_SCROLL_PHASE_DOOR})
 DESTRUCTION_SUFFIX = ":deep-teleport"
 LANDED_SUFFIX = ":teleport-landed-in-fire"
 MEMORY = "_deep_teleport_landing"
+RECALL_REASON = "deep-teleport:recall"
+HOLD_REASON = "deep-teleport:hold"
+STUCK_WALK_REASON = "stuck:deep-walk"
+STUCK_MELT_REASON = "stuck:deep-stone-to-mud"
+STUCK_RECALL_REASON = "stuck:deep-recall"
+CAST_SUFFIX = ":absorbed-power"  # me_absorbed_substitutes.CAST_SUFFIX (import cycle)
+# The stuck escape's steps on the way to a goal: the stuck count holds (policy_observation).
+STUCK_HELD_REASONS = frozenset({STUCK_WALK_REASON, STUCK_MELT_REASON, STUCK_MELT_REASON + CAST_SUFFIX})
+STUCK_MEMORY = "_deep_stuck_reached"  # (floor_key, frozenset of the goals reached)
 
 
 @dataclass
@@ -202,8 +234,90 @@ def _walk_key(policy, snapshot, targets) -> str | None:
 
 
 def KEEPS_TELEPORT(policy, snapshot) -> None:  # noqa: N802 -- the named branch of the docstring
-    """No *Destruction* and no walk toward it on this board: the teleport is read as before."""
+    """A concerned monster, no *Destruction*, no walk toward it and no Recall: the teleport is
+    the last means left on this board."""
     return None
+
+
+def movement_refused(policy, snapshot) -> bool:
+    """A teleport no monster prompts (the stuck and livelock escapes) is not read here: 50F+
+    where the tiers act, off the 即死 board (the module docstring)."""
+    return applies(policy, snapshot) and fire_p95(policy, snapshot) < snapshot.player.hp
+
+
+def _recall_key(policy, snapshot, reason: str) -> str | None:
+    """Word of Recall in the teleport's place under ``reason``, else None: not on a quest floor,
+    not while it counts down, and only when a scroll can be read."""
+    player = snapshot.player
+    if (snapshot.floor_key[2] != 0 or player.recalling or player.blind or player.confused
+            or not policy._can_read_scrolls(snapshot)):
+        return None
+    recall = policy._find_recall_scroll(snapshot)
+    if recall is None:
+        return None
+    key = policy._read_dungeon_recall_scroll_key(snapshot, recall)
+    if key is None:
+        return None
+    policy._stuck_escape_streak = 0
+    policy._note_return_start(None)
+    policy._returning_to_town = True
+    policy.last_reason = reason
+    return key
+
+
+def _refused_key(policy, snapshot, *, threat: bool) -> str | None:
+    """Off the 即死 board, nothing *Destruction* answers: Recall, else with no ``threat`` a search
+    turn (nothing is read), else the teleport as the last means (``KEEPS_TELEPORT``)."""
+    recall = _recall_key(policy, snapshot, RECALL_REASON)
+    if recall is not None:
+        return recall
+    if threat:
+        return KEEPS_TELEPORT(policy, snapshot)
+    policy.last_reason = HOLD_REASON
+    return SEARCH_KEY
+
+
+def _stuck_goals(policy, snapshot) -> set:
+    """The known staircases the floor may be left by (the idle ladder's stair goal) and the
+    frontiers (the unexplored ground)."""
+    locked = policy._floor_navigation_exit_locked(snapshot)
+    descent = not locked and not policy._descent_is_blocked(snapshot)
+    goals = set()
+    for grid in snapshot.grids.values():
+        if not locked and (policy._is_upstairs_target(grid)
+                           or descent and policy._is_descent_target(snapshot, grid)):
+            goals.add(grid.position)
+        elif policy._is_frontier(snapshot, grid):
+            goals.add(grid.position)
+    return goals
+
+
+def stuck_key(policy, snapshot) -> str | None:
+    """In place of a movement teleport ``movement_refused`` refuses (the module docstring): the
+    walk to a goal, else Stone to Mud toward one, else Recall; None on a goal (the floor's own
+    ladder goes on) or with no means left."""
+    from hengbot import retreat_enclosure
+
+    if snapshot.player.recalling:
+        return None
+    here = snapshot.player.position
+    memory = getattr(policy, STUCK_MEMORY, None)
+    reached = memory[1] if memory is not None and memory[0] == snapshot.floor_key else frozenset()
+    goals = _stuck_goals(policy, snapshot) - reached
+    if here in goals:
+        setattr(policy, STUCK_MEMORY, (snapshot.floor_key, reached | {here}))
+        policy._stuck_escape_streak = 0
+        return None
+    if goals:
+        walk = policy._nearest_goal_step(snapshot, lambda grid: grid.position in goals)
+        if walk is not None:
+            policy.last_reason = STUCK_WALK_REASON
+            return policy._step_toward(snapshot, walk)
+        melt = retreat_enclosure.melt_toward_key(
+            policy, snapshot, frozenset(), goals, STUCK_MELT_REASON, power_first=True)
+        if melt is not None:
+            return melt
+    return _recall_key(policy, snapshot, STUCK_RECALL_REASON)
 
 
 def substitute(policy, snapshot, *, teleportation: bool = True) -> str | None:
@@ -227,7 +341,7 @@ def _substitute(policy, snapshot) -> str | None:
                                    suffix=LANDED_SUFFIX)
     targets = concerned(policy, snapshot)
     if not targets:
-        return KEEPS_TELEPORT(policy, snapshot)
+        return _refused_key(policy, snapshot, threat=False)
     if destruction_use.usable(policy, snapshot, leaving=targets):
         used = destruction_use.key(policy, snapshot, leaving=targets, suffix=DESTRUCTION_SUFFIX)
         if used is not None:
@@ -238,7 +352,7 @@ def _substitute(policy, snapshot) -> str | None:
     walk = _walk_key(policy, snapshot, targets)
     if walk is not None:
         return walk
-    return KEEPS_TELEPORT(policy, snapshot)
+    return _refused_key(policy, snapshot, threat=True)
 
 
 def scroll_substitute(policy, snapshot, item) -> str | None:

@@ -1192,6 +1192,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "deep_teleport.py:_recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:_refused_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:_stuck_goals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "deep_teleport.py:_substitute": {
     "classification": "producer",
     "rows": [
@@ -1228,6 +1249,13 @@
     "delegation": "selected child; no independent success"
   },
   "deep_teleport.py:scroll_substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "deep_teleport.py:stuck_key": {
     "classification": "producer",
     "rows": [
       "survival"

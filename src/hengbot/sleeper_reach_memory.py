@@ -24,8 +24,9 @@ than the player inside its area, all of its area outside), when its melee is mat
 a status threat the survival rung latched on the floor (``_status_threat_latch``: n1-b life-346,
 Angband 18F, an awake ゲイザー whose retreat's next board out of its sight walked back).  An
 awake one moves, so its last cell seen empty does not forget it: it is forgotten when shown
-again (then remembered where shown), killed, on the floor's change or after the window
-(sleeper_loot_block ``remembered_gone``).
+again (then remembered where shown), killed, sent away by a teleport (「<name>が消え去った！」,
+sleeper_loot_block ``shows_sent_away``; n1-b life-397), on the floor's change or after the
+window (sleeper_loot_block ``remembered_gone``).
 
 Owner 2026-11-09 「最後の位置の周りを避ける」(麻痺させる敵から離れた時も、見えなくなった敵の最後の位置の
 周りを避けるマスに入れ、歩きで近づかない): a paralyser the 09-18 rung left (policy_combat

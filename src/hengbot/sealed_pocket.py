@@ -384,10 +384,13 @@ def destroyed_leave_key(policy, snapshot: Snapshot) -> str | None:
 
     The stuck and livelock escapes ask it before their Recall: Recall only after it (owner
     2026-11-04 「治して階の探索を続ける」).  A second stuck on the same circle after the read is the
-    floor's own, and keeps the old order."""
-    from hengbot import retreat_enclosure
+    floor's own, and keeps the old order.  None on 50F+ off the 即死 board (deep_teleport
+    ``movement_refused``, owner 2026-11-14): the asker's next means answers."""
+    from hengbot import deep_teleport, retreat_enclosure
 
     if not area_mapping.destroyed_since_arrival(policy, snapshot):
+        return None
+    if deep_teleport.movement_refused(policy, snapshot):
         return None
     if snapshot.player.recalling or snapshot.floor_key[2] != 0 and not policy._on_random_quest_floor(snapshot):
         return None
