@@ -5090,10 +5090,16 @@ class QuestCarryVisitAbandonmentTest(unittest.TestCase):
                 quests={1: QuestState(1, status=status, fixed=True)},
             )
             strategy = policy._carry_procurement_strategy(case)
-            self.assertIsNotNone(strategy)
-            self.assertEqual(
-                strategy.required_force.get("throwing_items", {}).get("lit_torch"), 5
-            )
+            if status == QUEST_STATUS_COMPLETED:
+                # Owner 2026-11-15 「Q1 の後は松明20本をやめる」: a completed Q1's
+                # torches ride on no later carry (n1-b life-399).
+                self.assertIsNone(
+                    strategy and strategy.required_force.get("throwing_items", {}).get("lit_torch"))
+            else:
+                self.assertIsNotNone(strategy)
+                self.assertEqual(
+                    strategy.required_force.get("throwing_items", {}).get("lit_torch"), 5
+                )
             self.assertTrue(
                 policy._town_departure_conjuncts(case)["quest_carry_ready"]
             )
