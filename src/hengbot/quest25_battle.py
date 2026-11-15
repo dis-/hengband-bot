@@ -2198,6 +2198,23 @@ def _sweep_done(ctx: _Ctx) -> bool:
     return not _short(ctx)
 
 
+def _around(cell) -> set:
+    """``cell`` and the 8 cells beside it (a goal reached within one step of a monster's cell)."""
+    return {(cell[0] + dy, cell[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)}
+
+
+def _sweep_reachable(ctx: _Ctx, cell) -> bool:
+    """A walk reaches ``cell`` or a cell beside it (``_path``), or the player stands beside it.
+
+    n1-c life-211 (2026-11-15 09:25): the sweep's detection showed the two Nexus quylthulgs on
+    [7,4] -- the sealed pocket of the map's 『Z』 (rows 6-9, columns 2-5: permanent walls and the
+    granite [9,3]) -- and on [1,15].  The sweep walked toward [7,4] only, the first one shown, found
+    no way and held for eleven minutes; the quylthulg on [1,15] was never gone for."""
+    if quest_exposure.game_distance(ctx.here, cell) <= 1:
+        return True
+    return len(_path(ctx, _around(cell) - {ctx.here})) >= 2
+
+
 def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
     """``patrol``: the round is walked whatever the kill count says (``_after_the_phases``)."""
     battle = ctx.battle
@@ -2213,17 +2230,25 @@ def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
         visible = [monster for monster in targets if monster.perception != "detected"]
         if (key := _engage(ctx, visible)) is not None:
             return key
-        nearest = min(targets, key=lambda monster: monster.distance)
-        cell = (nearest.position.y, nearest.position.x)
-        return _walk(ctx, {(cell[0] + dy, cell[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
-                           if (dy or dx)}) or _hold(ctx)
+        # The nearest one a walk reaches (``_sweep_reachable``); one in a sealed pocket is no goal.
+        cells = [(monster.position.y, monster.position.x)
+                 for monster in sorted(targets, key=lambda monster: monster.distance)]
+        reachable = [cell for cell in cells if _sweep_reachable(ctx, cell)]
+        if reachable:
+            return _walk(ctx, _around(reachable[0]) - {reachable[0]}) or _hold(ctx)
     if battle.detected:
-        # What the detection showed is gone from sight: walk where it was, then look again.
-        cell = battle.detected[0]
+        # What the detection showed is gone from sight: walk where it was, the nearest cell a walk
+        # reaches first, then look again (that cell is forgotten, the detection cast again).
+        reachable = sorted((cell for cell in battle.detected if _sweep_reachable(ctx, cell)),
+                           key=lambda cell: quest_exposure.game_distance(ctx.here, cell))
+        if not reachable:
+            return _hold(ctx)   # only sealed cells are left (n1-c life-211, 2026-11-15: [7,4])
+        cell = reachable[0]
         if quest_exposure.game_distance(ctx.here, cell) <= 1:
-            battle.detected, battle.detect_turn = None, -1
+            left = tuple(spot for spot in battle.detected if spot != cell)
+            battle.detected, battle.detect_turn = (left or None), -1
         else:
-            return _walk(ctx, {cell}) or _hold(ctx)
+            return _walk(ctx, _around(cell)) or _hold(ctx)
     if battle.detect_turn < 0 and (detect := _detect_key(ctx)) is not None:
         battle.detect_turn = ctx.snapshot.turn
         return detect
