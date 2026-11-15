@@ -269,6 +269,16 @@ def producers(index: Index, rule) -> list:
 COUNTS: dict = {}  # rule -> producers found (for the printout)
 
 
+def _exit_asks(index, module: str, function: str, call: str) -> bool:
+    """Whether ``module``'s ``function`` (a top-level function or a method) calls ``call``."""
+    if module not in index.modules:
+        return False
+    for node in _functions(index.modules[module]):
+        if node.name == function:
+            return _calls(node, {call})
+    return False
+
+
 def gaps(index: Index) -> dict:
     """rule -> sorted 'module:function' producers that do not reach the rule's point."""
     out = {}
@@ -281,6 +291,9 @@ def gaps(index: Index) -> dict:
         points, stop = _qualified(rule.points), frozenset(rule.helpers)
         found = producers(index, rule)
         COUNTS[rule.name] = len({(module, node.name) for module, node in found})
+        if rule.exit_point is not None and _exit_asks(index, *rule.exit_point):
+            out[rule.name] = []  # every key passes the exit, which asks the point
+            continue
         out[rule.name] = sorted({f"{module}:{node.name}"
                                  for module, node in found
                                  if not index.reaches(module, node, points, stop)})

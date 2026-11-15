@@ -1185,7 +1185,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "curse_cure.py:before_rest": {
+  "curse_cure.py:before_rest_or_wait": {
     "classification": "dungeon-only",
     "rows": [
       "survival"

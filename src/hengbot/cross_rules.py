@@ -132,9 +132,9 @@ def _consulted_before(ledger: Ledger, rule: str, clock: int | None) -> bool:
 
 
 def _rest_or_wait(key: str) -> bool:
-    from hengbot.policy_constants import REST_MACRO, SEARCH_KEY, WAIT_KEY  # leaf module
+    from hengbot.curse_cure import rests_or_waits  # the one reading (import cycle)
 
-    return key in (WAIT_KEY, SEARCH_KEY) or key.startswith(REST_MACRO[0])
+    return rests_or_waits(key)
 
 
 def end(policy, snapshot, key) -> tuple:
@@ -221,6 +221,9 @@ class CrossRule:
     points: tuple
     helpers: tuple = ()
     point_modules: tuple = ()
+    # (module, function, call): a point every key passes (``choose_key``'s exit); while the
+    # function calls it, no producer is outside the rule.
+    exit_point: tuple | None = None
 
 
 REGISTRY = (
@@ -232,10 +235,12 @@ REGISTRY = (
               helpers=("_step_toward", "_path_step", "walk_key"),
               point_modules=("left_cells", "goal_route")),
     CrossRule(UNCURSE_BEFORE_REST, "owner 2026-11-15 (curse_cure)",
-              points=("curse_cure:removal_key", "curse_cure:before_rest", "curse_cure:key"),
+              points=("curse_cure:removal_key", "curse_cure:before_rest_or_wait"),
               # The step's own refusal WAIT is the walk's, not a rest or a hold.
               helpers=("_step_toward",),
-              point_modules=("curse_cure",)),
+              point_modules=("curse_cure",),
+              # Owner 2026-11-15 Q4: every key passes the choose_key exit, which asks the point.
+              exit_point=("policy", "choose_key", "before_rest_or_wait")),
     CrossRule(ESCAPE_LINE_OF_FIRE, "owner 2026-11-14 「射線が通っている場合のみ」 (line_of_fire)",
               points=("line_of_fire:note",),
               point_modules=("line_of_fire", "escape_count", "reasons", "policy_constants")),

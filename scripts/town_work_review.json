@@ -19551,13 +19551,13 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "curse_cure.py:before_rest": {
+  "curse_cure.py:before_rest_or_wait": {
     "classification": "dungeon-only",
     "rows": [
       "survival"
     ],
     "context": "Excluded by curse_cure._dungeon (not in town, dungeon_level >= 1, not the arena); see evidence.",
-    "evidence": "The quest plans' hook before a rest or wait key (quest_plan_base._rest, quest25_battle holds and rests, the navigator hold): removal_key only.",
+    "evidence": "The choose_key exit's one point before a dungeon rest or wait key (owner 2026-11-15 Q4, every stance included): removal_key only, None in town (curse_cure._dungeon).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

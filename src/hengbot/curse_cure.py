@@ -36,10 +36,14 @@ The game (C++ source):
    in both (do_cmd_magic_eater), and Powerful Activation pays its cost in HP
    (me_powerful_activation.cost).
 
-What decides here: ``removal_key`` alone decides a removal in the dungeon, asked from the
-dungeon ladder's safe-now layer (``key``, with rule 2's recall after it) and before every rest
-or wait key of the quest plans (``before_rest``: quest_plan_base._rest, quest25_battle's holds
-and rests, the navigator's hold).  Its results are learnt as the town's are: a completed
+What decides here: ``removal_key`` alone decides a removal in the dungeon, asked from one place
+(owner 2026-11-15, maintainability review Q4 「1か所でまとめ構えも含める」): the ``choose_key``
+exit, when the key the decision chose is a rest or a wait (``rests_or_waits``: a rest, the hold
+'5' of every stance and plan, the search 's' that waits), through ``before_rest_or_wait``.  The
+dungeon ladder's safe-now rung (``key``) is rule 2 alone: a summoning or drain-HP curse on a
+normal floor removed at once when a means is had, else Word of Recall.  (Before, the safe-now rung
+removed it on any safe board and seven quest-plan rests and holds asked ``before_rest``; the Q2
+stances, the navigator's dead-end waits, the anaguma hold and others did not.)  Its results are learnt as the town's are: a completed
 Powerful Activation that leaves the item cursed proves PERMA_CURSE (me_powerful_activation
 .observe), a completed ordinary use that leaves it cursed proves HEAVY_CURSE (``observe``, as
 policy ``_observe_remove_curse`` learns from a scroll), and each target has
@@ -213,9 +217,20 @@ def removal_key(policy, snapshot) -> str | None:
     return key
 
 
-def before_rest(policy, snapshot) -> str | None:
-    """Asked by a quest plan before its rest or wait key: the removal, else None (rule 2 on a
-    quest floor: nothing more, the plan goes on)."""
+def rests_or_waits(key) -> bool:
+    """The key rests or waits: a rest (``R``...), the hold ``5`` or the search ``s`` that waits
+    (the one reading of 「休む・待つ」; cross_rules' record reads it too)."""
+    from hengbot.policy_constants import REST_MACRO, SEARCH_KEY, WAIT_KEY  # leaf
+
+    return isinstance(key, str) and bool(key) and (
+        key in (WAIT_KEY, SEARCH_KEY) or key.startswith(REST_MACRO[0]))
+
+
+def before_rest_or_wait(policy, snapshot, key) -> str | None:
+    """The one place (``choose_key``'s exit): the removal in place of a dungeon rest or wait
+    ``key``, else None (rule 2 on a quest floor: nothing more, the plan goes on)."""
+    if not rests_or_waits(key) or not _dungeon(snapshot):
+        return None
     return removal_key(policy, snapshot)
 
 
@@ -261,8 +276,13 @@ def recall_key(policy, snapshot) -> str | None:
 
 
 def key(policy, snapshot) -> str | None:
-    """The dungeon ladder's rung (safe-now): the removal, then rule 2's recall."""
-    return removal_key(policy, snapshot) or recall_key(policy, snapshot)
+    """The dungeon ladder's rung (safe-now): rule 2 -- a summoning or drain-HP curse known on a
+    normal floor is removed when a means is had, else Word of Recall.  Every other removal is
+    asked before a rest or a wait at the ``choose_key`` exit (``before_rest_or_wait``)."""
+    if (_dungeon(snapshot) and snapshot.floor_key[2] == 0
+            and _means(policy, snapshot, rule2_items(policy, snapshot))):
+        return removal_key(policy, snapshot)
+    return recall_key(policy, snapshot)
 
 
 # -- the evidence ---------------------------------------------------------------

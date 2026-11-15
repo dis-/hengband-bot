@@ -36,9 +36,9 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles):
     sight = status_cure.dungeon_wait_for_sight_key(policy, snapshot)
     if sight is not None:
         return sight
-    # Owner 2026-11-15 「呪われていれば休む前に解く」: worn cursed gear is cured on a safe board
-    # before the rest layer below; a summoning or drain-HP curse left without a means reads
-    # Word of Recall on a normal floor (「クエストの階は残って続ける」, curse_cure).
+    # Owner 2026-11-15 「クエストの階は残って続ける」: a summoning or drain-HP curse left without a
+    # means reads Word of Recall on a normal floor (curse_cure; the removal before a rest or a
+    # wait is asked at the choose_key exit, owner 2026-11-15 Q4).
     cure = curse_cure.key(policy, snapshot)
     if cure is not None:
         return cure

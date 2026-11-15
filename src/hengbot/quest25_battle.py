@@ -96,7 +96,6 @@ from hengbot import (
     attack_expectation,
     breeder_area_attack,
     combat_answer,
-    curse_cure,
     hunt_target,
     left_cells,
     me_capability,
@@ -774,9 +773,6 @@ def _damaged(ctx: _Ctx) -> bool:
 def _rest_out_of_fire(ctx: _Ctx) -> str:
     """Rest on a cell out of the fire; a rest keyed on the decision before that did not raise HP
     is followed by one turn held (the game time passes either way)."""
-    # Owner 2026-11-15 「呪われていれば休む前に解く」 (curse_cure), before the rest is remembered.
-    if (cure := curse_cure.before_rest(ctx.policy, ctx.snapshot)) is not None:
-        return cure
     battle, player = ctx.battle, ctx.snapshot.player
     decision = int(getattr(ctx.policy, "_decision_sequence", 0))
     last = battle.fire_rest
@@ -1224,9 +1220,6 @@ def _recharge_key(ctx: _Ctx) -> str | None:
                 if (power := me_device_attacks._BY_NAME.get((kind, row.get("name")))) is not None)
     if not short or ctx.battle.recharge_rests >= RECHARGE_REST_LIMIT:
         return None
-    # Owner 2026-11-15 「呪われていれば休む前に解く」 (curse_cure), before the rest is counted.
-    if (cure := curse_cure.before_rest(ctx.policy, ctx.snapshot)) is not None:
-        return cure
     ctx.battle.browsed = frozenset()
     ctx.battle.recharge_rests += 1
     ctx.battle.recharge_rest_turn = int(ctx.snapshot.turn)
@@ -1271,9 +1264,6 @@ def _full_hp_key(ctx: _Ctx) -> str | None:
     player = ctx.snapshot.player
     if player.hp >= player.max_hp:
         return None
-    # Owner 2026-11-15 「呪われていれば休む前に解く」 (curse_cure).
-    if (cure := curse_cure.before_rest(ctx.policy, ctx.snapshot)) is not None:
-        return cure
     ctx.policy.last_reason = FULL_HP_REASON
     return FULL_HP_REST_KEY
 
@@ -2527,9 +2517,6 @@ def _act(ctx: _Ctx, phase: Phase) -> str | None:
             ctx.policy.last_reason = entry
         elif key is not None:
             ctx.policy.last_reason = own
-    # Owner 2026-11-15 「呪われていれば休む前に解く」: a phase's hold, after the breeders in line.
-    if own == HOLD_REASON and (cure := curse_cure.before_rest(ctx.policy, ctx.snapshot)) is not None:
-        return cure
     return key
 
 
@@ -2709,9 +2696,6 @@ def _druj_retreat(policy, snapshot, *, line=True) -> str | None:
             battle.retreat_rest_hp = None
             policy.last_reason = RETREAT_HEAL_REASON
             return reserved_item_command(policy, snapshot, "quaff", potion)
-    # Owner 2026-11-15 「呪われていれば休む前に解く」 (curse_cure), before the rest is remembered.
-    if (cure := curse_cure.before_rest(policy, snapshot)) is not None:
-        return cure
     battle.retreat_rest_hp = player.hp
     policy.last_reason = RETREAT_REST_REASON
     return REST_MACRO
