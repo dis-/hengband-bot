@@ -218,6 +218,17 @@ _rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation", "sealed_poc
       "stuck:walled-off-recall", "livelock:ascend", "livelock:recall-escape", "livelock:teleport-explore")
 _rows(WALK, ("policy", "policy_navigation"), _RULE_STUCK,
       "stuck:seek-stairs", "livelock:seek-upstairs", "breakout:dig-to-stairs")
+_rows(EXCLUDED, "deep_teleport", _RULE_STUCK + " (owner 2026-11-15 「岩石溶解で掘る・だめなら帰還」: the "
+      "50F+ stuck escape's Recall in place of the teleport)", "stuck:deep-recall")
+_rows(EXCLUDED, "deep_teleport", "a town return already: Recall in place of a 50F+ self-teleport off "
+      "the instant-death board (owner 2026-11-14 「敵への対処以前に手段が尽きた時点で帰還させる」)",
+      "deep-teleport:recall")
+_rows(WALK, "deep_teleport", "a search turn in place of a 50F+ self-teleport off the instant-death "
+      "board with no Recall to read that reached the substitute past the finders: nothing is read",
+      "deep-teleport:hold")
+_rows(NOT_ESCAPE, "deep_teleport", "the decision record's branch name, not a decision's reason: 50F+ off the "
+      "instant-death board with no Recall and no *Destruction* answer, no self-teleport is offered and the "
+      "ladder acts as without one (owner 2026-11-14)", "deep-teleport:no-means-fight")
 _rows(EXCLUDED, "policy_combat", "a reposition to fight the guardian from cover, not a leave",
       "guardian:teleport-to-cover")
 _rows(EXCLUDED, "policy_supply", "the starving leave of a locked quest floor: no enemy prompted it",

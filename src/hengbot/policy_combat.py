@@ -624,7 +624,7 @@ class CombatMixin:
                 self.last_reason = "breeder-item-damage:recall"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)
 
-        teleport = relocation_allowed and self._first_item(
+        teleport = relocation_allowed and not deep_teleport.no_means(self, snapshot) and self._first_item(
             snapshot,
             lambda item: item.is_scroll and item.aware and item.sval == SV_SCROLL_TELEPORT,
         )

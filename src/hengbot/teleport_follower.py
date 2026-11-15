@@ -166,9 +166,12 @@ def teleport_means(policy, snapshot, *, beside_followers=False):
     scroll = policy._escape_scroll(snapshot, teleport_only=True, beside_followers=beside_followers)
     if scroll is not None:
         return "scroll", scroll
+    from hengbot import deep_teleport
+
     player = snapshot.player
     if (player.confused or policy._teleport_blocked_by_equipment(snapshot)
-            or (not beside_followers and followed(policy, snapshot))):
+            or (not beside_followers and followed(policy, snapshot))
+            or deep_teleport.no_means(policy, snapshot)):
         return None
     power = me_absorbed_substitutes.TELEPORTATION
     if (not quest_no_teleport.forbids_absorbed(policy, snapshot)

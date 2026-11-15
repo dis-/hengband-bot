@@ -196,10 +196,14 @@ def _first_read_spent(policy, snapshot) -> bool:
 
 
 def _read_teleport(policy, snapshot) -> str | None:
-    scroll = policy._escape_scroll(snapshot, teleport_only=True)
-    # The 50F+ rule's substitute (deep_teleport) keeps its own reason; no teleport is read.
+    # The 50F+ rule (deep_teleport): no monster prompts this teleport, so off the 即死 board it
+    # is not read; the openers and the leave answer (``_leave_key``).
     from hengbot import deep_teleport
 
+    if deep_teleport.movement_refused(policy, snapshot):
+        return None
+    scroll = policy._escape_scroll(snapshot, teleport_only=True)
+    # The 50F+ rule's substitute (deep_teleport) keeps its own reason; no teleport is read.
     if (instead := deep_teleport.scroll_substitute(policy, snapshot, scroll)) is not None:
         return instead
     key = policy._read_key(snapshot, scroll) if scroll is not None else None
@@ -354,7 +358,13 @@ def teleport_reserve(policy, snapshot) -> int:
 
 
 def _leave_key(policy, snapshot) -> str | None:
-    """Teleportation again, or Recall at or below the reserve."""
+    """Teleportation again, or Recall at or below the reserve.  50F+ off the 即死 board, no
+    teleport: deep_teleport ``stuck_key`` (Stone to Mud toward a goal, else Recall; owner
+    2026-11-15 「岩石溶解で掘る・だめなら帰還」)."""
+    from hengbot import deep_teleport
+
+    if deep_teleport.movement_refused(policy, snapshot):
+        return deep_teleport.stuck_key(policy, snapshot)
     if policy._count_teleport_scrolls(snapshot) <= teleport_reserve(policy, snapshot):
         recall = policy._find_recall_scroll(snapshot)
         player = snapshot.player

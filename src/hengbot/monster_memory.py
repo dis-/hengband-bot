@@ -31,6 +31,7 @@ from typing import Callable
 
 from hengbot.breeder_stalemate import shows_kill
 from hengbot.me_powers import HUNT_REDETECT_GAME_TURNS
+from hengbot.model import game_distance
 from hengbot.unseen_strike import message_text
 
 UNSEEN_GAME_TURNS = HUNT_REDETECT_GAME_TURNS
@@ -66,6 +67,7 @@ SLEEPER_REACH = Kind("_sleeper_reach_memory")
 LOOT_BLOCK = Kind("_sleeper_loot_block", group_turn=True)
 # An entry whose index is on the board with its race stays, however old its last sighting.
 DISENCHANT = Kind("_disenchant_avoid_seen", window_while_shown=False)
+KINDS = (SLEEPER_REACH, LOOT_BLOCK, DISENCHANT)
 
 
 def entries(policy, snapshot, kind: Kind) -> dict:
@@ -80,6 +82,20 @@ def entries(policy, snapshot, kind: Kind) -> dict:
 
 def forget_floor(policy, kind: Kind) -> None:
     setattr(policy, kind.attribute, None)
+
+
+def forget_within(policy, snapshot, centre, radius: int, spared: Callable) -> None:
+    """Every owner's memory (``KINDS``): drop the hostiles whose last shown cell lies within
+    ``radius`` of ``centre`` (the game's distance), but those ``spared(monster)`` keeps.
+
+    The player's own *Destruction* deletes every monster in its circle without a line
+    (spell-kind/spells-floor.cpp destroy_area: delete_monster), so a remembered cell inside it no
+    longer holds the monster (destruction_use ``observe``, owner of the circle)."""
+    for kind in KINDS:
+        kept = {key: (monster, turn) for key, (monster, turn) in entries(policy, snapshot, kind).items()
+                if game_distance(centre, monster.position) > radius or spared(monster)}
+        if kept != entries(policy, snapshot, kind):
+            put(policy, snapshot, kind, kept)
 
 
 def put(policy, snapshot, kind: Kind, seen: dict) -> None:

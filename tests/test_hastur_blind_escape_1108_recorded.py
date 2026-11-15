@@ -35,8 +35,9 @@ import json
 import lzma
 from pathlib import Path
 import unittest
+from unittest import mock
 
-from hengbot import hunt_target, me_device_attacks_input, status_cure, threat_tiers
+from hengbot import deep_teleport, hunt_target, me_device_attacks_input, status_cure, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.model import TVAL_SCROLL, TVAL_STAFF, parse_snapshot
@@ -70,6 +71,15 @@ ESCAPE = "emergency:teleport:absorbed-power"
 
 
 class HasturBlindEscapeRecordedTest(unittest.TestCase):
+    def setUp(self):
+        # DECLARED CONSTRUCTED: the 50F+ teleport rule (deep_teleport, owner 2026-11-14
+        # 「…即死のときのみ」) walled off.  These pins (2026-11-08) are the blind escape's means;
+        # off the 即死 board (the summoner board, 65F) the rule offers no teleport and the
+        # sensed emperor's leave reads Recall (tests/test_n1b_397_deep_stuck_1115_recorded).
+        rule = mock.patch.object(deep_teleport, "applies", lambda policy, snapshot: False)
+        rule.start()
+        self.addCleanup(rule.stop)
+
     @classmethod
     def setUpClass(cls):
         payload = json.loads(lzma.decompress(FIXTURE.read_bytes()).decode("utf-8"))

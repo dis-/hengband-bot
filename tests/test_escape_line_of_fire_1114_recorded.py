@@ -38,7 +38,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, line_of_fire, threat_tiers
+from hengbot import deep_teleport, destruction_use, line_of_fire, threat_tiers
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import GridState, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -54,13 +54,15 @@ BALROG, HELL_WYRM = 940, 1192
 class no_depth_gate:
     """DECLARED CONSTRUCTED: the depth gate walled off, and with it the owner's 2026-11-14 rule
     「50F以降で破壊手段なしの探索は許可しない。」 (destruction_use.means_spent): the fresh process
-    has not listed the live one's absorbed *Destruction*, and these cases pin the count alone."""
+    has not listed the live one's absorbed *Destruction*, and these cases pin the count alone.
+    DECLARED CONSTRUCTED too: the 50F+ teleport rule (deep_teleport, owner 2026-11-14 「…即死のときのみ」) walled off: these cases pin the count, written while a teleport off the 即死 board with no *Destruction* answer was still read; under the rule Recall is read there, or no teleport is offered (tests/test_n1b_397_deep_stuck_1115_recorded)."""
 
     def __enter__(self):
         self.patches = [
             mock.patch.object(HengbotPolicy, "_missing_required_abilities",
                               lambda self, *args, **kwargs: frozenset()),
-            mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False)]
+            mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False),
+            mock.patch.object(deep_teleport, "applies", lambda policy, snapshot: False)]
         for patch in self.patches:
             patch.start()
         return self

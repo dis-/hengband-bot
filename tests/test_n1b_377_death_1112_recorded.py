@@ -54,7 +54,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import destruction_use, me_powers, threat_tiers
+from hengbot import deep_teleport, destruction_use, me_powers, threat_tiers
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
 from hengbot.model import Position, Snapshot, game_distance
@@ -68,7 +68,6 @@ from tests.support.recorded import EDIT
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-377-death-1112.pkl.xz"
 CHAOS_LORD, RAOH, ELECTRIC_BOLTER = 737, 1018, 370
 DESTRUCTION = ("mA3", "emergency:destruction:absorbed-power")
-SCROLL_LEAVE = ("re", "sensed-t1:teleport")
 TELEPORT_AWAY = ("mCn7", "me-power:unbeatable-in-range:teleport-away")
 
 
@@ -169,7 +168,9 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
     def test_harder_stun_gives_way_to_the_scroll(self):
         """7976 at a normal stun (DECLARED CONSTRUCTED: stun_rank 2 for the recorded 1): the
         penalty is 20 (player-stun.cpp:135-153), *Destruction* and Teleport Away read 78%, below
-        the reliable 80%; the scroll has no penalty at this stun (:162-178) and is read."""
+        the reliable 80%; the scroll has no penalty at this stun (:162-178).  Off the 即死 board
+        (80F) the 50F+ teleport rule (owner 2026-11-14 「…即死のときのみ」) reads Recall in the
+        Teleportation's place (deep_teleport, no *Destruction* use and no walk)."""
         policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoints"][7976])
         with TemporaryDirectory() as scratch:
             _, boards = _consume_response_sequence(
@@ -180,7 +181,8 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
         self.assertEqual(me_powers.stunned_success(policy, board, destruction_use.POWER), 78)
         self.assertEqual(me_powers.stunned_success(policy, board, ("rod", 13)), 78)
         key = str(policy.choose_key(board))
-        self.assertEqual((key, policy.last_reason), SCROLL_LEAVE)
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual((key, policy.last_reason), ("r" + recall.slot, deep_teleport.RECALL_REASON))
 
     def test_chaos_lord_ranged_reach_behind_the_pocket_wall(self):
         """7972-7976: no projectable line, a chaos ball at the grid beside the player."""

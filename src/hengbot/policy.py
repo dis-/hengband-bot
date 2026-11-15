@@ -8732,12 +8732,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _find_teleport_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
         if quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot):
             return None
+        # 50F+ with no means (deep_teleport.no_means): Teleportation is not offered; Teleport
+        # Level, which the owner's rule does not cover, still is.
+        svals = (TELEPORT_SCROLL_SVALS - {SV_SCROLL_TELEPORT}
+                 if deep_teleport.no_means(self, snapshot) else TELEPORT_SCROLL_SVALS)
         return self._first_item(
-            snapshot, lambda it: it.is_scroll and it.aware and it.sval in TELEPORT_SCROLL_SVALS
+            snapshot, lambda it: it.is_scroll and it.aware and it.sval in svals
         )
 
     def _find_phase_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
-        if quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot):
+        if (quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot)
+                or deep_teleport.no_means(self, snapshot)):
             return None
         return self._first_item(
             snapshot,
@@ -16111,6 +16116,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             restore = self._town_producer_entry("_breakout_restore_weapon_key#2", lambda: self._breakout_restore_weapon_key(snapshot))
             if restore is not None:
                 return restore
+        # 50F+ off the 即死 board no teleport leaves (owner 2026-11-14), and the
+        # stuck floor is dug out with Stone to Mud, else left by Recall (owner
+        # 2026-11-15 「岩石溶解で掘る・だめなら帰還」; n1-b life-397, 79F: the
+        # Teleportation below landed beside a dragon pit).
+        if deep_teleport.movement_refused(self, snapshot):
+            return deep_teleport.stuck_key(self, snapshot)
         # After the player's own *Destruction* on this floor, Teleportation comes
         # before Recall (owner 2026-11-04 「治して階の探索を続ける」; n1-b life-367
         # recalled at full HP from 17 of 41 dives from 46F on, 2026-11-10).

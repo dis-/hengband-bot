@@ -237,8 +237,14 @@ class EveryEscapeCountsRecordedTest(DeathsRecordedHarness):
         # DECLARED CONSTRUCTED too: the owner's 2026-11-14 rule 「50F以降で破壊手段なしの探索は許可
         # しない。」 walled off (destruction_use.means_spent): without *Destruction* listed the
         # 80F floor would read Recall at once.
+        # DECLARED CONSTRUCTED too: the 50F+ teleport rule (deep_teleport, owner 2026-11-14)
+        # walled off.  With no *Destruction* to use and no walk toward one, the rule reads Recall
+        # on 4229938 in place of the Teleportation (``test_life355_at_80f_the_rule_reads_recall``).
         with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
-                               lambda self, *args, **kwargs: frozenset()),                 mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire),                 mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False):
+                               lambda self, *args, **kwargs: frozenset()), \
+                mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire), \
+                mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False), \
+                mock.patch.object(deep_teleport, "applies", lambda policy, snapshot: False):
             policy, answers = self.replay("life-355", 4229948, without=(DESTRUCTION_NAME,))
         self.assertEqual(answers[4229931][2], "emergency:teleport")
         self.assertEqual(answers[4229938][2], "sensed-t1:teleport")
@@ -249,6 +255,46 @@ class EveryEscapeCountsRecordedTest(DeathsRecordedHarness):
         self.assertEqual(reason, "return:recall")
         self.assertEqual(key, "r" + letter(raw, *RECALL))
         self.assertEqual(policy._last_return_trigger, "emergency-repeat")
+
+    def test_life355_at_80f_the_rule_reads_recall(self):
+        """The same constructed board with the 50F+ teleport rule in force: no *Destruction*,
+        no walk toward one, so Word of Recall in place of the Teleportation (owner 2026-11-14
+        「射線の通っている敵の合計予測被害95%が現在HPを上回るとき=即死のときのみ」 and 「敵への対処以前に
+        手段が尽きた時点で帰還させる」)."""
+        def in_line_of_fire(policy, snapshot, strong):
+            setattr(policy, line_of_fire.RECORD, True)
+        with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
+                               lambda self, *args, **kwargs: frozenset()), \
+                mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire), \
+                mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False):
+            _policy, answers = self.replay("life-355", 4229938, without=(DESTRUCTION_NAME,))
+        self.assertEqual(answers[4229931][2], "emergency:teleport")  # the 即死 board
+        raw, key, reason = answers[4229938]
+        self.assertEqual(reason, deep_teleport.RECALL_REASON)
+        self.assertEqual(key, "r" + letter(raw, *RECALL))
+
+    def test_life355_at_80f_with_no_means_no_teleport_is_read(self):
+        """DECLARED CONSTRUCTED besides the above: no Recall scroll on any board.  With the 即死
+        board passed, 4229938 has no *Destruction*, no walk toward one and no Recall: no
+        teleport is offered (deep_teleport.no_means) and the ladder acts as without one; the
+        record names the branch."""
+        def in_line_of_fire(policy, snapshot, strong):
+            setattr(policy, line_of_fire.RECORD, True)
+
+        def no_recall(raw):
+            raw["inventory"] = [item for item in raw["inventory"]
+                                if (item["tval"], item["sval"]) != RECALL]
+        with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
+                               lambda self, *args, **kwargs: frozenset()), \
+                mock.patch.object(threat_tiers, "note_line_of_fire", in_line_of_fire), \
+                mock.patch.object(destruction_use, "means_spent", lambda policy, snapshot: False):
+            policy, answers = self.replay("life-355", 4229938, no_recall, without=(DESTRUCTION_NAME,))
+        self.assertEqual(answers[4229931][2], "emergency:teleport")  # the 即死 board
+        _raw, key, reason = answers[4229938]
+        self.assertFalse(key.startswith("r"), (key, reason))
+        self.assertNotIn("teleport", reason)
+        self.assertEqual(deep_teleport.report(policy),
+                         {"branch": deep_teleport.NO_MEANS_BRANCH, "turn": 4229938})
 
     def test_life350_the_second_flee_scroll_returns_and_a_walk_does_not_count(self):
         recorded = self.recorded("life-350")

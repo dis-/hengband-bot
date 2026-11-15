@@ -27,7 +27,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use
+from hengbot import deep_teleport, destruction_use
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import parse_snapshot
@@ -60,8 +60,12 @@ class DestructionMeansSpentRecordedTest(unittest.TestCase):
         policy = HengbotPolicy(monrace_knowledge=self.monrace, baseitem_costs=self.costs)
         policy._skill_exp_request_key = lambda snapshot: None
         used = None
+        # DECLARED CONSTRUCTED: the 50F+ teleport rule (deep_teleport) walled off.  The first
+        # board is decided twice on its own turn (the use's key not posted): there the use is
+        # pending, and the rule reads Recall in place of the Teleportation, a return that is not
+        # the means-spent one these pins tell apart by its reason.
         with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
-                               lambda self, *args, **kwargs: frozenset()):
+                               lambda self, *args, **kwargs: frozenset()),                 mock.patch.object(deep_teleport, "applies", lambda policy, snapshot: False):
             for index, raw in enumerate(self.boards):
                 snapshot = parse_snapshot(copy.deepcopy(raw), self.monrace)
                 if index == 0:
