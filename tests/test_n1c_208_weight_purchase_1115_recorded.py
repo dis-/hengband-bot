@@ -17,7 +17,10 @@ relief deposits it at Home and the visit departs.
 
 Recorded: the incident capture's town-arrival checkpoint and its whole journal
 (tests/extract_n1c_208_weight_purchase_1115_fixture.py), rows 0-89 decided through
-the public choose_key and compared with the record.
+the public choose_key; rows 0-59 are compared with the record.  Owner 2026-11-15
+「Q1 の後は松明20本をやめる」: from row 60 (the General Store errand for Q1's twenty
+torches) the chooser walks elsewhere, so the stop board is constructed (``line``) and
+this visit's purchases are declared (``setUp``).
 
 DECLARED CONSTRUCTED: the boards after the stop board, and the stop board with
 a heavier staff (the third test).  Home's page is row 87's
@@ -45,6 +48,13 @@ STOP = "town:blocked:survival:inventory_weight_ready"
 HOME_PAGE_ROW = 87
 WAND = ("トラップ解除の魔法棒 (9回分)", 65, 4)
 WAND_SLOT = "h"
+# Owner 2026-11-15 「Q1 の後は松明20本をやめる」: the recorded torch errand for Q1's twenty
+# (row 60, the General Store) no longer happens; later rows are the recorded boards with the
+# recorded keys posted (DECLARED CONSTRUCTED: not compared with the chooser).
+DIVERGENCE_ROW = 60
+# The stop board's twenty torches: only the shallow throwing stock (10) is a carry now.
+TORCH_SLOT, SPARE_TORCH_SLOT, STAFF_SLOT, ROD_SLOT = "k", "l", "j", "g"
+TORCH_CARRY = 10
 
 
 class N1c208WeightPurchase1115RecordedTest(unittest.TestCase):
@@ -58,7 +68,7 @@ class N1c208WeightPurchase1115RecordedTest(unittest.TestCase):
             cls.replayed.append((recorded["row"], (key, policy.last_reason),
                                  (recorded["key"], recorded["reason"])))
             policy.confirm_key_posted(recorded["key"])
-        cls.board = steps[STOP_ROW][1]()
+        steps[STOP_ROW][1]()   # the stop row's inputs reach the policy as live
         cls.checkpoint = checkpoint_bytes(policy)
         cls.ledger = Path(cls.scratch.name) / "knowledge.jsonl"
 
@@ -68,12 +78,36 @@ class N1c208WeightPurchase1115RecordedTest(unittest.TestCase):
 
     def setUp(self):
         for row, decided, recorded in self.replayed:
-            self.assertEqual(decided, recorded, row)
+            if row < DIVERGENCE_ROW:
+                self.assertEqual(decided, recorded, row)
         self.policy = restore_checkpoint_bytes(HengbotPolicy, self.checkpoint)
         self.addCleanup(lambda: self.policy._home_disposal.history_path.unlink(missing_ok=True))
+        self.board = self.board_of(self.line())
+        # DECLARED CONSTRUCTED state: the rod and the wand are this visit's purchases (the
+        # chooser that bought them is not replayed past DIVERGENCE_ROW).
+        for item in self.board.inventory:
+            if item.slot in (ROD_SLOT, WAND_SLOT):
+                signature = self.policy._item_signature(item)
+                self.policy._town_visit_purchases.add(signature)
+                self.policy._town_visit_purchase_quantities[signature] = item.count
 
     def line(self):
-        return json.loads(self.journal[STOP_ROW]["line"])
+        """DECLARED CONSTRUCTED: the stop board with the torches cut to the carry and the
+        mana-food staff as much heavier as the torches shed, so the recorded 0.9 lb excess
+        stays with every carried item retained.  Owner 2026-11-15 「Q1 の後は松明20本を
+        やめる」: the recorded twenty torches (Q1's carry merged below Lv10) are no carry."""
+        raw = json.loads(self.journal[STOP_ROW]["line"])
+        shed = 0
+        for item in list(raw["inventory"]):
+            if item["slot"] == SPARE_TORCH_SLOT:
+                shed += item["weight"] * item["count"]
+                raw["inventory"].remove(item)
+            elif item["slot"] == TORCH_SLOT:
+                shed += item["weight"] * (item["count"] - TORCH_CARRY)
+                item["count"] = TORCH_CARRY
+        staff = next(item for item in raw["inventory"] if item["slot"] == STAFF_SLOT)
+        staff["weight"] += shed
+        return raw
 
     def board_of(self, raw):
         return parse_snapshot(copy.deepcopy(raw), self.policy._monrace_knowledge)
@@ -146,16 +180,16 @@ class N1c208WeightPurchase1115RecordedTest(unittest.TestCase):
         outside["inventory"] = [item for item in outside["inventory"] if item["slot"] != WAND_SLOT]
         outside["turn"] += 40
         self.assertFalse(policy._inventory_overweight(self.board_of(outside)))
-        reasons = [self.decide(outside)[1] for _ in range(3)]
-        self.assertIn("town:recall-to-yeek-cave", reasons)
-        self.assertIsNone(policy._town_blocked_reason)
+        # Dropped (owner 2026-11-15 「Q1 の後は松明20本をやめる」): the recorded departure
+        # (town:recall-to-yeek-cave) followed the visit that bought Q1's twenty torches; the
+        # equipment state it departed with is the chooser's past DIVERGENCE_ROW, not replayed.
 
     def test_purchases_that_cannot_clear_the_excess_keep_the_stop(self):
         policy = self.policy
         # DECLARED CONSTRUCTED: the stop board with the retained mana-food staff
         # 9.0 lb heavier, an excess (9.9 lb) the rod and the wand (2.5 lb) cannot clear.
         raw = self.line()
-        staff = next(item for item in raw["inventory"] if item["slot"] == "j")
+        staff = next(item for item in raw["inventory"] if item["slot"] == STAFF_SLOT)
         staff["weight"] += 90
         board = self.board_of(raw)
         relief = policy._weight_relief_selection(board)
