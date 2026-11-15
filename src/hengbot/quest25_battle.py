@@ -341,6 +341,9 @@ class Battle:
     cast: tuple | None = None
     presence_quiet: int = 0
     recheck: bool = False
+    # The races this phase's presence check showed on the floor (quest25_presence ``presence_key``:
+    # shown present, the wait for them is the plan's, and no further check is made this phase).
+    presence_shown: frozenset = frozenset()
     # quest25_pocket (owner 2026-11-15 「溶かして撃つ・無ければ帰還」): (target cell, granite wall,
     # stand) of the sealed pocket the sweep opens, whether the last key shot at it, and the shots in
     # a row with no hit, pain or kill line.
@@ -2016,11 +2019,35 @@ def _masses_seen(ctx: _Ctx) -> list:
     return [monster for monster in ctx.hostiles() if monster.race_id == geo.MASS]
 
 
+def _mass_reached(ctx: _Ctx, cell, monster) -> bool:
+    """A shot from ``cell`` reaches ``monster`` (quest_firing_cells ``reach``: two grids or more away,
+    the projection path ends on it before a grid that stops sight)."""
+    return quest_firing_cells.reach(ctx.snapshot, Position(*cell), [monster]) == 1
+
+
+def _phase_masses(ctx: _Ctx) -> list:
+    """The masses phase 4 is for (owner 2026-11-06 「北の通路に移動して増えている死体の塊を処理する」,
+    phase6_sweep 「[1,6] から見て通路に1体もいないことで判定して良い」): those in the north corridor, and
+    those a shot reaches from here or from a cell the plan may stand on (``_mass_stand_cells``).
+
+    n1-b life-399 (2026-11-15 16:47): the masses had bred into the east room ([2,19]-[2,25],
+    [1,26], [1,27]), seen through the open door [1,18] along row 1; no cell out of the dreadmaster's
+    vision reaches them, and from [1,7] the bolt's path to [2,20] ends on the wall [2,18].  The
+    phase shot arrows at [2,20] 36 times with no hit or miss line until the loop guard stopped it."""
+    masses = _masses_seen(ctx)
+    if not masses:
+        return []
+    stands = {ctx.here} | _mass_stand_cells(ctx, masses)
+    return [monster for monster in masses
+            if (monster.position.y, monster.position.x) in geo.NORTH_CORRIDOR
+            or any(_mass_reached(ctx, cell, monster) for cell in stands)]
+
+
 def _masses_done(ctx: _Ctx) -> bool:
     if geo.MASS in ctx.battle.absent:
         return True   # none left on the floor (quest25_presence)
     return (ctx.here == geo.MASS_STAND and not ctx.door_closed(geo.MASS_DOOR) and ctx.battle.lit
-            and not _masses_seen(ctx))
+            and not _phase_masses(ctx))
 
 
 def _masses(ctx: _Ctx) -> str | None:
@@ -2041,6 +2068,8 @@ def _masses(ctx: _Ctx) -> str | None:
     if (key := _breeders_in_line_key(ctx)) is not None:
         return key   # owner 2026-11-08: the aim with the most kills when it catches two or more
     for monster in sorted(_masses_seen(ctx), key=lambda each: each.distance):
+        if not _mass_reached(ctx, ctx.here, monster):
+            continue   # its shot ends on a wall short of it (``_phase_masses``)
         key = _fire_at(ctx, (monster.position.y, monster.position.x), geo.MASS)
         if key is not None:
             return key
@@ -2060,6 +2089,17 @@ def _mass_firing_cells(ctx: _Ctx) -> dict:
     masses = _masses_seen(ctx)
     if not masses:
         return {}
+    cells = {Position(*cell) for cell in _mass_stand_cells(ctx, masses)}
+    by_reach: dict = {}
+    for cell in cells:
+        count = quest_firing_cells.reach(ctx.snapshot, cell, masses)
+        if count:
+            by_reach.setdefault(count, set()).add((cell.y, cell.x))
+    return by_reach
+
+
+def _mass_stand_cells(ctx: _Ctx, masses) -> set:
+    """The cells ``_mass_firing_cells`` may shoot the masses from (its docstring), (y, x) each."""
     bf = ctx.navigator.battlefield
     avoid = set(_fire(ctx)) | {cell for cell in (*bf.trap_cells, *bf.maybe_trap_cells)
                                if cell not in ctx.battle.cleared}
@@ -2075,12 +2115,7 @@ def _mass_firing_cells(ctx: _Ctx) -> dict:
                     <= RANGED_MAX_DISTANCE for monster in masses)}
     cells = {Position(*cell) for cell in near - avoid - occupied}
     cells -= quest_firing_cells.touching_cells(ctx.policy, ctx.snapshot, cells)
-    by_reach: dict = {}
-    for cell in cells:
-        count = quest_firing_cells.reach(ctx.snapshot, cell, masses)
-        if count:
-            by_reach.setdefault(count, set()).add((cell.y, cell.x))
-    return by_reach
+    return {(cell.y, cell.x) for cell in cells}
 
 
 def _walk_to_widest(ctx: _Ctx) -> str | None:
