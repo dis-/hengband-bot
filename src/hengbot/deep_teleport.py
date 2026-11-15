@@ -449,3 +449,20 @@ def scroll_substitute(policy, snapshot, item) -> str | None:
     if not is_self_teleport_scroll(item):
         return None
     return substitute(policy, snapshot, teleportation=item.sval == SV_SCROLL_TELEPORT)
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None:
+        return
+    indices = {index for index, _race in keys}
+    if memory.pending is not None:
+        floor, turn, position, in_fire = memory.pending
+        memory.pending = (floor, turn, position, frozenset(in_fire) - indices)
+    if memory.landed is not None:
+        floor, still = memory.landed
+        kept = frozenset(still) - indices
+        memory.landed = (floor, kept) if kept else None

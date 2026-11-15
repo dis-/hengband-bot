@@ -91,3 +91,12 @@ def observe(policy, snapshot) -> None:
     policy._note_return_start(TRIGGER)
     policy._returning_to_town = True
     policy._last_return_trigger = TRIGGER
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    sent = getattr(policy, MEMORY, None)
+    if sent is not None and sent.index in {index for index, _race in keys}:
+        setattr(policy, MEMORY, None)

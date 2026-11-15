@@ -1045,3 +1045,15 @@ def facts(policy, snapshot) -> dict:
         return result
     except Exception as exc:  # noqa: BLE001 -- telemetry must never stop the decision writer
         return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    memory = getattr(policy, APPROACH_MEMORY, None)
+    if memory is None:
+        return
+    floor, turn, targets = memory
+    kept = tuple(target for target in targets if (target.index, target.race_id) not in keys)
+    setattr(policy, APPROACH_MEMORY, (floor, turn, kept) if kept else None)

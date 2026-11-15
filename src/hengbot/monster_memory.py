@@ -68,6 +68,45 @@ LOOT_BLOCK = Kind("_sleeper_loot_block", group_turn=True)
 # An entry whose index is on the board with its race stays, however old its last sighting.
 DISENCHANT = Kind("_disenchant_avoid_seen", window_while_shown=False)
 KINDS = (SLEEPER_REACH, LOOT_BLOCK, DISENCHANT)
+# The breeder quest's memory (breeder_quest re-exports it).
+BREEDER_SEEN = Kind("_breeder_quest_seen")
+
+
+@dataclass(frozen=True)
+class Forgotten:
+    """One memory a *Destruction* forgets: ``attribute`` on the policy, owned by ``module``,
+    ``how``: ``kind`` (a Kind of this module: the entries within the circle),
+    ``visit`` (the module's ``forget_floor_visit``: the whole floor-visit memory), or ``keys``
+    (the module's ``forget_destroyed(policy, keys[, names])``: the deleted monsters)."""
+    attribute: str
+    module: str
+    how: str
+
+
+# Every memory of monsters (and the holds round them) the player's own *Destruction* touches:
+# the one registry (owner 2026-11-15, maintainability review Q6 「全部から消す・標的は残す」, and the
+# 2026-11-16 rule 「新しい状態は宣言簿に」).  scripts/cross_rule_lint.py fails when a monster memory
+# of the source is missing here.
+DESTRUCTION_FORGETS = (
+    Forgotten("_sleeper_reach_memory", "monster_memory", "kind"),
+    Forgotten("_sleeper_loot_block", "monster_memory", "kind"),
+    Forgotten("_disenchant_avoid_seen", "monster_memory", "kind"),
+    Forgotten("_breeder_quest_seen", "monster_memory", "kind"),
+    Forgotten("_immobile_summoner_memory", "summoner_wait", "visit"),
+    Forgotten("_immobile_threat_memory", "immobile_threat_memory", "visit"),
+    Forgotten("_hunt_target_memory", "hunt_target", "visit"),
+    Forgotten("_left_cells", "left_cells", "visit"),
+    Forgotten("_pingpong_guard", "pingpong_guard", "visit"),
+    Forgotten("_oneshot_breath_visit", "oneshot_breath", "keys"),
+    Forgotten("_retreat_veto_life", "retreat_veto_life", "keys"),
+    Forgotten("_summon_response_memory", "summon_response", "keys"),
+    Forgotten("_threat_tier_memory", "threat_tier_memory", "keys"),
+    Forgotten("_sensed_approach_memory", "threat_tiers", "keys"),
+    Forgotten("_sent_away_t1", "sent_away_t1", "keys"),
+    Forgotten("_deep_teleport_landing", "deep_teleport", "keys"),
+    Forgotten("_blind_strike_monsters", "blind_strike", "keys"),
+)
+_KIND_BY_ATTRIBUTE = {kind.attribute: kind for kind in (*KINDS, BREEDER_SEEN)}
 
 
 def entries(policy, snapshot, kind: Kind) -> dict:
@@ -96,6 +135,38 @@ def forget_within(policy, snapshot, centre, radius: int, spared: Callable) -> No
                 if game_distance(centre, monster.position) > radius or spared(monster)}
         if kept != entries(policy, snapshot, kind):
             put(policy, snapshot, kind, kept)
+
+
+def forget_destroyed(policy, snapshot, centre, radius: int, spared: Callable,
+                     keys=frozenset(), names=frozenset()) -> frozenset:
+    """A *Destruction* flashed at ``centre``: every registered memory (``DESTRUCTION_FORGETS``)
+    forgets what it deleted.  ``keys``/``names``: the deleted monsters known otherwise (the
+    board it was used on); the kinds' own entries within ``radius`` but those ``spared``
+    (a quest's target, a QUESTOR) are added to them.  Returns the keys forgotten."""
+    from importlib import import_module
+
+    deleted = set(keys)
+    for row in DESTRUCTION_FORGETS:
+        if row.how == "kind":
+            kind = _KIND_BY_ATTRIBUTE[row.attribute]
+            for key, (monster, _turn) in entries(policy, snapshot, kind).items():
+                if game_distance(centre, monster.position) <= radius and not spared(monster):
+                    deleted.add(key)
+    deleted = frozenset(deleted)
+    for row in DESTRUCTION_FORGETS:
+        if row.how == "kind":
+            kind = _KIND_BY_ATTRIBUTE[row.attribute]
+            kept = {key: entry for key, entry in entries(policy, snapshot, kind).items()
+                    if key not in deleted}
+            if kept != entries(policy, snapshot, kind):
+                put(policy, snapshot, kind, kept)
+        elif row.how == "visit":
+            import_module(f"hengbot.{row.module}").forget_floor_visit(policy)
+        elif row.module == "summon_response":
+            import_module("hengbot.summon_response").forget_destroyed(policy, deleted, names)
+        else:
+            import_module(f"hengbot.{row.module}").forget_destroyed(policy, deleted)
+    return deleted
 
 
 def put(policy, snapshot, kind: Kind, seen: dict) -> None:

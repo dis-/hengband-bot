@@ -33,16 +33,6 @@
   "summoner_wait:_leave_shot_hold_point_key",
   "teleport_follower:pack_teleport_key"
  ],
- "destruction-forget": [
-  "memory:_blind_strike_monsters",
-  "memory:_breeder_quest_seen",
-  "memory:_deep_teleport_landing",
-  "memory:_oneshot_breath_visit",
-  "memory:_retreat_veto_life",
-  "memory:_sensed_approach_memory",
-  "memory:_sent_away_t1",
-  "memory:_summon_response_memory",
-  "memory:_threat_tier_memory"
- ],
+ "destruction-forget": [],
  "deep-teleport": []
 }

@@ -12,8 +12,8 @@ passes and no lint:
 - ``escape-line-of-fire``: an escape joins the two-escape count only when a cause had a line of
   fire, which the deciding producer records (``line_of_fire.note``; owner 2026-11-14).  An escape
   no producer noted is judged later on the board's known causes (``line_of_fire.counts``).
-- ``destruction-forget``: the monsters a *Destruction* removed are forgotten
-  (``monster_memory.forget_within`` for its KINDS, ``destruction_use.FORGET_VISIT``).
+- ``destruction-forget``: the monsters a *Destruction* removed are forgotten from every memory
+  (``monster_memory.forget_destroyed`` over its registry ``DESTRUCTION_FORGETS``).
 - ``deep-teleport``: a self-teleport on 50F+ passes ``deep_teleport.substitute`` (the one rule
   of the five with a single point every read passes, ``policy._read_key``).
 
@@ -41,19 +41,10 @@ CONSULTED = "consulted"
 NOT_CONSULTED = "not-consulted"
 
 # The monster memories a *Destruction* does not forget (the flash board records each one that
-# still holds something).  scripts/cross_rule_lint.py derives the same list from the source and
-# fails when the two disagree, so a new memory is not missed here.
-UNFORGOTTEN_MONSTER_MEMORIES = (
-    "_breeder_quest_seen",       # breeder_quest.BREEDER_SEEN: a monster_memory Kind outside KINDS
-    "_oneshot_breath_visit",     # oneshot_breath
-    "_retreat_veto_life",        # retreat_veto_life
-    "_summon_response_memory",   # summon_response
-    "_threat_tier_memory",       # threat_tier_memory
-    "_sensed_approach_memory",   # threat_tiers.APPROACH_MEMORY
-    "_sent_away_t1",             # sent_away_t1
-    "_deep_teleport_landing",    # deep_teleport
-    "_blind_strike_monsters",    # blind_strike
-)
+# still holds something).  Since the owner's 2026-11-15 Q6 「全部から消す」 every memory is in the
+# one registry (monster_memory.DESTRUCTION_FORGETS), so none; scripts/cross_rule_lint.py fails
+# when a monster memory of the source is missing there.
+UNFORGOTTEN_MONSTER_MEMORIES = ()
 
 
 @dataclass
@@ -245,37 +236,11 @@ REGISTRY = (
               points=("line_of_fire:note",),
               point_modules=("line_of_fire", "escape_count", "reasons", "policy_constants")),
     CrossRule(DESTRUCTION_FORGET, "owner 2026-11-11 (destruction_use, monster_memory)",
-              points=("monster_memory:forget_within", "destruction_use:forget_circle"),
+              points=("monster_memory:forget_destroyed", "destruction_use:forget_circle"),
               point_modules=("destruction_use", "monster_memory")),
     CrossRule(DEEP_TELEPORT, "owner 2026-11-14 「50F以降のテレポートの条件を厳しくする」 (deep_teleport)",
               points=("deep_teleport:substitute", "deep_teleport:scroll_substitute",
                       "deep_teleport:no_means", "deep_teleport:movement_refused",
                       "policy:_read_key", "policy:_issue_emergency_consumable"),
               point_modules=("deep_teleport",)),
-)
-
-
-@dataclass(frozen=True)
-class MonsterMemory:
-    """A memory of monsters on the floor and what forgets it at a *Destruction*
-    (None: nothing, the flash board records it)."""
-    attribute: str
-    module: str
-    forgotten_by: str | None
-
-
-MONSTER_MEMORIES = (
-    MonsterMemory("_sleeper_reach_memory", "monster_memory", "monster_memory.KINDS"),
-    MonsterMemory("_sleeper_loot_block", "monster_memory", "monster_memory.KINDS"),
-    MonsterMemory("_disenchant_avoid_seen", "monster_memory", "monster_memory.KINDS"),
-    MonsterMemory("_immobile_summoner_memory", "summoner_wait", "destruction_use.FORGET_VISIT"),
-    MonsterMemory("_immobile_threat_memory", "immobile_threat_memory", "destruction_use.FORGET_VISIT"),
-    MonsterMemory("_hunt_target_memory", "hunt_target", "destruction_use.FORGET_VISIT"),
-    MonsterMemory("_left_cells", "left_cells", "destruction_use.FORGET_VISIT"),
-    *(MonsterMemory(attribute, module, None) for attribute, module in (
-        ("_breeder_quest_seen", "breeder_quest"), ("_oneshot_breath_visit", "oneshot_breath"),
-        ("_retreat_veto_life", "retreat_veto_life"), ("_summon_response_memory", "summon_response"),
-        ("_threat_tier_memory", "threat_tier_memory"), ("_sensed_approach_memory", "threat_tiers"),
-        ("_sent_away_t1", "sent_away_t1"), ("_deep_teleport_landing", "deep_teleport"),
-        ("_blind_strike_monsters", "blind_strike"))),
 )

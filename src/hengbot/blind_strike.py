@@ -132,3 +132,19 @@ def key(policy, snapshot) -> str:
         return strike
     policy.last_reason = "unseen-recall:blind-stay"
     return WAIT_KEY
+
+
+def forget_destroyed(policy, keys) -> None:
+    """The monsters a *Destruction* deleted (``keys``: (index, race)) leave this memory
+    (owner 2026-11-15, maintainability review Q6 「全部から消す」; monster_memory
+    ``DESTRUCTION_FORGETS``)."""
+    monsters = getattr(policy, _MONSTERS, None)
+    if not monsters:
+        return
+    gone = {cell for cell, monster in monsters.items() if (monster.index, monster.race_id) in keys}
+    if not gone:
+        return
+    setattr(policy, _MONSTERS, {cell: m for cell, m in monsters.items() if cell not in gone})
+    memory = getattr(policy, _MEMORY, None)
+    if memory is not None:
+        setattr(policy, _MEMORY, (memory[0], tuple(cell for cell in memory[1] if cell not in gone)))
