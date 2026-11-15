@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -1301,7 +1301,10 @@ class NavigationMixin:
             and not dive_floor.capped(self, snapshot, snapshot.dungeon_level + 1)
         ):
             targets.update(
-                self._remembered_downstairs - visible_descent_positions - expired
+                position
+                for position in self._remembered_downstairs - visible_descent_positions - expired
+                # The stair back to a fled saved floor (fled_floor_stairs).
+                if not fled_floor_stairs.leads_back(self, snapshot, position)
             )
         return targets
 
