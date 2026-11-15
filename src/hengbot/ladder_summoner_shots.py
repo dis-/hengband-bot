@@ -2,7 +2,8 @@
 
 ``HengbotPolicy._decide`` asks this layer where its rows stand: below the emergency ladder
 (owner 2026-11-06 「命に関わる時の後へ回す」), above the floor avoidance
-(ladder_floor_avoidance).  The rungs are asked top-down and the first key returned wins, as in
+(ladder_floor_avoidance).  First the committed STRONG-tier hunt (owner 2026-09-22), after the
+emergency escapes (owner 2026-11-15, maintainability review Q8 「緊急の逃げの後に回す」).  The rungs are asked top-down and the first key returned wins, as in
 ``_decide``; ``PASS`` hands the decision on to the layers below.  Neither rung is asked while
 the quiet recall or a summons answer is due.  scripts/dungeon_ladder_lint.py reads the rows
 here (dungeon_ladder.LAYER_MODULES), so the table still states this order.
@@ -13,8 +14,17 @@ from hengbot import return_yield, summon_response, worsens_kill
 from hengbot.dungeon_ladder import PASS
 
 
-def key(policy, snapshot, *, emergency_hostiles):
+def key(policy, snapshot, *, emergency_hostiles, strategic_hostiles):
     """The summoner-shots layer's answer, or PASS when none of its rungs acts."""
+    # A committed STRONG-tier hunt (esp-threat-rest) owns its fight, Healing drinks included,
+    # once the emergency ladder above has declined (owner 2026-11-15 Q8; it stood above the
+    # emergency ladder before).
+    esp_threat_hunt = policy._town_producer_entry("_esp_threat_hunt_key", lambda: policy._esp_threat_hunt_key(
+        snapshot, strategic_hostiles
+    ))
+    if esp_threat_hunt is not None:
+        return esp_threat_hunt
+
     # Threat tiers plan step 11 (design 4.4, 10a): a summoner, breeder or shrieker that
     # dies 被害無く is killed first, directly above the summoner shots (D2).
     if not (return_yield.quiet_recall_due(policy, snapshot)
