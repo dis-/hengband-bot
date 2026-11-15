@@ -12886,13 +12886,9 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "destruction_use.py:_charged_staff": {
-    "classification": "data",
-    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the first known Staff of *Destruction* with a charge among the given items (the pack or the remembered Home list); read by _reliable_carried_staff, _home_staff and owns_charged_staff."
-  },
   "destruction_use.py:_reliable_carried_staff": {
     "classification": "data",
-    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the known charged Staff of *Destruction* at the modelled 80% success; read by _carried_key and holds_means."
+    "evidence": "Data/selector result; no independent command or effect credit. pure selector: the known charged Staff of *Destruction* carried, when the worn loadout makes it reliable (destruction_means.Means); read by _carried_key and the observer's in-hand answer."
   },
   "me_powerful_activation.py:_first_open": {
     "classification": "data",
@@ -19725,5 +19721,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "destruction_means.py:Means.carry_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the *Destruction* uses the departure carries short of 50F (destruction_use.staff_carry_uses' combination of the one means fact, maintainability review 2026-11-16 R1); returns int used as input/observation, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_means.py:Means.departure_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the carried scrolls, carried staff charges and absorbed charges (policy._total_destruction_uses' combination of the one means fact, maintainability review 2026-11-16 R1); returns int used as input/observation, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:staff_carry_uses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: staff_carry_uses reads destruction_means.Means.carry_uses; returns int used as input/observation (the departure's *Destruction* requirement), not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
