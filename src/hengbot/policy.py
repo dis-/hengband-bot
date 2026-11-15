@@ -1770,6 +1770,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._chest_phase_counts: dict[str, int] = {}
         self._chest_drop_origin: Position | None = None
         self._chest_drop_chest_count: int | None = None
+        # (decision sequence, game turn, key) of the posted drop, and the drops
+        # that never reached the game on this floor (policy_identification).
+        self._chest_drop_posting: tuple[int, int, str | None] | None = None
+        self._chest_drop_unconfirmed = 0
         self._chest_collecting = False
         self._chest_preopen_objects: dict[Position, tuple[int, int]] | None = None
         self._processed_chest_positions: set[Position] = set()
@@ -6419,6 +6423,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # The replaced key is never posted: what its owner waits for
             # cannot arrive, so its expectation of this decision is withdrawn.
             self._owner_expectations.withdraw_unposted(self._decision_sequence)
+            self.withdraw_unposted_chest_drop(self._decision_sequence)
         if key is None:
             def fallback():
                 self.last_reason = (
