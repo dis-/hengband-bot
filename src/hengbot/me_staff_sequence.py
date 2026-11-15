@@ -574,6 +574,22 @@ def _spendable_gold(policy, snapshot) -> int:
     return snapshot.player.gold - policy._outpost_return_fare(snapshot)
 
 
+def _pack_takes(policy, snapshot, item) -> bool:
+    """The buy phase's pack rule (``_phase_key``): the pack takes ``item`` now, else the town's
+    inventory pass makes it a slot first (town_pack_headroom, owner 2026-10-31
+    「自宅にいるなら先に不要物を仕舞う」) while the sequence waits; without a pass (none can
+    free a slot, or a quest return owns: town_pack_headroom.eligible) an away town is given
+    up and the Outpost stops by name (owner 2026-10-31 「名前付きで止まる」).
+
+    The page purchase is refused below the four-slot floor (policy_shop ``_next_purchase``,
+    ``_store_purchase_fits_pack``).  n1-b life-402 (Lv8 Magic-Eater, 2026-11-15 17:31,
+    quest:blocked:me-staff three times): in town 3 with 19 of 23 slots and the Q14
+    prepare-return owning, stage 2 walked into the Magic shop for 光の杖 and out again
+    until the sequence stopped as no progress.
+    """
+    return policy._store_purchase_fits_pack(snapshot, item)
+
+
 def _page_purchase(policy, snapshot):
     if (snapshot.store is None or not applies(policy, snapshot)
             or not read_powers(policy, snapshot) or _phase(policy, snapshot) != "buy"):
@@ -874,15 +890,17 @@ def _next_search_leg(policy, snapshot, supplies: int, unlocked: bool) -> str:
 def _give_up_town(policy, snapshot, supplies: int, unlocked: bool) -> str:
     """This town cannot serve the search: note it and take the next leg.
 
-    Given up at Morivant, the round that closes with it is the Tower's here and now
-    (``_phase`` recharge or absorb): the carried staffs are taken up at once rather than
-    the next leg's fare home and back (n1-c life-212, 2026-11-15 14:12: the trip came to
-    Morivant for the Tower with 周辺感知 and 邪悪存在感知 carried, and the shelf's
-    ドア/階段感知 was past the gold its fare home leaves).
+    When the round closes with it, this board already does what the next board's phase
+    would (``_phase`` not buy): given up at Morivant the Tower's recharge or absorb is
+    here and now, rather than the next leg's fare home and back (n1-c life-212,
+    2026-11-15 14:12: the trip came to Morivant for the Tower with 周辺感知 and
+    邪悪存在感知 carried, and the shelf's ドア/階段感知 was past the gold its fare home
+    leaves); given up elsewhere the travel to the Tower starts at once (n1-b life-402,
+    2026-11-15 17:31: town 3's 光の杖 the pack could not take, ``_pack_takes``).
     """
     state(policy).searched_towns[policy._effective_town_id(snapshot)] = snapshot.turn
     phase = _phase(policy, snapshot)
-    if phase in {"recharge", "absorb"}:
+    if phase != "buy":
         return _phase_key(policy, snapshot, phase, current_stage(policy))
     return _next_search_leg(policy, snapshot, supplies, unlocked)
 
@@ -1229,6 +1247,15 @@ def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
                 return _give_up_town(policy, snapshot, supplies, unlocked)
             return _fundraise(policy, snapshot, target + supplies, "staffs")
         offer = next(offer for sval, offer in sorted(offers(policy, snapshot).items()))
+        if not _pack_takes(policy, snapshot, offer[1]):
+            from hengbot import town_pack_headroom
+            town_pack_headroom.make_room_for_refused_purchase(policy, snapshot)
+            if town_pack_headroom.organizing(policy, snapshot):
+                policy.last_reason = f"{REASON}await-pack-room"
+                return None
+            if away:
+                return _give_up_town(policy, snapshot, supplies, unlocked)
+            return _stop(policy, "pack-full-no-room")
         step = policy._shopping_approach_step(snapshot, store_type=offer[0], requester="quest-request")
         if step is None:
             return _stop(policy, f"store-{offer[0]}-route-unavailable")
