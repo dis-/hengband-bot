@@ -74,6 +74,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "black-market:healing": "emergency-potion",
     "black-market:resistance": "resistance-potion",
     "black-market:stone-to-mud": "utility:stone-to-mud",
+    # Worn or stored by the equipment comparison (bm_destruction_fund.PRIORITY_WARES).
+    "priority-ware:telepathy": "equipment-catalogue",
     # Read at once by _town_remove_curse_key.
     "curse:normal": CONSUMED_ON_USE,
     "curse:star-reserve": "remove-curse:reserve",

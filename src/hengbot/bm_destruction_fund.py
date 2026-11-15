@@ -31,14 +31,82 @@ leaf (town_terminal.gather_town_end), so it never stops a visit.
 
 The exception lives here and only here: ``releases`` is asked by
 item_fate.gear_tier, so no other disposal path widens.
+
+Owner 2026-11-15 (n1-a life-525, a warrior whose only ESP was a crown of eight race
+ESPs in the Home, held at 49F by the 50F telepathy requirement), verbatim: 「完全な
+テレパシーを闇市で最優先で買う」, to be bought like the staff: when the gold is short,
+Home's spare weapons and body armour are sold in the same visit.  ``PRIORITY_WARES`` is
+the one table of the wares this errand buys; the staff is its first row, full telepathy
+(TR_TELEPATHY, never the race ESP_* flags) its second, wanted only while the character
+owns none (worn, intrinsic, carried or in the Home: ``_owns_telepathy``) and read on
+every shop's shelf (store.cpp gives a shop other than the Black Market an ego item
+too).  One errand per stay: a shelf of a higher row on another shop is not replaced.
 """
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from hengbot import item_fate
 from hengbot.item_reservation import decision_memo
-from hengbot.model import STORE_BLACK
+from hengbot.model import STORE_BLACK, STORE_HOME
+
+# object-enchant/tr-types.h TR_TELEPATHY; the depth requirement's "telepathy"
+# (DEPTH_ABILITY_REQUIREMENTS, 50F) is the board's ability of this flag only
+# (bot-json-output.cpp ``sources(TR_TELEPATHY)``).
+TR_TELEPATHY = 79
+
+
+@dataclass(frozen=True)
+class PriorityWare:
+    """One row of the errand's table, in priority order."""
+
+    label: str
+    # The shops whose shelf is read; None: every shop but the Home.
+    stores: frozenset | None
+    # The shelf row (or a carried piece) is this ware: (policy, item).
+    is_ware: Callable[[Any, Any], bool]
+    # The character wants it now: (policy, snapshot).
+    wanted: Callable[[Any, Any], bool]
+
+
+def _is_telepathy_ware(_policy: Any, item: Any) -> bool:
+    return (TR_TELEPATHY in item.known_flags and getattr(item, "is_equipment", True)
+            and not item.is_cursed and not item.is_broken)
+
+
+def _owns_telepathy(policy: Any, snapshot: Any) -> bool:
+    """Full telepathy worn or intrinsic, or a known piece carried or in the Home."""
+    if "telepathy" in snapshot.player.abilities:
+        return True
+    catalog = getattr(policy, "_equipment_catalog", None)
+    owned = (*snapshot.equipment, *snapshot.inventory,
+             *getattr(policy, "_home_knowledge_items", ()),
+             *(owned.item for owned in (catalog.items if catalog is not None else ())))
+    return any(TR_TELEPATHY in item.known_flags for item in owned)
+
+
+PRIORITY_WARES = (
+    # Owner 2026-11-07 「何本でも買う」: whenever the Black Market shelves one.
+    PriorityWare("destruction-staff", frozenset({STORE_BLACK}),
+                 lambda policy, item: policy._is_destruction_staff(item),
+                 lambda _policy, _snapshot: True),
+    # Owner 2026-11-15 「完全なテレパシーを闇市で最優先で買う」; its purchase rung is
+    # policy_shop's "priority-ware:telepathy" (``rung_matches``).
+    PriorityWare("telepathy", None, _is_telepathy_ware,
+                 lambda policy, snapshot: not _owns_telepathy(policy, snapshot)),
+)
+_BY_LABEL = {entry.label: entry for entry in PRIORITY_WARES}
+_RANK = {entry.label: rank for rank, entry in enumerate(PRIORITY_WARES)}
+
+
+def _entry(shelf: dict | None) -> PriorityWare:
+    # A checkpoint older than the table shelved the staff.
+    return _BY_LABEL[(shelf or {}).get("ware", PRIORITY_WARES[0].label)]
+
+
+def _shelf_store(shelf: dict) -> int:
+    return shelf.get("store", STORE_BLACK)
 
 # 「予備の武器と予備の胴防具」: item_fate's melee and body slots; 2026-11-07
 # 「射撃武器も入れる」: and launchers (bows, crossbows, slings).  Diggers stay, and so
@@ -207,10 +275,10 @@ def _note_census_posted(policy: Any) -> None:
         policy._bm_fund_census = (census[0], True)
 
 
-def _black_market_finished(policy: Any) -> bool:
+def _store_finished(policy: Any, store: int) -> bool:
     plan = getattr(policy, "_town_errand_plan", None)
-    return (STORE_BLACK in policy._town_store_attempted
-            or (plan is not None and STORE_BLACK in plan.completed_this_visit))
+    return (store in policy._town_store_attempted
+            or (plan is not None and store in plan.completed_this_visit))
 
 
 def _fundable(policy: Any, snapshot: Any) -> bool:
@@ -252,13 +320,32 @@ def settled(policy: Any, snapshot: Any) -> bool:
     return not staff_pending(policy, snapshot)
 
 
-def _carried(policy: Any, snapshot: Any) -> int:
-    return sum(item.count for item in snapshot.inventory if policy._is_destruction_staff(item))
+def _carried(policy: Any, snapshot: Any, entry: PriorityWare | None = None) -> int:
+    entry = entry or _entry(getattr(policy, "_bm_destruction_shelf", None))
+    return sum(item.count for item in snapshot.inventory if entry.is_ware(policy, item))
 
 
-def _staffs(policy: Any, store: Any) -> list:
+def _rows(policy: Any, store: Any, entry: PriorityWare) -> list:
     return [item for item in store.items
-            if policy._is_destruction_staff(item) and item.count > 0 and item.price > 0]
+            if entry.is_ware(policy, item) and item.count > 0 and item.price > 0]
+
+
+def _wares(policy: Any, snapshot: Any, store: Any) -> tuple:
+    """(row of the table, its wares on this page) of the first wanted row shelved here."""
+    for entry in PRIORITY_WARES:
+        if entry.stores is not None and store.store_type not in entry.stores:
+            continue
+        rows = _rows(policy, store, entry)
+        if rows and entry.wanted(policy, snapshot):
+            return entry, rows
+    return None, []
+
+
+def rung_matches(policy: Any, snapshot: Any, label: str, item: Any) -> bool:
+    """The purchase rung of the table's row ``label``: this stay's shelved ware."""
+    shelf = _shelf(policy, snapshot)
+    return (shelf is not None and _entry(shelf).label == label
+            and _BY_LABEL[label].is_ware(policy, item))
 
 
 def page_purchase(policy: Any, snapshot: Any) -> tuple | None:
@@ -271,8 +358,9 @@ def page_purchase(policy: Any, snapshot: Any) -> tuple | None:
     store = snapshot.store
     if store is None or not staff_pending(policy, snapshot):
         return None
-    if store.store_type == STORE_BLACK:
-        staffs = _staffs(policy, store)
+    shelf = _shelf(policy, snapshot)
+    if store.store_type == _shelf_store(shelf):
+        staffs = _rows(policy, store, _entry(shelf))
         if not staffs:
             return None
         short = shortfall(policy, snapshot)
@@ -296,7 +384,7 @@ def _close_shelf(policy: Any, shelf: dict, outcome: str, snapshot: Any) -> None:
     if shelf.get("withheld") and not shelf.get("rearmed"):
         # The page's other wares waited for the staff: they may be bought now.
         shelf["rearmed"] = True
-        policy._rearm_town_store_for_new_work(STORE_BLACK)
+        policy._rearm_town_store_for_new_work(_shelf_store(shelf))
 
 
 def observe(policy: Any, snapshot: Any) -> None:
@@ -305,16 +393,22 @@ def observe(policy: Any, snapshot: Any) -> None:
     _note_census_posted(policy)
     store = snapshot.store
     shelf = getattr(policy, "_bm_destruction_shelf", None)
-    if store is not None and store.store_type == STORE_BLACK:
-        staffs = _staffs(policy, store)
+    if store is not None and store.store_type != STORE_HOME:
+        entry, staffs = _wares(policy, snapshot, store)
+        here = shelf is not None and _shelf_store(shelf) == store.store_type
         if not staffs:
-            if shelf is not None and (shelf.get("page_top") == store.page_top
-                                      or store.stock_num == len(store.items)):
+            if here and (shelf.get("page_top") == store.page_top
+                         or store.stock_num == len(store.items)):
                 policy._bm_destruction_shelf = None
+            return
+        open_shelf = _shelf(policy, snapshot)
+        if (open_shelf is not None and not here
+                and _RANK[_entry(open_shelf).label] < _RANK[entry.label]):
+            # A higher row shelved on another shop keeps this stay's errand.
             return
         ware = min(staffs, key=lambda item: item.price)
         mark = (policy._effective_town_id(snapshot), policy._town_visit_epoch,
-                ware.price, sum(item.count for item in staffs))
+                ware.price, sum(item.count for item in staffs), store.store_type, entry.label)
         kept = ({name: shelf[name]
                  for name in ("rearmed", "withheld", "revisited", "closed", "carried")
                  if name in shelf}
@@ -322,7 +416,8 @@ def observe(policy: Any, snapshot: Any) -> None:
         shelf = policy._bm_destruction_shelf = {
             "town": mark[0], "epoch": mark[1], "price": ware.price,
             "page_top": store.page_top, "mark": mark, "rearmed": False,
-            "carried": _carried(policy, snapshot), **kept,
+            "store": store.store_type, "ware": entry.label,
+            "carried": _carried(policy, snapshot, entry), **kept,
         }
         if shelf["rearmed"]:
             # The reopened stop's page: its purchase has its chance now.
@@ -348,11 +443,11 @@ def observe(policy: Any, snapshot: Any) -> None:
         # Every eligible spare together cannot cover it: nothing is sold.
         _close_shelf(policy, shelf, "unaffordable", snapshot)
         return
-    if not _black_market_finished(policy):
+    if not _store_finished(policy, _shelf_store(shelf)):
         return
     if shelf.get("revisited"):
         # The reopened stop was left again: the purchase had its chance.
         _close_shelf(policy, shelf, "revisited", snapshot)
     elif short <= 0 and not shelf.get("rearmed"):
         shelf["rearmed"] = True
-        policy._rearm_town_store_for_new_work(STORE_BLACK)
+        policy._rearm_town_store_for_new_work(_shelf_store(shelf))
