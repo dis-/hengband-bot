@@ -4546,8 +4546,24 @@ class CombatMixin:
         # first step resets the stall streak and re-locks the floor (#47 D60,
         # n1-c life-098, 鉄獄12階 random quest 43, 2026-11-01 20:01: one step
         # every 61 decisions until livelock-exhausted).
+        # A mining floor walks to its up-stairs without spending Recall while a
+        # remembered route reaches one (the breakthrough route, the swarm's cells
+        # walkable to clear).  With none the walk-out is discovery through the
+        # swarm, and a corridor the breeders refill is no way out: n1-a life-525
+        # (2026-11-15 16:54, Lv37 Warrior, Yeek cave 1F) killed a 巨大ハツカネズミ
+        # nearly every action at (5,34) toward a frontier while the up-stairs at
+        # (60,57) had no remembered route, until the loop detector stopped it with
+        # ten Recall scrolls carried.  Such a floor leaves by Recall like any other.
+        here = snapshot.grid_at(snapshot.player.position)
+        mining_walks_to_stairs = (
+            self._fundraising_mode == "mine"
+            and (
+                (here is not None and self._is_upstairs_target(here))
+                or self._breeder_breakthrough_step(snapshot) is not None
+            )
+        )
         if (
-            self._fundraising_mode != "mine"
+            not mining_walks_to_stairs
             and (
                 abandon
                 or self._active_fixed_quest_id(snapshot) is None

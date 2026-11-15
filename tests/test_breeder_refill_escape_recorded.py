@@ -99,13 +99,32 @@ class BreederRefillEscapeRecordedTest(unittest.TestCase):
         )
         self.assertNotEqual(self.policy.last_reason, "breeder-breakthrough:recall")
 
-    def test_fundraising_mine_keeps_recall_suppressed(self):
+    def test_fundraising_mine_with_a_stairs_route_keeps_recall_suppressed(self):
+        # DECLARED CONSTRUCTED: a mining run on this floor, and a remembered route to
+        # the up-stairs (the board itself has none).  A latched mining floor walks to
+        # its stairs without spending Recall while a route reaches one.
         self.policy._fundraising_mode = "mine"
+        with patch.object(self.policy, "_breeder_breakthrough_step",
+                          return_value=self.board.player.position):
+            key = self.policy._breeder_breakthrough_key(
+                self.board, self.policy._strategic_hostiles(self.board)
+            )
+        self.assertNotEqual(key, "rf")
+        self.assertNotEqual(self.policy.last_reason, "breeder-breakthrough:recall")
+
+    def test_fundraising_mine_without_a_stairs_route_reads_recall(self):
+        # DECLARED CONSTRUCTED: a mining run on this floor.  No remembered route
+        # reaches an up-stairs (the breakthrough would clear toward a frontier
+        # through the refilling swarm), so the floor leaves by Recall like any
+        # other latched floor (n1-a life-525 2026-11-15 16:54,
+        # test_n1a_525_mouse_swarm_1115_recorded).
+        self.policy._fundraising_mode = "mine"
+        self.assertIsNone(self.policy._breeder_breakthrough_step(self.board))
         key = self.policy._breeder_breakthrough_key(
             self.board, self.policy._strategic_hostiles(self.board)
         )
-        self.assertNotEqual(key, "rf")
-        self.assertNotEqual(self.policy.last_reason, "breeder-breakthrough:recall")
+        self.assertEqual(key, "rf")
+        self.assertEqual(self.policy.last_reason, "breeder-breakthrough:recall")
 
     def test_without_the_latch_ordinary_combat_keeps_fighting(self):
         self.policy._breeder_breakthrough_floor = None

@@ -16,7 +16,9 @@ frontier until the loop detector stopped it -- ten Recall scrolls carried.  Afte
 the trident was in hand (58 hits, 58 kills) and the corridor still refilled.
 
 Fix: the contact re-arm undoes the mining swap, under mining_loadout.ROLLBACK_GOAL like the
-empty-hand re-arm, so the supersession guard does not refuse it.
+empty-hand re-arm, so the supersession guard does not refuse it; and a latched mining floor
+keeps walking to the stairs without Recall only while a remembered route reaches one
+(policy_combat._breeder_breakthrough_key).
 
 Recorded: the boards are the incident capture's (tests/extract_n1a_525_mouse_swarm_1115_fixture.py:
 the town-arrival checkpoint replayed over the snapshot tail into the dungeon, all 741 decisions
@@ -25,7 +27,8 @@ public choose_key.  Where a test walks on past a board the fix decides different
 key is posted (FORCED).
 
 DECLARED CONSTRUCTED: the boards after the re-arm's wield and takeoff are 2508's board with
-the trident in the main hand (and the off-hand digger in the pack), the turn advanced.
+the trident in the main hand (and the off-hand digger in the pack), the turn advanced; the
+counter-case gives the breakthrough a route to the stairs (``_breeder_breakthrough_step``).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -40,7 +43,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.cli import SendResult, _ExecutorInputPort, _consume_response_sequence, _transport_key
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
-from hengbot.model import parse_snapshot
+from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from tests.support import recorded as harness
 from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen
@@ -176,6 +179,35 @@ class N1a525MouseSwarm1115RecordedTest(harness.ProductionHarness):
         key = self.decide(single)
         self.assertNotEqual(self.policy.last_reason, REARM)
         self.assertFalse(key.startswith(("w", "t")), (key, self.policy.last_reason))
+
+    def walk_to_latch(self):
+        """Deliver every board before the latch, posting the recorded keys (FORCED)."""
+        for entry in self.boards:
+            raw, board = self.deliver(entry)
+            if entry["decision"]["decision_sequence"] == LATCH:
+                return raw, board
+            self.policy.choose_key(board)
+            self.policy.confirm_key_posted(entry["decision"]["key"])
+        raise AssertionError("no latch board")
+
+    def test_the_latched_mining_floor_without_a_stairs_route_reads_recall(self):
+        raw, board = self.walk_to_latch()
+        self.assertEqual(self.policy._breeder_breakthrough_floor, board.floor_key)
+        self.assertIsNone(self.policy._breeder_breakthrough_step(board))
+
+        key = self.policy.choose_key(board)
+
+        self.assertEqual((key, self.policy.last_reason),
+                         ("r" + letter_of(raw, RECALL), "breeder-breakthrough:recall"))
+
+    def test_a_route_to_the_stairs_still_walks_without_recall(self):
+        raw, board = self.walk_to_latch()
+        # DECLARED CONSTRUCTED (module docstring): a route to the stairs.
+        self.policy._breeder_breakthrough_step = lambda snapshot: Position(8, 36)
+
+        self.policy.choose_key(board)
+
+        self.assertNotEqual(self.policy.last_reason, "breeder-breakthrough:recall")
 
 
 if __name__ == "__main__":
