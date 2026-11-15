@@ -1472,13 +1472,16 @@ class ObservationMixin:
         # and descent owner asks this predicate.  The gate label, the ability
         # table (telepathy from 50F), the band-descent rule and the unsafe-recall
         # fallback are untouched, and the refusal keeps its `missing-destruction`
-        # wording.
+        # wording.  In town a charged Home staff the worn device skill makes
+        # reliable is a held use too (owner 2026-11-15 「装備で魔法道具使用能力を
+        # 向上させて杖の成功率を上げることで先に進むことができる」; the departure
+        # then takes it, destruction_use.holds_means).
         if not destruction_dive_permitted(
                 depth, lambda: destruction_use.holds_means(self, snapshot)):
             missing.add(DESTRUCTION_GATE_LABEL)
-        elif DESTRUCTION_GATE_LABEL in missing and self._has_destruction_method(
-            snapshot
-        ):
+        elif DESTRUCTION_GATE_LABEL in missing and (
+                self._has_destruction_method(snapshot)
+                or destruction_use.owns_charged_staff(self, snapshot)):
             missing.discard(DESTRUCTION_GATE_LABEL)
         if SPEED_GATE_LABEL in missing and snapshot.player.speed >= SPEED_GATE_MINIMUM:
             # player.speed includes temporary boosts; a hasted check at the

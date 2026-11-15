@@ -22,6 +22,13 @@ carry excluded, as me_staff_sequence and q2_tower_recharge read it); an unknown
 price buys nothing.  Wearing belongs to the equipment transaction and its
 comparison, which needs the calibration: nothing is bought without it.
 
+Owner 2026-11-15 (n1-a life-525, a warrior with eleven staves of *Destruction* at
+1.4% in the Home), verbatim: 「装備で魔法道具使用能力を向上させて杖の成功率を上げることで
+先に進むことができる」.  A landing missing *Destruction* (50F+) has that gap closed by a
+row with MAGIC_MASTERY when the character owns a charged staff (carried, or in the Home)
+and the row lets the owned gear reach the staff's reliable skill (``_device_need``: the
+bound of device_skill.mastery_bound; the equipment comparison then wears the set).
+
 Each row is judged once.  A bought row is never bought again, whatever became
 of it.  While a bought source of an ability is still owned, whether or not the
 comparison wore it, that ability buys nothing more; the town end then answers
@@ -30,9 +37,12 @@ the gap as it does without a shelf (``town_terminal``).
 
 from __future__ import annotations
 
+from hengbot import destruction_use, device_skill
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.model import STORE_HOME
-from hengbot.policy_constants import RESIST_FLAG_BY_ABILITY
+from hengbot.policy_constants import (
+    DESTRUCTION_GATE_LABEL, PLAYER_CLASS_BERSERKER, RESIST_FLAG_BY_ABILITY,
+)
 from hengbot.town_pack_budget import room_assumed
 
 _BOUGHT = "_ability_gear_bought"
@@ -59,7 +69,8 @@ def note_bought(policy, snapshot, store: int, signature: tuple) -> None:
     row = next((row for row in getattr(page, "items", ())
                 if policy._item_signature(row) == signature), None)
     if (row is not None and row.is_equipment and row.known_flags
-            and row.known_flags & _open_flags(policy, snapshot)):
+            and (row.known_flags & _open_flags(policy, snapshot)
+                 or _closes_device_gap(policy, snapshot, row))):
         _bought(policy).add(_identity(*signature[:3]))
 
 
@@ -67,17 +78,61 @@ def _bought_kinds(policy) -> frozenset[tuple[int, int]]:
     return frozenset(identity[1:] for identity in _bought(policy))
 
 
+def _owned_mastery(policy) -> tuple:
+    return tuple((owned.item.tval, device_skill.item_mastery(owned))
+                 for owned in policy._equipment_catalog.items if owned.exploration_legal)
+
+
+def _device_bound(policy, snapshot, extra=()) -> int:
+    """The device skill the owned gear (and ``extra``) can give at most."""
+    worn = sum(device_skill.item_mastery(owned) for owned in policy._equipment_catalog.items
+               if owned.origin == "equipped")
+    return (snapshot.player.device_skill - worn
+            + device_skill.mastery_bound(_owned_mastery(policy) + tuple(extra)))
+
+
+def _device_need(policy, snapshot) -> int | None:
+    """The staff's reliable skill while the landing misses the *Destruction* means, a
+    charged staff is owned and the owned gear cannot reach the skill; None otherwise."""
+    if (DESTRUCTION_GATE_LABEL not in _landing_missing(policy, snapshot)
+            or snapshot.player.class_id == PLAYER_CLASS_BERSERKER
+            or not destruction_use.owns_charged_staff(policy, snapshot)
+            or device_skill.TR_MAGIC_MASTERY in _bought_flags(policy)):
+        return None
+    need = destruction_use.reliable_skill()
+    return need if _device_bound(policy, snapshot) < need else None
+
+
+def _closes_device_gap(policy, snapshot, row) -> bool:
+    """A shelf row with MAGIC_MASTERY that lets the owned gear reach the staff's skill."""
+    if device_skill.TR_MAGIC_MASTERY not in row.known_flags or row.pval <= 0:
+        return False
+    need = _device_need(policy, snapshot)
+    return need is not None and _device_bound(
+        policy, snapshot, ((row.tval, 8 * row.pval),)) >= need
+
+
+def _bought_flags(policy) -> frozenset[int]:
+    """The flags of the owned items of a bought kind."""
+    kinds = _bought_kinds(policy)
+    if not kinds:
+        return frozenset()
+    return frozenset(flag for owned in policy._equipment_catalog.items
+                     if (owned.item.tval, owned.item.sval) in kinds for flag in owned.flags)
+
+
+def _landing_missing(policy, snapshot) -> frozenset:
+    return policy._missing_required_abilities(
+        snapshot, policy._equipment_departure_destination_depth(snapshot))
+
+
 def _open_flags(policy, snapshot) -> frozenset[int]:
     """The flags that would close an ability the landing is missing."""
-    missing = policy._missing_required_abilities(
-        snapshot, policy._equipment_departure_destination_depth(snapshot))
+    missing = _landing_missing(policy, snapshot)
     flags = {RESIST_FLAG_BY_ABILITY[ability] for ability in missing
              if ability in RESIST_FLAG_BY_ABILITY}
-    kinds = _bought_kinds(policy)
-    if flags and kinds:
-        flags -= {flag for owned in policy._equipment_catalog.items
-                  if (owned.item.tval, owned.item.sval) in kinds
-                  for flag in owned.flags}
+    if flags:
+        flags -= _bought_flags(policy)
     return frozenset(flags)
 
 
@@ -96,7 +151,7 @@ def _rows(policy, snapshot, page, flags: frozenset[int]) -> list:
     return [row for row in page.items
             if row.is_equipment and row.price > 0 and row.count > 0
             and not row.is_cursed and not row.is_broken
-            and row.known_flags & flags
+            and (row.known_flags & flags or _closes_device_gap(policy, snapshot, row))
             and snapshot.player.gold - row.price >= reserve
             and _identity(row.name, row.tval, row.sval) not in bought]
 
@@ -106,7 +161,7 @@ def _cheapest(policy, snapshot) -> tuple[int, object] | None:
     if not _may_buy(policy, snapshot):
         return None
     flags = _open_flags(policy, snapshot)
-    if not flags:
+    if not flags and _device_need(policy, snapshot) is None:
         return None
     stores = set(policy._town_supplier_stock)
     if snapshot.store is not None:
