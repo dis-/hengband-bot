@@ -2711,11 +2711,23 @@ class TownMixin:
         undo exactly that effect, so the canceller evaluates the same conjunct
         map on the same board as the read point that authorised the recall.
         Any other board is returned unchanged.
+
+        The countdown's game time is the read's own effect as well: the
+        board is read at the read's turn.  A shop page the read point saw is
+        shelf evidence only for a bounded number of turns, and its expiry
+        during the countdown dropped the General Store's arrows and shots from
+        the optimizer's obtainable ammunition, so the optimizer chose another
+        ring for the same worn kit, equipment_departure_ready failed and the
+        canceller undid the recall the read point had authorised; the read
+        point then refused to read twice (n1-c life-214 2026-11-16 06:26,
+        recall-readiness-contradiction).  Nothing the character holds or
+        wears changed.
         """
         watch = self._town_recall_issue_watch
         if watch is None or not snapshot.in_town or not snapshot.player.recalling:
             return snapshot
-        _destination, _turn, pre_read_count = watch
+        _destination, read_turn, pre_read_count = watch
+        read_turn = min(read_turn, snapshot.turn)
         rod = getattr(self, "_town_recall_issue_rod", None)
         if rod is not None:
             # The zapped rod recharges; the scrolls are untouched.
@@ -2725,6 +2737,7 @@ class TownMixin:
                 return snapshot
             return replace(
                 snapshot,
+                turn=read_turn,
                 player=replace(snapshot.player, recalling=False),
                 inventory=[rod if item is zapped else item for item in snapshot.inventory],
             )
@@ -2734,6 +2747,7 @@ class TownMixin:
         consumed = stacks[0]
         return replace(
             snapshot,
+            turn=read_turn,
             player=replace(snapshot.player, recalling=False),
             inventory=[
                 replace(item, count=pre_read_count) if item is consumed else item
