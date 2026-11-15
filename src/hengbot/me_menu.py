@@ -222,6 +222,12 @@ class MagicEaterMenu:
             operation.continuations[0] = step
         if match.kind in {ScreenKind.MORE, ScreenKind.LEVEL_UP_STAT}:
             return None
+        if match.kind is ScreenKind.CONFIRM and executor._is_follow_teleport_confirm(match.feature):
+            # spells-teleport.cpp teleport_away_followable asks it on a monster's turn after
+            # the use (n1-b life-405 2026-11-16 05:36, a 衝撃 bolt at a will o' the wisp, which
+            # teleported away): the executor answers n for every owner (owner 2026-11-06),
+            # so the walk leaves it to that answer and resumes at the next screen.
+            return None
         if match.kind is ScreenKind.COMMAND and self.command_ends(step, seen, operation):
             operation.continuations.pop(0)
             return None
