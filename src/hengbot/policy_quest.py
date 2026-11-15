@@ -612,8 +612,12 @@ class QuestMixin(OpeningRouteMixin):
         if reward is not None:
             return reward
         # The class sequences that travel wait while the report or the
-        # pickup holds the town; the room-making owners take the board.
-        if not town_quest_reward.holds_town(self, snapshot):
+        # pickup holds the town; the room-making owners take the board.  So
+        # they do while the Black Market's *Destruction* staff waits for its
+        # fund and purchase (owner 2026-11-15 「その訪問中に購入まで遂行する」).
+        from hengbot import bm_destruction_fund
+        if (not town_quest_reward.holds_town(self, snapshot)
+                and not bm_destruction_fund.holds_town_for_staff(self, snapshot)):
             # Owner 2026-11-07 「次に町へ戻った時」: the Zul trip comes before the
             # other town errands, and holds the board while it is under way.
             from hengbot import zul_trip

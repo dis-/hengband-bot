@@ -39,7 +39,6 @@ RESERVE = 6657
 # fifth (rank 5), and an artifact of the same slot.
 RANK_ONE = "(パターン)パイク (2d5) (+9,+7) (+2) {+腕耐r呪;麻視経/邪デ死}"
 RANK_FIVE = "(聖戦者)ロッホアーバー・アックス (3d8) (+12,+8) [+2] (+1攻撃) {+攻賢r恐;視祝/邪デ死(賢}"
-RANK_ONE_LAUNCHER = "強力射のショート・ボウ (x3) (0.55turn) (+10,+17) {r破;倍}"
 TAKE_FOR_SALE ="home-errand:atomic-withdraw:full-home-sale"
 ARTIFACT = "★ブロード・ソード『ノートゥング』 (2d5) (+12,+16) (+4) {+腕探r電火毒恐;遅明|電/X龍/オ~竜}"
 
@@ -98,9 +97,16 @@ class BlackMarketDestructionRecordedTest(_executor_support.ProductionHarness):
             if board.store is not None and board.store.store_type == STORE_BLACK:
                 board = with_staff(board, price)
             key = policy.choose_key(board)
-            # Short of the optional reserve, the recorded Speed buys, the walk
-            # Home and its deposit stand.
-            self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+            if index == BLACK_MARKET_ROW:
+                # Owner 2026-11-15 「最優先」: short of the optional reserve, the
+                # staff owns the page and the recorded Speed buy waits for it.
+                # DECLARED WALL: the recorded key is posted, so the recorded
+                # rows after it (the walk Home and its deposit) still replay.
+                self.assertIsNone(policy._next_purchase(board))
+                key = recorded["key"]
+            else:
+                # The walk Home and its deposit stand.
+                self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
             if index == OUTSIDE_ROW:
                 self.assertTrue(policy._home_knowledge_current)
                 census = policy._home_knowledge_items
@@ -197,7 +203,6 @@ class BlackMarketDestructionRecordedTest(_executor_support.ProductionHarness):
         self.assertEqual(bm_destruction_fund.plan(policy, board),
                          (policy._item_signature(rank_five),))
         self.assertEqual(item_fate.gear_tier(policy, board, rank_five), item_fate.ANY)
-        self.assertEqual(item_fate.gear_tier(policy, board, rank_one), item_fate.KEEP)
         self.assertEqual(item_fate.gear_tier(policy, board, self.home_row(policy, ARTIFACT)),
                          item_fate.KEEP)
         key = policy.choose_key(board)
@@ -220,8 +225,10 @@ class BlackMarketDestructionRecordedTest(_executor_support.ProductionHarness):
         self.assertEqual(item_fate.gear_tier(policy, taken, carried), item_fate.ANY)
         self.assertTrue(item_fate.sold_not_shelved(policy, taken, carried))
 
-    def test_rank_one_and_artifacts_are_never_in_the_fund(self):
-        # So short that nearly every eligible piece is needed: still not these.
+    def test_artifacts_are_never_in_the_fund(self):
+        # So short that nearly every eligible piece is needed: still not artifacts.
+        # Owner 2026-11-15 「アーティファクト以外全て」: rank 1 is no longer held back
+        # (tests/test_bm_destruction_sell_all_1115_recorded pins a rank 1 spare in).
         visit, census = self.after_the_black_market(OUTSIDE_GOLD - RESERVE + 440000)
         policy = visit.policy
         board = self.census_answered(visit, census)
@@ -229,28 +236,14 @@ class BlackMarketDestructionRecordedTest(_executor_support.ProductionHarness):
         self.assertGreater(len(plan), 70)
         names = {name for name, _tval, _sval in plan}
         self.assertIn(RANK_FIVE, names)
-        self.assertNotIn(RANK_ONE, names)
         self.assertNotIn(ARTIFACT, names)
         self.assertFalse(any(item.is_artifact or not item.known
                              for item in policy._home_knowledge_items
                              if item.name in names))
-        self.assertTrue(all(item_fate.gear_rank(policy, board, self.home_row(policy, name)) >= 2
-                            for name in names))
         # Melee weapons, launchers (2026-11-07 「射撃武器も入れる」) and body
         # armour only: no digger, no other slot.
         self.assertEqual({item_fate.SLOT_BY_TVAL[tval] for _name, tval, _sval in plan},
                          {"melee", "launcher", "body"})
-        # Home's six spare launchers: ranks 2-6 are in, the rank 1 bow is not.
-        launcher_ranks = sorted(item_fate.gear_rank(policy, board, self.home_row(policy, name))
-                                for name, tval, _sval in plan
-                                if item_fate.SLOT_BY_TVAL[tval] == "launcher")
-        self.assertEqual(launcher_ranks, [2, 3, 4, 5, 6])
-        self.assertNotIn(RANK_ONE_LAUNCHER, names)
-        # 60,000 poorer, ranks 2+ no longer cover it (their estimates total
-        # about 472,700): the rank 1 pieces are not counted in, so nothing is sold.
-        poorer = replace(board, player=replace(board.player, gold=board.player.gold - 60000))
-        self.assertEqual(bm_destruction_fund.shortfall(policy, poorer), 500000)
-        self.assertEqual(bm_destruction_fund.plan(policy, poorer), ())
 
     def test_spares_short_of_the_staff_sell_nothing(self):
         visit, census = self.after_the_black_market(900000)
