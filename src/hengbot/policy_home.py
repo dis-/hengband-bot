@@ -342,7 +342,10 @@ class HomeMixin:
         return LEAVE_STORE_KEY
 
     def _home_full_has_normal_identification_source(self, snapshot: Snapshot) -> bool:
-        return self._carried_identification_source(snapshot, full=False) is not None
+        # Class 16's absorbed Identify serves first (_carried_identify_command).
+        from hengbot.me_staff_sequence import identify_power_available
+        return (self._carried_identification_source(snapshot, full=False) is not None
+                or identify_power_available(self, snapshot))
 
     def _home_is_full(self, snapshot: Snapshot) -> bool:
         store = getattr(snapshot, "store", None)
@@ -730,6 +733,30 @@ class HomeMixin:
                 "home-full-identification-unresolved", owners=("identification",),
                 kinds=("Observe",), sources=("store-operation",))
 
+    def _end_home_sweep_identification(self) -> None:
+        """End the sweep's relief over the ware it took and identified.
+
+        Owner 2026-11-15 「鑑定の手段で調べる」: the identified potion or
+        scroll stays carried as ordinary stock for the existing keep, sale,
+        destroy and deposit rules; the sweep's count of the stay already holds
+        this take, so a later Home page may take the next unaware ware.
+        """
+        relief = self._home_full_relief
+        signature = relief["sale"][0] if relief.get("sale") is not None else None
+        self._release_claim_goal(
+            "sweep-ware-identified", owners=("identification",), kinds=("Observe",),
+            sources=("store-operation",))
+        self._home_errand.finish()
+        # The take changed shelf addresses (as _home_full_skip_key).
+        self._invalidate_home_observation()
+        if signature is not None and self._home_pending_item == signature:
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_pending_take_confirmed = None
+        self._home_full_relief = None
+        return None
+
     @claims(ClaimOwner.HOME_VISIT)
     def _home_full_skip_key(self, reason: str) -> str:
         """Retain an unresolved/protected take and select other stock next."""
@@ -1005,6 +1032,11 @@ class HomeMixin:
                         relief["identification_counts"] = counts
                         return key
                     if relief.get("mode") == "identify":
+                        if relief.get("sweep"):
+                            # The sweep's unaware potion or scroll is now known:
+                            # the existing rules keep, sell or destroy it as any
+                            # carried stock (owner 2026-11-15); the sweep goes on.
+                            return self._end_home_sweep_identification()
                         candidate = self._home_full_sale_candidate(
                             replace(snapshot, inventory=tuple(
                                 carried for carried in snapshot.inventory
@@ -1397,16 +1429,28 @@ class HomeMixin:
                         snapshot, inventory=(*snapshot.inventory, junk[0][0])),
                         junk[0][0])
                 else:
-                    ware = None if junk else item_fate.sweep_ware(self, snapshot, sale_stock)
-                    if ware is None:
+                    # Owner 2026-11-15 「鑑定の手段で調べる」: an unaware potion
+                    # or scroll a carried means identifies now comes before
+                    # a sale ware (a sale ware the sweep cannot finish ends
+                    # the sweep for the stay); the relief's identify mode
+                    # takes and identifies it.
+                    identify_ware = (None if junk
+                                     else item_fate.sweep_identify_ware(self, snapshot, sale_stock))
+                    ware = (None if junk or identify_ware is not None
+                            else item_fate.sweep_ware(self, snapshot, sale_stock))
+                    if identify_ware is not None:
+                        discard, unidentified = [], [identify_ware]
+                        relief["sweep_class"] = "identified"
+                    elif ware is None:
                         self._end_home_junk_sweep()
                         return None
-                    candidates = [ware]
-                    signature = self._item_signature(ware[0][0])
-                    if signature in bm_destruction_fund.plan(self, snapshot):
-                        # Its take and sale keep the fund's exception after
-                        # the census that chose it is gone.
-                        relief["fund"] = signature
+                    else:
+                        candidates = [ware]
+                        signature = self._item_signature(ware[0][0])
+                        if signature in bm_destruction_fund.plan(self, snapshot):
+                            # Its take and sale keep the fund's exception after
+                            # the census that chose it is gone.
+                            relief["fund"] = signature
             carried_sale = []
             if not candidates:
                 if not pack_bound:
@@ -3468,8 +3512,9 @@ class HomeMixin:
         """
         if not (snapshot.in_town and self._identification_waiting_item(item)):
             return False
+        unaware = self._unaware_consumable_awaits_identification(item)
         from hengbot.me_staff_sequence import identify_power_available
-        if not item.known and identify_power_available(self, snapshot):
+        if not unaware and not item.known and identify_power_available(self, snapshot):
             return False  # Class 16's absorbed Identify is a carried source.
         signature = self._item_signature(item)
         if (signature == self._home_pending_item
@@ -3478,6 +3523,10 @@ class HomeMixin:
                 or (self._home_atomic_withdraw_pending is not None
                     and signature == self._home_atomic_withdraw_pending[0])):
             return False
+        if unaware:
+            # Owner 2026-11-15: an unaware potion or scroll no carried means
+            # identifies now waits on the shelf; no source is bought for it.
+            return not self._unaware_consumable_identifiable_now(snapshot, item)
         return self._identification_source_obtainability(
             snapshot, full=item.known, within_pack_budget=True) == "unavailable"
 
@@ -3521,10 +3570,14 @@ class HomeMixin:
         spare_equipment = (spare_gear.released(self, snapshot, item)
                            and not (snapshot is not None
                                     and item_fate.sold_not_shelved(self, snapshot, item)))
+        # An unaware potion or scroll the identification flow owns is shelved
+        # only while no source can identify it (_identification_waiting_deposit,
+        # owner 2026-11-15 「鑑定の手段で調べる」).
         protected_unknown_consumable = (
             self._deepest_level >= 20
             and (item.is_potion or item.is_scroll)
             and not item.aware
+            and not self._unaware_consumable_awaits_identification(item)
         )
         # Treasure Detection scrolls and digging tools are mining gear: carried only
         # while fundraising (mining level 1). On a normal diving run they are dead
@@ -4428,6 +4481,9 @@ class HomeMixin:
         for item in self._home_knowledge_items[: self._home_knowledge_valid_before]:
             signature = self._item_signature(item)
             if (item.is_equipment or not self._identification_waiting_item(item)
+                    # A shelved unaware potion or scroll is the Home junk
+                    # sweep's identification ware (item_fate.sweep_identify_ware).
+                    or self._unaware_consumable_awaits_identification(item)
                     # A staff stage 1 keeps at Home stays there until stage 1
                     # is complete (owner 2026-11-08, me_staff_sequence.stows):
                     # no take that its deposit would put back at once.
@@ -5513,6 +5569,8 @@ class HomeMixin:
                 self._deepest_level >= 20
                 and (item.tval == TVAL_POTION or item.tval == TVAL_SCROLL)
                 and not item.aware
+                # The Home junk sweep owns these (item_fate.sweep_identify_ware).
+                and not self._unaware_consumable_awaits_identification(item)
             ):
                 return item
         return None

@@ -85,7 +85,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot import line_of_fire
+from hengbot import cross_rules, line_of_fire, recall_wait_teleport
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL, game_distance
 from hengbot.policy_constants import SEARCH_KEY
@@ -150,7 +150,10 @@ def fire_p95(policy, snapshot) -> int:
 
 
 def allows(policy, snapshot) -> bool:
-    """The self-teleport may be read or cast on this board."""
+    """The self-teleport may be read or cast on this board.  While Recall counts down the owner's
+    2026-11-15 rule (recall_wait_teleport) holds too, at every depth."""
+    if recall_wait_teleport.withheld(policy, snapshot):
+        return False
     if not applies(policy, snapshot):
         return True
     return fire_p95(policy, snapshot) >= snapshot.player.hp and not landed_threats(policy, snapshot)
@@ -173,6 +176,7 @@ def note_teleport(policy, snapshot) -> None:
 def observe(policy, snapshot) -> None:
     """Every decision: settle the Teleportation let through on the previous board."""
     setattr(policy, NO_MEANS_NOTE, None)
+    recall_wait_teleport.observe(policy)
     memory = getattr(policy, MEMORY, None)
     if memory is None:
         return
@@ -301,7 +305,12 @@ def no_means(policy, snapshot) -> bool:
     """50F+ off the 即死 board with no Recall, and no concerned monster or no *Destruction* use on
     the concerned ones and no walk toward one: the self-teleport is not offered (the module
     docstring).  Pure, memoised for the decision; False while it is being computed (a finder
-    asked from inside)."""
+    asked from inside).
+
+    The one predicate every finder of the self-teleport asks, so the owner's 2026-11-15 rule
+    while Recall counts down (recall_wait_teleport, at every depth) withholds it here too."""
+    if recall_wait_teleport.withheld(policy, snapshot):
+        return True
     if getattr(policy, _NO_MEANS_BUSY, False) or not applies(policy, snapshot):
         return False
 
@@ -331,7 +340,9 @@ def no_means(policy, snapshot) -> bool:
 def report(policy) -> dict | None:
     """The decision record's field: the branch, when the finders held the teleport back."""
     turn = getattr(policy, NO_MEANS_NOTE, None)
-    return None if turn is None else {"branch": NO_MEANS_BRANCH, "turn": turn}
+    if turn is None:
+        return recall_wait_teleport.report(policy)
+    return {"branch": NO_MEANS_BRANCH, "turn": turn}
 
 
 def _refused_key(policy, snapshot) -> str | None:
@@ -394,6 +405,7 @@ def substitute(policy, snapshot, *, teleportation: bool = True) -> str | None:
     """The key in place of a self-teleport ``allows`` refuses here, else None (read it).
     ``teleportation``: the teleport is a Teleportation (not Phase Door); one let through is
     remembered for its landing (``note_teleport``)."""
+    cross_rules.consult(policy, cross_rules.DEEP_TELEPORT)
     instead = _substitute(policy, snapshot)
     if instead is None and teleportation:
         note_teleport(policy, snapshot)
@@ -405,6 +417,10 @@ def _substitute(policy, snapshot) -> str | None:
 
     if allows(policy, snapshot):
         return None
+    if recall_wait_teleport.withheld(policy, snapshot):
+        # While Recall counts down nothing is read in the refused teleport's place.
+        policy.last_reason = recall_wait_teleport.HOLD_REASON
+        return SEARCH_KEY
     if fire_p95(policy, snapshot) >= snapshot.player.hp:
         # The 即死 board refused only for the landing in fire: *Destruction*, else the teleport.
         return destruction_use.key(policy, snapshot, leaving=landed_threats(policy, snapshot),

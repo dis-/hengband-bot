@@ -2763,18 +2763,33 @@ class TownMixin:
                 cause="outside-town",
             )
             return None
-        target = self._first_item(
-            snapshot,
-            lambda item: self._normal_identification_flow_candidate(item)
-            and not item.is_equipment
-            and self._item_signature(item) not in self._deferred_device_items,
-        )
+        target = self._device_identification_target(snapshot)
         if target is None:
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:device",
                 cause="no-device-target",
             )
             return None
+        if self._unaware_consumable_awaits_identification(target):
+            # Owner 2026-11-15 「鑑定の手段で調べる」: the carried means
+            # (_unaware_consumable_identifiable_now) identifies it; with none
+            # it is not a target (it waits on the shelf).
+            key = self._carried_identify_command(snapshot, target, full=False)
+            if key is None:
+                self._offer_execution_no_step(
+                    producer="identification", work_id="identify:device",
+                    cause="unaware-consumable-source-unavailable",
+                )
+                return None
+            self.last_reason = "identify:device"
+            self._offer_execution(
+                key, producer="identification",
+                work_id=f"identify:device:{self._item_signature(target)}",
+                next_step="identification.use-carried-source",
+                arguments=(self._item_signature(target),),
+                expected_effect="device-identified",
+            )
+            return key
         # The absorbed Identify serves what a staff would (owner 2026-10-30
         # 「以降、鑑定と財宝感知は取り込みで賄う」), first, as the carried
         # equipment flow (_carried_identify_command) casts it; a target its

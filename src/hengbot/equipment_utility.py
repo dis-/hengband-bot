@@ -18,6 +18,22 @@ existing thresholds:
 
 Other utility flags (see invisible, regeneration, slow digestion, warning,
 auras) are deliberately not valued: the owner did not ask for them.
+
+The *Destruction* means (``destruction_means_bonus``).  Owner 2026-11-15 (n1-a
+life-525 died on ガラスの城 49F with twelve staves of *Destruction* in the Home and
+the gear that made them reliable left there, since the staff was asked only from
+50F), verbatim 「深さに関係なく持っていく」: at every depth a loadout whose device
+skill makes an owned staff reliable (device_skill.StaffGate) earns
+``DESTRUCTION_MEANS_BONUS``, the size of full telepathy (the highest utility the
+owner named), so the swap's combat loss is weighed by this comparison and not
+forced: a loss of more than about 10% keeps the stronger set.  The staff is a
+survival means (it ends the engagement it is used on), so the bonus is on the
+survival side: ``survival_turns`` and with it the ratio.  On the ratio alone the
+selector's survival floor (equipment_optimizer SUFFICIENT_SURVIVAL_TURNS) dropped
+the set before the ratio was read: at n1-a's fatal 21:05 departure the gloves and
+the amulet (skill 64, 85%) kept 98.5% of the damage but 28.97 of 30.76 turns.
+From 50F the staff is a requirement of the band (equipment_optimizer
+``destruction_means``) and the bonus only ranks the sets that meet it.
 """
 
 from __future__ import annotations
@@ -34,6 +50,7 @@ TELEPATHY_BONUS = 0.10
 ESP_KIND_BONUS = 0.01
 ESP_KINDS_BONUS_CAP = 0.05
 STEALTH_POINT_BONUS = 0.005
+DESTRUCTION_MEANS_BONUS = TELEPATHY_BONUS
 
 
 def utility_value(items: Iterable, intrinsic_flags: frozenset[int]) -> float:
@@ -56,3 +73,28 @@ def utility_value(items: Iterable, intrinsic_flags: frozenset[int]) -> float:
     else:
         esp = min(ESP_KINDS_BONUS_CAP, ESP_KIND_BONUS * len(flags & TR_ESP_KINDS))
     return esp + STEALTH_POINT_BONUS * stealth
+
+
+def destruction_means_bonus(loadout, staff_gate) -> float:
+    """``DESTRUCTION_MEANS_BONUS`` when ``loadout``'s device skill makes the owned
+    *Destruction* staff of ``staff_gate`` reliable, else 0."""
+    return DESTRUCTION_MEANS_BONUS if staff_gate is not None and staff_gate.opens(loadout) else 0.0
+
+
+def with_destruction_means(metrics, loadout, staff_gate):
+    """``metrics`` with ``destruction_means_bonus`` on the survival side: a finite
+    ``survival_turns`` and combat margin (survival / kill turns) scaled by it, and
+    the utility (the tie-breaks) raised by it."""
+    bonus = destruction_means_bonus(loadout, staff_gate)
+    if not bonus:
+        return metrics
+    from dataclasses import replace
+    from math import isfinite
+
+    survival, margin = metrics.survival_turns, metrics.combat_margin
+    if isfinite(survival):
+        survival *= 1.0 + bonus
+        if isfinite(margin):
+            margin *= 1.0 + bonus
+    return replace(metrics, survival_turns=survival, combat_margin=margin,
+                   utility_value=metrics.utility_value + bonus)

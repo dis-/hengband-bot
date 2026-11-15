@@ -55,7 +55,11 @@ WAND_REASON = "ranged:aim-wand"
 TORCH_REASON = "ranged:throw-torch"
 # sv-wand-types.h: bolts, balls and breaths that damage the first monster on
 # the ray.  Wonder (24) is random (it can clone or haste) and is never aimed.
-ATTACK_WAND_SVALS = frozenset({14, 15, 16, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29})
+# The carried attack wands, less the forbidden ones (me_device_attacks.FORBIDDEN_ELEMENTS:
+# Disintegrate, sval 25, owner 2026-11-16).
+ATTACK_WAND_SVALS = frozenset(
+    sval for sval in (14, 15, 16, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29)
+    if ("wand", sval) in me_device_attacks.POWERS)
 TVAL_LIGHT = 39
 SV_LIGHT_TORCH = 0
 

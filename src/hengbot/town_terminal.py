@@ -356,20 +356,20 @@ def verdict_identify_equipped(material: IdentifyMaterial) -> Admission:
 
 
 def device_identification_target(policy: Any, board: Any) -> Any:
-    """The carried device ``_town_device_processing_key`` identifies, or None."""
-    return next(
-        (item for item in board.inventory
-         if policy._normal_identification_flow_candidate(item)
-         and not item.is_equipment
-         and policy._item_signature(item) not in policy._deferred_device_items),
-        None)
+    """The carried device ``_town_device_processing_key`` identifies, or None
+    (the same rule, ``_device_identification_target``)."""
+    return policy._device_identification_target(board)
 
 
 def gather_identify_device(policy: Any, board: Any) -> IdentifyMaterial:
     """Whether the body's source is held: the absorbed Identify first (owner
-    2026-10-30), else the reliable normal source it carries (the same lookups)."""
+    2026-10-30), else the reliable normal source it carries (the same lookups).
+    An unaware potion or scroll is a target only while a carried means
+    identifies it (owner 2026-11-15, ``_unaware_consumable_identifiable_now``)."""
     from hengbot.me_staff_sequence import identify_power_command
     target = device_identification_target(policy, board)
+    if target is not None and policy._unaware_consumable_awaits_identification(target):
+        return IdentifyMaterial(source_held=True)
     return IdentifyMaterial(source_held=(
         target is not None
         and policy._item_signature(target) not in policy._unidentifiable_sigs

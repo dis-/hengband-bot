@@ -7,7 +7,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import dive_floor, fled_floor_stairs, material_threat
+from hengbot import cross_rules, dive_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -1770,6 +1770,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._chest_phase_counts: dict[str, int] = {}
         self._chest_drop_origin: Position | None = None
         self._chest_drop_chest_count: int | None = None
+        # (decision sequence, game turn, key) of the posted drop, and the drops
+        # that never reached the game on this floor (policy_identification).
+        self._chest_drop_posting: tuple[int, int, str | None] | None = None
+        self._chest_drop_unconfirmed = 0
         self._chest_collecting = False
         self._chest_preopen_objects: dict[Position, tuple[int, int]] | None = None
         self._processed_chest_positions: set[Position] = set()
@@ -1956,6 +1960,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._escape_sustain_non_escape_decisions = 0
         self._escape_speed_baseline: int | None = None
         self._escape_speed_attempted = False
+        self._escape_haste_seen = False
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
         self._unseen_retreat_floor: tuple[int, int, int] | None = None
@@ -2666,6 +2671,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # producer that returns a key without naming it must not inherit it
         # (_home_relief_names_approach).
         self._decision_entry_reason = self.last_reason
+        # Record only: the cross-layer rules' reading of this decision (cross_rules).
+        cross_rules.begin(self)
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
         self._home_full_relief = getattr(self, "_home_full_relief", None)
@@ -3243,6 +3250,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._town_progress_note_command(key)
         quest25_battle_record.record(self, snapshot)
         warning_cell_record.record(self, snapshot)
+        cross_rules.end(self, snapshot, key)
         return key
 
     # -- The producers' side of the town hold (town_hold) -------------------
@@ -5032,6 +5040,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._escape_sustain_non_escape_decisions = 0
             self._escape_speed_baseline = None
             self._escape_speed_attempted = False
+            self._escape_haste_seen = False
         latest_snapshot = snapshot
         self._decision_input_snapshot = latest_snapshot
         # Immutable, so the decision-row observer scope (cli
@@ -6419,6 +6428,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # The replaced key is never posted: what its owner waits for
             # cannot arrive, so its expectation of this decision is withdrawn.
             self._owner_expectations.withdraw_unposted(self._decision_sequence)
+            self.withdraw_unposted_chest_drop(self._decision_sequence)
         if key is None:
             def fallback():
                 self.last_reason = (
@@ -10673,6 +10683,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # it in place of a Teleportation or Phase Door the 50F+ rule refuses (deep_teleport).
         if (instead := deep_teleport.scroll_substitute(self, snapshot, item)) is not None:
             return instead
+        if snapshot.dungeon_level >= deep_teleport.DEPTH and deep_teleport.is_self_teleport_scroll(item):
+            cross_rules.produce(self, cross_rules.DEEP_TELEPORT)  # record only
         if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
             return takeoff
         if not suffix and item.is_recall_scroll and snapshot.dungeon_level == 0 \
@@ -10761,19 +10773,37 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         }
         return posted_key
 
-    @classmethod
     def _normal_identification_flow_candidate(
-        cls, item: InventoryItem | StoreItem,
+        self, item: InventoryItem | StoreItem,
     ) -> bool:
-        """Union of carried/worn gear and device plain-Identify consumers.
-
-        Scrolls (tval 70) deliberately have no town-identification owner:
-        reading a scroll identifies its flavor through its normal use flow.
-        """
+        """Union of carried/worn gear, device and unaware-consumable
+        plain-Identify consumers."""
         return (
-            cls._identification_flow_candidate(item) and not item.known
+            self._identification_flow_candidate(item) and not item.known
         ) or (
             item.tval in {TVAL_WAND, TVAL_STAFF, TVAL_ROD} and not item.known
+        ) or self._unaware_consumable_awaits_identification(item)
+
+    def _unaware_consumable_awaits_identification(
+        self, item: InventoryItem | StoreItem,
+    ) -> bool:
+        """An unaware potion or scroll the identification flow owns.
+
+        Owner 2026-11-15 「自宅に未鑑定の薬と巻物を溜め込む問題」→「鑑定の
+        手段で調べる」: an unaware flavour is identified with the character's
+        means (Identify scroll, Staff/Rod of Perception, the Magic-Eater's
+        absorbed Identify) wherever it is (pack or Home), and the now-known
+        kind is then kept, sold or destroyed by the existing rules.  With no
+        means it stays as it is: never sold to learn it, never tried
+        (spells-perception.cpp identify_item makes the kind aware; the
+        Identify chooser's object_is_not_identified accepts it).  Where
+        unaware consumables are sold as they are (``_find_low_level_sale``:
+        shallower than 20F, or a scavenging run's haul) the sale keeps them.
+        """
+        return (
+            item.tval in {TVAL_POTION, TVAL_SCROLL}
+            and not item.aware
+            and not (self._deepest_level < 20 or self._sell_scavenged_consumables)
         )
 
 
@@ -13880,7 +13910,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         queue: deque[tuple[Position, Position | None]] = deque([(start, None)])
         # For the town hold (rev 9.3 R2): see ``_nearest_goal_step``.
         capture = self.__dict__.get("_claim_target_capture")
-        refused = self._engagement_avoid_cells | left_cells.refused(self, snapshot)
+        refused = walk_vetoes.retreat_left(self, snapshot)
         while queue:
             position, first_step = queue.popleft()
             if position != start and position in targets:
@@ -16198,8 +16228,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         shrank to the cells nearer it and the explore stepped '3' straight back; at 20:44
         to 20:45 ``chest:approach`` walked toward a chest the loot walk kept off, between
         [4,38] and [5,39], until the loop detector stopped the bot three more times."""
-        return (frozenset(self._engagement_avoid_cells) | left_cells.refused(self, snapshot)
-                | self._engagement_route_veto(snapshot) | self._unseen_attack_area_veto(snapshot))
+        return walk_vetoes.walk(self, snapshot)
 
     def _engagement_danger_cells(self, snapshot: Snapshot) -> frozenset[Position]:
         """The cells where the engagement retreat would fire again.
@@ -16735,7 +16764,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         """The least visited walkable neighbour off the retreats' vetoes and the left-cell
         registry; with ``walk_veto``, off the walks' whole veto (``_walk_veto``)."""
         refused = (self._walk_veto(snapshot) if walk_veto
-                   else self._engagement_avoid_cells | left_cells.refused(self, snapshot))
+                   else walk_vetoes.retreat_left(self, snapshot))
         candidates = [
             candidate
             for candidate in self._walkable_neighbors(
