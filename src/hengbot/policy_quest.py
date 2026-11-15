@@ -2692,7 +2692,7 @@ class QuestMixin(OpeningRouteMixin):
                 for goal in goals
             }
             for distance in sorted(set(goal_distances.values())):
-                path = navigator._static_path(
+                path = navigator.walk_path(
                     snapshot.player.position,
                     {goal for goal, rank in goal_distances.items() if rank == distance},
                     blocked=blocked_steps,
@@ -2937,7 +2937,7 @@ class QuestMixin(OpeningRouteMixin):
                 for goal in goals
             }
             for distance in sorted(set(goal_distances.values())):
-                path = navigator._static_path(
+                path = navigator.walk_path(
                     snapshot.player.position,
                     {goal for goal, rank in goal_distances.items() if rank == distance},
                 )
@@ -3123,7 +3123,7 @@ class QuestMixin(OpeningRouteMixin):
             navigator = self._quest_navigators.setdefault(
                 profile.quest_id,
                 QuestFloorNavigator(profile.quest_id, battlefield),
-            )
+            ).bind_left_cells(self, snapshot)
             step = navigator.route_to_static_goals(
                 snapshot.player.position,
                 {goal},
@@ -3238,6 +3238,8 @@ class QuestMixin(OpeningRouteMixin):
                 phase = 2
             if phase == 2:
                 navigator = self._quest_navigators.get(profile.quest_id)
+                if navigator is not None:
+                    navigator.bind_left_cells(self, snapshot)
                 if navigator is not None and goals:
                     # The reviewed plan routes to the hold nearest the landing
                     # (QUEST_22 「着地点から…最短経路の地点へ移動」).  Until a hold is
@@ -4199,6 +4201,7 @@ class QuestMixin(OpeningRouteMixin):
                 2, QuestFloorNavigator(2, battlefield)
             ) if battlefield is not None else None
             if navigator is not None:
+                navigator.bind_left_cells(self, snapshot)
                 phase_action = self._q2_phase_key(snapshot, profile, navigator)
                 if phase_action is not None:
                     return phase_action
@@ -4225,7 +4228,7 @@ class QuestMixin(OpeningRouteMixin):
             navigator = self._quest_navigators.setdefault(
                 profile.quest_id,
                 QuestFloorNavigator(profile.quest_id, battlefield),
-            )
+            ).bind_left_cells(self, snapshot)
             surveyed = self._quest_strategy_surveyed_placements.setdefault(
                 profile.quest_id, set()
             )

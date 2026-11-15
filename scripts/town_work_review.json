@@ -1,4 +1,48 @@
 {
+  "quest_find_exit.py:_least_exposed.walk": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The least exposed walk as cells for one blocked set (quest_exposure.least_exposed_path); emits no key."
+  },
+  "quest_find_exit.py:_off_left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The walk a given path search returns off the board's left cells, else off the occupied cells only (owner 2026-11-15 Q2); emits no key."
+  },
+  "quest_find_exit.py:_walk_off_left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The least exposed walk off the board's left cells while one leads on (owner 2026-11-15 Q2); returns positions, emits no key."
+  },
+  "quest_navigator.py:QuestFloorNavigator.bind_left_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Binds this board's left cells (left_cells.refused) on the navigator for its walks (walk_path, owner 2026-11-15 Q2) and returns the navigator; emits no key."
+  },
   "walk_vetoes.py:walk": {
     "classification": "data",
     "rows": [
