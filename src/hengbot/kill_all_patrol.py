@@ -25,7 +25,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from hengbot import combat_answer, left_cells, me_absorbed_substitutes
+from hengbot import combat_answer, me_absorbed_substitutes
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import (
     Position, SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF)
@@ -170,9 +170,11 @@ def _hunt(policy, snapshot, hostiles) -> str | None:
 
 def _toward(policy, snapshot, goal) -> Position | None:
     """The first step of the shortest remembered walk to a cell ``goal`` accepts, never into a
-    cell an owner left (left_cells)."""
+    cell the walks' one veto holds (``policy._walk_veto``: the cells an owner left, the
+    engagement areas, an unseen attacker's area), as the explore (owner 2026-11-15,
+    maintainability review Q3 「全部読ませる」; it read the left cells only before)."""
     start = snapshot.player.position
-    refused = left_cells.refused(policy, snapshot)
+    refused = policy._walk_veto(snapshot)
     seen, queue = {start}, deque([(start, None)])
     while queue:
         cell, first = queue.popleft()

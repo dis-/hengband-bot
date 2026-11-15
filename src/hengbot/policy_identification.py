@@ -1980,11 +1980,16 @@ class IdentificationMixin:
         probe_offsets = ((-1, 0), (1, 0), (0, -1), (0, 1)) + tuple(
             offset for offset in NEIGHBOR_OFFSETS if offset not in CARDINAL_OFFSETS
         )
+        # The walks' one veto, as the explore (owner 2026-11-15, maintainability review Q3
+        # 「全部読ませる」).
+        walk_veto = self._walk_veto(snapshot)
         for dy, dx in probe_offsets:
             ny = origin.y + dy
             nx = origin.x + dx
             key = (ny, nx)
             if key in marked or key in blocked or key in occupied:
+                continue
+            if Position(ny, nx) in walk_veto:
                 continue
             if not snapshot.in_bounds(Position(ny, nx)):
                 continue

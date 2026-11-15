@@ -2026,6 +2026,10 @@ class EquipmentMixin:
                 self._equipment_quarantine_burned_ids.update(action_memory_keys)
             if not route_blocked and not owner_retired:
                 self._equipment_transaction_failed_items.update(action_memory_keys)
+                # The session ran this visit and failed on its own action:
+                # that is the visit's Home route attempt for the failed target
+                # (_equipment_failure_unexecutable_this_visit).
+                self._equipment_transaction_abandoned_epoch = self._town_visit_epoch
         restore_refusals = self._equipment_restore_refusals(action, failed_before)
         self._discard_unposted_equipment_transaction_command()
         self._equipment_optimization_signature = None
@@ -2196,6 +2200,31 @@ class EquipmentMixin:
                 if action.move_identity else
                 equipment_identity(item) == action.item_identity)
             for action in session.plan.actions[session.index:])
+
+    def _equipment_transaction_wields_item(self, item: InventoryItem) -> bool:
+        """A remaining equip of the live session names this carried item.
+
+        Home's full-Home retry ledger parks a carried piece for a later
+        deposit; a session that then plans to wear that piece supersedes the
+        parked deposit (n1-c life-214 2026-11-16 00:46 and 01:14: the retry
+        ledger still held 強撃のセスタス / ドラゴン・グローブ, so the wield after
+        the takeoff was refused as reserved, the session was abandoned and the
+        failed item kept equipment_departure_ready false for the visit).
+        """
+        session = self._equipment_transaction_session
+        if session is None or not session.executable:
+            return False
+        return any(
+            action.kind in {"equip", "reposition"} and (
+                equipment_move_identity(item) == action.move_identity
+                if action.move_identity else
+                equipment_identity(item) == action.item_identity)
+            for action in session.plan.actions[session.index:])
+
+    def _equipment_transaction_reclaims_retry(self, item: InventoryItem) -> bool:
+        """The live session takes this carried item back from the retry ledger."""
+        return (self._equipment_transaction_deposit_owns_item(item)
+                or self._equipment_transaction_wields_item(item))
 
     def _equipment_transaction_owns_item(
         self, item: InventoryItem | StoreItem
@@ -2456,7 +2485,7 @@ class EquipmentMixin:
             # hand its remaining deposits back from the retry ledger; unrelated
             # retry items retain their Home owner until this session finishes.
             reserved = {self._item_signature(item) for item in snapshot.inventory
-                        if self._equipment_transaction_deposit_owns_item(item)}
+                        if self._equipment_transaction_reclaims_retry(item)}
             self._home_full_retry_deposits = tuple(
                 entry for entry in self._home_full_retry_deposits
                 if entry[0] not in reserved) or None
@@ -3888,6 +3917,13 @@ class EquipmentMixin:
             # plan is generated again, so reachability promises nothing (n1-c
             # life-129 2026-11-04 13:18, retain-reserved, Home left for a shop).
             and (closure is None or closure.get("epoch") != self._town_visit_epoch)
+            # So is a session this visit abandoned on its own failed action:
+            # the failed target is out of every plan for the rest of the visit
+            # and no producer routes to Home for it (n1-c life-214 2026-11-16
+            # 00:46 and 01:14, the wield refused after the takeoff).
+            and (self._town_visit_epoch is None
+                 or getattr(self, "_equipment_transaction_abandoned_epoch", None)
+                 != self._town_visit_epoch)
             and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
             and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] == 0
             and self._town_visit_ledger.approach_fails[STORE_HOME] == 0

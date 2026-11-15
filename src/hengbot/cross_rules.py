@@ -269,7 +269,10 @@ class CrossRule:
 
 REGISTRY = (
     CrossRule(LEFT_CELLS, "owner 2026-11-13 「1と2だけ」 (left_cells)",
-              points=("left_cells:refused", "left_cells:refused_yx", "policy:_walk_veto"),
+              # The fixed-quest walks' readings (owner 2026-11-15 Q2): the navigator's walk off
+              # the cells bound for the board, the Q18 exit plan's walk off the board's cells.
+              points=("left_cells:refused", "left_cells:refused_yx", "policy:_walk_veto",
+                      "*:walk_path", "quest_find_exit:_walk_off_left", "quest_find_exit:_off_left"),
               helpers=("_step_toward", "_path_step", "walk_key"),
               point_modules=("left_cells", "goal_route")),
     CrossRule(UNCURSE_BEFORE_REST, "owner 2026-11-15 (curse_cure)",

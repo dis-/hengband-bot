@@ -47,6 +47,7 @@ def key(policy, snapshot, *, profile, strategic_hostiles, strategic_adjacent, ph
             profile.quest_id,
             QuestFloorNavigator(profile.quest_id, info.battlefield),
         )
+        navigator.bind_left_cells(policy, snapshot)
         snapshot = navigator.with_loot_memory(snapshot)
         quest = snapshot.quests.get(profile.quest_id)
         completed = quest is not None and quest.status == QUEST_STATUS_COMPLETED
