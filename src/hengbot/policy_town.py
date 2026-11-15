@@ -2982,6 +2982,13 @@ class TownMixin:
                 "target-unobserved", owners=("home-visit", "home-errand"),
                 kinds=("Observe",), sources=("store-operation",),
             )
+            # The errand that posted this take is settled with it: left posted, its
+            # take was composed again and HomeErrandExecutor.post raised (n1-a
+            # life-525 2026-11-15 13:40:36; policy._observe_home_atomic_withdrawal_outside).
+            errand = self._home_errand
+            if (errand.request is not None
+                    and errand.request.signature == self._home_atomic_withdraw_pending[0]):
+                errand.observe_outside(self._home_atomic_withdraw_after_count(snapshot))
             self._home_atomic_withdraw_pending = None
             self._home_atomic_withdraw_move_identity = None
 

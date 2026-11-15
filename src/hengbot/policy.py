@@ -4406,9 +4406,34 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             pass
         return key
 
+    def _home_atomic_withdraw_after_count(self, snapshot: Snapshot) -> int:
+        """The pack's count of the posted Home take's kind on ``snapshot``."""
+        move_identity = getattr(self, "_home_atomic_withdraw_move_identity", None)
+        return (
+            self._home_take_count(snapshot, move_identity)
+            if move_identity is not None
+            else self._inventory_signature_count(
+                snapshot, self._home_atomic_withdraw_pending[0])
+        )
+
     @claims(ClaimOwner.HOME_VISIT)
     def _observe_home_atomic_withdrawal_outside(self, snapshot: Snapshot) -> None:
-        """Reconcile one posted single-item Home take on its outside board."""
+        """Reconcile one posted single-item Home take on its outside board.
+
+        The board is the take's outcome once the game turn moved past the posting
+        board, or once the pack already holds the take (its count of the kind grew
+        by the quantity).  The game emits a board before every command while the
+        player's energy lasts (core/player-processor.cpp: the energy a command costs
+        is ``randnor(100, 25)``), so the board after the store can carry the posting
+        board's own turn: n1-a life-525 (2026-11-15 13:40:36, Lv37 Warrior) took the
+        オークスレイヤーのパイク for the Home-full sale, stood outside on the same turn
+        8552723 with it in the pack, and this reconciliation skipped the board.  The
+        take was never settled: item processing then dropped the pending take, the
+        errand stayed posted, its take was composed again and ``HomeErrandExecutor.post``
+        raised "Home errand is not composable" (the bot crashed).  A same-turn board
+        whose pack does not hold the take is still the in-flight entrance board (the
+        stay key's board before the store UI consumes the take) and is not read.
+        """
         pending_withdrawal = self._home_atomic_withdraw_pending
         if (
             pending_withdrawal is not None
@@ -4421,6 +4446,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and (
                 self._home_atomic_withdraw_posted_turn is None
                 or snapshot.turn > self._home_atomic_withdraw_posted_turn
+                or self._home_atomic_withdraw_after_count(snapshot)
+                >= pending_withdrawal[1] + pending_withdrawal[3]
             )
         ):
             signature, before_count, withdrawn, quantity = pending_withdrawal
@@ -4433,14 +4460,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                          and self._home_errand.request.signature == signature))
             )
             procurement_class = self._home_atomic_withdraw_procurement_class
-            move_identity = getattr(
-                self, "_home_atomic_withdraw_move_identity", None
-            )
-            after_count = (
-                self._home_take_count(snapshot, move_identity)
-                if move_identity is not None
-                else self._inventory_signature_count(snapshot, signature)
-            )
+            after_count = self._home_atomic_withdraw_after_count(snapshot)
             if getattr(self, "_home_visit", None) is not None:
                 self._home_visit.observe_outside(
                     effect_observed=after_count >= before_count + quantity
