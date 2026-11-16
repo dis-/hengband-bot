@@ -2870,8 +2870,9 @@ def _recall_wait(policy, snapshot) -> str | None:
 
     Once Recall is active (read when the supplies ran out, once_quest_recall), no phase step: the
     start stair when a walk reaches it without entering the casters' fire, taken there; else out
-    of the fire and the wait (a rest while damaged).  n1-c life-178: after the Recall of decision
-    5205 the phase walked back toward the tome twice at HP 14-18% and died before it took effect."""
+    of the fire and the wait (the blow at an enemy beside; a rest while damaged).  n1-c life-178:
+    after the Recall of decision 5205 the phase walked back toward the tome twice at HP 14-18% and
+    died before it took effect."""
     ctx = _ctx(policy, snapshot)
     if ctx is None or not snapshot.player.recalling:
         return None
@@ -2889,6 +2890,14 @@ def _recall_wait(policy, snapshot) -> str | None:
         return _trap_key(ctx, path[1]) or _step(ctx, path[1], RECALL_EXIT_WALK_REASON, guard=False)
     if ctx.here in fire:
         return _withdraw(ctx, RECALL_OUT_REASON)
+    # The wait stops the phase's steps, not the blow at an enemy beside: a rest (cmd-move.cpp
+    # do_cmd_rest spends the turn's 100 energy) with one beside is a turn given to its blows.
+    # n1-a life-529 (2026-11-17 00:10:44-00:10:49, decisions 36516-36530): Recall read on [5,2]
+    # with eight beside, five of the next fifteen turns were rests (HP 732 -> 479), and it died
+    # 3-23 game ticks before the Recall would have taken it (spells-world.cpp: 15-35 ticks).
+    if (beside := [monster for monster in _fight_targets(ctx) if monster.distance <= 1]) and (
+            key := _engage(ctx, beside)) is not None:
+        return key
     if _damaged(ctx):
         return _rest_out_of_fire(ctx)
     policy.last_reason = RECALL_WAIT_REASON
