@@ -43,6 +43,21 @@ melee-threat-p95-adjacency.  The target is an awake hostile whose race has a sum
 monster beside the player is not one: 「近接できない時だけ使う」 (owner 2026-11-01).  It holds on
 every floor rule 2 runs on, one shot per decision, and the leave comes when it no longer holds.
 
+Rule 3 counts a cast only when its caster has a line of fire to the player (owner 2026-11-16,
+verbatim 「術者から射線が通る時だけ数える」, on n1-c life-216's recalls of 2026-11-16: 18:39:47 a
+デミリッチ, an アイアン・リッチ and a レッサー・バルログ 15-19 cells away and out of line, 19:08:50 two
+ダークエルフ・ソーサラー and a 聖堂騎士 fighting each other, counted to three and recalled).  The game
+prints the same line for a cast at a monster as at the player (mspell-util.cpp
+monspell_message_base: a monster-to-monster cast is told whenever either side is seen), so the
+line alone cannot tell them apart.  The caster is the monster the line names, found on the board
+by that name among the monsters in view or sensed (telepathy names a caster out of view: 19:10:23
+シャドウ・ロード was a ``detected_monsters`` row); a cast counts when one of them has
+``line_of_fire.in_fire`` to the player (the game's ``projectable``, the bot's one reader of it).
+An unseen caster (何か / It, a blind player's sound) or a name no monster on the board carries
+cannot be identified, so it is not counted.  Rules 1 and 2 read every cast as before: rule 2's run
+of unseen casts is its own count (``unseen_run``), and an unseen cast no longer joins rule 3's.
+Recalls by rule 3 are not counted as over-extension (owner 2026-11-16).
+
 Rule 3 reads through once_quest_recall.read_key, so every exit lock keeps its floor: a
 kill quest's lock (a runtime RANDOM quest and Q14 until the 11-01 teleport reserve is
 drawn down, random_quest_reserve) still holds such a floor and the read waits for the
@@ -59,7 +74,7 @@ import re
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
-from hengbot import destruction_use, me_ranged_first, once_quest_recall, return_yield
+from hengbot import destruction_use, line_of_fire, me_ranged_first, once_quest_recall, return_yield
 from hengbot.model import Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, ExplorationPathOutcome
 
@@ -157,7 +172,7 @@ class Memory:
     floor: tuple | None = None
     board: tuple | None = None        # the last board read: a redraw is not read twice
     casters: set[str] = field(default_factory=set)  # plain names seen casting on this visit
-    summons: int = 0                  # every cast of this visit, seen or not
+    summons: int = 0                  # casts of this visit whose caster had a line of fire (rule 3)
     decisions: int = 0                # decisions of this visit
     unseen_run: int = 0               # unseen casts in a row (module docstring)
     last_unseen: tuple[int, Position] | None = None  # the decision and cell of the last
@@ -192,7 +207,7 @@ def observe(policy, snapshot) -> None:
         memory.unseen_run = 0
     for message in snapshot.messages:
         for summon in summons_of(message):
-            _count(memory, summon, snapshot.player.position)
+            _count(memory, summon, snapshot.player.position, _in_fire(policy, snapshot, summon))
 
 
 def _run_ended(memory: Memory, snapshot) -> bool:
@@ -204,8 +219,19 @@ def _run_ended(memory: Memory, snapshot) -> bool:
             or any(message in destruction_use.FLASH for message in snapshot.messages))
 
 
-def _count(memory: Memory, summon: Summon, here: Position) -> None:
-    memory.summons += 1
+def _in_fire(policy, snapshot, summon: Summon) -> bool:
+    """The caster the line names has a line of fire to the player on this board (module
+    docstring); an unseen or unfound caster has none."""
+    if not summon.seen:
+        return False
+    name = _plain_name(summon.caster)
+    return any(_plain_name(monster.name) == name and line_of_fire.in_fire(policy, snapshot, monster)
+               for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
+
+
+def _count(memory: Memory, summon: Summon, here: Position, in_fire: bool) -> None:
+    if in_fire:
+        memory.summons += 1
     if summon.seen:
         memory.casters.add(_plain_name(summon.caster))
     else:
