@@ -47,6 +47,11 @@ class Policy:
         # behaviour is pinned in test_keep_running_a0 (DECLARED CONSTRUCTED).
         return None
 
+    def arm_store_leave(self, snapshot):
+        # The driver double has no store visit to bind the posted exit to
+        # (test_n1b_407_retired_home_exit_1116_recorded pins the real one).
+        pass
+
 
 def board(town=1, in_town=True):
     return SimpleNamespace(town_id=town, floor_key=(0, 0, 0), in_town=in_town,
