@@ -21,6 +21,10 @@ Away does not move the player and ``teleport_away`` skips that check inside a qu
 
 from __future__ import annotations
 
+from functools import partial
+
+from hengbot.item_reservation import decision_memo
+
 
 def forbids(policy, snapshot) -> bool:
     """This floor's approved strategy forbids reading a relocation scroll."""
@@ -39,8 +43,18 @@ def q25_hall_forbids(policy, snapshot) -> bool:
     「ラアルとクイルスルグを倒すまで」: the draft's phase 3, so every battle phase up to and with
     ``revised_plan_values.no_teleport_through_phase`` (the tome, quest25_battle phases 0-5).
     Before the floor's battle exists it is phase 0.  Teleport Away moves the monster, not the
-    player: it is the answer (quest_plan_base._below_line), not forbidden here."""
+    player: it is the answer (quest_plan_base._below_line), not forbidden here.
+
+    Owner 2026-11-17 (n1-a life-529, 「Q25 の段階3より前に即死になった時はどうしますか？」 →
+    「帰還待ちの即死ならテレポートを許す」): with Word of Recall read and counting down
+    (``player.recalling``) on the 即死 board (threat_tiers ``instant_death``, the test the plan's
+    即死 rung and recall_wait_teleport read), the rule is lifted; a landing in the great hall is
+    accepted.  At decision 36522 the pack held 15 Teleportation scrolls, the next action's p95
+    was 689 against HP 541, and Teleport Away was the answer; the player died 25 decisions
+    later.  Before the Recall is read the rule stands."""
     if policy._active_fixed_quest_id(snapshot) != 25 or snapshot.in_town:
+        return False
+    if snapshot.player.recalling and _instant_death(policy, snapshot):
         return False
     from hengbot import quest25_battle, quest25_battle_record, quest25_plan
 
@@ -51,6 +65,18 @@ def q25_hall_forbids(policy, snapshot) -> bool:
     battle = quest25_battle_record._battle_of(policy, snapshot)
     phase = 0 if battle is None else battle.phase
     return phase <= quest25_battle.phase_index(through)
+
+
+def _instant_death(policy, snapshot) -> bool:
+    """threat_tiers ``instant_death`` of the engagement, memoised for the decision."""
+    return decision_memo(policy, "quest_no_teleport.q25_recall_instant_death", snapshot, None,
+                         partial(_instant_death_holds, policy, snapshot))
+
+
+def _instant_death_holds(policy, snapshot) -> bool:
+    from hengbot import threat_tiers  # import cycle
+
+    return threat_tiers.instant_death(policy, snapshot).holds
 
 
 # Owner 2026-11-09 (n1-c life-178, Q3): 「成功率が80%以上なら体力回復は使っても良い。テレポートは

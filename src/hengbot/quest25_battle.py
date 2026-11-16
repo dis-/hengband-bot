@@ -1465,9 +1465,11 @@ def _rally(ctx: _Ctx) -> str | None:
     summons = geo.summon_cells(ctx.terrain)
     chokes = {cell for cell in ctx.navigator.battlefield.chokepoints if cell not in summons}
     if any(monster.distance <= 1 for monster in targets):
-        # Owner 2026-11-16 「隘路で迎え撃ち」: with one beside, a choke one step away is stepped back
-        # to and the fight is there, not on a cell the summons reaches (n1-a life-528 fought on
-        # [4,1] beside the choke [3,1] and was summoned on, board after board).
+        # Owner 2026-11-16 「隘路で迎え撃ち」: with one beside, the walk back to the nearest choke a
+        # free way reaches (owner 2026-11-17 「空いている道で一番近い隘路まで下がる」) and the fight
+        # is there, not on a cell the summons reaches (n1-a life-528 fought on [4,1] beside the
+        # choke [3,1] and was summoned on, board after board; n1-a life-529 on [5,2], two steps
+        # from [7,1]).
         return _choke_step_back(ctx, chokes) or _engage(ctx, targets)
     if ctx.here in chokes:
         if targets:
@@ -1494,14 +1496,27 @@ def _rally(ctx: _Ctx) -> str | None:
 
 
 def _choke_step_back(ctx: _Ctx, chokes) -> str | None:
-    """Off the chokes, the step to a free choke beside the player (the first by the grid's
-    order), else None."""
+    """Off the chokes, the next step toward the nearest free choke a walk over free cells reaches
+    (the fewest steps of ``_path``'s walk; among equals the phase's own stand [7,1], phase2
+    「(7,1)に移動」; then the grid's order), else None: the fight is where the player stands.
+
+    Owner 2026-11-17 (n1-a life-529, 「隘路が2歩以上先の時はどうしますか？」 → 「空いている道で一番近い
+    隘路まで下がる」): on the look-out [5,2] the summons came beside; the nearest choke [7,1] was two
+    steps away by [6,1] (a cell the summons reaches), both free at decisions 36485-36486, and the
+    fight stayed on [5,2] until the death.  Asked again each board: a way that closes (a monster
+    on it) leaves the fight where the player stands."""
     if ctx.here in chokes:
         return None
-    occupied = {(monster.position.y, monster.position.x) for monster in ctx.hostiles()}
-    beside = sorted(cell for cell in chokes if cell not in occupied and cell not in _refused(ctx)
-                    and max(abs(cell[0] - ctx.here[0]), abs(cell[1] - ctx.here[1])) == 1)
-    return _step(ctx, beside[0], CHOKE_BACK_REASON) if beside else None
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.hostiles())
+    free = sorted(cell for cell in chokes if cell not in occupied and cell not in _refused(ctx))
+    walks = [(len(path), cell != geo.PHASE2_WALK[0], cell, path)
+             for cell in free for path in (_path(ctx, {cell}, occupied),) if len(path) >= 2]
+    if not walks:
+        return None
+    nxt = min(walks)[3][1]
+    if (trap := _trap_key(ctx, nxt)) is not None:
+        return trap
+    return _step(ctx, nxt, CHOKE_BACK_REASON)
 
 
 # Owner 2026-11-16 (n1-a life-528, answer A 「隘路で迎え撃ち尽きる前に帰還」): in phase 2, three
