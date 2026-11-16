@@ -905,7 +905,9 @@ class CombatMixin:
                 "flee:stairs",
             )
         )
-        if instant_escape:
+        # Owner 2026-11-14 「敵への対処以前に手段が尽きた時点で帰還させる。」: the 50F+ Recall
+        # without the *Destruction* means is read before any answer to the enemies.
+        if instant_escape or destruction_use.means_spent_read_selected(self):
             return key
         episode_start = not self._escape_sustain_active
         if episode_start:
