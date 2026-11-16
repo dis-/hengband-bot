@@ -34,7 +34,10 @@ CASTER_PAST_THE_ADJACENT = 2033730
 CASTER_BEHIND_BODIES = 2038996
 UNSEEN_DEMONS_SPAN = (2027761, 2027800)
 SECOND_UNSEEN_CAST = 2027775
-THIRD_SUMMON = 2038996
+# Owner 2026-11-16 「術者から射線が通る時だけ数える」: 『ウートガルザ・ロキ』 2038858 and a plague man
+# 2038996 in line of fire count, the unseen 2038943 does not; the third is the plague man of 2039076.
+SECOND_SUMMON = 2038996
+THIRD_SUMMON = 2039076
 RECORDED_EMERGENCY = 2039175
 BOOK_MESSAGE = "Lv1 自然の魔法書[野性の召喚]を自動破壊します。"
 
@@ -262,7 +265,8 @@ class LeaveTest(d57.PostedDeathKey):
 
 class RecallTest(d57.PostedDeathKey):
     def test_the_third_summon_of_the_floor_reads_recall(self):
-        # 『ウートガルザ・ロキ』 2038858, unseen 2038943, a plague man 2038996: HP 705/970.
+        # 『ウートガルザ・ロキ』 2038858, a plague man 2038996 and one 2039076, each in line of fire
+        # (the unseen 2038943 and 2039018 are not counted, owner 2026-11-16).
         policy, raw, key = replay(LAST_FIGHT_SPAN, until=THIRD_SUMMON)
         self.assertEqual(summon_response._memory(policy).summons, 3)
         self.assertEqual(policy.last_reason, summon_response.RECALL_REASON)
@@ -272,7 +276,7 @@ class RecallTest(d57.PostedDeathKey):
         self.post(policy, raw, key)
 
     def test_two_summons_read_no_recall(self):
-        policy, _raw, _key = replay(LAST_FIGHT_SPAN, until=THIRD_SUMMON - 8)
+        policy, _raw, _key = replay(LAST_FIGHT_SPAN, until=SECOND_SUMMON)
         self.assertEqual(summon_response._memory(policy).summons, 2)
         self.assertNotEqual(policy.last_reason, summon_response.RECALL_REASON)
 

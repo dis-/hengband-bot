@@ -1,7 +1,7 @@
 """n1-c life-216 (2026-11-16 16:41-19:21): about 75 recalls in two and a half hours.
 
 Recorded: tests/fixtures/n1c-216-recall-rules-1116.json.xz
-(tests/extract_n1c_216_recall_rules_1116_fixture.py).  The rule of decision 1 started many of the returns of the
+(tests/extract_n1c_216_recall_rules_1116_fixture.py).  Two rules started most of the returns of the
 Lv39 Magic-Eater (HP 606-811) on 山47階, 城50階 and 城64階.
 
 Decision 1 (sent_away_t1).  The 11-09 rule 「テレポート・アウェイで飛ばした T1 の敵がいる階は、クエストの
@@ -19,6 +19,18 @@ engagement that reads T1, or a T1 held by the decided side (``held_tier``), no l
 Every reading is a fresh policy's on the recorded board (the live absorbed lists and monster
 memories are not in the capture), so the boards are read with the race file's knowledge.
 
+Decision 2 (summon_response).  The 11-04 rule 3 「同じ階で召喚が3回あったら帰還を読む」: owner
+2026-11-16, 「術者から射線が通る時だけ数える」.  The game prints a cast at a monster as it prints one at
+the player (mspell-util.cpp monspell_message_base).
+
+- 18:38-18:39 城64階: デミリッチ, アイアン・リッチ, レッサー・バルログ, 15-19 cells off and out of
+  line: three casts, recalled on 2795383.  None counts now.
+- 19:08 城64階: two ダークエルフ・ソーサラー and a 聖堂騎士 fighting each other out of line (the
+  messages show them hitting each other): recalled on 2918138.  None counts now.
+- 19:10-19:11 城64階: シャドウ・ロード (sensed by telepathy, out of line), then メッツォデーモン and
+  the クイルスルグ in line of fire: recalled on 2926706 at the third cast.  Now the third cast in
+  line is 2926726's, which still recalls.
+
 The 土の鬼's target and the 見習レンジャー's hold are DECLARED CONSTRUCTED in their tests (the live
 hold is not reproduced by a fresh policy).
 """
@@ -30,7 +42,7 @@ import lzma
 import unittest
 from pathlib import Path
 
-from hengbot import retreat_veto_life, sent_away_t1, threat_tiers
+from hengbot import retreat_veto_life, sent_away_t1, summon_response, threat_tiers
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -166,6 +178,59 @@ class SentAwayAloneT1Test(Recorded):
                                  "Grip, Farmer Maggot's Dog"))
         self.assertFalse(vanished("The white wolf disappears!", "Wolf"))
         self.assertFalse(vanished("白狼には耐性がある！", WHITE_WOLF))
+
+
+class SummonsInLineOfFireTest(Recorded):
+    def visit(self, turns):
+        """Every recorded board with a cast of one floor visit, through ``observe``."""
+        policy = self.policy(self.raw(turns[0]))
+        for turn in turns:
+            summon_response.observe(policy, self.snapshot(self.raw(turn)))
+        return policy
+
+    def test_casts_out_of_line_far_off_are_not_counted(self):
+        turns = (2793866, 2794036, 2795383)
+        casts = [summon.caster for turn in turns for message in self.boards[turn]["messages"]
+                 for summon in summon_response.summons_of(message)]
+        self.assertEqual(casts, ["デミリッチ", "アイアン・リッチ", "レッサー・バルログ"])
+        policy = self.visit(turns)
+        self.assertEqual(summon_response._memory(policy).summons, 0)
+        self.assertFalse(summon_response.recall_due(policy, self.snapshot(self.raw(2795383))))
+
+    def test_casts_between_monsters_are_not_counted(self):
+        policy = self.visit((2918106, 2918127, 2918138))
+        self.assertIn("聖堂騎士はダークエルフ・ソーサラーを殴った。", self.boards[2918106]["messages"])
+        self.assertEqual(summon_response._memory(policy).summons, 0)
+        self.assertFalse(summon_response.recall_due(policy, self.snapshot(self.raw(2918138))))
+        # Rule 1 still names the casters it saw.
+        self.assertEqual(summon_response._memory(policy).casters, {"ダークエルフ・ソーサラー", "聖堂騎士"})
+
+    def test_casts_in_line_of_fire_still_recall(self):
+        policy = self.visit((2924850, 2925802, 2926706))
+        # The シャドウ・ロード, sensed out of line, is not counted: two after 2926706.
+        self.assertEqual(summon_response._memory(policy).summons, 2)
+        self.assertFalse(summon_response.recall_due(policy, self.snapshot(self.raw(2926706))))
+        # DECLARED CONSTRUCTED: the live read of 2926706 runs the countdown on 2926726; it is
+        # taken off so the rule can read.
+        raw = self.raw(2926726)
+        self.assertTrue(raw["player"]["recalling"])
+        raw["player"]["recalling"] = False
+        board = self.snapshot(raw)
+        summon_response.observe(policy, board)
+        self.assertEqual(summon_response._memory(policy).summons, 3)
+        key = summon_response.recall_key(policy, board)
+        self.assertEqual(policy.last_reason, summon_response.RECALL_REASON)
+        self.assertEqual(key, policy._read_key(board, policy._find_recall_scroll(board)))
+        self.assertEqual(policy._last_return_trigger, summon_response.RETURN_TRIGGER)
+
+    def test_an_unseen_cast_still_runs_rule_2_but_not_rule_3(self):
+        # DECLARED CONSTRUCTED: 2926726's cast told by an unseen caster.
+        raw = self.raw(2926726)
+        raw["messages"] = ["何かは魔法で混沌の宮廷から悪魔を召喚した！"]
+        policy = self.policy(raw)
+        summon_response.observe(policy, self.snapshot(raw))
+        memory = summon_response._memory(policy)
+        self.assertEqual((memory.summons, memory.unseen_run), (0, 1))
 
 
 if __name__ == "__main__":
