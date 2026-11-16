@@ -30,7 +30,10 @@ carry (the staffs *破壊* 6/9, 周辺感知 and ドア/階段感知; the rod �
 takes the live *Destruction* and Teleport Away of the window; the descent deferral of the
 ``stuck:ascend`` that brought the player up from 80F (``_defer_descent`` on the first board);
 for the stuck board as the live policy saw it, the sent-away line not read (``shows_sent_away``
-patched to False); the absorbed Stone to Mud (wand 岩石溶解, 10 charges) listed before the stuck
+patched to False); on the board of the live Teleport Away (turn 5734453) the *Destruction*
+taken as having failed the board before (destruction_use's fallback), so the owner's 2026-11-16
+rule 「常に *破壊* を先」 (me_powers ``_destruction_first``) leaves the live Teleport Away (with the
+use listed, it now destroys the shadow instead: DestroyedForgottenTest's path); the absorbed Stone to Mud (wand 岩石溶解, 10 charges) listed before the stuck
 board; the 即死 board (``fire_p95`` at the HP plus one); the visit at 49F (every board's level).
 The fresh policy reaches the stuck count on turn 5735250, two boards before the live read.
 """
@@ -131,7 +134,11 @@ def _replay(*, sent_away=True, level=None, rod=True):
                 before = ((copy.deepcopy(policy), copy.deepcopy(raw))
                           if policy._stuck_escape_streak >= STUCK_ESCAPE_LIMIT - 1
                           or index == len(boards) - 1 else (None, None))
-                key = policy.choose_key(policy.with_known_skill_exp(parse_snapshot(raw, MONRACE)))
+                board = policy.with_known_skill_exp(parse_snapshot(raw, MONRACE))
+                if rod and raw["turn"] == SENT_AWAY_TURN - 4:
+                    # DECLARED CONSTRUCTED (module note): the live Teleport Away's board.
+                    destruction_use._memory(policy).fallback = board.floor_key
+                key = policy.choose_key(board)
                 previous = policy.last_reason
                 reasons.append((raw["turn"], previous))
                 result = (*before, key)
