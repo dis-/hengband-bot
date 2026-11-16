@@ -19916,21 +19916,10 @@
       "survival"
     ],
     "context": "Dungeon only: amberite_curse.struck returns no Amberite in town (snapshot.in_town), so after_ladder returns the key it was given there.",
-    "evidence": "Owner 2026-11-17: the answer to a refused strike at an Amberite: *Destruction* on it without resist curse (destruction_use.key, emergency:destruction:amberite), the walk toward its sure radius (amberite:approach-destruction), the existing engagement retreat (_avoid_engagement_key), else a wait (amberite:hold); no independent progress.",
+    "evidence": "Owner 2026-11-17: the answer to a refused strike at an Amberite: *Destruction* on it without resist curse (destruction_use.key, emergency:destruction:amberite), the existing engagement retreat (_avoid_engagement_key), else a wait (amberite:hold); the walk toward *Destruction* is the T1 rules' since the tiers read an Amberite T1 without resist curse; no independent progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "amberite_curse.py:_approach_step": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Dungeon only: amberite_curse.struck returns no Amberite in town (snapshot.in_town), so after_ladder returns the key it was given there.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the step toward the sure radius 13 of the nearest Amberite out of it, under deep_teleport._walk_step's gates (means held, clear head, destroyable floor); None within the radius or without a path; no command.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
   },
   "amberite_curse.py:refusal": {
     "classification": "data",

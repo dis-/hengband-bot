@@ -82,8 +82,9 @@ class RecordedBoardTest(unittest.TestCase):
                 policy, snapshot = restored(which)
                 key = policy.choose_key(snapshot)
                 self.assertNotEqual(key, CASE["decision"]["key"])
-                self.assertTrue(policy.last_reason.startswith(
-                    destruction_use.REASON + amberite_curse.SIGHT_SUFFIX), policy.last_reason)
+                # Owner 2026-11-17 「王族をT1扱い」: the T1 rules' *Destruction* (amberite-t1 tests).
+                self.assertTrue(policy.last_reason.startswith(destruction_use.REASON),
+                                policy.last_reason)
                 self.assertEqual(amberite_curse.struck(policy, snapshot, key), [])
 
     def test_no_strike_without_destruction(self):
@@ -92,9 +93,19 @@ class RecordedBoardTest(unittest.TestCase):
         self.assertFalse(destruction_use.holds_means(policy, snapshot))
         key = policy.choose_key(snapshot)
         self.assertEqual(amberite_curse.struck(policy, snapshot, key), [])
+        # Since the T1 reading (owner 2026-11-17) the T1 leave answers before any strike is
+        # decided; the gate itself is tested below on the decided Rocket.
+        self.assertEqual(policy.last_reason, "no-wait:flee")
+
+    def test_the_gate_refuses_the_rocket_without_destruction(self):
+        """CONSTRUCTED as above; the gate asked directly with the recorded Rocket."""
+        policy, snapshot = restored(no_destruction=True)
+        policy.choose_key(snapshot)
+        policy.last_reason = CASE["decision"]["reason"]
+        key = amberite_curse.after_ladder(policy, snapshot, CASE["decision"]["key"])
+        self.assertEqual(amberite_curse.struck(policy, snapshot, key), [])
         self.assertIn(policy.last_reason, {"threat:avoid-engagement", amberite_curse.HOLD_REASON})
         self.assertEqual(amberite_curse.report(policy)["verdict"], amberite_curse.NO_RESIST_CURSE)
-        self.assertEqual(amberite_curse.report(policy)["decided"][1], CASE["decision"]["reason"])
 
 
 class ResistCursePathTest(unittest.TestCase):

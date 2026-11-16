@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from math import ceil
 
+from hengbot import amberite_curse
 from hengbot import (
     attack_expectation,
     fear_cover,
@@ -143,6 +144,9 @@ class Assessment:
     # Why a winning supply plan was read T1 (``fear_cover.withheld``: a fear or blindness caster
     # the player is not covered against, owner 2026-11-11); the margin stays the plan's.
     t2_withheld: tuple = ()
+    # The Amberites read T1 whatever the projection (amberite_curse.t1_amberites: no resist curse,
+    # owner 2026-11-17 「呪力耐性がないときは王族をT1扱いにする」); the margins stay the projection's.
+    amberite_t1: tuple = ()
     # (HP lost over the last turns, the projection over them) where the projection missed and
     # the reading was taken from the observed damage (threat_tiers ``_projection_missed``).
     projection_missed: tuple | None = None
@@ -186,7 +190,7 @@ class Assessment:
             "free_margin": self.free_margin,
             "supply_margin": self.supply_margin,
             "raw_tier": self.raw_tier,
-            "t2_withheld": list(self.t2_withheld),
+            "t2_withheld": list(self.t2_withheld), "amberite_t1": list(self.amberite_t1),
             "projection_missed": (None if self.projection_missed is None
                                   else list(self.projection_missed)),
             "flags": self.flags(),
@@ -761,7 +765,26 @@ def _path_memo(policy):
 # ---------------------------------------------------------------- the tier
 
 def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
-    """3.2-3.4: T3, else the shortest winning prefix of the owner's order (T2), else T1."""
+    """3.2-3.4: T3, else the shortest winning prefix of the owner's order (T2), else T1.
+
+    Owner 2026-11-17 (verbatim): 「呪力耐性がないときは王族をT1扱いにする。行動はT1の処理に準じる。」
+    An engagement with an Amberite the player does not resist the blood curse of
+    (amberite_curse.t1_amberites) is T1 whatever the projection, as a withheld T2 is: the reading
+    is still taken for its margins, and a projection past the cost cap does not leave it
+    undecided."""
+    forced = amberite_curse.t1_amberites(policy, snapshot, projection.hostiles)
+    try:
+        _projected_tier(policy, snapshot, projection, result, hp, max_hp)
+    except CostExceeded:
+        if not forced:
+            raise
+    if forced:
+        result.tier, result.supply_plan, result.skipped = T1, None, None
+        result.amberite_t1 = forced
+
+
+def _projected_tier(policy, snapshot, projection, result, hp, max_hp) -> None:
+    """``_tier`` as the projection reads it."""
     hostiles, speed = projection.hostiles, snapshot.player.speed
     free, free_self = result.free_damage, result.free_self_damage
     reserve = result.reserve = plan_reserve(max_hp, result.next_action_p95)

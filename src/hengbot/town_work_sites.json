@@ -27,13 +27,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "amberite_curse.py:_approach_step": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "amberite_curse.py:_kept_alive_key": {
     "classification": "producer",
     "rows": [
