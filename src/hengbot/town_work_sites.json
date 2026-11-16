@@ -4270,6 +4270,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:_destruction_first": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powers.py:_revealing_uses": {
     "classification": "data",
     "rows": [

@@ -46,7 +46,9 @@ def key(policy, snapshot, *, emergency_hostiles, paralyzers, physical_hostiles, 
     if sensed_destruction is not None:
         return sensed_destruction
     # Class 16 sends an unbeatable hostile in range away (me_powers THREAT)
-    # only once the emergency ladder above has declined: survival first.
+    # only once the emergency ladder above has declined: survival first.  Owner 2026-11-16
+    # 「常に *破壊* を先」: the THREAT occasion offers its target to *Destruction* before the
+    # Teleport Away (me_powers ``_destruction_first``), so this key may be a *Destruction*.
     threat_power = me_powers.threat_key(policy, snapshot)
     if threat_power is not None:
         # Owner 2026-11-09 E: a T1 sent away is remembered; its vanishing returns to town.

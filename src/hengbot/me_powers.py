@@ -917,6 +917,9 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
             used = _serving(ctx, power, name)
             if used is None or not trigger.due(ctx, power):
                 continue
+            if name in DESTRUCTION_FIRST_TRIGGERS and (
+                    destroyed := _destruction_first(ctx)) is not None:
+                return destroyed
             powerful = _powerful(ctx, used)
             reason = f"{REASON}:{name}:{used.effect}" + (POWERFUL_SUFFIX if powerful else "")
             key = ((_activation().racial_key(*used.ident) if powerful else used.key)
@@ -931,6 +934,29 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
                                  reason, key, target)
             return key
     return None
+
+
+# Owner 2026-11-16 (the n1-c life-216 question 「勝てない敵が射程内にいて *破壊* も使える時、今は
+# テレポート・アウェイを先に撃っています。どちらを先にしますか？」, answer 「常に *破壊* を先」): the
+# triggers whose Teleport Away leaves its target offer that target to *Destruction* first.
+DESTRUCTION_FIRST_TRIGGERS = frozenset({"unbeatable-in-range"})
+DESTRUCTION_FIRST_SUFFIX = ":before-teleport-away"
+
+
+def _destruction_first(ctx) -> str | None:
+    """*Destruction* in place of the due Teleport Away, else None and the Teleport Away is cast.
+
+    The target the trigger leaves is the one set *Destruction* is asked to leave
+    (destruction_use ``key`` ``leaving``): its gates stay the earlier owner rules (clear-headed,
+    a floor the game destroys, no damaged quest target or guardian within WORST_RADIUS, a reliable
+    means with a charge, the target within GUARANTEED_RADIUS).  A failed or untaken use's
+    fallback is this ask's to consume: the next board casts the Teleport Away.
+    n1-c life-216 (2026-11-16 17:01-19:44): 198 Teleport Away casts at unbeatable targets, 193
+    of them with the absorbed *Destruction* usable on the same target."""
+    from hengbot import destruction_use
+
+    return destruction_use.key(ctx.policy, ctx.snapshot, leaving=[ctx.target_hostile],
+                               suffix=DESTRUCTION_FIRST_SUFFIX)
 
 
 def threat_key(policy, snapshot) -> str | None:
