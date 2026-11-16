@@ -4121,6 +4121,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_power_success.py:worn_anti_magic": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powerful_activation.py:Effect.key": {
     "classification": "data",
     "rows": [
