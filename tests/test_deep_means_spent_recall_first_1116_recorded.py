@@ -18,7 +18,11 @@ absorbed *Destruction*.
 
 DECLARED CONSTRUCTED: the absorbed *Destruction*'s charges are emptied (``current`` 0 in the
 recorded magic-eater list), so the floor is a means-spent floor; the heal tests also lower the
-board's HP (784 recorded) to 300 (the projection 308 crosses the reserve) and 500 (it does not).  The live life-216 decision logs
+board's HP (784 recorded) to 300 (the projection 308 crosses the reserve) and 500 (it does not).
+The 即死 test (owner 2026-11-16 「即死ならテレポートを先」) lowers the HP to 100 (the line-of-fire
+p95 139 reaches it, deep_teleport ``allows``) and takes the Potion of Healing (slot b) out, so the
+emergency ladder's own heal-first rule does not answer; its landing board moves the player to
+(3, 97) ten game turns later with no monster in view and one Teleportation scroll fewer.  The live life-216 decision logs
 (bot-decisions.jsonl..7, 2026-11-16 18:31-20:57) hold no such board.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -29,7 +33,7 @@ import pickle
 import unittest
 from pathlib import Path
 
-from hengbot import destruction_use
+from hengbot import deep_teleport, destruction_use
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -38,11 +42,12 @@ FIXTURE = Path(__file__).with_name("fixtures") / "n1c-216-deep-recall-1116.pkl.x
 CASE = pickle.loads(lzma.decompress(FIXTURE.read_bytes()))
 
 
-def restored(empty=True, hp=None):
+def restored(empty=True, hp=None, drop=()):
     policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoint"])
     board = copy.deepcopy(CASE["board"])
     if hp is not None:
         board["player"]["hp"] = hp
+    board["inventory"] = [item for item in board["inventory"] if item.get("slot") not in drop]
     snapshot = parse_snapshot(board, policy._monrace_knowledge)
     if empty:
         lists = policy._me_device_lists
@@ -96,6 +101,33 @@ class MeansSpentRecallFirstTest(unittest.TestCase):
         policy._returning_to_town = True
         policy._last_return_trigger = "emergency-summoner"
         self.assertFalse(destruction_use.means_spent_read_selected(policy))
+
+
+class InstantDeathTeleportFirstTest(unittest.TestCase):
+
+    def test_teleport_first_then_recall_after_the_landing(self):
+        policy, snapshot = restored(hp=100, drop=("b",))
+        self.assertTrue(destruction_use.means_spent(policy, snapshot))
+        self.assertGreaterEqual(deep_teleport.fire_p95(policy, snapshot), snapshot.player.hp)
+        self.assertTrue(deep_teleport.allows(policy, snapshot))
+        key = policy.choose_key(snapshot)
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+        self.assertTrue(key.startswith("r"))
+        self.assertTrue(policy._returning_to_town)
+        # CONSTRUCTED landing board.
+        board = copy.deepcopy(CASE["board"])
+        board["player"]["hp"] = 100
+        board["turn"] += 10
+        board["player"]["y"], board["player"]["x"] = 3, 97
+        board["visible_monsters"] = []
+        board["inventory"] = [dict(item) for item in board["inventory"] if item.get("slot") != "b"]
+        for item in board["inventory"]:
+            if item.get("slot") == "d" and item.get("number"):
+                item["number"] -= 1
+        landed = parse_snapshot(board, policy._monrace_knowledge)
+        self.assertFalse(deep_teleport.allows(policy, landed))
+        key = policy.choose_key(landed)
+        self.assertEqual((key, policy.last_reason), ("re", destruction_use.MEANS_SPENT_REASON))
 
 
 if __name__ == "__main__":

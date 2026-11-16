@@ -257,7 +257,7 @@ def means_spent_recall_key(policy, snapshot) -> str | None:
     one be read (once_quest_recall.read_key: not while recalling, blind or confused, on a
     locked quest floor or without a scroll).  Without a read the return stays latched and its
     own rungs leave the floor; the rungs below answer the enemies meanwhile."""
-    from hengbot import once_quest_recall  # import cycle
+    from hengbot import deep_teleport, once_quest_recall  # import cycle
 
     if not means_spent(policy, snapshot):
         return None
@@ -266,6 +266,11 @@ def means_spent_recall_key(policy, snapshot) -> str | None:
             policy._note_return_start(MEANS_SPENT_TRIGGER)
         policy._returning_to_town = True
         policy._last_return_trigger = MEANS_SPENT_TRIGGER
+    # Owner 2026-11-16 「即死ならテレポートを先」: on the 50F+ 即死 board (deep_teleport.allows:
+    # the line-of-fire p95 reaches the HP, owner 2026-11-14) the emergency ladder's Teleportation
+    # comes first; the return stays latched and the Recall is read on the board after the landing.
+    if deep_teleport.allows(policy, snapshot):
+        return None
     return once_quest_recall.read_key(policy, snapshot, MEANS_SPENT_REASON)
 
 
