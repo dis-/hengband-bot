@@ -22,8 +22,12 @@ Game (C:/hengband/src):
    instead (destruction_use).
 
 The rule, as it is enforced:
- 1. No ``resist_curse``: an awake Amberite in view within *Destruction*'s sure radius is a sight
-    trigger of destruction_use (``erased``, SIGHT_TRIGGERS), whose gates stay its own.
+ 1. No ``resist_curse``: owner 2026-11-17 (verbatim) 「呪力耐性がないときは王族をT1扱いにする。行動は
+    T1の処理に準じる。」  The tiers read every engagement with an Amberite T1 (``t1_amberites``,
+    asked by threat_projection ``_tier``, the one place a tier is assigned), so the T1 rules
+    answer it: the sensed-T1 *Destruction* and approach, the leave and the escapes, no reward
+    selection, the random quest's T1 target given up.  (Until then it was a sight trigger of
+    destruction_use.)
  2. Every decided key passes ``after_ladder`` (dungeon_ladder.AFTER_DECIDE), the one gate of
     "can this action kill an Amberite now" (``struck``): a step into a cell an Amberite holds
     (melee), or a ranged attack (attack_answer's shot reasons, reasons.strikes) while an Amberite
@@ -40,10 +44,11 @@ The rule, as it is enforced:
     Potion of Speed; haste_read says whether it is on) and covered by a Potion of Resistance
     (resist_potion.covered: the five elements on the status bar); each missing one is taken in
     the strike's place, and a missing means refuses the strike.
- 4. A refused strike (``_kept_alive_key``): without ``resist_curse`` *Destruction* on it
-    (destruction_use.key leaving it), else the walk until it is in the sure radius; then, as for
-    the rule's uncovered cases, the existing engagement retreat (policy ``_avoid_engagement_key``),
-    else a wait (``HOLD_REASON``).  Nothing teleports here.
+ 4. A refused strike (``_kept_alive_key``), where a rung still decides one (the T1 rules above
+    it declined): without ``resist_curse`` *Destruction* on it (destruction_use.key leaving it);
+    then the existing engagement retreat (policy ``_avoid_engagement_key``), else a wait
+    (``HOLD_REASON``).  The walk toward *Destruction* is the T1 rules' (threat_tiers
+    ``approach_key``, deep_teleport's walk), not this gate's.  Nothing teleports here.
 
 Record only: ``report`` (the decision log's ``amberite``) names the Amberites the decided key
 could hit, the verdict and the key it replaced.
@@ -52,15 +57,13 @@ could hit, the verdict and the key it replaced.
 from __future__ import annotations
 
 from hengbot import attack_answer, haste_read, line_of_fire, reasons
-from hengbot.model import game_distance
 from hengbot.policy_constants import WAIT_KEY
 
 KIND_FLAG = "AMBERITE"                 # MonraceDefinitions.jsonc flags, MonsterKindType::AMBERITE
 RESIST_ABILITY = "resist_curse"        # bot-json-output.cpp, TR_RES_CURSE
-SIGHT_SUFFIX = ":amberite"             # destruction_use's reason suffix of the sight trigger
+SIGHT_SUFFIX = ":amberite"             # the reason suffix of the gate's *Destruction*
 HASTE_REASON = "amberite:haste"
 RESIST_REASON = "amberite:quaff-resistance"
-APPROACH_REASON = "amberite:approach-destruction"
 HOLD_REASON = "amberite:hold"
 NOTE = "_amberite_curse_note"          # (decision sequence, record); record only
 
@@ -84,9 +87,13 @@ def resists_curse(snapshot) -> bool:
     return bool(snapshot.player.ability_sources.get(RESIST_ABILITY))
 
 
-def erased(policy, snapshot, monster) -> bool:
-    """destruction_use's sight trigger: an Amberite while the player does not resist curses."""
-    return is_amberite(policy, monster) and not resists_curse(snapshot)
+def t1_amberites(policy, snapshot, hostiles) -> tuple:
+    """Owner 2026-11-17 「呪力耐性がないときは王族をT1扱いにする」: the indices of the Amberites of
+    ``hostiles`` the tiers read T1 (threat_projection ``_tier``, the one place a tier is assigned),
+    awake or asleep, seen or sensed; () with resist curse."""
+    if resists_curse(snapshot):
+        return ()
+    return tuple(monster.index for monster in hostiles if is_amberite(policy, monster))
 
 
 # -- the gate -------------------------------------------------------------------
@@ -178,34 +185,11 @@ def _kept_alive_key(policy, snapshot, amberites, verdict):
         used = destruction_use.key(policy, snapshot, leaving=amberites, suffix=SIGHT_SUFFIX)
         if used is not None:
             return used
-        step = _approach_step(policy, snapshot, amberites)
-        if step is not None:
-            policy.last_reason = APPROACH_REASON
-            return policy._step_toward(snapshot, step)
     retreat = policy._avoid_engagement_key(snapshot, policy._physical_hostiles(snapshot))
     if retreat is not None and not struck(policy, snapshot, retreat):
         return retreat
     policy.last_reason = HOLD_REASON
     return WAIT_KEY
-
-
-def _approach_step(policy, snapshot, amberites):
-    """The step toward the sure radius of the nearest Amberite out of it, under the gates of the
-    walk toward a use (deep_teleport ``_walk_step``): the means held, a clear head, a floor the
-    game destroys; None within the radius (the use's own gates refused it there)."""
-    from hengbot import destruction_use  # import cycle
-
-    if (not destruction_use.holds_means(policy, snapshot)
-            or not destruction_use._clear_headed(snapshot.player)
-            or not destruction_use._floor_destroyed(policy, snapshot)):
-        return None
-    here = snapshot.player.position
-    radius = destruction_use.GUARANTEED_RADIUS
-    subject = min(amberites, key=lambda monster: game_distance(here, monster.position))
-    if game_distance(here, subject.position) <= radius:
-        return None
-    return policy._nearest_goal_step(
-        snapshot, lambda grid: game_distance(grid.position, subject.position) <= radius)
 
 
 # -- the record -----------------------------------------------------------------
