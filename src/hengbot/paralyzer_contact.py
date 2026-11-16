@@ -63,6 +63,14 @@ def spell_contact(policy, snapshot, monster) -> bool:
 # view is left at sight.  The game asks for no command while paralysed
 # (core/player-processor.cpp:309-316), so the contact of the 09-18 rule comes too late there.
 SHALLOW_SIGHT_REASON_PREFIX = "shallow-paralyzer:"
+# Owner 2026-11-16 (n1-c life-215, 迷宮17階: the 邪悪感知 on arrival showed a sleeping ゲイザー
+# eight cells away; it was never in view, a later Teleportation landed beside it, awake after a
+# shriek, and it chain-paralysed the Lv25 Magic-Eater to death), verbatim: 「見かけたと同じに扱い
+# 階を離れる」.  A paralyser only sensed (``detected_monsters``: detection or telepathy, asleep
+# too) counts as a sighted one; with none in view the floor is left by the up stairs underfoot,
+# else Word of Recall: a Teleportation stays on the floor the sensed paralyser is on.
+SHALLOW_SENSED_RECALL_REASON = SHALLOW_SIGHT_REASON_PREFIX + "recall"
+SHALLOW_SENSED_RETURN_TRIGGER = "shallow-sensed-paralyzer"
 
 
 def free_action_depth() -> int:
@@ -71,17 +79,23 @@ def free_action_depth() -> int:
 
 
 def shallow_sighted(policy, snapshot, threats) -> list:
-    """The paralysers of ``threats`` (``_paralyzing_monsters``: in view, no Free Action) that the
-    shallow-floor rule leaves at sight: on a dungeon floor above ``free_action_depth()``,
-    outside quests (``floor_key[2] == 0``; a quest floor keeps the 09-18 contact rule), asleep
-    or awake, at any distance.  A never-moving melee paralyser (Floating Eye) reaches only a
-    player who steps beside it, which the paralyser ring veto already refuses; one that casts
-    HOLD / BRAIN_SMASH still counts."""
+    """The paralysers of ``threats`` (``_paralyzing_monsters``: in view, no Free Action) and the
+    sensed ones (``detected_monsters`` not in view, read by the same ``_paralyzing_monsters``;
+    owner 2026-11-16 「見かけたと同じに扱い階を離れる」) that the shallow-floor rule leaves at
+    sight: on a dungeon floor above ``free_action_depth()``, outside quests
+    (``floor_key[2] == 0``; a quest floor keeps the 09-18 contact rule), asleep or awake, at any
+    distance.  A never-moving melee paralyser (Floating Eye) reaches only a player who steps
+    beside it, which the paralyser ring veto already refuses; one that casts HOLD / BRAIN_SMASH
+    still counts."""
     if (snapshot.in_town or snapshot.inside_arena or snapshot.floor_key[2] != 0
             or not 0 < snapshot.dungeon_level < free_action_depth()):
         return []
+    shown = {monster.index for monster in snapshot.visible_monsters}
+    sensed = policy._paralyzing_monsters(
+        snapshot, [monster for monster in snapshot.detected_monsters
+                   if monster.hostile and monster.index not in shown])
     sighted = []
-    for monster in threats:
+    for monster in (*threats, *sensed):
         knowledge = policy._monrace_knowledge.get(monster.race_id)
         if (knowledge is not None and "NEVER_MOVE" in knowledge.flags
                 and not paralyses_by_spell(knowledge)):
@@ -128,3 +142,9 @@ def follows_walk(policy, snapshot, monster) -> bool:
     return policy._speed_energy(monster.speed) >= policy._speed_energy(
         snapshot.player.speed
     )
+
+
+def sensed_only(snapshot, sighted) -> bool:
+    """None of ``sighted`` is in view: the paralysers are only sensed (owner 2026-11-16)."""
+    shown = {monster.index for monster in snapshot.visible_monsters}
+    return bool(sighted) and not any(monster.index in shown for monster in sighted)
