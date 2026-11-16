@@ -10,15 +10,20 @@ let the deposit take it).
 
 The rule, through the carry tables every keeper already reads (no special case):
 
-* ``carried_device``: the device the pack keeps -- a Rod of Teleport Other first (it recharges; the
-  rods of one kind stack), else the charged Wand of Teleport Other stack with the most charges.
+* ``carried_device``: the device the pack keeps -- the one whose actual success (``success``, the
+  worn loadout's device skill) is the highest, a rod first on a tie (it recharges; the rods of one
+  kind stack), then the most charges.  Owner 2026-11-16 (n1-a life-528, a Lv41 warrior at device
+  skill 33 carried the rod, 3%, with seven wands, 85%, on the Home shelf), verbatim
+  「実際の成功率が高い方」.
   The retention authority (policy_home ``_retention_reservation_baseline_detail``) reserves that
   whole stack under ``RETENTION_BRANCH``, so no deposit, sale or destruction selector picks it:
   a carried rod is never shelved.
 * ``home_missing``: the Home item to take out (policy_home ``_home_procurement_batch_member`` /
   policy_supply ``_procurement_missing_amount``, the Home catalogue shortage binder): the Home
-  rod while no rod is carried, else the Home wand with the most charges while no device is
-  carried.  Nothing is bought for it (the owner asked to carry one, not to buy one).
+  device ``_best`` picks while the pack keeps none or one ``_best`` ranks below it.  Nothing is
+  bought for it (the owner asked to carry one, not to buy one).
+* ``usable``: a device below ``USABLE_MIN_SUCCESS`` is no Teleport Other means (owner 2026-11-16
+  「成功率50%未満は使える手に数えない」); teleport_follower reads it for every carried aim.
 
 The Magic-Eater is outside the rule: its devices are the absorption's (me_device_policy,
 item_use_route), and the absorbed Teleport Other is cast first (teleport_follower.ABSORBED).
@@ -26,10 +31,14 @@ item_use_route), and the absorbed Teleport Other is cast first (teleport_followe
 
 from __future__ import annotations
 
+from hengbot import destruction_means
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_ROD_TELEPORT_AWAY, SV_WAND_TELEPORT_AWAY, TVAL_ROD, TVAL_WAND
 
 RETENTION_BRANCH = "away-device-carry"
+# BaseitemDefinitions.jsonc: Rod of Teleport Other id 364 level 45, Wand id 285 level 20.
+LEVELS = {TVAL_ROD: 45, TVAL_WAND: 20}
+USABLE_MIN_SUCCESS = 50.0
 
 
 def applies(snapshot) -> bool:
@@ -45,15 +54,30 @@ def is_device(item) -> bool:
     return item.tval == TVAL_WAND and item.sval == SV_WAND_TELEPORT_AWAY and item.charges > 0
 
 
-def _best(items):
-    """A rod first, then the most charges; the earliest on a tie."""
+def success(player, item) -> float:
+    """The device's actual success percent (destruction_means.device_success)."""
+    return destruction_means.device_success(
+        player, "rod" if item.tval == TVAL_ROD else "wand", LEVELS[item.tval])
+
+
+def usable(player, item) -> bool:
+    """A Teleport Other device that counts as a means (``USABLE_MIN_SUCCESS``)."""
+    return success(player, item) >= USABLE_MIN_SUCCESS
+
+
+def _rank(player, item) -> tuple:
+    return success(player, item), item.tval == TVAL_ROD, item.charges
+
+
+def _best(items, player):
+    """The highest actual success, a rod on a tie, then the most charges; the earliest on a tie."""
     devices = [item for item in items if is_device(item)]
-    return max(devices, key=lambda item: (item.tval == TVAL_ROD, item.charges), default=None)
+    return max(devices, key=lambda item: _rank(player, item), default=None)
 
 
 def carried_device(snapshot):
     """The pack's kept Teleport Other device (``_best``), or None."""
-    return _best(snapshot.inventory) if applies(snapshot) else None
+    return _best(snapshot.inventory, snapshot.player) if applies(snapshot) else None
 
 
 def retained_count(snapshot, item) -> int:
@@ -67,9 +91,9 @@ def home_missing(policy, snapshot, item) -> int:
     if not applies(snapshot) or not is_device(item):
         return 0
     home = [stock for stock in policy._home_knowledge_items if is_device(stock)]
-    if item is not _best(home):
+    if item is not _best(home, snapshot.player):
         return 0
     have = carried_device(snapshot)
-    if have is None or (have.tval != TVAL_ROD and item.tval == TVAL_ROD):
+    if have is None or _rank(snapshot.player, have)[:2] < _rank(snapshot.player, item)[:2]:
         return 1
     return 0
