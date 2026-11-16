@@ -18718,15 +18718,15 @@
     "evidence": "Read admission/terminal data or forward the registered refusal confirmation; the entry owns any exit command."
   },
   "pingpong_guard.py:after_ladder": {
-    "classification": "dungeon-only",
+    "classification": "data",
     "rows": [
-      "departure"
+      "data/no-independent-credit"
     ],
-    "context": "No town key: guard.escalated is set only by pingpong_guard.observe on a dungeon board (it clears the guard in town and in a store).",
-    "evidence": "Owner 2026-11-13 「1と2だけ」 part 2: on a ping-pong escalation board, a non-survival key is replaced by the existing livelock leave (_navigation_livelock_key keeps its own rows).",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-13 「1と2だけ」 part 2: on a ping-pong escalation board, a non-survival key is replaced by the existing livelock leave (_navigation_livelock_key keeps its own rows). Since 357f4c0ff9 (2026-11-13) pingpong_guard.observe guards town boards too; on every other board it returns the key it was given, so it cannot name the decision's producer (a dungeon-only return here discarded the work record of every town decision as town:blocked:work-contract:unmapped-producer: n1-b life-407 2026-11-16). The escalation's leave is _navigation_livelock_key's own return, which keeps its rows.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
+    "delegation": "selected child; no independent success"
   },
   "quest25_battle.py:_confirm_tome_key": {
     "classification": "producer",

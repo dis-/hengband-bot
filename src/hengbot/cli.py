@@ -738,6 +738,9 @@ def _handle_owner_retirement(args, snapshot, key, policy, observed_visit=None):
                 key = policy._in_store_leave(snapshot, IN_STORE_DONE_REASON)
             else:
                 key = LEAVE_STORE_KEY
+            # The exit replaces the decided key after _choose_key armed (or
+            # did not arm) its visit; bind the visit to the exit posted now.
+            policy.arm_store_leave(snapshot)
             from hengbot.town_work import bind_driver_override
             bind_driver_override(policy, key, site='cli.py:_handle_owner_retirement')
         return key

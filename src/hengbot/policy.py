@@ -4268,6 +4268,26 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._town_visit_ledger.pending_store_context_waits = 0
         self._close_store_visit("posting-rewritten")
 
+    def arm_store_leave(self, snapshot: Snapshot) -> None:
+        """Bind the store visit to the in-store exit posted on ``snapshot``.
+
+        ``_choose_key`` arms its own exit here, and so does the CLI when it
+        replaces the decided key with the exit (an owner retirement forgiven
+        in a store, cli._handle_owner_retirement): the visit becomes LEAVING
+        and the next outside board releases it (_release_observed_store_exit).
+        Without it a posted operation's visit stays OPERATING outside the store
+        and refuses every other stop (n1-b life-407 2026-11-16: the forgiven
+        Home's exit kept the equipment-transaction visit, and the Temple's
+        Word of Recall became ``town:blocked:restock-store-unreachable``).
+        """
+        self._store_leave_inflight = (
+            self._decision_sequence,
+            getattr(snapshot, "turn", 0),
+            snapshot.store.store_type,
+        )
+        if snapshot.store.store_type == STORE_HOME:
+            self._home_knowledge_scan_leave_turn = getattr(snapshot, "turn", 0)
+
     def _release_observed_store_exit(self, snapshot: Snapshot) -> None:
         """End a posted store exit that this outside board has observed.
 
@@ -6591,13 +6611,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ):
             self._discard_unposted_equipment_transaction_command()
         if snapshot.store is not None and key == LEAVE_STORE_KEY:
-            self._store_leave_inflight = (
-                self._decision_sequence,
-                getattr(snapshot, "turn", 0),
-                snapshot.store.store_type,
-            )
-            if snapshot.store.store_type == STORE_HOME:
-                self._home_knowledge_scan_leave_turn = getattr(snapshot, "turn", 0)
+            self.arm_store_leave(snapshot)
         elif snapshot.store is not None and key not in {WAIT_KEY, "\r"}:
             self._town_visit_ledger.pending_store_transaction = (
                 snapshot.store.store_type,
