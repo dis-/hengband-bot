@@ -249,6 +249,11 @@ _rows(EXCLUDED, "quest25_pocket",
       "Q25's sealed pocket with no Stone to Mud (owner 2026-11-15 「溶かして撃つ・無ければ帰還」): the "
       "plan gives the floor up and reads Recall; a plan's leave, no enemy prompted it",
       "quest25:sealed-pocket-recall")
+_rows(EXCLUDED, "quest25_battle",
+      "Q25 phase 2's restock (owner 2026-11-16 「隘路で迎え撃ち尽きる前に帰還」): three fruitless look-outs "
+      "in a row or two Healing potions left, the plan reads Recall to restock and the quest fails; a "
+      "plan's leave by its own counts, not an escape from an enemy",
+      "quest25:restock-recall")
 
 # ================================================================ walks and waits
 _RULE_WALK = "owner 2026-11-09 「歩いての後退は数えない」: a walk, a wait or a step toward an exit"

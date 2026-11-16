@@ -87,18 +87,28 @@ def staff_home_items(policy, snapshot) -> tuple:
 
 # -- the staff's success ------------------------------------------------------------
 
-def staff_success(player, level: int) -> float:
-    """A carried staff's success percent (not confused): use-execution.cpp's chance
-    (attack_expectation) at the item's level; stunned, times the chance check_stun lets the
-    use through (me_powers.STUN_ITEM_PENALTY); a Berserker always fails."""
+def device_success(player, kind: str, level: int) -> float:
+    """A carried device's success percent (not confused), the one reading of it: a staff's
+    (use-execution.cpp) or a wand's (zapwand-execution.cpp) chance is skill - level
+    (attack_expectation.device_use_success), a rod's is zaprod-execution.cpp's
+    (attack_expectation.rod_use_success), at the board's device skill (the worn loadout's);
+    stunned, times the chance check_stun lets the use through (me_powers.STUN_ITEM_PENALTY, all
+    three commands ask it); a Berserker always fails."""
     from hengbot import attack_expectation, me_powers
 
     if player.class_id == PLAYER_CLASS_BERSERKER:
         return 0.0
-    success = attack_expectation.device_use_success(player.device_skill, level) * 100
+    chance = (attack_expectation.rod_use_success if kind == "rod"
+              else attack_expectation.device_use_success)
+    success = chance(player.device_skill, level) * 100
     if player.stunned:
         success *= (100 - me_powers.STUN_ITEM_PENALTY[me_powers._stun_rank(player)]) / 100
     return success
+
+
+def staff_success(player, level: int) -> float:
+    """A carried staff's success percent (``device_success``)."""
+    return device_success(player, "staff", level)
 
 
 def reliable_skill() -> int:

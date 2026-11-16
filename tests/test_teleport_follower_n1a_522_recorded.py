@@ -227,13 +227,15 @@ class TeleportAwayCarryTest(Harness):
         policy._adopt_home_catalogue(tuple(parse_snapshot(home_raw, self.races).store.items))
         return policy, board
 
-    def test_the_home_rod_is_taken_out(self):
-        """The recorded pack holds no Teleport Other device; the Home rod is bound, one."""
+    def test_the_home_wands_are_taken_out_not_the_3_percent_rod(self):
+        """The recorded pack holds no Teleport Other device; at device skill 32 the Home rod
+        succeeds 3% and the wands 83%: the wand stack is bound (owner 2026-11-16 「実際の成功率が
+        高い方」, n1-a life-528; until then the rod was bound, 「ロッドがあればロッド」)."""
         policy, board = self.town()
+        self.assertEqual(board.player.device_skill, 32)
         self.assertIsNone(teleport_away_carry.carried_device(board))
         self.assertTrue(policy._queue_home_catalogue_shortages(board))
-        self.assertEqual(policy._home_pending_item[1:], (TVAL_ROD, SV_ROD_TELEPORT_AWAY))
-        self.assertEqual(policy._home_pending_quantities[policy._home_pending_item], 1)
+        self.assertEqual(policy._home_pending_item[1:], (TVAL_WAND, SV_WAND_TELEPORT_AWAY))
 
     def test_without_the_rod_the_wands_are_taken_out(self):
         """CONSTRUCTED: the rod taken off the Home page: the wand stack (24 charges) is bound."""

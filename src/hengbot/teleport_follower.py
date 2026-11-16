@@ -68,9 +68,10 @@ from hengbot.policy_constants import speed_energy
 AWAY_REASON = "emergency:teleport-follower:teleport-away"
 # The same Teleport Other at a faster blinder beside a blind player (status_cure.outpacing_blinders).
 BLINDER_REASON = "emergency:blinder:teleport-away"
-# The absorbed rod, then the absorbed wand, then the carried rod, then the carried wand: the
-# absorbed power first (destruction_use, speed_dose), the rod before the wand (it recharges,
-# me_powers' Teleport Away rows).
+# The absorbed rod, then the absorbed wand, then the carried device: the absorbed power first
+# (destruction_use, speed_dose), the rod before the wand (it recharges, me_powers' Teleport Away
+# rows); a carried device by its actual success first (``_carried``, owner 2026-11-16), each at
+# 50%+ (teleport_away_carry.USABLE_MIN_SUCCESS).
 ABSORBED = me_absorbed_substitutes.TELEPORT_AWAY
 CARRIED = (("rod", TVAL_ROD, SV_ROD_TELEPORT_AWAY), ("wand", TVAL_WAND, SV_WAND_TELEPORT_AWAY))
 
@@ -241,21 +242,38 @@ def _target(policy, snapshot, chosen):
 
 
 def _absorbed(policy, snapshot):
+    """The absorbed Teleport Other with a charge, not below ``teleport_away_carry.USABLE_MIN_SUCCESS``
+    (owner 2026-11-16 「成功率50%未満は使える手に数えない」; a power with no observed success row
+    keeps counting as before)."""
+    from hengbot import destruction_use, teleport_away_carry
+
     for ident in ABSORBED:
         if (me_capability.has(policy, snapshot, *ident)
                 and me_capability.charges(policy, snapshot, *ident) > 0):
-            return ident
+            success = destruction_use.absorbed_success(policy, snapshot, ident)
+            if success is None or success >= teleport_away_carry.USABLE_MIN_SUCCESS:
+                return ident
     return None
 
 
 def _carried(snapshot):
-    for kind, tval, sval in CARRIED:
+    """The carried Teleport Other to zap: of the ready rods and charged wands that reach
+    ``teleport_away_carry.USABLE_MIN_SUCCESS`` (owner 2026-11-16 「成功率50%未満は使える手に数えない」;
+    n1-a life-528 zapped a 3% rod three times at HP 282-74 and died), the highest actual success,
+    a rod on a tie (``CARRIED``'s order)."""
+    from hengbot import teleport_away_carry
+
+    ready = []
+    for order, (kind, tval, sval) in enumerate(CARRIED):
         item = next((item for item in snapshot.inventory
                      if item.tval == tval and item.sval == sval and item.aware
                      and (item.charges > 0 if kind == "wand" else not item.charging)), None)
-        if item is not None:
-            return kind, item
-    return None
+        if item is not None and teleport_away_carry.usable(snapshot.player, item):
+            ready.append((teleport_away_carry.success(snapshot.player, item), -order, kind, item))
+    if not ready:
+        return None
+    *_rank, kind, item = max(ready, key=lambda row: row[:2])
+    return kind, item
 
 
 def away_usable(policy, snapshot) -> bool:

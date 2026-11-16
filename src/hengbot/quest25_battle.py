@@ -166,7 +166,10 @@ RECALL_OUT_REASON = f"{REASON}:recall-out-of-fire"
 RECALL_WAIT_REASON = f"{REASON}:recall-wait"
 ABSORBED_HEAL_REASON = f"{REASON}:heal{CAST_SUFFIX}"
 MASS_CELL_REASON = f"{REASON}:mass-firing-cell"
+CHOKE_BACK_REASON = f"{REASON}:choke-step-back"
+RESTOCK_RECALL_REASON = f"{REASON}:restock-recall"
 _PLANNED_STEPS = frozenset({WALK_REASON, ENGAGE_REASON, RETREAT_REASON, SIGHT_REASON, WITHDRAW_REASON,
+                            CHOKE_BACK_REASON,
                             OUT_OF_FIRE_REASON, quest_room_sweep.EXIT_WALK_REASON,
                             RECALL_EXIT_WALK_REASON, RECALL_OUT_REASON, MASS_CELL_REASON})
 # The plan's own '<' on the start stair: Recall active (_recall_wait) or Healing used up (_leave_by_exit).
@@ -328,6 +331,9 @@ class Battle:
     # (race, last seen cell) each, and the decided boards since one of them was last seen.
     strong: tuple = ()
     strong_quiet: int = 0
+    # Phase 2 (owner 2026-11-16 「隘路で迎え撃ち尽きる前に帰還」): the rallies in a row that ended on the
+    # choke with no shot at the pen since the last one (the look-out, the summons, the return).
+    lookouts: int = 0
     # Owner 2026-11-12 (quest25_sealed_room): the room landed in, (name, actions, step, last
     # counted turn, shots at the clear's target); None off the sealed rooms.
     room: tuple | None = None
@@ -1456,10 +1462,13 @@ def _rally(ctx: _Ctx) -> str | None:
     plan, as before."""
     battle = ctx.battle
     targets = _fight_targets(ctx)
-    if any(monster.distance <= 1 for monster in targets):
-        return _engage(ctx, targets)
     summons = geo.summon_cells(ctx.terrain)
     chokes = {cell for cell in ctx.navigator.battlefield.chokepoints if cell not in summons}
+    if any(monster.distance <= 1 for monster in targets):
+        # Owner 2026-11-16 「隘路で迎え撃ち」: with one beside, a choke one step away is stepped back
+        # to and the fight is there, not on a cell the summons reaches (n1-a life-528 fought on
+        # [4,1] beside the choke [3,1] and was summoned on, board after board).
+        return _choke_step_back(ctx, chokes) or _engage(ctx, targets)
     if ctx.here in chokes:
         if targets:
             return _engage(ctx, targets) or _hold(ctx)
@@ -1484,11 +1493,53 @@ def _rally(ctx: _Ctx) -> str | None:
             or (_hold(ctx) if battle.strong else None))
 
 
+def _choke_step_back(ctx: _Ctx, chokes) -> str | None:
+    """Off the chokes, the step to a free choke beside the player (the first by the grid's
+    order), else None."""
+    if ctx.here in chokes:
+        return None
+    occupied = {(monster.position.y, monster.position.x) for monster in ctx.hostiles()}
+    beside = sorted(cell for cell in chokes if cell not in occupied and cell not in _refused(ctx)
+                    and max(abs(cell[0] - ctx.here[0]), abs(cell[1] - ctx.here[1])) == 1)
+    return _step(ctx, beside[0], CHOKE_BACK_REASON) if beside else None
+
+
+# Owner 2026-11-16 (n1-a life-528, answer A 「隘路で迎え撃ち尽きる前に帰還」): in phase 2, three
+# look-outs in a row summoned on and back to the choke with no shot at the pen, or the Healing
+# potions (Healing and stronger, quest_plan_base ``healing_potion_count``) down to two, and Word
+# of Recall is read to restock -- the quest fails; survival first (owner 2026-11-09).
+LOOKOUT_LIMIT = 3
+HEALING_FLOOR = 2
+
+
+def _restock_recall(policy, snapshot) -> str | None:
+    """Phase 2's leave to restock (``LOOKOUT_LIMIT`` / ``HEALING_FLOOR``): Word of Recall, read past
+    the ONCE floor's hold (once_quest_recall ``read_key`` ``deliberate``); then, Recall active,
+    the plan's own wait (``_recall_wait``: the start stair, else out of the casters' fire).  None
+    off phase 2, within both counts, or with Recall already active."""
+    ctx = _ctx(policy, snapshot)
+    if ctx is None or snapshot.player.recalling:
+        return None
+    phase = current_phase(ctx)
+    if phase is None or phase.name != "ipsissimus":
+        return None
+    if (ctx.battle.lookouts < LOOKOUT_LIMIT
+            and quest_plan_base.healing_potion_count(policy, snapshot) > HEALING_FLOOR):
+        return None
+    return once_quest_recall.read_key(policy, snapshot, RESTOCK_RECALL_REASON, deliberate=True)
+
+
 def _ipsissimus(ctx: _Ctx) -> str | None:
     battle, policy, snapshot = ctx.battle, ctx.policy, ctx.snapshot
     if battle.rallying or battle.strong:
         if (key := _rally(ctx)) is not None:
             return key
+        if not battle.rallying:
+            # The rally ended on the choke on this board: one look-out came back (``lookouts``,
+            # set back to 0 by a shot at the pen, ``_pen_shot``).
+            battle.lookouts += 1
+            if (key := _restock_recall(policy, snapshot)) is not None:
+                return key
         # The rally ended on the choke on this board (``_rally``): the phase's preparation rests
         # there first (phase2 「全快して(7,1)に移動」), on a cell no summons reaches, not one step on.
         # n1-a life-528 (2026-11-16 13:12:42-13:13:10): the walk to the pen's sight left the choke
@@ -1530,7 +1581,9 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
         if scroll is not None:
             policy.last_reason = TELEPORT_REASON
             return policy._read_key(snapshot, scroll)
-        return _engage(ctx, summons) or _rally(ctx)
+        # No Teleportation (owner 2026-11-12: none read up to phase 3): the rally's choke first
+        # (owner 2026-11-16 「隘路で迎え撃ち」), the fight where the player stands only without one.
+        return _rally(ctx) or _engage(ctx, summons)
     if from_stand:
         if ctx.here not in walk and not in_sight:
             return _walk(ctx, {walk[0]})
@@ -1605,6 +1658,8 @@ def _summons_in_view(ctx: _Ctx, others) -> list:
 
 def _pen_shot(ctx: _Ctx, key: str | None) -> str | None:
     ctx.battle.pen_shot = key is not None
+    if key is not None:
+        ctx.battle.lookouts = 0   # a look-out that shot at the pen is no fruitless one
     return key
 
 
@@ -2746,6 +2801,7 @@ def key(policy, snapshot) -> str | None:
             or resist_potion.drink_key(policy, snapshot)
             or _restore(policy, snapshot)
             or _out_of_fire_key(policy, snapshot)
+            or _restock_recall(policy, snapshot)
             or _recall_wait(policy, snapshot)
             or _phase_key(policy, snapshot)
             or resist_potion.leave_key(policy, snapshot)
@@ -2764,6 +2820,7 @@ def key(policy, snapshot) -> str | None:
         or quest_plan_base._below_line(policy, snapshot, profile, navigator)
         or _absorbed_heal(policy, snapshot, profile)
         or quest_plan_base._heal(policy, snapshot, profile)
+        or _restock_recall(policy, snapshot)
         or quest_plan_base._speed(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
