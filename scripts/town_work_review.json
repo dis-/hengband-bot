@@ -19886,5 +19886,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 phase 2: three fruitless look-outs in a row or two Healing potions left, the Recall read to restock (owner 2026-11-16 「尽きる前に帰還」). No independent progress."
+  },
+  "me_capped_pickup.py:destroy_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon and quest floor loot only: the pile underfoot of _current_floor_item_key and the quest sweep; a town floor never holds a Magic-Eater's capped Staff of *Destruction* pile it walked to.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-16 「取り込み回数99なら杖を拾わず壊す」: a Magic-Eater at 99 absorbed *Destruction* stands on a single-item pile of that staff and destroys it on the floor (0<count>k-, cmd-destroy.cpp USE_FLOOR); a pile left unchanged defers the cell as a failed pickup does."
   }
 }

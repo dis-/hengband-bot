@@ -30,6 +30,9 @@ NON_ITEM_COMPOSITIONS = {
     # The inn's "Rest for the night" ('r', BACT_REST) and its leave: a building menu key.
     ('me_inn_refill.py', '<module>'): ("f'[1-9]{REST_KEY}{LEAVE_STORE_KEY}'",),
     ('me_inn_refill.py', '_stay_key'): ('REST_KEY + LEAVE_STORE_KEY',),
+    # The floor item underfoot destroyed where it lies ('-' selects it, cmd-destroy.cpp
+    # USE_FLOOR): no pack item, so no reservation verdict (owner 2026-11-16).
+    ('me_capped_pickup.py', 'destroy_key'): ("f'0{DESTROY_ALL_COUNT}{DESTROY_COMMAND}-'",),
 }
 PREFIXES = {'d', 'p', 'k', 'w', 't', '{', '}', 'r', 'q', 'E', 'u',
             'a', 'z', 'f', 'v', '\\F'}

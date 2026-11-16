@@ -41,6 +41,12 @@ the one table of the wares this errand buys; the staff is its first row, full te
 owns none (worn, intrinsic, carried or in the Home: ``_owns_telepathy``) and read on
 every shop's shelf (store.cpp gives a shop other than the Black Market an ego item
 too).  One errand per stay: a shelf of a higher row on another shop is not replaced.
+
+Owner 2026-11-16 (verbatim): 「破壊の杖の優先購入だが、魔道具術師で取り込み回数が50を超えたらやめる。」
+The staff's row is wanted only while ``staff_wanted`` holds: a Magic-Eater whose absorbed
+*Destruction* count (me_capability.count: the displayed list's ``max``, else the absorption
+record, a lower bound) is above ``ME_STAFF_COUNT_LIMIT`` neither buys it as the Black Market's
+top pick (any number) nor sells Home's spares for it.  Every other class keeps the rule.
 """
 from __future__ import annotations
 
@@ -86,11 +92,25 @@ def _owns_telepathy(policy: Any, snapshot: Any) -> bool:
     return any(TR_TELEPATHY in item.known_flags for item in owned)
 
 
+# Owner 2026-11-16 「魔道具術師で取り込み回数が50を超えたらやめる」.
+ME_STAFF_COUNT_LIMIT = 50
+
+
+def staff_wanted(policy: Any, snapshot: Any) -> bool:
+    """The staff's priority purchase applies: not a Magic-Eater past ``ME_STAFF_COUNT_LIMIT``
+    (me_capability.count is 0 for every other class)."""
+    from hengbot import destruction_means, me_capability
+
+    return (me_capability.count(policy, snapshot, *destruction_means.POWER)
+            <= ME_STAFF_COUNT_LIMIT)
+
+
 PRIORITY_WARES = (
-    # Owner 2026-11-07 「何本でも買う」: whenever the Black Market shelves one.
+    # Owner 2026-11-07 「何本でも買う」: whenever the Black Market shelves one (owner
+    # 2026-11-16: a Magic-Eater only up to its count limit, ``staff_wanted``).
     PriorityWare("destruction-staff", frozenset({STORE_BLACK}),
                  lambda policy, item: policy._is_destruction_staff(item),
-                 lambda _policy, _snapshot: True),
+                 staff_wanted),
     # Owner 2026-11-15 「完全なテレパシーを闇市で最優先で買う」; its purchase rung is
     # policy_shop's "priority-ware:telepathy" (``rung_matches``).
     PriorityWare("telepathy", None, _is_telepathy_ware,

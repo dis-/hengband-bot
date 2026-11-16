@@ -436,8 +436,10 @@ class PolicyHelpersMixin:
         """
         if self._floor_pile_is_worthless(grid):
             return True
-        # Owner 2026-11-13: the Magic-Eater leaves copies of a power at its cap.
-        if me_capped_pickup.capped_pile(self, snapshot, grid.position):
+        # Owner 2026-11-13: the Magic-Eater leaves copies of a power at its cap; 2026-11-16:
+        # the one it destroys where it lies is walked to (me_capped_pickup.destroys).
+        if (me_capped_pickup.capped_pile(self, snapshot, grid.position)
+                and not me_capped_pickup.destroys(self, snapshot, grid.position)):
             return True
         return bool(grid.object_tvals) and all(
             tval in UNWANTED_TVALS or tval in {1, 3, 10} or
