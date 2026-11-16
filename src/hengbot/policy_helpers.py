@@ -704,7 +704,11 @@ class PolicyHelpersMixin:
         bounced Angband dive is never sent straight back to its refused
         landing, nor is an Angband alternate re-picked when it is the one
         being left.
+
+        A landing above the fallback depth floor passes when the dive reaches the floor
+        (owner 2026-11-17 「下限まで潜れるなら鉄獄を選ぶ」, ``dive_floor.angband_valve_dive``).
         """
+        landing = fallback_depth_floor.landing_depth(self, snapshot, DUNGEON_ANGBAND)
         return (
             guardian_bounced_dungeon != DUNGEON_ANGBAND
             and self._alternate_dungeon != DUNGEON_ANGBAND
@@ -712,9 +716,9 @@ class PolicyHelpersMixin:
             and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
             and self._can_fight_in_dungeon(DUNGEON_ANGBAND)
             and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
-            and fallback_depth_floor.landing_allowed(
-                self, snapshot,
-                fallback_depth_floor.landing_depth(self, snapshot, DUNGEON_ANGBAND),
+            and (
+                fallback_depth_floor.landing_allowed(self, snapshot, landing)
+                or dive_floor.angband_valve_dive(self, snapshot, landing)
             )
         )
     def _fallback_destination_allowed(self, dungeon_id: int) -> bool:

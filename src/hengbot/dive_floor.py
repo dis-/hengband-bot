@@ -33,12 +33,15 @@ is the floor, the recall lands where the save holds it and the stairs go down to
 from __future__ import annotations
 
 from hengbot import fallback_depth_floor
+from hengbot.model import DUNGEON_ANGBAND
 
 DUNGEON_CASTLE = 12  # 城 (lib/edit/DungeonDefinitions.jsonc)
 DUNGEON_MOUNTAIN = 14  # 山
 DIVE_FLOOR_DUNGEONS = (DUNGEON_CASTLE, DUNGEON_MOUNTAIN)
 STATE = "_alternate_dive_floor"
 LEASED_REASONS = frozenset({"over_extended_dives", "no_depth_progress"})  # alternate_lease's
+# The guardian valve's switches (policy._activate_safe_recall_fallback, policy_observation).
+GUARDIAN_VALVE_REASONS = frozenset({"guardian_valve", "guardian_bounce_valve"})
 
 
 def _landing(snapshot, info) -> int:
@@ -55,18 +58,46 @@ def pick(policy, snapshot, *, too_hard: int) -> int | None:
         info = policy._dungeon_knowledge.get(did)
         if (info is None or did not in (snapshot.entered_dungeon_ids or ())
                 or did == policy._alternate_dungeon
-                or info.max_depth < target
+                or not reaches(policy, snapshot, did)
                 or not policy._fallback_destination_allowed(did)):
             continue
         landing = _landing(snapshot, info)
         if (landing > target
-                or not policy._fallback_landing_allowed(snapshot, did, landing, depth_floor=False)
-                or policy._missing_required_abilities(snapshot, target)
-                or policy._guardian_floor_blocked(snapshot, did, target)):
+                or not policy._fallback_landing_allowed(snapshot, did, landing, depth_floor=False)):
             continue
         if landing > best_landing:
             best, best_landing = did, landing
     return best
+
+
+def reaches(policy, snapshot, dungeon_id: int) -> bool:
+    """A dive in ``dungeon_id`` can reach the floor: the floor is within the dungeon's depth,
+    meets the depth requirements and is no guardian floor the kit cannot pass."""
+    target = fallback_depth_floor.floor(policy, snapshot)
+    info = policy._dungeon_knowledge.get(dungeon_id)
+    return (info is not None and info.max_depth >= target
+            and not policy._missing_required_abilities(snapshot, target)
+            and not policy._guardian_floor_blocked(snapshot, dungeon_id, target))
+
+
+def angband_valve_dive(policy, snapshot, landing: int) -> bool:
+    """The guardian valve's Angband landing ``landing`` is above the floor and dives to it.
+
+    Owner 2026-11-17 (n1-c life-216, Castle 65 and the Mountain 50 both on their unbeaten
+    guardian floors, Angband 44 against the floor 45): 「下限まで潜れるなら鉄獄を選ぶ」.  The
+    recall lands where the save holds it and the ordinary Angband descent goes on to the floor
+    and below (no ``capped`` ceiling: the target is the floor, not a limit)."""
+    return (not fallback_depth_floor.landing_allowed(policy, snapshot, landing)
+            and reaches(policy, snapshot, DUNGEON_ANGBAND))
+
+
+def angband_valve_held(policy, snapshot) -> bool:
+    """The held switch is the guardian valve's Angband that dives to the floor."""
+    return (getattr(policy, "_alternate_dungeon", None) == DUNGEON_ANGBAND
+            and getattr(policy, "_alternate_dungeon_reason", None) in GUARDIAN_VALVE_REASONS
+            and angband_valve_dive(policy, snapshot,
+                                   fallback_depth_floor.landing_depth(
+                                       policy, snapshot, DUNGEON_ANGBAND)))
 
 
 def bind(policy, snapshot, alternate) -> None:

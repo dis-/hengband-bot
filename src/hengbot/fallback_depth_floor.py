@@ -80,7 +80,9 @@ def settle(policy, snapshot) -> bool:
     dived_to = dive_floor.target(policy) or 0
     if (not snapshot.in_town or alternate is None
             or landing_allowed(policy, snapshot,
-                               max(landing_depth(policy, snapshot, alternate), dived_to))):
+                               max(landing_depth(policy, snapshot, alternate), dived_to))
+            # Owner 2026-11-17: the guardian valve's Angband lands above the floor and dives to it.
+            or dive_floor.angband_valve_held(policy, snapshot)):
         return False
     alternate_lease.end(policy, snapshot)
     return True

@@ -163,13 +163,26 @@ class FallbackDepthFloorControlTest(FallbackDepthFloorVisit):
             self.assertTrue(fallback_depth_floor.settle(policy, board))
         self.assertIsNone(policy._alternate_dungeon)
 
-    def test_guardian_valve_skips_a_shallow_angband(self):
-        # DECLARED CONSTRUCTED: Angband's landing 30 (deepest reached stays 62: floor 42); a
-        # Mountain bounce takes the shallowest other landing at 42 or deeper.  Unfixed: Angband.
+    def test_guardian_valve_takes_a_shallow_angband_that_dives_to_the_floor(self):
+        # DECLARED CONSTRUCTED: Angband's landing 30 (deepest reached stays 62: floor 42).
+        # Owner 2026-11-17 「下限まで潜れるなら鉄獄を選ぶ」 (n1-c life-216): Angband reaches 42, so
+        # the Mountain bounce takes Angband first (owner 2026-11-07) and dives from 30 to 42.
         board = self.arrival()
         policy = self.policy
         board = replace(board, dungeon_recall_depths={**LANDINGS, DUNGEON_ANGBAND: 30})
         policy._alternate_dungeon = None
+        self.assertEqual(policy._pick_alternate_dungeon(board, guardian_bounced_dungeon=MOUNTAIN),
+                         DUNGEON_ANGBAND)
+
+    def test_guardian_valve_skips_a_shallow_angband_that_cannot_reach_the_floor(self):
+        # DECLARED CONSTRUCTED: as above, and Angband ends at 41, above the floor 42: the bounce
+        # takes the shallowest other landing at 42 or deeper.
+        board = self.arrival()
+        policy = self.policy
+        board = replace(board, dungeon_recall_depths={**LANDINGS, DUNGEON_ANGBAND: 30})
+        policy._alternate_dungeon = None
+        policy._dungeon_knowledge[DUNGEON_ANGBAND] = replace(
+            policy._dungeon_knowledge[DUNGEON_ANGBAND], max_depth=41, guardian_id=0)
         self.assertEqual(policy._pick_alternate_dungeon(board, guardian_bounced_dungeon=MOUNTAIN),
                          DUNGEON_20)
 
