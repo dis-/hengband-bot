@@ -19898,5 +19898,104 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-16 「取り込み回数99なら杖を拾わず壊す」: a Magic-Eater at 99 absorbed *Destruction* stands on a single-item pile of that staff and destroys it on the floor (0<count>k-, cmd-destroy.cpp USE_FLOOR); a pile left unchanged defers the cell as a failed pickup does."
+  },
+  "amberite_curse.py:after_ladder": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: amberite_curse.struck returns no Amberite in town (snapshot.in_town), so after_ladder returns the key it was given there.",
+    "evidence": "Owner 2026-11-17 (Amberites' blood curse): the after-ladder gate (dungeon_ladder.AFTER_DECIDE) of a decided key that can strike an Amberite (struck): the Speed dose (speed_dose.key, amberite:haste), the Potion of Resistance (resist_potion.quaff_key, amberite:quaff-resistance), or _kept_alive_key in its place; every other key, and every town key, is returned as given, so it never names a town decision's producer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "amberite_curse.py:_kept_alive_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: amberite_curse.struck returns no Amberite in town (snapshot.in_town), so after_ladder returns the key it was given there.",
+    "evidence": "Owner 2026-11-17: the answer to a refused strike at an Amberite: *Destruction* on it without resist curse (destruction_use.key, emergency:destruction:amberite), the walk toward its sure radius (amberite:approach-destruction), the existing engagement retreat (_avoid_engagement_key), else a wait (amberite:hold); no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "amberite_curse.py:_approach_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: amberite_curse.struck returns no Amberite in town (snapshot.in_town), so after_ladder returns the key it was given there.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the step toward the sure radius 13 of the nearest Amberite out of it, under deep_teleport._walk_step's gates (means held, clear head, destroyable floor); None within the radius or without a path; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "amberite_curse.py:refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: amberite_curse.struck returns no Amberite in town (snapshot.in_town), so after_ladder returns the key it was given there.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: why a strike at an Amberite may not be sent (no resist_curse, another awake hostile of the engagement, HP below the low-HP line), else None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "amberite_curse.py:struck": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: amberite_curse.struck returns no Amberite in town (snapshot.in_town), so after_ladder returns the key it was given there.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure reader: the Amberites a decided key may hit (a step into its cell; a ranged attack reason while it is in view or in the line of fire); [] in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:_stops": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: an unknown grid or one _may_block_projection reads as blocking stops a projection path.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:reaches": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: projectable(source, target) over the known board at range 18.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:in_fire": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: a monster has a line of fire to the player (reaches); read by the escape count and amberite_curse.struck.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "resist_potion.py:quaff_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: policy._choose_key and the plan floors ask resist_potion only when not in town.",
+    "evidence": "Composes the carried Potion of Resistance's quaff (reserved_item_command) under the calling rule's reason (amberite_curse's amberite:quaff-resistance); sets last_reason; emitted only through the calling rule.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

@@ -20,15 +20,22 @@ SHOT_REASON_PREFIXES = ("ranged:", "summoner:ranged-kill", MAGIC_MISSILE_REASON)
 _STEP_OF_KEY = {key: step for step, key in DIRECTION_KEYS.items()}
 
 
+def step_cell(snapshot, key: str) -> Position | None:
+    """The cell a direction ``key`` steps into (a blow when a monster stands there), else None."""
+    step = _STEP_OF_KEY.get(key)
+    if step is None:
+        return None
+    here = snapshot.player.position
+    return Position(here.y + step[0], here.x + step[1])
+
+
 def attacks_awake_hostile(policy, snapshot, key: str) -> bool:
     """``key`` under ``policy.last_reason`` attacks an awake visible hostile."""
     reason = policy.last_reason or ""
     awake = [monster for monster in policy._physical_hostiles(snapshot) if not monster.asleep]
     if reason in MELEE_REASONS:
-        step = _STEP_OF_KEY.get(key)
-        if step is None:
+        cell = step_cell(snapshot, key)
+        if cell is None:
             return False
-        here = snapshot.player.position
-        cell = Position(here.y + step[0], here.x + step[1])
         return any(monster.position == cell for monster in awake)
     return reason.startswith(SHOT_REASON_PREFIXES) and bool(awake)
