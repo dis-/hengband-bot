@@ -3106,6 +3106,17 @@ class CombatMixin:
                 self.last_reason = paralyzer_contact.SHALLOW_SIGHT_REASON_PREFIX + "stairs"
                 self._declare_triggers(sighted)
                 return stairs
+        if paralyzer_contact.sensed_only(snapshot, sighted):
+            # Owner 2026-11-16 「見かけたと同じに扱い階を離れる」: only sensed, the floor is left by
+            # Word of Recall; a Teleportation stays on its floor (n1-c life-215 landed beside it).
+            read = once_quest_recall.read_key(
+                self, snapshot, paralyzer_contact.SHALLOW_SENSED_RECALL_REASON)
+            if read is not None:
+                self._note_return_start(paralyzer_contact.SHALLOW_SENSED_RETURN_TRIGGER)
+                self._returning_to_town = True
+                self._last_return_trigger = paralyzer_contact.SHALLOW_SENSED_RETURN_TRIGGER
+                self._declare_triggers(sighted)
+            return read
         if not adjacent and not sighted:
             return None
         if (

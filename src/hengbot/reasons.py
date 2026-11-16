@@ -165,6 +165,9 @@ _rows(RELOCATING, "policy_combat", _RULE_ALL, "breeder-breakthrough:ascend", "br
 # above the Free Action depth requirement (policy_combat._paralyzer_prevention_key,
 # paralyzer_contact.SHALLOW_SIGHT_REASON_PREFIX); counted as the status-threat relocations are.
 _rows(RELOCATING, "policy_combat", _RULE_ALL, "shallow-paralyzer:stairs", "shallow-paralyzer:scroll")
+# Owner 2026-11-16 (n1-c life-215) 「見かけたと同じに扱い階を離れる」: a paralyser only sensed is
+# left by Word of Recall (paralyzer_contact.SHALLOW_SENSED_RECALL_REASON).
+_rows(RELOCATING, "policy_combat", _RULE_ALL, "shallow-paralyzer:recall")
 # Owner 2026-11-14 「混乱する前に離れるだけ」 (n1-b life-392): the player's own teleport before a
 # faster confuser's blow (confuser_contact: the scroll's REASON, the absorbed Teleportation's
 # REASON + ":absorbed-power", the staff's STAFF_REASON); counted as the status-threat relocations are.

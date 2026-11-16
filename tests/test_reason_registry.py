@@ -96,6 +96,9 @@ NEWLY_COUNTED_1114 = frozenset({
     "emergency:teleport-follower:survivable-teleport:absorbed-power",
     "emergency:teleport-follower:survivable-teleport-staff",
 })
+# Owner 2026-11-16 (n1-c life-215) 「見かけたと同じに扱い階を離れる」: a paralyser only sensed is left
+# by Word of Recall, a new reason counted as the other shallow-paralyzer leaves (rule A).
+NEWLY_COUNTED_1116 = frozenset({"shallow-paralyzer:recall"})
 
 
 class DerivedSetsTest(unittest.TestCase):
@@ -106,7 +109,8 @@ class DerivedSetsTest(unittest.TestCase):
 
     def test_relocating_escape_reasons_are_the_old_literals(self):
         self.assertEqual(policy_constants.RELOCATING_ESCAPE_REASONS,
-                         OLD_RELOCATING_ESCAPE_REASONS | NEWLY_COUNTED_1109 | NEWLY_COUNTED_1110)
+                         OLD_RELOCATING_ESCAPE_REASONS | NEWLY_COUNTED_1109 | NEWLY_COUNTED_1110
+                         | NEWLY_COUNTED_1116)
         self.assertFalse(OLD_RELOCATING_ESCAPE_REASONS & NEWLY_COUNTED_1109)
 
     def test_the_answered_questions_are_no_longer_open(self):
