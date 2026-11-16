@@ -316,6 +316,34 @@ def _frontier_step(policy, snapshot, visit: FloorVisit, goal: Position) -> Posit
     return route.first_step
 
 
+def _vetoes_hold_the_goal(policy, snapshot, walled, goal: Position, spent) -> bool:
+    """Whether the ground the retreat vetoes wall off (retreat_enclosure ``walled_off``) holds
+    what the walk would go to: a cell within 1 of ``goal``, or a frontier not ``spent`` closer to
+    it than the player (the walk's two goals, ``route_key`` and ``_frontier_step``).
+
+    Vetoed ground elsewhere on the floor is no way to the target.  n1-c life-216 (Angband 50F,
+    RANDOM quest 40, 2026-11-17 02:40): the target 『世界の裁判長』 (race 1134) at (33,34), behind
+    rock, was shown by telepathy from (33,54) (20 cells, MAX_PLAYER_SIGHT, monster-update.cpp
+    decide_sight_invisible_monster) but not from (33,55); the walk found no way, and the melt
+    toward 13 cells at row 49 behind a veto (49,55) -- their one frontier (49,42) closer to the
+    target already spent by an earlier give-up -- stepped '6' to (33,55); there the target was
+    out of reach of telepathy, the hunt did not answer, and the livelock's 50F+ stuck walk
+    (deep_teleport ``stuck_key``) stepped '4' back, until the loop detector stopped the bot.
+    The vetoed frontiers are spent with the rest on a give-up, so the ladder answers the hunt
+    once for them; the random quest's search asks the ladder on its own (quest_target_search)."""
+    if walled is None:
+        return False
+    distance = game_distance(snapshot.player.position, goal)
+    for cell in walled.ground:
+        if cell.distance_to(goal) <= 1:
+            return True
+        grid = snapshot.grids.get(cell)
+        if (grid is not None and cell not in spent and game_distance(cell, goal) < distance
+                and policy._is_frontier(snapshot, grid)):
+            return True
+    return False
+
+
 def route_key(policy, snapshot, hostiles) -> str | None:
     """The step toward the cell the target was last shown on, else None.
 
@@ -325,7 +353,8 @@ def route_key(policy, snapshot, hostiles) -> str | None:
     the walk goes to the nearest exploration frontier closer to it than the
     player (``_is_frontier``, the explore walk's own goal test); with neither,
     the cell is given up and the next search follows the me_powers spacing
-    rule.  When the floor's retreat vetoes are what closes the way,
+    rule.  When the floor's retreat vetoes are what closes the way (the ground
+    they wall off holds the walk's goal: ``_vetoes_hold_the_goal``),
     retreat_enclosure.walled_off_key answers first."""
     visit = _visit(policy, snapshot)
     if (visit is None or visit.position is None
@@ -356,10 +385,14 @@ def route_key(policy, snapshot, hostiles) -> str | None:
     else:
         visit.frontier = visit.frontier_goal = None
     if step is None:
+        # Asked before this give-up spends the frontiers: the vetoed ground's frontiers answer
+        # the ladder once, as any frontier the walk could not get closer through.
+        closed = _vetoes_hold_the_goal(policy, snapshot, retreat_enclosure.walled_off(policy, snapshot),
+                                       goal, visit.spent_frontiers)
         visit.spent_frontiers |= {position for position, grid in snapshot.grids.items()
                                   if policy._is_frontier(snapshot, grid)}
         visit.position = None
-        return retreat_enclosure.walled_off_key(policy, snapshot)
+        return retreat_enclosure.walled_off_key(policy, snapshot) if closed else None
     policy.last_reason = REASON
     policy._declare_reach(goal)
     return policy._step_toward(snapshot, step)
