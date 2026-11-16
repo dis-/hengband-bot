@@ -1295,6 +1295,36 @@ def _estimated_monster_hp(max_hp: int, health: str) -> int:
     return max(1, (max_hp * upper_percent + 99) // 100)
 
 
+# The five elements a Potion of Resistance opposes (quaff-effects.cpp resistance()).
+_OPPOSED_ELEMENTS = ("acid", "elec", "fire", "cold", "pois")
+# policy_constants.OPPOSITION_ABILITY (not imported: policy_constants imports this module); no
+# game flag, the board's one more layer of the five elements' opposition.
+_OPPOSITION_ABILITY = "oppose_elements"
+_LASTING_SOURCES = frozenset({"equipment", "permanent"})
+
+
+def _running_opposition(ability_sources, status_bar_data) -> bool:
+    """Whether the board carries the opposition layer of a Potion of Resistance as well as a
+    lasting resistance to each of the five elements: two layers each, as the damage model reads
+    ``resist_<element>`` plus ``OPPOSITION_ABILITY``.
+
+    The opposition is the status bar's resist_<element> keys (bot-json-output.cpp; resist_potion
+    and oneshot_breath read it there), else the temporary source.  Without a lasting resistance
+    the ``resist_<element>`` ability already is the opposition's one layer, so nothing is added
+    (never more layers than the game's).  n1-c life-214 (Angband 80F, 2026-11-16): after the
+    drink the projection still read the fire breath at one layer (p95 420 against HP 414),
+    called it instant death and read Teleportation into a mind-worm nest."""
+    if isinstance(status_bar_data, list):
+        bar = {str(entry.get("key")) for entry in status_bar_data if isinstance(entry, Mapping)}
+        opposed = {name for name in _OPPOSED_ELEMENTS if f"resist_{name}" in bar}
+    else:
+        opposed = {name for name in _OPPOSED_ELEMENTS
+                   if "temporary" in ability_sources.get(f"resist_{name}", frozenset())}
+    return all(name in opposed
+               and ability_sources.get(f"resist_{name}", frozenset()) & _LASTING_SOURCES
+               for name in _OPPOSED_ELEMENTS)
+
+
 def parse_snapshot(
     data: dict[str, Any], monrace_knowledge: dict[int, MonraceKnowledge] | None = None
 ) -> Snapshot:
@@ -1443,7 +1473,8 @@ def parse_snapshot(
         **melee_values,
         drained_stats=drained_stats,
         stats_at_max=stats_at_max,
-        abilities=abilities,
+        abilities=(abilities | {_OPPOSITION_ABILITY}
+                   if _running_opposition(ability_sources, status_bar_data) else abilities),
         ability_sources=AbilitySources(ability_sources),
         immunities=frozenset(
             element for element, sources in player_data.get("immunities", {}).items()
