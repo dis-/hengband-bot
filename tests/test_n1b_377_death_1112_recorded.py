@@ -115,8 +115,12 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
         raoh = shown(board, RAOH)
         self.assertEqual((raoh.perception, raoh.asleep, raoh.distance), ("detected", False, 10))
         self.assertTrue(threat_tiers.inside_sensing(policy, board, raoh))
-        self.assertEqual([monster.race_id for monster in threat_tiers._sensed_strong(policy, board)[1]],
-                         [RAOH])
+        # The leave's set (the 2026-11-08 words: awake, the player inside its sensing radius) is
+        # Raoh alone; the *Destruction* set also holds race 794, a T1 asleep or with the player
+        # outside its radius (owner 2026-11-17 「両方の条件を外して直して」).
+        self.assertEqual([monster.race_id for monster in
+                          threat_tiers._sensed_strong(policy, board, leave=True)[1]], [RAOH])
+        self.assertIn(RAOH, [monster.race_id for monster in threat_tiers._sensed_strong(policy, board)[1]])
         stunned = [self.decided[sequence][1].player.stun_rank for sequence in range(7973, 7977)]
         self.assertEqual(stunned, [0, 0, 1, 1])
 

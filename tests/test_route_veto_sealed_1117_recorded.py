@@ -37,8 +37,7 @@ row of 04:18:44 cast it, ``emergency:destruction:absorbed-power``, key ``mA3``),
 with 22 charges at 95% so that the 50F+ means-spent Recall (destruction_use) is not what answers.
 DECLARED CONSTRUCTED: the sleeper's race a パワー・ワイアーム (race 847, read T1 there) for the route-veto
 cases, an absorbed Stone to Mud (the capture does not say whether it was held),
-the boards without the 百足龍虫, and for the melt and Recall cases the *Destruction* taken as
-having failed the board before the stuck board (destruction_use's fallback).
+the boards without the 百足龍虫, and for the melt and Recall cases no *Destruction* listed and the floor at 49F.
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -49,7 +48,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import deep_teleport, destruction_use, engagement_avoid_seal, me_capability, retreat_enclosure, threat_tier_memory, threat_tiers
+from hengbot import destruction_use, engagement_avoid_seal, me_capability, retreat_enclosure, threat_tier_memory, threat_tiers
 from hengbot.model import SV_STAFF_DESTRUCTION, SV_WAND_STONE_TO_MUD, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
@@ -77,7 +76,7 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
             cls.data = json.load(stream)
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
-    def policy(self, *, stone_to_mud=False):
+    def policy(self, *, stone_to_mud=False, destruction=True):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         policy = _policy(Path(directory.name), self.monrace)
@@ -85,14 +84,17 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
         policy.prime(first)
         policy._skill_exp_cache = (0, 0, first.player.level, policy._town_visit_epoch)
         # DECLARED RECONSTRUCTED / CONSTRUCTED (module docstring): the absorbed powers.
-        lists = {"staff": (first.turn, (_row("staff", SV_STAFF_DESTRUCTION, 22, 22),))}
+        lists = ({"staff": (first.turn, (_row("staff", SV_STAFF_DESTRUCTION, 22, 22),))}
+                 if destruction else {})
         if stone_to_mud:
             lists["wand"] = (first.turn, (_row("wand", SV_WAND_STONE_TO_MUD, 10, 20),))
         policy._me_device_lists = lists
         return policy
 
-    def board(self, raw, *, sleeper=True, t1=False):
+    def board(self, raw, *, sleeper=True, t1=False, level=None):
         raw = copy.deepcopy(raw)
+        if level is not None:  # DECLARED CONSTRUCTED: the floor's level
+            raw["floor"]["level"] = level
         if not sleeper:  # DECLARED CONSTRUCTED: the 百足龍虫 gone
             for field in ("visible_monsters", "detected_monsters"):
                 raw[field] = [m for m in raw[field] if m["race_id"] != DRAGON_CENTIPEDE]
@@ -103,17 +105,17 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
                         m["race_id"] = POWER_WYRM
         return parse_snapshot(raw, self.monrace)
 
-    def replay(self, *, stone_to_mud=False, sleeper=True, destruction_failed=True, t1=True):
+    def replay(self, *, stone_to_mud=False, sleeper=True, t1=True, without_destruction=False):
         """(policy, the stuck board, its key, its reason) after deciding every board in order.
-        ``destruction_failed`` (DECLARED CONSTRUCTED): on the stuck board the *Destruction* is
-        taken as having failed the board before (destruction_use's fallback: its next ask
-        declines once), so the rungs after it answer."""
-        policy = self.policy(stone_to_mud=stone_to_mud)
+        ``without_destruction`` (DECLARED CONSTRUCTED): no *Destruction* listed and the floor at
+        49F (below 50F the means is no depth gate, so its lack sends no means-spent Recall), so
+        the rungs after the use answer: the sensed T1's *Destruction* (owner 2026-11-17, awake or
+        asleep) would otherwise answer the T1 sleeper first."""
+        policy = self.policy(stone_to_mud=stone_to_mud, destruction=not without_destruction)
+        level = 49 if without_destruction else None
         key = board = None
         for raw in self.data["boards"]:
-            board = policy.with_known_skill_exp(self.board(raw, sleeper=sleeper, t1=t1))
-            if destruction_failed and board.turn == STUCK_TURN:
-                destruction_use._memory(policy).fallback = board.floor_key
+            board = policy.with_known_skill_exp(self.board(raw, sleeper=sleeper, t1=t1, level=level))
             key = policy.choose_key(board)
         self.assertEqual(board.turn, STUCK_TURN)
         return policy, board, key, policy.last_reason
@@ -167,15 +169,17 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
         self.assertTrue(engagement_avoid_seal.route_veto_encloses(policy, board))
 
     def test_the_sealing_sleeper_is_destroyed_first(self):
-        """Owner 2026-11-17 「半径13以内なら *破壊*」: the 百足龍虫 sealing both doors, 6 cells
-        off (inside GUARANTEED_RADIUS), is left by the absorbed *Destruction* (``mA3``, the key
-        the record cast at 04:18:44) on the first board the explore finds nothing on (the record
-        searched there).  The engagement also holds an awake 1367 at (31,59), 44 cells off, the
-        most dangerous from contact: it is not asked about (the sealers alone are left)."""
-        policy, board, key, reason = self.replay(destruction_failed=False)
+        """Owner 2026-11-17 「半径13以内なら *破壊*」: the sleeper sealing both doors, 6 cells off
+        (inside GUARANTEED_RADIUS), is left by the absorbed *Destruction* (``mA3``, the key the
+        record cast at 04:18:44) on the first board the explore finds nothing on (the record
+        searched there).  A T1, it is now left by the T1 rules' use, awake or asleep (owner
+        2026-11-17 「両方の条件を外して直して」), a rung above the route-veto rung, whose own use
+        leaves the sealers the T1 rules do not take (a T2 with no selected target, a worsening
+        leave).  The engagement also holds an awake 1367 at (31,59), 44 cells off, the most
+        dangerous from contact: it is not asked about (the sealers alone are its leaving set)."""
+        policy, board, key, reason = self.replay()
         self.assertEqual(key, "mA3")
-        self.assertEqual(reason, destruction_use.REASON + retreat_enclosure.ROUTE_VETO_DESTRUCTION_SUFFIX
-                         + ":absorbed-power")
+        self.assertTrue(reason.startswith(destruction_use.REASON), reason)
         walled = retreat_enclosure._sides(policy, board, frozenset(policy._engagement_route_veto(board)))
         self.assertEqual([m.race_id for m in retreat_enclosure.sealers(policy, board, walled)],
                          [POWER_WYRM])
@@ -183,16 +187,16 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
         self.assertIn(1367, engagement)
 
     def test_the_enclosure_ladder_answers_before_any_search(self):
-        """50F+ off the 即死 board, the *Destruction* failed and no means to melt: deep_teleport's
-        stuck Recall."""
-        _policy_, board, key, reason = self.replay()
-        self.assertEqual(reason, deep_teleport.STUCK_RECALL_REASON)
+        """No *Destruction* and no means to melt (constructed at 49F): the floor's stuck escape,
+        Word of Recall (50F+ it is deep_teleport's stuck Recall, the same read)."""
+        _policy_, board, key, reason = self.replay(without_destruction=True)
+        self.assertEqual(reason, "stuck:recall-escape")
         self.assertTrue(key.startswith("r"), key)
 
     def test_stone_to_mud_melts_out_past_the_reach_first(self):
         """DECLARED CONSTRUCTED: an absorbed Stone to Mud.  The ground past the reach is the west
         door (5,23); the route melts one wall, (4,23), from the room's top row."""
-        policy, board, key, reason = self.replay(stone_to_mud=True)
+        policy, board, key, reason = self.replay(stone_to_mud=True, without_destruction=True)
         self.assertEqual(reason, retreat_enclosure.MELT_REASON)
         self.assertEqual(key, "4")
         walled = retreat_enclosure._sides(policy, board, frozenset(policy._engagement_route_veto(board)))

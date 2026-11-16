@@ -106,10 +106,12 @@ class SightTriggerTest(Boards):
         answer, _ = self.answer(with_staff(self.raw, skill=59))
         self.assertFalse(answer[1].startswith("emergency:destruction"))
 
-    def test_asleep_is_left_asleep(self):
+    def test_asleep_is_used_on_too(self):
+        """Owner 2026-11-17 「両方の条件を外して直して」: the 11-05 rule 「クエスト中でなければ*破壊*
+        対象とする」 never asked the disenchanter awake; until then an asleep one was left asleep."""
         raw = with_staff(self.raw)
         raw["visible_monsters"][0]["asleep"] = True
-        self.assertFalse(self.answer(raw)[0][1].startswith("emergency:destruction"))
+        self.assertEqual(self.answer(raw)[0], SIGHT)
 
     def test_beyond_the_radius_is_no_use_and_at_it_is(self):
         far = alone(with_staff(copy.deepcopy(self.raw)), BREATHER, 14)

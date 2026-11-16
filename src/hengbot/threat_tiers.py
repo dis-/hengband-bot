@@ -502,6 +502,11 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
         # A T1 the approach walked toward and lost from detection is still gone to (n1-b
         # life-377, the remembered approach below).
         return remembered_approach_key(policy, snapshot)
+    # The approach and the use take every sensed T1, awake or asleep, wherever it is (owner
+    # 2026-11-17 「両方の条件を外して直して」); the leave below, by the stairs, a scroll, Recall or
+    # a walk, stays the 2026-11-08 rule's (「感知で起きている倒しきれない敵が見えている時に休むか」→
+    # 「その敵の感知範囲内なら早急に離脱する」): the awake T1s with the player inside their sensing
+    # radius (``_sensed_strong`` ``leave``).
     # Owner 2026-11-10 (the n1-b life-367 report's P2, verbatim 「積極的に*破壊*で消しにいく」):
     # a T1 known only by detection is gone to and destroyed, not left (``approach_key``).
     if approach_owns(policy, snapshot, strong):
@@ -511,6 +516,14 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     if destruction_only:
         # The random quest floor (``destruction_only_here``): the use alone, never a leave.
         return destruction_use.key(policy, snapshot, leaving=strong)
+    _, leaving = _sensed_strong(policy, snapshot, leave=True)
+    if not leaving:
+        # A sleeping T1, or one whose sensing radius the player stands outside: no leave (the
+        # 11-08 rule), but the use in reach (sensed_t1_destruction_key asks it first), else the
+        # remembered approach as with none sensed.
+        used = destruction_use.key(policy, snapshot, leaving=strong)
+        return used if used is not None else remembered_approach_key(policy, snapshot)
+    strong = leaving
     # Owner 2026-11-13 「射線にT1が入っていない=感知しただけはカウントしない」 (2026-11-14 for every
     # escape, line_of_fire): the leave below is counted as an escape (escape_count, the
     # two-escape return) only when a T1 it leaves is in the line of fire; policy_observation
@@ -556,15 +569,19 @@ def note_line_of_fire(policy, snapshot, strong) -> None:
     line_of_fire.note(policy, snapshot, strong)
 
 
-def _sensed_strong(policy, snapshot) -> tuple[list, list]:
-    """(the engagement, its awake hostiles inside their sensing radius that are T1 alone, or
-    else the strong ones among them that are T1 together).
+def _sensed_strong(policy, snapshot, *, leave: bool = False) -> tuple[list, list]:
+    """(the engagement, its hostiles that are T1 alone, or else the strong ones among them that
+    are T1 together), awake or asleep, wherever they are: the *Destruction* and its approach
+    (owner 2026-11-17 「両方の条件を外して直して」: 11-04, 11-09 B, 11-10 and 11-14 never asked them
+    awake or the player inside their sensing radius).  With ``leave``: only the awake ones with
+    the player inside their sensing radius, the 2026-11-08 leave's own words (「感知で起きている
+    倒しきれない敵」→「その敵の感知範囲内なら早急に離脱する」).
 
-    Owner 2026-11-13 (the n1-b life-391 question, answer 「まとめて判定する」): awake sensed
+    Owner 2026-11-13 (the n1-b life-391 question, answer 「まとめて判定する」): sensed
     strong monsters are judged together as well; when no one of them is T1 alone but together
     they cannot be beaten, they are the sensed T1 (the leave of 2026-11-08, the approach to
     *Destruction* of 2026-11-10, the strong monster met on the way of 2026-11-12).  The members
-    are the sensing ones that are strong alone from contact (``STRONG_ON_THE_WAY``, T2: beaten
+    are the candidates that are strong alone from contact (``STRONG_ON_THE_WAY``, T2: beaten
     only with supplies; a monster the free fight beats, T3, is no 強敵), and only two or more of
     them make a group.  life-391 (Angband 80F): 竜の『ファフナー』 and 黄金竜『スマウグ』, each T2
     alone, together T1 (two resisted fire breaths, 311 + 226, against HP 533), killed the player.
@@ -573,10 +590,18 @@ def _sensed_strong(policy, snapshot) -> tuple[list, list]:
     is none of them: *Destruction* cannot remove it, and its own T1 verdict gives the floor up
     (hunt_target ``quest_target_unbeatable``), which releases the lock."""
     hostiles = engagement(policy, snapshot)
+    candidates = hostiles
+    if not leave:
+        # The engagement leaves the sleeping detected ones out (design 3, the 即死 set); the use
+        # and its approach take them as well (owner 2026-11-17).
+        shown = {monster.index for monster in hostiles}
+        candidates = [*hostiles, *(
+            monster for monster in policy._strategic_subset(snapshot, snapshot.detected_monsters)
+            if monster.asleep and monster.index not in shown)]
     spared = (destruction_use._target_race(policy, snapshot)
               if destruction_only_here(policy, snapshot) else None)
-    sensing = [monster for monster in hostiles
-               if not monster.asleep and inside_sensing(policy, snapshot, monster)
+    sensing = [monster for monster in candidates
+               if (not leave or (not monster.asleep and inside_sensing(policy, snapshot, monster)))
                and (spared is None or monster.race_id != spared)]
     hp = snapshot.player.hp
     # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
@@ -643,8 +668,9 @@ STRONG_ON_THE_WAY = (T1, T2)
 
 
 def on_the_way(policy, snapshot, targets) -> list:
-    """The strong monsters the approach meets on its way: awake, not one of ``targets``, within
-    *Destruction*'s sure radius, and T1 or T2 on their own from contact (or ``cannot_win``).
+    """The strong monsters the approach meets on its way: awake or asleep (owner 2026-11-17), not
+    one of ``targets``, within *Destruction*'s sure radius, and T1 or T2 on their own from contact
+    (or ``cannot_win``).
 
     Owner 2026-11-12 (the n1-b life-377 question, verbatim): 「近づく過程で強敵に接触するので
     あれば、先にそちらを*破壊*で排除するべき。より近い敵をなぜ放置したか確認。」  On life-377's
@@ -660,7 +686,7 @@ def on_the_way(policy, snapshot, targets) -> list:
               destruction_use._target_race(policy, snapshot)}
     met = []
     for monster in engagement(policy, snapshot):
-        if (monster.asleep or (monster.index, monster.race_id) in walked_to
+        if ((monster.index, monster.race_id) in walked_to
                 or monster.race_id in spared or game_distance(here, monster.position) > radius):
             continue
         reading = tiered(policy, snapshot, [monster], contact=True)
