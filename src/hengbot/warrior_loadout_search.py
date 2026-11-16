@@ -51,7 +51,7 @@ BENEFICIAL_GEAR_FLAGS = frozenset(
         32, 33, 34, 35, 36, 37,  # sustains
         39, 40, 41, 42, 43, 45, 46, 47,
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-        69, 70, 76, 79, 84,  # anti-magic, mana reduction, levitation, telepathy
+        70, 76, 79, 84,  # mana reduction, levitation, telepathy
         143, 144, 145, 157, 163,
         # TR_RES_CURSE, one of the game's high resistances (object-boost.cpp
         # high_resistances, the Dragon armour roll).  Without it a Dragon
@@ -71,6 +71,10 @@ BENEFICIAL_GEAR_FLAGS = frozenset(
 # live Home candidates into separate search states.
 WARRIOR_EVALUATOR_FLAGS = BENEFICIAL_GEAR_FLAGS | frozenset(
     {
+        # NO_MAGIC (反魔法) is not monotonic: it refuses the Magic-Eater's every
+        # absorbed power (me_power_success.REFUSED_FAILURE).  n1-b life-407
+        # swapped 殺戮のセスタス for ☆『天豹』 {[魔} and lost *Destruction* on 64F.
+        69,
         134, 141,  # LOW_AC / NO_AC
         147, 151,  # supportive / impact
         152, 153, 154, 155,  # elemental vulnerabilities

@@ -43,6 +43,13 @@ Which reading, in order:
 3. Else (a board without the stat index, an old emitter; a list restored without its
    board) the displayed row as in 1.
 
+A worn item's NO_MAGIC (反魔法, TR_NO_MAGIC) makes every power fail outright: the ``m``
+command itself is refused before any list (io/input-key-processor.cpp: 「反魔法バリアが魔法を
+邪魔した！」, no turn passes; player-status-flags.cpp has_anti_magic reads the worn items), so
+the rate is ``REFUSED_FAILURE`` (100) whichever reading above applies.  n1-b life-407 (Castle
+64F, 2026-11-16 16:33-16:50) wore ☆『天豹』 {[魔} and chose the absorbed *Destruction* and
+Magic Mapping on every board, each refused.
+
 The stun asked is the current one unless the caller names one: a quest's acceptance gate
 names none (0), since the inn's stay that refills the powers before entry also ends the
 stun (cmd-building/cmd-inn.cpp back_to_health), while the fight asks the board's.
@@ -54,6 +61,7 @@ from __future__ import annotations
 
 INT = 1  # model.STAT_NAMES ("str", "int", ...)
 TR_EASY_SPELL = 39
+TR_NO_MAGIC = 69
 TR_DEC_MANA = 70
 TR_HARD_SPELL = 135
 
@@ -74,6 +82,8 @@ PERSONALITY_TO_M_CHANCE = {1: 1, 2: -3, 7: 10, 10: 1, 12: 5}
 # UNCONSCIOUS, KNOCKED).
 STUN_MAGIC_PENALTY = (0, 10, 20, 30, 50, 100)
 MAX_FAILURE = 95
+# The m command refused (anti-magic): no power can succeed.
+REFUSED_FAILURE = 100
 
 
 def fail_percent_at_index(
@@ -87,7 +97,9 @@ def fail_percent_at_index(
     stun_rank: int = 0,
 ) -> int:
     """The game's fail% of an absorbed power (cmd-magiceat.cpp), ``int_index`` the INT's
-    stat_index."""
+    stat_index.  NO_MAGIC among ``flags`` refuses the command: ``REFUSED_FAILURE``."""
+    if TR_NO_MAGIC in flags:
+        return REFUSED_FAILURE
     index = max(0, min(int_index, len(ADJ_MAG_STAT) - 1))
     level = trunc_div(base_level * 5, 6) - 5 if kind == "rod" else base_level
     chance = trunc_div(level * 4, 5) + 20
@@ -142,6 +154,12 @@ def worn_flags(snapshot) -> frozenset[int]:
     return frozenset(flags)
 
 
+def worn_anti_magic(snapshot) -> bool:
+    """A worn item's known NO_MAGIC: the game refuses every ``m`` command
+    (input-key-processor.cpp ``player_ptr->anti_magic``, has_anti_magic)."""
+    return TR_NO_MAGIC in worn_flags(snapshot)
+
+
 def _int_index(player) -> int | None:
     """The current INT's stat_index, None when the board does not carry it."""
     if len(player.stat_index) <= INT or len(player.stat_use) <= INT or player.stat_use[INT] <= 0:
@@ -191,6 +209,8 @@ def fail_percent(policy, snapshot, kind: str, base_level: int | None, *,
                  row: dict | None = None, stun: int | None = None) -> int | None:
     """The fail% of an absorbed power of ``kind`` at ``base_level`` under ``stun`` (None: the
     board's current stun); None when neither the board nor a displayed ``row`` tells it."""
+    if worn_anti_magic(snapshot):
+        return REFUSED_FAILURE
     player = snapshot.player
     rank = stun_rank(player) if stun is None else _clamped(stun)
     board = (getattr(policy, "_me_device_list_boards", None) or {}).get(kind)

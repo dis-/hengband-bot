@@ -12,6 +12,7 @@ Owner 2026-10-30: 「序盤はなんでも食べて良い。謎の魔法棒が�
   (IGNORE_ACID/ELEC/FIRE/COLD) keep it from elemental inventory damage, so
   one device is enough where the ledger otherwise wants two.
 """
+from hengbot import me_power_success
 from hengbot.model import InventoryItem, Snapshot, StoreItem, TVAL_ROD, TVAL_STAFF, TVAL_WAND
 from hengbot.policy_constants import FOOD_TYPE_MANA, MANA_FOOD_CHARGE_TARGET
 
@@ -27,12 +28,16 @@ def power_command_refused(snapshot) -> bool:
     """The game refuses the ``m`` command on this board, and no turn passes.
 
     Berserk shows on the board (input-key-processor.cpp, every class but the
-    Berserker: 「狂戦士化していて頭が回らない！」; n1-c life-125 and life-143).  An
-    anti-magic curse or a NO_MAGIC dungeon refuses it too and the board does not
-    say so; the menu walk then reports the refusal it saw (me_menu.command_ends),
-    so the next decision does not ask again on the board that answer left.
+    Berserker: 「狂戦士化していて頭が回らない！」; n1-c life-125 and life-143).  A
+    worn item's known NO_MAGIC refuses it on every board
+    (me_power_success.worn_anti_magic; n1-b life-407 wore ☆『天豹』 {[魔} on Castle
+    64F and asked again each turn).  An unknown anti-magic curse or a NO_MAGIC
+    dungeon refuses it too and the board does not say so; the menu walk then
+    reports the refusal it saw (me_menu.command_ends), so the next decision does
+    not ask again on the board that answer left.
     """
     return ("berserk" in (snapshot.player.status_bar or ())
+            or me_power_success.worn_anti_magic(snapshot)
             or getattr(snapshot, "magic_eater_command_refused", False))
 
 
