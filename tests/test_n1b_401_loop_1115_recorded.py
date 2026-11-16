@@ -91,6 +91,29 @@ def _without_walk_veto():
     return mock.patch.object(HengbotPolicy, "_least_visited_neighbor", old)
 
 
+def _strong_sleeper_as_before():
+    """DECLARED CONSTRUCTED: the sleeper kept away from by the material melee test, as before owner
+    2026-11-17 「脅威度の段で読む」 (policy ``_kept_away_melee`` now reads the tiers' side, and this
+    recorded sleeper reads no leave there, so it is no longer avoided).  The mechanisms pinned here
+    (the keep-out, its seal, its enclosure answers) still serve a sleeper the tiers leave, a T1;
+    they are read with the sleeper standing for one."""
+    return mock.patch.object(HengbotPolicy, "_kept_away_melee",
+                             lambda self, snapshot, monster: self._material_melee_damage(snapshot, monster))
+
+
+_STRONG_SLEEPER = None
+
+
+def setUpModule():
+    global _STRONG_SLEEPER
+    _STRONG_SLEEPER = _strong_sleeper_as_before()
+    _STRONG_SLEEPER.start()
+
+
+def tearDownModule():
+    _STRONG_SLEEPER.stop()
+
+
 def _without_route_veto_seal():
     """The idle layer before owner 2026-11-17 「半径13以内なら *破壊*、無理なら溶かして抜ける」
     (retreat_enclosure ``route_veto_sealed_key``, n1-c life-216): no answer below the explore for

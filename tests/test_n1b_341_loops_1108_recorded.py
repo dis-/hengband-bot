@@ -97,7 +97,22 @@ def restored_0420():
             HengbotPolicy, base64.b64decode(CASES["0420"]["checkpoint"]))
 
 
+def _strong_sleeper_as_before():
+    """DECLARED CONSTRUCTED: the sleeper kept away from by the material melee test, as before owner
+    2026-11-17 「脅威度の段で読む」 (policy ``_kept_away_melee`` now reads the tiers' side; these
+    recorded sleepers read no leave there, so they are no longer avoided: the 0400 walk now hunts
+    the 巨大首なし).  The keep-out and its enclosure answers still serve a sleeper the tiers leave,
+    a T1; they are read with the sleepers standing for one."""
+    return mock.patch.object(HengbotPolicy, "_kept_away_melee",
+                             lambda self, snapshot, monster: self._material_melee_damage(snapshot, monster))
+
+
 class StrongSleeperReachRecordedTest(_recorded.RecordedHarness):
+    def setUp(self):
+        super().setUp()
+        patcher = _strong_sleeper_as_before()
+        patcher.start()
+        self.addCleanup(patcher.stop)
     def test_recorded_rows_step_nearer(self):
         for name, turn, cell, key in (("0400", 2377055, (36, 36), "8"),
                                       ("0418", 2472011, (29, 9), "2")):

@@ -22,6 +22,11 @@ GUARANTEED_RADIUS); else the openers toward the known ground past the veto (Ston
 them); else the floor's stuck escape (50F+ deep_teleport ``stuck_key``: Stone to Mud toward a goal,
 else Recall).
 
+Owner 2026-11-17, second answer 「脅威度の段で読む」: the 11-07 rule's "strong" for a sleeper is the
+tiers' decided side (threat_tier_memory ``leave_side``, policy ``_kept_away_melee``).  The recorded
+百足龍虫 reads T3 (not left), so it no longer seals the room and the walk goes out; the route-veto
+cases (its *Destruction*, the melt, the Recall) are read with the sleeper constructed as a T1.
+
 Recorded (tests/fixtures/route-veto-sealed-20261117.json.gz, see
 tests/extract_route_veto_sealed_1117_fixture.py): the 7 player-turn boards from the landing to
 the first board the explore found nothing on (turns 3897141-3897167) and the decision rows of
@@ -30,7 +35,8 @@ the floor visit.  The boards are decided in order by one policy's public ``choos
 DECLARED RECONSTRUCTED: the absorbed *Destruction* (the capture keeps no power list; the decision
 row of 04:18:44 cast it, ``emergency:destruction:absorbed-power``, key ``mA3``), shown as a list row
 with 22 charges at 95% so that the 50F+ means-spent Recall (destruction_use) is not what answers.
-DECLARED CONSTRUCTED: an absorbed Stone to Mud (the capture does not say whether it was held),
+DECLARED CONSTRUCTED: the sleeper's race a パワー・ワイアーム (race 847, read T1 there) for the route-veto
+cases, an absorbed Stone to Mud (the capture does not say whether it was held),
 the boards without the 百足龍虫, and for the melt and Recall cases the *Destruction* taken as
 having failed the board before the stuck board (destruction_use's fallback).
 """
@@ -43,13 +49,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import deep_teleport, destruction_use, engagement_avoid_seal, me_capability, retreat_enclosure, threat_tiers
+from hengbot import deep_teleport, destruction_use, engagement_avoid_seal, me_capability, retreat_enclosure, threat_tier_memory, threat_tiers
 from hengbot.model import SV_STAFF_DESTRUCTION, SV_WAND_STONE_TO_MUD, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
 
 FIXTURE = Path(__file__).with_name("fixtures") / "route-veto-sealed-20261117.json.gz"
 DRAGON_CENTIPEDE = 1257
+POWER_WYRM = 847  # DECLARED CONSTRUCTED: the sleeper read as a T1 (module docstring)
 SLEEPER = Position(8, 28)
 STUCK_TURN = 3897167
 STUCK_AT = Position(3, 26)
@@ -84,14 +91,19 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
         policy._me_device_lists = lists
         return policy
 
-    def board(self, raw, *, sleeper=True):
+    def board(self, raw, *, sleeper=True, t1=False):
         raw = copy.deepcopy(raw)
         if not sleeper:  # DECLARED CONSTRUCTED: the 百足龍虫 gone
             for field in ("visible_monsters", "detected_monsters"):
                 raw[field] = [m for m in raw[field] if m["race_id"] != DRAGON_CENTIPEDE]
+        if t1:  # DECLARED CONSTRUCTED: the sleeper a パワー・ワイアーム, read T1 (leave)
+            for field in ("visible_monsters", "detected_monsters"):
+                for m in raw[field]:
+                    if m["race_id"] == DRAGON_CENTIPEDE:
+                        m["race_id"] = POWER_WYRM
         return parse_snapshot(raw, self.monrace)
 
-    def replay(self, *, stone_to_mud=False, sleeper=True, destruction_failed=True):
+    def replay(self, *, stone_to_mud=False, sleeper=True, destruction_failed=True, t1=True):
         """(policy, the stuck board, its key, its reason) after deciding every board in order.
         ``destruction_failed`` (DECLARED CONSTRUCTED): on the stuck board the *Destruction* is
         taken as having failed the board before (destruction_use's fallback: its next ask
@@ -99,7 +111,7 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
         policy = self.policy(stone_to_mud=stone_to_mud)
         key = board = None
         for raw in self.data["boards"]:
-            board = policy.with_known_skill_exp(self.board(raw, sleeper=sleeper))
+            board = policy.with_known_skill_exp(self.board(raw, sleeper=sleeper, t1=t1))
             if destruction_failed and board.turn == STUCK_TURN:
                 destruction_use._memory(policy).fallback = board.floor_key
             key = policy.choose_key(board)
@@ -130,8 +142,24 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
 
     # ------------------------------------------------------------ the pins
 
+    def test_the_recorded_t3_sleeper_no_longer_holds_the_way(self):
+        """Owner 2026-11-17 「脅威度の段で読む」: the recorded 百足龍虫 reads T3 (the tiers' side:
+        not left), so asleep it is no strong monster; its cells are not avoided and the walk goes
+        out to the down stairs (27,60) the detection showed."""
+        policy, board, key, reason = self.replay(t1=False)
+        sleeper = next(m for m in board.visible_monsters if m.race_id == DRAGON_CENTIPEDE)
+        self.assertIs(threat_tier_memory.leave_side(policy, board, sleeper), False)
+        self.assertFalse(policy._kept_away_melee(board, sleeper))
+        self.assertTrue(policy._material_melee_damage(board, sleeper))  # strong by the old test
+        self.assertEqual(policy._engagement_route_veto(board), frozenset())
+        self.assertFalse(engagement_avoid_seal.route_veto_encloses(policy, board))
+        self.assertEqual((key, reason), ("6", "approach-descent"))
+
     def test_the_sleepers_reach_holds_both_ways_on(self):
+        """DECLARED CONSTRUCTED: the sleeper a T1 (the tiers' side: leave)."""
         policy, board, _key, _reason = self.replay()
+        sleeper = next(m for m in board.visible_monsters if m.race_id == POWER_WYRM)
+        self.assertIs(threat_tier_memory.leave_side(policy, board, sleeper), True)
         veto = policy._engagement_route_veto(board)
         for door in DOORS_ON:
             self.assertIn(door, veto)
@@ -150,7 +178,7 @@ class RouteVetoSealedRecordedTest(unittest.TestCase):
                          + ":absorbed-power")
         walled = retreat_enclosure._sides(policy, board, frozenset(policy._engagement_route_veto(board)))
         self.assertEqual([m.race_id for m in retreat_enclosure.sealers(policy, board, walled)],
-                         [DRAGON_CENTIPEDE])
+                         [POWER_WYRM])
         engagement = [m.race_id for m in threat_tiers.engagement(policy, board)]
         self.assertIn(1367, engagement)
 
