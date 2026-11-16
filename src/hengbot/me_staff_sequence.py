@@ -1119,11 +1119,20 @@ def town_key(policy, snapshot, hostiles) -> str | None:
         return None
     session = policy._equipment_transaction_session
     equipping = session is not None and not session.complete
-    if equipping and session.required_context == "home":
+    if (equipping and session.required_context == "home"
+            and not (snapshot.player.hungry and tower_feeds_staple(policy, snapshot))):
         # The Home equipment session owns the route to Home and refuses
         # every other shop's (policy_shop _shopping_approach_key ->
         # equipment_route_handoff WAIT): the sequence waits for it (#47 n1-c
         # life-054 072115: 82 x shop:approach '5', then no-progress:buy).
+        # Not the hunger's Tower trip: the mana override hands that hunger to
+        # this sequence (``tower_feeds_staple``), and survival comes before
+        # the equipment work.  n1-b life-410 (2026-11-16 22:09, Morivant,
+        # 273k gold, the staple at 0): the session waited for full HP, the
+        # sequence waited for the session, and the generic survival gate
+        # walked onto the Magic shop 18 times, whose purchase defers to the
+        # Home device (survival:mana-home-before-purchase), until
+        # town:blocked:stage-deadline:buy.
         return None
     record = state(policy)
     if not read_powers(policy, snapshot):
