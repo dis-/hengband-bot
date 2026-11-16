@@ -182,5 +182,16 @@ def purchase_wanted(policy, snapshot, item) -> bool:
             or not _magic_eater(snapshot) or not item.aware
             or _held_copy(policy, snapshot, row)):
         return False
+    if not _purchase_count_allows(policy, snapshot, row):
+        return False
     wanted = row.buy_more if _absorbed(policy, snapshot, row) else row.buy_first
     return wanted and me_staff_sequence.spare_gold(policy, snapshot) >= item.price
+
+
+def _purchase_count_allows(policy, snapshot, row: Device) -> bool:
+    """Owner 2026-11-16 「50回を超えたら止める」: the Staff of *Destruction* is bought only while
+    the priority purchase's count limit holds (bm_destruction_fund.staff_wanted)."""
+    from hengbot import bm_destruction_fund, destruction_means
+
+    return ((row.tval, row.sval) != destruction_means.STAFF
+            or bm_destruction_fund.staff_wanted(policy, snapshot))

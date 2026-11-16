@@ -37,7 +37,7 @@ from dataclasses import replace
 from pathlib import Path
 import unittest
 
-from hengbot import bm_destruction_fund, me_capped_pickup
+from hengbot import bm_destruction_fund, me_capped_pickup, me_device_policy
 from hengbot.model import Position, STORE_BLACK, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -131,6 +131,26 @@ class PriorityPurchaseCountLimitShelfTest(unittest.TestCase):
         self.assertIsNotNone(pick)
         self.assertIsNot(pick, staff)
         self.assertEqual(pick.sval, SV_POTION_SPEED)
+
+
+class OrdinaryPurchaseCountLimitTest(unittest.TestCase):
+    """Owner 2026-11-16 「50回を超えたら止める」 for the device table's ordinary purchase too
+    (me_device_policy.json: *Destruction* buy_first / buy_more, ``purchase_wanted``), on the
+    same DECLARED CONSTRUCTED page: no staff carried or at Home, the gold well above it."""
+
+    STAFF_PRICE = PriorityPurchaseCountLimitShelfTest.STAFF_PRICE
+    page = PriorityPurchaseCountLimitShelfTest.page
+
+    def test_fifty_still_buys_it_from_spare_gold(self):
+        policy, board, staff = self.page(50)
+        self.assertTrue(me_device_policy.purchase_wanted(policy, board, staff))
+
+    def test_above_fifty_the_ordinary_purchase_stops(self):
+        policy, board, staff = self.page(51)
+        self.assertFalse(me_device_policy.purchase_wanted(policy, board, staff))
+        self.assertNotIn("me-device:policy",
+                         [rung.rung_id for rung in policy._matching_live_purchase_rungs(board, staff)])
+        self.assertIsNot(policy._next_purchase(board), staff)
 
 
 def _with_staff_pile(board):
