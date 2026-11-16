@@ -165,11 +165,21 @@ def _shot(policy, snapshot, target) -> str | None:
 # -- survival -------------------------------------------------------------------------
 
 
+def _stronger_healing(item) -> bool:
+    return (item.is_potion and item.aware and item.sval in HEAL_POTION_SVALS
+            and item.sval > SV_POTION_HEALING)
+
+
 def _healing_potion(policy, snapshot):
     """HP recovery on this floor: Healing, or stronger; never Cure Critical."""
     return policy._find_exact_potion(snapshot, SV_POTION_HEALING) or policy._first_item(
-        snapshot, lambda item: item.is_potion and item.aware and item.sval in HEAL_POTION_SVALS
-        and item.sval > SV_POTION_HEALING)
+        snapshot, _stronger_healing)
+
+
+def healing_potion_count(policy, snapshot) -> int:
+    """How many potions ``_healing_potion`` draws from: Healing and the stronger ones."""
+    return policy._exact_potion_count(snapshot, SV_POTION_HEALING) + sum(
+        item.count for item in snapshot.inventory if _stronger_healing(item))
 
 
 def _cure(policy, snapshot) -> str | None:

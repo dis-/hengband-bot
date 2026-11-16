@@ -147,13 +147,16 @@ def tick_rest_before_navigator(policy, snapshot) -> str | None:
     return tick_rest_key(policy, snapshot)
 
 
-def read_key(policy, snapshot, reason: str = "emergency:recall") -> str | None:
-    """Read Word of Recall as an escape, when this floor lets one be read."""
+def read_key(policy, snapshot, reason: str = "emergency:recall", *,
+             deliberate: bool = False) -> str | None:
+    """Read Word of Recall as an escape, when this floor lets one be read.  ``deliberate``: a
+    leave an owner rule decided on this board (quest25_battle ``_restock_recall``), which the
+    ONCE floor's hold does not keep back."""
     if (
         snapshot.player.recalling
         or not policy._emergency_recall_leaves_danger(snapshot)
         or policy._quest_floor_exit_locked(snapshot)
-        or held(policy, snapshot)
+        or (not deliberate and held(policy, snapshot))
         or not policy._can_read_scrolls(snapshot)
     ):
         return None

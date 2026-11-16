@@ -9,7 +9,8 @@ arrival of incident-captures/20261116-131313-player-death (12:54:07): its journa
 board inside the Home (capacity 240) that shows the shelf's seven Wands of Teleport Other
 (77 charges) while the pack held the Rod of Teleport Other.  The boards are cut as
 tests/extract_n1b_382_q25_patrol_owner_1113_fixture.py cuts them (its ``process``): ``first`` the
-previous process's tail, ``second`` the last process.
+previous process's tail, ``second`` the last process, ``lookouts`` the first process's stop
+20261116-131254-loop-detected (its ring: decisions 11659-11753).
 
 Only this extraction tool reads the capture; the committed test reads the fixture alone.
 """
@@ -28,6 +29,8 @@ from tests import extract_n1b_382_q25_patrol_owner_1113_fixture as cut
 ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
 OUTPUT = Path(__file__).with_name("fixtures") / "n1a-528-q25-death-1116.json.gz"
 LAST = "20261116-131318-exit-no-marker"
+# The first process's stop (its ring: decisions 11659-11753, the look-outs from the choke [3,1]).
+LOOKOUTS = "20261116-131254-loop-detected"
 ARRIVAL = Path("..") / "incident-captures" / "20261116-131313-player-death" / "town-arrival"
 HOME_ROW = 5
 
@@ -57,16 +60,18 @@ def main():
     cut.ROOT = ROOT
     first_boards, first_recorded = _previous(LAST)
     boards, recorded, knowledge = cut.process(LAST, restarted=True)
+    lookout_boards, lookout_recorded, _ = cut.process(LOOKOUTS, restarted=False)
     with gzip.open(ROOT / ARRIVAL / "journal.jsonl.gz", "rt", encoding="utf-8") as stream:
         journal = [json.loads(line) for line in stream]
     home = json.loads(journal[HOME_ROW]["line"])
     assert home["store"]["capacity"] == 240, home["store"].get("capacity")
     races = load_monrace_knowledge(find_monrace_definitions(Path(__file__), None))
-    ids = {monster["race_id"] for board in (*first_boards, *boards)
+    ids = {monster["race_id"] for board in (*first_boards, *boards, *lookout_boards)
            for field in ("visible_monsters", "detected_monsters") for monster in board.get(field, [])}
     case = dict(source="n1a-528-q25-death-1116",
                 first=dict(boards=first_boards, recorded=first_recorded),
                 second=dict(boards=boards, recorded=recorded),
+                lookouts=dict(boards=lookout_boards, recorded=lookout_recorded),
                 skill=knowledge.get("skill_exp"), home=knowledge.get("home"), home_board=home,
                 monraces={key: asdict(races[key]) for key in sorted(ids) if key in races},
                 battle_record=json.loads((ROOT / "q25-battle.json").read_text(encoding="utf-8")))
