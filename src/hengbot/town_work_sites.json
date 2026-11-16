@@ -5723,6 +5723,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._engagement_danger_areas": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._engagement_danger_cells": {
     "classification": "data",
     "rows": [
@@ -13853,12 +13860,26 @@
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
+  "retreat_enclosure.py:route_veto_sealed_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing destruction, dig, disarm, melee or stuck-escape (melt, recall, teleport) owner."
+  },
   "retreat_enclosure.py:sealed_in_key": {
     "classification": "action",
     "rows": [
       "positioning"
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:sealers": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; pure reading."
   },
   "retreat_enclosure.py:walled_off": {
     "classification": "action",

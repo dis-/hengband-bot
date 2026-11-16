@@ -14,7 +14,7 @@ in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import damaging_ground, engagement_avoid_seal, goal_route, immobile_ranged_kill, me_powers, quest_target_search, sealed_pocket
+from hengbot import damaging_ground, engagement_avoid_seal, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_pocket
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 from hengbot.town_terminal import town_end_key
@@ -174,6 +174,13 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         lambda: policy._immobile_summoner_exit_key(snapshot))
     if summoner_exit is not None:
         return summoner_exit
+    # A sleeper's reach (the routes' engagement veto) holding every way on is no secret wall:
+    # the openers, else the stuck escape, answer it here, before the searches and the wander
+    # walk the pocket until the livelock guard (retreat_enclosure.route_veto_sealed_key, n1-c
+    # life-216).
+    route_sealed = retreat_enclosure.route_veto_sealed_key(policy, snapshot)
+    if route_sealed is not None:
+        return route_sealed
 
     # The planner deliberately excludes the current tile as a destination.
     # When this tile is the floor's sole remaining frontier, probe through

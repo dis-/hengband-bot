@@ -16284,8 +16284,29 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         with no step farther, and the explore stepped to 4, the retreat back
         to 5, until the loop detector stopped the bot (owner 2026-11-07
         「眠っている敵でも強い敵からは離れる」)."""
-        player = snapshot.player.position
+        areas = self._engagement_danger_areas(snapshot)
+        if areas is None:
+            return frozenset()
         cells: set[Position] = set()
+        for _monster, area in areas:
+            cells |= area
+        # A kept-away disenchanter out of sight keeps its area for the window
+        # (disenchant_avoid.remembered_cells, n1-b life-339 Angband 30F: one
+        # step out of sight the explore walked straight back).
+        cells |= disenchant_avoid.remembered_cells(
+            self, snapshot, immobile_threat_memory.ringed)
+        return frozenset(cells)
+
+    def _engagement_danger_areas(
+        self, snapshot: Snapshot
+    ) -> tuple[tuple[MonsterState, frozenset[Position]], ...] | None:
+        """Each hostile's own part of ``_engagement_danger_cells`` as (monster, cells); None
+        while the player is inside an awake one's area (the retreat owns that board).  The one
+        reading of whose area a danger cell is: the danger cells are their union, and the sealed
+        exits' *Destruction* (retreat_enclosure ``route_veto_sealed_key``, owner 2026-11-17)
+        leaves the monsters whose areas seal them."""
+        player = snapshot.player.position
+        areas: list[tuple[MonsterState, frozenset[Position]]] = []
         # A hostile out of sight is judged at its last shown cell as a sleeper is
         # (sleeper_reach_memory, n1-b life-348 Orc cave 23F: one step out of sight the
         # explore walked back; owner 2026-11-09 「起きた敵も最後の位置を覚える」: an awake one
@@ -16303,23 +16324,18 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             distance = player.distance_to(monster.position)
             if distance <= HUNT_RANGE:
                 if not monster.asleep and not out_of_sight:
-                    return frozenset()
+                    return None
                 reach = distance - 1
-                cells.update(
+                areas.append((monster, frozenset(
                     Position(monster.position.y + dy, monster.position.x + dx)
                     for dy in range(-reach, reach + 1)
-                    for dx in range(-reach, reach + 1))
+                    for dx in range(-reach, reach + 1))))
                 continue
-            cells.update(
+            areas.append((monster, frozenset(
                 Position(monster.position.y + dy, monster.position.x + dx)
                 for dy in range(-HUNT_RANGE, HUNT_RANGE + 1)
-                for dx in range(-HUNT_RANGE, HUNT_RANGE + 1))
-        # A kept-away disenchanter out of sight keeps its area for the window
-        # (disenchant_avoid.remembered_cells, n1-b life-339 Angband 30F: one
-        # step out of sight the explore walked straight back).
-        cells |= disenchant_avoid.remembered_cells(
-            self, snapshot, immobile_threat_memory.ringed)
-        return frozenset(cells)
+                for dx in range(-HUNT_RANGE, HUNT_RANGE + 1))))
+        return tuple(areas)
 
     def _material_melee_damage(
         self, snapshot: Snapshot, monster: MonsterState

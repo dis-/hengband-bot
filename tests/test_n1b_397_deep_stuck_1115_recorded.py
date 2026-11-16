@@ -95,11 +95,24 @@ def _listed(policy, raw, turn, listed):
                                               _magic_eater_power_list=listed), MONRACE))
 
 
-def _replay(*, sent_away=True, level=None, rod=True):
+def _without_route_veto_seal():
+    """The idle layer before owner 2026-11-17 「半径13以内なら *破壊*、無理なら溶かして抜ける」
+    (retreat_enclosure ``route_veto_sealed_key``, n1-c life-216).  The stuck board as the live
+    policy saw it (the sent-away line not read) is read under it: there the shadow's remembered
+    area holds the corridor south from turn 5734887 on, and the rung now answers that board
+    (``RouteVetoSealTest``) before the searches run the stuck count to the board these tests
+    examine; the 2026-11-15 stuck escape they pin (deep_teleport ``stuck_key``) is unchanged."""
+    return mock.patch.object(retreat_enclosure, "route_veto_sealed_key", lambda policy, snapshot: None)
+
+
+def _replay(*, sent_away=True, level=None, rod=True, route_seal=None):
     """The visit replayed up to the first stuck escape (or its end): (policy, raw, key, reasons),
     the policy and raw of the board before that decision (deep copies, decided again by each
-    test), the decided key and every reason decided."""
-    config = (sent_away, level, rod)
+    test), the decided key and every reason decided.  ``route_seal`` (default ``sent_away``):
+    with the 2026-11-17 route-veto rung (``_without_route_veto_seal``); with it the board before
+    is not kept (the stuck count is not reached)."""
+    route_seal = sent_away if route_seal is None else route_seal
+    config = (sent_away, level, rod, route_seal)
     if config not in _REPLAYS:
         directory = TemporaryDirectory()
         boards = copy.deepcopy(BOARDS)
@@ -124,7 +137,8 @@ def _replay(*, sent_away=True, level=None, rod=True):
         reasons, previous, result = [], None, None
         patch = (nullcontext() if sent_away else mock.patch.object(
             sleeper_loot_block, "shows_sent_away", lambda snapshot, name: False))
-        with patch:
+        seal = nullcontext() if route_seal else _without_route_veto_seal()
+        with patch, seal:
             for index, raw in enumerate(boards):
                 raw = copy.deepcopy(raw)
                 if previous is not None:
@@ -143,7 +157,7 @@ def _replay(*, sent_away=True, level=None, rod=True):
                 reasons.append((raw["turn"], previous))
                 result = (*before, key)
                 if previous.startswith(STUCK_REASONS):
-                    assert before[0] is not None, (raw["turn"], previous)
+                    assert route_seal or before[0] is not None, (raw["turn"], previous)
                     break
                 if key:
                     policy.confirm_key_posted(key)
@@ -157,7 +171,8 @@ def _decide(policy, raw, *, sent_away=False):
     board = policy.with_known_skill_exp(parse_snapshot(copy.deepcopy(raw), MONRACE))
     if sent_away:
         return policy.choose_key(board), policy.last_reason, board
-    with mock.patch.object(sleeper_loot_block, "shows_sent_away", lambda snapshot, name: False):
+    with mock.patch.object(sleeper_loot_block, "shows_sent_away", lambda snapshot, name: False), \
+            _without_route_veto_seal():
         return policy.choose_key(board), policy.last_reason, board
 
 
@@ -324,6 +339,24 @@ class DeepStuckTest(nokey.PostedKey):
         _policy_after, policy, raw, key, reasons = _replay(sent_away=False, level=49)
         self.assertEqual(reasons[-1][1], "stuck:destroyed-circle-teleport")
         self.assertEqual(key, "rh")
+
+
+class RouteVetoSealTest(unittest.TestCase):
+    """Owner 2026-11-17 (n1-c life-216) 「半径13以内なら *破壊*、無理なら溶かして抜ける」, on the
+    stuck board as the live policy saw it: the shadow's remembered area holds every way on from
+    turn 5734887, so the route-veto rung answers there, before the treasure room's searches.  The
+    remembered shadow is the sealer; its *Destruction* is not taken there (the leaving set's
+    reach is outside GUARANTEED_RADIUS, or the use declines on its own gates), no Stone to Mud is
+    listed, and the floor's stuck escape at 79F off the 即死 board is the 2026-11-15 one: Word of
+    Recall (the end state of ``DeepStuckTest.test_without_stone_to_mud_recall_is_read``)."""
+
+    def test_the_seal_reads_recall_before_the_searches(self):
+        _policy_after, _before, _raw, key, reasons = _replay(sent_away=False, route_seal=True)
+        turn, reason = reasons[-1]
+        self.assertEqual((turn, reason), (5734887, deep_teleport.STUCK_RECALL_REASON))
+        self.assertTrue(key.startswith("r"), key)
+        self.assertLess(turn, LIVE_TURN)
+        self.assertLess(sum(1 for _turn, each in reasons if each == "search"), STUCK_ESCAPE_LIMIT)
 
 
 class TeleportAskersTest(unittest.TestCase):

@@ -54,6 +54,27 @@ def encloses(policy, snapshot) -> bool:
     return not _way_on(policy, snapshot, snapshot.player.position, closed)
 
 
+def route_veto_encloses(policy, snapshot) -> bool:
+    """Whether the routes' engagement veto (policy ``_engagement_route_veto``: a sleeper's reach
+    among it) is what leaves the player no way on: no remembered frontier or stair is reached
+    avoiding every veto, and one is with that veto lifted (every other veto kept).
+
+    n1-c life-216 (Angband 62F, 2026-11-17 04:19): Recall landed the player in a dark room five
+    cells from a sleeping 百足龍虫 (race 1257) out of sight in the corridor below it.  Its reach
+    (the cells nearer it than the player) held both of the room's doors, so the explore had no
+    frontier; the secret-wall search and the wander walked the room's top row for 280 game turns
+    until the livelock guard read Recall at full HP.  The retreats' own vetoes were empty, so
+    neither enclosure read (``encloses`` here asked only under them, retreat_enclosure's sides
+    are drawn by them) saw it."""
+    route = frozenset(policy._engagement_route_veto(snapshot))
+    if not route:
+        return False
+    here = snapshot.player.position
+    closed = frozenset(policy._walk_veto(snapshot)) - {here}
+    return (not _way_on(policy, snapshot, here, closed)
+            and _way_on(policy, snapshot, here, closed - route))
+
+
 def seals(policy, snapshot, cell: Position, step: Position) -> bool:
     """Whether vetoing ``cell`` leaves the player, stepping onto ``step``, no way on that
     the retreats' vetoes (this one with them) would otherwise leave open."""
