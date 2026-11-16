@@ -15,6 +15,10 @@ bot.
 Rows 0-42 replay through the public chooser and the CLI entrance and decide as
 recorded; row 43 decides as recorded and the entrance posts the exit.  Row 44 is the
 first outside board: the exit has closed the visit and the bot walks to the Temple.
+
+The same board's shadow town-work receipt names its producer (live, every town decision
+of the visit was ``town:blocked:work-contract:unmapped-producer`` for
+``pingpong_guard.py:after_ladder``; observational only, not the cause of the stop).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -24,6 +28,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
+from hengbot import town_work
 from hengbot.cli import _handle_owner_retirement
 from hengbot.model import STORE_HOME, STORE_TEMPLE
 from hengbot.policy import staged_prompt_chain_matches
@@ -104,6 +109,19 @@ class RetiredHomeExit1116RecordedTest(unittest.TestCase):
         self.assertFalse(visit is not None and visit.owner == "equipment-transaction", visit)
         self.assertEqual(policy._shopping_approach_store_type, STORE_TEMPLE, (key, policy.last_reason))
         self.assertTrue(key.startswith("\x1b`"), (key, policy.last_reason))
+
+    def test_the_town_decision_names_its_producer(self):
+        # Live, every town decision of the visit was the shadow receipt
+        # town:blocked:work-contract:unmapped-producer naming
+        # pingpong_guard.py:after_ladder: since 2026-11-13 it runs on town boards
+        # and hands the key back, and its dungeon-only review discarded the record.
+        policy = copy.deepcopy(self.policy)
+        key = policy.choose_key(self.outside)
+        final = [receipt for receipt in town_work.receipts(policy)
+                 if receipt["seam"] == "policy-final"]
+        self.assertEqual(len(final), 1, final)
+        self.assertTrue(final[0]["valid"], (key, final[0]["producer"], final[0]["reason"]))
+        self.assertNotEqual(final[0]["work"]["producer"], "pingpong_guard.py:after_ladder")
 
 
 if __name__ == "__main__":
