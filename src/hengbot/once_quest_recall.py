@@ -101,7 +101,11 @@ def held(policy, snapshot) -> bool:
     hold_line = None if profile is None else profile.abort_conditions.get("hp_ratio")
     if hold_line is None or _deliberate_leave(policy, snapshot):
         return False
-    if below_scroll_floor(policy, snapshot, profile) is not None:
+    # Owner 2026-11-16 「使えない間は巻物を数えない」: while this floor forbids reading them
+    # (quest_no_teleport ``forbids``: Q25 up to phase 3, owner 2026-11-12) the Teleportation
+    # scrolls keep no recall held; the HP line below decides, as for a plan that reads none.
+    if (below_scroll_floor(policy, snapshot, profile) is not None
+            and not quest_no_teleport.forbids(policy, snapshot)):
         return _quiet(policy, snapshot) or not below_scroll_floor(policy, snapshot, profile)
     return _quiet(policy, snapshot) or (
         snapshot.player.hp_ratio > float(hold_line)
