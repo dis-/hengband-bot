@@ -23,12 +23,14 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import json
 import lzma
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from test_floor_dwell_seen_floor_recorded import EDIT, _Replay, choose_past_junk_key
 
 from hengbot import retreat_enclosure
 from hengbot.model import Position
+from hengbot.policy import HengbotPolicy
 from hengbot.monrace_knowledge import load_monrace_knowledge
 
 FIXTURE = Path(__file__).parent / "fixtures" / "maze-seal-1106.jsonl.xz"
@@ -42,6 +44,29 @@ LADDER_REASONS = {
     retreat_enclosure.DISARM_REASON, retreat_enclosure.STRIKE_REASON,
     retreat_enclosure.RECALL_REASON,
 }
+
+
+def _strong_sleeper_as_before():
+    """DECLARED CONSTRUCTED: the sleeper kept away from by the material melee test, as before owner
+    2026-11-17 「脅威度の段で読む」 (policy ``_kept_away_melee`` now reads the tiers' side, and this
+    recorded sleeper reads no leave there, so it is no longer avoided).  The mechanisms pinned here
+    (the keep-out, its seal, its enclosure answers) still serve a sleeper the tiers leave, a T1;
+    they are read with the sleeper standing for one."""
+    return mock.patch.object(HengbotPolicy, "_kept_away_melee",
+                             lambda self, snapshot, monster: self._material_melee_damage(snapshot, monster))
+
+
+_STRONG_SLEEPER = None
+
+
+def setUpModule():
+    global _STRONG_SLEEPER
+    _STRONG_SLEEPER = _strong_sleeper_as_before()
+    _STRONG_SLEEPER.start()
+
+
+def tearDownModule():
+    _STRONG_SLEEPER.stop()
 
 
 class MazeSealReplay(unittest.TestCase):

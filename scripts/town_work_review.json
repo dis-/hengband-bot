@@ -3888,6 +3888,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy._engagement_danger_areas": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Returns only each hostile's part of the engagement danger cells as (monster, cells), or None inside an awake one's area; never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._strategic_adjacent_hostiles": {
     "classification": "data",
     "rows": [
@@ -15142,6 +15153,28 @@
     "context": "Dungeon idle fallback only (_town_idle_key returns town_end_key in town first); never reached in town.",
     "evidence": "dungeon-only: n1-c life-153 Labyrinth 13F, a retreat's vetoes sealed a dead end and the idle wander walked the pocket until the loop guard; while the vetoes wall the player's side off from known ground the idle fallback takes _ladder from the openers (dig, disarm, weak-enemy strike, then Teleportation or Recall at or below the reserve; owner 2026-11-04 maze-veto rule, 2026-11-06 openers) before its wander; returns the key or None.",
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:route_veto_sealed_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon idle layer only, right below the explore (ladder_idle asks it off town, on a floor with no fixed quest); never reached in town.",
+    "evidence": "dungeon-only: n1-c life-216 Angband 62F, a sleeping Dragon centipede's reach (the routes' engagement veto) held both ways out of the landing room and the secret-wall search and the wander walked the pocket until the livelock guard read Recall; while that veto is what holds every way on (engagement_avoid_seal.route_veto_encloses) it takes *Destruction* leaving the sealing monsters (owner 2026-11-17 within GUARANTEED_RADIUS), else the openers toward the known ground past it (dig, Stone to Mud, disarm, weak-enemy strike; owner 2026-11-06), else the floor's stuck escape (_stuck_escape_key: 50F+ deep_teleport.stuck_key, owner 2026-11-15; shallower Recall); returns the key or None.",
+    "delegation": "No independent success; existing destruction, dig, disarm, melee or stuck-escape (melt, recall, teleport) owner."
+  },
+  "retreat_enclosure.py:sealers": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "context": "Dungeon only: read by route_veto_sealed_key; never reached in town.",
+    "evidence": "dungeon-only: pure reading of the monsters whose danger areas hold a cell the player's side steps onto; no key.",
+    "delegation": "No independent success; pure reading."
   },
   "status_cure.py:absorbed_cure_key": {
     "classification": "producer",

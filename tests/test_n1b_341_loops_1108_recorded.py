@@ -97,7 +97,22 @@ def restored_0420():
             HengbotPolicy, base64.b64decode(CASES["0420"]["checkpoint"]))
 
 
+def _strong_sleeper_as_before():
+    """DECLARED CONSTRUCTED: the sleeper kept away from by the material melee test, as before owner
+    2026-11-17 「脅威度の段で読む」 (policy ``_kept_away_melee`` now reads the tiers' side; these
+    recorded sleepers read no leave there, so they are no longer avoided: the 0400 walk now hunts
+    the 巨大首なし).  The keep-out and its enclosure answers still serve a sleeper the tiers leave,
+    a T1; they are read with the sleepers standing for one."""
+    return mock.patch.object(HengbotPolicy, "_kept_away_melee",
+                             lambda self, snapshot, monster: self._material_melee_damage(snapshot, monster))
+
+
 class StrongSleeperReachRecordedTest(_recorded.RecordedHarness):
+    def setUp(self):
+        super().setUp()
+        patcher = _strong_sleeper_as_before()
+        patcher.start()
+        self.addCleanup(patcher.stop)
     def test_recorded_rows_step_nearer(self):
         for name, turn, cell, key in (("0400", 2377055, (36, 36), "8"),
                                       ("0418", 2472011, (29, 9), "2")):
@@ -148,16 +163,26 @@ class StrongSleeperReachRecordedTest(_recorded.RecordedHarness):
                                    self.later(raw)), ["r", recall.slot])
 
     def test_0400_first_kept_out_key_through_the_executor(self):
+        """Owner 2026-11-17 (n1-c life-216) 「半径13以内なら *破壊*、無理なら溶かして抜ける」: the
+        sleeper's reach holds every way on from [36,31], so the route-veto rung (retreat_enclosure
+        ``route_veto_sealed_key``) answers there, before the walk reaches [36,36] where the keep-out
+        searched until the stuck count before.  No absorbed power list is replayed (a fresh
+        policy), so neither *Destruction* nor Stone to Mud is held: the floor's stuck escape reads
+        Recall, the end state the stuck count reached before; no step goes nearer the sleeper."""
         policy = fresh("0400")
         for raw in CASES["0400"]["boards"]:
             key = decide(policy, copy.deepcopy(raw))
-            if raw["turn"] == 2377055:
+            if policy.last_reason == "stuck:recall-escape":
                 break
             if key:
                 policy.confirm_key_posted(key)
-        self.assertEqual(here(raw), Position(36, 36))
-        self.assertNotIn(key, MOVES)
-        self.assertEqual(self.post(policy, raw, key, [], self.later(raw)), [key])
+        self.assertEqual(here(raw), Position(36, 31))
+        self.assertLessEqual(here(raw).distance_to(SLEEPERS["0400"]), HUNT_RANGE)
+        board = parse_snapshot(copy.deepcopy(raw), knowledge())
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual(key, "r" + recall.slot)
+        self.assertEqual(self.post(policy, raw, key, [executor_pins.prompt_screen(READ_PROMPT)],
+                                   self.later(raw)), ["r", recall.slot])
 
 
 class SleeperLootBlockRecordedTest(_recorded.RecordedHarness):

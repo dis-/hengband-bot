@@ -50,7 +50,7 @@ from __future__ import annotations
 from collections import deque
 from typing import NamedTuple
 
-from hengbot import random_quest_reserve, sealed_pocket, walkout_dig
+from hengbot import engagement_avoid_seal, random_quest_reserve, sealed_pocket, walkout_dig
 from hengbot.model import Position
 from hengbot.policy_constants import CHEST_DISARM_BUDGET, TELEPORT_RETURN_THRESHOLD
 
@@ -65,9 +65,12 @@ RECALL_REASON = "stuck:walled-off-recall"
 
 
 class WalledOff(NamedTuple):
-    """The player's side of the vetoes, and the known ground they wall off."""
+    """The player's side of the vetoes, and the known ground they wall off.  ``kept_off``: the
+    vetoes the sides were drawn by when they are not the retreats' own cells (the openers' walks
+    keep off them too)."""
     reach: frozenset
     ground: frozenset
+    kept_off: frozenset = frozenset()
 
 
 def encloses(policy, snapshot) -> bool:
@@ -87,18 +90,24 @@ def _steps(policy, snapshot, position):
     ]
 
 
-def _sides(policy, snapshot) -> WalledOff | None:
-    """The player's side of the vetoes and the known ground past them (maybe none)."""
-    owned = policy._engagement_owned_avoid_cells
+def _sides(policy, snapshot, owned=None) -> WalledOff | None:
+    """The player's side of the vetoes and the known ground past them (maybe none).
+
+    ``owned``: the vetoes the sides are drawn by, the retreats' own cells unless given (the
+    routes' engagement veto for ``route_veto_sealed_key``); a cell of them is kept off as the
+    retreats' cells are."""
+    kept_off = frozenset() if owned is None else owned
+    owned = policy._engagement_owned_avoid_cells if owned is None else owned
     if not owned:
         return None
+    avoid = policy._engagement_avoid_cells
     start = snapshot.player.position
     reach, stack, gates = {start}, [start], set()
     while stack:
         for neighbour in policy._walkable_neighbors(snapshot, stack.pop(), allow_damaging=False):
             if neighbour in owned:
                 gates.add(neighbour)
-            elif neighbour not in policy._engagement_avoid_cells and neighbour not in reach:
+            elif neighbour not in avoid and neighbour not in reach:
                 reach.add(neighbour)
                 stack.append(neighbour)
     past, stack, ground = set(gates), list(gates), set()
@@ -108,15 +117,15 @@ def _sides(policy, snapshot) -> WalledOff | None:
                 if neighbour not in past:
                     past.add(neighbour)
                     stack.append(neighbour)
-            elif neighbour not in policy._engagement_avoid_cells and neighbour not in reach:
+            elif neighbour not in avoid and neighbour not in reach:
                 ground.add(neighbour)
     stack = list(ground)
     while stack:
         for neighbour in _steps(policy, snapshot, stack.pop()):
-            if neighbour not in reach and neighbour not in ground:
+            if neighbour not in reach and neighbour not in ground and neighbour not in kept_off:
                 ground.add(neighbour)
                 stack.append(neighbour)
-    return WalledOff(frozenset(reach), frozenset(ground))
+    return WalledOff(frozenset(reach), frozenset(ground), kept_off)
 
 
 def walled_off(policy, snapshot) -> WalledOff | None:
@@ -146,6 +155,64 @@ def sealed_in_key(policy, snapshot) -> str | None:
     stood between (2,35) and (2,36), one cell past the vetoes, until the loop guard."""
     walled = walled_off(policy, snapshot)
     return None if walled is None else _ladder(policy, snapshot, walled, teleport_first=False)
+
+
+ROUTE_VETO_DESTRUCTION_SUFFIX = ":route-veto-seal"  # the reason suffix of the sealers' *Destruction*
+
+
+def route_veto_sealed_key(policy, snapshot) -> str | None:
+    """Where the explore found no way on and the routes' engagement veto (a sleeper's reach
+    among it) is what holds every way on from the player (engagement_avoid_seal
+    ``route_veto_encloses``).  Owner 2026-11-17 (the n1-c life-216 question 「眠った強敵を避ける
+    マスで出口がすべてふさがれた時はどうしますか？」, answer 「半径13以内なら *破壊*、無理なら溶かして
+    抜ける」), in order:
+
+    - *Destruction* leaving the sealing monsters (``sealers``) alone -- destruction_use ``key``
+      with them as ``leaving``: its gates (clear-headed, a floor the game destroys, no damaged
+      quest target or guardian in its worst radius, a reliable means with a charge, the most
+      dangerous of them within GUARANTEED_RADIUS); no other monster is asked about;
+    - the openers toward the known ground past the veto (owner 2026-11-06: the dig, Stone to Mud
+      among it; the disarm walk; the weak blocker), the sides drawn by that veto;
+    - the floor's stuck escape (policy ``_stuck_escape_key``: 50F+ deep_teleport ``stuck_key``,
+      owner 2026-11-15 「岩石溶解で掘る・だめなら帰還」; shallower the Recall).
+
+    Before, the secret-wall search ran the stuck count first and the wander walked the pocket:
+    n1-c life-216 (Angband 62F, 2026-11-17 04:19) until the livelock guard read Recall at full HP
+    beside a sleeping 百足龍虫 whose reach held both doors of the room.  None while recalling, or
+    where the stuck escape may not leave (``_stuck_escape_permitted``)."""
+    if snapshot.player.recalling or not engagement_avoid_seal.route_veto_encloses(policy, snapshot):
+        return None
+    if not policy._stuck_escape_permitted(snapshot, policy._is_forgetting_maze(snapshot),
+                                          policy._is_completed_forgetting_maze(snapshot)):
+        return None
+    walled = _sides(policy, snapshot, frozenset(policy._engagement_route_veto(snapshot)))
+    if walled is not None:
+        sealing = sealers(policy, snapshot, walled)
+        if sealing:
+            from hengbot import destruction_use  # import cycle
+
+            used = destruction_use.key(policy, snapshot, leaving=sealing,
+                                       suffix=ROUTE_VETO_DESTRUCTION_SUFFIX)
+            if used is not None:
+                return used
+        for opener in OPENERS:
+            key = opener(policy, snapshot, walled)
+            if key is not None:
+                return key
+    return policy._stuck_escape_key(snapshot)
+
+
+def sealers(policy, snapshot, walled) -> list:
+    """The monsters whose danger areas (policy ``_engagement_danger_areas``) hold a cell the
+    player's side steps onto: the ones that seal it in."""
+    gates = {
+        neighbour
+        for cell in walled.reach
+        for neighbour in policy._walkable_neighbors(snapshot, cell, allow_damaging=False)
+        if neighbour in walled.kept_off
+    }
+    areas = policy._engagement_danger_areas(snapshot) or ()
+    return [monster for monster, area in areas if area & gates]
 
 
 def walled_off_key(policy, snapshot) -> str | None:
@@ -316,7 +383,7 @@ def _disarm_key(policy, snapshot, walled, avoid=frozenset()) -> str | None:
     """A walk to the ground across a trap the walk's disarm still tries."""
     def admit(position) -> bool:
         return (position not in policy._engagement_avoid_cells and position not in avoid
-                and crossable(policy, snapshot, position))
+                and position not in walled.kept_off and crossable(policy, snapshot, position))
 
     first = _first_step(policy, snapshot, walled.ground, admit)
     if first is None:

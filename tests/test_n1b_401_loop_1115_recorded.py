@@ -42,7 +42,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import cli, engagement_avoid_seal, pingpong_guard
+from hengbot import cli, engagement_avoid_seal, pingpong_guard, retreat_enclosure
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -91,16 +91,49 @@ def _without_walk_veto():
     return mock.patch.object(HengbotPolicy, "_least_visited_neighbor", old)
 
 
+def _strong_sleeper_as_before():
+    """DECLARED CONSTRUCTED: the sleeper kept away from by the material melee test, as before owner
+    2026-11-17 「脅威度の段で読む」 (policy ``_kept_away_melee`` now reads the tiers' side, and this
+    recorded sleeper reads no leave there, so it is no longer avoided).  The mechanisms pinned here
+    (the keep-out, its seal, its enclosure answers) still serve a sleeper the tiers leave, a T1;
+    they are read with the sleeper standing for one."""
+    return mock.patch.object(HengbotPolicy, "_kept_away_melee",
+                             lambda self, snapshot, monster: self._material_melee_damage(snapshot, monster))
+
+
+_STRONG_SLEEPER = None
+
+
+def setUpModule():
+    global _STRONG_SLEEPER
+    _STRONG_SLEEPER = _strong_sleeper_as_before()
+    _STRONG_SLEEPER.start()
+
+
+def tearDownModule():
+    _STRONG_SLEEPER.stop()
+
+
+def _without_route_veto_seal():
+    """The idle layer before owner 2026-11-17 「半径13以内なら *破壊*、無理なら溶かして抜ける」
+    (retreat_enclosure ``route_veto_sealed_key``, n1-c life-216): no answer below the explore for
+    a sleeper's area that holds every way on, so the dead end's searches and the wander ran
+    first.  The live process (the control) and the 11-15 wander fix are read under it."""
+    return mock.patch.object(retreat_enclosure, "route_veto_sealed_key", lambda policy, snapshot: None)
+
+
 _WALKS = {}
 
 
-def _walk(decisions=120, *, fixed=True, guard_cells=pingpong_guard.CYCLE_MAX_CELLS):
+def _walk(decisions=120, *, fixed=True, guard_cells=pingpong_guard.CYCLE_MAX_CELLS, route_seal=None):
     """``_walked`` once per configuration (the replay takes seconds); the policy and board are
-    the replay's own, shared by the tests that read them."""
-    if (decisions, fixed, guard_cells) not in _WALKS:
-        _WALKS[(decisions, fixed, guard_cells)] = _walked(decisions, fixed=fixed,
-                                                          guard_cells=guard_cells)
-    return _WALKS[(decisions, fixed, guard_cells)]
+    the replay's own, shared by the tests that read them.  ``route_seal`` (default ``fixed``)
+    keeps the 2026-11-17 route-veto rung; the control walks without it."""
+    route_seal = fixed if route_seal is None else route_seal
+    if (decisions, fixed, guard_cells, route_seal) not in _WALKS:
+        _WALKS[(decisions, fixed, guard_cells, route_seal)] = _walked(
+            decisions, fixed=fixed, guard_cells=guard_cells, route_seal=route_seal)
+    return _WALKS[(decisions, fixed, guard_cells, route_seal)]
 
 
 def _two_cell_guard():
@@ -108,7 +141,7 @@ def _two_cell_guard():
     return mock.patch.object(pingpong_guard, "CYCLE_MAX_CELLS", 2)
 
 
-def _walked(decisions, *, fixed, guard_cells=pingpong_guard.CYCLE_MAX_CELLS):
+def _walked(decisions, *, fixed, guard_cells=pingpong_guard.CYCLE_MAX_CELLS, route_seal=None):
     """(rows, the decision the CLI loop detector tripped on, the ping-pong events, policy, the
     raw board of the last decision): each row (cell, key, reason); the walk stops at a leave."""
     directory = TemporaryDirectory()
@@ -124,7 +157,9 @@ def _walked(decisions, *, fixed, guard_cells=pingpong_guard.CYCLE_MAX_CELLS):
     patch = nullcontext() if fixed else _without_walk_veto()
     guard = nullcontext() if guard_cells == pingpong_guard.CYCLE_MAX_CELLS else (
         mock.patch.object(pingpong_guard, "CYCLE_MAX_CELLS", guard_cells))
-    with patch, guard:
+    route_seal = fixed if route_seal is None else route_seal
+    seal = nullcontext() if route_seal else _without_route_veto_seal()
+    with patch, guard, seal:
         for index in range(len(BEFORE_LANDING) + decisions):
             if index < len(BEFORE_LANDING):
                 raw = copy.deepcopy(BEFORE_LANDING[index])
@@ -199,7 +234,8 @@ class RecordedWindowTest(unittest.TestCase):
 
 class WithoutTheFixTest(unittest.TestCase):
     """The control: the wander off the retreats' vetoes and the registry only, with the
-    ping-pong guard of the live process (two cells; 2026-11-15 Q1 widened it, see below)."""
+    ping-pong guard of the live process (two cells; 2026-11-15 Q1 widened it, see below), and
+    without the 2026-11-17 route-veto rung (``_without_route_veto_seal``), as the live process."""
 
     def test_the_live_round_and_the_loop_stop(self):
         rows, tripped, events, _policy_, _raw, _directory = _walk(fixed=False, guard_cells=2)
@@ -248,7 +284,7 @@ class WithoutTheFixTest(unittest.TestCase):
         with mock.patch.object(engagement_avoid_seal, "seals", logged), \
                 mock.patch.object(HengbotPolicy, "_observe", counted):
             rows, tripped, _events, _policy_, _raw, _directory = _walked(
-                STUCK_ESCAPE_LIMIT, fixed=False, guard_cells=2)
+                STUCK_ESCAPE_LIMIT, fixed=False, guard_cells=2, route_seal=False)
         self.assertIsNotNone(tripped)
         retreats = sum(1 for _cell, _key, reason in rows if reason == RETREAT)
         self.assertGreaterEqual(sum(1 for _cell, _key, reason in rows[:tripped + 1] if reason == RETREAT), 10)
@@ -261,7 +297,8 @@ class WithoutTheFixTest(unittest.TestCase):
 
 
 class SixCellGuardTest(unittest.TestCase):
-    """Owner 2026-11-15 「6マスまで広げる」 (maintainability review Q1): the ping-pong guard reads a
+    """(Read without the wander fix and so without the 2026-11-17 route-veto rung: the round under
+    test is the live one.)  Owner 2026-11-15 「6マスまで広げる」 (maintainability review Q1): the ping-pong guard reads a
     round of up to six cells, the loop detector's own bound.  Without the wander's root fix the
     live round (wander 1->2, wander 2->3, retreat 3->2, wander 2->1: four moves over three
     cells) is read on its second turn, and the same round again escalates to the existing
@@ -289,10 +326,12 @@ class SixCellGuardTest(unittest.TestCase):
 
 
 class FixedTest(nokey.PostedKey):
-    """The wander keeps off the walks' veto: it never steps into the sleeper's area."""
+    """The wander keeps off the walks' veto: it never steps into the sleeper's area (11-15).
+    Read without the 2026-11-17 route-veto rung, which now answers this dead end first
+    (RouteVetoSealTest): the wander fix stays pinned for the boards that rung leaves to it."""
 
     def test_no_retreat_and_the_stuck_escape_reads_recall_before_the_loop_stop(self):
-        rows, tripped, events, policy, raw, _directory = _walk()
+        rows, tripped, events, policy, raw, _directory = _walk(route_seal=False)
         cells = [cell for cell, _key, _reason in rows]
         reasons = [reason for _cell, _key, reason in rows]
         self.assertNotIn(DEAD_END[2], cells, rows)
@@ -313,8 +352,26 @@ class FixedTest(nokey.PostedKey):
 
     def test_the_wander_still_steps_where_the_veto_holds_no_cell(self):
         """From (20,1) the one neighbour (20,2) is off the area: the wander takes it."""
-        rows, _tripped, _events, _policy_, _raw, _directory = _walk()
+        rows, _tripped, _events, _policy_, _raw, _directory = _walk(route_seal=False)
         self.assertIn((DEAD_END[0], "6", WANDER), rows)
+
+
+class RouteVetoSealTest(nokey.PostedKey):
+    """Owner 2026-11-17 (n1-c life-216) 「半径13以内なら *破壊*、無理なら溶かして抜ける」: the
+    sleeper's area holds the dead end's one way on, so the route-veto rung answers on the landing
+    board itself, before any search or wander.  No absorbed power list is replayed (the module
+    note), so neither *Destruction* nor Stone to Mud is held and the floor's stuck escape answers:
+    the 11-15 fix's end state (Recall at (20,2), 49F) without the searches and the wander."""
+
+    def test_the_landing_board_reads_recall(self):
+        rows, tripped, events, policy, raw, _directory = _walk()
+        self.assertIsNone(tripped, rows)
+        self.assertEqual(events, [])
+        board = parse_snapshot(copy.deepcopy(raw), MONRACE)
+        recall = next(item for item in board.inventory if item.is_recall_scroll)
+        self.assertEqual(rows, [(DEAD_END[1], "r" + recall.slot, "stuck:recall-escape")])
+        self.assertTrue(policy._returning_to_town)
+        self.post(policy, raw, rows[-1][1], screens=(prompt_screen(READ_PROMPT),))
 
 
 if __name__ == "__main__":

@@ -195,6 +195,19 @@ def worsens_left(policy, snapshot, hostiles) -> bool:
                for monster in hostiles)
 
 
+def leave_side(policy, snapshot, monster) -> bool | None:
+    """The decided side of ``monster`` (``Decided.leave``: T1, or T2 with no selected target, or
+    left as worsening with time), else None (no reading of it on this floor visit).  Reads,
+    never writes.  Owner 2026-11-17 (the n1-c life-216 question on 「T3 なのに強い敵」): the
+    11-07 rule 「眠っていても強い敵（勝てない・脅威が高い）からは離れる」 reads "strong" from this
+    side 「脅威度の段で読む」 (policy ``_kept_away_melee``)."""
+    memory = getattr(policy, TIER_MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return None
+    entry = memory.decided.get((monster.index, monster.race_id))
+    return None if entry is None else entry.leave
+
+
 def decided_sides(policy, snapshot, hostiles) -> list:
     """The remembered sides of ``hostiles`` (telemetry: reads, never writes)."""
     memory = getattr(policy, TIER_MEMORY, None)

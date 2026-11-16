@@ -34,12 +34,13 @@ Gates (``key``, asked by each rung before its read): the character is clear-head
 allowed, owner 2026-11-08 「盲目でも使う」; a stun allowed, owner 2026-11-13, judged by the
 stun-adjusted success); a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
 absorbed power first as in speed_dose); the floor is one the game destroys; the
-most dangerous awake visible hostile other than the quest target is in
-``GUARANTEED_RADIUS``; and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
+most dangerous visible hostile other than the quest target, awake or asleep, is in
+``GUARANTEED_RADIUS`` (owner 2026-11-17 「両方の条件を外して直して」: no rule of the owner's
+asks it awake); and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
 else leaves the rung's read as it was.
 
 Owner 2026-11-05 (``sight_trigger_key``, SIGHT_TRIGGERS): some races are used on as soon
-as one is awake in view in GUARANTEED_RADIUS, with no emergency, asked after the survival
+as one is in view in GUARANTEED_RADIUS, awake or asleep (owner 2026-11-17), with no emergency, asked after the survival
 rungs.  The same gates hold but for the most-dangerous test; a fixed quest floor is
 refused by the game, and on a random quest floor only the target itself is no such race
 (「ランダムクエストの階であってもターゲットでなければ*破壊*してよい」).
@@ -363,24 +364,28 @@ def _spared_in_circle(policy, snapshot, target) -> bool:
         for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
 
 
-def _awake_in_view(policy, snapshot, target) -> list:
-    """The awake visible hostiles but the target; none with an attacker the board
-    does not show (the use would not reach it)."""
+def _in_view(policy, snapshot, target) -> list:
+    """The visible hostiles but the target, awake or asleep; none with an attacker the board
+    does not show (the use would not reach it).
+
+    Owner 2026-11-17 (verbatim 「50F以降でT1を破壊で排除するルールに眠っているかどうかを記載した
+    記憶はない」, then 「両方の条件を外して直して」): the rules (11-04 「脅威が範囲内に見える時に使用」,
+    11-05, 11-09 B, 11-10, 11-14) never asked the monster awake; until 2026-11-17 only the awake
+    ones counted here."""
     if getattr(policy, "_unseen_attack_evidence", None) is not None:
         return []
-    return [m for m in snapshot.visible_monsters
-            if m.hostile and not m.asleep and m.race_id != target]
+    return [m for m in snapshot.visible_monsters if m.hostile and m.race_id != target]
 
 
 def _threat_in_range(policy, snapshot, target) -> bool:
-    """The most dangerous awake visible hostile but the target is in the guaranteed
-    radius."""
-    awake = _awake_in_view(policy, snapshot, target)
-    if not awake:
+    """The most dangerous visible hostile but the target, awake or asleep (``_in_view``), is in
+    the guaranteed radius."""
+    seen = _in_view(policy, snapshot, target)
+    if not seen:
         return False
     here = snapshot.player.position
-    worst = max(awake, key=lambda m: (policy._predicted_damage(snapshot, [m], turns=1),
-                                      -game_distance(here, m.position)))
+    worst = max(seen, key=lambda m: (policy._predicted_damage(snapshot, [m], turns=1),
+                                     -game_distance(here, m.position)))
     return game_distance(here, worst.position) <= GUARANTEED_RADIUS
 
 
@@ -389,10 +394,11 @@ def _threat_in_reach(policy, snapshot, target, *, hostiles) -> bool:
     即死ではない場合は破壊による排除を優先する。」  Where a rung leaves ``hostiles`` and the board
     is not 即死, the threat need not be awake in view: the most dangerous of them but the target,
     seen or detected, awake or asleep, judged from contact (``threat_prediction(contact=True)``,
-    as the tiers judge a far monster), is in the guaranteed radius; or the 11-04 test holds.  An
-    attacker the board does not show still refuses the use (``_awake_in_view``'s rule)."""
-    if _threat_in_range(policy, snapshot, target):
-        return True
+    as the tiers judge a far monster), is in the guaranteed radius.  An attacker the board does not
+    show still refuses the use (``_in_view``'s rule).  Until 2026-11-17 the 11-04 test
+    (``_threat_in_range``) answered first; with the sleepers in view counted there (owner
+    2026-11-17) a harmless sleeper in reach would let a use leave a T1 the circle does not reach,
+    so the leaving set alone is asked (owner 2026-11-17 「対象はふさいでいる敵だけ」 for the sealers)."""
     if getattr(policy, "_unseen_attack_evidence", None) is not None:
         return False
     worst = reach_subject(policy, snapshot, hostiles, target)
@@ -487,7 +493,8 @@ def usable(policy, snapshot, *, leaving=None) -> bool:
 
 
 def sight_trigger_key(policy, snapshot) -> str | None:
-    """The use on a SIGHT_TRIGGERS race awake in the guaranteed radius, else None.
+    """The use on a SIGHT_TRIGGERS race in view in the guaranteed radius, awake or asleep
+    (owner 2026-11-17), else None.
     A board with none does not ask ``key``, so it leaves a failed use's fallback alone."""
     for suffix, applies in SIGHT_TRIGGERS:
         in_range = partial(_race_in_range, applies=applies)
@@ -500,7 +507,7 @@ def _race_in_range(policy, snapshot, target, *, applies) -> bool:
     here = snapshot.player.position
     return any(game_distance(here, m.position) <= GUARANTEED_RADIUS
                and applies(policy, snapshot, m)
-               for m in _awake_in_view(policy, snapshot, target))
+               for m in _in_view(policy, snapshot, target))
 
 
 # -- after the use --------------------------------------------------------------
