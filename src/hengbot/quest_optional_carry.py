@@ -71,9 +71,32 @@ def wanted_ahead(policy, snapshot, item) -> bool:
     return False
 
 
+def _carried_for_quest(policy, snapshot, item) -> bool:
+    """False while a fundraising set holds the town and the potion is not on its way in.
+
+    n1-a life-528 (2026-11-16 07:47, Lv40 warrior, Q25 not ready): with no safe landing the
+    town opened the no-safe-destination fundraising set (Yeek cave 1F mining).  The 啓蒙の薬
+    carried since an earlier visit held the 19th pack slot as Q25's reservation, the
+    four-slot reserve refused the set's Treasure Detection (45 on the Alchemist's shelf),
+    the tidy found nothing to shelve and the town looped on
+    town:blocked:depth-gate:destination-51.  Owner 2026-11-16 「必須携行品だけで枠が不足する
+    ことはない。荷物整理処理に不具合がある」: the potion is no requirement (2026-11-05, it
+    blocks no departure), and a fundraising set requests no quest (a ready one is taken
+    before the set, ``_fixed_quest_key#2``), so during the set it is ordinary Home stock --
+    ``wanted_ahead`` keeps it there and ``before_acceptance`` takes it out again.  Filed this
+    visit, on foot to the Home, out of town or with its quest taken it stays carried.
+    """
+    if (policy._fundraising_mode not in {"prepare", "mine", "scavenge"}
+            or not snapshot.in_town or routed(policy) or town_visit(policy).optional_carry_filed):
+        return True
+    return any(quest.status == QUEST_STATUS_TAKEN
+               and item.sval in _wanted(policy.approved_quest_strategy(quest_id))
+               for quest_id, quest in snapshot.quests.items())
+
+
 def retained(policy, snapshot, item) -> int:
     """How much of this pack stack stays with the player for that quest."""
-    if not wanted_kind(policy, snapshot, item):
+    if not wanted_kind(policy, snapshot, item) or not _carried_for_quest(policy, snapshot, item):
         return 0
     return min(item.count, _prepared(policy, snapshot)[item.sval])
 
