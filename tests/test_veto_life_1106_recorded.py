@@ -26,7 +26,7 @@ from test_quest_loop_dwell_1106_recorded import (
     COLUMN, HALF_GIANT, VETOES_DONE_TURN, WalledOffBoards, shown,
 )
 
-from hengbot import quest_target_search, retreat_enclosure, retreat_veto_life
+from hengbot import locked_doors, retreat_enclosure, retreat_veto_life
 
 HALF_GIANT_KEY = (HALF_GIANT["index"], HALF_GIANT["race_id"])
 LAST_SHOWN_TURN = 2345271
@@ -70,7 +70,12 @@ class VetoLife(WalledOffBoards):
         self.assertFalse(COLUMN & replay.policy._engagement_owned_avoid_cells)
         self.assertFalse(COLUMN & replay.policy._engagement_avoid_cells)
         self.assertFalse(retreat_enclosure.holds_ground(replay.policy, board))
-        self.assertEqual(reason, quest_target_search.LOOP_REASON)
+        # The search walks on, to the lock the entry picked first (locked_doors, before the lap):
+        # from (15,94) at 2344978 the column's ground held nothing closer to the target than the
+        # player (hunt_target ``_vetoes_hold_the_goal``, n1-c life-216), so the entry explores as
+        # the live bot did, onto (16,91), where the recorded boards read 「鍵をはずせなかった。」
+        # (2344992-2345000); until 2026-11-17 the replay read Teleportation there instead.
+        self.assertEqual(reason, locked_doors.SEEK_REASON)
 
     def test_the_column_stands_through_the_window_and_is_lifted_at_its_end(self):
         replay = self.after_the_retreats()
