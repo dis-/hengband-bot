@@ -37,6 +37,9 @@ _PUT = ("どのアイテムを置きますか?",)
 _BUY = ("どの品物が欲しいんだい?",)
 _QUANTITY = (r"\s*いくつですか \(1-\d+\):(?: .*)?",)
 _PRICE = (r"\s*買値 \$\d+ で買いますか？\[Y/n\]",)
+# cmd-action/cmd-attack.cpp do_cmd_attack: input_check before hitting a visible
+# non-hostile monster (input_check appends "[y/n]").
+_ATTACK_FRIEND = (r"\s*(?:本当に攻撃しますか？|Really hit it\? )\s*\[[Yy]/[Nn]\]\s*",)
 
 
 def _answer(kind, keys, feature=None, **options):
@@ -236,7 +239,14 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     if command in "Do" and owner in {"chest:disarm", "chest:open"} and re.fullmatch(r"[1-9]", tail):
         # get_rep_dir may infer the sole adjacent chest (easy_open/disarm).
         # Otherwise release the direction only at the observed question.
-        return command, [_answer(ScreenKind.DIRECTION, tail, optional=True), *continuations]
+        # cmd-open-close.cpp: a monster on that square is attacked instead, and
+        # cmd-attack.cpp do_cmd_attack asks input_check 「本当に攻撃しますか？」 of a
+        # visible non-hostile one.  The chest is not worth turning a friend: 'n'
+        # answers only that observed question (n1-c life-216, 2026-11-17 00:41).
+        return command, [_answer(ScreenKind.DIRECTION, tail, optional=True),
+                         _answer(ScreenKind.CONFIRM, "n", _ATTACK_FRIEND, exact_feature=True,
+                                 feature_pattern=True, optional=True),
+                         *continuations]
     if command == ALTER_KEY and re.fullmatch(r"[1-9]", tail):
         # cmd-others.cpp exe_alter: get_rep_dir asks the direction, then a
         # monster there is attacked, seen or not (no-wait:attack, blind strike).

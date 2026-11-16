@@ -69,6 +69,11 @@ UNSEEN_LOOT_QUIET_TURNS = 200
 # Drops of a carried chest that never reached the game (the chest still carried
 # after game time passed) before the chest is left in the pack on this floor.
 CHEST_DROP_UNCONFIRMED_LIMIT = 3
+# Waits ('5') for a known monster to leave the chest's square before the chest is
+# abandoned like an exhausted budget.  cmd-open-close.cpp do_cmd_open/do_cmd_disarm
+# turn a monster on the square into do_cmd_attack, which asks 「本当に攻撃しますか？」
+# of a visible non-hostile one (n1-c life-216, Castle 64F, 2026-11-17 00:41).
+CHEST_OCCUPANT_WAIT_LIMIT = 10
 
 SOURCE_PROMPT = {
     USE_STAFF_KEY: ("どの杖を使いますか? ", "Use which staff? "),
@@ -388,6 +393,26 @@ class IdentificationMixin:
                 self.last_reason = "chest:search"
                 return CHEST_SEARCH_KEY
             direction = self._direction_key(player.position, chest_pos)
+            if any(
+                monster.position == chest_pos
+                for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            ):
+                # 'D'/'o' at a monster's square attack it instead (cmd-open-close.cpp:
+                # 「モンスターが立ちふさがっている！」), and a visible non-hostile one makes
+                # do_cmd_attack ask 「本当に攻撃しますか？」.  The hostile filter above passes
+                # friends, so a friendly monster on the chest is waited out here.  n1-c
+                # life-216 (Castle 64F, 2026-11-17 00:41) posted ``o8`` at a friendly
+                # 大バシリスク standing on the chest at [9,118] and stopped at that question.
+                if counts.get("occupied", 0) < CHEST_OCCUPANT_WAIT_LIMIT:
+                    counts["occupied"] = counts.get("occupied", 0) + 1
+                    self.last_reason = "chest:await-occupant"
+                    return WAIT_KEY
+                self._chest_position = None
+                self._chest_phase_counts = {}
+                self._chest_collecting = False
+                self._chest_preopen_objects = None
+                self._processed_chest_positions.add(chest_pos)
+                return None
             if counts.get("disarm", 0) < CHEST_DISARM_BUDGET:
                 # Class 16 aims an absorbed disarming power at the chest (me_powers).
                 power = me_powers.power_key(self, snapshot, me_powers.TRAP, chest_pos)
