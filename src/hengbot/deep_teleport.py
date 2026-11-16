@@ -20,12 +20,18 @@ stairs.
 answer is *Destruction* -- destruction_use's ``key`` with the concerned monsters as the hostiles
 it leaves (its sure radius 13, cmd-usestaff.cpp:282 and scroll-read-executor.cpp:342 13 +
 randint0(5); its gates: a clear head, a reliable means with a charge, a floor the game destroys,
-no guardian or hurt quest target in its worst radius) -- else the walk toward the nearest
-concerned monster until it is within the sure radius (threat_tiers.approach_key for monsters
-known by detection alone; the same walk for one in view).  The concerned monsters are the awake
-hostiles of the engagement that hurt from contact (``threat_prediction(contact=True)``, as the
-tiers judge a far monster), but the floor's guardian and the active quest's target, which
-*Destruction* spares.  Every rung that reads a relocation scroll passes ``_read_key`` or
+no guardian or hurt quest target in its worst radius) -- else the walk until the concerned
+monster the use asks about (destruction_use ``reach_subject``, the most dangerous from contact)
+is within the sure radius (threat_tiers.approach_key for monsters known by detection alone; the
+same walk for one in view).  The concerned monsters are the hostiles of the engagement, awake or
+asleep, that hurt from contact (``threat_prediction(contact=True)``, as the tiers judge a far
+monster), but the floor's guardian and the active quest's target, which *Destruction* spares:
+the rungs that read the teleport leave sleeping monsters too (a summoner asleep may summon on
+its next move, policy_combat ``_summoner_may_summon_next_turn``; owner 2026-11-07 「強い敵からは
+離れる」 asleep or not; destruction_use ``_threat_in_reach``, owner 2026-11-09 B, awake or asleep).
+Until 2026-11-16 only the awake counted, so a teleport read for a sleeping summoner found no
+concerned monster and read Recall: n1-c life-216 (64F, HP 784/784, the absorbed *Destruction*
+at 22 charges) read it on the first board after the town's Recall, a sleeping ミッド・タイタン at 15.  Every rung that reads a relocation scroll passes ``_read_key`` or
 ``_issue_emergency_consumable`` (or composes the read beside ``_anti_teleport_takeoff_key``), and
 the staff and absorbed casts pass ``threat_escape.blind_teleport_key`` or
 ``teleport_follower.device_teleport_key``: the substitute is asked there.
@@ -215,17 +221,18 @@ def landed_threats(policy, snapshot) -> list:
 
 
 def concerned(policy, snapshot) -> list:
-    """The awake engagement hostiles that hurt from contact, but those *Destruction* spares."""
+    """The engagement hostiles, awake or asleep, that hurt from contact, but those
+    *Destruction* spares (the module docstring)."""
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
     spared = {destruction_use._guardian_race(policy, snapshot),
               destruction_use._target_race(policy, snapshot)}
-    awake = [monster for monster in threat_tiers.engagement(policy, snapshot)
-             if not monster.asleep and monster.race_id not in spared]
-    if not awake:
+    hostiles = [monster for monster in threat_tiers.engagement(policy, snapshot)
+                if monster.race_id not in spared]
+    if not hostiles:
         return []
-    rows = policy.threat_prediction(snapshot, awake, 1, contact=True).get("monsters", ())
-    return [monster for monster, row in zip(awake, rows)
+    rows = policy.threat_prediction(snapshot, hostiles, 1, contact=True).get("monsters", ())
+    return [monster for monster, row in zip(hostiles, rows)
             if row.get("operational_contribution", 0) > 0]
 
 
@@ -233,21 +240,37 @@ def is_self_teleport_scroll(item) -> bool:
     return item is not None and item.tval == TVAL_SCROLL and item.sval in SCROLL_SVALS
 
 
-def _walk_key(policy, snapshot, targets) -> str | None:
-    """A step toward the nearest grid within the sure radius of a target, under the approach's
-    gates (threat_tiers._approach_targets but its in-view refusal)."""
-    from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
+def _walk_step(policy, snapshot, targets):
+    """The step toward the nearest grid within the sure radius of the monster the use asks
+    about (destruction_use ``reach_subject``: the most dangerous of ``targets`` from contact,
+    whose place ``usable(leaving=targets)`` tests), else None: under the approach's gates
+    (threat_tiers._approach_targets but its in-view refusal), and none when that monster is in
+    reach already (only the use answers there, and its gates refused it).  A nearer, weaker
+    target inside the radius is no reason to stop short (n1-c life-216, 64F 2026-11-16: the
+    sleeping 白衣の高位修行僧 at 10 held the walk while the use waited for the sleeping
+    ミッド・タイタン at 15, and Recall was read in its place)."""
+    from hengbot import destruction_use
 
     if (not destruction_use.holds_means(policy, snapshot)
             or not destruction_use._clear_headed(snapshot.player)
             or not destruction_use._floor_destroyed(policy, snapshot)):
         return None
-    here = snapshot.player.position
+    subject = destruction_use.reach_subject(
+        policy, snapshot, targets, destruction_use._target_race(policy, snapshot))
+    if subject is None:
+        return None
     radius = destruction_use.GUARANTEED_RADIUS
-    if any(game_distance(here, monster.position) <= radius for monster in targets):
-        return None  # in reach: only the use answers, and the gates refused it
-    step = policy._nearest_goal_step(snapshot, lambda grid: any(
-        game_distance(grid.position, monster.position) <= radius for monster in targets))
+    if game_distance(snapshot.player.position, subject.position) <= radius:
+        return None
+    return policy._nearest_goal_step(
+        snapshot, lambda grid: game_distance(grid.position, subject.position) <= radius)
+
+
+def _walk_key(policy, snapshot, targets) -> str | None:
+    """A step of ``_walk_step``, else None."""
+    from hengbot import threat_tiers  # noqa: F401 -- import cycle
+
+    step = _walk_step(policy, snapshot, targets)
     if step is None:
         return None
     policy.last_reason = threat_tiers.APPROACH_REASON
@@ -289,19 +312,8 @@ def _recall_available(policy, snapshot) -> bool:
 
 
 def _walk_available(policy, snapshot, targets) -> bool:
-    """``_walk_key`` (and the approach, whose gates it holds) would step here (no state)."""
-    from hengbot import destruction_use
-
-    if (not destruction_use.holds_means(policy, snapshot)
-            or not destruction_use._clear_headed(snapshot.player)
-            or not destruction_use._floor_destroyed(policy, snapshot)):
-        return False
-    here = snapshot.player.position
-    radius = destruction_use.GUARANTEED_RADIUS
-    if any(game_distance(here, monster.position) <= radius for monster in targets):
-        return False
-    return policy._nearest_goal_step(snapshot, lambda grid: any(
-        game_distance(grid.position, monster.position) <= radius for monster in targets)) is not None
+    """``_walk_key`` would step here (no state)."""
+    return _walk_step(policy, snapshot, targets) is not None
 
 
 def no_means(policy, snapshot) -> bool:

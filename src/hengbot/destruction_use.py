@@ -346,14 +346,23 @@ def _threat_in_reach(policy, snapshot, target, *, hostiles) -> bool:
         return True
     if getattr(policy, "_unseen_attack_evidence", None) is not None:
         return False
+    worst = reach_subject(policy, snapshot, hostiles, target)
+    return worst is not None and game_distance(snapshot.player.position, worst.position) <= GUARANTEED_RADIUS
+
+
+def reach_subject(policy, snapshot, hostiles, target):
+    """The monster of ``hostiles`` whose place ``_threat_in_reach`` asks: the most dangerous
+    from contact (``threat_prediction(contact=True)``), the nearer on a tie, the ``target``
+    race (``_target_race``) left out; None with none.  The walk toward the use (deep_teleport)
+    walks until this one is in the sure radius."""
     candidates = [m for m in hostiles if m.hostile and m.race_id != target]
     if not candidates:
-        return False
+        return None
     here = snapshot.player.position
     rows = policy.threat_prediction(snapshot, candidates, 1, contact=True)["monsters"]
     worst, _ = max(zip(candidates, rows), key=lambda pair: (
         pair[1].get("operational_contribution", 0), -game_distance(here, pair[0].position)))
-    return game_distance(here, worst.position) <= GUARANTEED_RADIUS
+    return worst
 
 
 def _scene_holds(policy, snapshot, in_range=_threat_in_range) -> bool:

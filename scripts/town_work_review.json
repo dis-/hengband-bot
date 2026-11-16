@@ -19355,7 +19355,18 @@
       "data/no-independent-credit"
     ],
     "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
-    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the awake engagement hostiles that hurt from contact, but the floor's guardian and the quest target *Destruction* spares.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the engagement hostiles, awake or asleep, that hurt from contact, but the floor's guardian and the quest target *Destruction* spares.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:_walk_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the step toward the nearest grid within the sure radius 13 of the concerned monster the *Destruction* use asks about (destruction_use.reach_subject), while the means is held and the floor is destroyable; None when that monster is in reach or without a path; no command.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -19366,7 +19377,7 @@
       "survival"
     ],
     "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
-    "evidence": "Owner 2026-11-14 (50F+ self-teleport only on instant death by monsters with a line of fire, else *Destruction* or walk to it): a step toward the nearest grid within the sure radius 13 of a concerned monster while the means is held and the floor is destroyable (sensed-t1:approach-destruction, a walk); None in reach or without a path; no independent progress.",
+    "evidence": "Owner 2026-11-14 (50F+ self-teleport only on instant death by monsters with a line of fire, else *Destruction* or walk to it): a step of _walk_step toward the sure radius 13 of the concerned monster the use asks about (sensed-t1:approach-destruction, a walk); None in reach or without a path; no independent progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
