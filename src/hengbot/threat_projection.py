@@ -17,6 +17,7 @@ from hengbot import (
     haste_read,
     me_device_attacks,
     me_ranged_first,
+    oneshot_breath,
     speed_dose,
     survival_preemption,
     unseen_strike,
@@ -484,19 +485,26 @@ def _hasted(policy, snapshot) -> bool:
 
 
 def _resistance_after(snapshot):
-    """The board after the strongest carried resistance drink, or None."""
+    """The board after the strongest carried resistance drink, or None.
+
+    None too while the drink's opposition already runs (owner 2026-11-05 「効いている間は飲みま
+    せん」, resist_potion): ``OPPOSITION_ABILITY`` is no game flag, so the running opposition is
+    read where resist_potion and oneshot_breath read it, the status bar (``oneshot_breath.opposed``).
+    n1-c life-214 (Angband 80F, 2026-11-16, 銀ライネル) drank three Potions of Resistance in a row
+    from the supply fight while the first one's opposition ran, then died after the teleport."""
     player = snapshot.player
     held = {item.sval for item in snapshot.inventory
             if item.is_potion and item.aware and item.count > 0}
     if SV_POTION_RESISTANCE in held:
-        added = {OPPOSITION_ABILITY}
+        added, elements = {OPPOSITION_ABILITY}, frozenset(oneshot_breath.FIVE)
     elif held & {SV_POTION_RESIST_HEAT, SV_POTION_RESIST_COLD}:
         # Resist Heat / Cold add one element's opposition: one layer, as a resistance.
         added = ({"resist_fire"} if SV_POTION_RESIST_HEAT in held else set()) | (
             {"resist_cold"} if SV_POTION_RESIST_COLD in held else set())
+        elements = frozenset(name.removeprefix("resist_") for name in added)
     else:
         return None
-    if added <= set(player.abilities):
+    if added <= set(player.abilities) or elements <= oneshot_breath.opposed(player):
         return None
     return replace(snapshot, player=replace(player, abilities=player.abilities | added))
 
