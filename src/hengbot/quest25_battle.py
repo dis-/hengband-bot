@@ -1486,8 +1486,17 @@ def _rally(ctx: _Ctx) -> str | None:
 
 def _ipsissimus(ctx: _Ctx) -> str | None:
     battle, policy, snapshot = ctx.battle, ctx.policy, ctx.snapshot
-    if (battle.rallying or battle.strong) and (key := _rally(ctx)) is not None:
-        return key
+    if battle.rallying or battle.strong:
+        if (key := _rally(ctx)) is not None:
+            return key
+        # The rally ended on the choke on this board (``_rally``): the phase's preparation rests
+        # there first (phase2 「全快して(7,1)に移動」), on a cell no summons reaches, not one step on.
+        # n1-a life-528 (2026-11-16 13:12:42-13:13:10): the walk to the pen's sight left the choke
+        # [3,1] short of full HP (784/1056 at 13:13:00) and rested on [4,1] the next board; each
+        # of those five rests was answered by an Ipsissimus summons, the last one the fight it
+        # died in.  ``_prepare`` answers None while the rally owns the board, so it is read once.
+        if (key := _prepare(ctx, current_phase(ctx))) is not None:
+            return key
     seen = [monster for monster in ctx.hostiles() if monster.race_id == geo.IPSISSIMUS
             and (monster.position.y, monster.position.x) in geo.IPSISSIMUS_PEN]
     aim = (seen[0].position.y, seen[0].position.x) if seen else geo.IPSISSIMUS_AIM
