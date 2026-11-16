@@ -12,16 +12,27 @@ teleport-away row); a monster it moves prints 「<name>が消え去った！」
 「には耐性がある！」 or 「には効果がなかった。」 (effect/effect-monster-evil.cpp:7-30) and stays.
 The monster lives on the same floor (teleport_away), so it can come back.
 
+Owner 2026-11-16 (n1-c life-216 recalled about 75 times in 16:41-19:21 on 城64階 and around),
+on 「T1 の敵」 of that rule: 「飛ばした敵が単独で T1 の時だけ」.  The monster sent away is read on its
+own -- ``threat_tiers.assess`` of it alone, the raw reading, without the decided side the
+engagement holds (``held_tier``, 「境に余裕を持たせる」) -- and only that reading counts: standing in
+an engagement that reads T1 (17:02:02 土の鬼 beside a グレーター・バルログ), or being held at T1 after
+the engagement's T1 has gone (18:47:44 見習レンジャー, 19:09:14 ダークエルフ・ワーロック), no longer does.
+``_t1`` is the one reader, for the THREAT occasion's Teleport Away and for teleport_follower's.
+
 ``note``: the decision that posts the THREAT occasion's teleport-away key remembers its target
-when that monster is T1 -- the engagement it stands in reads T1, or it does alone
-(threat_tiers.cannot_win, the owner's 11-08 「勝てないと分かれば離脱」) -- on a floor outside any
-quest (``floor_key[2] == 0``).  ``observe``: the next board of the same floor that prints the
-target's 「…が消え去った！」 starts the town return (trigger ``TRIGGER``); a resisted or failed use
-(no such message), a floor change or a later turn without it forgets the target.
+when that monster is T1 on its own (threat_tiers.cannot_win, the owner's 11-08 「勝てないと分かれば
+離脱」) on a floor outside any quest (``floor_key[2] == 0``).  ``observe``: the next board of the
+same floor that prints the target's own 「<name>が消え去った！」 (" disappears!", the game's
+``str_upcase_first`` of ``monster_desc``: "The <name> disappears!") starts the town return (trigger
+``TRIGGER``); the line names exactly the target, so 「白狼が消え去った！」 is not a 狼's.  A resisted
+or failed use (no such message), a floor change or a later turn without it forgets the target.
+Recalls by this rule are not counted as over-extension (owner 2026-11-16).
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from hengbot import me_powers, threat_tiers
@@ -31,6 +42,8 @@ MEMORY = "_sent_away_t1"
 TRIGGER = "teleported-away-t1"
 THREAT_REASON = "me-power:unbeatable-in-range:teleport-away"
 VANISHED = ("が消え去った！", " disappears!")   # effect/effect-monster.cpp:546
+_REPEAT_RE = re.compile(r" <x[1-9]\d*>$")
+_ARTICLE_RE = re.compile(r"^the ", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -42,12 +55,22 @@ class SentAway:
 
 
 def _t1(policy, snapshot, monster) -> bool:
-    hp = snapshot.player.hp
-    engaged = threat_tiers.engagement(policy, snapshot)
-    if any(other.index == monster.index for other in engaged) and threat_tiers.cannot_win(
-            threat_tiers.tiered(policy, snapshot, engaged), hp):
+    """``monster`` reads T1 on its own (owner 2026-11-16 「飛ばした敵が単独で T1 の時だけ」): the raw
+    reading of it alone, never the engagement's nor a held side."""
+    return threat_tiers.cannot_win(threat_tiers.assess(policy, snapshot, [monster]),
+                                   snapshot.player.hp)
+
+
+def vanished(message: str, name: str) -> bool:
+    """``message`` is the game's line for ``name`` sent away (effect-monster.cpp:546, printed as
+    ``str_upcase_first(m_name) + note``), the ``<xN>`` repeat counter aside."""
+    text = _REPEAT_RE.sub("", message)
+    if text == name + VANISHED[0]:
         return True
-    return threat_tiers.cannot_win(threat_tiers.tiered(policy, snapshot, [monster]), hp)
+    if not text.endswith(VANISHED[1]):
+        return False
+    said = _ARTICLE_RE.sub("", text[:-len(VANISHED[1])]).casefold()
+    return said == _ARTICLE_RE.sub("", name).casefold()
 
 
 def note(policy, snapshot) -> None:
@@ -65,7 +88,8 @@ def note(policy, snapshot) -> None:
 
 
 def remember(policy, snapshot, monster) -> None:
-    """A Teleport Away was aimed at ``monster``: remember it when it is T1, outside any quest.
+    """A Teleport Away was aimed at ``monster``: remember it when it is T1 on its own, outside any
+    quest.
 
     Also the emergency ladder's Teleport Other at a monster that follows the player's teleport
     (teleport_follower, owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」)."""
@@ -84,9 +108,8 @@ def observe(policy, snapshot) -> None:
     setattr(policy, MEMORY, None)
     if snapshot.floor_key != sent.floor or snapshot.in_town:
         return
-    vanished = any(message.endswith(VANISHED) and sent.name in message
-                   for message in snapshot.messages)
-    if not vanished or any(each.index == sent.index for each in snapshot.visible_monsters):
+    gone = any(vanished(message, sent.name) for message in snapshot.messages)
+    if not gone or any(each.index == sent.index for each in snapshot.visible_monsters):
         return
     policy._note_return_start(TRIGGER)
     policy._returning_to_town = True
