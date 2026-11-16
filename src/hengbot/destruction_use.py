@@ -62,7 +62,7 @@ from functools import partial
 from types import SimpleNamespace
 
 from hengbot import (
-    area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
+    amberite_curse, area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
 )
 from hengbot import cross_rules
@@ -86,7 +86,10 @@ WORST_RADIUS = 17
 FLASH = ("燃えるような閃光が発生した！", "There is a searing blast of light!")
 MEMORY = "_destruction_use_memory"
 # The races used on at first sight: (the reason's suffix, the test of a monster).
-SIGHT_TRIGGERS = ((":disenchanter", disenchant_avoid.exposes_gear),)
+# Owner 2026-11-17 「魔法防御上昇の装備がないときは破壊で消す」: an Amberite without resist_curse
+# (amberite_curse.erased; its blood curse on death).
+SIGHT_TRIGGERS = ((":disenchanter", disenchant_avoid.exposes_gear),
+                  (amberite_curse.SIGHT_SUFFIX, amberite_curse.erased))
 # The triggers _emergency_item latches for the escape it is about to take.
 LADDER_RETURN_TRIGGERS = frozenset({
     "emergency-summoner", "emergency-ranged-status-lock", "emergency-lethal-swarm",

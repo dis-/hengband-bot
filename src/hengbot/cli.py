@@ -44,7 +44,7 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
-from hengbot import cross_rules, deep_teleport, destruction_use, pingpong_guard, safety_watch
+from hengbot import amberite_curse, cross_rules, deep_teleport, destruction_use, pingpong_guard, safety_watch
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON
 from hengbot.policy import (
@@ -2401,6 +2401,8 @@ def _write_decision(
                 record["deep_teleport"] = deep
             if policy is not None and (spent := destruction_use.unsafe_report(policy)) is not None:
                 record["means_spent"] = spent  # record only (destruction_use, owner 2026-11-16)
+            if policy is not None and (amberite := amberite_curse.report(policy)) is not None:
+                record["amberite"] = amberite  # record only (amberite_curse, owner 2026-11-17)
             if policy is not None and (crossing := cross_rules.report(policy)) is not None:
                 record["cross_rule"] = crossing  # record only (cross_rules)
             if policy is not None and (gates := safety_watch.report()):

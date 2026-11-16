@@ -429,6 +429,13 @@ def is_attack(reason: str | None) -> bool:
     return row is not None and row.attack
 
 
+def strikes(reason: str | None) -> bool:
+    """The decision under ``reason`` sends an attack: an ``attack`` row that is not one of the
+    word rule's oddities (``_RULE_WORDS`` and its kin, whose action strikes nothing)."""
+    row = lookup(reason)
+    return row is not None and row.attack and not row.rule.startswith("word rule")
+
+
 def survival(reason: str | None) -> bool:
     """``reason`` is a survival rung's: an escape the count reads (``COUNTED``) or a walking
     retreat (the rows of owner 2026-11-09 「歩いての後退は数えない」).  The ping-pong guard never

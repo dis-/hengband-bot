@@ -72,6 +72,24 @@ def _uncovered(player, abilities) -> bool:
                and element.immunity not in player.immunities for element in ELEMENTS)
 
 
+def covered(player) -> bool:
+    """「効いている間」 for every element of the potion: each on the bar or immune.  No bar to read
+    is not covered."""
+    bar = player.status_bar
+    return bar is not None and all(
+        element.bar in bar or element.immunity in player.immunities for element in ELEMENTS)
+
+
+def quaff_key(policy, snapshot, reason: str) -> str | None:
+    """A carried Potion of Resistance drunk under ``reason`` (a rule of another module that
+    names the drink, amberite_curse), else None."""
+    potion = _held(snapshot)
+    if potion is None:
+        return None
+    policy.last_reason = reason
+    return reserved_item_command(policy, snapshot, "quaff", potion)
+
+
 def _such_enemy_in_view(policy, snapshot) -> bool:
     """An awake visible hostile the drink would answer; no bar to read is no drink."""
     if snapshot.player.status_bar is None:
