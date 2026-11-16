@@ -8,7 +8,7 @@ from enum import Enum
 import re
 from typing import Any
 
-from hengbot import breeder_quest, kill_all_patrol, locked_doors
+from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
@@ -437,6 +437,10 @@ class QuestFloorNavigator:
             and not owner._floor_pile_is_junk(snapshot, here)
             and TVAL_CHEST not in here.object_tvals
         ):
+            # Owner 2026-11-16 「取り込み回数99なら杖を拾わず壊す」.
+            destroy = me_capped_pickup.destroy_key(owner, snapshot)
+            if destroy is not None:
+                return destroy
             pack_space = owner._quest_sweep_pack_space_key(snapshot, here)
             if pack_space is not None:
                 return pack_space

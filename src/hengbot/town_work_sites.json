@@ -793,6 +793,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "bm_destruction_fund.py:staff_wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "breeder_area_attack.py:_ball_cells": {
     "classification": "data",
     "rows": [
@@ -3901,6 +3908,14 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "me_capped_pickup.py:destroy_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_device_attacks.py:Power.letter": {
     "classification": "data",

@@ -2882,8 +2882,10 @@ class ShopMixin(InStoreMixin):
             if (
                 # Owner 2026-11-07 「*破壊*の杖の優先度を上げる」「何本でも買う」: the
                 # staff whenever shelved, however many are carried, and an
-                # absorbed *Destruction* (class 16) does not waive it.
-                self._is_destruction_staff(item)
+                # absorbed *Destruction* (class 16) does not waive it -- up to its
+                # count limit (owner 2026-11-16, bm_destruction_fund.staff_wanted).
+                (self._is_destruction_staff(item)
+                 and bm_destruction_fund.staff_wanted(self, snapshot))
                 or (
                     (
                         (
@@ -4181,7 +4183,8 @@ class ShopMixin(InStoreMixin):
             needed = (missing + per_unit - 1) // per_unit
             if (self._is_destruction_staff(item) and snapshot.store is not None
                     and snapshot.store.store_type == STORE_BLACK
-                    and item.price > 0):
+                    and item.price > 0
+                    and bm_destruction_fund.staff_wanted(self, snapshot)):
                 # Owner 2026-11-07 「何本でも買う」: the whole stack the optional
                 # reserve (owner 2026-10-08) leaves room for.
                 reserve = self._full_departure_resupply_reserve(snapshot)
