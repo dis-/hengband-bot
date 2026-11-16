@@ -7,7 +7,9 @@ policy_combat ``_flee_sustain_key`` took the read's reason ``return:recall`` for
 escape episode and, with a monster faster than the player about (asleep or not), put the
 episode's Speed dose in its place (``emergency:quaff-speed:absorbed-power``): an answer to the
 enemies before the Recall.  Fixed: the filter leaves the latched means-spent read as it is
-(destruction_use ``means_spent_read_selected``), as it leaves the instant escapes.
+(destruction_use ``means_spent_read_selected``), as it leaves the instant escapes; owner
+2026-11-16 「回復だけは帰還より先に」: the filter's heal (``emergency:heal``: the two-action
+projection takes the HP to the reserve, a tenth of the maximum) alone still comes first.
 
 Recorded: tests/fixtures/n1c-216-deep-recall-1116.pkl.xz (n1-c life-216's first Castle 64F board,
 tests/extract_n1c_216_deep_recall_1116_fixture.py): HP 784/784, a sleeping ミッド・タイタン (+10,
@@ -15,7 +17,8 @@ game distance 15) and a sleeping 白衣の高位修行僧 (+10, 10), the player 
 absorbed *Destruction*.
 
 DECLARED CONSTRUCTED: the absorbed *Destruction*'s charges are emptied (``current`` 0 in the
-recorded magic-eater list), so the floor is a means-spent floor.  The live life-216 decision logs
+recorded magic-eater list), so the floor is a means-spent floor; the heal tests also lower the
+board's HP (784 recorded) to 300 (the projection 308 crosses the reserve) and 500 (it does not).  The live life-216 decision logs
 (bot-decisions.jsonl..7, 2026-11-16 18:31-20:57) hold no such board.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -35,9 +38,12 @@ FIXTURE = Path(__file__).with_name("fixtures") / "n1c-216-deep-recall-1116.pkl.x
 CASE = pickle.loads(lzma.decompress(FIXTURE.read_bytes()))
 
 
-def restored(empty=True):
+def restored(empty=True, hp=None):
     policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoint"])
-    snapshot = parse_snapshot(copy.deepcopy(CASE["board"]), policy._monrace_knowledge)
+    board = copy.deepcopy(CASE["board"])
+    if hp is not None:
+        board["player"]["hp"] = hp
+    snapshot = parse_snapshot(board, policy._monrace_knowledge)
     if empty:
         lists = policy._me_device_lists
         turn, rows = lists["staff"]
@@ -66,6 +72,23 @@ class MeansSpentRecallFirstTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("re", destruction_use.MEANS_SPENT_REASON))
         self.assertTrue(policy._returning_to_town)
         self.assertEqual(policy._last_return_trigger, destruction_use.MEANS_SPENT_TRIGGER)
+
+    def test_heal_before_the_recall_when_the_projection_crosses_the_reserve(self):
+        policy, snapshot = restored(hp=300)
+        hostiles = policy._physical_hostiles(snapshot)
+        reserve = snapshot.player.max_hp // 10
+        self.assertLessEqual(snapshot.player.hp - policy._predicted_damage(snapshot, hostiles, turns=2),
+                             reserve)
+        key = policy.choose_key(snapshot)
+        self.assertEqual(policy.last_reason, "emergency:heal")
+        self.assertTrue(key.startswith("q"))
+        # The return stays latched: the next board reads the Recall.
+        self.assertEqual(policy._last_return_trigger, destruction_use.MEANS_SPENT_TRIGGER)
+
+    def test_recall_when_the_projection_stays_above_the_reserve(self):
+        policy, snapshot = restored(hp=500)
+        key = policy.choose_key(snapshot)
+        self.assertEqual((key, policy.last_reason), ("re", destruction_use.MEANS_SPENT_REASON))
 
     def test_another_return_read_is_not_the_means_spent_read(self):
         policy, _ = restored()

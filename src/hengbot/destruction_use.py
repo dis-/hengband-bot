@@ -273,7 +273,8 @@ def means_spent_read_selected(policy) -> bool:
     """The decision's key is the Recall read of the return ``means_spent_recall_key`` latched
     (its reason under ``MEANS_SPENT_TRIGGER``).  Owner 2026-11-14 「敵への対処以前に手段が尽きた
     時点で帰還させる。」: the after-ladder filters do not put an answer to the enemies (the escape's
-    Speed dose or heal, policy_combat ``_flee_sustain_key``) in its place.  n1-c life-216's 64F
+    Speed dose, policy_combat ``_flee_sustain_key``) in its place; owner 2026-11-16 「回復だけは
+    帰還より先に」: that filter's heal alone still comes first.  n1-c life-216's 64F
     board with the charges emptied (tests/test_deep_means_spent_recall_first_1116_recorded.py)
     drank the absorbed Speed for two sleeping monsters instead."""
     return (policy.last_reason == MEANS_SPENT_REASON

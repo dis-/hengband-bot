@@ -905,17 +905,21 @@ class CombatMixin:
                 "flee:stairs",
             )
         )
-        # Owner 2026-11-14 「敵への対処以前に手段が尽きた時点で帰還させる。」: the 50F+ Recall
-        # without the *Destruction* means is read before any answer to the enemies.
-        if instant_escape or destruction_use.means_spent_read_selected(self):
+        if instant_escape:
             return key
-        episode_start = not self._escape_sustain_active
-        if episode_start:
-            self._escape_sustain_active = True
-            self._escape_speed_baseline = snapshot.player.speed
-            self._escape_speed_attempted = False
-            self._escape_haste_seen = False
-        self._escape_sustain_non_escape_decisions = 0
+        # Owner 2026-11-14 「敵への対処以前に手段が尽きた時点で帰還させる。」: the 50F+ Recall
+        # without the *Destruction* means is read before any answer to the enemies, and starts
+        # no escape episode; owner 2026-11-16 「回復だけは帰還より先に」: the heal below alone
+        # still comes before it.
+        means_spent_read = destruction_use.means_spent_read_selected(self)
+        if not means_spent_read:
+            episode_start = not self._escape_sustain_active
+            if episode_start:
+                self._escape_sustain_active = True
+                self._escape_speed_baseline = snapshot.player.speed
+                self._escape_speed_attempted = False
+                self._escape_haste_seen = False
+            self._escape_sustain_non_escape_decisions = 0
         if not hostiles:
             return key
         reserve = max(
@@ -948,6 +952,8 @@ class CombatMixin:
             if potion is not None:
                 self.last_reason = "emergency:heal"
                 return reserved_item_command(self, snapshot, "quaff", potion)
+        if means_spent_read:
+            return key
 
         faster_melee = any(
             monster.max_melee_damage > 0
