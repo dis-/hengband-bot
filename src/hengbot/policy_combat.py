@@ -950,6 +950,8 @@ class CombatMixin:
                     default=None,
                 )
             if potion is not None:
+                if means_spent_read:
+                    destruction_use.note_unsafe(self, snapshot, destruction_use.UNSAFE_HEAL_FIRST)
                 self.last_reason = "emergency:heal"
                 return reserved_item_command(self, snapshot, "quaff", potion)
         if means_spent_read:

@@ -216,6 +216,15 @@ def holds_means(policy, snapshot) -> bool:
 
 MEANS_SPENT_TRIGGER = "emergency-destruction-means-spent"
 MEANS_SPENT_REASON = "return:recall"
+# Owner 2026-11-16 「普通は破壊手段が尽きる=最後の破壊を使用する=周囲13マスに危険はないので安全に
+# 帰還できる見込みである。そうでない場面が出たら記憶」: the decision record's field
+# (``unsafe_report``, ``{"branch": UNSAFE_BRANCH, "causes": [...]}``) of a means-spent board that
+# is not that safe one.  Record only: no decision reads it.
+UNSAFE_BRANCH = "means-spent-unsafe"
+UNSAFE_NOTE = "_means_spent_unsafe"   # (turn, causes) of this decision; cleared by ``observe``
+UNSAFE_AWAKE_NEAR = "awake-near"         # an awake hostile within GUARANTEED_RADIUS
+UNSAFE_INSTANT_DEATH = "instant-death"   # deep_teleport.allows: the teleport went first
+UNSAFE_HEAL_FIRST = "heal-first"         # policy_combat._flee_sustain_key's heal went first
 
 
 def _quest_floor(policy, snapshot) -> bool:
@@ -266,12 +275,32 @@ def means_spent_recall_key(policy, snapshot) -> str | None:
             policy._note_return_start(MEANS_SPENT_TRIGGER)
         policy._returning_to_town = True
         policy._last_return_trigger = MEANS_SPENT_TRIGGER
+    here = snapshot.player.position
+    if any(not monster.asleep and game_distance(here, monster.position) <= GUARANTEED_RADIUS
+           for monster in policy._physical_hostiles(snapshot)):
+        note_unsafe(policy, snapshot, UNSAFE_AWAKE_NEAR)
     # Owner 2026-11-16 「即死ならテレポートを先」: on the 50F+ 即死 board (deep_teleport.allows:
     # the line-of-fire p95 reaches the HP, owner 2026-11-14) the emergency ladder's Teleportation
     # comes first; the return stays latched and the Recall is read on the board after the landing.
     if deep_teleport.allows(policy, snapshot):
+        note_unsafe(policy, snapshot, UNSAFE_INSTANT_DEATH)
         return None
     return once_quest_recall.read_key(policy, snapshot, MEANS_SPENT_REASON)
+
+
+def note_unsafe(policy, snapshot, cause) -> None:
+    """Remember ``cause`` for this decision's record (``UNSAFE_NOTE``)."""
+    note = getattr(policy, UNSAFE_NOTE, None)
+    causes = note[1] if note is not None and note[0] == snapshot.turn else ()
+    if cause not in causes:
+        setattr(policy, UNSAFE_NOTE, (snapshot.turn, causes + (cause,)))
+
+
+def unsafe_report(policy) -> dict | None:
+    """The decision record's field, on a means-spent board that is not safe."""
+    note = getattr(policy, UNSAFE_NOTE, None)
+    return None if note is None else {"branch": UNSAFE_BRANCH, "causes": list(note[1]),
+                                      "turn": note[0]}
 
 
 def means_spent_read_selected(policy) -> bool:
@@ -467,6 +496,7 @@ def _race_in_range(policy, snapshot, target, *, applies) -> bool:
 
 def observe(policy, snapshot) -> None:
     """Every decision, before the board joins the map memory: settle the last use."""
+    setattr(policy, UNSAFE_NOTE, None)
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
         setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
     if snapshot.dungeon_level >= DESTRUCTION_GATE_DEPTH and holds_means(policy, snapshot):

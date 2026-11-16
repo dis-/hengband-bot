@@ -22,7 +22,9 @@ board's HP (784 recorded) to 300 (the projection 308 crosses the reserve) and 50
 The 即死 test (owner 2026-11-16 「即死ならテレポートを先」) lowers the HP to 100 (the line-of-fire
 p95 139 reaches it, deep_teleport ``allows``) and takes the Potion of Healing (slot b) out, so the
 emergency ladder's own heal-first rule does not answer; its landing board moves the player to
-(3, 97) ten game turns later with no monster in view and one Teleportation scroll fewer.  The live life-216 decision logs
+(3, 97) ten game turns later with no monster in view and one Teleportation scroll fewer.
+The unsafe-board record (owner 2026-11-16 「そうでない場面が出たら記憶」, destruction_use
+``unsafe_report``) is read on those boards, and on one where the two monsters are woken.  The live life-216 decision logs
 (bot-decisions.jsonl..7, 2026-11-16 18:31-20:57) hold no such board.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -42,11 +44,14 @@ FIXTURE = Path(__file__).with_name("fixtures") / "n1c-216-deep-recall-1116.pkl.x
 CASE = pickle.loads(lzma.decompress(FIXTURE.read_bytes()))
 
 
-def restored(empty=True, hp=None, drop=()):
+def restored(empty=True, hp=None, drop=(), awake=False):
     policy = restore_checkpoint_bytes(HengbotPolicy, CASE["checkpoint"])
     board = copy.deepcopy(CASE["board"])
     if hp is not None:
         board["player"]["hp"] = hp
+    if awake:
+        for monster in board["visible_monsters"]:
+            monster["asleep"] = False
     board["inventory"] = [item for item in board["inventory"] if item.get("slot") not in drop]
     snapshot = parse_snapshot(board, policy._monrace_knowledge)
     if empty:
@@ -77,6 +82,16 @@ class MeansSpentRecallFirstTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("re", destruction_use.MEANS_SPENT_REASON))
         self.assertTrue(policy._returning_to_town)
         self.assertEqual(policy._last_return_trigger, destruction_use.MEANS_SPENT_TRIGGER)
+        # Both monsters asleep: the safe board, no unsafe record.
+        self.assertIsNone(destruction_use.unsafe_report(policy))
+
+    def test_awake_monster_within_the_radius_is_recorded(self):
+        policy, snapshot = restored(awake=True)
+        key = policy.choose_key(snapshot)
+        self.assertEqual((key, policy.last_reason), ("re", destruction_use.MEANS_SPENT_REASON))
+        report = destruction_use.unsafe_report(policy)
+        self.assertEqual(report["branch"], "means-spent-unsafe")
+        self.assertEqual(report["causes"], [destruction_use.UNSAFE_AWAKE_NEAR])
 
     def test_heal_before_the_recall_when_the_projection_crosses_the_reserve(self):
         policy, snapshot = restored(hp=300)
@@ -89,6 +104,8 @@ class MeansSpentRecallFirstTest(unittest.TestCase):
         self.assertTrue(key.startswith("q"))
         # The return stays latched: the next board reads the Recall.
         self.assertEqual(policy._last_return_trigger, destruction_use.MEANS_SPENT_TRIGGER)
+        self.assertEqual(destruction_use.unsafe_report(policy)["causes"],
+                         [destruction_use.UNSAFE_HEAL_FIRST])
 
     def test_recall_when_the_projection_stays_above_the_reserve(self):
         policy, snapshot = restored(hp=500)
@@ -114,6 +131,8 @@ class InstantDeathTeleportFirstTest(unittest.TestCase):
         self.assertEqual(policy.last_reason, "emergency:teleport")
         self.assertTrue(key.startswith("r"))
         self.assertTrue(policy._returning_to_town)
+        self.assertEqual(destruction_use.unsafe_report(policy)["causes"],
+                         [destruction_use.UNSAFE_INSTANT_DEATH])
         # CONSTRUCTED landing board.
         board = copy.deepcopy(CASE["board"])
         board["player"]["hp"] = 100
@@ -128,6 +147,7 @@ class InstantDeathTeleportFirstTest(unittest.TestCase):
         self.assertFalse(deep_teleport.allows(policy, landed))
         key = policy.choose_key(landed)
         self.assertEqual((key, policy.last_reason), ("re", destruction_use.MEANS_SPENT_REASON))
+        self.assertIsNone(destruction_use.unsafe_report(policy))
 
 
 if __name__ == "__main__":
