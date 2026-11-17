@@ -73,6 +73,7 @@ from hengbot.policy_constants import (
     COMBAT_REASON_PREFIXES,
     ENTER_DUNGEON_MACRO,
     ESP_THREAT_LEAVE_PREFIX,
+    MINING_ABORT_REASON_PREFIX,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
     IN_STORE_BREAKER_REASON_PREFIX,
@@ -403,6 +404,12 @@ STATIONARY_REASONS = frozenset(
             for reason in RETURN_STATIONARY_REASONS
         ),
         "fundraise:wait-recall",
+        # The mining run aborted on a ruled-out unique waits for its Recall
+        # under the abort's name (_mining_abort_exit_key), emitted only while
+        # player.recalling; the countdown (15-35 ticks) ends the hold
+        # (n1-a life-530 2026-11-18 06:40 stopped as loop-detected after 33
+        # waits on Yeek cave 1F with the recall running).
+        f"{MINING_ABORT_REASON_PREFIX}:wait-recall",
         # Clearing a physically occupied escape route attacks without changing
         # cells. Accuracy-aware combat projection bounds whether this is chosen.
         "fundraise:clear-escape-path",
