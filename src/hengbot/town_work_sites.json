@@ -835,6 +835,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "bm_tour.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "bm_tour.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "breeder_area_attack.py:_ball_cells": {
     "classification": "data",
     "rows": [
@@ -13719,6 +13733,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "recall_stockout_travel.py:start": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "recall_wait_teleport.py:withheld.compute": {
     "classification": "data",

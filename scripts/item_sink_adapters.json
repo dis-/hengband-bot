@@ -2,6 +2,9 @@
   "blind_strike.py:strike_key": {
     "policy._direction_key(snapshot.player.position, cells[0]) @ ": 1
   },
+  "bm_tour.py:_leg_key": {
+    "policy._town_teleport_key(snapshot, destination, producer=FAMILY, reason=f'{TRAVEL_REASON}-{destination}') @ ": 1
+  },
   "breeder_quest.py:abandon_key": {
     "policy._breeder_breakthrough_key(snapshot, hostiles) @ ": 1
   },

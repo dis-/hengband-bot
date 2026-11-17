@@ -255,8 +255,8 @@ class RecallStockoutSurplusPins(unittest.TestCase):
 
         self.assertEqual((before, after), (False, True))
 
-    def test_recall_never_cross_town_but_teleport_still_does(self):
-        """G2 regression: the real supply producer filters recall alone."""
+    def test_recall_is_a_cross_town_category_like_teleport(self):
+        """Owner 2026-11-17 「他の町に買いに行く。」 replaces G2 (recall filtered alone)."""
         with TemporaryDirectory() as directory:
             policy = HengbotPolicy(
                 home_disposal_state=self._state(Path(directory))
@@ -274,7 +274,7 @@ class RecallStockoutSurplusPins(unittest.TestCase):
             shortages = policy._cross_town_shortages(without_teleport)
             categories = tuple(category for category, _ in shortages)
 
-        self.assertNotIn("recall", categories)
+        self.assertIn("recall", categories)
         self.assertIn("teleport", categories)
         self.assertFalse(any("town:cross-town" in reason for *_, reason in decisions))
 

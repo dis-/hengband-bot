@@ -130,15 +130,21 @@ class RecallChurnStockoutRecordedTest(unittest.TestCase):
         self.assertEqual(offers, [(229, 19)])
         self.assertEqual(json.loads(self.pin["lines"][0])["player"]["gold"], 6835)
 
-    def test_churn_refused_recall_starts_the_recall_stockout_time_pass(self):
+    def test_churn_refused_recall_starts_the_other_town_circuit(self):
         policy, results, boards = self.replay(stop=PIN)
         self.assertEqual(boards[PIN].store.store_type, STORE_ALCHEMIST)
         # 99c2fa87: ("\x1b", "shop:observe-and-leave"), then R300
         # "town:wait-restock:temple" on row 52 for as long as the stay lasted.
-        self.assertEqual(results[PIN][:2], ("\x1b", "town:recall-stockout-mining"))
-        self.assertEqual(policy._fundraising_mode, "prepare")
-        self.assertTrue(policy._recall_stockout_mining_plan)
-        self.assertEqual(policy._planned_mining_runs, 1)
+        # Owner 2026-11-17 「他の町に買いに行く。」 (recall_stockout_travel): the
+        # page leaves for another town's suppliers; the time-pass
+        # ("town:recall-stockout-mining" before) is the fallback with none left.
+        self.assertEqual(results[PIN][:2], ("\x1b", "town:cross-town-recall-stockout"))
+        circuit = policy._cross_town_shopping
+        self.assertEqual(circuit.blocking_categories, ("recall",))
+        self.assertEqual(circuit.tried_towns, [policy._effective_town_id(boards[PIN])])
+        self.assertTrue(circuit.candidate_order)
+        self.assertIsNone(policy._fundraising_mode)
+        self.assertFalse(policy._recall_stockout_mining_plan)
         self.assertEqual(
             self._recall_requirement(policy, boards[PIN]).get("blocked_reason"),
             "no-actionable-supplier")

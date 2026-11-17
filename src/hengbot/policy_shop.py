@@ -4,7 +4,7 @@ from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
 from hengbot import heroism_potion, torch_release, town_pack_headroom
-from hengbot import bm_destruction_fund
+from hengbot import bm_destruction_fund, bm_tour
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -20,7 +20,7 @@ from hengbot.town_hold import home_hold_board as town_home_hold_board
 from hengbot.town_hold import home_sequence_has_holder as town_home_sequence_has_holder
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
-from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, WAIT_KEY
+from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, TOWN_TELEPORT_COST, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
@@ -1741,6 +1741,11 @@ class ShopMixin(InStoreMixin):
         )
 
     def cross_town_shopping_state(self) -> dict[str, object]:
+        state = self._cross_town_shopping_state()
+        tour = bm_tour.facts(self)
+        return state if tour is None else {**state, "bm_tour": tour}
+
+    def _cross_town_shopping_state(self) -> dict[str, object]:
         expedition = self._cross_town_shopping
         if expedition is None:
             return dict(self._cross_town_shopping_funds)
@@ -1928,6 +1933,20 @@ class ShopMixin(InStoreMixin):
                     expected_effect=f"arrive-town:{next_town}",
                 )
                 return key
+            fare = TOWN_TELEPORT_COST if next_town == 0 else 2 * TOWN_TELEPORT_COST
+            if (snapshot.player.gold >= fare
+                    and self._town_teleport_route(snapshot, next_town).key is not None):
+                # Neither refused nor unroutable: the leg's entry waited for the
+                # town's errand holder (an errand of this visit still running).
+                # The circuit keeps its towns and asks again after the errand
+                # (the Word of Recall circuit, owner 2026-11-17, would otherwise
+                # end here and fall back to the time-pass).
+                expedition.target_town_id = None
+                self._offer_execution_no_step(
+                    producer="cross-town", work_id="cross-town-shopping",
+                    cause="travel-deferred",
+                )
+                return None
             # A refused or unroutable trip is terminal for this visit.  Do not
             # approach another Inn destination on the following decision.
             expedition.tried_towns.extend(
