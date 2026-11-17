@@ -57,7 +57,7 @@ def doable(policy: Any, board: Any, item: Any, observed: set | None = None) -> b
     return (signature in (_observed(policy) if observed is None else observed)
             and signature not in policy._deferred_home_items
             and source(policy, board, item) is not None
-            and home_take_fits(board, item, 1))
+            and home_take_fits(board, item, 1, policy=policy))
 
 
 def candidates(policy: Any, board: Any) -> list:

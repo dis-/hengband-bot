@@ -424,7 +424,7 @@ def _home_take_key(policy, snapshot) -> str | None:
         if (owned.origin != "home" or not spare_identify_target(item)
                 or signature in policy._deferred_home_items
                 or takes.get(signature, 0) >= ATTEMPTS_PER_TARGET
-                or not home_take_fits(snapshot, item, 1)
+                or not home_take_fits(snapshot, item, 1, policy=policy)
                 or not _take_fits_weight(policy, snapshot, item)):
             continue
         if not policy._file_home_errand(

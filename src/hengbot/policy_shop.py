@@ -620,7 +620,7 @@ class ShopMixin(InStoreMixin):
             return False
         if self._disposal_protected_by_identification(item):
             return True
-        if item_fate.relief_useless(self, item):
+        if item_fate.relief_useless(self, snapshot, item):
             # Owner 2026-11-17: a surplus digger the full-Home relief took out to sell.
             return False
         if self._overweight_surplus_disposal is not None:

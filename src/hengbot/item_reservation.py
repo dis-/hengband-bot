@@ -530,7 +530,7 @@ def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=Non
     """
     if kind == "buy" and not permits(snapshot, incoming_slots(snapshot, item, quantity)):
         return None
-    if kind == "withdraw" and not home_take_fits(snapshot, item, quantity):
+    if kind == "withdraw" and not home_take_fits(snapshot, item, quantity, policy=policy):
         return None
     if kind == "buy":
         fare = policy._outpost_return_fare(snapshot)

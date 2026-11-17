@@ -127,7 +127,7 @@ class HomeFullClearlyUselessRecordedTest(unittest.TestCase):
         self.relief.pop("useless", None)
         self.assertTrue(policy._sale_retains_digging_tool(carried, taken))   # before
         self.relief["useless"] = signature
-        self.assertTrue(item_fate.relief_useless(policy, taken))
+        self.assertTrue(item_fate.relief_useless(policy, carried, taken))
         self.assertFalse(policy._sale_retains_digging_tool(carried, taken))
         self.assertEqual(policy._retention_reservation(carried, taken), 0)
 
