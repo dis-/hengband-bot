@@ -12,6 +12,11 @@ is worth (2026-11-13 「価値に関係なく溶かす」, sealed_loot).
    loot memory was filled from the grids alone, so they were never loot: no steering, and the
    floor was left by its up stair 24-46 cells from them.  521 of the 621 valuable-looking items
    life-216 left on 50F+ floors (11-16 18:00 - 11-17 15:00) lay on such grids.
+2. Walled in on a floor with nothing left to explore (ladder_idle).  Angband 80F, 2026-11-17
+   13:57: an amulet at (7,125) in a granite room and corridor no walk reaches, the floor known to
+   the last cell, Stone to Mud absorbed (99) and nothing in sight; the idle ladder took the up
+   stair under the player ('<' ``stuck:ascend``, the next board was 79F).  The melt was asked only
+   by the stuck escape, which a known stair answers first.
 
 Recorded: tests/fixtures/n1c-216-deep-loot-leftover-1117.jsonl.gz
 (tests/extract_n1c_216_deep_loot_leftover_1117_fixture.py).  Each case replays its boards in a
@@ -19,7 +24,9 @@ fresh policy (the life's ~f skill list of tests/fixtures/n1c-loot-rules-1113.jso
 test_sealed_loot_melt_1113_recorded does).  DECLARED CONSTRUCTED: the absorbed power lists are
 the 15:50 town-arrival checkpoint's at full counts (the visits' own were not recorded); the
 replayed windows' absorbed-power casts are not asked (``me_powers.power_key`` None: the replay
-cannot feed their results, so the first one would be asked again on every board).
+cannot feed their results, so the first one would be asked again on every board); in case 2 the
+explore and the hunt have nothing left (the floor known to the last cell, as live; a fresh
+policy holds none of the visit's spent frontiers).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -31,7 +38,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import detected_loot, loot_frontier, me_powers
+from hengbot import detected_loot, ladder_idle, loot_frontier, me_powers, sealed_loot
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -46,6 +53,7 @@ SKILL_FIXTURE = FIXTURES / "n1c-loot-rules-1113.jsonl.gz"
 DETECTION_TURN = 3506513
 CASTLE_ITEMS = frozenset(Position(y, x) for y, x in (
     (13, 82), (13, 84), (15, 88), (17, 98), (17, 102), (19, 90), (21, 98), (21, 100), (31, 104)))
+POCKET_AMULET = Position(7, 125)
 
 
 def _rows():
@@ -57,6 +65,7 @@ def _rows():
 ROWS = _rows()
 LISTS = next(row["lists"] for row in ROWS if row["role"] == "me-lists")
 CASTLE = [row["board"] for row in ROWS if row["role"] == "castle"]
+ANGBAND = [row["board"] for row in ROWS if row["role"] == "angband"]
 with gzip.open(SKILL_FIXTURE, "rt", encoding="utf-8") as _stream:
     SKILL = next(json.loads(line)["board"] for line in _stream if '"skill-knowledge"' in line)
 MONRACE = load_monrace_knowledge(recorded.EDIT / "MonraceDefinitions.jsonc")
@@ -137,6 +146,31 @@ class DeepLootLeftover1117Test(unittest.TestCase):
         detected_loot.observe(policy, parse_snapshot(raw, MONRACE))
         self.assertNotIn(bones, policy._known_loot)
         self.assertIn(Position(17, 98), policy._known_loot)
+
+    # -- 2. walled in on a floor with nothing left to explore --------------------------
+
+    def idle(self, lists=LISTS):
+        policy, snapshot = self.replay(ANGBAND, lists)
+        self.assertTrue(snapshot.grid_at(snapshot.player.position).has_up_stairs)
+        with mock.patch.object(policy, "_explore_step", lambda snapshot: None), \
+                mock.patch.object(policy, "_hunt_step", lambda snapshot, hostiles: None):
+            key = ladder_idle.key(
+                policy, snapshot, strategic_hostiles=policy._strategic_hostiles(snapshot),
+                physical_hostiles=policy._physical_hostiles(snapshot),
+                here=snapshot.grid_at(snapshot.player.position))
+        return policy, snapshot, key
+
+    def test_the_walled_amulet_is_melted_into_before_the_stair(self):
+        policy, snapshot, key = self.idle()
+        self.assertIn(POCKET_AMULET, policy._loot_candidates(snapshot))
+        self.assertEqual((key, policy.last_reason), ("9", sealed_loot.REASON))
+
+    def test_without_stone_to_mud_the_stair_is_taken_as_live(self):
+        """Declared constructed: the absorbed Stone to Mud taken out of the wand list."""
+        lists = {kind: (turn, [row for row in rows if not (kind == "wand" and row["name"] == "岩石溶解")])
+                 for kind, (turn, rows) in LISTS.items()}
+        policy, _snapshot, key = self.idle(lists)
+        self.assertEqual((key, policy.last_reason), ("<", "stuck:ascend"))
 
 
 if __name__ == "__main__":

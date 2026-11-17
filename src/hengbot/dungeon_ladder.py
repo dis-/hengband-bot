@@ -288,6 +288,7 @@ LADDER = (
         *I("probe", "search"),
         *D("quest_target_search.loop_key", "me_powers.power_key:SECRET_SEARCH"),
         *I("search", "seek-secret-wall"),
+        *D("sealed_loot.key"),
         *E("_start_kill_quest_regeneration"),
         *I("stuck:ascend", "stuck:seek-stairs"),
         *D("immobile_ranged_kill.blocking_key"),
