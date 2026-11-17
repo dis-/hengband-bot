@@ -579,6 +579,11 @@ class ObservationMixin:
             self._alternate_dungeon = None
             self._last_overextended_depth = 0
             alternate_lease.forget(self)
+        if snapshot.in_town and prev_dungeon != 0:
+            # Owner 2026-11-17 「町に戻るたびに条件を見て挑む」: the first step of the town's
+            # destination, before this board's valves -- a held destination gives way to Angband
+            # when its landing qualifies (alternate_lease.challenge); no over-extension evidence.
+            alternate_lease.challenge(self, snapshot)
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
             # User decision 2026-09-25 (guardian-recall-pingpong-r2,
             # 「倒せない階でなければ深くても可」): when every dive of the streak
