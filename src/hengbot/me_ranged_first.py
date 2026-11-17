@@ -42,13 +42,12 @@ it fires); beside the target the launcher joins the candidates while melee answe
 nothing there (owner 2026-11-01 21h 「近接できない時だけ使う」).
 """
 
-from hengbot import attack_expectation, breeder_area_attack, me_device_attacks
+from hengbot import attack_expectation, breeder_area_attack, line_of_fire, me_device_attacks
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater import MISSILE_REASON
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.model import TVAL_WAND
 from hengbot.policy_constants import DIRECTION_KEYS, RANGED_MAX_DISTANCE
-from hengbot.projection_path import projection_path
 
 
 WAND_REASON = "ranged:aim-wand"
@@ -227,17 +226,14 @@ def _first_key(policy, snapshot, target, direction) -> str | None:
     return None
 
 
-def _clear_projection(snapshot, target) -> bool:
-    """The projection path to ``target``'s cell meets no other visible monster first
-    (``_offset_fire_aim``'s direct path: a known grid that blocks sight stops it)."""
+def _clear_projection(policy, snapshot, target) -> bool:
+    """The projection path to ``target``'s cell reaches it and meets no other visible monster
+    first (line_of_fire ``player_path``, ``_offset_fire_aim``'s direct path: a known grid
+    without PROJECTION stops it, glass included -- n1-c life-216, Glass castle 60F,
+    2026-11-18: the aimed powers at the summoners behind the glass wall stopped on it)."""
     origin = snapshot.player.position
     occupied = {monster.position for monster in snapshot.visible_monsters}
-
-    def blocks(pos):
-        grid = snapshot.grids.get(pos)
-        return grid is not None and grid.known and not grid.allows_los
-
-    path = projection_path(origin, target.position, RANGED_MAX_DISTANCE, blocks)
+    path = line_of_fire.player_path(policy, snapshot, origin, target.position, RANGED_MAX_DISTANCE)
     return target.position in path and not any(
         pos in occupied for pos in path[:path.index(target.position)])
 
@@ -285,7 +281,7 @@ def stronger_than_launcher_key(policy, snapshot, target, ammo) -> str | None:
         return None
     if policy._ranged_target(snapshot, [target]) is target:
         options = _fixed_options(policy, snapshot, target, _aim(snapshot, target), torch=False)
-    elif not snapshot.in_town and _clear_projection(snapshot, target):
+    elif not snapshot.in_town and _clear_projection(policy, snapshot, target):
         options = _grid_options(policy, snapshot, target)
     else:
         return None

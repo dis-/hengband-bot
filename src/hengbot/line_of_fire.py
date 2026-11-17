@@ -40,6 +40,8 @@ be the only one).  The readings, by name:
 - ``straight_line``: the board's straight line of sight, a known glass grid stopping it
   (``remembered``: the map memory read for a grid the board does not know).
 - ``player_projectable``: projectable() for the player's own bolt (glass stops it).
+- ``player_path``: the player's own bolt path itself (``player_projectable``'s), for an aim
+  that must pass a monster on its way to another grid (policy ``_offset_fire_aim``).
 - ``fire_reaches``: the survival gate's "under fire" (within reach, a line of fire, a one-turn
   predicted damage above zero).
 
@@ -150,6 +152,15 @@ READERS = {
     # player_projectable: the player's own bolt (glass stops it).
     ("immobile_ranged_kill", "_shooting_cell", "player_projectable"):
         "a grid the player's shot reaches an immobile summoner from",
+    ("line_of_fire", "player_projectable", "player_path"):
+        "the player's bolt path ends on the target",
+    # player_path: the grids the player's own bolt passes (glass stops it).
+    ("me_ranged_first", "_clear_projection", "player_path"):
+        "an absorbed power aimed at a monster's cell off the eight rays: the path reaches the "
+        "cell with no other body first (glass stops it, n1-c life-216 Glass castle 60F)",
+    ("policy_combat", "_offset_fire_aim", "player_path"):
+        "the shot at a victim past a nearer body: the victim before the aim on the arrow's path "
+        "(n1-c life-216 Glass castle 60F, 2026-11-18: an LOS-only path through glass)",
     # fire_reaches: the survival gate's "under fire".
     ("policy_combat", "_forbid_wait_while_damaged", "fire_reaches"):
         "the survival gate: a visible hostile can shoot the player",
@@ -261,11 +272,25 @@ def player_projectable(policy, snapshot, source: Position, target: Position) -> 
     """``projectable`` for the player's own projection (policy ``_stops_player_projection``)."""
     if source == target:
         return True
-    path = projection_path(
-        source, target, MONSTER_SPELL_MAX_RANGE,
+    path = player_path(policy, snapshot, source, target, MONSTER_SPELL_MAX_RANGE)
+    return bool(path) and path[-1] == target
+
+
+def player_path(policy, snapshot, source: Position, target: Position, max_range: int) -> list:
+    """The grids the player's own bolt, arrow or shot passes from ``source`` toward ``target``
+    (project_path, projection-path-calculator.cpp), at most ``max_range`` long, the last one
+    where it stops: a known grid without PROJECTION stops it, glass included
+    (policy ``_stops_player_projection``; GLASS_WALL and PERMANENT_GLASS_WALL have LOS and no
+    PROJECTION, TerrainDefinitions.jsonc), an unknown grid does not.
+
+    n1-c life-216 (Glass castle 60F, 2026-11-18 01:10, loop-detected): from (8,163), behind
+    the glass wall at (9,165), summoner:ranged-kill:named-caster fired 40 crossbow bolts
+    at the 死の騎士 and the summoners beyond along a line of sight read as the arrow's path
+    (policy ``_offset_fire_aim``); each bolt stopped on the glass."""
+    return projection_path(
+        source, target, max_range,
         lambda position: policy._stops_player_projection(snapshot, position),
     )
-    return bool(path) and path[-1] == target
 
 
 def fire_reaches(policy, snapshot, monster, cell: Position, *,

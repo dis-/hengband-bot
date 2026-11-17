@@ -29,7 +29,6 @@ from hengbot.monster_melee_evaluator import (
     melee_damage_percentile,
     reduced_dice_distribution,
 )
-from hengbot.projection_path import projection_path
 from hengbot.policy_types import ChokeEngagementPlan
 from hengbot.policy_constants import (
     SCROLL_LOCK_ESCAPE_PROBABILITY,
@@ -1883,18 +1882,18 @@ class CombatMixin:
         *,
         allow_direct_cursor: bool = False,
     ) -> Position | None:
-        """Find an aim grid strictly beyond ``victim`` on a clear shot path."""
+        """Find an aim grid strictly beyond ``victim`` on a clear shot path.
+
+        The path is the arrow's (line_of_fire ``player_path``): glass stops it though the
+        player sees through it.  Unknown grids are deliberately optimistic: a wasted arrow
+        is cheaper than abandoning a potentially valid offset shot."""
         origin = snapshot.player.position
         occupied = {monster.position for monster in snapshot.visible_monsters}
-
-        def blocks(pos: Position) -> bool:
-            grid = snapshot.grids.get(pos)
-            # Unknown grids are deliberately optimistic: a wasted arrow is
-            # cheaper than abandoning a potentially valid offset shot.
-            return grid is not None and grid.known and not grid.allows_los
+        shot_path = lambda aim: line_of_fire.player_path(  # noqa: E731
+            self, snapshot, origin, aim, RANGED_MAX_DISTANCE)
 
         def victim_precedes_aim(aim: Position) -> bool:
-            path = projection_path(origin, aim, RANGED_MAX_DISTANCE, blocks)
+            path = shot_path(aim)
             try:
                 victim_index = path.index(victim.position)
                 aim_index = path.index(aim)
@@ -1905,9 +1904,7 @@ class CombatMixin:
             )
 
         # A direct target remains on the established *t5<esc> path.
-        direct_path = projection_path(
-            origin, victim.position, RANGED_MAX_DISTANCE, blocks
-        )
+        direct_path = shot_path(victim.position)
         if victim.position in direct_path and not any(
             pos in occupied for pos in direct_path[: direct_path.index(victim.position)]
         ):
