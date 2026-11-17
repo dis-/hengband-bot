@@ -873,7 +873,12 @@ def remembered_approach_key(policy, snapshot) -> str | None:
     current = tuple(shown.get((monster.index, monster.race_id), monster) for monster in targets)
     seen = [monster for monster in current if (monster.index, monster.race_id) in shown]
     leaving = destruction_leaving(policy, snapshot, seen)
-    if leaving and (kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
+    # The targets lost from detection hold destruction_loot's committed fetch as a shown one
+    # does (n1-b life-411, destruction_loot's module docstring): the walk below is the same
+    # approach, so the piles its use may delete are still picked up first (owner 2026-11-17).
+    lost = [monster for monster in current if (monster.index, monster.race_id) not in shown]
+    if (leaving or lost) and (
+            kept := destruction_loot.key(policy, snapshot, leaving, remembered=lost)) is not None:
         return kept
     if leaving and (used := destruction_use.key(policy, snapshot, leaving=leaving)) is not None:
         if _reached(snapshot, seen):
