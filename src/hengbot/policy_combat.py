@@ -2536,7 +2536,7 @@ class CombatMixin:
         hidden_threat_lethal = (
             player.hallucinated
             and player.hp < self._low_hp_walk_threshold(player.max_hp)
-            and return_yield.awake_hostile_in_view(self, snapshot)
+            and return_yield.awake_visible_hostile_projectable(self, snapshot)
         )
         lethal = (
             instant_death

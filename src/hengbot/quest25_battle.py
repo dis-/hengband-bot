@@ -450,7 +450,8 @@ class _Ctx:
         return [monster for monster in (*self.snapshot.visible_monsters,
                                         *self.snapshot.detected_monsters) if monster.hostile]
 
-    def in_view(self) -> list:
+    def seen_hostiles(self) -> list:
+        """The visible hostiles not known by detection only (review 1117 N9: it was ``in_view``)."""
         return [monster for monster in self.snapshot.visible_monsters
                 if monster.hostile and monster.perception != "detected"]
 
@@ -647,7 +648,7 @@ def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
     if not goals:
         return []
     start = ctx.here
-    occupied = (frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    occupied = (frozenset((monster.position.y, monster.position.x) for monster in ctx.seen_hostiles())
                 | taken | refused)
     exposure = geo.exposure_of(_avoided(ctx))
     return quest_plan_base._least_exposed_walk(
@@ -695,7 +696,7 @@ def _toward_cells(ctx: _Ctx, shunned) -> frozenset:
     """The cells beside each shunned mover and, of those in view, every cell nearer to it than the
     player stands (``_rally``'s rule)."""
     cells = [(monster.position.y, monster.position.x) for monster in shunned]
-    seen = {monster.index for monster in ctx.in_view()}
+    seen = {monster.index for monster in ctx.seen_hostiles()}
     near = {(y + dy, x + dx) for (y, x) in cells for dy in (-1, 0, 1) for dx in (-1, 0, 1)}
     looked = [(monster.position.y, monster.position.x) for monster in shunned if monster.index in seen]
     near |= {cell for cell in ctx.terrain
@@ -796,7 +797,7 @@ def _rest_out_of_fire(ctx: _Ctx) -> str:
 
 def _fire_guard(ctx: _Ctx, cell) -> str | None:
     """A damaged player with no enemy in view does not step from out of the fire into it."""
-    if not _damaged(ctx) or ctx.in_view():
+    if not _damaged(ctx) or ctx.seen_hostiles():
         return None
     fire = _fire(ctx)
     if tuple(cell) not in fire or ctx.here in fire:
@@ -825,7 +826,7 @@ def _leave_fire(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
         return None
     refused = _refused(ctx)
     safe = _safe_cells(ctx, fire) - refused
-    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.seen_hostiles())
     terrain = quest_plan_base._terrain_of(ctx.navigator, ctx.snapshot, water=False)
     terrain[ctx.here] = "floor"
     path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),
@@ -841,7 +842,7 @@ def _leave_fire(ctx: _Ctx, reason: str = WITHDRAW_REASON) -> str | None:
 def _out_of_fire_key(policy, snapshot) -> str | None:
     """「一歩で安全圏に移動して休息できる」: damaged in the fire with no enemy in view, one step out."""
     ctx = _ctx(policy, snapshot)
-    if ctx is None or not _damaged(ctx) or ctx.in_view():
+    if ctx is None or not _damaged(ctx) or ctx.seen_hostiles():
         return None
     fire = _fire(ctx)
     if ctx.here not in fire:
@@ -1179,7 +1180,7 @@ def _engage(ctx: _Ctx, targets) -> str | None:
 def _fight_targets(ctx: _Ctx) -> list:
     """What this phase fights in view: every mover, not the immobile casters of later phases
     nor the breeders (``_breeders_in_line_key``)."""
-    return [monster for monster in ctx.in_view()
+    return [monster for monster in ctx.seen_hostiles()
             if monster.race_id not in _LATER_IMMOBILE and not monster.can_multiply]
 
 
@@ -1237,7 +1238,7 @@ def _recharge_key(ctx: _Ctx) -> str | None:
 
 def _sensed_movers(ctx: _Ctx) -> list:
     """Awake hostiles known only by sensing (ESP, detection) whose race can move."""
-    seen = {monster.index for monster in ctx.in_view()}
+    seen = {monster.index for monster in ctx.seen_hostiles()}
     found = []
     for monster in ctx.hostiles():
         if monster.index in seen or monster.asleep:
@@ -1286,7 +1287,7 @@ def _prepare(ctx: _Ctx, phase) -> str | None:
     is sensed the preparation goes on."""
     if ctx.battle.ready:
         return None
-    if ctx.in_view() or ctx.battle.rallying or ctx.battle.strong:
+    if ctx.seen_hostiles() or ctx.battle.rallying or ctx.battle.strong:
         return None   # phase 2's rally owns the board (``_rally``); it rests again when it ends
     if ctx.battle.rest_cut:
         if _sensed_movers(ctx):
@@ -1312,7 +1313,7 @@ def _ambush_enlightenment(ctx: _Ctx) -> str | None:
     「攻撃が届く範囲に=視界内に敵がいない」: no hostile in view (a detected one out of sight does not
     count), the carried Potion of Enlightenment is drunk, once per floor visit.  The game:
     quaff-effects.cpp wiz_lite maps and lights the whole level and shows no monster."""
-    if ctx.battle.enlightened or ctx.in_view():
+    if ctx.battle.enlightened or ctx.seen_hostiles():
         return None
     potion = quest_room_light.carried_potion(ctx.policy, ctx.snapshot, quest_room_light.ROOM_LIGHT_POTION)
     if potion is None:
@@ -1577,7 +1578,7 @@ def _ipsissimus(ctx: _Ctx) -> str | None:
     walk = geo.PHASE2_WALK
     walking = from_stand and ((ctx.here not in walk and not in_sight)
                               or (ctx.here in walk and ctx.here != walk[-1]))
-    others = [monster for monster in ctx.in_view() if monster.race_id != geo.IPSISSIMUS]
+    others = [monster for monster in ctx.seen_hostiles() if monster.race_id != geo.IPSISSIMUS]
     summons = _summons_in_view(ctx, others)
     # Owner 2026-11-11 (n1-c life-195): the summons are weighed before the walk to the stand, not
     # after it -- a walk never goes on toward a summons the threat would teleport from.  A low
@@ -1688,7 +1689,7 @@ def _stragglers_done(ctx: _Ctx) -> bool:
 
 
 def _stragglers(ctx: _Ctx) -> str | None:
-    targets = [monster for monster in ctx.in_view()
+    targets = [monster for monster in ctx.seen_hostiles()
                if monster.race_id not in _LATER_IMMOBILE - {geo.IPSISSIMUS} and not monster.can_multiply]
     if (key := _engage(ctx, targets)) is not None:
         return key
@@ -1801,7 +1802,7 @@ def _quyls(ctx: _Ctx, plan=None) -> str | None:
         return _refill_key(ctx)
     # 「テレポート・アウェイを受けるとイプシシマスの残党やドリードマスターと相対する可能性がある。
     # その場合は加速して討伐を試みる。」
-    faced = [monster for monster in ctx.in_view() if monster.race_id in _FACED]
+    faced = [monster for monster in ctx.seen_hostiles() if monster.race_id in _FACED]
     if faced:
         return _haste(ctx) or _engage(ctx, faced) or _hold(ctx)
     cell, stand, centre = plan
@@ -1882,7 +1883,7 @@ def _tome(ctx: _Ctx) -> str | None:
     # larger expected damage is taken: the near stands with the grid-aimed attacks, or a cell
     # that sees it with the launcher too.  Damaged, a plan that needs more actions than the
     # quest's kill horizon (FIXED_QUEST_TOUGHEST_KILL_TURNS) withdraws out of the fire and rests.
-    seen = any(monster.race_id == geo.TOME for monster in ctx.in_view())
+    seen = any(monster.race_id == geo.TOME for monster in ctx.seen_hostiles())
     hp = _tome_hp(ctx)
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
     near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
@@ -2007,7 +2008,7 @@ def _sight_radius(ctx: _Ctx, target=None) -> int:
 def _seen_at(ctx: _Ctx, race: int, cells) -> list:
     """The monsters of ``race`` in view (telepathy included: ``ml``) on ``cells``."""
     cells = {tuple(cell) for cell in cells}
-    return [monster for monster in ctx.in_view()
+    return [monster for monster in ctx.seen_hostiles()
             if monster.race_id == race and (monster.position.y, monster.position.x) in cells]
 
 
@@ -2060,7 +2061,7 @@ def _note_tome_health(ctx: _Ctx) -> None:
     board's band (bot-json-output.cpp monster_health_band: unhurt ... almost dead, MonsterState
     ``hp`` its upper bound on the race's maximum) and, when the health bar tracks it, the bar's
     length -- the lower of the two; kept while it is not seen."""
-    for monster in ctx.in_view():
+    for monster in ctx.seen_hostiles():
         if monster.race_id != geo.TOME:
             continue
         hp = monster.hp
@@ -2411,7 +2412,7 @@ def _stairway(ctx: _Ctx) -> str | None:
     if ctx.door_closed(door):
         ctx.policy.last_reason = OPEN_REASON
         return ctx.policy._step_toward(ctx.snapshot, Position(*door))
-    seen = [monster for monster in ctx.in_view() if monster.race_id == geo.STAIRWAY]
+    seen = [monster for monster in ctx.seen_hostiles() if monster.race_id == geo.STAIRWAY]
     if battle.style == "melee":
         if ctx.here != door:
             return _step(ctx, door, ENGAGE_REASON)
@@ -2555,7 +2556,7 @@ def _adjacent_mass_key(ctx: _Ctx) -> str | None:
 
     The masses breed (MULTIPLY) along the north corridor and drain CON by touch (n1-c life-159
     2026-11-07: max HP 766 -> 446 while the ambush held on [1,18] beside them)."""
-    beside = sorted((monster for monster in ctx.in_view()
+    beside = sorted((monster for monster in ctx.seen_hostiles()
                      if monster.race_id == geo.MASS and monster.distance <= 1),
                     key=lambda monster: monster.index)
     if not beside:
@@ -2898,7 +2899,7 @@ def _recall_wait(policy, snapshot) -> str | None:
     if ctx.here == goal:
         policy.last_reason = RECALL_EXIT_REASON
         return UP_STAIRS_KEY
-    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.in_view())
+    occupied = frozenset((monster.position.y, monster.position.x) for monster in ctx.seen_hostiles())
     terrain = quest_plan_base._terrain_of(ctx.navigator, snapshot, water=False)
     terrain[ctx.here] = "floor"
     path = quest_exposure.least_exposed_path(terrain, geo.exposure_of(fire | _avoided(ctx)),

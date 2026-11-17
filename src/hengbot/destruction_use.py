@@ -387,8 +387,9 @@ def _spared_in_circle(policy, snapshot, target) -> bool:
         for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
 
 
-def _in_view(policy, snapshot, target) -> list:
-    """The visible hostiles but the target, awake or asleep.
+def _visible_hostiles_except_target(policy, snapshot, target) -> list:
+    """The visible hostiles but the target, awake or asleep (named for it, review 1117 N9: it was
+    ``_in_view``, as threat_tiers' seen-and-projectable test was; line_of_fire lists them all).
 
     Owner 2026-11-17 (verbatim 「50F以降でT1を破壊で排除するルールに眠っているかどうかを記載した
     記憶はない」, then 「両方の条件を外して直して」): the rules (11-04 「脅威が範囲内に見える時に使用」,
@@ -436,13 +437,14 @@ def _shown(snapshot) -> dict:
 def _threat_in_range(policy, snapshot, target) -> bool:
     """One of the threats the use is for, but the target, awake or asleep, is in the guaranteed
     radius: a monster that is T1 on its own (threat_tiers ``alone_t1`` from contact, as the sensed
-    T1 rules read one), seen or sensed; or the most dangerous visible hostile (``_in_view``, the
-    11-04 reading: the threat a rung without a ``leaving`` set escapes).
+    T1 rules read one), seen or sensed; or the most dangerous visible hostile
+    (``_visible_hostiles_except_target``, the 11-04 reading: the threat a rung without a
+    ``leaving`` set escapes).
 
     Owner 2026-11-17 (maintainability review Q1, verbatim 「脅威のどれか1体が半径13以内なら使う」):
     until then only the single most dangerous visible hostile was asked, so a more dangerous one
     14 or more cells off kept the use from a T1 inside the circle."""
-    seen = _in_view(policy, snapshot, target)
+    seen = _visible_hostiles_except_target(policy, snapshot, target)
     if seen:
         here = snapshot.player.position
         worst = max(seen, key=lambda m: (policy._predicted_damage(snapshot, [m], turns=1),
@@ -464,7 +466,8 @@ def _threat_in_reach(policy, snapshot, target, *, hostiles) -> bool:
     most dangerous from contact (``reach_subject``) was asked, so a more dangerous one beyond the
     radius kept the use from the ones inside it (n1-c life-216's 80F, 2026-11-17: the awake 1227
     at 13 waited for the sleeping 1188 at 20).  An attacker the board does not
-    show refuses nothing (owner 2026-11-17 Q2, ``_in_view``).  Until 2026-11-17 the 11-04 test
+    show refuses nothing (owner 2026-11-17 Q2, ``_visible_hostiles_except_target``).  Until
+    2026-11-17 the 11-04 test
     (``_threat_in_range``) answered first; with the sleepers in view counted there (owner
     2026-11-17) a harmless sleeper in reach would let a use leave a T1 the circle does not reach,
     so the leaving set alone is asked (owner 2026-11-17 「対象はふさいでいる敵だけ」 for the sealers)."""
@@ -658,7 +661,7 @@ def _race_in_range(policy, snapshot, target, *, applies) -> bool:
     here = snapshot.player.position
     return any(game_distance(here, m.position) <= GUARANTEED_RADIUS
                and applies(policy, snapshot, m)
-               for m in _in_view(policy, snapshot, target))
+               for m in _visible_hostiles_except_target(policy, snapshot, target))
 
 
 # -- after the use --------------------------------------------------------------

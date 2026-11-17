@@ -720,17 +720,19 @@ def _reached(snapshot, targets) -> bool:
     return any(destruction_use.in_sure_radius(snapshot, monster) for monster in targets)
 
 
-def _in_view(policy, snapshot, monster) -> bool:
-    """Seen, not only detected, and on a line it can project along to the player (the
-    board's test of an attacker, return_yield.awake_hostile_in_view): a monster the
-    telepathy shows behind rock is known only by detection."""
+def _seen_and_projectable(policy, snapshot, monster) -> bool:
+    """Seen, not only detected, and on a line it can project along to the player
+    (line_of_fire ``projectable``), awake or asleep: a monster the telepathy shows behind rock
+    is known only by detection.  return_yield.awake_visible_hostile_projectable reads the same
+    line for an awake visible hostile, detection included (the "in view" readings are listed
+    in line_of_fire)."""
     return (monster.perception != "detected"
             and line_of_fire.projectable(policy, snapshot, monster.position, snapshot.player.position))
 
 
 def _approach_targets(policy, snapshot, strong) -> list:
     """The T1s ``approach_key`` goes to, else [] (its docstring's conditions)."""
-    if any(_in_view(policy, snapshot, monster) for monster in strong):
+    if any(_seen_and_projectable(policy, snapshot, monster) for monster in strong):
         return []
     if not destruction_use.approach_gates(policy, snapshot):
         return []
@@ -790,11 +792,12 @@ def approach_key(policy, snapshot, strong) -> str | None:
 
     The means are destruction_use's (owner 2026-11-04 「杖と取り込んだ力だけ」, at 80%+ with a
     charge, ``holds_means``); the use is destruction_use's ``key`` with the T1s as the
-    ``leaving`` hostiles, its gates unchanged.  Not here: a T1 in view (the in-view rules
-    answer, as before), a floor *Destruction* does not touch, a confused player (blind,
-    hallucinating or stunned it still goes, destruction_use ``_clear_headed``; the gates are
-    destruction_use ``approach_gates``), the floor's own guardian unless it is T1 alone (destruction_use ``spares``:
-    the 11-04 words do not cover it; owner 2026-11-17 Q3 「守護者が T1 なら守護者ごと消してよい」),
+    ``leaving`` hostiles, its gates unchanged.  Not here: a T1 seen with a line projectable
+    to the player (``_seen_and_projectable``: the in-view rules answer it, as before), a floor
+    *Destruction* does not touch, a confused player (blind, hallucinating or stunned it still
+    goes, destruction_use ``_clear_headed``; the gates are destruction_use ``approach_gates``),
+    the floor's own guardian unless it is T1 alone (destruction_use ``spares``: the 11-04 words
+    do not cover it; owner 2026-11-17 Q3 「守護者が T1 なら守護者ごと消してよい」),
     the active quest's target.  The step is a walk, never an escape
     (reasons.WALK)."""
     targets = _approach_targets(policy, snapshot, strong)

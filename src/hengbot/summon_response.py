@@ -318,7 +318,7 @@ def leave_key(policy, snapshot) -> str | None:
     docstring), else None."""
     memory = _memory(policy)
     if (not leave_due(policy, snapshot) or memory.leave_turn == snapshot.turn
-            or not return_yield.awake_hostile_in_view(policy, snapshot)):
+            or not return_yield.awake_visible_hostile_projectable(policy, snapshot)):
         return None
     shot = counter_shot_key(policy, snapshot)
     if shot is not None:

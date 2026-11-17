@@ -255,7 +255,7 @@ def note_kill(ctx) -> None:
 
 def _full(ctx) -> str | None:
     """「全快にして」: the between-phases recharge, then full HP, on a board with no enemy in view."""
-    if ctx.in_view():
+    if ctx.seen_hostiles():
         return None
     return battle_mod._recharge_key(ctx) or battle_mod._full_hp_key(ctx)
 

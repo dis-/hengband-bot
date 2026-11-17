@@ -27,7 +27,7 @@ weighed has that line (``causes``); an escape no decision noted is judged on the
 known hostiles that can hurt or summon (``known_causes``).  ``PROOF_REASONS`` count as before.
 
 This is the counting reading (``counting``).  Every line of fire of the bot is read in this
-module (owner 2026-11-17, maintainability review N4 / 5(a)-7: two readings had each claimed to
+module (maintainability review 2026-11-17, N4 / 5(a)-7: two readings had each claimed to
 be the only one).  The readings, by name:
 
 - ``counting``: the reading above (an unknown grid stops the path).  It decides what is
@@ -48,8 +48,8 @@ call of these readings the table does not list, on a stale row, and on a line-of
 computation outside this module.  Naming the readings changed no caller's reading (whether a
 caller should read another one is the owner's question, review Q5).
 
-The "in view" readings (owner 2026-11-17, review N9 / 5(a)-8: eight of them, two of one name
-until then), each named for what it reads:
+The "in view" readings (maintainability review 2026-11-17, N9 / 5(a)-8: eight of them, two of
+one name until then), each named for what it reads:
 
 ==================================================  =================================================
 destruction_use ``_visible_hostiles_except_target``  the visible hostiles but the target, awake or
@@ -64,9 +64,9 @@ resist_potion ``_awake_visible_enemy_it_answers``    an awake visible hostile wh
 safety_facts ``hostile_in_view``                     any visible hostile (the watch's recorded fact
                                                      name, kept)
 quest25_battle ``_Ctx.seen_hostiles``                the visible hostiles not by detection only
-me_powers ``hostile_visible``                        a physical visible hostile
-me_powers ``threat_visible``                         a visible threat (me_powers ``visible_threat``)
-amberite_curse ``_struck`` (inline)                  visible, or in the ``danger`` line of fire
+me_powers ``Context.hostile_visible``                a physical visible hostile
+me_powers ``Context.threat_visible``                 a visible threat (me_powers ``visible_threat``)
+amberite_curse ``struck`` (inline)                   visible, or in the ``danger`` line of fire
 ==================================================  =================================================
 """
 
@@ -124,11 +124,11 @@ READERS = {
         "a summoner's cast at the player or a grid beside it",
     ("policy_combat", "_note_summoner_counter_targets", "projectable"):
         "a summoner a line from the player reaches (its counter-attack target)",
-    ("return_yield", "awake_hostile_in_view", "projectable"):
+    ("return_yield", "awake_visible_hostile_projectable", "projectable"):
         "an awake visible hostile that can attack the player from where it stands",
     ("threat_escape", "out_of_reach", "projectable"):
         "a monster from which no line projects to the player (out of reach)",
-    ("threat_tiers", "_in_view", "projectable"):
+    ("threat_tiers", "_seen_and_projectable", "projectable"):
         "a seen T1 with a line to the player: the in-view rules answer it, not the approach",
     # straight_line: the board's line of sight, a known glass grid stopping it.
     ("line_of_fire", "danger", "straight_line"):

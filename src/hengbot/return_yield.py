@@ -58,8 +58,10 @@ def latched_return_key(policy, snapshot) -> str | None:
     return key
 
 
-def awake_hostile_in_view(policy, snapshot) -> bool:
-    """An awake hostile on the board can attack the player from where it stands."""
+def awake_visible_hostile_projectable(policy, snapshot) -> bool:
+    """An awake visible hostile (detection included) can attack the player from where it stands:
+    line_of_fire ``projectable`` (unknown grids open), named for it (review 1117 N9: it was
+    ``awake_hostile_in_view``; line_of_fire lists the "in view" readings)."""
     here = snapshot.player.position
     return any(
         monster.hostile and not monster.asleep
@@ -79,7 +81,7 @@ def quiet_recall_due(policy, snapshot) -> bool:
         and policy._escape_state.owner in {None, "return"}
         and latched_return_owns(policy, snapshot)
         and policy._find_recall_scroll(snapshot) is not None
-        and not awake_hostile_in_view(policy, snapshot)
+        and not awake_visible_hostile_projectable(policy, snapshot)
     )
 
 

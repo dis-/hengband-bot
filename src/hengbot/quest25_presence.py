@@ -221,7 +221,7 @@ def presence_key(ctx, phase) -> str | None:
     battle = ctx.battle
     if phase.wait_limit is None or not phase.waits_for or not battle.ready or battle.cast is not None:
         return None
-    if ctx.in_view() or battle.rallying or battle.strong:
+    if ctx.seen_hostiles() or battle.rallying or battle.strong:
         return None
     left = _checked(ctx, phase)
     if not left or any(monster.race_id in left for monster in ctx.hostiles()):

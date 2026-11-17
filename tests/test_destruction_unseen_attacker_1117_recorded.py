@@ -2,7 +2,7 @@
 
 Owner 2026-11-17 (whole-bot maintainability review, question Q2 「見えない敵に攻撃された形跡がある
 間は *破壊* を使わない条件」, answer verbatim 「この条件を外す」): destruction_use refused every use
-while ``_unseen_attack_evidence`` stood (``_in_view`` answered no monster, ``_threat_in_reach``
+while ``_unseen_attack_evidence`` stood (``_visible_hostiles_except_target`` answered no monster, ``_threat_in_reach``
 False), reasoning only 「届かないだろうから」, with no owner rule behind it.  Now the threats seen
 or sensed decide the use and an unseen attacker inside the circle is destroyed with them.
 
@@ -55,7 +55,7 @@ class UnseenAttackerDestructionTest(base.DestructionUseTest):
         policy._unseen_attack_evidence = "何かに噛まれた。"
         board = parse_snapshot(copy.deepcopy(raw), self.monraces)
         hounds = [monster for monster in board.visible_monsters if monster.hostile]
-        self.assertTrue(destruction_use._in_view(policy, board, None))
+        self.assertTrue(destruction_use._visible_hostiles_except_target(policy, board, None))
         self.assertTrue(destruction_use._threat_in_reach(policy, board, None, hostiles=hounds))
 
 
