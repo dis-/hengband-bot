@@ -96,14 +96,31 @@ def permits(snapshot, slots: int, *, reserve_used: int = 0) -> bool:
             >= MIN_TERMINAL_FREE_PACK_SLOTS - reserve_used)
 
 
-def home_take_fits(snapshot, item, quantity: int) -> bool:
+def home_take_fits(snapshot, item, quantity: int, *, policy) -> bool:
     """The Home take admission the outside composer applies (store_item_key).
 
     Owners that bind or hand off a Home withdrawal ask the same question, so a
     take the composer will refuse is never left pending across a Home exit.
+    The full-Home relief's clearly useless ware is taken only to be sold at
+    once (item_fate.relief_round_trip): it needs a pack slot, not the reserve.
     """
+    from hengbot import item_fate
+    if item_fate.relief_round_trip(policy, item):
+        return round_trip_fits(snapshot, item, quantity)
     return permits(snapshot, incoming_slots(snapshot, item, quantity),
                    reserve_used=max(int(used_at_once(item)), reserve_swap_slot(item)))
+
+
+def round_trip_fits(snapshot, item, quantity: int) -> bool:
+    """A take that leaves the pack again at the next store fits in any free pack slot.
+
+    The terminal reserve is kept for the departure; a ware taken out of the Home and
+    sold on the same errand leaves the pack as it found it (n1-a life-530 2026-11-18
+    03:06: 20 of 23 slots carried, the full-Home relief could not take a stack of the
+    surplus bolts owner 2026-11-17 named to be sold).
+    """
+    return permits(snapshot, incoming_slots(snapshot, item, quantity),
+                   reserve_used=MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
 def below_floor(snapshot) -> bool:

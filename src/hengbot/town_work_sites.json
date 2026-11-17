@@ -3147,6 +3147,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "item_fate.py:relief_ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "item_fate.py:sale_value": {
     "classification": "data",
     "rows": [

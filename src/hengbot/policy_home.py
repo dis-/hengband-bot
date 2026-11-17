@@ -16,7 +16,7 @@ from hengbot.town_hold import open_execution_delegation as town_open_execution_d
 from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import home_identification, home_pass_charge
-from hengbot.town_pack_budget import home_take_fits
+from hengbot.town_pack_budget import home_take_fits, round_trip_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
 from hengbot import consumable_policy, item_use_route, stone_to_mud_carry, teleport_away_carry
@@ -580,9 +580,17 @@ class HomeMixin:
     def _home_full_merge_reserved(
         self, snapshot: Snapshot, item: InventoryItem, *, destroy: bool,
     ) -> bool:
-        """A matching pack stack is a barrier only when it needs protection."""
+        """A matching pack stack is a barrier only when it needs protection.
+
+        Two stacks inscribed differently never merge (item-entity.cpp
+        ``is_similar_part``; combine_pack asks the same): n1-a life-530
+        2026-11-18 03:06, the full Home's surplus {@1} bolts were barred by
+        the carried {@0} bolts they cannot join.
+        """
         for carried in snapshot.inventory:
             if self._sale_item_identity(carried) != self._sale_item_identity(item):
+                continue
+            if carried.inscription and item.inscription and carried.inscription != item.inscription:
                 continue
             sig = self._item_signature(carried)
             relief = self._home_full_relief or {}
@@ -770,7 +778,7 @@ class HomeMixin:
         relief["sale"] = None
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
-        for field in ("identifying", "identification_counts", "mode", "destroy_posted", "destroy_pending_key",
+        for field in ("identifying", "identification_counts", "mode", "useless", "destroy_posted", "destroy_pending_key",
                       "destroy_before_count", "destroy_work_id", "pack_only", "stock_count", "taken"):
             relief.pop(field, None)
         self._release_claim_goal(
@@ -983,8 +991,7 @@ class HomeMixin:
         if sale is not None:
             signature, store_type, before_count = sale
             sale_identity = self._sale_signature_identity(signature)
-            target = self._first_item(snapshot, lambda item:
-                                     self._sale_item_identity(item) == sale_identity)
+            target = item_fate.relief_ware(self, snapshot)
             count = sum(item.count for item in snapshot.inventory
                         if self._sale_item_identity(item) == sale_identity)
             identifying = relief.get("identifying")
@@ -1165,6 +1172,7 @@ class HomeMixin:
                         0, relief["stock_count"] - taken[1])
                 relief["sale"] = None
                 relief["withdrawn"] = False
+                relief.pop("useless", None)
                 relief.pop("destroy_posted", None)
                 relief.pop("destroy_pending_key", None)
                 relief.pop("destroy_before_count", None)
@@ -1255,6 +1263,7 @@ class HomeMixin:
                         )
                     relief["sale"] = None
                     relief["withdrawn"] = False
+                    relief.pop("useless", None)
                     self._home_errand.finish()
                     self._home_pending_item = None
                     self._home_pending_slot = None
@@ -1342,6 +1351,7 @@ class HomeMixin:
                                  and self._carried_disposal_preserves_departure(snapshot, item, item.count)
                                  ) if pack_bound else ()
             pack_ids = {id(item) for item in carried_stock}
+            shelf_stock = stock
             stock = carried_stock if pack_bound else stock
             # Charged Identify transport may not fill the final required
             # capacity while readiness is false. Empty staves remain ordinary
@@ -1421,6 +1431,23 @@ class HomeMixin:
                                     probes[id(item)], item, identify=True))
                                 and (id(item) in pack_ids
                                      or item_fate.can_identify_now(self, snapshot, candidate))]
+                if (pack_bound and not discard and not relief.get("sweep")
+                        and not any(item_fate.can_identify_now(self, snapshot, candidate)
+                                    for candidate, _ in unidentified)):
+                    # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを
+                    # 作れる」: no carried stack can go, so the clearly useless shelf
+                    # stock is taken to be sold at once, in any free pack slot
+                    # (town_pack_budget.round_trip_fits).  n1-a life-530 2026-11-18
+                    # 03:06: 20 of 23 slots carried, the carried gear waiting on
+                    # *Identify* no source here gives, 27 stacks of surplus bolts
+                    # on the full shelf, and the visit stopped over the weight limit.
+                    candidates = [
+                        (result, item) for item in shelf_stock
+                        if (result := self._home_full_sale_candidate(snapshot, item))
+                        and item_fate.clearly_useless(self, snapshot, result[0]) is not None
+                        and round_trip_fits(snapshot, item, item.count)]
+                    if candidates:
+                        unidentified = []
             else:
                 discard = unidentified = []
             if relief.get("sweep"):
@@ -1736,7 +1763,7 @@ class HomeMixin:
             return False
         stocked = next((item for item in self._home_knowledge_items
                         if self._item_signature(item) == request.signature), None)
-        if stocked is not None and not home_take_fits(snapshot, stocked, request.quantity):
+        if stocked is not None and not home_take_fits(snapshot, stocked, request.quantity, policy=self):
             # The outside composer refuses this take (store_item_key); a filed
             # errand would hold Home and re-enter it without an operation.
             self._offer_execution_no_step(
@@ -2450,7 +2477,7 @@ class HomeMixin:
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
         """Return retention plus the narrow weakest-ammo fallback."""
-        if item_fate.relief_useless(self, item):
+        if item_fate.relief_useless(self, snapshot, item):
             # Owner 2026-11-17: the full-Home relief's clearly useless ware is sold.
             return 0, None
         if item_use_route.surplus(self, snapshot, item):
@@ -4284,7 +4311,7 @@ class HomeMixin:
         # quantity prompt will consume this response before the leave key.
         withdrawal = self._home_take_entry_key(snapshot, item, owner, take_count, letter)
         if withdrawal is None:
-            if not home_take_fits(snapshot, item, take_count):
+            if not home_take_fits(snapshot, item, take_count, policy=self):
                 # The survival mana-food take included: shelve first.
                 make_room_for_home_take(self, snapshot)
             return None
@@ -4634,7 +4661,7 @@ class HomeMixin:
             return
         # Home is entered again for it, within its pass bound.
         self._rearm_town_store_for_new_work(STORE_HOME)
-        if not home_take_fits(snapshot, reserve, 1):
+        if not home_take_fits(snapshot, reserve, 1, policy=self):
             # The scroll is read at once, so it may use one reserve slot
             # (town_pack_budget.used_at_once); nothing is sold or shelved
             # for it, and a pack fuller than that waits.
@@ -4675,7 +4702,7 @@ class HomeMixin:
         # the later slots (_confirm_home_withdrawal_address), so the next stack keeps
         # its address and is taken once this one is drunk.
         potion = potions[-1] if potions else None
-        if potion is None or not home_take_fits(snapshot, potion, potion.count):
+        if potion is None or not home_take_fits(snapshot, potion, potion.count, policy=self):
             return
         self._rearm_town_store_for_new_work(STORE_HOME)
         self._home_pending_item = self._item_signature(potion)
@@ -4714,7 +4741,7 @@ class HomeMixin:
             item = stocked.get(signature)
             quantity = self._home_pending_quantities.get(
                 signature, self._home_pending_quantity or 1)
-            return item is not None and not home_take_fits(snapshot, item, quantity)
+            return item is not None and not home_take_fits(snapshot, item, quantity, policy=self)
 
         for signature in [entry for entry in self._home_pending_batch if refused(entry)]:
             self._home_pending_batch.remove(signature)
@@ -4749,7 +4776,7 @@ class HomeMixin:
             return False
         stocked = next((item for item in stocked_items
                         if self._item_signature(item) == request.signature), None)
-        if stocked is None or home_take_fits(snapshot, stocked, request.quantity):
+        if stocked is None or home_take_fits(snapshot, stocked, request.quantity, policy=self):
             return False
         errand.cancel_unposted()
         self._offer_execution_no_step(

@@ -83,7 +83,7 @@ class N1a530SellDeadlineRecordedTest(unittest.TestCase):
 
     def test_the_tagged_shovel_is_sold_not_retained(self):
         policy, board = self.policy, self.board
-        self.assertTrue(item_fate.relief_useless(policy, self.shovel))
+        self.assertTrue(item_fate.relief_useless(policy, board, self.shovel))
         self.assertFalse(policy._sale_retains_digging_tool(board, self.shovel))
 
         key = policy.choose_key(board)

@@ -759,7 +759,7 @@ class EquipmentMixin:
             home_pass_charge.note_filed(self, home_pass_charge.DIGGER)
         # The outside composer takes it only through the town pack budget
         # (store_item_key); a take it refuses re-enters Home forever.
-        if digger is None or not home_take_fits(snapshot, digger, digger.count):
+        if digger is None or not home_take_fits(snapshot, digger, digger.count, policy=self):
             return None
         home_pass_charge.note_filed(self, home_pass_charge.DIGGER)
         self._home_digger_seen_pages.clear()
