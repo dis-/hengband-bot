@@ -19,7 +19,7 @@ from hengbot import home_identification, home_pass_charge
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
-from hengbot import consumable_policy, item_use_route, teleport_away_carry
+from hengbot import consumable_policy, item_use_route, stone_to_mud_carry, teleport_away_carry
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -517,19 +517,23 @@ class HomeMixin:
                            if store != STORE_HOME
                            and self._store_accepts_sale(store, item)
                            and store not in self._store_sale_refused), None)
+        # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」:
+        # clearly useless stock (item_fate.clearly_useless) passes the rank keep,
+        # the standing digger retention and the ammunition reservations.
+        useless = item_fate.clearly_useless(self, snapshot, item) is not None
         if (item_fate.held(self, snapshot, item, "home-visit", "home-full-sale")
                 or item.is_empty_bottle
                 or signature in self._unsellable_items
-                or item_fate.stock_reserved(self, snapshot, probe, item)
+                or (not useless and item_fate.stock_reserved(self, snapshot, probe, item))
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=False)
                 # The store-side sale guard keeps the standing digging tool;
                 # selecting it here would withdraw an item no store sale may
                 # take (live 2026-10-05 05:14 retain-standing-digging-tool loop).
-                or self._sale_retains_digging_tool(probe, item)
+                or (not useless and self._sale_retains_digging_tool(probe, item))
                 or recall_short
-                or not item_fate.gear_surplus(self, snapshot, item)
+                or (not useless and not item_fate.gear_surplus(self, snapshot, item))
                 or store_type is None):
             return None
         base = item_base_cost(item, self._baseitem_costs)
@@ -1537,6 +1541,12 @@ class HomeMixin:
             signature = self._item_signature(item)
             if relief["mode"] != "identify":
                 relief["rank_released"] = signature
+            # The clearly useless ware keeps that verdict off the shelf (item_fate.relief_useless).
+            if (relief["mode"] == "sale"
+                    and item_fate.clearly_useless(self, snapshot, item) is not None):
+                relief["useless"] = signature
+            else:
+                relief.pop("useless", None)
             # Retain the physical source row even when a shelf and pack stack
             # share the same signature. A shelf take earns a shelf slot.
             pack_only = id(source) in pack_ids
@@ -2443,6 +2453,9 @@ class HomeMixin:
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
         """Return retention plus the narrow weakest-ammo fallback."""
+        if item_fate.relief_useless(self, item):
+            # Owner 2026-11-17: the full-Home relief's clearly useless ware is sold.
+            return 0, None
         if item_use_route.surplus(self, snapshot, item):
             # Owner 2026-11-13 「アイテムが整理できていない」: no consumer uses it, so no
             # reservation (a stale quest carry, reserve or keep-all) holds it.
@@ -2783,7 +2796,10 @@ class HomeMixin:
                 and item.charges > 0
                 and item.slot == self._device_food_reserve_slot(snapshot)
             ):
-                return item.count, "mana-device"
+                # Owner 2026-11-17: a Stone to Mud stack is food up to the
+                # five wands the carry keeps (stone_to_mud_carry).
+                kept = stone_to_mud_carry.stone_to_mud_kept(snapshot, item, item.count)
+                return kept, "mana-device" if kept > 0 else None
             if (
                 item.known
                 and item.charges > 0
@@ -2834,7 +2850,8 @@ class HomeMixin:
                     or self._count_mana_food_devices(preceding)
                     < MANA_FOOD_DEVICE_TARGET
                 ):
-                    return item.count, "supply-ledger:mana-food"
+                    kept = stone_to_mud_carry.stone_to_mud_kept(snapshot, item, item.count)
+                    return kept, "supply-ledger:mana-food" if kept > 0 else None
 
         if item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD:
             # User 2026-10-20: every Stone to Mud wand is kept, picked up or
@@ -2846,7 +2863,10 @@ class HomeMixin:
             # a carried wand the Magic-Eater's staff sequence absorbs is held
             # by the sequence instead (``me-staff:absorb`` at the top of this
             # function), up to the 'G' that takes it.
-            return item.count, "utility:stone-to-mud"
+            # Owner 2026-11-17 「戦士は岩石溶解を5本だけ持てばいい。」: every other
+            # class keeps five wands (stone_to_mud_carry); the rest is surplus.
+            kept = stone_to_mud_carry.stone_to_mud_kept(snapshot, item, item.count)
+            return kept, "utility:stone-to-mud" if kept > 0 else None
 
         if strategy is not None:
             force = strategy.required_force
@@ -3647,6 +3667,12 @@ class HomeMixin:
                 )
             )
         )
+        # Owner 2026-11-17 「戦士は岩石溶解を5本だけ持てばいい。」: the wands past the
+        # five the carry keeps are shelved (stone_to_mud_carry).
+        stone_to_mud_surplus = (
+            snapshot is not None
+            and stone_to_mud_carry.sheds_stone_to_mud(self, snapshot, item)
+        )
         throwing_torches_replaced = (
             snapshot is not None
             and item.is_torch
@@ -3699,6 +3725,7 @@ class HomeMixin:
             or depleted_device
             or unsellable_identify_staff_release
             or reserved_stack_surplus
+            or stone_to_mud_surplus
             or throwing_torches_replaced
             or obsolete_oil
             or incompatible_ammo

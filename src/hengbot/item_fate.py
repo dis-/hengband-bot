@@ -119,9 +119,109 @@ def stock_reserved(policy: Any, snapshot: Any, probe: Any, item: Any) -> bool:
         or (policy._item_matches_purchase_rung(probe, item) and not empty_identify_staff(item)))
 
 
+HOME_STOCK_SLOT = "home-surplus"
+# Home keeps one refill of the pack's carry target (AMMO_CARRY_TARGET) for the worn launcher.
+HOME_AMMO_KEEP = 99
+
+
+def _home_stock(item: Any) -> bool:
+    """A Home stack as the full-Home relief asks about it (``_home_full_sale_candidate``)."""
+    return getattr(item, "slot", None) == HOME_STOCK_SLOT
+
+
+def _surplus_digger(policy: Any, snapshot: Any, item: Any) -> bool:
+    """A digging tool beside the one the character keeps (owner 2026-11-17: one digger).
+
+    The kept tool is the best by ``_digging_tool_sale_quality`` (the digging bonus first: the
+    Q2 breach and the mining kit read the bonus) over the worn, carried and Home tools, then
+    the higher sale value and the signature, so a take from the shelf does not change which one
+    is kept.  Every tool of another signature is surplus (a stack of the kept signature stays).
+    """
+    if not item.is_digging_tool or item.is_artifact or not item.known:
+        return False
+    tools = [tool for tool in (*snapshot.equipment, *snapshot.inventory,
+                               *policy._home_knowledge_items)
+             if tool.is_digging_tool and tool.known
+             and not policy._equip_blocked_by_identification(tool)]
+    if not tools:
+        return False
+    kept = max(tools, key=lambda tool: (policy._digging_tool_sale_quality(tool),
+                                        sale_value(policy, tool), policy._item_signature(tool)))
+    return policy._item_signature(kept) != policy._item_signature(item)
+
+
+def _surplus_ammo(policy: Any, snapshot: Any, item: Any) -> bool:
+    """A Home stack of the worn launcher's ammunition past ``HOME_AMMO_KEEP`` rounds, best kept.
+
+    The rounds are ranked by the carry plan's per-shot damage (launcher_average_damage); stacks
+    of one signature are interchangeable, so a stack is surplus when that many of its signature
+    lie past the kept rounds.
+    """
+    from hengbot.launcher_damage import launcher_average_damage
+    launcher = policy._equipped_launcher(snapshot)
+    if (not _home_stock(item) or not item.is_ammo or item.is_artifact or not item.known
+            or launcher is None or item.tval != launcher.ammo_tval):
+        return False
+    totals: dict = {}
+    for stock in policy._home_knowledge_items:
+        if stock.tval == launcher.ammo_tval and stock.count > 0:
+            signature = policy._item_signature(stock)
+            damage, count = totals.get(signature, (launcher_average_damage(launcher, stock), 0))
+            totals[signature] = (damage, count + stock.count)
+    left, outside = HOME_AMMO_KEEP, {}
+    for signature, (_, count) in sorted(totals.items(), key=lambda row: (-row[1][0], row[0])):
+        kept = min(count, left)
+        left -= kept
+        outside[signature] = count - kept
+    return outside.get(policy._item_signature(item), 0) >= item.count
+
+
+def clearly_useless(policy: Any, snapshot: Any, item: Any) -> str | None:
+    """The class of a stack that only takes a slot, or None (owner 2026-11-17).
+
+    Owner, verbatim: 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」 -- n1-a life-530's
+    Home stood at 239/240 holding a dozen digging tools and some forty stacks of 99 crossbow bolts
+    while the full-Home relief sold spikes and a Lance.  The full-Home relief sells these first
+    (``relief_order``), past the rank keep, the digger standing retention and the ammunition
+    reservations (policy_home ``_home_full_sale_candidate``):
+
+    * ``unused-ammo``: the junk class (policy_helpers ``_junk_class``, ammunition no worn
+      launcher fires);
+    * ``surplus-digger``: ``_surplus_digger``;
+    * ``surplus-ammo``: ``_surplus_ammo``.
+    """
+    relief = getattr(policy, "_home_full_relief", None)
+    if relief is None or relief.get("sweep"):
+        # Only a full Home's relief (a deposit refused or met by a full Home) makes room.
+        return None
+    if item.is_ammo and policy._junk_class(snapshot, item) == "unused-ammo":
+        return "unused-ammo"
+    if _surplus_digger(policy, snapshot, item):
+        return "surplus-digger"
+    if _surplus_ammo(policy, snapshot, item):
+        return "surplus-ammo"
+    return None
+
+
+def relief_useless(policy: Any, item: Any) -> bool:
+    """The relief's current sale ware, chosen as clearly useless, now off the Home shelf.
+
+    Taken out, the ware is a pack stack: the carry plan would rank the bolts it judged past the
+    Home keep as the power stack, and the standing digger retention would count the tool again.
+    The relief's choice holds until its sale is observed (policy_home ``relief["useless"]``).
+    """
+    relief = getattr(policy, "_home_full_relief", None) or {}
+    sale = relief.get("sale")
+    signature = policy._item_signature(item)
+    return (not _home_stock(item) and sale is not None
+            and relief.get("useless") == signature == sale[0])
+
+
 def relief_order(policy: Any, snapshot: Any, item: Any) -> tuple:
-    """Rank 21+, then 11-20, then surplus consumables; cheapest first in each."""
-    if not item.is_equipment or item.is_ammo:
+    """Clearly useless stock, rank 21+, then 11-20, then surplus consumables; cheapest first."""
+    if clearly_useless(policy, snapshot, item) is not None:
+        group = -1
+    elif not item.is_equipment or item.is_ammo:
         group = 2
     else:
         group = 0 if gear_tier(policy, snapshot, item) == ANY else 1

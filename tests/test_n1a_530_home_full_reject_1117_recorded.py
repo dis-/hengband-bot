@@ -21,7 +21,11 @@ DECLARED CONSTRUCTED: the capture did not copy the 49 MB loadout report, and fro
 37 on the replay's equipment transaction decides differently (the recorded bot put
 the Lance it had taken out for sale back with an equipment-transaction deposit).
 Rows 37-66 are still decided through choose_key, but the recorded key is the one
-acknowledged, so the boards the journal delivers stay the recorded ones.
+acknowledged, so the boards the journal delivers stay the recorded ones.  Since owner
+2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」 the relief takes the 27
+(+3,+1) bolts past the Home keep at row 6, not the 7 Iron Spikes
+(tests/test_home_full_clearly_useless_1118_recorded.py), so rows 6-36 are acknowledged the
+same way.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -34,10 +38,12 @@ from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1a-530-home-full-reject-1117"
-MATCHED_ROWS = 37
+MATCHED_ROWS = 6
 STOP_ROW = 67
+FIVE_WANDS_ROW = 2
 LIMIT = 1800
 AXE = ("(混沌)グレート・アックス (4d4) (+7,+7)", 22, 25)
+WANDS = ("岩石溶解の魔法棒 (215回分) {25%引き}", 65, 6)
 
 
 def post(policy, key):
@@ -75,15 +81,23 @@ class N1a530HomeFullRejectRecordedTest(unittest.TestCase):
 
     def setUp(self):
         for row, (decided, recorded) in enumerate(self.replayed):
+            if row == FIVE_WANDS_ROW:
+                # Owner 2026-11-17 「戦士は岩石溶解を5本だけ持てばいい。」: the first deposit
+                # also shelves 13 of the 18 Stone to Mud wands
+                # (tests/test_warrior_stone_to_mud_carry_1118_recorded.py).
+                self.assertEqual(decided, ("dndmdk13\rdg\x1b", recorded[1]), row)
+                continue
             self.assertEqual(decided, recorded, row)
         self.policy = restore_checkpoint_bytes(HengbotPolicy, self.checkpoint)
 
     def test_the_full_home_refusal_is_recorded_as_such(self):
         rejected, full_only = self.rejected_on_row_3
-        self.assertEqual(rejected, {AXE})
-        self.assertEqual(full_only, {AXE})
+        # The 13 Stone to Mud wands past the five carried (owner 2026-11-17) were in the
+        # deposit the full Home refused as well.
+        self.assertEqual(rejected, {AXE, WANDS})
+        self.assertEqual(full_only, {AXE, WANDS})
 
-    def test_the_axe_is_deposited_once_the_home_shows_a_free_slot(self):
+    def test_the_relief_still_making_room_owns_the_axe_at_row_67(self):
         policy, board = self.policy, self.board
         self.assertEqual(self.journal[STOP_ROW]["reason"], "home:weight-overload-deposit")
         self.assertEqual((board.store.store_type, board.store.stock_num, board.store.capacity),
@@ -92,13 +106,18 @@ class N1a530HomeFullRejectRecordedTest(unittest.TestCase):
                          (1940, LIMIT))
         axe = next(item for item in board.inventory if policy._item_signature(item) == AXE)
         self.assertEqual((axe.slot, axe.weight), ("l", 230))
+        # From row 5 the replay's full-Home relief takes the clearly useless stock (owner
+        # 2026-11-17, module docstring) and is still making room at row 67: it owns the
+        # refused deposits' retry, so the axe stays held while it goes on
+        # (test_a_relief_in_progress_keeps_its_rejections; the release once it ends is
+        # test_a_rejection_not_caused_by_a_full_home_stays).
+        self.assertIsNotNone(policy._home_full_relief["useless"])
 
         key = policy.choose_key(board)
 
         # Recorded: "dm36\rdh\x1b" (the bolts and the Disarming rod, 181.7 lb left).
-        self.assertEqual((key, policy.last_reason), ("dl\x1b", "home:weight-overload-deposit"))
-        self.assertNotIn(AXE, policy._home_rejected_deposits)
-        self.assertLessEqual(policy._inventory_weight(board) - axe.weight, LIMIT)
+        self.assertEqual((key, policy.last_reason), ("\x1b", "home:full-queue-surplus-withdraw"))
+        self.assertIn(AXE, policy._home_rejected_deposits)
 
     def test_a_relief_in_progress_keeps_its_rejections(self):
         policy = self.policy

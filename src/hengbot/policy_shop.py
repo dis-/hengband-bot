@@ -43,7 +43,7 @@ from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
 from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
-from hengbot import item_use_route
+from hengbot import item_fate, item_use_route
 from hengbot import fundraising_survival, mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.town_hold import hold_claims, offered_steps
@@ -620,6 +620,9 @@ class ShopMixin(InStoreMixin):
             return False
         if self._disposal_protected_by_identification(item):
             return True
+        if item_fate.relief_useless(self, item):
+            # Owner 2026-11-17: a surplus digger the full-Home relief took out to sell.
+            return False
         if self._overweight_surplus_disposal is not None:
             # F3 retains the standing standard tool. Home shelf tools cannot
             # prove a carried mining kit; the other tool must remain carried.
