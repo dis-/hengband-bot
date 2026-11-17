@@ -235,7 +235,8 @@ def _aim_ready(snapshot) -> bool:
 
 
 def _target(policy, snapshot, chosen):
-    """The follower that hurts most on the next turn (destruction_use's measure)."""
+    """The follower that hurts most on the next turn: the one Teleport Other is aimed at (one
+    aim; *Destruction* asks about every follower in its radius, destruction_use)."""
     here = snapshot.player.position
     return max(chosen, key=lambda monster: (policy._predicted_damage(snapshot, [monster], turns=1),
                                             -here.distance_to(monster.position), -monster.index))

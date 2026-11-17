@@ -33,10 +33,12 @@ Game (C:/hengband/src):
 Gates (``key``, asked by each rung before its read): the character is clear-headed (blindness
 allowed, owner 2026-11-08 「盲目でも使う」; a stun allowed, owner 2026-11-13, judged by the
 stun-adjusted success); a means is reliable (``me_capability.RELIABLE_MIN_SUCCESS``, the
-absorbed power first as in speed_dose); the floor is one the game destroys; the
-most dangerous visible hostile other than the quest target, awake or asleep, is in
-``GUARANTEED_RADIUS`` (owner 2026-11-17 「両方の条件を外して直して」: no rule of the owner's
-asks it awake); and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
+absorbed power first as in speed_dose); the floor is one the game destroys; one of
+the threats the use is for (``_threat_in_range``: a T1 alone seen or sensed, or the most dangerous
+visible hostile; ``_threat_in_reach``: one of the ``leaving`` set), other than the quest target,
+awake or asleep, is in ``GUARANTEED_RADIUS`` (owner 2026-11-17 「両方の条件を外して直して」: no
+rule of the owner's asks it awake; owner 2026-11-17 Q1 「脅威のどれか1体が半径13以内なら使う」);
+and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
 else leaves the rung's read as it was.
 
 Owner 2026-11-05 (``sight_trigger_key``, SIGHT_TRIGGERS): some races are used on as soon
@@ -377,37 +379,80 @@ def _in_view(policy, snapshot, target) -> list:
     return [m for m in snapshot.visible_monsters if m.hostile and m.race_id != target]
 
 
+# The T1 reading of ``_threat_in_range`` is under way (a re-entry guard of this module, no
+# policy state: the reading's own escape count asks this scene again).
+_reading_t1 = False
+
+
+def _within(snapshot, monster) -> bool:
+    return game_distance(snapshot.player.position, monster.position) <= GUARANTEED_RADIUS
+
+
+def _shown(snapshot) -> dict:
+    """The hostiles the board shows, seen or sensed, by index (the seen copy first)."""
+    shown = {}
+    for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters):
+        if monster.hostile:
+            shown.setdefault(monster.index, monster)
+    return shown
+
+
 def _threat_in_range(policy, snapshot, target) -> bool:
-    """The most dangerous visible hostile but the target, awake or asleep (``_in_view``), is in
-    the guaranteed radius."""
+    """One of the threats the use is for, but the target, awake or asleep, is in the guaranteed
+    radius: a monster that is T1 on its own (threat_tiers ``alone_t1`` from contact, as the sensed
+    T1 rules read one), seen or sensed; or the most dangerous visible hostile (``_in_view``, the
+    11-04 reading: the threat a rung without a ``leaving`` set escapes).
+
+    Owner 2026-11-17 (maintainability review Q1, verbatim 「脅威のどれか1体が半径13以内なら使う」):
+    until then only the single most dangerous visible hostile was asked, so a more dangerous one
+    14 or more cells off kept the use from a T1 inside the circle."""
+    global _reading_t1
+    from hengbot import threat_tiers  # import cycle
+
     seen = _in_view(policy, snapshot, target)
-    if not seen:
+    if seen:
+        here = snapshot.player.position
+        worst = max(seen, key=lambda m: (policy._predicted_damage(snapshot, [m], turns=1),
+                                         -game_distance(here, m.position)))
+        if _within(snapshot, worst):
+            return True
+    if _reading_t1:
+        # Asked from inside the T1 reading below (its assessment counts the escapes,
+        # threat_escape: *Destruction* by this scene): the 11-04 reading alone answers there.
         return False
-    here = snapshot.player.position
-    worst = max(seen, key=lambda m: (policy._predicted_damage(snapshot, [m], turns=1),
-                                     -game_distance(here, m.position)))
-    return game_distance(here, worst.position) <= GUARANTEED_RADIUS
+    _reading_t1 = True
+    try:
+        return any(monster.race_id != target and _within(snapshot, monster)
+                   and threat_tiers.alone_t1(policy, snapshot, monster, contact=True)
+                   for monster in _shown(snapshot).values())
+    finally:
+        _reading_t1 = False
 
 
 def _threat_in_reach(policy, snapshot, target, *, hostiles) -> bool:
     """Owner 2026-11-09 (question B, life-355): 「即死はテレポートで逃げる。射線が通っていないなど
     即死ではない場合は破壊による排除を優先する。」  Where a rung leaves ``hostiles`` and the board
-    is not 即死, the threat need not be awake in view: the most dangerous of them but the target,
-    seen or detected, awake or asleep, judged from contact (``threat_prediction(contact=True)``,
-    as the tiers judge a far monster), is in the guaranteed radius.  An attacker the board does not
+    is not 即死, the threat need not be awake in view: one of them but the target, seen or
+    detected, awake or asleep, is in the guaranteed radius.  Owner 2026-11-17 (maintainability
+    review Q1, verbatim 「脅威のどれか1体が半径13以内なら使う」): any one of them; until then only the
+    most dangerous from contact (``reach_subject``) was asked, so a more dangerous one beyond the
+    radius kept the use from the ones inside it (n1-c life-216's 80F, 2026-11-17: the awake 1227
+    at 13 waited for the sleeping 1188 at 20).  An attacker the board does not
     show refuses nothing (owner 2026-11-17 Q2, ``_in_view``).  Until 2026-11-17 the 11-04 test
     (``_threat_in_range``) answered first; with the sleepers in view counted there (owner
     2026-11-17) a harmless sleeper in reach would let a use leave a T1 the circle does not reach,
     so the leaving set alone is asked (owner 2026-11-17 「対象はふさいでいる敵だけ」 for the sealers)."""
-    worst = reach_subject(policy, snapshot, hostiles, target)
-    return worst is not None and game_distance(snapshot.player.position, worst.position) <= GUARANTEED_RADIUS
+    shown = _shown(snapshot)
+    return any(monster.hostile and monster.race_id != target and monster.index in shown
+               and _within(snapshot, monster) for monster in hostiles)
 
 
 def reach_subject(policy, snapshot, hostiles, target):
-    """The monster of ``hostiles`` whose place ``_threat_in_reach`` asks: the most dangerous
-    from contact (``threat_prediction(contact=True)``), the nearer on a tie, the ``target``
-    race (``_target_race``) left out; None with none.  The walk toward the use (deep_teleport)
-    walks until this one is in the sure radius."""
+    """The monster of ``hostiles`` the walk toward the use goes to: the most dangerous from
+    contact (``threat_prediction(contact=True)``), the nearer on a tie, the ``target`` race
+    (``_target_race``) left out; None with none.  The walks (deep_teleport, threat_tiers'
+    approach) go until this one is in the sure radius; the use itself fires as soon as any of
+    ``hostiles`` is (``_threat_in_reach``, owner 2026-11-17 Q1)."""
     candidates = [m for m in hostiles if m.hostile and m.race_id != target]
     if not candidates:
         return None

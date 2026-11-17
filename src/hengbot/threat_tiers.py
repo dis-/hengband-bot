@@ -483,6 +483,19 @@ def cannot_win(assessment, hp: int) -> bool:
             and bounds is not None and bounds[0] >= hp)
 
 
+def alone_t1(policy, snapshot, monster, *, raw: bool = False, contact: bool = False) -> bool:
+    """``monster`` on its own cannot be won against (``cannot_win``: T1, or the cost-capped
+    reading whose damage lower bound reaches the HP, owner 2026-11-08 「勝てないと分かれば離脱」).
+
+    The one reader of "is this one monster T1 alone"; its two axes are named: ``raw`` reads
+    ``assess`` (no decided side held, sent_away_t1's 11-16 reading) instead of ``tiered``;
+    ``contact`` judges it as already beside the player (a far or sensed monster, as the sensed
+    T1 rules read one)."""
+    reading = (assess(policy, snapshot, [monster], contact=contact) if raw
+               else tiered(policy, snapshot, [monster], contact=contact))
+    return cannot_win(reading, snapshot.player.hp)
+
+
 def sensed_t1_leave_key(policy, snapshot) -> str | None:
     """Owner 2026-11-08 (question 「感知で、起きている強い敵（倒しきれない段階の敵）が見えている時に
     休みますか？」, answer 「その敵の感知範囲内なら早急に離脱する」): an awake hostile, in view or
@@ -698,7 +711,7 @@ def on_the_way(policy, snapshot, targets) -> list:
 def destruction_leaving(policy, snapshot, targets) -> list:
     """The hostiles the approach's *Destruction* leaves (destruction_use ``key``'s ``leaving``):
     with a strong monster met on the way (``on_the_way``), it and the targets inside the sure
-    radius (``_threat_in_reach`` asks whether the worst of them is in it); else the targets."""
+    radius (``_threat_in_reach`` asks whether any of them is in it); else the targets."""
     met = on_the_way(policy, snapshot, targets)
     if not met:
         return list(targets)
