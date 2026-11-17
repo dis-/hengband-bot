@@ -15,7 +15,10 @@ deep_teleport governs -- is offered only
 * on the 即死 board (threat_tiers.instant_death of the engagement, design 3.1), or
 * when the engagement's monsters with a line of fire are T1 by
   themselves on this board: ``threat_tiers.assess`` of them, the raw reading, never the decided
-  side the tier memory holds (the memory's group T1 is what read the scrolls at full HP);
+  side the tier memory holds (the memory's group T1 is what read the scrolls at full HP), as
+  threat_tiers ``cannot_win`` reads T1 (an undecided tier whose damage lower bound reaches the HP
+  counts, owner 2026-11-08 「勝てないと分かれば離脱」; owner 2026-11-17 maintainability review Q6
+  「含める」: until then only ``tier == T1``);
 
   the line of fire is the danger reading (policy ``_monster_in_line_of_fire``: an awake monster
   does not see an unknown grid as a wall, as deep_teleport ``fire_p95`` reads it since 11-15),
@@ -54,7 +57,8 @@ def _t1_in_fire(policy, snapshot, hostiles) -> bool:
     from hengbot import threat_tiers  # import cycle
 
     in_fire = [monster for monster in hostiles if policy._monster_in_line_of_fire(snapshot, monster)]
-    return bool(in_fire) and threat_tiers.assess(policy, snapshot, in_fire).tier == threat_tiers.T1
+    return bool(in_fire) and threat_tiers.cannot_win(threat_tiers.assess(policy, snapshot, in_fire),
+                                                     snapshot.player.hp)
 
 
 def withheld(policy, snapshot) -> bool:
