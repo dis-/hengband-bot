@@ -20240,7 +20240,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "The walk to the committed clean place (destruction-loot:place) while it still serves; None drops it."
+    "evidence": "The walk to the committed clean place (destruction-loot:place) while it still serves; None drops it. With no place committed, the committed fetch (_committed_fetch)."
   },
   "destruction_loot.py:_new_place": {
     "classification": "producer",
@@ -20265,6 +20265,18 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "With no hostile in view, the nearest valuable pile inside the worst radius: walked to (destruction-loot:fetch) and picked up underfoot through _current_floor_item_key (destruction-loot:pickup)."
+  },
+  "destruction_loot.py:_committed_fetch": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by threat_tiers (the approach, the sleeping or out-of-radius T1 use) and retreat_enclosure.route_veto_sealed_key right before destruction_use.key, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "n1-c life-216 Glass castle 59F loop (2026-11-17): on a board where the use is not due, the fetch begun where it was due goes on (destruction-loot:fetch / :pickup) for the piles a use at that cell may delete, while a leaving hostile is shown and the approach gates hold; else the commitment drops and None."
   },
   "explored_floor.py:recall_key": {
     "classification": "producer",

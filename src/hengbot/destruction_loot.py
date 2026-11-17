@@ -27,8 +27,15 @@ The order, asked where the use is due (``key``, before destruction_use ``key``):
 2. Else the nearest such place within ``PLACE_MAX_DISTANCE`` of the player, with no awake hostile
    in view: committed and walked to.
 3. Else, with no hostile in view, the nearest valuable pile (``VALUABLE_TVALS``) inside the worst
-   radius: walked to and picked up.
+   radius: walked to and picked up, the cell committed (``MEMORY`` "fetch").
 4. Else None: the use is made as before.
+
+The fetch goes on where the use is not due as well (``_committed``): the piles a use at the
+committed cell may delete are fetched one after another while a hostile the use leaves is still
+shown, the approach's gates hold and no hostile is in view.  n1-c life-216 (Glass castle 59F,
+2026-11-17 18:40-18:41, loop-detected): at (37,37) the sensed ブルー・デイドラゴン (35,49) was 13
+off, the use due, and the fetch stepped west toward the potions at (42,24); at (37,36) it was 14
+off, the use not due, and the approach stepped back east: 40 alternations until the loop detector.
 
 Every scene is bounded: ``DECISIONS_MAX`` decisions of this module per floor between two flashes
 (a flash resets it), and a pile the pickup did not take is not gone to again on the floor; past
@@ -59,14 +66,16 @@ JUNK_TVALS = UNWANTED_TVALS | {1, 3, 10}
 PLACE_MAX_DISTANCE = 8
 # This module's decisions on a floor between two flashes before the use goes ahead regardless.
 DECISIONS_MAX = 40
-# {"floor": floor_key, "place": Position | None, "decisions": int, "tried": set of Position}
+# {"floor": floor_key, "place": Position | None, "fetch": Position | None (the cell the fetch
+#  began on, where the use was due), "decisions": int, "tried": set of Position}
 MEMORY = "_destruction_loot_memory"
 
 
 def _memory(policy, snapshot) -> dict:
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.get("floor") != snapshot.floor_key:
-        memory = {"floor": snapshot.floor_key, "place": None, "decisions": 0, "tried": set()}
+        memory = {"floor": snapshot.floor_key, "place": None, "fetch": None, "decisions": 0,
+                  "tried": set()}
         setattr(policy, MEMORY, memory)
     return memory
 
@@ -76,6 +85,7 @@ def observe(policy, snapshot) -> None:
     memory = getattr(policy, MEMORY, None)
     if memory is not None and any(message in destruction_use.FLASH for message in snapshot.messages):
         memory["place"] = None
+        memory["fetch"] = None
         memory["decisions"] = 0
 
 
@@ -139,10 +149,13 @@ def key(policy, snapshot, leaving) -> str | None:
 
 
 def _committed(policy, snapshot, leaving) -> str | None:
-    """The walk to the committed place, while it still serves (``MEMORY``)."""
+    """The walk to the committed place, while it still serves (``MEMORY``); else the walk to the
+    committed pile and its pickup (``_committed_fetch``)."""
     memory = getattr(policy, MEMORY, None)
-    if memory is None or memory.get("floor") != snapshot.floor_key or memory.get("place") is None:
+    if memory is None or memory.get("floor") != snapshot.floor_key:
         return None
+    if memory.get("place") is None:
+        return _committed_fetch(policy, snapshot, leaving)
     place = memory["place"]
     shown = _shown_leaving(snapshot, leaving)
     if (memory["decisions"] >= DECISIONS_MAX or not shown or not _place(policy, snapshot, place, shown)
@@ -176,12 +189,36 @@ def _new_place(policy, snapshot, leaving) -> str | None:
     return policy._step_toward(snapshot, step)
 
 
-def _fetch(policy, snapshot) -> str | None:
-    if _in_view(snapshot, awake_only=False):
+def _committed_fetch(policy, snapshot, leaving) -> str | None:
+    """The fetch on a board where the use is not due (``key``'s first test): the piles a use at
+    the committed cell (``MEMORY`` "fetch", where the use was due when the fetch began) may
+    delete are walked to and picked up one after another, while a hostile the use leaves is
+    still shown and the approach's gates hold; else the commitment is dropped and None (n1-c
+    life-216, the module docstring)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory.get("fetch") is None:
         return None
+    if (memory["decisions"] >= DECISIONS_MAX or not _shown_leaving(snapshot, leaving)
+            or not destruction_use.approach_gates(policy, snapshot)):
+        memory["fetch"] = None
+        return None
+    answer = _fetch(policy, snapshot, memory["fetch"])
+    if answer is not None:
+        memory["decisions"] += 1
+    return answer
+
+
+def _fetch(policy, snapshot, centre=None) -> str | None:
+    """The step toward (or the pickup of) the nearest untried valuable pile a use at ``centre``
+    (the player's cell by default, where the use is due) may delete; ``centre`` is committed
+    (``MEMORY`` "fetch") while such a pile is left, else dropped and None."""
     memory = _memory(policy, snapshot)
     here = snapshot.player.position
-    piles = {position for position in exposed(policy, snapshot)
+    centre = here if centre is None else centre
+    memory["fetch"] = None
+    if _in_view(snapshot, awake_only=False):
+        return None
+    piles = {position for position in exposed(policy, snapshot, centre)
              if position not in memory["tried"] and _valuable(snapshot, position)}
     if not piles:
         return None
@@ -192,6 +229,7 @@ def _fetch(policy, snapshot) -> str | None:
             # Taken now, or refused (a full pack, a pile the budget refuses): not gone to again.
             memory["tried"].add(here)
         if pickup is not None:
+            memory["fetch"] = centre
             return pickup
         piles.discard(here)
         if not piles:
@@ -199,5 +237,6 @@ def _fetch(policy, snapshot) -> str | None:
     found = policy._nearest_goal_and_step(snapshot, lambda grid: grid.position in piles)
     if found is None:
         return None
+    memory["fetch"] = centre
     policy.last_reason = FETCH_REASON
     return policy._step_toward(snapshot, found[1])
