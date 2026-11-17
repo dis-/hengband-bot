@@ -20244,6 +20244,40 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-17 (50F+ efficiency study 1st) 「適当な閾値を決めて、探索が済んだら帰還する」: the map grew less than 0.5% over the last 300 explore decisions with no remembered item to fetch, or nothing is left to explore: the return starts (explored-dead-end-floor) and _return_to_town_key reads Word of Recall (return:recall)."
   },
+  "floor_identify.py:key": {
+    "classification": "producer",
+    "rows": [
+      "identification",
+      "loot-exploration"
+    ],
+    "context": "Dungeon floors only: the pile underfoot of _current_floor_item_key (in_town refused).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-17 「今のまま取りに行き、床の上で鑑定」: a single-object pile of one plain unidentified weapon or armour is identified on the floor ('-' takes the one floor item, floor-item-getter.cpp) so the pick rules destroy it there (loot:identify-floor-item); asked once per cell per floor visit."
+  },
+  "floor_identify.py:_source_key": {
+    "classification": "producer",
+    "rows": [
+      "identification"
+    ],
+    "context": "Dungeon floors only: the pile underfoot of _current_floor_item_key (in_town refused).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The identify use with the floor choice: the absorbed Identify power + '-', else the carried staff, rod or scroll with '-' (as _floor_item_identify_key)."
+  },
+  "floor_identify.py:_tried": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon floors only: the pile underfoot of _current_floor_item_key (in_town refused).",
+    "evidence": "pure helper: the cells a floor identify was posted on this floor visit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_supply.py:SupplyMixin._nearest_goal_and_step": {
     "classification": "data",
     "rows": [

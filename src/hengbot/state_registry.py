@@ -271,6 +271,9 @@ REGISTRY = (
     # explored_floor
     S("_explored_floor_window", "explored_floor", FLOOR,
       "the known map's size at the floor's last explore decisions (the growth window)"),
+    # floor_identify
+    S("_floor_identify_tried", "floor_identify", FLOOR,
+      "the cells a floor identify was posted on this floor visit (asked once each)"),
     # fled_floor_stairs
     S("_fled_floor_pending", "fled_floor_stairs", FLOOR,
       "fled_floor_stairs: fled floor pending (no comment at its definition)"),

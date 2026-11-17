@@ -72,6 +72,7 @@ VISIT_MEMORIES = (
     ("_explored_floor_window", None, "explored_floor"),
     ("_destruction_loot_memory", None, "destruction_loot"),
     ("_recall_wait_clock", None, "recall_wait_reach"),
+    ("_floor_identify_tried", None, "floor_identify"),
 )
 
 # The memories that keep the floor key on purpose, or that the floor change forgets already

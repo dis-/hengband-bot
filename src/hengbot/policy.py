@@ -16,7 +16,7 @@ from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, hero
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
-from hengbot import amberite_curse, curse_cure, me_capped_pickup, me_inn_refill
+from hengbot import amberite_curse, curse_cure, floor_identify, me_capped_pickup, me_inn_refill
 
 from collections import Counter, deque
 import random
@@ -13167,6 +13167,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         destroy = me_capped_pickup.destroy_key(self, snapshot)
         if destroy is not None:
             return destroy
+        # Owner 2026-11-17 「今のまま取りに行き、床の上で鑑定」: a plain unidentified weapon or
+        # armour is identified where it lies; the pick rules destroy it there (floor_identify).
+        identify = floor_identify.key(self, snapshot)
+        if identify is not None:
+            return identify
         if len(snapshot.inventory) >= PACK_CAPACITY:
             return None
         here = snapshot.grid_at(snapshot.player.position)

@@ -29,6 +29,7 @@ CUTS = {
     "deadend-up.jsonl": ("deep-efficiency-1117-explored-floor.jsonl.gz", 5555750, 5555864),
     "dl-5162719.jsonl": ("deep-efficiency-1117-destruction-loot.jsonl.gz", 5162650, 5162719),
     "recall-wait.jsonl": ("deep-efficiency-1117-recall-wait.jsonl.gz", 0, 5663864),
+    "floor-identify.jsonl": ("deep-efficiency-1117-floor-identify.jsonl.gz", 5629080, 5629130),
 }
 
 
