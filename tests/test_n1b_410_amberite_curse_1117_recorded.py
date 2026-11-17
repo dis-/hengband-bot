@@ -147,11 +147,13 @@ class ResistCursePathTest(unittest.TestCase):
         self.assertEqual(amberite_curse.report(policy)["verdict"], amberite_curse.PERMITTED)
 
     def test_another_awake_enemy_refuses_the_strike(self):
-        """#17763's board: the dracolisk is awake."""
+        """#17763's board: the dracolisk is awake.  Since owner 2026-11-18 「条件がそろうまで
+        *破壊* で消す」 the T1 rules' *Destruction* answers before any strike is decided
+        (tests/test_amberite_unmet_destruction_1118_recorded.py)."""
         policy, snapshot = restored("next_board", curse=True, bar=True)
         key = policy.choose_key(snapshot)
         self.assertEqual(amberite_curse.struck(policy, snapshot, key), [])
-        self.assertEqual(amberite_curse.report(policy)["verdict"], amberite_curse.OTHER_AWAKE)
+        self.assertTrue(policy.last_reason.startswith(destruction_use.REASON), policy.last_reason)
 
     def test_low_hp_refuses_the_strike(self):
         policy, snapshot = restored(curse=True, bar=True, hp=500)

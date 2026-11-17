@@ -911,7 +911,8 @@ def decided(policy, snapshot, hostiles, raw: Assessment) -> Assessment:
     known = [entry for entry in entries if entry is not None]
     # A withheld T2 (``fear_cover.withheld``) is a hard override too: its margin is the winning
     # plan's, which the band would read as T2 (owner 2026-11-11 「T2 にしない」).
-    # So is an Amberite's T1 without resist curse (amberite_curse.t1_amberites, owner 2026-11-17).
+    # So is an Amberite's T1 while its kill's conditions are unmet (amberite_curse.t1_amberites,
+    # owner 2026-11-17 and 2026-11-18).
     overridden = (raw.instant_death or bool(raw.t2_withheld) or bool(raw.amberite_t1)
                   or supply_fight_stopped(snapshot, hostiles))
     # The projection missed (owner 2026-11-12): the reading of the observed damage is taken
