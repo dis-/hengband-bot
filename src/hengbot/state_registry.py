@@ -265,6 +265,9 @@ REGISTRY = (
     # esp_tier_hold
     S("_esp_tier_hold", "esp_tier_hold", FLOOR,
       "The rest slot's ESP tier decided first on this floor (esp_tier_hold)."),
+    # explored_floor
+    S("_explored_floor_window", "explored_floor", FLOOR,
+      "the known map's size at the floor's last explore decisions (the growth window)"),
     # fled_floor_stairs
     S("_fled_floor_pending", "fled_floor_stairs", FLOOR,
       "fled_floor_stairs: fled floor pending (no comment at its definition)"),
