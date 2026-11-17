@@ -47,6 +47,7 @@ from hengbot.policy_constants import (
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_KIT_MARGIN,
     FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT,
+    MINING_ABORT_REASON_PREFIX,
     MINING_ABORT_UNIQUE_RACE_IDS,
     MINING_COMBAT_CONTACT_LIMIT,
     MINING_DETECTION_RADIUS,
@@ -702,7 +703,7 @@ class FundraisingMixin:
             return None
         key = self._leave_fundraising_floor(snapshot)
         exit_reason = self.last_reason.removeprefix("fundraise:")
-        self.last_reason = f"fundraise:abort-unbeatable-unique:{exit_reason}"
+        self.last_reason = f"{MINING_ABORT_REASON_PREFIX}:{exit_reason}"
         return key
 
     def _mining_abort_latched(self, snapshot: Snapshot) -> bool:
@@ -735,7 +736,7 @@ class FundraisingMixin:
             return None
         player = snapshot.player
         here = snapshot.grid_at(player.position)
-        prefix = "fundraise:abort-unbeatable-unique"
+        prefix = MINING_ABORT_REASON_PREFIX
         if here is not None and self._is_upstairs_target(here):
             self.last_reason = f"{prefix}:ascend"
             self._offer_execution(
