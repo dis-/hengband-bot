@@ -48,6 +48,7 @@ class BmTour:
     origin: int | None = None  # the town the return came to
     seen: list[int] = field(default_factory=list)  # towns whose Black Market had its turn
     target: int | None = None  # the town the inn leg goes to
+    arrived: list[int] = field(default_factory=list)  # towns a leg of the tour reached
     closed: str | None = None  # why the tour ended
 
 
@@ -70,6 +71,19 @@ def observe(policy: Any, snapshot: Any) -> None:
         return
     if tour.closed is not None:
         return
+    if snapshot.in_town:
+        town = policy._effective_town_id(snapshot)
+        if tour.target is not None and town == tour.target:
+            tour.arrived.append(town)
+            tour.target = None
+        elif (tour.target is None and tour.arrived and town != tour.arrived[-1]
+              and tour.arrived[-1] not in tour.seen):
+            # The tour reached that town and was taken away before its read point
+            # (n1-c life-216 2026-11-17 17:2x: the fixed-quest return sent each arrival
+            # in Telmora back to the Outpost, 1,000 gold a round, until loop-detected).
+            # Another fare to it buys nothing: the tour ends and the read goes on.
+            _close(tour, f"left-before-seen-{tour.arrived[-1]}")
+            return
     store = snapshot.store
     if store is not None and store.store_type == STORE_BLACK:
         town = policy._effective_town_id(snapshot)
@@ -127,4 +141,5 @@ def facts(policy: Any) -> dict | None:
     if tour is None:
         return None
     return {"return_turn": tour.return_turn, "armed": tour.armed, "origin": tour.origin,
-            "seen": list(tour.seen), "target": tour.target, "closed": tour.closed}
+            "seen": list(tour.seen), "arrived": list(tour.arrived), "target": tour.target,
+            "closed": tour.closed}

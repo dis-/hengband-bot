@@ -4560,6 +4560,10 @@ class QuestMixin(OpeningRouteMixin):
             if (self._morivant_full_identify is not None
                     and self._morivant_full_identify.phase == "travel"):
                 return None
+            # So do the Word of Recall circuit and the Black Market tour
+            # (_cross_town_trip_holds_town; n1-c life-216 2026-11-17 17:28).
+            if self._cross_town_trip_holds_town(snapshot):
+                return None
 
             fixed_quest_candidates = [
                 quest for quest in self._known_fixed_quests(snapshot).values()
