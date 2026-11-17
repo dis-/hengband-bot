@@ -46,6 +46,20 @@ BESIDE_THE_WALL = (20, 88)
 STONE_TO_MUD = (65, 6)
 # The one detected trap between the cross's centre (22,88) and the lower left room's loot (24,86).
 ROOM_TRAP = Position(23, 87)
+# The items detected in the other two rooms, on grids the map does not know: the loot memory holds
+# them since detected_loot (2026-11-17).  DECLARED CONSTRUCTED: these cases keep the lower left
+# room's loot alone (their rows taken out of every board's found items), as the memory held it when
+# they were written.
+OTHER_ROOMS = frozenset({(19, 84), (20, 85), (24, 90), (24, 91), (25, 91), (25, 92)})
+
+
+def _lower_left_room_only(raw):
+    raw = copy.deepcopy(raw)
+    grid_map = raw.get("grid_map") or {}
+    for field in ("found_items", "found_item_names", "found_item_ids"):
+        if field in grid_map:
+            grid_map[field] = [row for row in grid_map[field] if (row[0], row[1]) not in OTHER_ROOMS]
+    return raw
 
 
 class SealedLootMelt1113RecordedTest(recorded.RecordedHarness):
@@ -71,7 +85,7 @@ class SealedLootMelt1113RecordedTest(recorded.RecordedHarness):
         policy.consume_skill_knowledge(self.skill)
         policy._skill_exp_request_key = lambda snapshot: None
         for raw in self.boards[:-1]:
-            key = policy.choose_key(parse_snapshot(copy.deepcopy(raw), self.monrace))
+            key = policy.choose_key(parse_snapshot(_lower_left_room_only(raw), self.monrace))
             if key:
                 policy.confirm_key_posted(key)
         if absorbed:
@@ -80,7 +94,7 @@ class SealedLootMelt1113RecordedTest(recorded.RecordedHarness):
         if spent:
             policy._floor_trap_disarm_attempts[(ROOM_TRAP.y, ROOM_TRAP.x)] = CHEST_DISARM_BUDGET
         policy._move_repeat = 0  # the window's own boards never answered its steps
-        raw = copy.deepcopy(self.boards[-1])
+        raw = _lower_left_room_only(self.boards[-1])
         self.assertEqual(raw["turn"], self.live["turn"])
         return policy, raw
 

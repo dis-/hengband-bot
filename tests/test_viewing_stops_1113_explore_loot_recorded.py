@@ -27,7 +27,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from hengbot import loot_frontier
-from hengbot.model import Position, parse_snapshot
+from hengbot.model import Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support import recorded as executor_harness
 from tests.support.recorded import EDIT, _policy
@@ -35,6 +35,9 @@ from tests.support.recorded import EDIT, _policy
 FIXTURE = Path(__file__).with_name("fixtures") / "viewing-stops-1113" / "explore-loot-205.json.xz"
 TRAP_ROOM_LOOT = {Position(39, 84), Position(40, 75), Position(40, 86), Position(40, 88),
                   Position(40, 90), Position(41, 75)}
+# A wand (tval 65) the floor's detection showed on a grid the map does not know: loot since
+# detected_loot (2026-11-17), and nothing closes the way to it, so it steers.
+DETECTED_WAND = Position(27, 182)
 
 
 class ExploreTrapLootRecordedTest(executor_harness.RecordedHarness):
@@ -63,9 +66,12 @@ class ExploreTrapLootRecordedTest(executor_harness.RecordedHarness):
     def test_the_trap_room_loot_is_noted_and_does_not_steer(self):
         board, _key = self.decide_all()
         note = getattr(self.policy, loot_frontier.NOTE)
-        self.assertEqual(set(note[2]), TRAP_ROOM_LOOT)
+        self.assertEqual(set(note[2]), TRAP_ROOM_LOOT | {DETECTED_WAND})
         self.assertGreaterEqual(note[3], loot_frontier.STEER_AFTER_BOARDS)
-        self.assertEqual(loot_frontier.explore_path(self.policy, board, frozenset()), [])
+        # The trap room steers nothing: the frontier chosen is the detected wand's.
+        goal = loot_frontier.explore_path(self.policy, board, frozenset())[-1]
+        self.assertLess(game_distance(goal, DETECTED_WAND),
+                        min(game_distance(goal, loot) for loot in TRAP_ROOM_LOOT))
 
     def test_the_last_board_explores_through_the_executor(self):
         for raw in self.boards[:-1]:
