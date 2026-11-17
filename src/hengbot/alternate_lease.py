@@ -19,10 +19,25 @@ the next switch or conquest.  A conquest target whose landing may be taken keeps
   lease and counts again from 0.  A new conquest forgets the lease (the switch ends anyway).
 - Only finished normal dives of the alternate count (``dive_ended``).
 - The lease and its dives are carried across restarts by ``alternate_dungeon_record``.
+
+Owner 2026-11-17 (verbatim): 「深さの決定について。定期的に一番深い鉄獄にチャレンジするようにしたい」,
+and asked how often, 「町に戻るたびに条件を見て挑む」.  Once a switch was made nothing ended it when
+Angband became a landing the character may take again (castle-climb-1117: n1-a's Castle band).
+``challenge`` is that check, on the town board a dive ends on, before this board's valves: when
+Angband at its recall depth passes every landing check (``angband_qualifies``: the same filter as
+the deepest destination of C5 -- the cumulative depth requirements with the *Destruction* means and
+telepathy from 50F and the 81F speed gate, the guardian floor and P3's T1 bottom floor, the fallback
+depth floor -- and the Q2 hold), the held alternate dungeon is dropped (its dives, the
+Castle/Mountain dive or climb) and the ordinary selection takes Angband.  Owner 2026-11-18: not
+while an over-extension switch's lease runs (「潜りすぎの期限の間は鉄獄に挑まない」; after it ends,
+``settle``, every return checks again) nor while a conquest target with a beatable guardian waits
+(「制覇できる守護者がいれば制覇が先」).  Angband already held as the alternate is left as it is.
+When Angband does not qualify nothing changes.  The drop is no over-extension evidence: the streaks,
+the over-extended depth and the lease length stay.
 """
 from __future__ import annotations
 
-from hengbot import fallback_depth_floor
+from hengbot import dive_floor, fallback_depth_floor, random_quest_hold
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE
 
@@ -82,14 +97,7 @@ def deepest_destination(policy, snapshot) -> int | None:
     if snapshot.angband_recall_unlocked and DUNGEON_ANGBAND not in candidates:
         candidates.append(DUNGEON_ANGBAND)
     for did in candidates:
-        info = policy._dungeon_knowledge.get(did)
-        if (info is None or not exploration_destination_allowed(did)
-                or did in (DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE)
-                or (did == DUNGEON_ANGBAND and not snapshot.angband_recall_unlocked)
-                or not policy._can_fight_in_dungeon(did)
-                or (did in snapshot.conquered_dungeon_ids
-                    and {"MAZE", "FORGET"}.issubset(info.flags))
-                or not policy._recall_destination_safe(snapshot, did)):
+        if not _destination_takeable(policy, snapshot, did):
             continue
         depth = policy._dungeon_entry_depth(snapshot, did, via_recall=True)
         if depth > best_depth or (depth == best_depth and did < best):
@@ -97,6 +105,56 @@ def deepest_destination(policy, snapshot) -> int | None:
     if best is None or not fallback_depth_floor.landing_allowed(policy, snapshot, best_depth):
         return None
     return best
+
+
+def _destination_takeable(policy, snapshot, did) -> bool:
+    """``did``'s recall landing passes every landing check but the fallback depth floor."""
+    info = policy._dungeon_knowledge.get(did)
+    return not (info is None or not exploration_destination_allowed(did)
+                or did in (DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE)
+                or (did == DUNGEON_ANGBAND and not snapshot.angband_recall_unlocked)
+                or not policy._can_fight_in_dungeon(did)
+                or (did in snapshot.conquered_dungeon_ids
+                    and {"MAZE", "FORGET"}.issubset(info.flags))
+                or not policy._recall_destination_safe(snapshot, did))
+
+
+def angband_qualifies(policy, snapshot) -> bool:
+    """Angband at its recall depth is a landing this character may take now (owner 2026-11-17).
+
+    The deepest destination's filter (``_destination_takeable``: ``_recall_destination_safe``
+    reads the cumulative depth requirements, the 50F *Destruction* means, the 81F speed gate and
+    the blocked guardian floors), the fallback depth floor on the landing, and the Q2 hold."""
+    if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND):
+        return False
+    if not _destination_takeable(policy, snapshot, DUNGEON_ANGBAND):
+        return False
+    return fallback_depth_floor.landing_allowed(
+        policy, snapshot, fallback_depth_floor.landing_depth(policy, snapshot, DUNGEON_ANGBAND))
+
+
+def _challengeable_alternate(policy, snapshot) -> bool:
+    """An alternate dungeon other than Angband is held that the challenge may drop: no lease of an
+    over-extension switch is running (owner 2026-11-18 「潜りすぎの期限の間は鉄獄に挑まない」) and no
+    conquest target with a beatable guardian waits (「制覇できる守護者がいれば制覇が先」).  Angband
+    held as the alternate is Angband already and keeps its reason and lease."""
+    alternate = policy._alternate_dungeon
+    return (alternate is not None and alternate != DUNGEON_ANGBAND and not _leased(policy)
+            and policy._conquest_target(snapshot) is None)
+
+
+def challenge(policy, snapshot) -> bool:
+    """On the town board a dive ends on: go back to Angband when it qualifies (owner 2026-11-17
+    「町に戻るたびに条件を見て挑む」).  True when the held alternate was dropped; the ordinary
+    selection then takes Angband (its recall is open and no conquest target waits)."""
+    if (not snapshot.in_town or not _challengeable_alternate(policy, snapshot)
+            or not angband_qualifies(policy, snapshot)):
+        return False
+    policy._alternate_dungeon = None
+    policy._alternate_dungeon_reason = None
+    policy._alternate_dives = 0
+    setattr(policy, dive_floor.STATE, None)
+    return True
 
 
 def settle(policy, snapshot) -> bool:

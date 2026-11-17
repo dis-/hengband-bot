@@ -68,9 +68,11 @@ class FallbackDepthFloorRecordedTest(FallbackDepthFloorVisit):
         # Unfixed: the Orc cave 23F stays the target for the lease's last 21 dives.
         self.assertIsNone(policy._alternate_dungeon)
         # The switch ended as a finished lease ends (C5): the conquest target whose landing
-        # may be taken, dungeon 20's 60.
+        # may be taken.  Dungeon 20 (the Glass castle) has no final guardian and is no conquest
+        # target (owner 2026-11-18); the Mountain's guardian is the one beatable here.
+        self.assertEqual(policy._dungeon_knowledge[DUNGEON_20].guardian_id, 0)
         self.assertEqual((policy._target_dungeon_id, policy._target_dungeon_reason),
-                         (DUNGEON_20, "conquest"))
+                         (MOUNTAIN, "conquest"))
 
     def test_the_over_extended_mountain_takes_no_landing_under_sixty(self):
         """The valve's question at the Mountain 50F: nothing below 50 is at 60 or deeper, so no

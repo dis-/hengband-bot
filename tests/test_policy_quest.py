@@ -9848,18 +9848,30 @@ class DungeonConquestTest(unittest.TestCase):
     resistance limit for the final guardian's gear, and collect that drop before
     recalling out."""
 
+    # A dungeon without a final guardian is no conquest target (owner 2026-11-18, the Glass
+    # castle): the conquerable dungeons here carry a weak stand-in guardian.
+    WEAK_GUARDIAN = 9001
+
     def _dk(self):
+        weak = self.WEAK_GUARDIAN
         return {
             1: DungeonInfo(1, "Angband", 1, 127, 30),
             2: DungeonInfo(2, "Galgals", 1, 13, 1),
-            3: DungeonInfo(3, "Orc Cave", 10, 22, 5),
-            4: DungeonInfo(4, "Labyrinth", 10, 18, 1),
-            7: DungeonInfo(7, "Forest", 15, 32, 5),
-            14: DungeonInfo(14, "Mountain", 25, 45, 20),
+            3: DungeonInfo(3, "Orc Cave", 10, 22, 5, guardian_id=weak),
+            4: DungeonInfo(4, "Labyrinth", 10, 18, 1, guardian_id=weak),
+            7: DungeonInfo(7, "Forest", 15, 32, 5, guardian_id=weak),
+            14: DungeonInfo(14, "Mountain", 25, 45, 20, guardian_id=weak),
         }
 
+    @classmethod
+    def _weak_guardian_knowledge(cls):
+        return {cls.WEAK_GUARDIAN: replace(
+            cls._minotaur_knowledge(), max_hp=5, average_hp=5, speed=110, level=1,
+            max_melee_damage=1, flags=frozenset(), blows=(MonsterBlow("HIT", "HURT", 1, 1),))}
+
     def _policy(self):
-        return HengbotPolicy(dungeon_knowledge=self._dk())
+        return HengbotPolicy(dungeon_knowledge=self._dk(),
+                             monrace_knowledge=self._weak_guardian_knowledge())
 
     def _snap(self, abilities, *, conquered=(), clvl=26):
         return Snapshot(
@@ -9934,7 +9946,8 @@ class DungeonConquestTest(unittest.TestCase):
         knowledge[4] = replace(knowledge[4], guardian_id=1034)
         return HengbotPolicy(
             dungeon_knowledge=knowledge,
-            monrace_knowledge={1034: self._minotaur_knowledge()},
+            monrace_knowledge={**self._weak_guardian_knowledge(),
+                               1034: self._minotaur_knowledge()},
         )
 
     def _yeek_guardian_policy(self):
@@ -9951,7 +9964,7 @@ class DungeonConquestTest(unittest.TestCase):
         )
         policy = HengbotPolicy(
             dungeon_knowledge=knowledge,
-            monrace_knowledge={237: guardian},
+            monrace_knowledge={**self._weak_guardian_knowledge(), 237: guardian},
         )
         set_completed_equipment_optimization(policy)
         return policy
@@ -10007,12 +10020,28 @@ class DungeonConquestTest(unittest.TestCase):
 
     def test_targets_deepest_conquerable_unconquered_dungeon(self):
         # limit 30 -> Orc Cave (maxDepth 22) is the deepest clearable; Forest(32) /
-        # Mountain(45) exceed the resistance limit.
-        self.assertEqual(self._policy()._conquest_target(self._snap(self.ALL_2530)), 3)
+        # Mountain(45) exceed the resistance limit.  The guardian fight itself is the
+        # projection's (tested below); here only the depth ordering is asked.
+        pol = self._policy()
+        with patch.object(pol, "_guardian_fight_viable", return_value=True):
+            self.assertEqual(pol._conquest_target(self._snap(self.ALL_2530)), 3)
 
     def test_steps_to_the_next_after_the_deepest_is_conquered(self):
         pol = self._policy()
-        self.assertEqual(pol._conquest_target(self._snap(self.ALL_2530, conquered=(3,))), 4)
+        with patch.object(pol, "_guardian_fight_viable", return_value=True):
+            self.assertEqual(
+                pol._conquest_target(self._snap(self.ALL_2530, conquered=(3,))), 4)
+
+    def test_a_dungeon_without_a_guardian_is_no_conquest_target(self):
+        # Owner 2026-11-18 「ガラスの城にはガーディアンがいないが考慮されているか？」.
+        pol = self._policy()
+        knowledge = dict(pol._dungeon_knowledge)
+        knowledge[3] = replace(knowledge[3], guardian_id=0)
+        pol._dungeon_knowledge = knowledge
+        pol._conquest_committed = 3
+        with patch.object(pol, "_guardian_fight_viable", return_value=True):
+            self.assertEqual(pol._conquest_target(self._snap(self.ALL_2530)), 4)
+        self.assertEqual(pol._conquest_committed, 4)
 
     def test_does_not_target_labyrinth_without_a_viable_guardian_kit(self):
         policy = self._guardian_policy()
@@ -10388,7 +10417,8 @@ class DungeonConquestTest(unittest.TestCase):
         # Labyrinth (4) is already done, so Orc Cave (3, max_depth 22) is the
         # only dungeon within the resistance limit (30) and becomes committed.
         committed_snap = self._snap(self.ALL_2530, conquered=(4,))
-        self.assertEqual(policy._conquest_target(committed_snap), 3)
+        with patch.object(policy, "_guardian_fight_viable", return_value=True):
+            self.assertEqual(policy._conquest_target(committed_snap), 3)
 
         # Losing conf/fire resistance drops the limit to 19: Orc Cave's
         # max_depth (22) now exceeds it -- a hard unviability, not a consumable

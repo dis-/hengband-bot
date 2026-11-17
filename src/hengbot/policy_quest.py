@@ -6173,8 +6173,8 @@ class QuestMixin(OpeningRouteMixin):
         # projection succeed while held), so re-deriving from scratch every observe
         # made the recall destination churn as potions were bought/used/stashed.
         # The latch only breaks on a STRUCTURAL change -- conquered, a resistance
-        # regression past its max_depth, or it dropping out of the known/entered
-        # set -- never on consumable possession.
+        # regression past its max_depth, no final guardian, or it dropping out of the
+        # known/entered set -- never on consumable possession.
         limit = self._resistance_depth_limit(snapshot)
         conquered = set(snapshot.conquered_dungeon_ids)
         committed = self._conquest_committed
@@ -6185,6 +6185,7 @@ class QuestMixin(OpeningRouteMixin):
                 or committed == DUNGEON_CHAMELEON_CAVE
                 or committed in conquered
                 or info is None
+                or info.guardian_id <= 0
                 or committed not in snapshot.entered_dungeon_ids
                 or info.max_depth <= 0
                 or info.max_depth > limit
@@ -6201,7 +6202,9 @@ class QuestMixin(OpeningRouteMixin):
                 or not exploration_destination_allowed(did)
                 or did == DUNGEON_CHAMELEON_CAVE
                 or did in conquered
-                or (did == DUNGEON_YEEK_CAVE and info.guardian_id <= 0)
+                # No final guardian (the Glass castle, id 20): nothing to conquer, the game
+                # never marks it conquered (owner 2026-11-18 「ガラスの城にはガーディアンがいない」).
+                or info.guardian_id <= 0
                 or not self._can_fight_in_dungeon(did)
             ):
                 continue
