@@ -1,0 +1,8 @@
+{
+  "_comment": "Known findings recorded 2026-11-17 (maintainability review Q9). Keys are <file>:<function>: <message> with counts, never line numbers. Regenerate only to shrink: python scripts/melee_site_lint.py --write-baseline",
+  "findings": {
+    "arena.py:_power_attack_key: policy._direction_key(here, target.position)": 1,
+    "supply_fight.py:_aim: policy._direction_key(snapshot.player.position, target.position)": 1,
+    "teleport_follower.py:away_key: policy._direction_key(snapshot.player.position, target.position)": 1
+  }
+}
