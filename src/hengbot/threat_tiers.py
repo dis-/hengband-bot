@@ -483,6 +483,19 @@ def cannot_win(assessment, hp: int) -> bool:
             and bounds is not None and bounds[0] >= hp)
 
 
+def alone_t1(policy, snapshot, monster, *, raw: bool = False, contact: bool = False) -> bool:
+    """``monster`` on its own cannot be won against (``cannot_win``: T1, or the cost-capped
+    reading whose damage lower bound reaches the HP, owner 2026-11-08 「勝てないと分かれば離脱」).
+
+    The one reader of "is this one monster T1 alone"; its two axes are named: ``raw`` reads
+    ``assess`` (no decided side held, sent_away_t1's 11-16 reading) instead of ``tiered``;
+    ``contact`` judges it as already beside the player (a far or sensed monster, as the sensed
+    T1 rules read one)."""
+    reading = (assess(policy, snapshot, [monster], contact=contact) if raw
+               else tiered(policy, snapshot, [monster], contact=contact))
+    return cannot_win(reading, snapshot.player.hp)
+
+
 def sensed_t1_leave_key(policy, snapshot) -> str | None:
     """Owner 2026-11-08 (question 「感知で、起きている強い敵（倒しきれない段階の敵）が見えている時に
     休みますか？」, answer 「その敵の感知範囲内なら早急に離脱する」): an awake hostile, in view or
@@ -678,16 +691,16 @@ def on_the_way(policy, snapshot, targets) -> list:
     混沌の王族 (T2 alone: supplies win, a reward race) closed from 17 to
     5 cells beside the dug pocket and was in no rung's *Destruction* set.  Now such a monster in
     the sure radius is destroyed first, with every target the same circle covers.  Spared as
-    destruction_use spares them: the floor's guardian and the active quest's target."""
+    destruction_use spares them (``spares``: the active quest's target, and the floor's guardian
+    unless it is T1 alone, owner 2026-11-17 Q3)."""
     here = snapshot.player.position
     radius = destruction_use.GUARANTEED_RADIUS
     walked_to = {(monster.index, monster.race_id) for monster in targets}
-    spared = {destruction_use._guardian_race(policy, snapshot),
-              destruction_use._target_race(policy, snapshot)}
     met = []
     for monster in engagement(policy, snapshot):
         if ((monster.index, monster.race_id) in walked_to
-                or monster.race_id in spared or game_distance(here, monster.position) > radius):
+                or game_distance(here, monster.position) > radius
+                or destruction_use.spares(policy, snapshot, monster)):
             continue
         reading = tiered(policy, snapshot, [monster], contact=True)
         if reading.tier in STRONG_ON_THE_WAY or cannot_win(reading, snapshot.player.hp):
@@ -698,7 +711,7 @@ def on_the_way(policy, snapshot, targets) -> list:
 def destruction_leaving(policy, snapshot, targets) -> list:
     """The hostiles the approach's *Destruction* leaves (destruction_use ``key``'s ``leaving``):
     with a strong monster met on the way (``on_the_way``), it and the targets inside the sure
-    radius (``_threat_in_reach`` asks whether the worst of them is in it); else the targets."""
+    radius (``_threat_in_reach`` asks whether any of them is in it); else the targets."""
     met = on_the_way(policy, snapshot, targets)
     if not met:
         return list(targets)
@@ -731,9 +744,7 @@ def _approach_targets(policy, snapshot, strong) -> list:
     if (not destruction_use._clear_headed(snapshot.player)
             or not destruction_use._floor_destroyed(policy, snapshot)):
         return []
-    spared = {destruction_use._guardian_race(policy, snapshot),
-              destruction_use._target_race(policy, snapshot)}
-    return [monster for monster in strong if monster.race_id not in spared]
+    return [monster for monster in strong if not destruction_use.spares(policy, snapshot, monster)]
 
 
 def approach_subject(policy, snapshot, targets):
@@ -799,8 +810,9 @@ def approach_key(policy, snapshot, strong) -> str | None:
     charge, ``holds_means``); the use is destruction_use's ``key`` with the T1s as the
     ``leaving`` hostiles, its gates unchanged.  Not here: a T1 in view (the in-view rules
     answer, as before), a floor *Destruction* does not touch, a confused, hallucinating or
-    stunned player, the floor's own guardian (destruction_use spares it: the 11-04 words do
-    not cover it), the active quest's target.  The step is a walk, never an escape
+    stunned player, the floor's own guardian unless it is T1 alone (destruction_use ``spares``:
+    the 11-04 words do not cover it; owner 2026-11-17 Q3 「守護者が T1 なら守護者ごと消してよい」),
+    the active quest's target.  The step is a walk, never an escape
     (reasons.WALK)."""
     targets = _approach_targets(policy, snapshot, strong)
     if not targets:

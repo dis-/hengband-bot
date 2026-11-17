@@ -1518,6 +1518,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:before_teleport_away": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:holds_means": {
     "classification": "data",
     "rows": [
@@ -3744,27 +3751,6 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
-  },
-  "line_of_fire.py:_stops": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "line_of_fire.py:in_fire": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "line_of_fire.py:reaches": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "locked_doors.py:pick_key": {
     "classification": "data",

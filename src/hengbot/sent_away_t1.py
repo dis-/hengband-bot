@@ -58,8 +58,7 @@ class SentAway:
 def _t1(policy, snapshot, monster) -> bool:
     """``monster`` reads T1 on its own (owner 2026-11-16 「飛ばした敵が単独で T1 の時だけ」): the raw
     reading of it alone, never the engagement's nor a held side."""
-    return threat_tiers.cannot_win(threat_tiers.assess(policy, snapshot, [monster]),
-                                   snapshot.player.hp)
+    return threat_tiers.alone_t1(policy, snapshot, monster, raw=True)
 
 
 def vanished(message: str, name: str) -> bool:

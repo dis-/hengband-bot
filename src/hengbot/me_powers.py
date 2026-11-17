@@ -937,10 +937,13 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
 
 
 # Owner 2026-11-16 (the n1-c life-216 question 「勝てない敵が射程内にいて *破壊* も使える時、今は
-# テレポート・アウェイを先に撃っています。どちらを先にしますか？」, answer 「常に *破壊* を先」): the
-# triggers whose Teleport Away leaves its target offer that target to *Destruction* first.
-DESTRUCTION_FIRST_TRIGGERS = frozenset({"unbeatable-in-range"})
-DESTRUCTION_FIRST_SUFFIX = ":before-teleport-away"
+# テレポート・アウェイを先に撃っています。どちらを先にしますか？」, answer 「常に *破壊* を先」),
+# widened 2026-11-17 (Q4 「テレポート・アウェイの全場面に広げる」, but the quest plans): every
+# trigger of a Teleport Away row offers its target to *Destruction* first, but the quest plan's.
+QUEST_PLAN_TRIGGERS = frozenset({"quest-opening-target"})
+DESTRUCTION_FIRST_TRIGGERS = frozenset(
+    name for power in POWERS if power.effect == "teleport-away" for name in power.triggers
+) - QUEST_PLAN_TRIGGERS
 
 
 def _destruction_first(ctx) -> str | None:
@@ -955,8 +958,7 @@ def _destruction_first(ctx) -> str | None:
     of them with the absorbed *Destruction* usable on the same target."""
     from hengbot import destruction_use
 
-    return destruction_use.key(ctx.policy, ctx.snapshot, leaving=[ctx.target_hostile],
-                               suffix=DESTRUCTION_FIRST_SUFFIX)
+    return destruction_use.before_teleport_away(ctx.policy, ctx.snapshot, ctx.target_hostile)
 
 
 def threat_key(policy, snapshot) -> str | None:

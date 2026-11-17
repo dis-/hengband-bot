@@ -52,7 +52,8 @@ monspell_message_base: a monster-to-monster cast is told whenever either side is
 line alone cannot tell them apart.  The caster is the monster the line names, found on the board
 by that name among the monsters in view or sensed (telepathy names a caster out of view: 19:10:23
 シャドウ・ロード was a ``detected_monsters`` row); a cast counts when one of them has
-``line_of_fire.in_fire`` to the player (the game's ``projectable``, the bot's one reader of it).
+``line_of_fire.in_fire`` to the player (the game's ``projectable``, the counting reading of it;
+the danger judgements read policy ``_monster_in_line_of_fire``, owner 2026-11-17 Q5).
 An unseen caster (何か / It, a blind player's sound) or a name no monster on the board carries
 cannot be identified, so it is not counted.  Rules 1 and 2 read every cast as before: rule 2's run
 of unseen casts is its own count (``unseen_run``), and an unseen cast no longer joins rule 3's.

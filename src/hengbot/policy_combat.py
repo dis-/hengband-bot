@@ -4916,8 +4916,10 @@ class CombatMixin:
 
     def _monster_in_line_of_fire(self, snapshot: Snapshot, monster) -> bool:
         """The monster has a line of fire to the player, as the damage estimate reads it (the
-        one reading: ``threat_prediction`` and the 50F+ instant-death judgement, deep_teleport
-        ``fire_p95``, owner 2026-11-15 maintainability review Q5 「被害の見積りと同じにする」).
+        danger reading: ``threat_prediction`` and the 50F+ instant-death judgement, deep_teleport
+        ``fire_p95``, owner 2026-11-15 maintainability review Q5 「被害の見積りと同じにする」; the
+        recall-wait T1 and the Amberites' strike, owner 2026-11-17 Q5 「危険の判定は危険用に揃える」.
+        The escape and summon counts keep line_of_fire.in_fire).
 
         An unknown grid is not a wall (owner 2026-11-08 「未知のマスを壁と見ない」) for an awake
         monster: the remembered line, else projectable() over the known map with the unknown

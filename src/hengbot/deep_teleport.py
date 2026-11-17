@@ -20,12 +20,13 @@ stairs.
 answer is *Destruction* -- destruction_use's ``key`` with the concerned monsters as the hostiles
 it leaves (its sure radius 13, cmd-usestaff.cpp:282 and scroll-read-executor.cpp:342 13 +
 randint0(5); its gates: a clear head, a reliable means with a charge, a floor the game destroys,
-no guardian or hurt quest target in its worst radius) -- else the walk until the concerned
-monster the use asks about (destruction_use ``reach_subject``, the most dangerous from contact)
-is within the sure radius (threat_tiers.approach_key for monsters known by detection alone; the
+no guardian or hurt quest target in its worst radius; any concerned monster within the sure
+radius, owner 2026-11-17 Q1) -- else the walk toward the most dangerous concerned monster from
+contact (destruction_use ``reach_subject``) until one is within the sure radius (threat_tiers.approach_key for monsters known by detection alone; the
 same walk for one in view).  The concerned monsters are the hostiles of the engagement, awake or
 asleep, that hurt from contact (``threat_prediction(contact=True)``, as the tiers judge a far
-monster), but the floor's guardian and the active quest's target, which *Destruction* spares:
+monster), but those *Destruction* spares (destruction_use ``spares``: the active quest's target,
+and the floor's guardian unless it is T1 alone, owner 2026-11-17 Q3):
 the rungs that read the teleport leave sleeping monsters too (a summoner asleep may summon on
 its next move, policy_combat ``_summoner_may_summon_next_turn``; owner 2026-11-07 「強い敵からは
 離れる」 asleep or not; destruction_use ``_threat_in_reach``, owner 2026-11-09 B, awake or asleep).
@@ -226,10 +227,8 @@ def concerned(policy, snapshot) -> list:
     *Destruction* spares (the module docstring)."""
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
-    spared = {destruction_use._guardian_race(policy, snapshot),
-              destruction_use._target_race(policy, snapshot)}
     hostiles = [monster for monster in threat_tiers.engagement(policy, snapshot)
-                if monster.race_id not in spared]
+                if not destruction_use.spares(policy, snapshot, monster)]
     if not hostiles:
         return []
     rows = policy.threat_prediction(snapshot, hostiles, 1, contact=True).get("monsters", ())
@@ -242,14 +241,16 @@ def is_self_teleport_scroll(item) -> bool:
 
 
 def _walk_step(policy, snapshot, targets):
-    """The step toward the nearest grid within the sure radius of the monster the use asks
-    about (destruction_use ``reach_subject``: the most dangerous of ``targets`` from contact,
-    whose place ``usable(leaving=targets)`` tests), else None: under the approach's gates
-    (threat_tiers._approach_targets but its in-view refusal), and none when that monster is in
-    reach already (only the use answers there, and its gates refused it).  A nearer, weaker
-    target inside the radius is no reason to stop short (n1-c life-216, 64F 2026-11-16: the
-    sleeping 白衣の高位修行僧 at 10 held the walk while the use waited for the sleeping
-    ミッド・タイタン at 15, and Recall was read in its place)."""
+    """The step toward the nearest grid within the sure radius of the walk's subject
+    (destruction_use ``reach_subject``: the most dangerous of ``targets`` from contact), else
+    None: under the approach's gates (threat_tiers._approach_targets but its in-view refusal),
+    and none when that monster is in reach already (only the use answers there, and its gates
+    refused it).  A nearer, weaker target inside the radius is no reason to stop short (n1-c
+    life-216, 64F 2026-11-16: the sleeping 白衣の高位修行僧 at 10 held the walk while the use
+    waited for the sleeping ミッド・タイタン at 15, and Recall was read in its place); since owner
+    2026-11-17 Q1 (「脅威のどれか1体が半径13以内なら使う」) the use itself answers there first
+    (``usable(leaving=targets)``: any of them in the radius), so the walk is asked only when the
+    use's other gates refuse it."""
     from hengbot import destruction_use
 
     if (not destruction_use.holds_means(policy, snapshot)

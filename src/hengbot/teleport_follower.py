@@ -235,7 +235,8 @@ def _aim_ready(snapshot) -> bool:
 
 
 def _target(policy, snapshot, chosen):
-    """The follower that hurts most on the next turn (destruction_use's measure)."""
+    """The follower that hurts most on the next turn: the one Teleport Other is aimed at (one
+    aim; *Destruction* asks about every follower in its radius, destruction_use)."""
     here = snapshot.player.position
     return max(chosen, key=lambda monster: (policy._predicted_damage(snapshot, [monster], turns=1),
                                             -here.distance_to(monster.position), -monster.index))
@@ -288,10 +289,17 @@ def away_usable(policy, snapshot) -> bool:
 
 
 def away_key(policy, snapshot, chosen, reason: str = AWAY_REASON) -> str | None:
-    """Teleport Other aimed at the worst of ``chosen`` (adjacent), else None."""
+    """Teleport Other aimed at the worst of ``chosen`` (adjacent), else None.  When one could be
+    aimed, *Destruction* on that target is asked first (destruction_use ``before_teleport_away``,
+    owner 2026-11-17 Q4 「テレポート・アウェイの全場面に広げる」)."""
+    from hengbot import destruction_use
+
     if not chosen or not _aim_ready(snapshot):
         return None
     target = _target(policy, snapshot, chosen)
+    if away_usable(policy, snapshot) and (
+            used := destruction_use.before_teleport_away(policy, snapshot, target)) is not None:
+        return used
     direction = policy._direction_key(snapshot.player.position, target.position)
     absorbed = _absorbed(policy, snapshot)
     if absorbed is not None:

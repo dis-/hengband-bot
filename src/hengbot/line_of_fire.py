@@ -25,6 +25,11 @@ a closed door; glass), the ported reading the spell reach uses.
 Each decision that chooses an escape records, through ``note``, whether any of the enemies it
 weighed has that line (``causes``); an escape no decision noted is judged on the board's awake
 known hostiles that can hurt or summon (``known_causes``).  ``PROOF_REASONS`` count as before.
+
+This is the counting reading (the escape count, summon_response's count).  A judgement of danger
+reads policy ``_monster_in_line_of_fire`` instead (an awake monster does not see an unknown grid
+as a wall: the damage estimate, deep_teleport ``fire_p95``, the recall-wait T1, the Amberites'
+strike), owner 2026-11-17 (maintainability review Q5, verbatim 「危険の判定は危険用に揃える」).
 """
 
 from __future__ import annotations

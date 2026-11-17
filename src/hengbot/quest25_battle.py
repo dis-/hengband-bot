@@ -670,8 +670,10 @@ PACK_SIZE = 3
 
 def _shunned(ctx: _Ctx) -> list:
     """The awake movers no walk goes toward (owner 2026-11-11 「召喚された強敵や T1 の敵の方へは歩かない」,
-    widened 2026-11-12 to every phase, 第0段・第1段 included): one that alone is T1, a summons the
-    phase-2 teleport was read from (``battle.strong``), a pack (``PACK_SIZE`` of a race)."""
+    widened 2026-11-12 to every phase, 第0段・第1段 included): one that alone is T1 (threat_tiers
+    ``alone_t1``: ``cannot_win``, owner 2026-11-17 maintainability review Q6 「含める」; until then
+    only ``tier == "T1"``), a summons the phase-2 teleport was read from (``battle.strong``), a pack
+    (``PACK_SIZE`` of a race)."""
     movers = [monster for monster in ctx.hostiles()
               if not monster.asleep and not monster.can_multiply
               and not quest_plan_base._never_moves(ctx.policy, monster)]
@@ -684,7 +686,7 @@ def _shunned(ctx: _Ctx) -> list:
     shunned = []
     for monster in movers:
         if (counts[monster.race_id] >= PACK_SIZE or monster.race_id in strong
-                or threat_tiers.tiered(ctx.policy, ctx.snapshot, [monster]).tier == "T1"):
+                or threat_tiers.alone_t1(ctx.policy, ctx.snapshot, monster)):
             shunned.append(monster)
     return shunned
 
