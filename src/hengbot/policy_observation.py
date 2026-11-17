@@ -180,6 +180,11 @@ class ObservationMixin:
                 getattr(previous_ledger, "purchase_churn_class_exclusions", ())
             )
             self._town_supplier_stock_observations.clear()
+            # The pages too: the supply ledger reads a seen page as this town's
+            # shelf, and the old town's empty Temple would declare a Word of
+            # Recall stock-out in the town the circuit came to buy it in
+            # (recall_stockout_travel, owner 2026-11-17).
+            self._town_supplier_stock.clear()
         self._observed_town_id = current_town_id
         self._observe_stair_command(snapshot, observation=observation)
         if not snapshot.in_town and snapshot.player.recalling:

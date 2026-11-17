@@ -13720,6 +13720,13 @@
     ],
     "delegation": "no emission; observational data for the quest search's lap"
   },
+  "recall_stockout_travel.py:start": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "recall_wait_teleport.py:withheld.compute": {
     "classification": "data",
     "rows": [

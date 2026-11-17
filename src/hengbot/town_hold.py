@@ -997,6 +997,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         "cross-town",
         ("town:cross-town", R, ENTRANCE),
         ("town:cross-town-shopping-needs-funds", T, EFFECT),
+        # The Word of Recall stock-out's page leaving for the circuit (recall_stockout_travel).
+        ("town:cross-town-recall-stockout", T, EFFECT),
         ("town:morivant", R, ENTRANCE),
         ("town:arena:poster", T, EFFECT),
         ("town:arena:enter", O, FLOOR_CHANGE),
