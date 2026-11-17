@@ -417,12 +417,18 @@ def analyze_repository():
     return findings + check_repository()
 
 
-def main():
+def main(argv=None):
+    import sys
+    import lint_baseline
     findings = analyze_repository()
     for finding in findings:
         print('town-structure-lint: ' + finding)
     print(f'town-structure-lint: {len(findings)} violation(s)')
-    return bool(findings)
+    # 2026-11-17 owner (maintainability review Q9): only findings beyond the recorded
+    # baseline (scripts/town_structure_lint_baseline.json) fail.
+    return lint_baseline.gate('town_structure_lint', 'town-structure-lint', findings,
+                              lambda finding: lint_baseline.line_finding_key(finding, POLICY_ROOT),
+                              argv=sys.argv[1:] if argv is None else argv)
 
 
 if __name__ == '__main__':
