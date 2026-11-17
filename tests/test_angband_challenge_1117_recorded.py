@@ -1,15 +1,17 @@
-"""Owner 2026-11-17: every return to town challenges Angband's deepest landing when it qualifies.
+"""Owner 2026-11-17/18: every return to town challenges Angband's deepest landing when it qualifies.
 
 Owner (verbatim): 「深さの決定について。定期的に一番深い鉄獄にチャレンジするようにしたい」, and asked how
 often, 「町に戻るたびに条件を見て挑む」.  Before, a switch once made (the unsafe-recall fallback's
-Castle band, the guardian valve, a leased alternate) or a conquest target held the destination
-although Angband's own landing had become one the character may take (castle-climb-1117).
+Castle band) held the destination although Angband's own landing had become one the character may
+take (castle-climb-1117).  Owner 2026-11-18: 「制覇できる守護者がいれば制覇が先」 and
+「潜りすぎの期限の間は鉄獄に挑まない」.
 
 ``alternate_lease.challenge`` runs on the town board a dive ends on, before that board's valves:
 when ``alternate_lease.angband_qualifies`` (the deepest destination's landing filter -- the
 cumulative depth requirements with the 50F *Destruction* means and telepathy, the 81F speed gate,
-the blocked guardian floors -- the fallback depth floor and the Q2 hold), the held destination is
-dropped and Angband is held without a lease (reason ``angband_challenge``).
+the blocked guardian floors -- the fallback depth floor and the Q2 hold), a held alternate dungeon
+with no running lease is dropped while no conquest target waits, and the ordinary selection takes
+Angband.
 
 Recorded:
 * n1-a life-530: tests/fixtures/n1a-530-castle-climb-1117 (the 22:13:09 town-arrival checkpoint,
@@ -18,7 +20,7 @@ Recorded:
 * n1-c life-216: tests/fixtures/n1c-216-angband-challenge-1117
   (tests/extract_n1c_216_angband_challenge_1117_fixture.py), the 17:15:15 town-arrival checkpoint
   and its arrival board: the Glass castle (60) as the conquest target, 2,609,342 gold, Angband's
-  landing 80 passing every check.  Angband is taken and the conquest target dropped.
+  landing 80 passing every check.  The conquest goes first: the Glass castle stays.
 
 DECLARED CONSTRUCTED:
 * the n1-a return: the Castle switch made on the recorded town board (as
@@ -27,7 +29,8 @@ DECLARED CONSTRUCTED:
 * the n1-a variant with the means: telepathy added to the player's abilities, the first pack slot
   replaced by a known staff of *Destruction* with 10 charges and the device skill raised to 200 (the
   staff's success 80%+);
-* the n1-c control: Angband's recall landing raised to 81, under the 81F speed gate.
+* the n1-a leased variant: that Castle switch relabelled an over-extension switch with a lease of 5
+  and 2 dives made.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -46,7 +49,6 @@ from support.town_arrival_fixture import load
 
 FIXTURES = Path(__file__).with_name("fixtures")
 CASTLE, GLASS_CASTLE = dive_floor.DUNGEON_CASTLE, 20
-CHALLENGE = "angband_challenge"  # alternate_lease.CHALLENGE_REASON
 
 
 def decide(policy, board):
@@ -119,21 +121,30 @@ class N1a530CastleBandTest(unittest.TestCase):
         board = self.with_means(self.town)
         self.assertTrue(destruction_use.holds_means(policy, board))
         self.assertEqual(policy._missing_required_abilities(board, 50), frozenset())
+        self.assertIsNone(policy._conquest_target(board))
         lease = policy._alternate_lease
         decide(policy, board)
         # Unfixed: (CASTLE, CASTLE, "safe_fallback") and the band held.
         self.assertEqual((policy._target_dungeon_id, policy._alternate_dungeon,
-                          policy._alternate_dungeon_reason),
-                         (DUNGEON_ANGBAND, DUNGEON_ANGBAND, CHALLENGE))
+                          policy._alternate_dungeon_reason), (DUNGEON_ANGBAND, None, None))
+        self.assertEqual(policy._target_dungeon_reason, "angband_recall_unlocked")
         self.assertTrue(alternate_lease.angband_qualifies(policy, board))
         self.assertIsNone(getattr(policy, dive_floor.STATE))
         self.assertIsNone(dive_floor.climb_dungeon(policy))
         # No over-extension evidence: the over-extended depth and the lease length stay.
         self.assertEqual(policy._last_overextended_depth, 49)
         self.assertEqual(policy._alternate_lease, lease)
-        # Held without a lease: no diversion, and the depth floor does not end it.
-        self.assertFalse(alternate_lease.diverts(policy, board))
-        self.assertFalse(fallback_depth_floor.settle(policy, board))
+
+    def test_control_a_running_lease_is_not_challenged(self):
+        # Owner 2026-11-18 「潜りすぎの期限の間は鉄獄に挑まない」.  DECLARED CONSTRUCTED (docstring).
+        policy = self.returned()
+        policy._alternate_dungeon_reason = "over_extended_dives"
+        policy._alternate_lease, policy._alternate_dives = alternate_lease.FIRST_LEASE, 2
+        board = self.with_means(self.town)
+        self.assertTrue(alternate_lease.angband_qualifies(policy, board))
+        self.assertFalse(alternate_lease.challenge(policy, board))
+        self.assertEqual((policy._alternate_dungeon, policy._alternate_dungeon_reason),
+                         (CASTLE, "over_extended_dives"))
 
     def test_control_not_a_return(self):
         # A town board that ends no dive (the previous board in town) asks nothing.
@@ -176,25 +187,16 @@ class N1c216GlassCastleTest(unittest.TestCase):
         self.assertTrue(policy._recall_destination_safe(board, DUNGEON_ANGBAND))
         self.assertTrue(alternate_lease.angband_qualifies(policy, board))
 
-    def test_b_the_return_challenges_angband(self):
+    def test_b_the_conquest_goes_first(self):
+        # Owner 2026-11-18 「制覇できる守護者がいれば制覇が先」: Angband 80 qualifies, the Glass castle
+        # conquest stays.
         policy, board = copy.deepcopy(self.prepared), self.board
-        decide(policy, board)
-        # Unfixed: (GLASS_CASTLE, "conquest", None).
-        self.assertEqual((policy._target_dungeon_id, policy._target_dungeon_reason,
-                          policy._alternate_dungeon),
-                         (DUNGEON_ANGBAND, CHALLENGE, DUNGEON_ANGBAND))
-        self.assertIsNone(policy._conquest_committed)
-
-    def test_control_angband_refused(self):
-        # DECLARED CONSTRUCTED: Angband's recall landing 81, under the 81F speed gate.
-        policy = copy.deepcopy(self.prepared)
-        board = replace(self.board, dungeon_recall_depths={
-            **self.board.dungeon_recall_depths, DUNGEON_ANGBAND: 81})
-        self.assertEqual(policy._missing_required_abilities(board, 81), frozenset({"speed+25"}))
+        self.assertEqual(policy._conquest_target(board), GLASS_CASTLE)
+        self.assertFalse(alternate_lease.challenge(policy, board))
         decide(policy, board)
         self.assertEqual((policy._target_dungeon_id, policy._target_dungeon_reason,
-                          policy._alternate_dungeon), (GLASS_CASTLE, "conquest", None))
-        self.assertFalse(alternate_lease.angband_qualifies(policy, board))
+                          policy._alternate_dungeon, policy._conquest_committed),
+                         (GLASS_CASTLE, "conquest", None, GLASS_CASTLE))
 
 
 if __name__ == "__main__":

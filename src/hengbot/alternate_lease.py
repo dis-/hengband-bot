@@ -22,19 +22,18 @@ the next switch or conquest.  A conquest target whose landing may be taken keeps
 
 Owner 2026-11-17 (verbatim): 「深さの決定について。定期的に一番深い鉄獄にチャレンジするようにしたい」,
 and asked how often, 「町に戻るたびに条件を見て挑む」.  Once a switch was made nothing ended it when
-Angband became a landing the character may take again (castle-climb-1117: n1-a's Castle band, n1-c's
-Glass castle conquest while Angband 80 was safe).  ``challenge`` is that check, on the town board a
-dive ends on, before this board's valves: when Angband at its recall depth passes every landing
-check (``angband_qualifies``: the same filter as the deepest destination of C5 -- the cumulative
-depth requirements with the *Destruction* means and telepathy from 50F and the 81F speed gate, the
-guardian floor and P3's T1 bottom floor, the fallback depth floor -- and the Q2 hold), whatever
-destination was held is dropped (an alternate dungeon of any reason, its lease dives, the
-Castle/Mountain dive or climb, a conquest target; Angband already held as the alternate is left
-with its reason and lease) and Angband is held like the deepest destination, without a lease
-(reason ``angband_challenge``), which keeps a conquest target away.  When Angband does not qualify
-nothing changes.  The switch is no over-extension evidence: the streaks, the over-extended depth and
-the lease length are left as they are, so a valve that judges the dive just ended on this board
-still switches after it.
+Angband became a landing the character may take again (castle-climb-1117: n1-a's Castle band).
+``challenge`` is that check, on the town board a dive ends on, before this board's valves: when
+Angband at its recall depth passes every landing check (``angband_qualifies``: the same filter as
+the deepest destination of C5 -- the cumulative depth requirements with the *Destruction* means and
+telepathy from 50F and the 81F speed gate, the guardian floor and P3's T1 bottom floor, the fallback
+depth floor -- and the Q2 hold), the held alternate dungeon is dropped (its dives, the
+Castle/Mountain dive or climb) and the ordinary selection takes Angband.  Owner 2026-11-18: not
+while an over-extension switch's lease runs (「潜りすぎの期限の間は鉄獄に挑まない」; after it ends,
+``settle``, every return checks again) nor while a conquest target with a beatable guardian waits
+(「制覇できる守護者がいれば制覇が先」).  Angband already held as the alternate is left as it is.
+When Angband does not qualify nothing changes.  The drop is no over-extension evidence: the streaks,
+the over-extended depth and the lease length stay.
 """
 from __future__ import annotations
 
@@ -45,8 +44,6 @@ from hengbot.model import DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_
 LEASED_REASONS = frozenset({"over_extended_dives", "no_depth_progress"})
 FIRST_LEASE = 5
 DEEPEST_REASON = "deepest_destination"
-# Owner 2026-11-17 「町に戻るたびに条件を見て挑む」: Angband held by ``challenge`` (no lease).
-CHALLENGE_REASON = "angband_challenge"
 
 
 def _leased(policy) -> bool:
@@ -136,27 +133,27 @@ def angband_qualifies(policy, snapshot) -> bool:
         policy, snapshot, fallback_depth_floor.landing_depth(policy, snapshot, DUNGEON_ANGBAND))
 
 
-def _holds_other_destination(policy, snapshot) -> bool:
-    """A destination other than Angband is held: an alternate dungeon or, with no alternate, a
-    conquest target.  Angband held as the alternate (the guardian valve's, a leased switch's, the
-    deepest destination's) is Angband already, and keeps its reason and lease."""
+def _challengeable_alternate(policy, snapshot) -> bool:
+    """An alternate dungeon other than Angband is held that the challenge may drop: no lease of an
+    over-extension switch is running (owner 2026-11-18 「潜りすぎの期限の間は鉄獄に挑まない」) and no
+    conquest target with a beatable guardian waits (「制覇できる守護者がいれば制覇が先」).  Angband
+    held as the alternate is Angband already and keeps its reason and lease."""
     alternate = policy._alternate_dungeon
-    if alternate is not None:
-        return alternate != DUNGEON_ANGBAND
-    return policy._conquest_target(snapshot) is not None
+    return (alternate is not None and alternate != DUNGEON_ANGBAND and not _leased(policy)
+            and policy._conquest_target(snapshot) is None)
 
 
 def challenge(policy, snapshot) -> bool:
     """On the town board a dive ends on: go back to Angband when it qualifies (owner 2026-11-17
-    「町に戻るたびに条件を見て挑む」).  True when a held destination was dropped."""
-    if (not snapshot.in_town or not _holds_other_destination(policy, snapshot)
+    「町に戻るたびに条件を見て挑む」).  True when the held alternate was dropped; the ordinary
+    selection then takes Angband (its recall is open and no conquest target waits)."""
+    if (not snapshot.in_town or not _challengeable_alternate(policy, snapshot)
             or not angband_qualifies(policy, snapshot)):
         return False
-    policy._alternate_dungeon = DUNGEON_ANGBAND
-    policy._alternate_dungeon_reason = CHALLENGE_REASON
+    policy._alternate_dungeon = None
+    policy._alternate_dungeon_reason = None
     policy._alternate_dives = 0
     setattr(policy, dive_floor.STATE, None)
-    policy._conquest_committed = None
     return True
 
 
