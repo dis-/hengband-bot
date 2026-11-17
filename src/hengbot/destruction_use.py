@@ -489,6 +489,47 @@ def reach_subject(policy, snapshot, hostiles, target):
     return worst
 
 
+# -- the scene's public readers (maintainability review 2026-11-17, N1) ---------------
+# The modules outside this one read the scene only through these (scripts/destruction_scene_lint
+# fails a read of a private name here or a distance compared against the sure radius elsewhere).
+
+def approach_gates(policy, snapshot) -> bool:
+    """The standing gates of going to a use: the means held (``holds_means``), a clear head
+    (``_clear_headed``: only confusion refuses) and a floor the use touches
+    (``_floor_destroyed``), asked in that order.  The approaches (threat_tiers ``approach_key``,
+    ``remembered_approach_key`` and its targets, deep_teleport's walk) ask these before they walk;
+    the use itself asks the latter two in ``_scene_holds``."""
+    return (holds_means(policy, snapshot) and _clear_headed(snapshot.player)
+            and _floor_destroyed(policy, snapshot))
+
+
+def in_sure_radius(snapshot, subject, *, centre=None) -> bool:
+    """``subject`` (a monster or a Position) is within GUARANTEED_RADIUS of ``centre`` (the
+    player's cell by default): inside the circle every use destroys."""
+    origin = snapshot.player.position if centre is None else centre
+    return game_distance(origin, getattr(subject, "position", subject)) <= GUARANTEED_RADIUS
+
+
+def quest_target_race(policy, snapshot) -> int | None:
+    """The active kill quest's target race (a QUESTOR the use heals and moves, never deletes),
+    else None."""
+    return _target_race(policy, snapshot)
+
+
+def scene_holds(policy, snapshot) -> bool:
+    """The scene of a use without a ``leaving`` set (the 11-04 reading, ``_threat_in_range``),
+    the means and the last use's fallback not asked: threat_escape's count of *Destruction* as a
+    way out.  Not ``usable``: that one asks the means and the fallback too."""
+    return _scene_holds(policy, snapshot)
+
+
+def means_in_hand(policy, snapshot) -> bool:
+    """The means part of ``usable``/``key``: the absorbed cast, else a reliable carried staff
+    (the scene and the item's key not asked; destruction_means ``Means.in_hand``)."""
+    return (_absorbed_key(policy, snapshot) is not None
+            or _reliable_carried_staff(policy, snapshot) is not None)
+
+
 def _scene_holds(policy, snapshot, in_range=_threat_in_range) -> bool:
     if not _clear_headed(snapshot.player) or not _floor_destroyed(policy, snapshot):
         return False

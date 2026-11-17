@@ -20042,6 +20042,17 @@
     "delegation": "selected child; no independent success",
     "evidence": "Pure reading: the active kill quest's target race; no key."
   },
+  "destruction_use.py:quest_target_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: the public reader of destruction_use._target_race (maintainability review 2026-11-17, N1), asked from threat_tiers approach_subject and _sensed_strong and deep_teleport._walk_step under the same dungeon-only callers as _target_race.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: returns destruction_use._target_race (the active kill quest's target race); no key."
+  },
   "policy.py:HengbotPolicy._active_kill_quest_id": {
     "classification": "data",
     "rows": [

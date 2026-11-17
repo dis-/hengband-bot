@@ -1532,6 +1532,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:in_sure_radius": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:key": {
     "classification": "data",
     "rows": [
@@ -1545,6 +1552,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "destruction_use.py:quest_target_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "destruction_use.py:reach_subject": {
     "classification": "data",
