@@ -1170,6 +1170,16 @@ class HomeMixin:
                     # must stay below its count before the take.
                     relief.setdefault("settled_home_counts", {})[signature] = max(
                         0, relief["stock_count"] - taken[1])
+                if relief.get("mode") == "sale":
+                    # The observed sale ends its store attempts, as the
+                    # overweight-surplus sale's does (_observe_overweight_surplus_effect).
+                    # Left counting, the next stack of the same name was
+                    # refused unsent as a third failed attempt: n1-a life-530
+                    # 2026-11-18 03:53, the third round trip of 99 {@1} bolts
+                    # (rows 44, 71, 84) was held unsellable until
+                    # town:blocked:stage-deadline:sell.
+                    self._store_sell_attempt = None
+                    self._last_sell_sig = None
                 relief["sale"] = None
                 relief["withdrawn"] = False
                 relief.pop("useless", None)
