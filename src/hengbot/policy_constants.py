@@ -911,6 +911,13 @@ RESTOCK_WAIT_MACRO = "R300\r"
 
 TOWN_TELEPORT_BUILDING_TYPES = {0: 0, 1: 4, 2: 4, 3: 4}
 
+# The towns the cross-town trips choose among (the Word of Recall stock-out's
+# circuit, recall_stockout_travel; the Black Market tour, bm_tour; the other
+# expeditions through _cross_town_candidate_order).  Owner 2026-11-17
+# 「念のため。すべての町にズルは含まない。」: Zul is never one of them (its trips for a
+# mutation cure are zul_trip's own, owner 2026-11-07).
+CROSS_TOWN_TOWN_IDS = frozenset(TOWN_TELEPORT_BUILDING_TYPES) - {ZUL_TOWN_ID}
+
 ENTER_DUNGEON_MACRO = ">\ry"
 
 TOWN_CYCLE_WINDOW = 48

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import return_start
-from hengbot import arena, zul_trip
+from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot import bm_destruction_fund
@@ -90,7 +90,7 @@ def _cache_claim_need_candidates(function):
     return run
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
-from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STUCK_ESCAPE_LIMIT, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
+from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STUCK_ESCAPE_LIMIT, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, CROSS_TOWN_TOWN_IDS, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, MORIVANT_LIBRARY_BUILDING_TYPE, OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FAILED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REPORT_FAILED_REASON, REST_MACRO, TOWN_TELEPORT_COST
 from hengbot.policy_types import (
@@ -556,6 +556,8 @@ class TownMixin:
             )
             # The arena's trip: the inn legs there and back.
             or (reason or self.last_reason or "").startswith(arena.INN_WALK_REASONS)
+            # The Black Market tour's inn legs (bm_tour).
+            or (reason or self.last_reason or "").startswith(bm_tour.TRAVEL_REASON)
         ):
             # The *Identify* expedition walks to this town's teleport building
             # along the route _town_teleport_route steps on.  Its remaining
@@ -5109,11 +5111,12 @@ class TownMixin:
         }
         for status in ledger.values():
             missing = max(0, status.required_departure - status.count)
-            # Recall stock-out is a current-town restock problem.  Sending it
-            # through the generic expedition owner can strand the character in
-            # another town without recall, so only the other supply categories
-            # are eligible for cross-town shopping.
-            if missing and status.kind != "recall":
+            # Owner 2026-11-17 「他の町に買いに行く。」 replaces 2026-09-13
+            # 「帰還の巻物が品切れなら採掘して待つ。他の街までいかない。」: Word of
+            # Recall is a cross-town category too.  Its circuit is started where
+            # the time-pass was (recall_stockout_travel), and the time-pass is
+            # the fallback once every town is tried.
+            if missing:
                 shortages.append((category[status.kind], missing))
         if self._identification_need is not None:
             shortages.append(
@@ -5146,6 +5149,13 @@ class TownMixin:
         """Require shelf evidence from every local supplier before escalation."""
         unobtainable: list[str] = []
         for category, _quantity in shortages:
+            if category == "recall":
+                # Recall's suppliers include Home's scrolls only when they
+                # cover the shortage: the time-pass's own judgement is the one
+                # this town's stock-out is (recall_stockout_travel).
+                if self._recall_stockout_persists(snapshot):
+                    unobtainable.append(category)
+                continue
             suppliers = set(self._cross_town_supplier_types(snapshot, category))
             evidence = [
                 self._town_visit_ledger.shelf_observations.get(
@@ -5167,13 +5177,20 @@ class TownMixin:
         return tuple(dict.fromkeys(unobtainable))
 
     def _cross_town_candidate_order(self, snapshot: Snapshot) -> tuple[int, ...]:
+        """The visited inn towns other than this one, cheapest fare first.
+
+        The Outpost (town 0) is the cheaper inn destination (_town_teleport_dispatch_key),
+        the other towns cost the same, and no town's shelf is known before it is
+        visited (shelves are per visit), so the ascending town id is the order.  Zul is
+        never a candidate (CROSS_TOWN_TOWN_IDS, owner 2026-11-17).
+        """
         current = self._effective_town_id(snapshot)
         if snapshot.visited_town_ids is None:
             return ()
         return tuple(
             town_id
             for town_id in sorted(set(snapshot.visited_town_ids))
-            if town_id != current and town_id in TOWN_TELEPORT_BUILDING_TYPES
+            if town_id != current and town_id in CROSS_TOWN_TOWN_IDS
         )
 
     def _recall_stockout_run_outstanding(self, snapshot: Snapshot) -> bool:
@@ -7358,12 +7375,17 @@ class TownMixin:
                 stockout = self._supply_stockout_mining_key(snapshot)
                 if stockout is not None:
                     return stockout
-            # This owner is deliberately selected before cross-town shopping
-            # and the generic unsatisfiable terminal.  It waits/mines in the
-            # current town and re-observes the two local recall suppliers.
-            expedition = self._cross_town_shopping
-            if expedition is not None and "recall" in expedition.blocking_categories:
-                self._cross_town_shopping = None
+            # This owner is deliberately selected before the generic
+            # unsatisfiable terminal.  A Word of Recall circuit under way
+            # travels on (owner 2026-11-17 「他の町に買いに行く。」,
+            # recall_stockout_travel); otherwise it re-observes the two local
+            # recall suppliers and, with no town left, waits/mines here.
+            if recall_stockout_travel.circuit(self) is not None:
+                travel = self._town_producer_entry(
+                    "_cross_town_shopping_key",
+                    lambda: self._cross_town_shopping_key(snapshot), family="cross-town")
+                if travel is not None:
+                    return travel
             return self._recall_restock_key(snapshot)
         if (
             recall_dest is not None
@@ -7491,6 +7513,11 @@ class TownMixin:
                 arena_errand = arena.town_key(self, snapshot)
                 if arena_errand is not None:
                     return arena_errand
+                # Owner 2026-11-17 「資金10万以上のときはすべての町の闇市を確認する」
+                # 「帰還で町に戻るたび」: every other town's Black Market, once per return.
+                tour = bm_tour.town_key(self, snapshot)
+                if tour is not None:
+                    return tour
                 # Owner 2026-11-15 (n1-b life-405): the 50F+ gate counted the absorbed
                 # *Destruction* at the count the inn gives back; the night before the recall.
                 from hengbot import me_inn_refill

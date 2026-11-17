@@ -13,7 +13,7 @@ from hengbot.town_hold import (
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.speed_valuation import meets_speed_gate, permanent_player_speed
-from hengbot import bm_destruction_fund, deep_teleport, launcher_upgrade, me_powerful_activation, random_quest_hold, sealed_loot, torch_release
+from hengbot import bm_destruction_fund, bm_tour, deep_teleport, launcher_upgrade, me_powerful_activation, random_quest_hold, sealed_loot, torch_release
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
@@ -122,6 +122,7 @@ class ObservationMixin:
         launcher_upgrade.observe(self, snapshot)
         self._observe_departure_prices(snapshot)
         bm_destruction_fund.observe(self, snapshot)
+        bm_tour.observe(self, snapshot)
         self._retire_vanished_pending_withdrawals(snapshot)
         previous_floor = self._floor_key
         if previous_floor is None:
@@ -180,6 +181,11 @@ class ObservationMixin:
                 getattr(previous_ledger, "purchase_churn_class_exclusions", ())
             )
             self._town_supplier_stock_observations.clear()
+            # The pages too: the supply ledger reads a seen page as this town's
+            # shelf, and the old town's empty Temple would declare a Word of
+            # Recall stock-out in the town the circuit came to buy it in
+            # (recall_stockout_travel, owner 2026-11-17).
+            self._town_supplier_stock.clear()
         self._observed_town_id = current_town_id
         self._observe_stair_command(snapshot, observation=observation)
         if not snapshot.in_town and snapshot.player.recalling:
@@ -193,6 +199,8 @@ class ObservationMixin:
             and self._saw_dungeon_recall
         ):
             self._home_disposal_pass = self._home_disposal.note_dungeon_recall()
+            # Owner 2026-11-17 「帰還で町に戻るたび」: this return's Black Market tour.
+            bm_tour.note_recall_return(self, snapshot)
             self._home_disposal_seen_pages.clear()
             self._home_disposal_candidates.clear()
             self._saw_dungeon_recall = False
