@@ -38,6 +38,7 @@ from hengbot.policy_types import (
     OwnerProgressCore,
     StoreVisitPhase,
 )
+from hengbot.reasons import is_survival
 from hengbot.retired_values import retired_module
 from hengbot import town_visit_plan
 from hengbot.town_arbiter import (
@@ -1460,43 +1461,8 @@ def goal_typing(family: str, reason: str | None) -> GoalTypingRow | None:
 
 # -- survival (design rev 9 item 3) ---------------------------------------
 
-# The emergency ladder's output (P:5558-5562 enters them into EscapeState as
-# ``emergency``), the disengage family, the unseen-attacker family and the
-# ESP-threat floor exit.
-SURVIVAL_REASON_PREFIXES = (
-    "emergency:",
-    "summons:",
-    "unseen-recall:",
-    "guardian:teleport-to-cover",
-    "combat:disengage",
-    "unseen:",
-    "esp-threat:leave-",
-    "town:seek-shelter",
-    "town:recover",
-)
-# A ``return:`` decision is survival only while the trigger that started the
-# return is a danger trigger (policy_combat.py ``_last_return_trigger``).
-SURVIVAL_RETURN_PREFIX = "return:"
-# Rev 9.3: ``guardian-reposition`` is not in it -- a guardian reposition never
-# starts a return (policy_combat.py sets ``_returning_to_town`` only when not
-# repositioning), so it can never be the trigger a return began with.
-SURVIVAL_RETURN_TRIGGERS = frozenset({"esp-threat", "unseen-attacker"})
-SURVIVAL_RETURN_TRIGGER_PREFIX = "emergency-"
-def is_survival_return_trigger(trigger: str | None) -> bool:
-    return bool(trigger) and (
-        trigger in SURVIVAL_RETURN_TRIGGERS
-        or trigger.startswith(SURVIVAL_RETURN_TRIGGER_PREFIX)
-    )
-
-
-def is_survival(reason: str | None, return_trigger: str | None = None) -> bool:
-    """Whether a decision is survival in the sense of design rev 9 item 3."""
-    reason = reason or ""
-    if reason.startswith(SURVIVAL_REASON_PREFIXES):
-        return True
-    return reason.startswith(SURVIVAL_RETURN_PREFIX) and is_survival_return_trigger(
-        return_trigger
-    )
+# The survival families live in the reason registry (reasons.SURVIVAL_FAMILIES); the town hold
+# reads them through reasons.is_survival (imported above).
 
 
 

@@ -96,7 +96,7 @@ from hengbot.model import (
 )
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import (
-    DESTRUCTION_GATE_DEPTH,
+    DEEP_FLOOR_DEPTH,
     DESTRUCTION_GATE_LABEL,
     SPEED_GATE_DEPTH,
     SPEED_GATE_LABEL,
@@ -274,7 +274,7 @@ class DestructionGateProcurementTest(
         # REVERT-PROOF: the *achievable* band is capped below the gate while no
         # method is carried, so a requirement keyed on `_planned_depth` alone
         # can never fire.  The intent is the objective's arrival depth.
-        self.assertLess(policy._planned_depth(), DESTRUCTION_GATE_DEPTH)
+        self.assertLess(policy._planned_depth(), DEEP_FLOOR_DEPTH)
         self.assertEqual(
             policy._intended_dive_depth(board), ANGBAND_ARRIVAL_DEPTH
         )
@@ -526,17 +526,17 @@ class DestructionGateProcurementTest(
         policy = self._independent()
         deep = self._one_carried_use(self._at_depth(self.board, 60))
 
-        self.assertLess(policy._planned_depth(), DESTRUCTION_GATE_DEPTH)
+        self.assertLess(policy._planned_depth(), DEEP_FLOOR_DEPTH)
         self.assertEqual(policy._intended_dive_depth(deep), 60)
         self.assertEqual(self._requirement(policy, deep)["target"], 10)
 
     def test_d3_shallower_than_the_gate_has_no_requirement_at_all(self):
         policy = self._independent()
-        board = self._at_depth(self.board, DESTRUCTION_GATE_DEPTH - 1)
+        board = self._at_depth(self.board, DEEP_FLOOR_DEPTH - 1)
 
         self.assertNotIn(
             DESTRUCTION_GATE_LABEL,
-            required_depth_gates(DESTRUCTION_GATE_DEPTH - 1),
+            required_depth_gates(DEEP_FLOOR_DEPTH - 1),
         )
         self.assertEqual(policy._required_destruction_uses(board), 0)
         self.assertIsNone(self._requirement(policy, board))
@@ -612,7 +612,7 @@ class DestructionGateProcurementTest(
     def test_d5_a_shallow_target_leaves_the_reservation_to_other_owners(self):
         policy = self._independent()
         board = self._with_stock(
-            self._at_depth(self.board, DESTRUCTION_GATE_DEPTH - 1)
+            self._at_depth(self.board, DEEP_FLOOR_DEPTH - 1)
         )
         held = board.inventory[-1]
 
@@ -729,18 +729,18 @@ class DestructionFiftyFloorBanTest(
 
         self.assertEqual(
             policy._missing_required_abilities(
-                stocked, DESTRUCTION_GATE_DEPTH - 1
+                stocked, DEEP_FLOOR_DEPTH - 1
             ),
             frozenset(),
         )
         self.assertTrue(
             policy._destination_depth_allowed(
-                stocked, DESTRUCTION_GATE_DEPTH - 1
+                stocked, DEEP_FLOOR_DEPTH - 1
             )
         )
         # The first banned floor, and everything below it.
         for depth in (
-            DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_DEPTH + 1, 60, 80,
+            DEEP_FLOOR_DEPTH, DEEP_FLOOR_DEPTH + 1, 60, 80,
         ):
             with self.subTest(depth=depth):
                 self.assertIn(
@@ -763,7 +763,7 @@ class DestructionFiftyFloorBanTest(
         self.assertIsNone(policy._town_blocked_reason)
         self.assertNotEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
         landing = stocked.dungeon_recall_depths[policy._target_dungeon_id]
-        self.assertLess(landing, DESTRUCTION_GATE_DEPTH)
+        self.assertLess(landing, DEEP_FLOOR_DEPTH)
 
     def test_d7_flipping_the_named_condition_restores_the_50f_behaviour(self):
         """The follow-up round's green target: one flag, nothing else."""
@@ -816,7 +816,7 @@ class DestructionFiftyFloorBanTest(
 
         # REVERT-PROOF: unclamped, this is 50 and the requirement is 5/5.
         self.assertEqual(
-            policy._intended_dive_depth(board), DESTRUCTION_GATE_DEPTH - 1
+            policy._intended_dive_depth(board), DEEP_FLOOR_DEPTH - 1
         )
         self.assertEqual(policy._required_destruction_uses(board), 0)
         self.assertEqual(policy._missing_destruction_uses(board), 0)

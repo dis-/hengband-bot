@@ -155,7 +155,7 @@ from hengbot.policy_constants import (
     HOME_VISIT_LIMIT,
     CALIBRATION_HOME_VISIT_LIMIT,
     DEPTH_ABILITY_REQUIREMENTS,
-    DESTRUCTION_GATE_DEPTH,
+    DEEP_FLOOR_DEPTH,
     DESTRUCTION_GATE_LABEL,
     FUNDRAISING_START_GOLD,
     SPEED_GATE_DEPTH,
@@ -410,6 +410,7 @@ from hengbot.town_terminal import (
 )
 from hengbot.town_end_mining import release_home_for_kit
 from hengbot.town_visit import TownVisit, TownVisitAttributes
+from hengbot.reasons import is_survival as claim_is_survival
 from hengbot.town_hold import (
     # Old checkpoints pickled the delegation records as hengbot.policy's.
     ExecutionDelegation,
@@ -450,7 +451,6 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS,
-    is_survival as claim_is_survival,
     rung_of as claim_rung_of,
     CLAIM_ANY_CELL,
     cancel_unbound_execution_delegations as town_cancel_unbound_execution_delegations,
@@ -1932,7 +1932,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._returning_to_town = False
         # Rev 9.2 (S): the trigger the *running* return began with, set where
         # a return starts and cleared where it ends.  Only the town hold's
-        # survival test (``town_hold.is_survival``) reads it.
+        # survival test (``reasons.is_survival``) reads it.
         self._survival_return_trigger: str | None = None
         self._last_return_trigger: str | None = None  # why the last town return began
         self._escape_state = EscapeState()
@@ -10724,7 +10724,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # it in place of a Teleportation or Phase Door the 50F+ rule refuses (deep_teleport).
         if (instead := deep_teleport.scroll_substitute(self, snapshot, item)) is not None:
             return instead
-        if snapshot.dungeon_level >= deep_teleport.DEPTH and deep_teleport.is_self_teleport_scroll(item):
+        if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and deep_teleport.is_self_teleport_scroll(item):
             cross_rules.produce(self, cross_rules.DEEP_TELEPORT)  # record only
         if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
             return takeoff

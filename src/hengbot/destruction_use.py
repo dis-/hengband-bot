@@ -79,7 +79,7 @@ from hengbot.destruction_means import (  # noqa: F401  -- the readers' names sta
 from hengbot.model import Position, game_distance
 from hengbot.town_hold import LOOT_OWNERS
 from hengbot.policy_constants import (
-    DESTRUCTION_GATE_DEPTH, DESTRUCTION_GATE_LABEL, EMERGENCY_RETURN_COUNT,
+    DEEP_FLOOR_DEPTH, DESTRUCTION_GATE_LABEL, EMERGENCY_RETURN_COUNT,
     PLAYER_CLASS_BERSERKER, ExplorationPathOutcome,
 )
 
@@ -262,7 +262,7 @@ def means_spent(policy, snapshot) -> bool:
     without the means."""
     from hengbot import threat_tiers  # import cycle
 
-    return (snapshot.dungeon_level >= DESTRUCTION_GATE_DEPTH
+    return (snapshot.dungeon_level >= DEEP_FLOOR_DEPTH
             and threat_tiers.acts_here(policy, snapshot)
             and _floor_destroyed(policy, snapshot)
             and not _quest_floor(policy, snapshot)
@@ -671,7 +671,7 @@ def observe(policy, snapshot) -> None:
     setattr(policy, UNSAFE_NOTE, None)
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
         setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
-    if snapshot.dungeon_level >= DESTRUCTION_GATE_DEPTH and holds_means(policy, snapshot):
+    if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and holds_means(policy, snapshot):
         _memory(policy).entitled_floor = snapshot.floor_key
     memory = getattr(policy, MEMORY, None)
     if memory is None:

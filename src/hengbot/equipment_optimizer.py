@@ -47,7 +47,7 @@ from hengbot.model import (
 from hengbot.launcher_damage import best_obtainable_launcher_damage
 from hengbot.policy_constants import (
     DEPTH_ABILITY_REQUIREMENTS,
-    DESTRUCTION_GATE_DEPTH,
+    DEEP_FLOOR_DEPTH,
     SPEED_GATE_DEPTH,
     _required_abilities_for_depth,
 )
@@ -331,7 +331,7 @@ def divable_depth(
     for depth, next_band in zip(bands, (*bands[1:], SPEED_GATE_DEPTH + 1)):
         if not required_abilities(depth).issubset(abilities):
             break
-        if depth >= DESTRUCTION_GATE_DEPTH and not destruction_means(
+        if depth >= DEEP_FLOOR_DEPTH and not destruction_means(
                 loadout, has_destruction, staff_gate):
             break
         if depth >= SPEED_GATE_DEPTH and speed_bonus < 25:
@@ -1279,7 +1279,7 @@ def _meets_static_requirements(
             abilities.add(name)
     if depth is not None and not required_abilities(depth).issubset(abilities):
         return False
-    if (depth is not None and depth >= DESTRUCTION_GATE_DEPTH
+    if (depth is not None and depth >= DEEP_FLOOR_DEPTH
             and not destruction_means(loadout, has_destruction, staff_gate)):
         return False
     return True

@@ -152,12 +152,12 @@ def destruction_key(policy, snapshot) -> str | None:
     below) -- while the absorbed *Destruction* is short of its count; None to depart as it is
     (the gate counted the count only while the inn is open: ``refill_open``).  n1-b life-405
     23:18: the recall to the Castle's 49F, the dive aimed at 60F."""
-    from hengbot.policy_constants import DESTRUCTION_GATE_DEPTH
+    from hengbot.policy_constants import DEEP_FLOOR_DEPTH
 
     if (not _inn_open(policy, snapshot) or state(policy).posted_turn is not None
             or not destruction_short(policy, snapshot)
             or not armor_smith.board_allows(policy, snapshot)
-            or policy._intended_dive_depth(snapshot) + 1 < DESTRUCTION_GATE_DEPTH):
+            or policy._intended_dive_depth(snapshot) + 1 < DEEP_FLOOR_DEPTH):
         return None
     return _stay_key(policy, snapshot, DESTRUCTION_PRODUCER, DESTRUCTION_APPROACH_REASON,
                      DESTRUCTION_REST_REASON)

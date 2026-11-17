@@ -73,7 +73,7 @@ NORMAL_REASON = f"{REASON}:normal"
 NORMAL_OWNER = NORMAL_REASON + me_absorbed_substitutes.CAST_SUFFIX
 # Rule 2's read: the planned town return's Word of Recall (destruction_use.MEANS_SPENT_REASON),
 # named by its trigger; the ``emergency-`` prefix makes the return a survival one
-# (town_hold.is_survival_return_trigger): no loot sweep delays it.
+# (reasons.is_survival_return_trigger): no loot sweep delays it.
 RECALL_REASON = "return:recall"
 RECALL_TRIGGER = "emergency-curse-summons-remain"
 MEMORY = "_curse_cure"
