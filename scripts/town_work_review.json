@@ -14320,6 +14320,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "item_fate.py:clearly_useless": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the full-Home relief (policy_home._home_full_sale_candidate, item_fate.relief_order) in town only, while a full-Home relief is in progress.",
+    "evidence": "The class of Home stock the full-Home relief sells first (surplus diggers, the worn launcher's rounds past the Home keep, unused ammunition; owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "stone_to_mud_carry.py:kept_wand_share": {
     "classification": "data",
     "rows": [

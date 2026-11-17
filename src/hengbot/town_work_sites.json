@@ -3133,6 +3133,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "item_fate.py:clearly_useless": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "item_fate.py:gear_tier": {
     "classification": "data",
     "rows": [

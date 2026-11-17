@@ -517,19 +517,23 @@ class HomeMixin:
                            if store != STORE_HOME
                            and self._store_accepts_sale(store, item)
                            and store not in self._store_sale_refused), None)
+        # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」:
+        # clearly useless stock (item_fate.clearly_useless) passes the rank keep,
+        # the standing digger retention and the ammunition reservations.
+        useless = item_fate.clearly_useless(self, snapshot, item) is not None
         if (item_fate.held(self, snapshot, item, "home-visit", "home-full-sale")
                 or item.is_empty_bottle
                 or signature in self._unsellable_items
-                or item_fate.stock_reserved(self, snapshot, probe, item)
+                or (not useless and item_fate.stock_reserved(self, snapshot, probe, item))
                 or signature == self._home_pending_item
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=False)
                 # The store-side sale guard keeps the standing digging tool;
                 # selecting it here would withdraw an item no store sale may
                 # take (live 2026-10-05 05:14 retain-standing-digging-tool loop).
-                or self._sale_retains_digging_tool(probe, item)
+                or (not useless and self._sale_retains_digging_tool(probe, item))
                 or recall_short
-                or not item_fate.gear_surplus(self, snapshot, item)
+                or (not useless and not item_fate.gear_surplus(self, snapshot, item))
                 or store_type is None):
             return None
         base = item_base_cost(item, self._baseitem_costs)
@@ -1537,6 +1541,12 @@ class HomeMixin:
             signature = self._item_signature(item)
             if relief["mode"] != "identify":
                 relief["rank_released"] = signature
+            # The clearly useless ware keeps that verdict off the shelf (item_fate.relief_useless).
+            if (relief["mode"] == "sale"
+                    and item_fate.clearly_useless(self, snapshot, item) is not None):
+                relief["useless"] = signature
+            else:
+                relief.pop("useless", None)
             # Retain the physical source row even when a shelf and pack stack
             # share the same signature. A shelf take earns a shelf slot.
             pack_only = id(source) in pack_ids
@@ -2443,6 +2453,9 @@ class HomeMixin:
         self, snapshot: Snapshot, item: InventoryItem
     ) -> tuple[int, str | None]:
         """Return retention plus the narrow weakest-ammo fallback."""
+        if item_fate.relief_useless(self, item):
+            # Owner 2026-11-17: the full-Home relief's clearly useless ware is sold.
+            return 0, None
         if item_use_route.surplus(self, snapshot, item):
             # Owner 2026-11-13 「アイテムが整理できていない」: no consumer uses it, so no
             # reservation (a stale quest carry, reserve or keep-all) holds it.
