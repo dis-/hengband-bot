@@ -36,6 +36,13 @@ shown, the approach's gates hold and no hostile is in view.  n1-c life-216 (Glas
 2026-11-17 18:40-18:41, loop-detected): at (37,37) the sensed ブルー・デイドラゴン (35,49) was 13
 off, the use due, and the fetch stepped west toward the potions at (42,24); at (37,36) it was 14
 off, the use not due, and the approach stepped back east: 40 alternations until the loop detector.
+A target the remembered approach still goes to while detection has lost it (threat_tiers
+``remembered_approach_key``, n1-b life-377) holds the commitment as a shown one does
+(``key``'s ``remembered``).  n1-b life-411 (Angband 80F, 2026-11-18 01:51-01:52, loop-detected):
+the fetch began at (8,102), the use due on the sleeping T1 (race 1306) at (12,90), and walked
+east toward the staff, potion and ring at (8,110)-(10,111); at (8,109) the T1 was 21 off
+(monster-update.cpp: telepathy within MAX_PLAYER_SIGHT 20), no longer shown, the commitment was
+not asked and the remembered approach stepped back west, until the loop detector (40 decisions).
 
 Every scene is bounded: ``DECISIONS_MAX`` decisions of this module per floor between two flashes
 (a flash resets it), and a pile the pickup did not take is not gone to again on the floor; past
@@ -127,11 +134,14 @@ def _in_view(snapshot, *, awake_only: bool) -> bool:
                for monster in snapshot.visible_monsters)
 
 
-def key(policy, snapshot, leaving) -> str | None:
-    """A step or a pickup before the use that leaves ``leaving``, else None (the use is made)."""
+def key(policy, snapshot, leaving, *, remembered=()) -> str | None:
+    """A step or a pickup before the use that leaves ``leaving``, else None (the use is made).
+
+    ``remembered``: the targets threat_tiers' remembered approach still goes to while detection
+    has lost them; they hold the committed fetch (``_committed_fetch``) as a shown one does."""
     leaving = list(leaving or ())
     if not leaving or not destruction_use.usable(policy, snapshot, leaving=leaving):
-        return _committed(policy, snapshot, leaving)
+        return _committed(policy, snapshot, leaving, remembered)
     if not exposed(policy, snapshot):
         _memory(policy, snapshot)["place"] = None
         return None
@@ -148,14 +158,14 @@ def key(policy, snapshot, leaving) -> str | None:
     return answer
 
 
-def _committed(policy, snapshot, leaving) -> str | None:
+def _committed(policy, snapshot, leaving, remembered=()) -> str | None:
     """The walk to the committed place, while it still serves (``MEMORY``); else the walk to the
     committed pile and its pickup (``_committed_fetch``)."""
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.get("floor") != snapshot.floor_key:
         return None
     if memory.get("place") is None:
-        return _committed_fetch(policy, snapshot, leaving)
+        return _committed_fetch(policy, snapshot, leaving, remembered)
     place = memory["place"]
     shown = _shown_leaving(snapshot, leaving)
     if (memory["decisions"] >= DECISIONS_MAX or not shown or not _place(policy, snapshot, place, shown)
@@ -189,16 +199,17 @@ def _new_place(policy, snapshot, leaving) -> str | None:
     return policy._step_toward(snapshot, step)
 
 
-def _committed_fetch(policy, snapshot, leaving) -> str | None:
+def _committed_fetch(policy, snapshot, leaving, remembered=()) -> str | None:
     """The fetch on a board where the use is not due (``key``'s first test): the piles a use at
     the committed cell (``MEMORY`` "fetch", where the use was due when the fetch began) may
     delete are walked to and picked up one after another, while a hostile the use leaves is
-    still shown and the approach's gates hold; else the commitment is dropped and None (n1-c
-    life-216, the module docstring)."""
+    still shown (or ``remembered`` by the approach, n1-b life-411) and the approach's gates
+    hold; else the commitment is dropped and None (n1-c life-216, the module docstring)."""
     memory = getattr(policy, MEMORY, None)
     if memory.get("fetch") is None:
         return None
-    if (memory["decisions"] >= DECISIONS_MAX or not _shown_leaving(snapshot, leaving)
+    if (memory["decisions"] >= DECISIONS_MAX
+            or not (_shown_leaving(snapshot, leaving) or remembered)
             or not destruction_use.approach_gates(policy, snapshot)):
         memory["fetch"] = None
         return None
