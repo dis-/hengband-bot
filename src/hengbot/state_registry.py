@@ -232,7 +232,7 @@ REGISTRY = (
       "departure_rescues: overweight purchase release (no comment at its definition)"),
     # destruction_loot
     S("_destruction_loot_memory", "destruction_loot", FLOOR,
-      "the clean place or the pile walked to, the scene's decisions and the piles tried before a use"),
+      "the clean place or the pile walked to, the fetch withheld by a hostile in view, the scene's decisions and the piles tried before a use"),
     # destruction_means
     S("_destruction_home_staves", "destruction_means", LIFE,
       "the last complete Home catalogue's charged staves"),
