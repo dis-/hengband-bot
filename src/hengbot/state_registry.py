@@ -276,7 +276,7 @@ REGISTRY = (
       "The rest slot's ESP tier decided first on this floor (esp_tier_hold)."),
     # explored_floor
     S("_explored_floor_window", "explored_floor", FLOOR,
-      "the known map's size at the floor's last explore decisions (the growth window)"),
+      "the cells the visit's map has shown and their count at its last explore decisions (the growth window)"),
     # floor_identify
     S("_floor_identify_tried", "floor_identify", FLOOR,
       "the cells a floor identify was posted on this floor visit (asked once each)"),

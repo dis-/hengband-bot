@@ -149,9 +149,16 @@ class DeepLootLeftover1117Test(unittest.TestCase):
 
     # -- 2. walled in on a floor with nothing left to explore --------------------------
 
-    def idle(self, lists=LISTS):
+    def idle(self, lists=LISTS, *, explored_window=False):
         policy, snapshot = self.replay(ANGBAND, lists)
         self.assertTrue(snapshot.grid_at(snapshot.player.position).has_up_stairs)
+        if explored_window:
+            # DECLARED CONSTRUCTED: the visit's explore decisions (the record explored the floor to
+            # its last cell; the replayed tail holds a few), a full window at the map's size.
+            known = len(policy._remembered_known_t)
+            setattr(policy, explored_floor.MEMORY, {
+                "floor": snapshot.floor_key, "seen": set(policy._remembered_known_t),
+                "counts": (known,) * (explored_floor.WINDOW + 1)})
         with mock.patch.object(policy, "_explore_step", lambda snapshot: None), \
                 mock.patch.object(policy, "_hunt_step", lambda snapshot, hostiles: None):
             key = ladder_idle.key(
@@ -172,9 +179,19 @@ class DeepLootLeftover1117Test(unittest.TestCase):
         ``stuck:ascend`` as live)."""
         lists = {kind: (turn, [row for row in rows if not (kind == "wand" and row["name"] == "岩石溶解")])
                  for kind, (turn, rows) in LISTS.items()}
-        policy, _snapshot, key = self.idle(lists)
+        policy, _snapshot, key = self.idle(lists, explored_window=True)
         self.assertEqual(policy.last_reason, explored_floor.REASON, key)
         self.assertEqual(policy._last_return_trigger, explored_floor.TRIGGER)
+
+    def test_without_a_full_explore_window_the_floor_is_not_explored(self):
+        """Owner 2026-11-17 「探索が済んだら」: the explore's "nothing left" on a floor it has not
+        walked a full window on is no explored floor (explored_floor ``explored``, 1118); the
+        ladder below answers it as before ('<' ``stuck:ascend`` here, as live 13:57)."""
+        lists = {kind: (turn, [row for row in rows if not (kind == "wand" and row["name"] == "岩石溶解")])
+                 for kind, (turn, rows) in LISTS.items()}
+        policy, _snapshot, key = self.idle(lists)
+        self.assertNotEqual(policy._last_return_trigger, explored_floor.TRIGGER)
+        self.assertEqual((key, policy.last_reason), ("<", "stuck:ascend"))
 
 
 if __name__ == "__main__":
