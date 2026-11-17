@@ -26,7 +26,7 @@ player, a latched emergency return reads Recall before any shot or blow
 
 from hengbot import line_of_fire, safety_watch
 from hengbot import once_quest_recall
-from hengbot.town_hold import SURVIVAL_RETURN_TRIGGER_PREFIX
+from hengbot.reasons import SURVIVAL_RETURN_TRIGGER_PREFIX
 
 
 def latched_return_owns(policy, snapshot) -> bool:

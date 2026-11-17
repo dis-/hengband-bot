@@ -86,7 +86,7 @@ CASTER_SHOT_REASON = "summoner:ranged-kill:named-caster"
 COUNTER_SHOT_REASON = "summoner:ranged-kill:can-summon"
 LEAVE_REASON = "summons:leave-teleport"
 RECALL_REASON = "summons:recall"
-# The prefix makes it a survival return (town_hold.is_survival_return_trigger).
+# The prefix makes it a survival return (reasons.is_survival_return_trigger).
 RETURN_TRIGGER = "emergency-summons"
 # Owner 2026-11-04: 「3回」.
 SUMMONS_TO_RECALL = 3

@@ -21,6 +21,14 @@ row, say); what resolves to a shape is checked:
 * a shape of the escape vocabulary (``reasons.ESCAPE_WORDS``) that the registry does not
   know (``reasons.lookup``) is a finding.
 
+* a survival reason declared outside the registry is a finding: the reasons a decision is
+  "survival" for (design rev 9 item 3; ``reasons.SURVIVAL_FAMILIES``, read by
+  ``reasons.is_survival``, the town hold and cli's town-blocked fuse) live in the registry
+  only.  Outside ``hengbot/reasons.py``, a constant named ``*SURVIVAL*`` that holds a
+  registered survival prefix or ``reasons.SURVIVAL_RETURN_PREFIX`` (a second copy of the
+  list), and a function named ``*survival*`` that tests a reason with ``.startswith``
+  (a second survival test), fail.
+
 ``--print`` lists every resolved shape with its registry entry, for writing the registry's
 diff.
 """
@@ -412,8 +420,50 @@ def shapes(sources: dict[str, str] | None = None) -> dict[str, list[tuple[str, i
     return out
 
 
-def analyze(sources: dict[str, str] | None = None) -> list[str]:
+_REASON_NAMES = frozenset({'reason', 'last_reason'})
+
+
+def _is_reason_value(node) -> bool:
+    """``reason`` / ``last_reason`` (also ``x.last_reason`` and ``(reason or "")``)."""
+    if isinstance(node, ast.BoolOp):
+        return any(_is_reason_value(value) for value in node.values)
+    if isinstance(node, ast.Name):
+        return node.id in _REASON_NAMES
+    return isinstance(node, ast.Attribute) and node.attr in _REASON_NAMES
+
+
+def survival_findings(sources: dict[str, str] | None = None) -> list[str]:
+    """A reason treated as survival outside the registry (``reasons.SURVIVAL_FAMILIES``)."""
+    sources = sources if sources is not None else repository_sources()
+    registered = set(reasons.SURVIVAL_PREFIXES) | {reasons.SURVIVAL_RETURN_PREFIX}
     findings = []
+    for module, source in sorted(sources.items()):
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                names = [name.id for target in targets for name in ast.walk(target)
+                         if isinstance(name, ast.Name) and 'SURVIVAL' in name.id]
+                held = {const.value for const in ast.walk(node.value)
+                        if isinstance(const, ast.Constant) and isinstance(const.value, str)}
+                if names and held & registered:
+                    findings.append(
+                        f'survival reasons declared outside the registry ({module}.py:{node.lineno} '
+                        f'{names[0]}: {sorted(held & registered)}): declare them in '
+                        'hengbot/reasons.py SURVIVAL_FAMILIES')
+            elif (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and 'survival' in node.name.lower()):
+                for call in ast.walk(node):
+                    if (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                            and call.func.attr == 'startswith' and _is_reason_value(call.func.value)):
+                        findings.append(
+                            f'a survival test of a reason outside the registry ({module}.py:'
+                            f'{call.lineno} {node.name}): read reasons.is_survival')
+    return findings
+
+
+def analyze(sources: dict[str, str] | None = None) -> list[str]:
+    findings = survival_findings(sources)
     for shape, places in sorted(shapes(sources).items()):
         if reasons.escape_shaped(shape) and reasons.lookup(shape) is None:
             where = ', '.join(f'{module}.py:{line}' for module, line in sorted(set(places))[:3])

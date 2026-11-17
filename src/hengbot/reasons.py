@@ -447,3 +447,56 @@ def survival(reason: str | None) -> bool:
 def reasons_of(kind: str) -> frozenset:
     """The exact reasons of ``kind`` (the counted kinds have no pattern rows)."""
     return frozenset(row.pattern for row in ROWS if row.kind == kind)
+
+
+# ---------------------------------------------------------------- survival (design rev 9 item 3)
+# Which decisions are "survival": the town hold's claim (town_hold, ``Claim.survival``; the
+# decision's claim may pre-empt its holder) and cli's town-blocked fuse (TOWN_FUSE_COMBAT_REASON_
+# PREFIXES: fighting and the survival ladder answer a monster, not the blocked visit) read these
+# families, and no other list (scripts/reason_registry_lint.py fails on a second one).  A family
+# is a reason prefix: every reason that starts with it is survival, registered row or not.
+# Not ``survival`` above: that one is the ping-pong guard's survival rung (the counted escapes and
+# the walking retreats of the rows).
+class SurvivalFamily(NamedTuple):
+    prefix: str
+    rule: str
+
+
+SURVIVAL_FAMILIES: tuple[SurvivalFamily, ...] = (
+    SurvivalFamily("emergency:", "the emergency ladder's output (enters EscapeState as ``emergency``)"),
+    SurvivalFamily("summons:", "the answer to the summons (summon_response; the third summon of a "
+                   "floor visit reads Recall)"),
+    SurvivalFamily("unseen-recall:", "the unseen attacker's Recall family"),
+    SurvivalFamily("guardian:teleport-to-cover", "the guardian's teleport to cover"),
+    SurvivalFamily("combat:disengage", "the disengage family"),
+    SurvivalFamily("unseen:", "the unseen-attacker family"),
+    SurvivalFamily("esp-threat:leave-", "the ESP-threat floor exit"),
+    SurvivalFamily("town:seek-shelter", "town: a shelter from a monster"),
+    SurvivalFamily("town:recover", "town: recovery from a monster's damage"),
+)
+SURVIVAL_PREFIXES = tuple(family.prefix for family in SURVIVAL_FAMILIES)
+# A ``return:`` decision is survival only while the trigger that started the return is a danger
+# trigger (policy_combat.py ``_last_return_trigger``).
+SURVIVAL_RETURN_PREFIX = "return:"
+# Rev 9.3: ``guardian-reposition`` is not in it -- a guardian reposition never starts a return
+# (policy_combat.py sets ``_returning_to_town`` only when not repositioning), so it can never be
+# the trigger a return began with.
+SURVIVAL_RETURN_TRIGGERS = frozenset({"esp-threat", "unseen-attacker"})
+SURVIVAL_RETURN_TRIGGER_PREFIX = "emergency-"
+
+
+def is_survival_return_trigger(trigger: str | None) -> bool:
+    return bool(trigger) and (
+        trigger in SURVIVAL_RETURN_TRIGGERS
+        or trigger.startswith(SURVIVAL_RETURN_TRIGGER_PREFIX)
+    )
+
+
+def is_survival(reason: str | None, return_trigger: str | None = None) -> bool:
+    """Whether a decision is survival in the sense of design rev 9 item 3."""
+    reason = reason or ""
+    if reason.startswith(SURVIVAL_PREFIXES):
+        return True
+    return reason.startswith(SURVIVAL_RETURN_PREFIX) and is_survival_return_trigger(
+        return_trigger
+    )

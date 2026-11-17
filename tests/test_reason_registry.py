@@ -165,6 +165,35 @@ class RegistryShapeTest(unittest.TestCase):
         self.assertIsNone(reasons.lookup(None))
 
 
+NL = chr(10)
+# town_hold.SURVIVAL_REASON_PREFIXES as it stood at 9bfcba7c6e, before it moved to the registry.
+OLD_SURVIVAL_REASON_PREFIXES = ("emergency:", "summons:", "unseen-recall:", "guardian:teleport-to-cover",
+                                "combat:disengage", "unseen:", "esp-threat:leave-", "town:seek-shelter",
+                                "town:recover")
+
+
+class SurvivalFamiliesTest(unittest.TestCase):
+    """reasons.SURVIVAL_FAMILIES: the one declaration of the survival reasons (design rev 9 item 3)."""
+
+    def test_the_families_are_the_old_literals_in_order(self):
+        self.assertEqual(reasons.SURVIVAL_PREFIXES, OLD_SURVIVAL_REASON_PREFIXES)
+
+    def test_every_family_has_a_rule_and_none_is_declared_twice(self):
+        for family in reasons.SURVIVAL_FAMILIES:
+            self.assertTrue(family.rule, family)
+        self.assertEqual(len(set(reasons.SURVIVAL_PREFIXES)), len(reasons.SURVIVAL_PREFIXES))
+
+    def test_is_survival_answers_as_before(self):
+        for reason in ("emergency:teleport", "summons:recall", "combat:disengage-wait", "town:recover",
+                       "esp-threat:leave-stairs", "flee", "melee", "", None):
+            self.assertEqual(reasons.is_survival(reason), (reason or "").startswith(OLD_SURVIVAL_REASON_PREFIXES),
+                             reason)
+        self.assertTrue(reasons.is_survival("return:recall", "emergency-low-hp"))
+        self.assertTrue(reasons.is_survival("return:recall", "unseen-attacker"))
+        self.assertFalse(reasons.is_survival("return:recall", "guardian-reposition"))
+        self.assertFalse(reasons.is_survival("return:recall", None))
+
+
 class LintTest(unittest.TestCase):
     """scripts/reason_registry_lint.py on the repository and on edited sources."""
 
@@ -215,6 +244,20 @@ class LintTest(unittest.TestCase):
             '"combat:shun-unprofitable-unique-",\n                1,')
         self.assertTrue(any("'combat:shun-unprofitable-unique-stairs'" in finding for finding in findings),
                         findings)
+
+    def test_a_survival_list_outside_the_registry_fails(self):
+        """The survival families live in reasons.SURVIVAL_FAMILIES only (2026-11-17)."""
+        findings = self.edited(
+            "cli", "TOWN_BLOCKED_STOP_LIMIT = 30" + NL,
+            "TOWN_BLOCKED_STOP_LIMIT = 30" + NL + 'TOWN_SURVIVAL_REASONS = ("emergency:", "town:new-shelter")' + NL)
+        self.assertTrue(any("TOWN_SURVIVAL_REASONS" in finding for finding in findings), findings)
+
+    def test_a_survival_test_outside_the_registry_fails(self):
+        sources = lint.repository_sources()
+        sources["cli"] += NL.join(("", "", "def _is_survival_here(reason):",
+                                     '    return reason.startswith("town:new-shelter")', ""))
+        findings = lint.analyze(sources)
+        self.assertTrue(any("_is_survival_here" in finding for finding in findings), findings)
 
     def test_every_counted_reason_is_sent_by_one_of_its_producers(self):
         """A counted row names the modules that send it; the scan finds it there."""

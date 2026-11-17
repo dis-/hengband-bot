@@ -66,7 +66,7 @@ from hengbot import threat_tiers
 from hengbot import town_visit_plan
 from hengbot import spectator_threat
 from hengbot.anaguma import STATIONARY as ANAGUMA_STATIONARY
-from hengbot.town_hold import SURVIVAL_REASON_PREFIXES
+from hengbot.reasons import SURVIVAL_PREFIXES
 from hengbot.policy_constants import (
     DIRECTION_DELTAS,
     CHARACTER_DUMP_MACRO,
@@ -515,7 +515,7 @@ TOWN_BLOCKED_STOP_LIMIT = 30
 # blocked visit; a town:blocked:* line followed by a fight with a fleeing town
 # monster is not thirty idle decisions (n1-c life-057 2026-10-31 08:45).
 TOWN_FUSE_COMBAT_REASON_PREFIXES = (
-    COMBAT_REASON_PREFIXES + SURVIVAL_REASON_PREFIXES + ("town:kill-mob",)
+    COMBAT_REASON_PREFIXES + SURVIVAL_PREFIXES + ("town:kill-mob",)
 )
 # Outermost town safety net. Policy-level repetition checks deliberately reset
 # when gold, pack, or equipment changes, so transaction ping-pong can evade
