@@ -13,7 +13,7 @@ from hengbot.town_hold import (
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.speed_valuation import meets_speed_gate, permanent_player_speed
-from hengbot import bm_destruction_fund, deep_teleport, launcher_upgrade, me_powerful_activation, random_quest_hold, sealed_loot, torch_release
+from hengbot import bm_destruction_fund, deep_teleport, detected_loot, launcher_upgrade, me_powerful_activation, random_quest_hold, sealed_loot, torch_release
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
@@ -1304,6 +1304,9 @@ class ObservationMixin:
                     # collected.
                     self._complete_claim_goal("loot-collected", grid.position, owners=CLAIM_LOOT_OWNERS)
                     self._loot_target = None
+        # Owner 2026-11-13 「その品の方へ探索を寄せる」: the loot detected on grids the map does
+        # not know is loot too (detected_loot).
+        detected_loot.observe(self, snapshot)
         if self._known_treasure - treasure_before_observation:
             self._mining_stall_turns = 0
             self._mining_route_visits.clear()

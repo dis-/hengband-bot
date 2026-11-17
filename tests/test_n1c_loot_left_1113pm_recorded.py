@@ -36,6 +36,9 @@ FIXTURE_SHA256 = "c770396104ef0daa1227886959f8f9812c623e79e541fbdca92a07d55eeb6d
 # The recorded floor's single items worth more than the spare (base cost, k_info).
 HEAVY_CHAIN_MAIL = Position(35, 22)  # 重鎖かたびら [16], 900
 STAFF_OF_EARTHQUAKES = Position(39, 84)  # 地震の杖, 350
+# Detected on grids the map does not know: loot since detected_loot (2026-11-17), no walk reaches them.
+WAND_OF_CHANGE_MONSTER = Position(27, 182)  # チェンジ・モンスターの魔法棒, 400
+HEAVY_FLAIL = Position(59, 57)  # ヘヴィ・フレイル (3d6), 590
 # The choke-hold window's loot walk: live (57,164); with the left-cell registry (owner 2026-11-13
 # 「1と2だけ」) the loot walk does not step back into (56,165), the cell detected:prepare-choke
 # left at 4044398, and commits to the pile at (55,163) instead -- the hold then interrupts that walk.
@@ -89,7 +92,8 @@ class N1cLootLeft1113pmRecordedTest(recorded.RecordedHarness):
         cost = self.costs[(spare.tval, spare.sval)]
         worth = {position for position in policy._loot_candidates(snapshot)
                  if (full_pack_exchange.pile_value(policy, snapshot, position) or 0) > cost}
-        self.assertEqual(worth, {HEAVY_CHAIN_MAIL, STAFF_OF_EARTHQUAKES})
+        self.assertEqual(worth, {HEAVY_CHAIN_MAIL, STAFF_OF_EARTHQUAKES,
+                                 WAND_OF_CHANGE_MONSTER, HEAVY_FLAIL})
 
     def test_on_the_pile_the_spare_is_destroyed(self):
         """Declared constructed: the filled board with the player moved onto the chain mail."""
