@@ -2206,6 +2206,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_deposit_abandoned = False
         # A command can reject one item even while the Home still has free pages.
         self._home_rejected_deposits: set[tuple[str, int, int]] = set()
+        # The rejections above whose only cause was a full Home: released
+        # when a Home page shows a free slot (n1-a life-530 2026-11-17).
+        self._home_full_rejected_deposits: set[tuple[str, int, int]] = set()
         # The visit's purchases and sales (a sell-then-rebuy is churn; the
         # 2026-10-03 Identify staff swap sells the emptiest staff for a fuller
         # one, an upgrade) live in town_visit.FloorHolds (stage 3-2b).
@@ -4801,15 +4804,24 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     blocked_entries = tuple(entry for entry in entries
                                             if entry[0] not in landed)
                     self._home_full_retry_deposits = None
+                    home_full = False
                     if self._home_full_refused:
+                        home_full = True
                         self._begin_home_full_relief(snapshot, blocked_entries, refused=True)
                     elif self._home_is_full(snapshot):
+                        home_full = True
                         self._begin_home_full_relief(snapshot, blocked_entries)
-                    self._home_rejected_deposits.update(
+                    rejected = {
                         signature
                         for signature, _count_before, _expected_count in entries
                         if signature not in landed
-                    )
+                    }
+                    self._home_rejected_deposits.update(rejected)
+                    if home_full:
+                        # Refused for want of a slot only: a later page with a
+                        # free slot makes it depositable again
+                        # (_release_home_full_rejections).
+                        self._home_full_rejected_deposits.update(rejected)
                     if (self._store_visit is not None
                             and self._store_visit.store_type == STORE_HOME):
                         self._close_store_visit("home-deposit-unobserved")

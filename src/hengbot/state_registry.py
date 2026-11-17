@@ -623,6 +623,8 @@ REGISTRY = (
       "policy: home procurement withdraw failure (no comment at its definition)"),
     S("_home_random_teleport_withdrawal", "policy", LIFE,
       "policy: home random teleport withdrawal (no comment at its definition)"),
+    S("_home_full_rejected_deposits", "policy", VISIT,
+      "The rejections refused by a full Home only: released when a Home page shows a free slot."),
     S("_home_rejected_deposits", "policy", VISIT,
       "A command can reject one item even while the Home still has free pages."),
     S("_home_scan_burst_pending", "policy", LIFE,
