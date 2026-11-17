@@ -1665,6 +1665,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "dive_floor.py:pick_refused": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "dive_floor.py:target": {
     "classification": "data",
     "rows": [

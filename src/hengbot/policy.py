@@ -9,7 +9,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import cross_rules, dive_floor, fled_floor_stairs, material_threat, walk_vetoes
+from hengbot import cross_rules, dive_floor, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -10518,8 +10518,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # Both answers together: with an over-extension recorded, the landing
             # is also strictly shallower than the over-extended depth (n1-b
             # life-365: Angband 49 against the over-extended 49 is not).
+            # An over-extended depth shallower than the fallback depth floor (owner 2026-11-13
+            # 「最新到達-20Fまで」) can bound nothing: the character has since gone on more than
+            # 20 floors deeper (n1-b life-411: over-extended at Angband 30, then reached 51; the
+            # ceiling 29 under the floor 31 refused every landing).
             ceiling = unsafe_depth - 1
-            if self._last_overextended_depth > 0:
+            if (self._last_overextended_depth > 0
+                    and self._last_overextended_depth - 1
+                    >= fallback_depth_floor.floor(self, snapshot)):
                 ceiling = min(ceiling, self._last_overextended_depth - 1)
             alternate = self._pick_alternate_dungeon(
                 snapshot,
@@ -10527,6 +10533,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 prefer_deepest=True,
                 refused_dungeon=self._target_dungeon_id,
             )
+            if alternate is None:
+                # Owner 2026-11-17 (n1-b life-411) 「想定は城の20Fから潜り城40F付近を探索」:
+                # no landing fits, so the Castle (else the Mountain) dives to the floor.
+                alternate = dive_floor.pick_refused(
+                    self, snapshot, refused_depth=unsafe_depth)
         if alternate is None:
             return None
         self._alternate_dungeon = alternate
@@ -10534,6 +10545,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             "guardian_valve" if guardian_bounced_dungeon is not None
             else "safe_fallback"
         )
+        # The Castle's dive to the floor is held (dive_floor.refused_dive_held).
+        dive_floor.bind(self, snapshot, alternate)
         self._target_dungeon_id = alternate
         self._target_dungeon_reason = self._alternate_dungeon_reason
         if alternate == DUNGEON_ANGBAND:
