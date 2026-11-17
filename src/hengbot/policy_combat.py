@@ -396,7 +396,7 @@ class CombatMixin:
             for position, grid in snapshot.grids.items()
             if grid.enterable and any(
                 self._monster_cast_distance(source, position) <= MONSTER_SPELL_MAX_RANGE
-                and self._has_line_of_fire(snapshot, source, position)
+                and line_of_fire.straight_line(self, snapshot, source, position)
                 for source in remembered
             )
         }
@@ -769,7 +769,7 @@ class CombatMixin:
             return key
 
         under_fire = self._took_damage or any(
-            self._fire_reaches(snapshot, monster, snapshot.player.position)
+            line_of_fire.fire_reaches(self, snapshot, monster, snapshot.player.position)
             for monster in hostiles
         )
         if not under_fire:
@@ -1848,7 +1848,7 @@ class CombatMixin:
                 abs(monster.position.x - player.position.x),
             )) <= RANGED_MAX_DISTANCE
             and not self._sleeper_beyond_ranged_reach(monster, distance)
-            and self._may_project(snapshot, player.position, monster.position)
+            and line_of_fire.projectable(self, snapshot, player.position, monster.position)
             for monster in hostiles
         )
         if not targetable_hostile or unwoken:
@@ -2536,7 +2536,7 @@ class CombatMixin:
         hidden_threat_lethal = (
             player.hallucinated
             and player.hp < self._low_hp_walk_threshold(player.max_hp)
-            and return_yield.awake_hostile_in_view(self, snapshot)
+            and return_yield.awake_visible_hostile_projectable(self, snapshot)
         )
         lethal = (
             instant_death
@@ -3227,8 +3227,8 @@ class CombatMixin:
             if (
                 knowledge.spell_frequency > 0
                 and knowledge.abilities
-                and self._has_line_of_fire(
-                    snapshot, monster.position, snapshot.player.position
+                and line_of_fire.straight_line(
+                    self, snapshot, monster.position, snapshot.player.position
                 )
             ):
                 selection = source_selection_probabilities(
@@ -3697,7 +3697,7 @@ class CombatMixin:
                 if contact
                 else self._monster_path_distance(snapshot, monster.position)
             )
-            in_line_of_fire = contact or self._monster_in_line_of_fire(snapshot, monster)
+            in_line_of_fire = contact or line_of_fire.danger(self, snapshot, monster)
             knowledge = self._monrace_knowledge.get(monster.race_id)
             never_moves = bool(
                 knowledge is not None and "NEVER_MOVE" in knowledge.flags
@@ -4889,89 +4889,6 @@ class CombatMixin:
             for monster in visible_monsters
             if monster.hostile and not monster.asleep
         }
-    def _fire_reaches(
-        self, snapshot: Snapshot, monster: MonsterState, cell: Position,
-        *, projectable: bool = False,
-    ) -> bool:
-        """Whether a visible hostile can shoot the player standing on ``cell``.
-
-        This is the survival gate's "under fire" test: within the game's reach,
-        a line of fire and a one-turn predicted damage above zero.  Every
-        monster ranged attack (bolts, balls, breaths, arrows and direct spells)
-        is a spell of make_attack_spell, which never casts at a player whose
-        cdis exceeds get_max_range() = 18 (mspell-attack.cpp:320,
-        angband-system.cpp:45-48); its projection path also ends at that range
-        (projection-path-calculator.cpp:262-272).  ``projectable`` adds the
-        game's own path gate: a monster casts only when projectable() reaches
-        the player (mspell-lite.cpp:209-212 decide_lite_projection), ported as
-        ``_may_project``.
-        """
-        if self._monster_cast_distance(monster.position, cell) > MONSTER_SPELL_MAX_RANGE:
-            return False
-        reaches = self._has_line_of_fire(snapshot, monster.position, cell) or (
-            projectable and self._may_project(snapshot, monster.position, cell)
-        ) or bool(glass_reach.passing_abilities(
-            self, snapshot, monster, self._monrace_knowledge.get(monster.race_id), cell))
-        return reaches and self._predicted_damage(snapshot, [monster], turns=1) > 0
-
-    def _monster_in_line_of_fire(self, snapshot: Snapshot, monster) -> bool:
-        """The monster has a line of fire to the player, as the damage estimate reads it (the
-        danger reading: ``threat_prediction`` and the 50F+ instant-death judgement, deep_teleport
-        ``fire_p95``, owner 2026-11-15 maintainability review Q5 「被害の見積りと同じにする」; the
-        recall-wait T1 and the Amberites' strike, owner 2026-11-17 Q5 「危険の判定は危険用に揃える」.
-        The escape and summon counts keep line_of_fire.in_fire).
-
-        An unknown grid is not a wall (owner 2026-11-08 「未知のマスを壁と見ない」) for an awake
-        monster: the remembered line, else projectable() over the known map with the unknown
-        grids open (``_may_project``).  n1-a life-514 (2026-11-12, Angband 49F): the
-        never-moving あつくもえるてき at distance 10 behind grids the board had never shown
-        predicted 0 while its fire balls reached the player.  A sleeping monster casts nothing
-        until it wakes (monster-processor.cpp:198-200: a sleeping monster's turn ends at
-        awake_monster), so its unknown grids stay closed: opened, every sleeper telepathy shows
-        through unexplored rock reads as reaching (the same floor's fifteen sleeping 巨大首なし
-        read as a lethal swarm on arrival at full HP).  Waking one is the ranged rung's question
-        (``_sleeper_not_to_wake``)."""
-        return self._has_line_of_fire(
-            snapshot, monster.position, snapshot.player.position,
-            remembered=self._remembered_grids,
-        ) or (not monster.asleep and self._may_project(
-            snapshot, monster.position, snapshot.player.position))
-
-    def _has_line_of_fire(self, snapshot: Snapshot, origin: Position, target: Position, *,
-                          remembered: dict | None = None, across_glass: bool = False) -> bool:
-        """``remembered``: the map memory read for a grid the board does not
-        know (the incoming-damage estimate; n1-c life-171, 城65階: after the
-        darkness storm two floor grids the player had walked between it and
-        皇帝『レイザーク』 were off the board and read as walls, so the
-        emperor's spells counted 0 while they landed).
-
-        A known glass grid (LOS without PROJECTION) stops the line as it stops
-        projectable() (projection-path-calculator.cpp:94, glass_reach);
-        ``across_glass`` reads the line of sight through it, for the spells
-        that cross it (glass_reach.passing_abilities)."""
-        y0, x0 = origin.y, origin.x
-        y1, x1 = target.y, target.x
-        dy, dx = abs(y1 - y0), abs(x1 - x0)
-        sy, sx = (1 if y0 < y1 else -1), (1 if x0 < x1 else -1)
-        error = dx - dy
-        while (y0, x0) != (y1, x1):
-            twice = error * 2
-            if twice > -dy:
-                error -= dy
-                x0 += sx
-            if twice < dx:
-                error += dx
-                y0 += sy
-            if (y0, x0) == (y1, x1):
-                return True
-            grid = snapshot.grid_at(Position(y0, x0))
-            if (remembered is not None and (grid is None or not grid.known)
-                    and (memory := remembered.get(Position(y0, x0))) is not None):
-                grid = memory
-            if grid is None or not grid.allows_los or (
-                    not across_glass and glass_reach.stops(self, grid)):
-                return False
-        return True
     # -- summoner reach (USER DECISION 2026-10-03 06:1x) -----------------------
     @staticmethod
     def _monster_cast_distance(origin: Position, target: Position) -> int:
@@ -5002,35 +4919,6 @@ class CombatMixin:
         laid again one step on) and a Teleport Away was aimed through the glass until the
         loop detector."""
         return self._may_block_projection(snapshot, position)
-
-    def _player_may_project(
-        self, snapshot: Snapshot, source: Position, target: Position
-    ) -> bool:
-        """``_may_project`` for the player's own projection (``_stops_player_projection``)."""
-        if source == target:
-            return True
-        path = projection_path(
-            source, target, MONSTER_SPELL_MAX_RANGE,
-            lambda position: self._stops_player_projection(snapshot, position),
-        )
-        return bool(path) and path[-1] == target
-
-    def _may_project(
-        self, snapshot: Snapshot, source: Position, target: Position, *,
-        across_glass: bool = False,
-    ) -> bool:
-        """projectable() (projection-path-calculator.cpp:254-270) over the
-        known map with unknown grids open: the ported bolt path, range
-        get_max_range() = 18 (angband-system.cpp:45-48), ends on the target.
-        ``across_glass``: the same line read through glass (``_may_block_projection``)."""
-        if source == target:
-            return True
-        path = projection_path(
-            source, target, MONSTER_SPELL_MAX_RANGE,
-            lambda position: self._may_block_projection(
-                snapshot, position, across_glass=across_glass),
-        )
-        return bool(path) and path[-1] == target
 
     def _offset_spell_reach(
         self, snapshot: Snapshot, monster: MonsterState
@@ -5072,10 +4960,10 @@ class CombatMixin:
             for origin in frontier:
                 if self._monster_cast_distance(origin, player) > MONSTER_SPELL_MAX_RANGE:
                     continue
-                if depth > 0 and self._may_project(snapshot, origin, player):
+                if depth > 0 and line_of_fire.projectable(self, snapshot, origin, player):
                     return depth, True
                 offset = offset or any(
-                    self._may_project(snapshot, origin, cell) for cell in neighbours)
+                    line_of_fire.projectable(self, snapshot, origin, cell) for cell in neighbours)
             if offset:
                 return depth, False
             if depth == steps:
@@ -5164,7 +5052,7 @@ class CombatMixin:
                 if self._monster_cast_distance(
                     origin, player
                 ) <= MONSTER_SPELL_MAX_RANGE and any(
-                    self._may_project(snapshot, origin, target)
+                    line_of_fire.projectable(self, snapshot, origin, target)
                     for target in targets
                 ):
                     return True
@@ -5207,7 +5095,7 @@ class CombatMixin:
             for monster in snapshot.visible_monsters
             if monster.hostile
             and monster.can_summon
-            and self._may_project(snapshot, player, monster.position)
+            and line_of_fire.projectable(self, snapshot, player, monster.position)
         )
         self._summoner_counter_targets = frozenset(noted)
     @claims(ClaimOwner.ESCAPE)

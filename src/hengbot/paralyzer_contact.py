@@ -26,6 +26,7 @@ needs ``path - 1`` moves and one blow.
 
 from __future__ import annotations
 
+from hengbot import line_of_fire
 from hengbot.policy_constants import DEPTH_ABILITY_REQUIREMENTS, MONSTER_SPELL_MAX_RANGE
 
 
@@ -53,7 +54,7 @@ def spell_contact(policy, snapshot, monster) -> bool:
     if monster.asleep or not paralyses_by_spell(policy._monrace_knowledge.get(monster.race_id)):
         return False
     return (monster.distance <= MONSTER_SPELL_MAX_RANGE
-            and policy._has_line_of_fire(snapshot, monster.position, snapshot.player.position))
+            and line_of_fire.straight_line(policy, snapshot, monster.position, snapshot.player.position))
 
 
 # Owner 2026-11-09 (n1-a life-501, イークの洞穴13階: a ゲイザー and ボルドールの息子『オルファックス』

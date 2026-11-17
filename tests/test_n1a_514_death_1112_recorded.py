@@ -6,7 +6,7 @@ Every decision is the public ``choose_key`` of one fresh policy fed the recorded
 
 1. あつくもえるてき (race 1295, Lv59, NEVER_MOVE, BA_FIRE / BR_FIRE 1_IN_3, speed +20) lay
    asleep at (16,41), distance 10-11.  Its line to the player crossed grids the board had never
-   shown, which ``_has_line_of_fire`` read as walls, so ``threat_prediction`` predicted 0 even
+   shown, which line_of_fire ``straight_line`` read as walls, so ``threat_prediction`` predicted 0 even
    once it was awake, although projectable() reached (its fire balls hit the player).  The
    engagement read T3 (a reward race), its free damage 518.7 was the warrior's melee although it
    could not come to the player, and the bot shot it awake (11284347, 11284361
@@ -39,7 +39,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot import attack_expectation, destruction_use, threat_tiers
+from hengbot import attack_expectation, destruction_use, line_of_fire, threat_tiers
 from hengbot.exploration_ledger import ExplorationLedger
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy
@@ -126,9 +126,9 @@ def _flame_far(policy, snapshot):
     here = snapshot.player.position
     return {
         "distance": flame.distance, "asleep": flame.asleep,
-        "line": policy._has_line_of_fire(snapshot, flame.position, here,
+        "line": line_of_fire.straight_line(policy, snapshot, flame.position, here,
                                          remembered=policy._remembered_grids),
-        "projects": policy._may_project(snapshot, flame.position, here),
+        "projects": line_of_fire.projectable(policy, snapshot, flame.position, here),
         "asleep_total": policy.threat_prediction(snapshot, [flame])["total"],
         "awake_total": policy.threat_prediction(snapshot, [awake])["total"],
     }

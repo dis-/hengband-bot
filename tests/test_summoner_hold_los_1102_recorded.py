@@ -37,7 +37,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
-from hengbot import anaguma
+from hengbot import anaguma, line_of_fire
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.summoner_wait import HOLD_REPOSITION_REASON
@@ -150,7 +150,7 @@ class SummonerHoldUnderFireTest(executor_pins.ProductionHarness):
         destination = policy._validated_choke_route(
             shot, [m for m in shot.visible_monsters if m.race_id == CRYPT_CREEP],
             admit=lambda cell: cell not in policy._engagement_avoid_cells
-            and not any(policy._fire_reaches(shot, m, cell, projectable=True)
+            and not any(line_of_fire.fire_reaches(policy, shot, m, cell, projectable_path=True)
                         for m in shot.visible_monsters))[0]
         self.assertGreater(
             policy._monster_cast_distance(Position(2, 16), destination), 18)

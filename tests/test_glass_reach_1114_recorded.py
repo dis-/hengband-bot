@@ -24,7 +24,7 @@ import copy
 import unittest
 from dataclasses import replace
 
-from hengbot import glass_reach, threat_tiers
+from hengbot import glass_reach, line_of_fire, threat_tiers
 from hengbot.cli import _ExecutorInputPort, SendResult
 from tests.support import recorded as executor_pins
 from tests.test_floor_visit_memory_1114_recorded import ARRIVAL, MAP_NAME, consumed, live, raw_board
@@ -56,8 +56,8 @@ class GlassReach1114RecordedTest(executor_pins.ProductionHarness):
         here = board.player.position
         awake = awake_in_view(board)
         self.assertEqual((len(board.visible_monsters), len(awake)), (50, 27))
-        self.assertFalse(any(policy._may_project(board, m.position, here) for m in awake))
-        through = [m for m in awake if policy._may_project(board, m.position, here, across_glass=True)]
+        self.assertFalse(any(line_of_fire.projectable(policy, board, m.position, here) for m in awake))
+        through = [m for m in awake if line_of_fire.projectable(policy, board, m.position, here, across_glass=True)]
         self.assertEqual(len(through), 17)
         self.assertEqual(live(ARRIVAL), ("re", "emergency:teleport"))
 

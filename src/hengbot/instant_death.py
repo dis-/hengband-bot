@@ -49,7 +49,7 @@ def _instant_death(policy, snapshot, hostiles, melee_slots=None,
            for monster in policy._paralyzing_monsters(snapshot, hostiles)):
         reasons.append("paralyzer-contact")
     if (player.hallucinated and hp < policy._low_hp_walk_threshold(player.max_hp)
-            and return_yield.awake_hostile_in_view(policy, snapshot)):
+            and return_yield.awake_visible_hostile_projectable(policy, snapshot)):
         reasons.append("hallucination")
     return InstantDeath(tuple(reasons), next_action_p95, correction), one_turn
 

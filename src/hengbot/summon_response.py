@@ -52,8 +52,8 @@ monspell_message_base: a monster-to-monster cast is told whenever either side is
 line alone cannot tell them apart.  The caster is the monster the line names, found on the board
 by that name among the monsters in view or sensed (telepathy names a caster out of view: 19:10:23
 シャドウ・ロード was a ``detected_monsters`` row); a cast counts when one of them has
-``line_of_fire.in_fire`` to the player (the game's ``projectable``, the counting reading of it;
-the danger judgements read policy ``_monster_in_line_of_fire``, owner 2026-11-17 Q5).
+``line_of_fire.counting`` to the player (the game's ``projectable``, the counting reading of it;
+the danger judgements read line_of_fire ``danger``, owner 2026-11-17 Q5).
 An unseen caster (何か / It, a blind player's sound) or a name no monster on the board carries
 cannot be identified, so it is not counted.  Rules 1 and 2 read every cast as before: rule 2's run
 of unseen casts is its own count (``unseen_run``), and an unseen cast no longer joins rule 3's.
@@ -227,7 +227,7 @@ def _in_fire(policy, snapshot, summon: Summon) -> bool:
     if not summon.seen:
         return False
     name = _plain_name(summon.caster)
-    return any(_plain_name(monster.name) == name and line_of_fire.in_fire(policy, snapshot, monster)
+    return any(_plain_name(monster.name) == name and line_of_fire.counting(policy, snapshot, monster)
                for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
 
 
@@ -318,7 +318,7 @@ def leave_key(policy, snapshot) -> str | None:
     docstring), else None."""
     memory = _memory(policy)
     if (not leave_due(policy, snapshot) or memory.leave_turn == snapshot.turn
-            or not return_yield.awake_hostile_in_view(policy, snapshot)):
+            or not return_yield.awake_visible_hostile_projectable(policy, snapshot)):
         return None
     shot = counter_shot_key(policy, snapshot)
     if shot is not None:

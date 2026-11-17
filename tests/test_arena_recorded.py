@@ -22,7 +22,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import arena, arena_odds, me_powers, me_ranged_first
+from hengbot import arena, arena_odds, line_of_fire, me_powers, me_ranged_first
 from hengbot.character_sheet import SHEET_ENCODINGS, ArenaStanding, _decode_sheet, arena_standing
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.input_executor import ScreenKind, classify_screen
@@ -160,7 +160,7 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         policy._build_grid_index(snapshot)
         self.assertEqual((snapshot.player.position.y, snapshot.player.position.x), (6, 33))
         self.assertEqual(snapshot.visible_monsters, [])
-        self.assertFalse(policy._has_line_of_fire(snapshot, snapshot.player.position,
+        self.assertFalse(line_of_fire.straight_line(policy, snapshot, snapshot.player.position,
                                                   snapshot.detected_monsters[0].position))
 
     def test_an_opponent_known_only_by_telepathy_is_walked_to(self):

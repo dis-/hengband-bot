@@ -26,15 +26,53 @@ Each decision that chooses an escape records, through ``note``, whether any of t
 weighed has that line (``causes``); an escape no decision noted is judged on the board's awake
 known hostiles that can hurt or summon (``known_causes``).  ``PROOF_REASONS`` count as before.
 
-This is the counting reading (the escape count, summon_response's count).  A judgement of danger
-reads policy ``_monster_in_line_of_fire`` instead (an awake monster does not see an unknown grid
-as a wall: the damage estimate, deep_teleport ``fire_p95``, the recall-wait T1, the Amberites'
-strike), owner 2026-11-17 (maintainability review Q5, verbatim 「危険の判定は危険用に揃える」).
+This is the counting reading (``counting``).  Every line of fire of the bot is read in this
+module (maintainability review 2026-11-17, N4 / 5(a)-7: two readings had each claimed to
+be the only one).  The readings, by name:
+
+- ``counting``: the reading above (an unknown grid stops the path).  It decides what is
+  counted, not what is done: the escape count (``note``), summon_response's count.
+- ``danger``: what may hurt the player (owner 2026-11-08 「未知のマスを壁と見ない」, 2026-11-15
+  Q5 「被害の見積りと同じにする」, 2026-11-17 Q5 「危険の判定は危険用に揃える」): the board's line
+  with the map memory, else, for an awake monster, ``projectable`` (the unknown grids open).
+- ``projectable``: the game's projectable() over the known map with the unknown grids open,
+  awake or asleep (``across_glass``: read through glass, glass_reach).
+- ``straight_line``: the board's straight line of sight, a known glass grid stopping it
+  (``remembered``: the map memory read for a grid the board does not know).
+- ``player_projectable``: projectable() for the player's own bolt (glass stops it).
+- ``fire_reaches``: the survival gate's "under fire" (within reach, a line of fire, a one-turn
+  predicted damage above zero).
+
+Which caller reads which, and why, is ``READERS`` below; scripts/line_of_fire_lint.py fails on a
+call of these readings the table does not list, on a stale row, and on a line-of-fire
+computation outside this module.  Naming the readings changed no caller's reading (whether a
+caller should read another one is the owner's question, review Q5).
+
+The "in view" readings (maintainability review 2026-11-17, N9 / 5(a)-8: eight of them, two of
+one name until then), each named for what it reads:
+
+==================================================  =================================================
+destruction_use ``_visible_hostiles_except_target``  the visible hostiles but the target, awake or
+                                                     asleep (the *Destruction* gate's seen threats)
+threat_tiers ``_seen_and_projectable``               seen (not by detection only) and ``projectable``
+                                                     to the player, awake or asleep (a T1 the
+                                                     approach leaves to the in-view rules)
+return_yield ``awake_visible_hostile_projectable``   an awake visible hostile (detection included)
+                                                     ``projectable`` to the player
+resist_potion ``_awake_visible_enemy_it_answers``    an awake visible hostile whose attack the
+                                                     potion's resistance answers
+safety_facts ``hostile_in_view``                     any visible hostile (the watch's recorded fact
+                                                     name, kept)
+quest25_battle ``_Ctx.seen_hostiles``                the visible hostiles not by detection only
+me_powers ``Context.hostile_visible``                a physical visible hostile
+me_powers ``Context.threat_visible``                 a visible threat (me_powers ``visible_threat``)
+amberite_curse ``struck`` (inline)                   visible, or in the ``danger`` line of fire
+==================================================  =================================================
 """
 
 from __future__ import annotations
 
-from hengbot import cross_rules
+from hengbot import cross_rules, glass_reach
 from hengbot.model import Position
 from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE
 from hengbot.projection_path import projection_path
@@ -48,14 +86,86 @@ PROOF_REASONS = frozenset({"summons:leave-teleport", "no-wait:escape-scroll"})
 RECORD = "_escape_line_of_fire"
 BOARD = "_escape_line_of_fire_board"
 
+# Which caller reads which line of fire, and why: (module, function, reading) -> why.
+# scripts/line_of_fire_lint.py keeps it equal to the calls (a missing row and a stale row fail).
+READERS = {
+    # counting: an unknown grid is a wall.  What is counted, not what is done.
+    ("line_of_fire", "_note", "counting"):
+        "the escape count (owner 2026-11-14 「射線が通っている場合のみ」)",
+    ("line_of_fire", "counting", "counting"):
+        "the counting reading from the monster's grid (counting_reaches)",
+    ("summon_response", "_in_fire", "counting"):
+        "the summon count: a cast counts from a caster with a line to the player",
+    ("deep_teleport", "note_teleport", "counting"):
+        "the 50F+ teleport's memory of the monsters in line before it (as the escape count)",
+    ("deep_teleport", "observe", "counting"):
+        "the landing: a remembered monster still in line on the landing board",
+    # danger: an awake monster's unknown grids are open.  What may hurt the player.
+    ("policy_combat", "threat_prediction", "danger"):
+        "the damage estimate (owner 2026-11-08 「未知のマスを壁と見ない」)",
+    ("deep_teleport", "compute", "danger"):
+        "fire_p95, the 50F+ instant death (owner 2026-11-15 Q5 「被害の見積りと同じにする」)",
+    ("recall_wait_teleport", "_t1_in_fire", "danger"):
+        "the recall wait's 「射線の通る T1」 (owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
+    ("amberite_curse", "struck", "danger"):
+        "an Amberite the shot may hit (owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
+    # projectable: the game's projectable() with the unknown grids open, awake or asleep.
+    ("line_of_fire", "danger", "projectable"):
+        "the danger reading's awake half",
+    ("line_of_fire", "fire_reaches", "projectable"):
+        "the survival gate's path gate (mspell-lite.cpp:209-212) when asked",
+    ("glass_reach", "passing_abilities", "projectable"):
+        "a spell crossing glass: projectable through it",
+    ("policy_combat", "_ranged_attack_key", "projectable"):
+        "the player's shot has a target a line projects to (from the player to the monster)",
+    ("policy_combat", "_offset_spell_reach", "projectable"):
+        "a monster's cast at the player or a grid beside it (adjacent_grid_check)",
+    ("policy_combat", "_summoner_may_summon_at", "projectable"):
+        "a summoner's cast at the player or a grid beside it",
+    ("policy_combat", "_note_summoner_counter_targets", "projectable"):
+        "a summoner a line from the player reaches (its counter-attack target)",
+    ("return_yield", "awake_visible_hostile_projectable", "projectable"):
+        "an awake visible hostile that can attack the player from where it stands",
+    ("threat_escape", "out_of_reach", "projectable"):
+        "a monster from which no line projects to the player (out of reach)",
+    ("threat_tiers", "_seen_and_projectable", "projectable"):
+        "a seen T1 with a line to the player: the in-view rules answer it, not the approach",
+    # straight_line: the board's line of sight, a known glass grid stopping it.
+    ("line_of_fire", "danger", "straight_line"):
+        "the danger reading's line with the map memory",
+    ("line_of_fire", "fire_reaches", "straight_line"):
+        "the survival gate's line",
+    ("glass_reach", "passing_abilities", "straight_line"):
+        "a spell crossing glass: the line with the map memory through it",
+    ("policy_combat", "_immobile_summoner_key", "straight_line"):
+        "the grids a remembered immobile summoner's line reaches (avoided)",
+    ("policy_combat", "_ranged_scroll_lock_threats", "straight_line"):
+        "a caster's line for the scroll lock (the board's line, no map memory)",
+    ("policy", "exposed_to", "straight_line"):
+        "a named unseen shooter's line to a cover grid",
+    ("paralyzer_contact", "spell_contact", "straight_line"):
+        "a paralyzing caster with a line to the player",
+    ("threat_escape", "need_not_fight", "straight_line"):
+        "a shrieker with a line to the player",
+    # player_projectable: the player's own bolt (glass stops it).
+    ("immobile_ranged_kill", "_shooting_cell", "player_projectable"):
+        "a grid the player's shot reaches an immobile summoner from",
+    # fire_reaches: the survival gate's "under fire".
+    ("policy_combat", "_forbid_wait_while_damaged", "fire_reaches"):
+        "the survival gate: a visible hostile can shoot the player",
+    ("summoner_wait", "_shot_at", "fire_reaches"):
+        "a hold grid a visible hostile can shoot (owner 2026-11-02 「撃たれない場所で待つ」)",
+}
+
 
 def _stops(policy, snapshot, position: Position) -> bool:
     grid = snapshot.grid_at(position)
     return grid is None or not grid.known or policy._may_block_projection(snapshot, position)
 
 
-def reaches(policy, snapshot, source: Position, target: Position | None = None) -> bool:
-    """projectable(source, target) over the known board (target: the player)."""
+def counting_reaches(policy, snapshot, source: Position, target: Position | None = None) -> bool:
+    """The counting reading from ``source`` to ``target`` (the player): projectable() over the
+    known board, an unknown grid stopping the path."""
     if target is None:
         target = snapshot.player.position
     if source == target:
@@ -65,9 +175,118 @@ def reaches(policy, snapshot, source: Position, target: Position | None = None) 
     return bool(path) and path[-1] == target
 
 
-def in_fire(policy, snapshot, monster) -> bool:
-    """The monster has a line of fire to the player."""
-    return reaches(policy, snapshot, monster.position)
+def counting(policy, snapshot, monster) -> bool:
+    """The counting reading: the monster has a line of fire to the player over the known board."""
+    return counting_reaches(policy, snapshot, monster.position)
+
+
+def danger(policy, snapshot, monster) -> bool:
+    """The danger reading: the monster has a line of fire to the player, as the damage estimate
+    reads it (``threat_prediction`` and the 50F+ instant-death judgement, deep_teleport
+    ``fire_p95``, owner 2026-11-15 maintainability review Q5 「被害の見積りと同じにする」; the
+    recall-wait T1 and the Amberites' strike, owner 2026-11-17 Q5 「危険の判定は危険用に揃える」).
+    The escape and summon counts keep ``counting``.
+
+    An unknown grid is not a wall (owner 2026-11-08 「未知のマスを壁と見ない」) for an awake
+    monster: the remembered line, else projectable() over the known map with the unknown
+    grids open (``projectable``).  n1-a life-514 (2026-11-12, Angband 49F): the
+    never-moving あつくもえるてき at distance 10 behind grids the board had never shown
+    predicted 0 while its fire balls reached the player.  A sleeping monster casts nothing
+    until it wakes (monster-processor.cpp:198-200: a sleeping monster's turn ends at
+    awake_monster), so its unknown grids stay closed: opened, every sleeper telepathy shows
+    through unexplored rock reads as reaching (the same floor's fifteen sleeping 巨大首なし
+    read as a lethal swarm on arrival at full HP).  Waking one is the ranged rung's question
+    (policy ``_sleeper_not_to_wake``)."""
+    return straight_line(
+        policy, snapshot, monster.position, snapshot.player.position,
+        remembered=policy._remembered_grids,
+    ) or (not monster.asleep and projectable(
+        policy, snapshot, monster.position, snapshot.player.position))
+
+
+def straight_line(policy, snapshot, origin: Position, target: Position, *,
+                  remembered: dict | None = None, across_glass: bool = False) -> bool:
+    """The board's straight line of sight from ``origin`` to ``target``.
+
+    ``remembered``: the map memory read for a grid the board does not know (the
+    incoming-damage estimate; n1-c life-171, 城65階: after the darkness storm two floor grids
+    the player had walked between it and 皇帝『レイザーク』 were off the board and read as
+    walls, so the emperor's spells counted 0 while they landed).
+
+    A known glass grid (LOS without PROJECTION) stops the line as it stops projectable()
+    (projection-path-calculator.cpp:94, glass_reach); ``across_glass`` reads the line of sight
+    through it, for the spells that cross it (glass_reach.passing_abilities)."""
+    y0, x0 = origin.y, origin.x
+    y1, x1 = target.y, target.x
+    dy, dx = abs(y1 - y0), abs(x1 - x0)
+    sy, sx = (1 if y0 < y1 else -1), (1 if x0 < x1 else -1)
+    error = dx - dy
+    while (y0, x0) != (y1, x1):
+        twice = error * 2
+        if twice > -dy:
+            error -= dy
+            x0 += sx
+        if twice < dx:
+            error += dx
+            y0 += sy
+        if (y0, x0) == (y1, x1):
+            return True
+        grid = snapshot.grid_at(Position(y0, x0))
+        if (remembered is not None and (grid is None or not grid.known)
+                and (memory := remembered.get(Position(y0, x0))) is not None):
+            grid = memory
+        if grid is None or not grid.allows_los or (
+                not across_glass and glass_reach.stops(policy, grid)):
+            return False
+    return True
+
+
+def projectable(policy, snapshot, source: Position, target: Position, *,
+                across_glass: bool = False) -> bool:
+    """projectable() (projection-path-calculator.cpp:254-270) over the known map with unknown
+    grids open: the ported bolt path, range get_max_range() = 18 (angband-system.cpp:45-48),
+    ends on the target.  ``across_glass``: the same line read through glass
+    (policy ``_may_block_projection``)."""
+    if source == target:
+        return True
+    path = projection_path(
+        source, target, MONSTER_SPELL_MAX_RANGE,
+        lambda position: policy._may_block_projection(
+            snapshot, position, across_glass=across_glass),
+    )
+    return bool(path) and path[-1] == target
+
+
+def player_projectable(policy, snapshot, source: Position, target: Position) -> bool:
+    """``projectable`` for the player's own projection (policy ``_stops_player_projection``)."""
+    if source == target:
+        return True
+    path = projection_path(
+        source, target, MONSTER_SPELL_MAX_RANGE,
+        lambda position: policy._stops_player_projection(snapshot, position),
+    )
+    return bool(path) and path[-1] == target
+
+
+def fire_reaches(policy, snapshot, monster, cell: Position, *,
+                 projectable_path: bool = False) -> bool:
+    """Whether a visible hostile can shoot the player standing on ``cell``.
+
+    This is the survival gate's "under fire" test: within the game's reach, a line of fire and
+    a one-turn predicted damage above zero.  Every monster ranged attack (bolts, balls,
+    breaths, arrows and direct spells) is a spell of make_attack_spell, which never casts at a
+    player whose cdis exceeds get_max_range() = 18 (mspell-attack.cpp:320,
+    angband-system.cpp:45-48); its projection path also ends at that range
+    (projection-path-calculator.cpp:262-272).  ``projectable_path`` adds the game's own path
+    gate: a monster casts only when projectable() reaches the player (mspell-lite.cpp:209-212
+    decide_lite_projection), ``projectable``."""
+    if policy._monster_cast_distance(monster.position, cell) > MONSTER_SPELL_MAX_RANGE:
+        return False
+    reaches = straight_line(policy, snapshot, monster.position, cell) or (
+        projectable_path and projectable(policy, snapshot, monster.position, cell)
+    ) or bool(glass_reach.passing_abilities(
+        policy, snapshot, monster, policy._monrace_knowledge.get(monster.race_id), cell))
+    return reaches and policy._predicted_damage(snapshot, [monster], turns=1) > 0
 
 
 def known_causes(snapshot) -> list:
@@ -113,7 +332,7 @@ def note(policy, snapshot, causes, *, proof: bool = False) -> bool:
 def _note(policy, snapshot, causes, *, proof: bool = False) -> bool:
     """``note`` without the observer's record: the count's own reading of an escape no
     producer noted (``counts``)."""
-    value = bool(proof) or any(in_fire(policy, snapshot, monster) for monster in causes)
+    value = bool(proof) or any(counting(policy, snapshot, monster) for monster in causes)
     setattr(policy, RECORD, value)
     return value
 

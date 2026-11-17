@@ -90,8 +90,9 @@ def quaff_key(policy, snapshot, reason: str) -> str | None:
     return reserved_item_command(policy, snapshot, "quaff", potion)
 
 
-def _such_enemy_in_view(policy, snapshot) -> bool:
-    """An awake visible hostile the drink would answer; no bar to read is no drink."""
+def _awake_visible_enemy_it_answers(policy, snapshot) -> bool:
+    """An awake visible hostile the drink would answer; no bar to read is no drink (named for it,
+    review 1117 N9: it was ``_such_enemy_in_view``)."""
     if snapshot.player.status_bar is None:
         return False
     knowledge = policy._monrace_knowledge
@@ -122,7 +123,7 @@ def _leave_key(policy, snapshot) -> str | None:
 def _verdict(policy, snapshot):
     """(the potion, winnable after the drink) when the rule applies to the board, else None."""
     potion = _held(snapshot)
-    if potion is None or not _such_enemy_in_view(policy, snapshot):
+    if potion is None or not _awake_visible_enemy_it_answers(policy, snapshot):
         return None
     hostiles = policy._physical_hostiles(snapshot)
     if not policy._is_material_threat(snapshot, hostiles):

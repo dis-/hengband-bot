@@ -91,7 +91,7 @@ def _below_half_the_hp(test, policy, raw):
     """The rule does not apply: such an enemy is in view, but the 3-turn prediction is below
     half the HP (``_is_material_threat``)."""
     board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
-    test.assertTrue(resist_potion._such_enemy_in_view(policy, board))
+    test.assertTrue(resist_potion._awake_visible_enemy_it_answers(policy, board))
     test.assertFalse(policy._is_material_threat(board, policy._physical_hostiles(board)))
     test.assertIsNone(resist_potion._verdict(policy, board))
 

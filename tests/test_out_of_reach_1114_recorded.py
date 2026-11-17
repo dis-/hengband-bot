@@ -22,7 +22,7 @@ import unittest
 from collections import Counter
 from dataclasses import replace
 
-from hengbot import threat_tiers
+from hengbot import line_of_fire, threat_tiers
 from hengbot.cli import _ExecutorInputPort, SendResult
 from hengbot.model import Position
 from tests.support import recorded as executor_pins
@@ -51,7 +51,7 @@ class OutOfReach1114RecordedTest(executor_pins.ProductionHarness):
         self.assertEqual(Counter(m.name for m in mimics), MIMICS)
         self.assertFalse(any(policy._monster_path_distance(board, m.position) is not None
                              for m in mimics))
-        self.assertFalse(any(policy._may_project(board, m.position, here) for m in mimics))
+        self.assertFalse(any(line_of_fire.projectable(policy, board, m.position, here) for m in mimics))
 
     def test_the_mimics_are_left_out_of_the_tier(self):
         policy, board = consumed(ARRIVAL)

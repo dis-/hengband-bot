@@ -7189,7 +7189,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         def exposed_to(cell: Position) -> bool:
             if named_shooters:
                 return any(
-                    self._has_line_of_fire(snapshot, m.position, cell)
+                    line_of_fire.straight_line(self, snapshot, m.position, cell)
                     for m in named_shooters
                 )
             # The attacker's square is unknown: a choke square is the cover.

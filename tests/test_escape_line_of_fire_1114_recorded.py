@@ -19,7 +19,7 @@ absorbed *Destruction* on several of these boards, which the fresh process has n
 * 1654, 7836354 (16:53:59, the live board decided sensed-t1:approach-destruction): Teleportation
   with no hostile in view, the 即死 test's causes (ニカデーモン, レッサー・バルログ) detected beyond
   unknown grids -- no line of fire, not counted, and with one escape counted already it latches
-  no return.  The old reading (``_may_project``) reads unknown grids open and finds lines.
+  no return.  The old reading (line_of_fire ``projectable``) reads unknown grids open and finds lines.
 * 1654, 7836363: the レッサー・バルログ in view three cells off -- counted.
 * 1654, 7836366 (16:53:59, the live emergency:teleport of the brief): nothing in view, but the
   レッサー・バルログ detected four cells off on known glass floor (GLASS_FLOOR: LOS and PROJECTION,
@@ -125,9 +125,9 @@ class EscapeLineOfFireRecordedTest(unittest.TestCase):
         self.assertFalse([m for m in snapshot.visible_monsters if m.hostile])
         causes = line_of_fire.instant_death_causes(policy, snapshot)
         self.assertTrue(causes)
-        self.assertFalse(any(line_of_fire.in_fire(policy, snapshot, m) for m in causes))
+        self.assertFalse(any(line_of_fire.counting(policy, snapshot, m) for m in causes))
         # The old reading: unknown grids open, so the projection reaches through them.
-        self.assertTrue(any(policy._may_project(snapshot, m.position, snapshot.player.position)
+        self.assertTrue(any(line_of_fire.projectable(policy, snapshot, m.position, snapshot.player.position)
                             for m in causes))
         self.assertEqual((before, after), (0, 0))
 
@@ -161,7 +161,7 @@ class EscapeLineOfFireRecordedTest(unittest.TestCase):
         self.assertFalse([m for m in snapshot.visible_monsters if m.hostile])
         board = getattr(policy, line_of_fire.BOARD)  # the next board's; the balrog's line:
         balrog = next(m for m in self.hostile(snapshot, BALROG) if m.position == Position(36, 85))
-        self.assertTrue(line_of_fire.in_fire(policy, snapshot, balrog))
+        self.assertTrue(line_of_fire.counting(policy, snapshot, balrog))
         self.assertIsNot(board, snapshot)
         self.assertEqual(after, before + 1)
 
@@ -177,13 +177,13 @@ class EscapeLineOfFireRecordedTest(unittest.TestCase):
         self.assertEqual(reason, "sensed-t1:teleport")
         wyrm = self.hostile(snapshot, HELL_WYRM)
         self.assertTrue(wyrm)
-        self.assertFalse(any(line_of_fire.in_fire(policy, snapshot, m) for m in wyrm))
+        self.assertFalse(any(line_of_fire.counting(policy, snapshot, m) for m in wyrm))
         self.assertEqual(after, before)
         policy, snapshot, reason, before, after = self.step("1629", 7730828)
         self.assertEqual(reason, "sensed-t1:teleport")
         wyrm = self.hostile(snapshot, HELL_WYRM)
         self.assertEqual([m.position for m in wyrm], [Position(26, 50)])
-        self.assertTrue(line_of_fire.in_fire(policy, snapshot, wyrm[0]))
+        self.assertTrue(line_of_fire.counting(policy, snapshot, wyrm[0]))
         self.assertEqual(after, before + 1)
 
 
@@ -217,11 +217,11 @@ class LineOfFireReadingTest(unittest.TestCase):
 
     def test_an_open_corridor_reaches_within_the_range(self):
         board = self.corridor(18)
-        self.assertTrue(line_of_fire.reaches(self.policy(), board, Position(5, 18)))
+        self.assertTrue(line_of_fire.counting_reaches(self.policy(), board, Position(5, 18)))
 
     def test_the_range_is_the_games(self):
         board = self.corridor(19)
-        self.assertFalse(line_of_fire.reaches(self.policy(), board, Position(5, 19)))
+        self.assertFalse(line_of_fire.counting_reaches(self.policy(), board, Position(5, 19)))
 
     def test_the_sensed_leave_reads_the_games_range(self):
         """The sensed-T1 leave's note (threat_tiers.note_line_of_fire): a T1 nineteen cells down
@@ -229,7 +229,7 @@ class LineOfFireReadingTest(unittest.TestCase):
         policy = self.policy()
         board = self.corridor(19)
         far = mock.Mock(position=Position(5, 19))
-        self.assertTrue(policy._has_line_of_fire(board, far.position, board.player.position))
+        self.assertTrue(line_of_fire.straight_line(policy, board, far.position, board.player.position))
         threat_tiers.note_line_of_fire(policy, board, [far])
         self.assertFalse(getattr(policy, line_of_fire.RECORD))
         threat_tiers.note_line_of_fire(policy, board, [mock.Mock(position=Position(5, 18))])
@@ -237,13 +237,13 @@ class LineOfFireReadingTest(unittest.TestCase):
 
     def test_an_unknown_grid_stops_the_line(self):
         board = self.corridor(6, {3: lambda y, x: self.floor(y, x, known=False)})
-        self.assertFalse(line_of_fire.reaches(self.policy(), board, Position(5, 6)))
+        self.assertFalse(line_of_fire.counting_reaches(self.policy(), board, Position(5, 6)))
         del board.grids[Position(5, 3)]
-        self.assertFalse(line_of_fire.reaches(self.policy(), board, Position(5, 6)))
+        self.assertFalse(line_of_fire.counting_reaches(self.policy(), board, Position(5, 6)))
 
     def test_a_wall_stops_the_line(self):
         board = self.corridor(6, {3: lambda y, x: self.floor(y, x, wall=True)})
-        self.assertFalse(line_of_fire.reaches(self.policy(), board, Position(5, 6)))
+        self.assertFalse(line_of_fire.counting_reaches(self.policy(), board, Position(5, 6)))
 
     def test_the_proof_reasons_count_without_a_line(self):
         policy = self.policy()

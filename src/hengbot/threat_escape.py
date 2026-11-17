@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from hengbot import (
     destruction_use,
+    line_of_fire,
     me_absorbed_substitutes,
     me_capability,
     quest_no_teleport,
@@ -253,8 +254,7 @@ def need_not_fight(policy, snapshot, monster, row, protected: bool) -> str | Non
         return None
     if row.get("can_teleport_player_to"):
         return None
-    if knowledge is not None and "SHRIEK" in knowledge.abilities and policy._has_line_of_fire(
-            snapshot, monster.position, snapshot.player.position) and policy._monster_cast_distance(
+    if knowledge is not None and "SHRIEK" in knowledge.abilities and line_of_fire.straight_line(policy, snapshot, monster.position, snapshot.player.position) and policy._monster_cast_distance(
             monster.position, snapshot.player.position) <= MONSTER_SPELL_MAX_RANGE:
         return None
     if monster.can_summon and policy._summoner_may_summon_next_turn(snapshot, monster):
@@ -266,7 +266,7 @@ def out_of_reach(policy, snapshot, monster, knowledge) -> bool:
     """A monster that cannot reach the player (``need_not_fight``) that also never moves
     (NEVER_MOVE, monster-move.cpp:430), that the player has no known walk to beside
     (``_monster_path_distance``: known enterable grids only; a walk found later counts it
-    again), and from which no line projects to the player (``_may_project``: unknown grids open,
+    again), and from which no line projects to the player (line_of_fire ``projectable``: unknown grids open,
     glass stops).
 
     Owner 2026-11-14 (recall-churn-1114 question 3, verbatim 「外す」): such a monster need not
@@ -277,4 +277,4 @@ def out_of_reach(policy, snapshot, monster, knowledge) -> bool:
     counts as before."""
     return (knowledge is not None and "NEVER_MOVE" in knowledge.flags
             and policy._monster_path_distance(snapshot, monster.position) is None
-            and not policy._may_project(snapshot, monster.position, snapshot.player.position))
+            and not line_of_fire.projectable(policy, snapshot, monster.position, snapshot.player.position))

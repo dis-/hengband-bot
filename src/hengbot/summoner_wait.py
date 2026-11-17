@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from functools import wraps
 
+from hengbot import line_of_fire
 from hengbot.model import Position
 from hengbot.policy_constants import ExplorationPathOutcome
 
@@ -76,7 +77,7 @@ def _shot_at(policy, snapshot, cell):
     """A visible hostile reaches ``cell`` by the survival gate's fire test
     or by the game's projectable() spell gate."""
     return policy._took_damage and cell == snapshot.player.position or any(
-        policy._fire_reaches(snapshot, monster, cell, projectable=True)
+        line_of_fire.fire_reaches(policy, snapshot, monster, cell, projectable_path=True)
         for monster in policy._physical_hostiles(snapshot)
     )
 

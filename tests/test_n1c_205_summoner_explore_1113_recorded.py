@@ -186,7 +186,7 @@ class SummonerZoneGlassRecordedTest(ProductionHarness):
             for mage in board.detected_monsters:
                 self.assertFalse(immobile_ranged_kill.killable(self.policy, board, mage))
                 # Nor would a shot land: the player's own shot stops at the glass
-                # (policy._player_may_project).
+                # (line_of_fire.player_projectable).
                 self.assertIsNone(immobile_ranged_kill.plan(self.policy, board, mage),
                                   (raw["turn"], mage.position))
             self.assertNotIn(INSIDE, zone, raw["turn"])

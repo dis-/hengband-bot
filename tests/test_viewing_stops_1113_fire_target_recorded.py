@@ -11,7 +11,7 @@ The game's ``*`` lists only target_able monsters, which needs projectable()
 (target-preparation.cpp:34-59, projection-path-calculator.cpp:262-272); the bolt path from
 row 16 ends on the wall (17,156), so ``*`` had no target, fell to the free cursor on the
 player's grid (the recorded 「ランス (2d8)がある。」) and the shot was spent.  The fallback now
-fires only when some hostile in range is projectable over the known map (``_may_project``).
+fires only when some hostile in range is projectable over the known map (line_of_fire ``projectable``).
 
 Recorded: the capture's last boards (tests/extract_viewing_stops_1113_fixtures.py boards),
 a fresh policy primed on the first of them, decided through the public choose_key; the new
@@ -28,6 +28,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from hengbot import line_of_fire
 from hengbot.model import Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support import recorded as executor_harness
@@ -57,7 +58,7 @@ class FireTargetUnprojectableRecordedTest(executor_harness.RecordedHarness):
         warrior = next(m for m in board.visible_monsters if m.race_id == NOVICE_WARRIOR)
         self.assertEqual(warrior.position, Position(17, 158))
         self.assertFalse(warrior.asleep)
-        self.assertFalse(self.policy._may_project(board, board.player.position, warrior.position))
+        self.assertFalse(line_of_fire.projectable(self.policy, board, board.player.position, warrior.position))
 
     def test_no_board_fires_the_target_macro_at_nothing(self):
         for raw in self.boards:

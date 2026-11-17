@@ -56,7 +56,7 @@ could hit, the verdict and the key it replaced.
 
 from __future__ import annotations
 
-from hengbot import attack_answer, haste_read, reasons
+from hengbot import attack_answer, haste_read, line_of_fire, reasons
 from hengbot.policy_constants import WAIT_KEY
 
 KIND_FLAG = "AMBERITE"                 # MonraceDefinitions.jsonc flags, MonsterKindType::AMBERITE
@@ -120,12 +120,12 @@ def struck(policy, snapshot, key) -> list:
     reason = policy.last_reason or ""
     if not (reason.startswith(attack_answer.SHOT_REASON_PREFIXES) or reasons.strikes(reason)):
         return []
-    # The danger reading of the line of fire (policy ``_monster_in_line_of_fire``: an awake
+    # The danger reading of the line of fire (line_of_fire ``danger``: an awake
     # monster does not see an unknown grid as a wall), owner 2026-11-17 (maintainability review
-    # Q5, 「危険の判定は危険用に揃える」); until then the escape count's line_of_fire.in_fire.
+    # Q5, 「危険の判定は危険用に揃える」); until then the escape count's line_of_fire.counting.
     shown = {monster.index for monster in snapshot.visible_monsters}
     return [monster for monster in amberites
-            if monster.index in shown or policy._monster_in_line_of_fire(snapshot, monster)]
+            if monster.index in shown or line_of_fire.danger(policy, snapshot, monster)]
 
 
 def _others_awake(policy, snapshot, amberites) -> bool:
