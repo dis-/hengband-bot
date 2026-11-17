@@ -1420,6 +1420,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._dive_emergencies = 0  # escapes counted on the current floor (escape_count)
         self._dive_escapes_total = 0  # escapes counted on the current dive (over_extension)
         self._floor_escape_causes: list[dict] = []  # each counted escape's causes (escape_count)
+        self._floor_unjudged_escapes = 0  # this floor's escapes on a climb floor (escape_count)
         self._escape_cause_board: dict = {}  # the causes of the board being decided
         self._target_empty_dives = 0  # consecutive over-extended dives of the target
         # How many dives of that streak were guardian-kit-insufficient bounces.
@@ -10517,6 +10518,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         any landing that is not a blocked guardian floor, deeper allowed,
         never the refused dungeon itself.
         """
+        refused_dive = False
         if guardian_bounced_dungeon is not None:
             alternate = self._pick_alternate_dungeon(
                 snapshot, guardian_bounced_dungeon=guardian_bounced_dungeon
@@ -10544,10 +10546,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 refused_dungeon=self._target_dungeon_id,
             )
             if alternate is None:
-                # Owner 2026-11-17 (n1-b life-411) 「想定は城の20Fから潜り城40F付近を探索」:
-                # no landing fits, so the Castle (else the Mountain) dives to the floor.
+                # Owner 2026-11-17 (n1-b life-411) 「想定は城の20Fから潜り城40F付近を探索」, (n1-a
+                # life-530) 「49Fに帰還して上り階段を探して適正階層まで行く」: no landing fits, so
+                # the Castle (else the Mountain) is explored around 40F wherever it lands.
                 alternate = dive_floor.pick_refused(
                     self, snapshot, refused_depth=unsafe_depth)
+                refused_dive = alternate is not None
         if alternate is None:
             return None
         self._alternate_dungeon = alternate
@@ -10555,8 +10559,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             "guardian_valve" if guardian_bounced_dungeon is not None
             else "safe_fallback"
         )
-        # The Castle's dive to the floor is held (dive_floor.refused_dive_held).
-        dive_floor.bind(self, snapshot, alternate)
+        # The Castle's band is held (dive_floor.refused_dive_held).
+        if refused_dive:
+            dive_floor.bind_refused(self, snapshot, alternate)
+        else:
+            dive_floor.bind(self, snapshot, alternate)
         self._target_dungeon_id = alternate
         self._target_dungeon_reason = self._alternate_dungeon_reason
         if alternate == DUNGEON_ANGBAND:

@@ -264,6 +264,7 @@ LADDER = (
         *E("direct-descent"),
         *I("return:None"),
         *D("_avoid_engagement_key"),
+        *E("castle-climb"),
         *P("_descent_step"),
         *E("_hunt_step#2"),
         *I("clear-descent"),

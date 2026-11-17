@@ -40,6 +40,27 @@ owner's words), else the Mountain.  There the floor is where the dive must reach
 the descent goes on to the deepest floor the depth requirements permit (49 without the means), as
 the guardian valve's Angband (``angband_valve_dive``).  The switch is held
 (``refused_dive_held``) so the depth floor does not end it on the next town board.
+
+Owner 2026-11-17 (n1-a life-530, verbatim): 「49Fに帰還して上り階段を探して適正階層まで行く」.  The
+Lv42 Warrior (Angband 50 refused: no *Destruction* means, no telepathy; the Castle and the Mountain
+landing at 49, the over-extended depth 49 recorded in Angband) found no landing above the floor 30
+and fundraised at the Yeek cave.  The fallback is one answer for every character: the Castle (else
+the Mountain) is explored in the band ``CLIMB_BAND_LOW``..+``CLIMB_BAND_SPAN`` (38-42, the owner's
+「40F付近」 with two floors either side; raised to the fallback depth floor when that is deeper,
+owner 2026-11-13 「最新到達-20Fまで」), wherever the recall lands:
+
+- landing above the band (n1-b's Castle 20): the ordinary descent goes down to the band (the
+  11-17 n1-b reading that went on to 49 gives way to 「城40F付近を探索」);
+- landing below it (n1-a's 49, deeper than the over-extended depth: the owner names the Castle,
+  so that depth does not bound this switch): on every floor deeper than the band the up stairs
+  are the stairs taken (``climbing``, ladder_descent's climb rung) and no stair down is
+  (``capped``); the escapes decided there are no over-extension evidence (escape_count) and the
+  dive is no lack of depth progress (policy_observation);
+- in the band: the ordinary floor rules, no stair below the band (``capped``).
+
+The landing and the band must meet the depth requirements and pass no guardian floor
+(``reaches_band``); the recall depth itself is never reset (the executor refuses the game's
+reset-recall question, fallback_depth_floor).
 """
 
 from __future__ import annotations
@@ -58,6 +79,9 @@ GUARDIAN_VALVE_REASONS = frozenset({"guardian_valve", "guardian_bounce_valve"})
 SAFE_FALLBACK_REASON = "safe_fallback"
 # Owner 2026-11-17 「想定は城の20Fから潜り城40F付近を探索」: the Castle before the Mountain there.
 REFUSED_DIVE_ORDER = (DUNGEON_CASTLE, DUNGEON_MOUNTAIN)
+# Owner 2026-11-17 「49Fに帰還して上り階段を探して適正階層まで行く」 (「40F付近」): the band explored.
+CLIMB_BAND_LOW = 38
+CLIMB_BAND_SPAN = 4
 
 
 def _landing(snapshot, info) -> int:
@@ -86,33 +110,78 @@ def pick(policy, snapshot, *, too_hard: int) -> int | None:
     return best
 
 
+def band(policy, snapshot) -> tuple[int, int]:
+    """The floors the unsafe-recall fallback's Castle explores: (shallowest, deepest)."""
+    low = max(CLIMB_BAND_LOW, fallback_depth_floor.floor(policy, snapshot))
+    return low, low + CLIMB_BAND_SPAN
+
+
 def pick_refused(policy, snapshot, *, refused_depth: int) -> int | None:
-    """The unsafe-recall fallback's dive: the Castle or the Mountain whose landing is above the
-    floor and whose dive reaches it, the floor shallower than the refused landing, or None."""
-    target = fallback_depth_floor.floor(policy, snapshot)
-    if target >= refused_depth:
+    """The unsafe-recall fallback's dive: the Castle, else the Mountain, whose landing and band
+    the kit may reach (``reaches_band``), the band shallower than the refused landing, or None.
+    The landing may lie above the band (the dive goes down to it) or below it (the climb)."""
+    low, _high = band(policy, snapshot)
+    if low >= refused_depth:
         return None
     for did in REFUSED_DIVE_ORDER:
-        info = policy._dungeon_knowledge.get(did)
-        if (info is None or did not in (snapshot.entered_dungeon_ids or ())
-                or not reaches(policy, snapshot, did)
-                or not policy._fallback_destination_allowed(did)):
-            continue
-        landing = _landing(snapshot, info)
-        if (landing < target
-                and policy._fallback_landing_allowed(snapshot, did, landing, depth_floor=False)):
+        if (did in (snapshot.entered_dungeon_ids or ())
+                and policy._fallback_destination_allowed(did)
+                and reaches_band(policy, snapshot, did)):
             return did
     return None
 
 
+def reaches_band(policy, snapshot, dungeon_id: int) -> bool:
+    """The recall lands in ``dungeon_id`` on a floor the kit may arrive on, and the band lies
+    within the dungeon, meets the depth requirements and is no blocked guardian floor."""
+    info = policy._dungeon_knowledge.get(dungeon_id)
+    if info is None:
+        return False
+    high = band(policy, snapshot)[1]
+    landing = _landing(snapshot, info)
+    return (info.max_depth >= high
+            and policy._fallback_landing_allowed(snapshot, dungeon_id, landing, depth_floor=False)
+            and not policy._missing_required_abilities(snapshot, high)
+            and not policy._guardian_floor_blocked(snapshot, dungeon_id, high))
+
+
+def bind_refused(policy, snapshot, alternate) -> None:
+    """The unsafe-recall fallback just switched to ``alternate`` (``pick_refused``): hold it
+    with its band's shallowest floor (the record; the band is read from the board, ``band``)."""
+    setattr(policy, STATE, (alternate, band(policy, snapshot)[0]))
+
+
+def climb_dungeon(policy) -> int | None:
+    """The dungeon of the held climb switch (the unsafe-recall fallback's Castle), or None.
+    A switch held before 2026-11-17's band (its record the floor) is the same switch."""
+    held = getattr(policy, STATE, None)
+    alternate = getattr(policy, "_alternate_dungeon", None)
+    if (not held or alternate not in DIVE_FLOOR_DUNGEONS or held[0] != alternate
+            or getattr(policy, "_alternate_dungeon_reason", None) != SAFE_FALLBACK_REASON):
+        return None
+    return alternate
+
+
+def climbing_floor(policy, snapshot, floor_key) -> bool:
+    """``floor_key`` is a floor of the held climb switch's dungeon deeper than its band."""
+    dungeon = climb_dungeon(policy)
+    return (dungeon is not None and floor_key is not None and floor_key[1] > 0
+            and floor_key[0] == dungeon and floor_key[1] > band(policy, snapshot)[1])
+
+
+def climbing(policy, snapshot) -> bool:
+    """On a floor of the held climb switch's dungeon deeper than its band: the up stairs."""
+    return not snapshot.in_town and climbing_floor(policy, snapshot, snapshot.floor_key)
+
+
 def refused_dive_held(policy, snapshot) -> bool:
-    """The held switch is the unsafe-recall fallback's dive to the floor (``pick_refused``)."""
+    """The held switch is the unsafe-recall fallback's Castle (``pick_refused``)."""
     alternate = getattr(policy, "_alternate_dungeon", None)
     held = getattr(policy, STATE, None)
     return (alternate in DIVE_FLOOR_DUNGEONS
             and getattr(policy, "_alternate_dungeon_reason", None) == SAFE_FALLBACK_REASON
             and bool(held) and held[0] == alternate
-            and reaches(policy, snapshot, alternate))
+            and reaches_band(policy, snapshot, alternate))
 
 
 def reaches(policy, snapshot, dungeon_id: int) -> bool:
@@ -168,5 +237,7 @@ def target(policy) -> int | None:
 def capped(policy, snapshot, destination: int) -> bool:
     """A descent to ``destination`` would pass the target of the dungeon being dived."""
     depth = target(policy)
+    if depth is None and climb_dungeon(policy) is not None:
+        depth = band(policy, snapshot)[1]  # the climb switch: no stair below its band
     return (depth is not None and snapshot.dungeon_level > 0
             and snapshot.floor_key[0] == policy._alternate_dungeon and destination > depth)

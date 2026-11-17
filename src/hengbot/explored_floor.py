@@ -62,7 +62,10 @@ def dead_end(policy, snapshot) -> bool:
     """The dive goes no deeper from this floor: the next one is no floor any stair down is taken
     to, whatever the stair (policy ``_is_descent_target``'s refusals of the destination).  50F
     and deeper only (DEEP_FLOOR_DEPTH): the study and its threshold are of those floors."""
-    if snapshot.in_town or snapshot.dungeon_level < DEEP_FLOOR_DEPTH:
+    if (snapshot.in_town or snapshot.dungeon_level < DEEP_FLOOR_DEPTH
+            # A floor the unsafe-recall fallback's Castle climbs from is none: its way on is the
+            # up stairs (dive_floor.climbing, owner 2026-11-17), not Word of Recall.
+            or dive_floor.climbing(policy, snapshot)):
         return False
     dungeon = snapshot.floor_key[0]
     below = snapshot.dungeon_level + 1

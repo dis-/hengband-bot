@@ -12,9 +12,11 @@ the rows here (dungeon_ladder.LAYER_MODULES), so the table still states this ord
 """
 from __future__ import annotations
 
-from hengbot import immobile_threat_memory
+from hengbot import dive_floor, immobile_threat_memory
 from hengbot.dungeon_ladder import PASS
-from hengbot.policy_constants import DESCEND_MIN_HP_RATIO, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO
+from hengbot.policy_constants import (
+    DESCEND_MIN_HP_RATIO, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, UP_STAIRS_KEY,
+)
 from hengbot.policy_fundraising import FundraisingPurpose
 from hengbot.stair_destination import down_destination
 
@@ -137,6 +139,16 @@ def key(policy, snapshot, *, strategic_hostiles, here):
         if avoid_engagement is not None:
             return avoid_engagement
 
+    # 6a. The unsafe-recall fallback's Castle below its band (dive_floor.climbing, owner
+    #     2026-11-17 「49Fに帰還して上り階段を探して適正階層まで行く」): the up stairs take the
+    #     down stairs' place -- taken underfoot while healthy, else the nearest known one walked
+    #     to; with none known the floor is explored as any other (no stair down is a descent
+    #     target there, dive_floor.capped).
+    climb = policy._town_producer_entry(
+        "castle-climb", lambda: climb_key(policy, snapshot, here), family="departure")
+    if climb is not None:
+        return climb
+
     # 6. Head for a known downstairs / dungeon entrance: path straight there
     #    if reachable, otherwise explore toward it (the entrance may be known
     #    but its approach still unmapped — e.g. the town's wilderness gate).
@@ -192,3 +204,35 @@ def key(policy, snapshot, *, strategic_hostiles, here):
     if wait is not None:
         return wait
     return PASS
+
+
+def climb_key(policy, snapshot, here):
+    """The climb toward the band of the unsafe-recall fallback's Castle, or None."""
+    if (not dive_floor.climbing(policy, snapshot)
+            or policy._floor_navigation_exit_locked(snapshot)
+            or policy._breeder_walkout_active(snapshot)):
+        return None
+    if here is not None and policy._is_upstairs_target(here):
+        if snapshot.player.hp_ratio < DESCEND_MIN_HP_RATIO:
+            return None
+        policy.last_reason = "castle-climb:ascend"
+        policy._offer_execution(
+            UP_STAIRS_KEY, producer="departure",
+            work_id=f"castle-climb:ascend:{snapshot.floor_key}",
+            next_step="departure.castle-climb.ascend",
+            expected_effect="floor-change",
+        )
+        return UP_STAIRS_KEY
+    step = policy._nearest_goal_step(snapshot, policy._is_upstairs_target)
+    if step is None:
+        return None
+    policy.last_reason = "castle-climb:seek-upstairs"
+    key = policy._step_toward(snapshot, step)
+    if key is not None:
+        policy._offer_execution(
+            key, producer="departure",
+            work_id=f"castle-climb:seek-upstairs:{snapshot.floor_key}",
+            next_step="departure.castle-climb.approach",
+            expected_effect="upstairs-route-progress",
+        )
+    return key

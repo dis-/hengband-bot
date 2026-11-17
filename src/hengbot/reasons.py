@@ -214,6 +214,11 @@ _rows(EXCLUDED, "policy_combat", _RULE_SUMMONER_EXIT,
       "summoner:stairs-down", "summoner:teleport-level", "summoner:recall")
 _rows(WALK, "policy_combat", _RULE_SUMMONER_EXIT,
       "summoner:seek-downstairs", "summoner:seek-upstairs", "summoner:wait-recall")
+_RULE_CASTLE_CLIMB = ("the unsafe-recall fallback's Castle below its band takes the up stairs in the "
+                      "down stairs' place: no enemy prompted it (owner 2026-11-17 「49Fに帰還して上り"
+                      "階段を探して適正階層まで行く」, dive_floor.climbing)")
+_rows(EXCLUDED, "ladder_descent", _RULE_CASTLE_CLIMB, "castle-climb:ascend")
+_rows(WALK, "ladder_descent", _RULE_CASTLE_CLIMB, "castle-climb:seek-upstairs")
 _RULE_STUCK = "stuck / livelock relocations: no enemy prompted them"
 _rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation", "sealed_pocket"), _RULE_STUCK,
       "stuck:destroyed-circle-teleport", "stuck:destroyed-circle-recall",
