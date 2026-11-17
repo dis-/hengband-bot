@@ -2,8 +2,8 @@
 
 ``HengbotPolicy._decide`` asks this layer last, below the descent (ladder_descent).  Eating,
 the hunt, the stuck escape and the sealed pocket, the oscillation probe, searching and the
-breakout's frontier, the exploration and its probes, the secret-wall search, the kill quest's
-regeneration, the way up when stuck, the blocking never-moving monster, and the idle fallback.
+breakout's frontier, the exploration and its probes, the secret-wall search, the walled loot's
+melt, the kill quest's regeneration, the way up when stuck, the blocking never-moving monster, and the idle fallback.
 The rungs are asked top-down and the first answer wins, as in ``_decide``; the last layer, it
 always answers (the idle fallback's entry, None included), and ``_decide`` returns that answer.
 scripts/dungeon_ladder_lint.py reads the rows here (dungeon_ladder.LAYER_MODULES), so the table
@@ -14,7 +14,7 @@ in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import damaging_ground, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_pocket
+from hengbot import damaging_ground, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 from hengbot.town_terminal import town_end_key
@@ -218,12 +218,6 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
             policy.last_reason = "search"
             return SEARCH_KEY
 
-    # Nothing is left to explore on a floor the dive goes no deeper from: Word of Recall, not
-    # the secret walls and the up stairs below (explored_floor, owner 2026-11-17).
-    explored = explored_floor.recall_key(policy, snapshot, exhausted=True)
-    if explored is not None:
-        return explored
-
     # Nothing is left to explore and a random quest's target is unfound: the floor is
     # circled for it, not walked cell by cell (quest_target_search).
     target_loop = quest_target_search.loop_key(policy, snapshot)
@@ -254,6 +248,24 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
             policy.last_reason = "seek-secret-wall"
             policy._declare_reach(step_target)
             return policy._town_producer_entry("_step_toward", lambda: policy._step_toward(snapshot, step), family="explore")
+
+    # Owner 2026-11-13 「価値に関係なく溶かす」: sensed loot walled in on a floor with nothing left to
+    # explore is melted into before any stair leaves the floor (sealed_loot).  It was asked only by
+    # the stuck escape, which a known stair answers first: n1-c life-216 (Angband 80F, 2026-11-17
+    # 13:57) explored the floor to the last cell and took its up stair with an amulet in a granite
+    # pocket 43 cells away, Stone to Mud absorbed with 99 charges and nothing in sight.
+    if snapshot.floor_key[2] == 0 and not forgetting_maze:
+        loot = sealed_loot.key(policy, snapshot)
+        if loot is not None:
+            return loot
+
+    # Nothing is left to explore on a floor the dive goes no deeper from: Word of Recall, not the
+    # up stairs below (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」) -- after the
+    # owner's 11-13 rules for the remembered loot (the walk and the steering above, the melt into a
+    # walled pocket just before) have had their turn.
+    explored = explored_floor.recall_key(policy, snapshot, exhausted=True)
+    if explored is not None:
+        return explored
 
     # 9. Nothing to explore: take any known stairs to reach a fresh floor.
     quest_regen = policy._town_producer_entry("_start_kill_quest_regeneration", lambda: policy._start_kill_quest_regeneration(snapshot))

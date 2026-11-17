@@ -20185,6 +20185,39 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "recall_stockout_travel.py:start": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-17 「他の町に買いに行く。」: where the Word of Recall stock-out time-pass would start, installs or continues the cross-town circuit (_cross_town_shopping, recall its blocking category) and returns whether a town is left to try; False records the time-pass fallback; no key or offer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "bm_tour.py:town_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-17 「資金10万以上のときはすべての町の闇市を確認する」「帰還で町に戻るたび」: at the recall read, after the arena, the Black Market tour's next inn leg to the first unseen town (decided once per return on 100,000 gold), or None for the read; never a departure condition.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "bm_tour.py:_leg_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-17 「すべての町の闇市を確認する」: the Black Market tour's inn leg to the next unseen town through _town_teleport_key (family cross-town), or None when the inn refuses or no route serves.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "destruction_loot.py:key": {
     "classification": "producer",
     "rows": [

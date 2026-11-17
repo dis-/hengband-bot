@@ -13,7 +13,9 @@ absorbed *Destruction* list row (22 charges at 95%; the snapshots keep no power 
 which the 50F+ means-spent return reads Recall first.  DECLARED CONSTRUCTED: the growth
 window (explored_floor ``MEMORY``) before the last board, which the 15 boards cannot build: the 300
 explore decisions before it seeded at the board's own known-map size (no growth), or at a size 1%
-smaller (growth past the threshold).
+smaller (growth past the threshold); for the cut itself, the last board's found items dropped (the
+board shows detected items on unmapped ground, which the loot memory keeps since detected_loot and
+which hold the cut).
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -40,9 +42,10 @@ class ExploredFloorRecordedTest(unittest.TestCase):
             cls.boards = [json.loads(line) for line in stream if line.strip()]
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
-    def replay(self, seed_growth=None):
+    def replay(self, seed_growth=None, *, no_loot=False):
         """The boards in order; before the last one the window is seeded (``seed_growth``: the
-        share of the known map the 300 earlier explore decisions added; None: not seeded)."""
+        share of the known map the 300 earlier explore decisions added; None: not seeded), and
+        with ``no_loot`` its found items are dropped."""
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         policy = _policy(Path(directory.name), self.monrace)
@@ -54,6 +57,11 @@ class ExploredFloorRecordedTest(unittest.TestCase):
             "max": 22, "fail": 5, "success": 95},))}
         rows = {}
         for raw in self.boards:
+            if raw["turn"] == LAST and no_loot:
+                raw = copy.deepcopy(raw)
+                for field in ("found_items", "found_item_names", "found_item_ids"):
+                    raw["grid_map"][field] = []
+                policy._known_loot.clear()
             board = policy.with_known_skill_exp(parse_snapshot(copy.deepcopy(raw), self.monrace))
             if board.turn == LAST and seed_growth is not None:
                 known = len(policy._remembered_marked_t)
@@ -75,8 +83,15 @@ class ExploredFloorRecordedTest(unittest.TestCase):
         self.assertEqual(reason, "explore")
         self.assertFalse(explored_floor.stalled(policy, board))
 
-    def test_a_stalled_window_reads_word_of_recall(self):
+    def test_remembered_loot_holds_a_stalled_window(self):
+        """Owner 2026-11-13 「その品の方へ探索を寄せる」 first: the board's detected items (detected_loot)
+        are loot the explore still steers toward."""
         policy, rows = self.replay(seed_growth=0.0)
+        self.assertTrue(policy._loot_candidates(rows[LAST][3]))
+        self.assertEqual(rows[LAST][1], "explore", rows[LAST][:3])
+
+    def test_a_stalled_window_reads_word_of_recall(self):
+        policy, rows = self.replay(seed_growth=0.0, no_loot=True)
         key, reason, trigger, _board = rows[LAST]
         self.assertEqual(reason, "return:recall", rows[LAST][:3])
         self.assertEqual(trigger, explored_floor.TRIGGER)

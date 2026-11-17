@@ -98,6 +98,10 @@ REGISTRY = (
       "arena: arena defeated (no comment at its definition)"),
     S("_arena_stay", "arena", LIFE,
       "arena: arena stay (no comment at its definition)"),
+    # bm_tour
+    S("_bm_tour", "bm_tour", LIFE,
+      "bm_tour: this return's Black Market tour (owner 2026-11-17): decided once at the "
+      "first recall read point, the towns seen, why it closed; a dungeon floor ends it"),
     # armor_smith
     S("_armor_smith_stay", "armor_smith", LIFE,
       "armor_smith: armor smith stay (no comment at its definition)"),

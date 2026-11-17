@@ -289,10 +289,11 @@ LADDER = (
         *D("retreat_enclosure.route_veto_sealed_key"),
         *E("frontier-probe"),
         *I("probe", "search"),
-        # The same floor with nothing left to explore.
-        *D("explored_floor.recall_key"),
         *D("quest_target_search.loop_key", "me_powers.power_key:SECRET_SEARCH"),
         *I("search", "seek-secret-wall"),
+        *D("sealed_loot.key"),
+        # The same floor with nothing left to explore, after the walled-in loot's melt.
+        *D("explored_floor.recall_key"),
         *E("_start_kill_quest_regeneration"),
         *I("stuck:ascend", "stuck:seek-stairs"),
         *D("immobile_ranged_kill.blocking_key"),

@@ -15,7 +15,7 @@ from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
-from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
+from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 from hengbot import amberite_curse, curse_cure, floor_identify, me_capped_pickup, me_inn_refill
 
 from collections import Counter, deque
@@ -5669,6 +5669,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and not self._cross_town_shopping_hold(snapshot)):
             # Local suppliers are exhausted. Finish the admitted circuit's
             # next leg before a quest/restock owner can buy another fare.
+            # The leg's inn route reads this board's grid index, built here
+            # as for the fare recovery above (without it the route was
+            # "unroutable" and the circuit ended at its first leg).
+            self._build_grid_index(snapshot)
             key = self._town_producer_entry(
                 "_cross_town_shopping_key",
                 lambda: self._cross_town_shopping_key(snapshot), family="cross-town")
@@ -7705,10 +7709,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     if opening_page is not None:
                         return opening_page
                 if self._start_unobtainable_recall_stockout_mining(snapshot):
-                    self.last_reason = "town:recall-stockout-mining"
+                    # Owner 2026-11-17 「他の町に買いに行く。」: the circuit to
+                    # another town when one is left, else the time-pass.
+                    travelling = recall_stockout_travel.circuit(self) is not None
+                    self.last_reason = (recall_stockout_travel.LEAVE_REASON if travelling
+                                        else "town:recall-stockout-mining")
                     self._offer_execution(
-                        LEAVE_STORE_KEY, producer="fundraising",
-                        work_id="fundraising:recall-stockout",
+                        LEAVE_STORE_KEY,
+                        producer="cross-town" if travelling else "fundraising",
+                        work_id=("cross-town-shopping:stockout-circuit" if travelling
+                                 else "fundraising:recall-stockout"),
                         next_step="store.leave.send",
                         arguments=(snapshot.store.store_type,),
                         expected_effect="outside-store",
@@ -11642,6 +11652,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 )
             if not self._food_ready(snapshot):
                 return self._released_restock_store_key(snapshot, recall_stores)
+            # Owner 2026-11-17 「他の町に買いに行く。」: another town's suppliers
+            # before the time-pass, while a town is left to try.
+            if recall_stockout_travel.start(self, snapshot):
+                travel = self._town_producer_entry(
+                    "_cross_town_shopping_key",
+                    lambda: self._cross_town_shopping_key(snapshot), family="cross-town")
+                if travel is not None:
+                    self._town_restock_rechecked.difference_update(recall_stores)
+                    self._town_restock_wait_until = None
+                    return travel
             # Prefer exactly one safely gated Yeek Cave 1F mining run.  Start
             # in preparation mode so the ordinary Home/shop owners can fetch
             # an owned kit instead of requiring it to be carried already.
@@ -11672,7 +11692,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _start_unobtainable_recall_stockout_mining(
         self, snapshot: Snapshot
     ) -> bool:
-        """Enter the local one-run wait flow once both suppliers are disproved."""
+        """Both suppliers disproved: another town's, else the one-run wait flow.
+
+        Owner 2026-11-17 「他の町に買いに行く。」: the cross-town circuit
+        (recall_stockout_travel) when a town is left to try; the one-run
+        time-pass below only when none is.
+        """
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
         if (
@@ -11680,6 +11705,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             or not self._food_ready(snapshot)
         ):
             return False
+        if recall_stockout_travel.start(self, snapshot):
+            self._town_restock_waiting_for = ()
+            self._town_restock_wait_until = None
+            self._town_restock_rechecked.difference_update(
+                (STORE_TEMPLE, STORE_ALCHEMIST)
+            )
+            return True
         self._planned_mining_runs = 1
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = True
