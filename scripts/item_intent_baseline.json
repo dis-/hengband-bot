@@ -52,6 +52,7 @@
   "_home_knowledge_scan_inflight": "Catalogue-observation UI flag; no item transfer is selected.",
   "_home_knowledge_valid_before": "Observed catalogue validity flag; not item identities.",
   "_home_observed_addresses": "Observed stock-address catalogue; selecting a transfer creates atomic pending state.",
+  "_home_full_rejected_deposits": "Subset of _home_rejected_deposits refused by a full Home; negative eligibility history, no pending operation.",
   "_home_procurement_fallthrough_equivalence": "Eligibility-retry equivalence history; active target is in _home_procurement_probe.",
   "_home_procurement_withdraw_failure": "Completed failed-withdrawal diagnostic evidence; not outstanding item work.",
   "_home_quest_launcher_seen_pages": "Observed catalogue pages; selected withdrawal uses atomic pending state.",

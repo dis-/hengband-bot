@@ -363,6 +363,7 @@ class ObservationMixin:
             # re-checks (the bot may have withdrawn items or a later Home differs).
             self._home_deposit_abandoned = False
             self._home_rejected_deposits.clear()
+            self._home_full_rejected_deposits.clear()
             self._device_identify_watch = None
             self._device_identify_fail_streak = 0
         if snapshot.in_town:

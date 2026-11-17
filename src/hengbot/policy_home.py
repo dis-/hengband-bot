@@ -2167,6 +2167,26 @@ class HomeMixin:
         self.settle_home_knowledge_request()
         return True
 
+    def _release_home_full_rejections(self) -> None:
+        """A deposit the full Home refused is depositable once a page shows a free slot.
+
+        The visit's rejection (``_home_rejected_deposits``) keeps a refused
+        identity from being recomposed against the page that failed it.  When
+        the only cause was a full Home, a later Home page with a free slot is
+        the new observation that settles it.  n1-a life-530 2026-11-17 23:28:
+        the (Chaos) Great Axe (23 lb) was refused at 240/240, the Home later
+        stood at 239/240 for the rest of the visit, but the axe stayed held as
+        ``home-rejected-deposit``; the weight relief shed the bolts instead and
+        the visit stopped ``town:blocked:survival:inventory_weight_ready``
+        (183.7/180.0 lb).  A full-Home relief still in progress owns its own
+        retry (``_home_full_retry_deposits``) and is left alone.
+        """
+        pending = getattr(self, "_home_full_rejected_deposits", None)
+        if not pending or getattr(self, "_home_full_relief", None) is not None:
+            return
+        self._home_rejected_deposits.difference_update(pending)
+        pending.clear()
+
     def _record_observed_home_addresses(self, snapshot: Snapshot) -> None:
         """Retain letters only from a page whose complete stock still matches."""
         store = snapshot.store
@@ -2177,6 +2197,7 @@ class HomeMixin:
                     store.stock_num, capacity, self._effective_town_id(snapshot))
                 if capacity > 0 and store.stock_num < capacity:
                     self._clear_equipment_home_deposit_tombstone()
+                    self._release_home_full_rejections()
         if (
             store is None
             or store.store_type != STORE_HOME
