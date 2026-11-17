@@ -13481,6 +13481,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._effective_town_id(snapshot) == 1
             and self._telmora_q2_errand
             and quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
+            # The finished errand's way home waits for a trip that came here for
+            # the shops (_cross_town_trip_holds_town).
+            and not self._cross_town_trip_holds_town(snapshot)
         ):
             key = self._town_teleport_key(snapshot, 0, producer="quest-request", reason="fixedquest:q2-teleport")
             if key is not None:

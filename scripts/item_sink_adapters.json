@@ -98,8 +98,8 @@
     "self._flee_step(snapshot, hostiles) @ ": 1
   },
   "policy.py:_telmora_q2_travel_key": {
-    "self._town_teleport_key(snapshot, 0, producer='quest-request', reason='fixedquest:q2-teleport') @ If:body:self._effective_town_id(snapshot) == 1 and self._telmora_q2_errand and (quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED})": 1,
-    "self._town_teleport_key(snapshot, 1, producer='quest-request', reason='fixedquest:q2-teleport') @ If:body:self._effective_town_id(snapshot) == 0 and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED}": 1
+    "self._town_teleport_key(snapshot, 1, producer='quest-request', reason='fixedquest:q2-teleport') @ If:body:self._effective_town_id(snapshot) == 0 and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN, QUEST_STATUS_COMPLETED}": 1,
+    "self._town_teleport_key(snapshot, 0, producer='quest-request', reason='fixedquest:q2-teleport') @ If:body:self._effective_town_id(snapshot) == 1 and self._telmora_q2_errand and (quest.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}) and (not self._cross_town_trip_holds_town(snapshot))": 1
   },
   "policy.py:_town_holder_wait_key": {
     "self._direction_key(snapshot.player.position, step) @ If:body:holder.owner.value == 'store-router' and holder.goal.kind == CLAIM_GOAL_REACH and (holder.goal.cell is not None) / If:body:step is not None": 1,

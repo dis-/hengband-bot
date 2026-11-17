@@ -5176,6 +5176,19 @@ class TownMixin:
                     unobtainable.append(category)
         return tuple(dict.fromkeys(unobtainable))
 
+    def _cross_town_trip_holds_town(self, snapshot: Snapshot) -> bool:
+        """A cross-town trip of the owner's 2026-11-17 decisions is under way here.
+
+        The Word of Recall circuit (recall_stockout_travel) and the Black Market tour
+        (bm_tour) came to this town for its shops.  The owners whose plain way back
+        to the Outpost answers "not in the Outpost" (the fixed-quest return, the
+        stale Q2 errand's return, the Magic-Eater's staff sequence) wait until the
+        trip ends: answering the arrival they sent n1-c life-216 back from Telmora
+        on every leg (2026-11-17 17:28, loop-detected).
+        """
+        return (recall_stockout_travel.circuit(self) is not None
+                or bm_tour.holds_town(self, snapshot))
+
     def _cross_town_candidate_order(self, snapshot: Snapshot) -> tuple[int, ...]:
         """The visited inn towns other than this one, cheapest fare first.
 
