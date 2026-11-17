@@ -13766,6 +13766,20 @@
     ],
     "delegation": "no emission; observational data for the quest search's lap"
   },
+  "recall_wait_reach.py:max_path_distance": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "recall_wait_reach.py:remaining_actions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "recall_wait_teleport.py:withheld.compute": {
     "classification": "data",
     "rows": [

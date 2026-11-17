@@ -71,6 +71,7 @@ VISIT_MEMORIES = (
     ("_q2_breeder_last_seen_floor", None, "policy_quest"),
     ("_explored_floor_window", None, "explored_floor"),
     ("_destruction_loot_memory", None, "destruction_loot"),
+    ("_recall_wait_clock", None, "recall_wait_reach"),
 )
 
 # The memories that keep the floor key on purpose, or that the floor change forgets already

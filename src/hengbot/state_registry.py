@@ -1779,6 +1779,9 @@ REGISTRY = (
     # quest_target_search
     S("_quest_target_search", "quest_target_search", LIFE,
       "quest_target_search: quest target search (no comment at its definition)"),
+    # recall_wait_reach
+    S("_recall_wait_clock", "recall_wait_reach", FLOOR,
+      "the running Recall countdown's read turn and the last board, for the wait's reach"),
     # recall_wait_teleport
     S("_recall_wait_teleport_busy", "recall_wait_teleport", LIFE,
       "the predicate is being computed (re-entry)"),
