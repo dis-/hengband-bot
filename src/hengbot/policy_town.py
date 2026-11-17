@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import return_start
-from hengbot import arena, recall_stockout_travel, zul_trip
+from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot import bm_destruction_fund
@@ -556,6 +556,8 @@ class TownMixin:
             )
             # The arena's trip: the inn legs there and back.
             or (reason or self.last_reason or "").startswith(arena.INN_WALK_REASONS)
+            # The Black Market tour's inn legs (bm_tour).
+            or (reason or self.last_reason or "").startswith(bm_tour.TRAVEL_REASON)
         ):
             # The *Identify* expedition walks to this town's teleport building
             # along the route _town_teleport_route steps on.  Its remaining
@@ -7511,6 +7513,11 @@ class TownMixin:
                 arena_errand = arena.town_key(self, snapshot)
                 if arena_errand is not None:
                     return arena_errand
+                # Owner 2026-11-17 「資金10万以上のときはすべての町の闇市を確認する」
+                # 「帰還で町に戻るたび」: every other town's Black Market, once per return.
+                tour = bm_tour.town_key(self, snapshot)
+                if tour is not None:
+                    return tour
                 # Owner 2026-11-15 (n1-b life-405): the 50F+ gate counted the absorbed
                 # *Destruction* at the count the inn gives back; the night before the recall.
                 from hengbot import me_inn_refill

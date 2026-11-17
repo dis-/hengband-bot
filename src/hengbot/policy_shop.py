@@ -4,7 +4,7 @@ from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
 from hengbot import heroism_potion, torch_release, town_pack_headroom
-from hengbot import bm_destruction_fund
+from hengbot import bm_destruction_fund, bm_tour
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -1741,6 +1741,11 @@ class ShopMixin(InStoreMixin):
         )
 
     def cross_town_shopping_state(self) -> dict[str, object]:
+        state = self._cross_town_shopping_state()
+        tour = bm_tour.facts(self)
+        return state if tour is None else {**state, "bm_tour": tour}
+
+    def _cross_town_shopping_state(self) -> dict[str, object]:
         expedition = self._cross_town_shopping
         if expedition is None:
             return dict(self._cross_town_shopping_funds)

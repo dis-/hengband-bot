@@ -78,7 +78,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from hengbot import me_capability, morivant_tower, recall_stockout_travel
+from hengbot import bm_tour, me_capability, morivant_tower, recall_stockout_travel
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, power_command_refused, staple_food, staple_needs_recharge,
@@ -1170,10 +1170,12 @@ def town_key(policy, snapshot, hostiles) -> str | None:
             return _stage(policy, "b" + KIND_LETTER[unread], (("read-powers", unread),))
     if phase == "done":
         return None
-    if phase == "return" and recall_stockout_travel.circuit(policy) is not None:
+    if phase == "return" and (recall_stockout_travel.circuit(policy) is not None
+                              or bm_tour.holds_town(policy, snapshot)):
         # The Word of Recall circuit came to this town to buy the scrolls
-        # (owner 2026-11-17 「他の町に買いに行く。」): the plain way back to the
-        # Outpost waits until the circuit ends (bought, or no town left).
+        # (owner 2026-11-17 「他の町に買いに行く。」), or the Black Market tour to see
+        # its market (「すべての町の闇市を確認する」): the plain way back to the
+        # Outpost waits until the circuit or the tour ends.
         return None
     gold = snapshot.player.gold
     if _expedition_run_unneeded(policy, snapshot, gold):
