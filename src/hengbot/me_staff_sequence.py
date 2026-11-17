@@ -78,7 +78,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from hengbot import me_capability, morivant_tower
+from hengbot import approach_answer, me_capability, morivant_tower
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, power_command_refused, staple_food, staple_needs_recharge,
@@ -1251,6 +1251,8 @@ def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
                     return _stop(policy, "magic-shop-route-unavailable")
                 policy.last_reason = "shop:approach"
                 key = policy._shopping_approach_key(snapshot, step, "shop:travel")
+                if key is None:
+                    approach_answer.note_stop(policy, "magic-shop-operation-unavailable")
                 return key if key is not None else _stop(policy, "magic-shop-operation-unavailable")
             # Observed shelf without one of the staffs: the other towns'
             # shelves when the spare gold pays the trip, else one ordinary
@@ -1276,6 +1278,8 @@ def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
             return _stop(policy, f"store-{offer[0]}-route-unavailable")
         policy.last_reason = "shop:approach"
         key = policy._shopping_approach_key(snapshot, step, "shop:travel")
+        if key is None:
+            approach_answer.note_stop(policy, "shop-operation-unavailable")
         return key if key is not None else _stop(policy, "shop-operation-unavailable")
     if phase in {"rumor", "travel", "recharge"} and _stow_pending(policy, snapshot):
         # The staffs ``stows`` names go to Home first, by Home's own deposit

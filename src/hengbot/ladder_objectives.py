@@ -17,7 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import return_start
+from hengbot import approach_answer, return_start
 from hengbot import full_pack_exchange, hunt_target
 from hengbot.dungeon_ladder import PASS
 from hengbot.home_visit import HomeVisitKind
@@ -356,6 +356,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
                     expected_effect="home-catalog-available",
                 )
             else:
+                approach_answer.note_stop(policy, "home-approach-unavailable")
                 policy._offer_execution_no_step(
                     producer="equipment-txn",
                     work_id="equipment:acquire-home-catalog",

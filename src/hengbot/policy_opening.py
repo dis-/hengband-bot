@@ -16,7 +16,7 @@ from hengbot.policy_constants import (
     QUEST_STATUS_FINISHED,
 )
 from hengbot.item_reservation import decision_memo
-from hengbot import combat_answer, me_capability, me_ranged_first
+from hengbot import approach_answer, combat_answer, me_capability, me_ranged_first
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
@@ -475,6 +475,8 @@ class OpeningRouteMixin:
                 return self._opening_q1_stop("supplier-route-unavailable:" + stage)
             self.last_reason = "shop:approach"
             key = self._shopping_approach_key(snapshot, step, "shop:travel")
+            if key is None:
+                approach_answer.note_stop(self, "supplier-operation-unavailable:" + stage)
             return key if key is not None else self._opening_q1_stop("supplier-operation-unavailable:" + stage)
         self._opening_q1_kit_bought = True
         light = self._opening_q1_light_to_wield(snapshot)

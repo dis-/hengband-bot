@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import return_start
+from hengbot import approach_answer, return_start
 from hengbot import safety_watch
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
@@ -4989,6 +4989,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                         expected_effect="home-catalog-available",
                     )
                 else:
+                    approach_answer.note_stop(self, "home-approach-unavailable")
                     self._offer_execution_no_step(
                         producer="equipment-txn",
                         work_id="equipment:acquire-home-catalog",

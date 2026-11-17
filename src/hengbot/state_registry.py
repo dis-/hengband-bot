@@ -79,6 +79,11 @@ REGISTRY = (
     # amberite_curse
     S("_amberite_curse_note", "amberite_curse", LIFE,
       "(decision sequence, record);"),
+    # approach_answer
+    S("_approach_answer_last", "approach_answer", LIFE,
+      "the store approach's latest typed answer, stamped with its decision (record only)"),
+    S("_approach_yield_notes", "approach_answer", LIFE,
+      "stops named after a yielded store approach this decision (decision log, record only)"),
     # anaguma
     S("_anaguma_latches", "anaguma", LIFE,
       "anaguma: anaguma latches (no comment at its definition)"),
