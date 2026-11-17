@@ -4160,13 +4160,34 @@ class HomeMixin:
             and observed_address[0] == self._home_scan_item_count
             and observed_address[1] == self._home_page_size
         ):
-            _stock_num, _page_size, page_top, letter = observed_address
-            page = page_top // self._home_page_size
-            resolved_index = page_top + (
-                ord(letter) - ord("a")
-                if letter.islower()
-                else 26 + ord(letter) - ord("A")
+            _stock_num, _page_size, page_top, observed_letter = observed_address
+            observed_index = page_top + (
+                ord(observed_letter) - ord("a")
+                if observed_letter.islower()
+                else 26 + ord(observed_letter) - ord("A")
             )
+            observed_item = (
+                self._home_knowledge_items[observed_index]
+                if 0 <= observed_index < self._home_knowledge_valid_before
+                else None
+            )
+            # The observed letter may name another stack with the same
+            # signature (n1-a life-530 2026-11-17 18:24:29: 15 stacks of
+            # クロスボウの矢; the catalogue picked the last, a 1-arrow stack,
+            # while the letter seen on page 4 was a 99-arrow stack).  The
+            # addressed stack's count decides whether the game asks the
+            # quantity (store/purchase-order.cpp: item_store.number > 1), so
+            # the take binds to that stack, never to the catalogue's other one.
+            if (observed_item is not None
+                    and self._item_signature(observed_item) == signature
+                    and (transaction_identity is None
+                         or equipment_identity(observed_item)
+                         == transaction_identity)):
+                item = observed_item
+                catalogue_index = observed_index
+            letter = observed_letter
+            page = page_top // self._home_page_size
+            resolved_index = observed_index
         if not letter or len(letter) != 1:
             if self._home_errand.active:
                 self._home_errand.observe_unaddressed_entry(
