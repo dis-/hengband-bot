@@ -13963,12 +13963,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         sends the bot straight back to the wait/survival behaviour, so the
         whole condition is re-decided on every board rather than latched.
 
-        Both of the decision's conditions are checked, plus the detected list:
-        a monster known only through telepathy is a hostile the player can see
-        on the map.  The prediction is the same quantity the decision log
-        prints as ``threat_prediction.total``; on a board that passes the two
-        emptiness checks it is zero by construction, and it is evaluated (not
-        assumed) so the gate fails first if either list ever admits a monster.
+        Owner 2026-11-18 (「見える敵がいなければ拾う」): 「テレパシーで感じている
+        敵だけの敵は数えない。見える敵がいず、HP が低くなければ、待ちの残りで
+        届く品を拾う。見える敵が出たら今のとおりすぐやめる。」  Only the visible
+        hostiles close the gate; a monster known only through telepathy or
+        detection (``detected_monsters``) no longer does.  Until then it did,
+        and with telepathy on 50F+ every wait board with an item in reach and
+        nothing in view was refused (pdca deep-efficiency-after-1118: 362 such
+        decisions, one ``return:seek-loot`` in 2.7 hours x 2 characters).  The
+        reach stays recall_wait_reach's (owner 2026-11-17), and the read itself
+        is never delayed.  The prediction is the same quantity the decision log
+        prints as ``threat_prediction.total``, over the visible hostiles; on a
+        board that passes the emptiness check it is zero by construction, and
+        it is evaluated (not assumed) so the gate fails first if the list ever
+        admits a monster.
         """
         if snapshot.in_town:
             return False
@@ -13981,12 +13989,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         hostiles = [
             monster for monster in snapshot.visible_monsters if monster.hostile
         ]
-        detected = [
-            monster for monster in snapshot.detected_monsters if monster.hostile
-        ]
-        if hostiles or detected:
+        if hostiles:
             return False
-        return self.threat_prediction(snapshot, [*hostiles, *detected])["total"] == 0
+        return self.threat_prediction(snapshot, hostiles)["total"] == 0
 
     def _rearm_navigation_ledger_loot(self) -> None:
         """Hand ledger-expired loot one fresh budget, once per floor visit.

@@ -65,8 +65,8 @@ GATES = {
         "the last reason (an explore or a Q2 patrol) and no store posting in flight",
         "the periodic save/dump/refresh replaces only a filler key"),
     "policy._loot_before_recall_calm": (
-        "no hostile seen or sensed and a zero threat prediction",
-        "the loot collected while Recall counts down (owner 2026-09-23)"),
+        "no hostile seen (one only sensed does not count) and a zero threat prediction",
+        "the loot collected while Recall counts down (owner 2026-09-23; sensed-only not counted, 2026-11-18)"),
     "q34_recharge.safe_to_recharge": (
         "full HP, not hungry, every status, the plan's stand and the cleared targets",
         "Q34's recharge rest at the approved throwing stand"),
