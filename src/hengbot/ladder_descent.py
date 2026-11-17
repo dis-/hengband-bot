@@ -186,4 +186,9 @@ def key(policy, snapshot, *, strategic_hostiles, here):
                 cause="descent-step-unavailable",
             )
         return key
+    # In town the idle layer below is the town end: a walk-in deferred only by an unseen
+    # attack's quiet window waits it out (n1-a life-530, policy_town).
+    wait = policy._town_unseen_descent_wait_key(snapshot)
+    if wait is not None:
+        return wait
     return PASS

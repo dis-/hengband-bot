@@ -20321,5 +20321,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "policy_town.py:TownMixin._town_unseen_descent_wait_key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
