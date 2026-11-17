@@ -144,8 +144,9 @@ class Assessment:
     # Why a winning supply plan was read T1 (``fear_cover.withheld``: a fear or blindness caster
     # the player is not covered against, owner 2026-11-11); the margin stays the plan's.
     t2_withheld: tuple = ()
-    # The Amberites read T1 whatever the projection (amberite_curse.t1_amberites: no resist curse,
-    # owner 2026-11-17 「呪力耐性がないときは王族をT1扱いにする」); the margins stay the projection's.
+    # The Amberites read T1 whatever the projection (amberite_curse.t1_amberites: the kill's
+    # conditions unmet, no resist curse among them, owner 2026-11-17 「呪力耐性がないときは王族を
+    # T1扱いにする」 and 2026-11-18 「条件がそろうまで *破壊* で消す」); the margins stay the projection's.
     amberite_t1: tuple = ()
     # (HP lost over the last turns, the projection over them) where the projection missed and
     # the reading was taken from the observed damage (threat_tiers ``_projection_missed``).
@@ -768,8 +769,9 @@ def _tier(policy, snapshot, projection, result, hp, max_hp) -> None:
     """3.2-3.4: T3, else the shortest winning prefix of the owner's order (T2), else T1.
 
     Owner 2026-11-17 (verbatim): 「呪力耐性がないときは王族をT1扱いにする。行動はT1の処理に準じる。」
-    An engagement with an Amberite the player does not resist the blood curse of
-    (amberite_curse.t1_amberites) is T1 whatever the projection, as a withheld T2 is: the reading
+    An engagement with an Amberite the player does not resist the blood curse of, or may not
+    kill yet (owner 2026-11-18 「条件がそろうまで *破壊* で消す」, amberite_curse.t1_amberites)
+    is T1 whatever the projection, as a withheld T2 is: the reading
     is still taken for its margins, and a projection past the cost cap does not leave it
     undecided."""
     forced = amberite_curse.t1_amberites(policy, snapshot, projection.hostiles)

@@ -28,6 +28,12 @@ The rule, as it is enforced:
     answer it: the sensed-T1 *Destruction* and approach, the leave and the escapes, no reward
     selection, the random quest's T1 target given up.  (Until then it was a sight trigger of
     destruction_use.)
+    With ``resist_curse`` while the kill's conditions (rule 3: no other awake hostile, the HP)
+    are unmet, exactly the same: owner 2026-11-18 (the chosen answer, verbatim) 「条件がそろうまで
+    *破壊* で消す」 -- 「呪力耐性があっても条件がそろわない間は、耐性が無い時と同じく T1 として扱い、
+    *破壊* で消す（届かなければ近寄る・無理なら離れる）。条件がそろえば今のとおり加速と耐性の薬の
+    後に倒す。」  ``t1_amberites`` asks ``refusal``, the one reader of the conditions, for each
+    Amberite; until 2026-11-18 the gate only kept such a one alive (retreat or wait).
  2. Every decided key passes ``after_ladder`` (dungeon_ladder.AFTER_DECIDE), the one gate of
     "can this action kill an Amberite now" (``struck``): a step into a cell an Amberite holds
     (melee), or a ranged attack (attack_answer's shot reasons, reasons.strikes) while an Amberite
@@ -45,10 +51,22 @@ The rule, as it is enforced:
     (resist_potion.covered: the five elements on the status bar); each missing one is taken in
     the strike's place, and a missing means refuses the strike.
  4. A refused strike (``_kept_alive_key``), where a rung still decides one (the T1 rules above
-    it declined): without ``resist_curse`` *Destruction* on it (destruction_use.key leaving it);
-    then the existing engagement retreat (policy ``_avoid_engagement_key``), else a wait
+    it declined): for a ``refusal`` verdict (``T1_VERDICTS``, the Amberite read T1) *Destruction*
+    on it (destruction_use.key leaving it); then, and for a missing haste or Resistance potion,
+    the existing engagement retreat (policy ``_avoid_engagement_key``), else a wait
     (``HOLD_REASON``).  The walk toward *Destruction* is the T1 rules' (threat_tiers
     ``approach_key``, deep_teleport's walk), not this gate's.  Nothing teleports here.
+
+No back and forth between the kill and *Destruction* (2026-11-18): the conditions are read again
+on every board, and a board that reads them unmet takes the T1 rules, which do not walk the other
+way from the kill.  Within *Destruction*'s reach the use deletes the Amberite on that board (no
+next board to flip on); out of it the approach walks toward it as the kill does, and the leave is
+a relocation (stairs, a scroll, Recall: the escape count's two-escape return bounds a repeat) or
+the walk whose cells left_cells keeps refused while the Amberite lives (and pingpong_guard nets
+any other pair).  The engagement's T1 is held by the decided side (threat_tier_memory
+``held_tier``, owner 2026-11-08 「境に余裕を持たせる」): a board that reads the conditions met again
+leaves T1 only when the projection is past the band, so one other monster waking and sleeping
+does not toggle the leave (tests/test_amberite_unmet_destruction_1118_recorded.py).
 
 Record only: ``report`` (the decision log's ``amberite``) names the Amberites the decided key
 could hit, the verdict and the key it replaced.
@@ -76,6 +94,8 @@ NO_HASTE = "no-haste-means"
 NO_RESISTANCE = "no-resistance-potion"
 HASTE = "haste-first"
 RESISTANCE = "resistance-first"
+# ``refusal``'s verdicts: the kill's conditions unmet, the Amberite read T1 (``t1_amberites``).
+T1_VERDICTS = frozenset({NO_RESIST_CURSE, OTHER_AWAKE, HP_LOW})
 
 
 def is_amberite(policy, monster) -> bool:
@@ -88,12 +108,17 @@ def resists_curse(snapshot) -> bool:
 
 
 def t1_amberites(policy, snapshot, hostiles) -> tuple:
-    """Owner 2026-11-17 「呪力耐性がないときは王族をT1扱いにする」: the indices of the Amberites of
-    ``hostiles`` the tiers read T1 (threat_projection ``_tier``, the one place a tier is assigned),
-    awake or asleep, seen or sensed; () with resist curse."""
-    if resists_curse(snapshot):
-        return ()
-    return tuple(monster.index for monster in hostiles if is_amberite(policy, monster))
+    """The indices of the Amberites of ``hostiles`` the tiers read T1 (threat_projection
+    ``_tier``, the one place a tier is assigned), awake or asleep, seen or sensed: each one whose
+    kill the gate's conditions refuse now (``refusal``, the one reader of them).
+
+    Owner 2026-11-17 「呪力耐性がないときは王族をT1扱いにする」: without resist curse every one.
+    Owner 2026-11-18 (the answer 「条件がそろうまで *破壊* で消す」): with resist curse too, while
+    another awake hostile is in view or around or the HP is below the line, exactly as without
+    it; once the conditions hold it is read as the projection reads it and killed after the haste
+    and the Resistance potion (rule 3)."""
+    return tuple(monster.index for monster in hostiles
+                 if is_amberite(policy, monster) and refusal(policy, snapshot, [monster]) is not None)
 
 
 # -- the gate -------------------------------------------------------------------
@@ -139,7 +164,8 @@ def _others_awake(policy, snapshot, amberites) -> bool:
 
 
 def refusal(policy, snapshot, amberites) -> str | None:
-    """Why a strike that can kill ``amberites`` may not be sent now, else None (rule 3)."""
+    """Why a strike that can kill ``amberites`` may not be sent now, else None (rule 3); the one
+    reader of the kill's conditions, the tiers' T1 reading too (``t1_amberites``)."""
     if not resists_curse(snapshot):
         return NO_RESIST_CURSE
     if len(amberites) > 1 or _others_awake(policy, snapshot, amberites):
@@ -184,7 +210,7 @@ def _kept_alive_key(policy, snapshot, amberites, verdict):
     """Rule 4: the answer that leaves the Amberite alive (never a strike at it)."""
     from hengbot import destruction_use  # import cycle
 
-    if verdict == NO_RESIST_CURSE:
+    if verdict in T1_VERDICTS:
         used = destruction_use.key(policy, snapshot, leaving=amberites, suffix=SIGHT_SUFFIX)
         if used is not None:
             return used
