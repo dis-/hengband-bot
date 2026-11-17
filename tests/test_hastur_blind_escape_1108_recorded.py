@@ -167,8 +167,11 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         self.assertNotEqual(key, RECORDED[SUMMONER_OPEN][0])
 
     def test_the_sensed_t1_leave_casts_the_teleport_when_blind(self):
-        policy, answers = self.recorded_answers()
-        snapshot = answers[ONE_SHOT][2]
+        # The board before the replay decided it (the replay's own decision cast the use on this
+        # turn, so a second ask of the same turn reads the rung's own answer, destruction_use
+        # ``_falls_back``).
+        policy, _answers = self.replay(until=SUMMONER_OPEN)
+        snapshot = self.snapshot(policy, copy.deepcopy(self.boards[ONE_SHOT]))
         policy.last_reason = None
         key = threat_tiers.sensed_t1_leave_key(policy, snapshot)
         # Owner 2026-11-17 Q3: the T1 guardian no longer refuses the leave's *Destruction*, which

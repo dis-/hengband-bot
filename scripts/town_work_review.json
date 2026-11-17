@@ -12875,6 +12875,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:before_teleport_away": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The use in place of a Teleport Away aimed at its target (owner 2026-11-16 「常に *破壊* を先」, widened 2026-11-17 Q4 to every Teleport Away but the quest plans), by destruction_use.key; sets last_reason emergency:destruction:before-teleport-away; refused in town (_floor_destroyed), so no town errand and no effect credit; asked only by me_powers' THREAT occasion and teleport_follower.away_key in the dungeon.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:sight_trigger_key": {
     "classification": "data",
     "rows": [

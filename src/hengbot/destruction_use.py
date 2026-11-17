@@ -132,6 +132,10 @@ class Memory:
     # default: restored checkpoints predate it.
     pending_monsters: tuple = ()
     fallback: tuple | None = None  # the floor whose next ask is the rung's own read
+    # (floor, turn) of the decision whose ask fell back: every later ask of that decision falls
+    # back too (a rung asking after another, e.g. Teleport Away's ask after the ladder's, owner
+    # 2026-11-17 Q4).  A class default: restored checkpoints predate it.
+    fell_back: tuple | None = None
     entitled_floor: tuple | None = None  # the 50F+ floor where the means was last held
 
 
@@ -496,12 +500,18 @@ def _scene_holds(policy, snapshot, in_range=_threat_in_range) -> bool:
 
 
 def _falls_back(memory, snapshot) -> bool:
-    """The last use failed or its key was not taken: this ask is the rung's own."""
-    if memory.pending is not None and memory.pending[:2] == (snapshot.floor_key, snapshot.turn):
+    """The last use failed or its key was not taken: this ask, and every later ask of the same
+    decision (``Memory.fell_back``), is the rung's own."""
+    here = (snapshot.floor_key, snapshot.turn)
+    if getattr(memory, "fell_back", None) == here:
+        return True
+    if memory.pending is not None and memory.pending[:2] == here:
         memory.pending = None
+        memory.fell_back = here
         return True
     if memory.fallback == snapshot.floor_key:
         memory.fallback = None
+        memory.fell_back = here
         return True
     return False
 
@@ -549,14 +559,36 @@ def usable(policy, snapshot, *, leaving=None) -> bool:
     """Whether ``key`` (with the same ``leaving``) would use the means on this board (no state
     is changed)."""
     memory = getattr(policy, MEMORY, None)
+    here = (snapshot.floor_key, snapshot.turn)
     if memory is not None and (
-            (memory.pending is not None and memory.pending[:2] == (snapshot.floor_key, snapshot.turn))
-            or memory.fallback == snapshot.floor_key):
+            (memory.pending is not None and memory.pending[:2] == here)
+            or memory.fallback == snapshot.floor_key
+            or getattr(memory, "fell_back", None) == here):
         return False
     in_range = _threat_in_range if leaving is None else partial(_threat_in_reach, hostiles=list(leaving))
     if not _scene_holds(policy, snapshot, in_range):
         return False
     return _absorbed_key(policy, snapshot) is not None or _carried_key(policy, snapshot) is not None
+
+
+# Owner 2026-11-16 (n1-c life-216, 「勝てない敵が射程内にいて *破壊* も使える時…どちらを先に」,
+# answer 「常に *破壊* を先」), widened 2026-11-17 (maintainability review Q4, verbatim
+# 「テレポート・アウェイの全場面に広げる」).
+BEFORE_TELEPORT_AWAY_SUFFIX = ":before-teleport-away"
+
+
+def before_teleport_away(policy, snapshot, target) -> str | None:
+    """The use in place of a Teleport Away about to be aimed at ``target``, else None and the
+    Teleport Away is fired: the one ask of every Teleport Away outside a quest's battle plan
+    (me_powers' THREAT occasion, teleport_follower ``away_key``: the follower, the blinder, the
+    carried rods and wands, the emergency ladder's).  ``target`` is the set the use leaves
+    (``key`` ``leaving``); its gates stay the earlier owner rules.  Inside an approved quest
+    strategy (the plans' Teleport Away: quest_plan_base, the quest-opening trigger) none is asked
+    (owner 2026-11-17 Q4 「クエストの作戦の中だけ除く」; the game refuses *Destruction* on a fixed
+    quest floor anyway)."""
+    if policy.approved_quest_strategy(snapshot.floor_key[2]) is not None:
+        return None
+    return key(policy, snapshot, leaving=[target], suffix=BEFORE_TELEPORT_AWAY_SUFFIX)
 
 
 def sight_trigger_key(policy, snapshot) -> str | None:
