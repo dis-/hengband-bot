@@ -303,21 +303,24 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
     def test_f5_the_floor_refuses_every_landing_below_thirty(self):
         """Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」: Angband 50 is the deepest
         reached, so the floor is 30.  The Castle 22 and the Mountain 25 the fallback took before
-        are under it, the Labyrinth 30 is a conquered forgetting maze: no fallback, and the town
-        terminal leaves the departure to the next rules (fundraising, a named stop)."""
+        are under it, the Labyrinth 30 is a conquered forgetting maze: no landing fits.
+        Owner 2026-11-17 (n1-b life-411) 「想定は城の20Fから潜り城40F付近を探索」: the Castle is
+        then taken as a dive from its landing to the floor and below (dive_floor.pick_refused),
+        not the next rules (before 2026-11-17 the fundraising or a named stop)."""
+        from hengbot import dive_floor
+
         policy = self._independent()
         board = self.board
         self.assertEqual(fallback_depth_floor.floor(policy, board), 30)
         for did in (12, 14):
             self.assertFalse(policy._fallback_landing_allowed(
                 board, did, board.dungeon_recall_depths[did]))
-        self.assertIsNone(policy._activate_safe_recall_fallback(board, ANGBAND_ARRIVAL_DEPTH))
-        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
-        policy = self._independent()
-        policy._town_special_key(board)
-        self.assertNotEqual(policy.last_reason, FALLBACK_REASON)
-        self.assertIsNone(policy._alternate_dungeon)
-        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
+        self.assertIsNone(policy._pick_alternate_dungeon(
+            board, max_entry_depth=ANGBAND_ARRIVAL_DEPTH - 1, prefer_deepest=True,
+            refused_dungeon=DUNGEON_ANGBAND))
+        self.assertEqual(policy._activate_safe_recall_fallback(board, ANGBAND_ARRIVAL_DEPTH), 12)
+        self.assertEqual(policy._target_dungeon_id, 12)
+        self.assertTrue(dive_floor.refused_dive_held(policy, board))
 
 
 if __name__ == "__main__":

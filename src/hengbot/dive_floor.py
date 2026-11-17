@@ -28,6 +28,18 @@ is the floor, the recall lands where the save holds it and the stairs go down to
   ``_is_descent_target``: a stair below the target is no descent target (``capped``); on the
   target floor the idle layer's exhausted floor takes the up stairs to a fresh one as on any
   floor whose descent is refused.
+
+Owner 2026-11-17 (n1-b life-411, verbatim): 「想定は城の20Fから潜り城40F付近を探索することである。
+なにかを曲解した実装になっている可能性が高い」.  The character (Angband 51, no *Destruction* means:
+the absorbed power at 78%) had its Angband landing refused by the 50F gate; the unsafe-recall
+fallback (policy._activate_safe_recall_fallback) found no entered landing between the floor
+(51 - 20 = 31) and 50 (the Castle 20, the Mountain 30, dungeon 18 30), and this dive was read for
+the two valves only, so the visit opened the no-safe-destination fundraising and mined the Yeek
+cave 1F for hours.  ``pick_refused`` is the same dive for that fallback: the Castle first (the
+owner's words), else the Mountain.  There the floor is where the dive must reach, not a ceiling:
+the descent goes on to the deepest floor the depth requirements permit (49 without the means), as
+the guardian valve's Angband (``angband_valve_dive``).  The switch is held
+(``refused_dive_held``) so the depth floor does not end it on the next town board.
 """
 
 from __future__ import annotations
@@ -42,6 +54,10 @@ STATE = "_alternate_dive_floor"
 LEASED_REASONS = frozenset({"over_extended_dives", "no_depth_progress"})  # alternate_lease's
 # The guardian valve's switches (policy._activate_safe_recall_fallback, policy_observation).
 GUARDIAN_VALVE_REASONS = frozenset({"guardian_valve", "guardian_bounce_valve"})
+# The unsafe-recall fallback's switch (policy._activate_safe_recall_fallback).
+SAFE_FALLBACK_REASON = "safe_fallback"
+# Owner 2026-11-17 「想定は城の20Fから潜り城40F付近を探索」: the Castle before the Mountain there.
+REFUSED_DIVE_ORDER = (DUNGEON_CASTLE, DUNGEON_MOUNTAIN)
 
 
 def _landing(snapshot, info) -> int:
@@ -68,6 +84,35 @@ def pick(policy, snapshot, *, too_hard: int) -> int | None:
         if landing > best_landing:
             best, best_landing = did, landing
     return best
+
+
+def pick_refused(policy, snapshot, *, refused_depth: int) -> int | None:
+    """The unsafe-recall fallback's dive: the Castle or the Mountain whose landing is above the
+    floor and whose dive reaches it, the floor shallower than the refused landing, or None."""
+    target = fallback_depth_floor.floor(policy, snapshot)
+    if target >= refused_depth:
+        return None
+    for did in REFUSED_DIVE_ORDER:
+        info = policy._dungeon_knowledge.get(did)
+        if (info is None or did not in (snapshot.entered_dungeon_ids or ())
+                or not reaches(policy, snapshot, did)
+                or not policy._fallback_destination_allowed(did)):
+            continue
+        landing = _landing(snapshot, info)
+        if (landing < target
+                and policy._fallback_landing_allowed(snapshot, did, landing, depth_floor=False)):
+            return did
+    return None
+
+
+def refused_dive_held(policy, snapshot) -> bool:
+    """The held switch is the unsafe-recall fallback's dive to the floor (``pick_refused``)."""
+    alternate = getattr(policy, "_alternate_dungeon", None)
+    held = getattr(policy, STATE, None)
+    return (alternate in DIVE_FLOOR_DUNGEONS
+            and getattr(policy, "_alternate_dungeon_reason", None) == SAFE_FALLBACK_REASON
+            and bool(held) and held[0] == alternate
+            and reaches(policy, snapshot, alternate))
 
 
 def reaches(policy, snapshot, dungeon_id: int) -> bool:

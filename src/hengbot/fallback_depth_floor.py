@@ -82,7 +82,9 @@ def settle(policy, snapshot) -> bool:
             or landing_allowed(policy, snapshot,
                                max(landing_depth(policy, snapshot, alternate), dived_to))
             # Owner 2026-11-17: the guardian valve's Angband lands above the floor and dives to it.
-            or dive_floor.angband_valve_held(policy, snapshot)):
+            or dive_floor.angband_valve_held(policy, snapshot)
+            # Owner 2026-11-17 (n1-b life-411): so does the unsafe-recall fallback's Castle.
+            or dive_floor.refused_dive_held(policy, snapshot)):
         return False
     alternate_lease.end(policy, snapshot)
     return True
