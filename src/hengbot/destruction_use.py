@@ -355,13 +355,32 @@ def _guardian_race(policy, snapshot) -> int | None:
     return info.guardian_id
 
 
+def _guardian_kept(policy, snapshot, monster, guardian) -> bool:
+    """``monster`` is the floor's guardian and the use must not delete it: the 11-04 reading
+    (the owner's words did not cover it), but for a guardian that is T1 alone.  Owner 2026-11-17
+    (maintainability review Q3, verbatim 「守護者が T1 なら守護者ごと消してよい」): a guardian the
+    character cannot win against (threat_tiers ``alone_t1`` from contact) is erased with the
+    circle, its conquest and reward given up."""
+    return monster.race_id == guardian and _alone_t1(policy, snapshot, monster) is not True
+
+
+def spares(policy, snapshot, monster) -> bool:
+    """``monster`` is no target of a use: the active quest's target (a QUESTOR, healed and moved,
+    never deleted), or the floor's guardian while it is to be kept (``_guardian_kept``).  The one
+    reader of the set the approaches and the concerned monsters leave out (threat_tiers,
+    deep_teleport)."""
+    return (monster.race_id == _target_race(policy, snapshot)
+            or _guardian_kept(policy, snapshot, monster, _guardian_race(policy, snapshot)))
+
+
 def _spared_in_circle(policy, snapshot, target) -> bool:
-    """A damaged quest target (healed by the use) or the floor's guardian (deleted;
-    the owner's words do not cover it, so the rung reads as today)."""
+    """A damaged quest target (healed by the use) or the floor's guardian to be kept
+    (``_guardian_kept``: deleted by the use; a T1 guardian is not kept, owner 2026-11-17 Q3)
+    within the worst radius."""
     guardian = _guardian_race(policy, snapshot)
     return any(
         game_distance(snapshot.player.position, monster.position) <= WORST_RADIUS
-        and (monster.race_id == guardian
+        and (_guardian_kept(policy, snapshot, monster, guardian)
              or (monster.race_id == target and monster.hp < monster.max_hp))
         for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
 
@@ -379,9 +398,24 @@ def _in_view(policy, snapshot, target) -> list:
     return [m for m in snapshot.visible_monsters if m.hostile and m.race_id != target]
 
 
-# The T1 reading of ``_threat_in_range`` is under way (a re-entry guard of this module, no
-# policy state: the reading's own escape count asks this scene again).
+# A T1 reading of this module is under way (a re-entry guard of this module, no policy state:
+# the reading's own escape count, threat_escape, asks this scene again).
 _reading_t1 = False
+
+
+def _alone_t1(policy, snapshot, monster) -> bool | None:
+    """threat_tiers ``alone_t1`` from contact (as the sensed T1 rules read one); None when asked
+    from inside such a reading (``_reading_t1``), where the callers keep their 11-04 answer."""
+    global _reading_t1
+    from hengbot import threat_tiers  # import cycle
+
+    if _reading_t1:
+        return None
+    _reading_t1 = True
+    try:
+        return threat_tiers.alone_t1(policy, snapshot, monster, contact=True)
+    finally:
+        _reading_t1 = False
 
 
 def _within(snapshot, monster) -> bool:
@@ -406,9 +440,6 @@ def _threat_in_range(policy, snapshot, target) -> bool:
     Owner 2026-11-17 (maintainability review Q1, verbatim 「脅威のどれか1体が半径13以内なら使う」):
     until then only the single most dangerous visible hostile was asked, so a more dangerous one
     14 or more cells off kept the use from a T1 inside the circle."""
-    global _reading_t1
-    from hengbot import threat_tiers  # import cycle
-
     seen = _in_view(policy, snapshot, target)
     if seen:
         here = snapshot.player.position
@@ -416,17 +447,10 @@ def _threat_in_range(policy, snapshot, target) -> bool:
                                          -game_distance(here, m.position)))
         if _within(snapshot, worst):
             return True
-    if _reading_t1:
-        # Asked from inside the T1 reading below (its assessment counts the escapes,
-        # threat_escape: *Destruction* by this scene): the 11-04 reading alone answers there.
-        return False
-    _reading_t1 = True
-    try:
-        return any(monster.race_id != target and _within(snapshot, monster)
-                   and threat_tiers.alone_t1(policy, snapshot, monster, contact=True)
-                   for monster in _shown(snapshot).values())
-    finally:
-        _reading_t1 = False
+    # Inside a T1 reading (``_alone_t1`` None) the 11-04 reading alone answers.
+    return any(monster.race_id != target and _within(snapshot, monster)
+               and _alone_t1(policy, snapshot, monster)
+               for monster in _shown(snapshot).values())
 
 
 def _threat_in_reach(policy, snapshot, target, *, hostiles) -> bool:

@@ -25,7 +25,8 @@ radius, owner 2026-11-17 Q1) -- else the walk toward the most dangerous concerne
 contact (destruction_use ``reach_subject``) until one is within the sure radius (threat_tiers.approach_key for monsters known by detection alone; the
 same walk for one in view).  The concerned monsters are the hostiles of the engagement, awake or
 asleep, that hurt from contact (``threat_prediction(contact=True)``, as the tiers judge a far
-monster), but the floor's guardian and the active quest's target, which *Destruction* spares:
+monster), but those *Destruction* spares (destruction_use ``spares``: the active quest's target,
+and the floor's guardian unless it is T1 alone, owner 2026-11-17 Q3):
 the rungs that read the teleport leave sleeping monsters too (a summoner asleep may summon on
 its next move, policy_combat ``_summoner_may_summon_next_turn``; owner 2026-11-07 「強い敵からは
 離れる」 asleep or not; destruction_use ``_threat_in_reach``, owner 2026-11-09 B, awake or asleep).
@@ -225,10 +226,8 @@ def concerned(policy, snapshot) -> list:
     *Destruction* spares (the module docstring)."""
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
-    spared = {destruction_use._guardian_race(policy, snapshot),
-              destruction_use._target_race(policy, snapshot)}
     hostiles = [monster for monster in threat_tiers.engagement(policy, snapshot)
-                if monster.race_id not in spared]
+                if not destruction_use.spares(policy, snapshot, monster)]
     if not hostiles:
         return []
     rows = policy.threat_prediction(snapshot, hostiles, 1, contact=True).get("monsters", ())

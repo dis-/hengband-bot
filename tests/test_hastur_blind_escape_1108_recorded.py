@@ -68,6 +68,7 @@ ONE_SHOT = 4244027        # decision 20590
 EMPEROR, HASTUR = 882, 757
 ABSORBED_TELEPORT = "mAe"  # m, A (staff), the power letter of sval 4
 ESCAPE = "emergency:teleport:absorbed-power"
+DESTRUCTION = ("mA3", "emergency:destruction:absorbed-power")
 
 
 class HasturBlindEscapeRecordedTest(unittest.TestCase):
@@ -144,12 +145,17 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         self.assertTrue({EMPEROR, HASTUR} <= races)
         # 即死: the next action's p95 is past the HP (the recorded 1421).
         self.assertTrue(threat_tiers.instant_death(policy, snapshot).holds)
-        self.assertEqual((key, reason), (ABSORBED_TELEPORT, ESCAPE))
+        # Owner 2026-11-17 Q3 「守護者が T1 なら守護者ごと消してよい」: the emperor (the castle's
+        # guardian, T1 alone) no longer refuses *Destruction*, so the board is answered as the
+        # guardian-off variant is (``test_the_absorbed_destruction_is_used_blind_before_the_teleport``,
+        # owner 2026-11-08 「盲目でも使う」).  Until Q3 the guardian refused it and the absorbed
+        # teleport was cast (ABSORBED_TELEPORT, ESCAPE).
+        self.assertEqual((key, reason), DESTRUCTION)
         self.assertNotEqual(key, RECORDED[ONE_SHOT][0])
-        # The executor admits the key under that reason and it counts as the dive's escape.
+        # The executor admits the key under that reason; the use is no counted escape.
         verb, steps = me_device_attacks_input.compile_device(key, reason)
-        self.assertEqual((verb, steps[0].kind, steps[0].sval), ("m", "staff", 4))
-        self.assertIn(reason, EMERGENCY_ESCAPE_REASONS)
+        self.assertEqual((verb, steps[0].kind, steps[0].sval), ("m", "staff", 29))
+        self.assertNotIn(reason, EMERGENCY_ESCAPE_REASONS)
 
     def test_the_blind_summoner_board_escapes_before_the_cure(self):
         _policy, answers = self.recorded_answers()
@@ -165,8 +171,9 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         snapshot = answers[ONE_SHOT][2]
         policy.last_reason = None
         key = threat_tiers.sensed_t1_leave_key(policy, snapshot)
-        self.assertEqual((key, policy.last_reason),
-                         (ABSORBED_TELEPORT, threat_tiers.SENSED_LEAVE_PREFIX + "teleport:absorbed-power"))
+        # Owner 2026-11-17 Q3: the T1 guardian no longer refuses the leave's *Destruction*, which
+        # comes before its teleport (owner 2026-11-09 B); until Q3 the absorbed teleport was cast.
+        self.assertEqual((key, policy.last_reason), DESTRUCTION)
 
     def test_the_low_hp_escape_read_casts_the_teleport_when_blind(self):
         policy, answers = self.recorded_answers()
@@ -287,7 +294,11 @@ class HasturBlindEscapeRecordedTest(unittest.TestCase):
         self.assertTrue(alone.t2_withheld)
         scroll = next(item for item in snapshot.inventory
                       if item.tval == TVAL_SCROLL and item.sval == 9)
-        self.assertEqual((key, reason), ("r" + scroll.slot, threat_tiers.SENSED_LEAVE_PREFIX + "teleport"))
+        self.assertIsNotNone(scroll)
+        # Owner 2026-11-17 Q3 「守護者が T1 なら守護者ごと消してよい」: the T1 guardian 13 away no
+        # longer refuses the leave's *Destruction* (before its scroll, owner 2026-11-09 B); until
+        # Q3 the Teleportation scroll was read ("r" + slot, sensed-t1:teleport).
+        self.assertEqual((key, reason), DESTRUCTION)
         self.assertNotEqual(key, RECORDED[ARRIVAL][0])
 
     # -- owner 2026-11-08 「勝てる段の時だけ追う」 (question 4) ---------------------------------
