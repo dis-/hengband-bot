@@ -13,9 +13,14 @@ Phase Door scrolls, the Staff of Teleportation, the absorbed Teleportation, the 
 deep_teleport governs -- is offered only
 
 * on the 即死 board (threat_tiers.instant_death of the engagement, design 3.1), or
-* when the engagement's monsters with a line of fire (line_of_fire.in_fire) are T1 by
+* when the engagement's monsters with a line of fire are T1 by
   themselves on this board: ``threat_tiers.assess`` of them, the raw reading, never the decided
   side the tier memory holds (the memory's group T1 is what read the scrolls at full HP);
+
+  the line of fire is the danger reading (policy ``_monster_in_line_of_fire``: an awake monster
+  does not see an unknown grid as a wall, as deep_teleport ``fire_p95`` reads it since 11-15),
+  owner 2026-11-17 (maintainability review Q5, verbatim 「危険の判定は危険用に揃える」); until
+  then the escape count's stricter line_of_fire.in_fire;
 
 and with ``FEW_SCROLLS`` Teleportation scrolls or fewer carried (「残り少なければ」) only on the
 即死 board.  Teleport Level, Word of Recall and the stairs are not covered (deep_teleport's
@@ -30,7 +35,6 @@ reaches deep_teleport's ``substitute`` (none is known) is refused with a search 
 
 from __future__ import annotations
 
-from hengbot import line_of_fire
 from hengbot.item_reservation import decision_memo
 
 FEW_SCROLLS = 3  # the owner's 「残り少なければ」 (Teleportation scrolls carried)
@@ -49,7 +53,7 @@ def applies(policy, snapshot) -> bool:
 def _t1_in_fire(policy, snapshot, hostiles) -> bool:
     from hengbot import threat_tiers  # import cycle
 
-    in_fire = [monster for monster in hostiles if line_of_fire.in_fire(policy, snapshot, monster)]
+    in_fire = [monster for monster in hostiles if policy._monster_in_line_of_fire(snapshot, monster)]
     return bool(in_fire) and threat_tiers.assess(policy, snapshot, in_fire).tier == threat_tiers.T1
 
 

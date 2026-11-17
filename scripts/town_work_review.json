@@ -19987,39 +19987,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "line_of_fire.py:_stops": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: an unknown grid or one _may_block_projection reads as blocking stops a projection path.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "line_of_fire.py:reaches": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: projectable(source, target) over the known board at range 18.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "line_of_fire.py:in_fire": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: a monster has a line of fire to the player (reaches); read by the escape count and amberite_curse.struck.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "resist_potion.py:quaff_key": {
     "classification": "data",
     "rows": [

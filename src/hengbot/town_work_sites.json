@@ -3752,27 +3752,6 @@
     ],
     "delegation": "no independent success"
   },
-  "line_of_fire.py:_stops": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "line_of_fire.py:in_fire": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "line_of_fire.py:reaches": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "locked_doors.py:pick_key": {
     "classification": "data",
     "rows": [
