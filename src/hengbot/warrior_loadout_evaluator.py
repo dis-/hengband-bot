@@ -368,7 +368,8 @@ def _combine_warrior_results(
     device_dps: float = 0.0,
     me_survival_factor: float = 1.0,
 ) -> WarriorLoadoutResult:
-    player_energy = speed_energy(inputs.defense.base_speed + _speed_bonus(loadout))
+    player_speed = inputs.defense.base_speed + _speed_bonus(loadout)
+    player_energy = speed_energy(player_speed)
     incoming = (
         defense.energy_weighted_melee_damage
         + ranged.energy_weighted_ranged_damage
@@ -413,6 +414,7 @@ def _combine_warrior_results(
         utility_value=utility,
         evaluation_complete=complete,
         device_dps=device_dps,
+        player_speed=player_speed,
     )
     return WarriorLoadoutResult(
         metrics, melee, defense, ranged, ranged_offense_dps, device_dps)

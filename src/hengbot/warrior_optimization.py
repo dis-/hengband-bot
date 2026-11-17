@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
 from hengbot.equipment_encounters import normal_encounters, representative_encounters
+from hengbot.speed_valuation import permanent_player_speed
 from hengbot.equipment_optimizer import (
     ABILITY_FLAG,
     Loadout,
@@ -884,7 +885,9 @@ def prepare_warrior_optimization(
         intrinsic_dex=adjustments[3],
         shield_skill=player.shield_skill,
         base_ac_bonus=base_ac_bonus,
-        base_speed=player.speed - _equipment_speed(current),
+        # The permanent speed (speed_valuation): a haste or slowness at the
+        # board is not the loadout's.
+        base_speed=permanent_player_speed(snapshot) - _equipment_speed(current),
         saving_skill=player.saving_skill,
         intrinsic_flags=intrinsic_flags,
     )
