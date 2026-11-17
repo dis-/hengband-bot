@@ -96,13 +96,15 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
         return {
             DUNGEON_ANGBAND: DungeonInfo(DUNGEON_ANGBAND, "Angband", 1, 127, 30),
             DUNGEON_YEEK_CAVE: DungeonInfo(DUNGEON_YEEK_CAVE, "Galgals", 1, 13, 1),
-            3: DungeonInfo(3, "Orc Cave", 10, 22, 5),
+            # The real final guardians (lib/edit/DungeonDefinitions.jsonc): a dungeon without
+            # one is no conquest target (owner 2026-11-18).
+            3: DungeonInfo(3, "Orc Cave", 10, 22, 5, guardian_id=373),
             4: DungeonInfo(
                 4, "Labyrinth", 10, 18, 1,
                 flags=frozenset({"MAZE", "FORGET"}), guardian_id=1034,
             ),
-            7: DungeonInfo(7, "Forest", 15, 32, 5),
-            14: DungeonInfo(14, "Mountain", 25, 45, 20),
+            7: DungeonInfo(7, "Forest", 15, 32, 5, guardian_id=481),
+            14: DungeonInfo(14, "Mountain", 25, 45, 20, guardian_id=468),
             DUNGEON_CHAMELEON_CAVE: DungeonInfo(
                 DUNGEON_CHAMELEON_CAVE, "Chameleon cave", 30, 45, 30
             ),

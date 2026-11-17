@@ -37,8 +37,10 @@ class ExcludeForestTest(executor_harness.ProductionHarness):
         return HengbotPolicy(dungeon_knowledge={
             1: DungeonInfo(1, "Angband", 1, 127, 30),
             2: DungeonInfo(2, "Yeek cave", 1, 13, 1),
-            3: DungeonInfo(3, "Orc cave", 10, 23, 5),
-            7: DungeonInfo(7, "Forest", 15, 32, 5),
+            # The real final guardians: a dungeon without one is no conquest target
+            # (owner 2026-11-18).
+            3: DungeonInfo(3, "Orc cave", 10, 23, 5, guardian_id=373),
+            7: DungeonInfo(7, "Forest", 15, 32, 5, guardian_id=481),
         })
 
     def _board(self):
@@ -80,8 +82,9 @@ class ExcludeForestTest(executor_harness.ProductionHarness):
                     if committed:
                         policy._conquest_committed = 7
                     board = replace(self._board(), conquered_dungeon_ids=())
+                    # The guardian fight is the projection's; only the exclusion is asked here.
                     with patch("hengbot.dungeon_knowledge.EXCLUDED_EXPLORATION_DUNGEONS",
-                               frozenset() if before else frozenset({7})):
+                               frozenset() if before else frozenset({7})),                             patch.object(policy, "_guardian_fight_viable", return_value=True):
                         key = policy.choose_key(board)
                     self.assertEqual(policy._target_dungeon_id, expected)
                     self.assertEqual(policy._conquest_committed, expected)
