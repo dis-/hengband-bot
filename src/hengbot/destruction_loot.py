@@ -44,6 +44,15 @@ east toward the staff, potion and ring at (8,110)-(10,111); at (8,109) the T1 wa
 (monster-update.cpp: telepathy within MAX_PLAYER_SIGHT 20), no longer shown, the commitment was
 not asked and the remembered approach stepped back west, until the loop detector (40 decisions).
 
+A hostile in view ends the fetch for the scene (``MEMORY`` "withheld", until the flash): the
+owner's words pick up first only 「見える敵がいなければ」, so once one is seen the use goes first
+and a later board out of its sight does not start the fetch again.  n1-c life-216 (Angband 80F,
+2026-11-18 03:11-03:12, loop-detected): at (26,74) the use was due and the fetch walked toward
+the potion at (39,80) by (27,75), (26,76), (25,77); at (25,77) a sleeping hostile (race 423) at
+(5,76) came into view, the fetch dropped, and the approach stepped back out of its sight to
+(26,76), (27,75), (26,74), where the use was due again and the fetch began afresh, until the
+loop detector.
+
 Every scene is bounded: ``DECISIONS_MAX`` decisions of this module per floor between two flashes
 (a flash resets it), and a pile the pickup did not take is not gone to again on the floor; past
 the bound the use is made as before, so no walk here can hold a use back for good.
@@ -74,15 +83,16 @@ PLACE_MAX_DISTANCE = 8
 # This module's decisions on a floor between two flashes before the use goes ahead regardless.
 DECISIONS_MAX = 40
 # {"floor": floor_key, "place": Position | None, "fetch": Position | None (the cell the fetch
-#  began on, where the use was due), "decisions": int, "tried": set of Position}
+#  began on, where the use was due), "withheld": bool (a hostile was in view: no fetch until the
+#  flash), "decisions": int, "tried": set of Position}
 MEMORY = "_destruction_loot_memory"
 
 
 def _memory(policy, snapshot) -> dict:
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.get("floor") != snapshot.floor_key:
-        memory = {"floor": snapshot.floor_key, "place": None, "fetch": None, "decisions": 0,
-                  "tried": set()}
+        memory = {"floor": snapshot.floor_key, "place": None, "fetch": None, "withheld": False,
+                  "decisions": 0, "tried": set()}
         setattr(policy, MEMORY, memory)
     return memory
 
@@ -93,6 +103,7 @@ def observe(policy, snapshot) -> None:
     if memory is not None and any(message in destruction_use.FLASH for message in snapshot.messages):
         memory["place"] = None
         memory["fetch"] = None
+        memory["withheld"] = False
         memory["decisions"] = 0
 
 
@@ -222,12 +233,16 @@ def _committed_fetch(policy, snapshot, leaving, remembered=()) -> str | None:
 def _fetch(policy, snapshot, centre=None) -> str | None:
     """The step toward (or the pickup of) the nearest untried valuable pile a use at ``centre``
     (the player's cell by default, where the use is due) may delete; ``centre`` is committed
-    (``MEMORY`` "fetch") while such a pile is left, else dropped and None."""
+    (``MEMORY`` "fetch") while such a pile is left, else dropped and None.  A hostile in view
+    withholds the fetch until the flash (``MEMORY`` "withheld", n1-c life-216 1118)."""
     memory = _memory(policy, snapshot)
     here = snapshot.player.position
     centre = here if centre is None else centre
     memory["fetch"] = None
+    if memory.get("withheld"):
+        return None
     if _in_view(snapshot, awake_only=False):
+        memory["withheld"] = True
         return None
     piles = {position for position in exposed(policy, snapshot, centre)
              if position not in memory["tried"] and _valuable(snapshot, position)}
