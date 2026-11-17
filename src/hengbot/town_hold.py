@@ -2545,7 +2545,7 @@ def home_route_opened_for(policy: Any, family: str) -> bool:
     holder = errand_hold(policy, "__none__", enforced=True)
     visit = getattr(policy, "_store_visit", None)
     if (holder is not None and holder.owner.value == "home-errand"
-            and family == "store-router"
+            and family in {"store-router", "equipment-txn"}
             and policy._home_knowledge_current
             and getattr(policy, "_shopping_approach_store_type", None) == STORE_HOME
             and getattr(getattr(policy, "_home_errand", None), "active", False)):
@@ -2553,7 +2553,12 @@ def home_route_opened_for(policy: Any, family: str) -> bool:
         # router's Home approach (_atomic_home_withdraw_key, family
         # home-errand).  Held out of it, the decision fell to the idle
         # step-off and the walk back, every item (n1-c life-195 2026-11-11
-        # 17:29, identification-catalog: owner-retired-burst).
+        # 17:29, identification-catalog: owner-retired-burst).  So does the
+        # equipment transaction's Home approach, the one town walk while it
+        # owns the town: held out of it, the transaction's next deposit read
+        # as no route and stopped (n1-a life-530 2026-11-18 04:57,
+        # equipment-transaction:restore-blocked-terminal, the battle pick
+        # still to shelve behind the Olog plate's identification take).
         return True
     return bool(holder is not None and holder.owner.value == "store-router"
                 and home_catalogue_work_holder(policy) is None
