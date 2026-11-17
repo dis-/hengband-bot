@@ -155,7 +155,7 @@ from hengbot.policy_constants import (
     HOME_VISIT_LIMIT,
     CALIBRATION_HOME_VISIT_LIMIT,
     DEPTH_ABILITY_REQUIREMENTS,
-    DESTRUCTION_GATE_DEPTH,
+    DEEP_FLOOR_DEPTH,
     DESTRUCTION_GATE_LABEL,
     FUNDRAISING_START_GOLD,
     SPEED_GATE_DEPTH,
@@ -10724,7 +10724,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # it in place of a Teleportation or Phase Door the 50F+ rule refuses (deep_teleport).
         if (instead := deep_teleport.scroll_substitute(self, snapshot, item)) is not None:
             return instead
-        if snapshot.dungeon_level >= deep_teleport.DEPTH and deep_teleport.is_self_teleport_scroll(item):
+        if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and deep_teleport.is_self_teleport_scroll(item):
             cross_rules.produce(self, cross_rules.DEEP_TELEPORT)  # record only
         if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
             return takeoff

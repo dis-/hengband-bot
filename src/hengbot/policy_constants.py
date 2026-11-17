@@ -821,7 +821,16 @@ def _required_abilities_for_depth(depth: int) -> frozenset:
         *(adds for first_floor, adds in DEPTH_ABILITY_REQUIREMENTS if depth >= first_floor)
     )
 
-DESTRUCTION_GATE_DEPTH = 50
+# The first of the deep floors, 50F (the owner's 「50F以降」).  Every rule keyed on "50F+"
+# reads this one constant (before 2026-11-17 it had three names: DESTRUCTION_GATE_DEPTH here,
+# deep_teleport.DEPTH and me_powers.DEEP_FLOOR_MIN_DEPTH):
+# - owner 2026-11-04 「使える手段がある時だけ解く」 and 2026-11-14 「50F以降で破壊手段なしの探索は
+#   許可しない」: the *Destruction* gate below (destruction_dive_permitted, destruction_use);
+# - owner 2026-11-14 「50F以降のテレポートの条件を厳しくする」: deep_teleport;
+# - PLAN-50F section 4, owner 2026-11-11 C6 「2 3 5を入れる」: me_powers' deep-floor rows.
+# Not this constant: the 50 of DEPTH_ABILITY_REQUIREMENTS (the telepathy row of the depth table,
+# its own owner rule) and the 49 band of equipment_optimizer (a row boundary of that table).
+DEEP_FLOOR_DEPTH = 50
 
 DESTRUCTION_GATE_LABEL = "destruction"
 
@@ -829,7 +838,7 @@ DESTRUCTION_GATE_LABEL = "destruction"
 # 50F+ is reached only by a character holding a means destruction_use can use
 # (``destruction_use.holds_means``: a staff or an absorbed power at 80%+, with a
 # charge); scrolls do not count.  Everyone else's deepest permitted arrival or
-# descent is DESTRUCTION_GATE_DEPTH - 1 (49F).  Owner 2026-11-14 「50F以降で破壊手段
+# descent is DEEP_FLOOR_DEPTH - 1 (49F).  Owner 2026-11-14 「50F以降で破壊手段
 # なしの探索は許可しない。」: a character whose means ran out on 51F returns at once
 # (destruction_use.gap_here / means_spent_recall_key; a quest floor excepted).  The
 # two functions below are the whole surface of the arrival and descent rule;
@@ -837,7 +846,7 @@ DESTRUCTION_GATE_LABEL = "destruction"
 
 def destruction_dive_permitted(depth: int, holds_means) -> bool:
     """Whether ``depth`` may be reached at all under the 50F+ rule."""
-    return depth < DESTRUCTION_GATE_DEPTH or holds_means()
+    return depth < DEEP_FLOOR_DEPTH or holds_means()
 
 def permitted_dive_depth(depth: int, holds_means) -> int:
     """Clamp an INTENDED depth to the deepest floor the bot may reach.
@@ -851,7 +860,7 @@ def permitted_dive_depth(depth: int, holds_means) -> int:
     intent here keeps every consumer of it consistent with what the gate will
     actually permit.
     """
-    return depth if destruction_dive_permitted(depth, holds_means) else DESTRUCTION_GATE_DEPTH - 1
+    return depth if destruction_dive_permitted(depth, holds_means) else DEEP_FLOOR_DEPTH - 1
 
 DESTRUCTION_USES_PER_STEP = 5
 
@@ -865,9 +874,9 @@ def required_destruction_uses(depth: int) -> int:
     depth there is no requirement at all.  A "use" is one Scroll of
     *Destruction* or one remaining charge of a Staff of *Destruction*.
     """
-    if depth < DESTRUCTION_GATE_DEPTH:
+    if depth < DEEP_FLOOR_DEPTH:
         return 0
-    steps = (depth - DESTRUCTION_GATE_DEPTH) // DESTRUCTION_USES_STEP_DEPTH
+    steps = (depth - DEEP_FLOOR_DEPTH) // DESTRUCTION_USES_STEP_DEPTH
     return DESTRUCTION_USES_PER_STEP * (1 + steps)
 
 SPEED_GATE_DEPTH = 81
@@ -880,7 +889,7 @@ def required_depth_gates(depth: int) -> frozenset:
     """Every mandatory gate for a depth: the resistance/telepathy table plus the
     *Destruction* (50F+) and speed +25 (81F+) requirements."""
     gates = set(_required_abilities_for_depth(depth))
-    if depth >= DESTRUCTION_GATE_DEPTH:
+    if depth >= DEEP_FLOOR_DEPTH:
         gates.add(DESTRUCTION_GATE_LABEL)
     if depth >= SPEED_GATE_DEPTH:
         gates.add(SPEED_GATE_LABEL)

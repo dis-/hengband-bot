@@ -4,7 +4,7 @@ n1-a life-525 (Lv40 Warrior) died on ガラスの城 49F on 2026-11-15 21:06:00,
 landing beside the sleeping 『スマウグ』, a storm and 『ウリエル』, all within *Destruction*'s radius
 13.  Twelve staves of *Destruction* were in the Home and the 魔力支配の革グローブ (+3) and the
 魔法道具支配のアミュレット (+1) make them reliable (device skill 32 -> 64, 85.7%), but the staff
-was asked only from 50F (DESTRUCTION_GATE_DEPTH) and the character was held at 49F for want
+was asked only from 50F (DEEP_FLOOR_DEPTH) and the character was held at 49F for want
 of telepathy, so the 21:05:39 departure wore neither and carried none.  Owner 2026-11-15,
 verbatim: 「深さに関係なく持っていく」; the swap's combat loss is weighed by the loadout
 comparison (equipment_utility.destruction_means_bonus, the size of full telepathy, on the

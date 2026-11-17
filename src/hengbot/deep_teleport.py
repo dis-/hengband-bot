@@ -4,8 +4,8 @@ Owner 2026-11-14 (verbatim): 「50F以降のテレポートの条件を厳しく
 即死抽選があるためである。射線の通っている敵の合計予測被害95%が現在HPを上回るとき=即死のとき
 のみ。当てはまらない時は破壊または近寄って破壊を試みる。」
 
-``allows``: on a dungeon floor of depth ``DEPTH`` or deeper where the tiers act
-(threat_tiers.acts_here: not on an approved quest plan's floor, whose own order stands, nor in
+``allows``: on a dungeon floor of depth ``policy_constants.DEEP_FLOOR_DEPTH`` or deeper where the
+tiers act (threat_tiers.acts_here: not on an approved quest plan's floor, whose own order stands, nor in
 town, a store, the arena or the wilderness), the self-teleport -- Teleportation and Phase Door
 scrolls, the Staff of Teleportation, the absorbed Teleportation; anything that moves the player
 to a random cell (spells-teleport.cpp teleport_player) -- is allowed only when the summed
@@ -96,9 +96,8 @@ from hengbot import return_start
 from hengbot import cross_rules, line_of_fire, recall_wait_teleport
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL
-from hengbot.policy_constants import SEARCH_KEY
+from hengbot.policy_constants import DEEP_FLOOR_DEPTH, SEARCH_KEY
 
-DEPTH = 50  # the owner's 「50F以降」
 SCROLL_SVALS = frozenset({SV_SCROLL_TELEPORT, SV_SCROLL_PHASE_DOOR})
 DESTRUCTION_SUFFIX = ":deep-teleport"
 LANDED_SUFFIX = ":teleport-landed-in-fire"
@@ -136,7 +135,7 @@ def _memory(policy) -> Landing:
 def applies(policy, snapshot) -> bool:
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
-    return snapshot.dungeon_level >= DEPTH and threat_tiers.acts_here(policy, snapshot)
+    return snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and threat_tiers.acts_here(policy, snapshot)
 
 
 def fire_p95(policy, snapshot) -> int:

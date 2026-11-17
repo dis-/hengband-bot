@@ -119,7 +119,7 @@ from hengbot.model import (
     SV_WAND_TELEPORT_AWAY,
     SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_WAND, Position, game_distance,
 )
-from hengbot.policy_constants import DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
+from hengbot.policy_constants import DEEP_FLOOR_DEPTH, DIRECTION_KEYS, MONSTER_SPELL_MAX_RANGE
 from hengbot.projection_path import projection_path
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -156,8 +156,7 @@ FIGHT_SPEED_MIN_CHARGES = 10
 HASTE_MIN_GAME_TURNS = 160
 # PLAN-50F (deep-dive 2026-11-10/11, section 4), owner 2026-11-11 for its C6 「2 3 5を入れる」:
 # items 2 (4.3 detection cadence), 3 (4.4 lighting rooms) and 5 (4.9 speed), each "only on
-# 50F+" (the plan's floors where 「50F以降は敵が強い」).
-DEEP_FLOOR_MIN_DEPTH = 50
+# 50F+" (the plan's floors where 「50F以降は敵が強い」): policy_constants.DEEP_FLOOR_DEPTH.
 # 4.3 「Re-detect after walking 25 cells from the last detection (half of DETECT_RAD 30 +
 # margin)」: game distance from the latest landed monster detection of the floor visit.
 DEEP_REDETECT_WALK = 25
@@ -703,7 +702,7 @@ def _unbeatable_in_range(ctx, power):
 
 
 def _deep_floor(ctx) -> bool:
-    return ctx.snapshot.dungeon_level >= DEEP_FLOOR_MIN_DEPTH
+    return ctx.snapshot.dungeon_level >= DEEP_FLOOR_DEPTH
 
 
 # The effects whose cast shows the monsters around it (the Detect Evil row and its preferred rod).
