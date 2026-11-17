@@ -95,7 +95,7 @@ from dataclasses import dataclass
 from hengbot import return_start
 from hengbot import cross_rules, line_of_fire, recall_wait_teleport
 from hengbot.item_reservation import decision_memo
-from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL, game_distance
+from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL
 from hengbot.policy_constants import SEARCH_KEY
 
 DEPTH = 50  # the owner's 「50F以降」
@@ -213,10 +213,9 @@ def landed_threats(policy, snapshot) -> list:
     landed = None if memory is None else memory.landed
     if landed is None or landed[0] != snapshot.floor_key:
         return []
-    here = snapshot.player.position
     threats = [monster for monster in threat_tiers.engagement(policy, snapshot)
                if monster.index in landed[1]
-               and game_distance(here, monster.position) <= destruction_use.GUARANTEED_RADIUS]
+               and destruction_use.in_sure_radius(snapshot, monster)]
     if not threats or not destruction_use.usable(policy, snapshot, leaving=threats):
         return []
     return threats
@@ -253,19 +252,10 @@ def _walk_step(policy, snapshot, targets):
     use's other gates refuse it."""
     from hengbot import destruction_use
 
-    if (not destruction_use.holds_means(policy, snapshot)
-            or not destruction_use._clear_headed(snapshot.player)
-            or not destruction_use._floor_destroyed(policy, snapshot)):
+    if not destruction_use.approach_gates(policy, snapshot):
         return None
-    subject = destruction_use.reach_subject(
-        policy, snapshot, targets, destruction_use._target_race(policy, snapshot))
-    if subject is None:
-        return None
-    radius = destruction_use.GUARANTEED_RADIUS
-    if game_distance(snapshot.player.position, subject.position) <= radius:
-        return None
-    return policy._nearest_goal_step(
-        snapshot, lambda grid: game_distance(grid.position, subject.position) <= radius)
+    return destruction_use.walk_step(policy, snapshot, destruction_use.reach_subject(
+        policy, snapshot, targets, destruction_use.quest_target_race(policy, snapshot)))
 
 
 def _walk_key(policy, snapshot, targets) -> str | None:

@@ -489,6 +489,60 @@ def reach_subject(policy, snapshot, hostiles, target):
     return worst
 
 
+# -- the scene's public readers (maintainability review 2026-11-17, N1) ---------------
+# The modules outside this one read the scene only through these (scripts/destruction_scene_lint
+# fails a read of a private name here or a distance compared against the sure radius elsewhere).
+
+def approach_gates(policy, snapshot) -> bool:
+    """The standing gates of going to a use: the means held (``holds_means``), a clear head
+    (``_clear_headed``: only confusion refuses) and a floor the use touches
+    (``_floor_destroyed``), asked in that order.  The approaches (threat_tiers ``approach_key``,
+    ``remembered_approach_key`` and its targets, deep_teleport's walk) ask these before they walk;
+    the use itself asks the latter two in ``_scene_holds``."""
+    return (holds_means(policy, snapshot) and _clear_headed(snapshot.player)
+            and _floor_destroyed(policy, snapshot))
+
+
+def in_sure_radius(snapshot, subject, *, centre=None) -> bool:
+    """``subject`` (a monster or a Position) is within GUARANTEED_RADIUS of ``centre`` (the
+    player's cell by default): inside the circle every use destroys."""
+    origin = snapshot.player.position if centre is None else centre
+    return game_distance(origin, getattr(subject, "position", subject)) <= GUARANTEED_RADIUS
+
+
+def walk_step(policy, snapshot, subject):
+    """The one walk toward a use (maintainability review 2026-11-17, 5(a)-4), shared by the
+    approaches (threat_tiers ``approach_key`` and ``remembered_approach_key``, deep_teleport
+    ``_walk_step``): each caller picks its own ``subject`` (the monster the use asks about) and
+    asks its own gates first.  None without a subject or with it already inside the sure radius
+    (only the use answers there), else the first step toward the nearest cell within the sure
+    radius of it (policy._nearest_goal_step; None when there is no way)."""
+    if subject is None or in_sure_radius(snapshot, subject):
+        return None
+    return policy._nearest_goal_step(
+        snapshot, lambda grid: in_sure_radius(snapshot, subject, centre=grid.position))
+
+
+def quest_target_race(policy, snapshot) -> int | None:
+    """The active kill quest's target race (a QUESTOR the use heals and moves, never deletes),
+    else None."""
+    return _target_race(policy, snapshot)
+
+
+def scene_holds(policy, snapshot) -> bool:
+    """The scene of a use without a ``leaving`` set (the 11-04 reading, ``_threat_in_range``),
+    the means and the last use's fallback not asked: threat_escape's count of *Destruction* as a
+    way out.  Not ``usable``: that one asks the means and the fallback too."""
+    return _scene_holds(policy, snapshot)
+
+
+def means_in_hand(policy, snapshot) -> bool:
+    """The means part of ``usable``/``key``: the absorbed cast, else a reliable carried staff
+    (the scene and the item's key not asked; destruction_means ``Means.in_hand``)."""
+    return (_absorbed_key(policy, snapshot) is not None
+            or _reliable_carried_staff(policy, snapshot) is not None)
+
+
 def _scene_holds(policy, snapshot, in_range=_threat_in_range) -> bool:
     if not _clear_headed(snapshot.player) or not _floor_destroyed(policy, snapshot):
         return False

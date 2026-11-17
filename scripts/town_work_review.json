@@ -20009,16 +20009,16 @@
     "delegation": "selected child; no independent success",
     "evidence": "Pure reading: the monster the approach to *Destruction* walks to, destruction_use.reach_subject of the hostiles the use leaves (n1-c life-216 80F loop, 2026-11-17); no key."
   },
-  "threat_tiers.py:_step_into_reach": {
+  "destruction_use.py:walk_step": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
-    "context": "Dungeon only: asked from threat_tiers approach_owns, approach_key and remembered_approach_key after leave_decided_here (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "context": "Dungeon only: the approaches' one walk (maintainability review 2026-11-17, 5(a)-4), asked from threat_tiers approach_key and remembered_approach_key after leave_decided_here and from deep_teleport._walk_step (50F+, its own gates) (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
-    "evidence": "Pure reading: the first step of the walk into the sure radius of the approach's subject (policy._nearest_goal_step); no key of its own, the caller steps."
+    "evidence": "Pure reading: the first step of the walk into the sure radius of the caller's subject (policy._nearest_goal_step); no key of its own, the caller steps."
   },
   "destruction_use.py:reach_subject": {
     "classification": "data",
@@ -20041,6 +20041,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Pure reading: the active kill quest's target race; no key."
+  },
+  "destruction_use.py:quest_target_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: the public reader of destruction_use._target_race (maintainability review 2026-11-17, N1), asked from threat_tiers approach_subject and _sensed_strong and deep_teleport._walk_step under the same dungeon-only callers as _target_race.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: returns destruction_use._target_race (the active kill quest's target race); no key."
   },
   "policy.py:HengbotPolicy._active_kill_quest_id": {
     "classification": "data",

@@ -238,8 +238,7 @@ class Means:
         carried staff (the scene and the item's key not asked)."""
         from hengbot import destruction_use
 
-        return (destruction_use._absorbed_key(self.policy, self.snapshot) is not None
-                or destruction_use._reliable_carried_staff(self.policy, self.snapshot) is not None)
+        return destruction_use.means_in_hand(self.policy, self.snapshot)
 
 
 # (name, reader, exact) in the observer's row order.  An exact reader equals the definition;

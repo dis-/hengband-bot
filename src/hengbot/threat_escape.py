@@ -132,8 +132,7 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
                 and me_capability.has(policy, snapshot, "staff", SV_STAFF_TELEPORTATION)
                 and me_capability.charges(policy, snapshot, "staff", SV_STAFF_TELEPORTATION) > 0):
             means.append("absorbed-teleport")
-    if destruction_use.holds_means(policy, snapshot) and destruction_use._scene_holds(
-            policy, snapshot):
+    if destruction_use.holds_means(policy, snapshot) and destruction_use.scene_holds(policy, snapshot):
         means.append("destruction")
     stair = _stair_distance(snapshot)
     chasers = [monster for monster in hostiles
