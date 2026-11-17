@@ -93,6 +93,7 @@ from hengbot.town_hold import TOWN_ERRAND_FAMILIES as CLAIM_TOWN_ERRAND_FAMILIES
 from hengbot.policy_constants import AMMO_CARRY_TARGET, CALIBRATION_HOME_VISIT_LIMIT, FUNDRAISING_START_GOLD, TORCH_THROW_MAX_DEPTH, STAFF_IDENTIFY_MIN_CHARGES, STAFF_IDENTIFY_MIN_DEPTH, BUY_KEY, CHARACTER_DUMP_MACRO, DIRECTION_KEYS, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, ExplorationPathOutcome, FOOD_MIN_SVAL, FOOD_TYPE_MANA, INN_BUILDING_TYPE, INSCRIBE_KEY, FULL_IDENTIFY_DISMISS_SUFFIX, FUNDRAISING_GOLD_TARGET, IDENTIFY_FAIL_LIMIT, LEAVE_STORE_KEY, LANTERN_MIN_GOLD, MINING_RUNS_PER_SET, MIN_TERMINAL_FREE_PACK_SLOTS, NEIGHBOR_OFFSETS, PACK_CAPACITY, READ_KEY, RECALL_ISSUE_CONFIRM_TURNS, RECALL_MIN_DEPTH, SEARCH_KEY, SELL_KEY, STUCK_ESCAPE_LIMIT, STORE_STUCK_LIMIT, RESTOCK_WAIT_MACRO, RUMOR_COST, RUMOR_GOLD_RESERVE, RUMOR_READ_KEY, RUMOR_READS_PER_VISIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, TOWN_CLAIM_ADVANCING_MOVE_REASONS, TOWN_CYCLE_MAX_DISTINCT, TOWN_CYCLE_WINDOW, TOWN_FAST_TRAVEL_MAX_POSITIONS, TOWN_FAST_TRAVEL_MIN_ROWS, TOWN_FAST_TRAVEL_WINDOW, TOWN_STOP_PASS_LIMIT, TOWN_TELEPORT_BUILDING_TYPES, CROSS_TOWN_TOWN_IDS, TOWN_TRAVEL_MIN_DISTANCE, TOWN_CYCLE_BREAK_LIMIT, UP_STAIRS_KEY, WAIT_KEY, WALK_OUT_MAX_DEPTH
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_LANTERN, SV_LITE_TORCH, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, RESTORE_POTION_SVAL_BY_STAT, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_STAFF_IDENTIFY, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, MORIVANT_LIBRARY_BUILDING_TYPE, OUTPOST_TOWN_ID, STORE_RESTOCK_WAIT_TURNS, EQUIPMENT_SLOT_KEY, FIXED_QUEST_ALLOWLIST, FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_TOWNS, HOME_KNOWLEDGE_MACRO, MIN_FREE_PACK_SLOTS, QUEST_STATUS_COMPLETED, QUEST_STATUS_FAILED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN, REPORT_FAILED_REASON, REST_MACRO, TOWN_TELEPORT_COST
+from hengbot.policy_identification import UNSEEN_LOOT_QUIET_TURNS
 from hengbot.policy_types import (
     DecisionCandidate, QuestTravelDeclaration, TownMapRoute, TownTeleportRoute,
     TownTravelProgress, TownNeed, NeedSpec, TownErrandPlan,
@@ -9097,6 +9098,32 @@ class TownMixin:
         ):
             return self._town_map.entrance
         return None
+
+    def _town_unseen_descent_wait_key(self, snapshot: Snapshot) -> str | None:
+        """Wait out the unseen attack's quiet window that defers the town's walk-in.
+
+        The descent step defers a stair in the area of an unseen attack that continues
+        (``_in_unseen_attack_area``, n1-a life-508); in the dungeon the idle layer then
+        wanders until the area lifts, but in town the idle layer is the town end, which
+        judges the recall departure and stops by name.  n1-a life-530 (2026-11-17 17:38,
+        the no-safe-destination mining set, run 2 of 2): an unseen attacker hit it at
+        (31, 124) on the way to the Yeek entrance (31, 150); the retreat retired 163 game
+        turns later with 37 of the 200-turn quiet window left, the entrance was still in
+        the area, and the town end stopped as town:blocked:survival:depth_abilities (the
+        Angband 50 landing, not the walk-in's).  The wait lasts only while the window of
+        the last hit runs: an armed retreat past it falls through as before.
+        """
+        if not snapshot.in_town or self._descent_refusal_reason != "unseen-attack-area":
+            return None
+        last_hit_turn = getattr(self, "_unseen_last_hit_turn", None)
+        if (last_hit_turn is None
+                or not 0 <= snapshot.turn - last_hit_turn < UNSEEN_LOOT_QUIET_TURNS):
+            return None
+        entrance = self._town_map_descent_entrance(snapshot)
+        if entrance is None or not self._in_unseen_attack_area(snapshot, entrance):
+            return None
+        self.last_reason = "town:unseen-attack-quiet-wait"
+        return WAIT_KEY
 
     def _town_walk_in_entrance(self, snapshot: Snapshot) -> Position | None:
         """The dungeon entrance this town visit could walk into, if any.

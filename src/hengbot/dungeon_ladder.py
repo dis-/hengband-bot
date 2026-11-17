@@ -268,6 +268,7 @@ LADDER = (
         *E("_hunt_step#2"),
         *I("clear-descent"),
         *E("_entrance_travel_key"),
+        *D("_town_unseen_descent_wait_key"),
     )),
     Layer("idle", "the rest of this layer, in order", (
         *I("eat"),
