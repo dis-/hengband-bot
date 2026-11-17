@@ -319,8 +319,13 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         self.assertEqual((policy.last_reason, key), ("return:wait-recall", "5"))
         self.assertEqual(policy._loot_ledger_rearmed, set())
 
-    def test_l3_a_nonzero_threat_prediction_waits_exactly_as_recorded(self):
-        """L3: no visible hostile, but the prediction is not zero."""
+    def test_l3_a_hostile_only_sensed_no_longer_holds_the_wait(self):
+        """L3: no visible hostile; one known only by detection is not counted.
+
+        Owner 2026-11-18 (「見える敵がいなければ拾う」): a monster known only through
+        telepathy or detection no longer closes the gate, even with its own non-zero
+        prediction (until then this board waited).  The visible case is L2.
+        """
         policy, _replayed, countdown = self._replay_to_recall()
         board = replace(
             countdown,
@@ -337,12 +342,11 @@ class LootBeforeRecallRecordedTest(unittest.TestCase):
         self.assertEqual(
             policy.threat_prediction(board, board.detected_monsters)["total"], 18
         )
-        self.assertFalse(policy._loot_before_recall_calm(board))
+        self.assertTrue(policy._loot_before_recall_calm(board))
 
         key = policy.choose_key(board)
 
-        self.assertEqual((policy.last_reason, key), ("return:wait-recall", "5"))
-        self.assertEqual(policy._loot_ledger_rearmed, set())
+        self.assertNotEqual((policy.last_reason, key), ("return:wait-recall", "5"))
 
     def test_l4_every_reachable_item_is_collected_nearest_first_then_wait(self):
         """L4: the whole countdown sweep, its order, and the wait it returns to."""
