@@ -14320,6 +14320,39 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "stone_to_mud_carry.py:kept_wand_share": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the retention authority (policy_home._retention_reservation_baseline_detail) and the Home deposit candidate (policy_home._home_deposit_candidate) in town and in the dungeon alike.",
+    "evidence": "The share of the five carried Stone to Mud wands a pack stack keeps (owner 2026-11-17 「戦士は岩石溶解を5本だけ持てばいい。」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "stone_to_mud_carry.py:stone_to_mud_kept": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the retention authority (policy_home._retention_reservation_baseline_detail) and the Home deposit candidate (policy_home._home_deposit_candidate) in town and in the dungeon alike.",
+    "evidence": "A keeping branch's count held to the five-wand Stone to Mud carry (owner 2026-11-17); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "stone_to_mud_carry.py:sheds_stone_to_mud": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the retention authority (policy_home._retention_reservation_baseline_detail) and the Home deposit candidate (policy_home._home_deposit_candidate) in town and in the dungeon alike.",
+    "evidence": "Whether a Stone to Mud stack has wands past the five-wand carry for the Home deposit (owner 2026-11-17); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_quest.py:QuestMixin._fixed_quest_request_key": {
     "classification": "producer",
     "rows": [

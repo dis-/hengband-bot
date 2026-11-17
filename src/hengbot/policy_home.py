@@ -19,7 +19,7 @@ from hengbot import home_identification, home_pass_charge
 from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
-from hengbot import consumable_policy, item_use_route, teleport_away_carry
+from hengbot import consumable_policy, item_use_route, stone_to_mud_carry, teleport_away_carry
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -2783,7 +2783,10 @@ class HomeMixin:
                 and item.charges > 0
                 and item.slot == self._device_food_reserve_slot(snapshot)
             ):
-                return item.count, "mana-device"
+                # Owner 2026-11-17: a Stone to Mud stack is food up to the
+                # five wands the carry keeps (stone_to_mud_carry).
+                kept = stone_to_mud_carry.stone_to_mud_kept(snapshot, item, item.count)
+                return kept, "mana-device" if kept > 0 else None
             if (
                 item.known
                 and item.charges > 0
@@ -2834,7 +2837,8 @@ class HomeMixin:
                     or self._count_mana_food_devices(preceding)
                     < MANA_FOOD_DEVICE_TARGET
                 ):
-                    return item.count, "supply-ledger:mana-food"
+                    kept = stone_to_mud_carry.stone_to_mud_kept(snapshot, item, item.count)
+                    return kept, "supply-ledger:mana-food" if kept > 0 else None
 
         if item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD:
             # User 2026-10-20: every Stone to Mud wand is kept, picked up or
@@ -2846,7 +2850,10 @@ class HomeMixin:
             # a carried wand the Magic-Eater's staff sequence absorbs is held
             # by the sequence instead (``me-staff:absorb`` at the top of this
             # function), up to the 'G' that takes it.
-            return item.count, "utility:stone-to-mud"
+            # Owner 2026-11-17 「戦士は岩石溶解を5本だけ持てばいい。」: every other
+            # class keeps five wands (stone_to_mud_carry); the rest is surplus.
+            kept = stone_to_mud_carry.stone_to_mud_kept(snapshot, item, item.count)
+            return kept, "utility:stone-to-mud" if kept > 0 else None
 
         if strategy is not None:
             force = strategy.required_force
@@ -3647,6 +3654,12 @@ class HomeMixin:
                 )
             )
         )
+        # Owner 2026-11-17 「戦士は岩石溶解を5本だけ持てばいい。」: the wands past the
+        # five the carry keeps are shelved (stone_to_mud_carry).
+        stone_to_mud_surplus = (
+            snapshot is not None
+            and stone_to_mud_carry.sheds_stone_to_mud(self, snapshot, item)
+        )
         throwing_torches_replaced = (
             snapshot is not None
             and item.is_torch
@@ -3699,6 +3712,7 @@ class HomeMixin:
             or depleted_device
             or unsellable_identify_staff_release
             or reserved_stack_surplus
+            or stone_to_mud_surplus
             or throwing_torches_replaced
             or obsolete_oil
             or incompatible_ammo

@@ -14537,6 +14537,48 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "stone_to_mud_carry.py:_rank": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "stone_to_mud_carry.py:is_stone_to_mud_wand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "stone_to_mud_carry.py:kept_wand_share": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "stone_to_mud_carry.py:sheds_stone_to_mud": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "stone_to_mud_carry.py:stone_to_mud_cap_applies": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "stone_to_mud_carry.py:stone_to_mud_kept": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "store_sale.py:_flag_cost": {
     "classification": "data",
     "rows": [
