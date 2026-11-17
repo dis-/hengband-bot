@@ -272,7 +272,10 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
         self.assertEqual(self.answer(raw)[0], STAFF_KEY)
 
     def test_unseen_attacker_reads_teleport(self):
-        # DECLARED CONSTRUCTED: the visible hound is not what hit the player.
+        # DECLARED CONSTRUCTED: the visible hound is not what hit the player.  Since owner
+        # 2026-11-17 Q2 (「この条件を外す」) the evidence no longer refuses *Destruction*; the
+        # board still reads the scroll because the unseen loss makes it 即死 (owner 2026-11-08,
+        # scroll first).  Without the scroll: test_destruction_unseen_attacker_1117_recorded.
         raw = with_staff(self.raw)
         raw["messages"] = ["何かに噛まれた。"]
         raw["player"]["hp"] -= 5

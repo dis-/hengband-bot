@@ -365,15 +365,15 @@ def _spared_in_circle(policy, snapshot, target) -> bool:
 
 
 def _in_view(policy, snapshot, target) -> list:
-    """The visible hostiles but the target, awake or asleep; none with an attacker the board
-    does not show (the use would not reach it).
+    """The visible hostiles but the target, awake or asleep.
 
     Owner 2026-11-17 (verbatim 「50F以降でT1を破壊で排除するルールに眠っているかどうかを記載した
     記憶はない」, then 「両方の条件を外して直して」): the rules (11-04 「脅威が範囲内に見える時に使用」,
     11-05, 11-09 B, 11-10, 11-14) never asked the monster awake; until 2026-11-17 only the awake
-    ones counted here."""
-    if getattr(policy, "_unseen_attack_evidence", None) is not None:
-        return []
+    ones counted here.  Owner 2026-11-17 (maintainability review Q2, 「この条件を外す」): an
+    attacker the board does not show no longer refuses the use (until then none counted while
+    ``_unseen_attack_evidence`` stood, 「届かないだろうから」): the seen or sensed threats decide it,
+    and an unseen one inside the circle goes with them."""
     return [m for m in snapshot.visible_monsters if m.hostile and m.race_id != target]
 
 
@@ -395,12 +395,10 @@ def _threat_in_reach(policy, snapshot, target, *, hostiles) -> bool:
     is not 即死, the threat need not be awake in view: the most dangerous of them but the target,
     seen or detected, awake or asleep, judged from contact (``threat_prediction(contact=True)``,
     as the tiers judge a far monster), is in the guaranteed radius.  An attacker the board does not
-    show still refuses the use (``_in_view``'s rule).  Until 2026-11-17 the 11-04 test
+    show refuses nothing (owner 2026-11-17 Q2, ``_in_view``).  Until 2026-11-17 the 11-04 test
     (``_threat_in_range``) answered first; with the sleepers in view counted there (owner
     2026-11-17) a harmless sleeper in reach would let a use leave a T1 the circle does not reach,
     so the leaving set alone is asked (owner 2026-11-17 「対象はふさいでいる敵だけ」 for the sealers)."""
-    if getattr(policy, "_unseen_attack_evidence", None) is not None:
-        return False
     worst = reach_subject(policy, snapshot, hostiles, target)
     return worst is not None and game_distance(snapshot.player.position, worst.position) <= GUARANTEED_RADIUS
 
