@@ -49,6 +49,7 @@ are unchanged.  Functions that call a name tests patch here (``tiered``, ``asses
 from __future__ import annotations
 
 from hengbot import (
+    destruction_loot,
     destruction_use,
     disenchant_avoid,
     hunt_target,
@@ -532,7 +533,10 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     if not leaving:
         # A sleeping T1, or one whose sensing radius the player stands outside: no leave (the
         # 11-08 rule), but the use in reach (sensed_t1_destruction_key asks it first), else the
-        # remembered approach as with none sensed.
+        # remembered approach as with none sensed.  No blow waits on it: the remembered floor
+        # items are kept out of its circle first (destruction_loot, owner 2026-11-17).
+        if (kept := destruction_loot.key(policy, snapshot, strong)) is not None:
+            return kept
         used = destruction_use.key(policy, snapshot, leaving=strong)
         return used if used is not None else remembered_approach_key(policy, snapshot)
     strong = leaving
@@ -668,6 +672,12 @@ def sensed_t1_destruction_key(policy, snapshot) -> str | None:
     # (destruction_use ``_falls_back``: its next answer, the scroll), not this one's.
     if not destruction_use.usable(policy, snapshot, leaving=leaving):
         return None
+    # The approach's use and the one on a T1 the 11-08 rule does not leave (asleep, or the player
+    # outside its sensing radius) wait for no blow: the remembered floor items are kept out of
+    # its circle first (destruction_loot, owner 2026-11-17 「価値の高い品は先に拾ってから撃つ」).
+    if (approaching or not _sensed_strong(policy, snapshot, leave=True)[1]) and (
+            kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
+        return kept
     used = destruction_use.key(policy, snapshot, leaving=leaving)
     if used is not None and approaching and _reached(snapshot, targets):
         forget_approach(policy)
@@ -803,6 +813,10 @@ def approach_key(policy, snapshot, strong) -> str | None:
     targets = _approach_targets(policy, snapshot, strong)
     if not targets:
         return None
+    # The remembered floor items out of the circle first (destruction_loot, owner 2026-11-17).
+    kept = destruction_loot.key(policy, snapshot, destruction_leaving(policy, snapshot, targets))
+    if kept is not None:
+        return kept
     used = destruction_use.key(policy, snapshot, leaving=destruction_leaving(policy, snapshot, targets))
     if used is not None:
         if _reached(snapshot, targets):
@@ -859,6 +873,8 @@ def remembered_approach_key(policy, snapshot) -> str | None:
     current = tuple(shown.get((monster.index, monster.race_id), monster) for monster in targets)
     seen = [monster for monster in current if (monster.index, monster.race_id) in shown]
     leaving = destruction_leaving(policy, snapshot, seen)
+    if leaving and (kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
+        return kept
     if leaving and (used := destruction_use.key(policy, snapshot, leaving=leaving)) is not None:
         if _reached(snapshot, seen):
             forget_approach(policy)

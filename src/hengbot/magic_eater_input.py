@@ -29,7 +29,10 @@ class MagicEaterStep(Continuation):
 
 # The class-16 staff sequence (me_staff_sequence): ``mA`` + I2A(sval), with
 # the Identify power's inventory target.  Only that module composes ``mA``.
-_STAFF_POWER_KEY = re.compile(r"mA(?P<letter>[fk])(?P<target>[a-w]?)")
+_STAFF_POWER_KEY = re.compile(r"mA(?P<letter>[fk])(?P<target>[a-w-]?)")
+# The Identify power's floor target (floor_identify, owner 2026-11-17 「床の上で鑑定」):
+# floor-item-getter.cpp ``-`` takes the one floor item the tester admits, from any area.
+FLOOR_TARGET = "-"
 
 
 def compile_magic_eater(key, owner):
@@ -109,6 +112,10 @@ class AbsorbedUseMenu(MagicEaterMenu):
     def _identify_stage(self, step, seen, operation):
         # staff_effect's identify asks for the item (IDENTIFY_ITEM_PROMPT).
         details = owned_item_prompt(seen, IDENTIFY_PROMPTS, "unowned Magic-Eater identify prompt")
+        if step.target == FLOOR_TARGET:
+            if details.get("area") != "floor" and "floor" not in details.get("areas", ()):
+                raise ValueError("Magic-Eater identify offers no floor item")
+            return FLOOR_TARGET, "done"
         if details.get("area") != "inventory" or details.get("menu"):
             raise ValueError("unowned Magic-Eater identify item area")
         return label_in_view(details, step.target, "identify target outside observed labels"), "done"

@@ -14,7 +14,7 @@ in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import damaging_ground, engagement_avoid_seal, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket
+from hengbot import damaging_ground, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 from hengbot.town_terminal import town_end_key
@@ -164,6 +164,12 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
     # 9. Explore toward the unknown (door- and edge-aware).
     step = policy._town_producer_entry("_explore_step#2", lambda: policy._explore_step(snapshot))
     if step is not None:
+        # A floor the dive goes no deeper from is left by Word of Recall once its map has
+        # stopped growing (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」).
+        explored_floor.note_explore(policy, snapshot)
+        explored = explored_floor.recall_key(policy, snapshot, exhausted=False)
+        if explored is not None:
+            return explored
         policy.last_reason = "explore"
         policy._declare_explore_goal()
         return policy._town_producer_entry("_step_toward", lambda: policy._step_toward(snapshot, step), family="explore")
@@ -252,6 +258,14 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         loot = sealed_loot.key(policy, snapshot)
         if loot is not None:
             return loot
+
+    # Nothing is left to explore on a floor the dive goes no deeper from: Word of Recall, not the
+    # up stairs below (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」) -- after the
+    # owner's 11-13 rules for the remembered loot (the walk and the steering above, the melt into a
+    # walled pocket just before) have had their turn.
+    explored = explored_floor.recall_key(policy, snapshot, exhausted=True)
+    if explored is not None:
+        return explored
 
     # 9. Nothing to explore: take any known stairs to reach a fresh floor.
     quest_regen = policy._town_producer_entry("_start_kill_quest_regeneration", lambda: policy._start_kill_quest_regeneration(snapshot))

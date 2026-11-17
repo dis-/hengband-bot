@@ -230,6 +230,9 @@ REGISTRY = (
       "departure_rescues: departure rescue attempts (no comment at its definition)"),
     S("_overweight_purchase_release", "departure_rescues", LIFE,
       "departure_rescues: overweight purchase release (no comment at its definition)"),
+    # destruction_loot
+    S("_destruction_loot_memory", "destruction_loot", FLOOR,
+      "the clean place walked to, the scene's decisions and the piles tried before a use"),
     # destruction_means
     S("_destruction_home_staves", "destruction_means", LIFE,
       "the last complete Home catalogue's charged staves"),
@@ -269,6 +272,12 @@ REGISTRY = (
     # esp_tier_hold
     S("_esp_tier_hold", "esp_tier_hold", FLOOR,
       "The rest slot's ESP tier decided first on this floor (esp_tier_hold)."),
+    # explored_floor
+    S("_explored_floor_window", "explored_floor", FLOOR,
+      "the known map's size at the floor's last explore decisions (the growth window)"),
+    # floor_identify
+    S("_floor_identify_tried", "floor_identify", FLOOR,
+      "the cells a floor identify was posted on this floor visit (asked once each)"),
     # fled_floor_stairs
     S("_fled_floor_pending", "fled_floor_stairs", FLOOR,
       "fled_floor_stairs: fled floor pending (no comment at its definition)"),
@@ -1777,6 +1786,9 @@ REGISTRY = (
     # quest_target_search
     S("_quest_target_search", "quest_target_search", LIFE,
       "quest_target_search: quest target search (no comment at its definition)"),
+    # recall_wait_reach
+    S("_recall_wait_clock", "recall_wait_reach", FLOOR,
+      "the running Recall countdown's read turn and the last board, for the wait's reach"),
     # recall_wait_teleport
     S("_recall_wait_teleport_busy", "recall_wait_teleport", LIFE,
       "the predicate is being computed (re-entry)"),

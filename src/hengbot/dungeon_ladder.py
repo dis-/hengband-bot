@@ -281,6 +281,9 @@ LADDER = (
         *D("town_end_key", "_stuck_escape_key"),
         *I("search"),
         *P("_immobile_breeder_giveup_key", "_explore_step#2"),
+        # Owner 2026-11-17 「探索が済んだら帰還する」: a floor the dive goes no deeper from,
+        # its map no longer growing (explored_floor).
+        *D("explored_floor.recall_key"),
         *I("explore"),
         *E("_immobile_summoner_exit_key"),
         *D("retreat_enclosure.route_veto_sealed_key"),
@@ -289,6 +292,8 @@ LADDER = (
         *D("quest_target_search.loop_key", "me_powers.power_key:SECRET_SEARCH"),
         *I("search", "seek-secret-wall"),
         *D("sealed_loot.key"),
+        # The same floor with nothing left to explore, after the walled-in loot's melt.
+        *D("explored_floor.recall_key"),
         *E("_start_kill_quest_regeneration"),
         *I("stuck:ascend", "stuck:seek-stairs"),
         *D("immobile_ranged_kill.blocking_key"),

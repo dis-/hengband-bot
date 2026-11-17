@@ -190,8 +190,13 @@ def route_veto_sealed_key(policy, snapshot) -> str | None:
     if walled is not None:
         sealing = sealers(policy, snapshot, walled)
         if sealing:
-            from hengbot import destruction_use  # import cycle
+            from hengbot import destruction_loot, destruction_use  # import cycle
 
+            # No blow waits on it: the remembered floor items out of its circle first
+            # (destruction_loot, owner 2026-11-17 「価値の高い品は先に拾ってから撃つ」).
+            kept = destruction_loot.key(policy, snapshot, sealing)
+            if kept is not None:
+                return kept
             used = destruction_use.key(policy, snapshot, leaving=sealing,
                                        suffix=ROUTE_VETO_DESTRUCTION_SUFFIX)
             if used is not None:

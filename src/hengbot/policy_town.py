@@ -8,7 +8,7 @@ from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import item_use_route
 from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
-from hengbot import status_cure, unseen_strike, walkout_dig
+from hengbot import recall_wait_reach, status_cure, unseen_strike, walkout_dig
 from hengbot import random_quest_reserve
 from hengbot import town_visit_plan
 from hengbot.town_visit_plan import (
@@ -8618,12 +8618,15 @@ class TownMixin:
             # calm test is re-decided on every board, so one hostile appearing
             # (or any non-zero threat prediction) restores the wait on that
             # same decision.  Whatever is not collected when the recall fires
-            # is abandoned, exactly as before.
+            # is abandoned, exactly as before.  Owner 2026-11-17 「待ちの残りで
+            # 届く所まで」: only the items the rest of the countdown surely
+            # reaches (recall_wait_reach); none to walk back to.
             if self._loot_before_recall_calm(snapshot):
                 self._rearm_navigation_ledger_loot()
                 collecting = self._normal_loot_key(
                     snapshot,
                     self._strategic_hostiles(snapshot),
+                    max_path_distance=recall_wait_reach.max_path_distance(self, snapshot),
                     seek_reason="return:seek-loot",
                 )
                 if collecting is not None:

@@ -38,7 +38,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import detected_loot, ladder_idle, loot_frontier, me_powers, sealed_loot
+from hengbot import detected_loot, explored_floor, ladder_idle, loot_frontier, me_powers, sealed_loot
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -165,12 +165,16 @@ class DeepLootLeftover1117Test(unittest.TestCase):
         self.assertIn(POCKET_AMULET, policy._loot_candidates(snapshot))
         self.assertEqual((key, policy.last_reason), ("9", sealed_loot.REASON))
 
-    def test_without_stone_to_mud_the_stair_is_taken_as_live(self):
-        """Declared constructed: the absorbed Stone to Mud taken out of the wand list."""
+    def test_without_stone_to_mud_the_floor_is_left_by_recall(self):
+        """Declared constructed: the absorbed Stone to Mud taken out of the wand list.  With no melt
+        the explored 80F (a dead end: 81F asks speed +25) is left by Word of Recall, not its up
+        stair (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」; until then '<'
+        ``stuck:ascend`` as live)."""
         lists = {kind: (turn, [row for row in rows if not (kind == "wand" and row["name"] == "岩石溶解")])
                  for kind, (turn, rows) in LISTS.items()}
         policy, _snapshot, key = self.idle(lists)
-        self.assertEqual((key, policy.last_reason), ("<", "stuck:ascend"))
+        self.assertEqual(policy.last_reason, explored_floor.REASON, key)
+        self.assertEqual(policy._last_return_trigger, explored_floor.TRIGGER)
 
 
 if __name__ == "__main__":
