@@ -736,16 +736,46 @@ def _approach_targets(policy, snapshot, strong) -> list:
     return [monster for monster in strong if monster.race_id not in spared]
 
 
+def approach_subject(policy, snapshot, targets):
+    """The monster the approach walks to: the one whose place the use asks (destruction_use
+    ``reach_subject`` of the hostiles the use would leave, ``destruction_leaving``), else None.
+
+    One reading for the walk, its ownership and the use.  n1-c life-216 (Angband 80F,
+    2026-11-17 08:46-08:47, loop-detected): of two T1s, an awake ファナティック・ウォーモンガー
+    (race 1227) 13-14 cells off and a sleeping 1188 20 off (the more dangerous from contact),
+    the walk went to the nearer cell within 13 of either -- 1227's -- where the use, asking
+    about 1188, declined; ``approach_owns`` (any target in reach) then gave the board up and the
+    remembered approach stepped toward 1188, the next board's walk back toward 1227's radius:
+    (36,79)-(37,78)-(36,77)-(37,78) until the loop detector."""
+    leaving = destruction_leaving(policy, snapshot, targets)
+    if not leaving:
+        return None
+    return destruction_use.reach_subject(policy, snapshot, leaving,
+                                         destruction_use._target_race(policy, snapshot))
+
+
+def _in_reach(snapshot, subject) -> bool:
+    return (subject is not None and game_distance(snapshot.player.position, subject.position)
+            <= destruction_use.GUARANTEED_RADIUS)
+
+
+def _step_into_reach(policy, snapshot, subject):
+    """The first step of the walk to a cell within the sure radius of ``subject``, else None."""
+    radius = destruction_use.GUARANTEED_RADIUS
+    return policy._nearest_goal_step(
+        snapshot, lambda grid: game_distance(grid.position, subject.position) <= radius)
+
+
 def approach_owns(policy, snapshot, strong) -> bool:
     """The sensed T1 leave gives way to ``approach_key``: every T1 is known only by detection,
-    the means are held, and none of them is already in reach of a use the gates refuse."""
+    the means are held, and the monster the use asks about (``approach_subject``) is not
+    already in reach of a use the gates refuse."""
     targets = _approach_targets(policy, snapshot, strong)
     if not targets:
         return False
-    here = snapshot.player.position
-    in_reach = any(game_distance(here, monster.position) <= destruction_use.GUARANTEED_RADIUS
-                   for monster in targets)
-    return not in_reach or destruction_use.usable(policy, snapshot, leaving=targets)
+    return (not _in_reach(snapshot, approach_subject(policy, snapshot, targets))
+            or destruction_use.usable(policy, snapshot,
+                                      leaving=destruction_leaving(policy, snapshot, targets)))
 
 
 def approach_key(policy, snapshot, strong) -> str | None:
@@ -783,9 +813,12 @@ def approach_key(policy, snapshot, strong) -> str | None:
             # A strong monster on the way was the use's subject: the targets are still gone to.
             setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
         return used
-    radius = destruction_use.GUARANTEED_RADIUS
-    step = policy._nearest_goal_step(snapshot, lambda grid: any(
-        game_distance(grid.position, monster.position) <= radius for monster in targets))
+    # The walk goes to the monster the use asks about (``approach_subject``), not to the
+    # nearest target: within reach of another the use still declines.
+    subject = approach_subject(policy, snapshot, targets)
+    if subject is None or _in_reach(snapshot, subject):
+        return None
+    step = _step_into_reach(policy, snapshot, subject)
     if step is None:
         return None
     setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
@@ -837,11 +870,11 @@ def remembered_approach_key(policy, snapshot) -> str | None:
         if _reached(snapshot, seen):
             forget_approach(policy)
         return used
-    here = snapshot.player.position
-    radius = destruction_use.GUARANTEED_RADIUS
-    pending = [monster for monster in current if game_distance(here, monster.position) > radius]
-    step = None if not pending else policy._nearest_goal_step(snapshot, lambda grid: any(
-        game_distance(grid.position, monster.position) <= radius for monster in pending))
+    # The same walk as ``approach_key``'s: to the monster the use asks about, at its last cell;
+    # within its reach (the use declined) the memory is dropped and the rungs below answer.
+    subject = approach_subject(policy, snapshot, list(current))
+    step = (None if subject is None or _in_reach(snapshot, subject)
+            else _step_into_reach(policy, snapshot, subject))
     if step is None:
         forget_approach(policy)
         return None
