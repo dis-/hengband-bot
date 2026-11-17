@@ -357,6 +357,7 @@ def normalize_policy_state(restored, *, restart=False):
     restored.__dict__.setdefault("_overweight_surplus_ledger_path", runtime_path("overweight-surplus-ledger.json"))
     restored.__dict__.setdefault("_overweight_surplus_record_path", runtime_path("overweight-surplus-disposal.jsonl"))
     restored.__dict__.setdefault("_equipment_home_deposit_tombstone", None)
+    restored.__dict__.setdefault("_home_full_rejected_deposits", set())
     restored.__dict__.setdefault("_decision_input_snapshot", None)
     restored.__dict__.setdefault("_town_fact_snapshot", None)
     restored.__dict__.setdefault("_equipment_mutation_counted_board", None)
