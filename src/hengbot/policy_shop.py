@@ -4844,6 +4844,11 @@ class ShopMixin(InStoreMixin):
         name = re.sub(r"\s+\{[^{}]*\}\s*$", "", item.name)
         return (name, item.tval, item.sval)
 
+    @staticmethod
+    def _sale_signature_identity(signature: tuple[str, int, int]) -> tuple[str, int, int]:
+        """``_sale_item_identity`` of the item a recorded ``_item_signature`` named."""
+        return (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]), signature[1], signature[2])
+
     @claims(ClaimOwner.SHOP_SELL)
     def _batch_sale_entry(
         self, snapshot: Snapshot, item: InventoryItem, tag: str

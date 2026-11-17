@@ -209,12 +209,15 @@ def relief_useless(policy: Any, item: Any) -> bool:
     Taken out, the ware is a pack stack: the carry plan would rank the bolts it judged past the
     Home keep as the power stack, and the standing digger retention would count the tool again.
     The relief's choice holds until its sale is observed (policy_home ``relief["useless"]``).
+    The ware is matched as the relief tracks its sale (``_sale_item_identity``): the sale's
+    in-store ``@1`` tag renames it, and the renamed tool was retained at the store again
+    (n1-a life-530 2026-11-18 01:28 town:blocked:stage-deadline:sell).
     """
     relief = getattr(policy, "_home_full_relief", None) or {}
     sale = relief.get("sale")
-    signature = policy._item_signature(item)
     return (not _home_stock(item) and sale is not None
-            and relief.get("useless") == signature == sale[0])
+            and relief.get("useless") == sale[0]
+            and policy._sale_signature_identity(sale[0]) == policy._sale_item_identity(item))
 
 
 def relief_order(policy: Any, snapshot: Any, item: Any) -> tuple:

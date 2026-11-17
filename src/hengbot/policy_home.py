@@ -36,7 +36,6 @@ from hengbot.policy_supply import supply_ledger_observer_memo
 from hengbot.policy_constants import EMERGENCY_POTION_CARRY_TARGET, HOME_KNOWLEDGE_MACRO
 from hengbot.model import STORE_ARMOURY, STORE_TEMPLE, STORE_BLACK
 from hengbot.town_hold import hold_claims, standing_claim
-import re
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -448,8 +447,7 @@ class HomeMixin:
         sale = relief.get("sale")
         if sale is not None:
             signature = sale[0]
-            identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]),
-                        signature[1], signature[2])
+            identity = self._sale_signature_identity(signature)
             count = sum(item.count for item in snapshot.inventory
                         if self._sale_item_identity(item) == identity)
             if count <= relief.get("destroy_before_count", count):
@@ -984,8 +982,7 @@ class HomeMixin:
         sale = relief["sale"]
         if sale is not None:
             signature, store_type, before_count = sale
-            sale_identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]),
-                             signature[1], signature[2])
+            sale_identity = self._sale_signature_identity(signature)
             target = self._first_item(snapshot, lambda item:
                                      self._sale_item_identity(item) == sale_identity)
             count = sum(item.count for item in snapshot.inventory
