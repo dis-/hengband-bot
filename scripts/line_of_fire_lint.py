@@ -34,7 +34,7 @@ POLICY_ROOT = ROOT / "src" / "hengbot"
 TEST_ROOT = ROOT / "tests"
 MODULE = "line_of_fire"
 READINGS = frozenset({"counting", "counting_reaches", "danger", "projectable", "straight_line",
-                      "player_projectable", "fire_reaches"})
+                      "player_projectable", "player_path", "fire_reaches"})
 # counting_reaches is the counting reading from a cell; the table names ``counting`` for it.
 TABLE_NAME = {"counting_reaches": "counting"}
 RETIRED_METHODS = frozenset({"_monster_in_line_of_fire", "_has_line_of_fire", "_may_project",
