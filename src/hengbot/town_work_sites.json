@@ -1456,6 +1456,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "destruction_loot.py:_committed_fetch": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "destruction_loot.py:_fetch": {
     "classification": "producer",
     "rows": [
