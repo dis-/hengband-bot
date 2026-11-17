@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot import quest_optional_carry
+from hengbot.item_identity import display_signature
 from hengbot import bm_destruction_fund, item_fate, mining_oil_sale, spare_gear, torch_release
 from hengbot.item_reservation import (
     item_available,
@@ -5388,7 +5389,7 @@ class HomeMixin:
                 # neither individually refused (unsellable) NOR blocked by a full
                 # smith this visit. Once the smith refuses/fills, let leftovers
                 # shelve back so a pack of unsellable spares cannot stall departure.
-                and (item.name, item.tval, item.sval) not in self._unsellable_items
+                and display_signature(item) not in self._unsellable_items
                 and STORE_WEAPON not in self._store_sale_refused
             )
             and self._item_signature(item) not in self._home_pending_batch

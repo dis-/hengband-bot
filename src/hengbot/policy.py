@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot import return_start
 from hengbot import safety_watch
+from hengbot import item_identity
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
 from hengbot.item_reservation import (
@@ -10734,7 +10735,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     @staticmethod
     def _item_signature(item: InventoryItem | StoreItem) -> tuple[str, int, int]:
-        return (item.name, item.tval, item.sval)
+        return item_identity.display_signature(item)
 
     @staticmethod
     def _home_take_count(snapshot: Snapshot, kind: tuple[int, int]) -> int:

@@ -19,6 +19,7 @@ from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
 from hengbot import torch_release
+from hengbot.item_identity import without_player_inscription
 from hengbot.model import (
     ARMOUR_TVALS,
     BAD_PSEUDO_FEELINGS,
@@ -659,24 +660,8 @@ def equipment_identity(item: EquipmentItem) -> str:
 
 
 def _without_player_inscription(name: str, inscription: str) -> str:
-    """The display name without the player's own inscription.
-
-    flavor-describer.cpp describe_inscription appends the inscription (up to
-    a '#', flavor-util.cpp get_inscription) as the last part of the closing
-    `` {...}`` block, after ", " when the block also shows a feeling, a
-    discount or the ability abbreviation.  A '%' inscription expands into
-    those abbreviations, so its name is kept whole.
-    """
-    shown = inscription.split("#", 1)[0]
-    head, separator, block = name.rpartition(" {")
-    if not shown or "%" in inscription or not separator or not block.endswith("}"):
-        return name
-    inner = block[:-1]
-    if inner == shown:
-        return head
-    if inner.endswith(", " + shown):
-        return f"{head} {{{inner[:-len(shown) - 2]}}}"
-    return name
+    """The display name without the player's own inscription (item_identity reading)."""
+    return without_player_inscription(name, inscription)
 
 
 def equipment_move_identity(item: EquipmentItem) -> str:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
+from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
@@ -498,7 +499,7 @@ class ShopMixin(InStoreMixin):
             and self._retention_surplus(snapshot, it) > 0
             and self._store_accepts_sale(STORE_GENERAL, it)
             and item_available(self, snapshot, it, "shop-sell", "sell")
-            and (it.name, it.tval, it.sval) not in self._unsellable_items,
+            and display_signature(it) not in self._unsellable_items,
         )
 
     def _cheapest_exchange_item(
@@ -667,7 +668,7 @@ class ShopMixin(InStoreMixin):
             and self._store_accepts_sale(store_type if store_type is not None else STORE_BLACK, item)
             and (store_type is None or self._book_sale_store_type(item) == store_type)
             and item_available(self, snapshot, item, "shop-sell", "sell")
-            and (item.name, item.tval, item.sval) not in self._unsellable_items,
+            and display_signature(item) not in self._unsellable_items,
         )
 
     def _find_device_sale(self, snapshot: Snapshot) -> InventoryItem | None:
@@ -724,7 +725,7 @@ class ShopMixin(InStoreMixin):
             )
             and (item.slot != reserve_slot or item.slot == surplus_slot)
             and item_available(self, snapshot, item, "shop-sell", "sell")
-            and (item.name, item.tval, item.sval) not in self._unsellable_items,
+            and display_signature(item) not in self._unsellable_items,
         )
 
     @staticmethod
@@ -1023,7 +1024,7 @@ class ShopMixin(InStoreMixin):
             )
             and self._store_accepts_sale(STORE_ALCHEMIST, it)
             and item_available(self, snapshot, it, "shop-sell", "sell")
-            and (it.name, it.tval, it.sval) not in self._unsellable_items,
+            and display_signature(it) not in self._unsellable_items,
         )
 
     def _retry_after_store_restock(
@@ -4500,8 +4501,7 @@ class ShopMixin(InStoreMixin):
         relief = self._home_full_relief
         if relief is not None and relief["sale"] is not None:
             signature, store_type, _before = relief["sale"]
-            identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]),
-                        signature[1], signature[2])
+            identity = sale_identity_of_signature(signature)
             return [item for item in snapshot.inventory
                     if store.store_type == store_type
                     and self._sale_item_identity(item) == identity
@@ -4841,13 +4841,12 @@ class ShopMixin(InStoreMixin):
         # Live snapshots currently expose inscription=None while appending the
         # inscription to the display name.  Inscribing must not change the
         # identity owned by the pending two-stage sale.
-        name = re.sub(r"\s+\{[^{}]*\}\s*$", "", item.name)
-        return (name, item.tval, item.sval)
+        return sale_identity(item)
 
     @staticmethod
     def _sale_signature_identity(signature: tuple[str, int, int]) -> tuple[str, int, int]:
         """``_sale_item_identity`` of the item a recorded ``_item_signature`` named."""
-        return (re.sub(r"\s+\{[^{}]*\}\s*$", "", signature[0]), signature[1], signature[2])
+        return sale_identity_of_signature(signature)
 
     @claims(ClaimOwner.SHOP_SELL)
     def _batch_sale_entry(
@@ -5480,7 +5479,7 @@ class ShopMixin(InStoreMixin):
                         and self._can_add_item_without_overweight(snapshot, it)
                         # Do not withdraw a spare the Weapon Smith already refused
                         # (it would clog the pack with something no sale can clear).
-                        and (it.name, it.tval, it.sval) not in self._unsellable_items
+                        and display_signature(it) not in self._unsellable_items
                     ),
                     None,
                 )
