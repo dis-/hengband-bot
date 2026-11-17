@@ -74,6 +74,12 @@ def adds_speed(snapshot) -> bool:
     return display is not None and display[2] == _YELLOW
 
 
+def subtracts_speed(snapshot) -> bool:
+    """The field shows slowness counted in ``player.speed``: on and not cancelled by haste."""
+    display = _own_field(snapshot)
+    return display is not None and display[2] == _VIOLET
+
+
 def hasted(policy, snapshot) -> bool:
     """The haste is on, cancelled by slowness or not.  At a displayed speed of exactly +0 the field is
     blank, so haste with nothing else there is not observable."""

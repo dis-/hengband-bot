@@ -9172,7 +9172,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         calibration: CharacterCalibration,
         *,
         has_destruction: bool,
-        speed_bonus: int,
+        player_speed: int,
         staff_gate=None,
     ) -> int:
         return divable_depth(
@@ -9181,7 +9181,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot.player, calibration.intrinsic_abilities
             ),
             has_destruction=has_destruction,
-            speed_bonus=speed_bonus,
+            player_speed=player_speed,
             staff_gate=staff_gate,
         )
 

@@ -36,6 +36,7 @@ from hengbot.town_maps import TownMap
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.wilderness_map import WildernessMap
 from hengbot.dungeon_knowledge import DungeonInfo
+from hengbot.speed_valuation import loadout_speed
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS,
     FIXED_SLOTS,
@@ -1361,7 +1362,7 @@ class EquipmentMixin:
                         cached_best.loadout,
                         calibration,
                         has_destruction=has_destruction,
-                        speed_bonus=cached_best.metrics.speed_bonus,
+                        player_speed=loadout_speed(cached_best.metrics),
                         staff_gate=staff_gate,
                     )
                 )
@@ -1644,7 +1645,7 @@ class EquipmentMixin:
                     best.loadout,
                     calibration,
                     has_destruction=has_destruction,
-                    speed_bonus=best.metrics.speed_bonus,
+                    player_speed=loadout_speed(best.metrics),
                     staff_gate=staff_gate,
                 )
             )

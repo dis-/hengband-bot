@@ -45,6 +45,16 @@ from hengbot.model import (
     lights_nothing,
 )
 from hengbot.launcher_damage import best_obtainable_launcher_damage
+from hengbot.speed_valuation import (
+    BASE_SPEED,
+    field_strong_speed_energy,
+    loadout_speed,
+    meets_speed_gate,
+    time_device,
+    time_melee,
+    time_ranged,
+    weighted_margin,
+)
 from hengbot.policy_constants import (
     DEPTH_ABILITY_REQUIREMENTS,
     DEEP_FLOOR_DEPTH,
@@ -315,13 +325,14 @@ def divable_depth(
     *,
     intrinsic_abilities: frozenset[str] = frozenset(),
     has_destruction: bool = False,
-    speed_bonus: int = 0,
+    player_speed: int = BASE_SPEED,
     staff_gate=None,
 ) -> int:
     """Classify a selected loadout into its deepest authoritative depth band.
 
     ``staff_gate`` (device_skill.StaffGate) is an owned *Destruction* staff that
-    is a means at 50F+ only in a loadout giving its reliable device skill."""
+    is a means at 50F+ only in a loadout giving its reliable device skill.
+    ``player_speed`` is the loadout's permanent speed (speed_valuation.loadout_speed)."""
     abilities = set(intrinsic_abilities)
     for name, flag in ABILITY_FLAG.items():
         if flag in loadout.flags:
@@ -334,7 +345,7 @@ def divable_depth(
         if depth >= DEEP_FLOOR_DEPTH and not destruction_means(
                 loadout, has_destruction, staff_gate):
             break
-        if depth >= SPEED_GATE_DEPTH and speed_bonus < 25:
+        if depth >= SPEED_GATE_DEPTH and not meets_speed_gate(player_speed):
             break
         deepest = next_band - 1
     return deepest
@@ -552,6 +563,10 @@ class LoadoutMetrics:
     # player turn under this loadout's INT (owner 2026-11-08); 0 for every
     # other class.  Compared like ranged_dps, right after it.
     device_dps: float = 0.0
+    # The player's permanent speed with this loadout worn (base without gear
+    # plus the gear's speed); None reads as +0 plus speed_bonus.  Read only
+    # through speed_valuation.loadout_speed (owner 2026-11-17).
+    player_speed: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1195,7 +1210,8 @@ def _meets_requirements(
         staff_gate=staff_gate,
     ):
         return False
-    if depth is not None and depth >= 81 and metrics.speed_bonus < 25:
+    if (depth is not None and depth >= SPEED_GATE_DEPTH
+            and not meets_speed_gate(loadout_speed(metrics))):
         return False
     return True
 
@@ -1290,24 +1306,25 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
     rm = right.metrics
     left_traits = lm.relevant_traits
     right_traits = rm.relevant_traits
+    # Damage per game time and the permanent speed (speed_valuation).
     no_worse = (
-        lm.expected_dps >= rm.expected_dps
-        and lm.ranged_dps >= rm.ranged_dps
-        and lm.device_dps >= rm.device_dps
+        time_melee(lm) >= time_melee(rm)
+        and time_ranged(lm) >= time_ranged(rm)
+        and time_device(lm) >= time_device(rm)
         and lm.survival_turns >= rm.survival_turns
         and lm.combat_margin >= rm.combat_margin
-        and lm.speed_bonus >= rm.speed_bonus
+        and loadout_speed(lm) >= loadout_speed(rm)
         and lm.secondary_value >= rm.secondary_value
         and lm.utility_value >= rm.utility_value
         and left_traits.issuperset(right_traits)
     )
     strictly_better = (
-        lm.expected_dps > rm.expected_dps
-        or lm.ranged_dps > rm.ranged_dps
-        or lm.device_dps > rm.device_dps
+        time_melee(lm) > time_melee(rm)
+        or time_ranged(lm) > time_ranged(rm)
+        or time_device(lm) > time_device(rm)
         or lm.survival_turns > rm.survival_turns
         or lm.combat_margin > rm.combat_margin
-        or lm.speed_bonus > rm.speed_bonus
+        or loadout_speed(lm) > loadout_speed(rm)
         or lm.secondary_value > rm.secondary_value
         or lm.utility_value > rm.utility_value
         or left_traits > right_traits
@@ -1418,7 +1435,7 @@ def _prefer(
     # strictly higher AC-100 damage per player turn.
     same_non_offense = (
         cm.survival_turns == im.survival_turns
-        and cm.speed_bonus == im.speed_bonus
+        and loadout_speed(cm) == loadout_speed(im)
         and cm.secondary_value == im.secondary_value
         and cm.utility_value == im.utility_value
         and cm.relevant_traits == im.relevant_traits
@@ -1442,14 +1459,14 @@ def _prefer(
         if bow_only_change:
             candidate_bow = candidate_slots.get(SLOT_BOW)
             incumbent_bow = incumbent_slots.get(SLOT_BOW)
-            if cm.ranged_dps != im.ranged_dps:
-                return cm.ranged_dps > im.ranged_dps
-        if cm.expected_dps != im.expected_dps:
-            return cm.expected_dps > im.expected_dps
-        if cm.ranged_dps != im.ranged_dps:
-            return cm.ranged_dps > im.ranged_dps
-        if cm.device_dps != im.device_dps:
-            return cm.device_dps > im.device_dps
+            if time_ranged(cm) != time_ranged(im):
+                return time_ranged(cm) > time_ranged(im)
+        if time_melee(cm) != time_melee(im):
+            return time_melee(cm) > time_melee(im)
+        if time_ranged(cm) != time_ranged(im):
+            return time_ranged(cm) > time_ranged(im)
+        if time_device(cm) != time_device(im):
+            return time_device(cm) > time_device(im)
     if not isfinite(cm.combat_margin) or not isfinite(im.combat_margin):
         if cm.combat_margin != im.combat_margin:
             return cm.combat_margin > im.combat_margin
@@ -1468,8 +1485,8 @@ def _prefer(
     # (survival minus kill turns) still ranked the helmet first because the
     # survival value is measured in hundreds of turns. Compare the relative
     # trade directly before the margin.
-    candidate_material_offense = cm.expected_dps > im.expected_dps * 1.05
-    incumbent_material_offense = im.expected_dps > cm.expected_dps * 1.05
+    candidate_material_offense = time_melee(cm) > time_melee(im) * 1.05
+    incumbent_material_offense = time_melee(im) > time_melee(cm) * 1.05
     candidate_preserves_survival = cm.survival_turns >= im.survival_turns * 0.95
     incumbent_preserves_survival = im.survival_turns >= cm.survival_turns * 0.95
     if candidate_material_offense and candidate_preserves_survival:
@@ -1491,20 +1508,20 @@ def _prefer(
     # AC gain can still hide a large DPS loss inside the band (the live Might
     # Crown regression was 62.7 vs 82.3 melee DPS for only 0.9% margin when
     # the margin was a difference in turns).
-    dps_threshold = abs(im.expected_dps) * 0.05
-    dps_difference = cm.expected_dps - im.expected_dps
+    dps_threshold = abs(time_melee(im)) * 0.05
+    dps_difference = time_melee(cm) - time_melee(im)
     if dps_difference > dps_threshold:
         return True
     if dps_difference < -dps_threshold:
         return False
-    ranged_threshold = abs(im.ranged_dps) * 0.05
-    ranged_difference = cm.ranged_dps - im.ranged_dps
+    ranged_threshold = abs(time_ranged(im)) * 0.05
+    ranged_difference = time_ranged(cm) - time_ranged(im)
     if ranged_difference > ranged_threshold:
         return True
     if ranged_difference < -ranged_threshold:
         return False
-    device_threshold = abs(im.device_dps) * 0.05
-    device_difference = cm.device_dps - im.device_dps
+    device_threshold = abs(time_device(im)) * 0.05
+    device_difference = time_device(cm) - time_device(im)
     if device_difference > device_threshold:
         return True
     if device_difference < -device_threshold:
@@ -1561,16 +1578,20 @@ def _dangerous_field_pool(
     dropped the live ダメージの指輪 (+9) set (10.18 vs 11.10 turns) before its
     better ratio (2.69 vs 2.47) was consulted.  tests/recorded_loadout.py
     restores that floor for replays held on their recorded gear.
+
+    The ratio is weighted by the speed up to +20 within the field (owner
+    2026-11-17, speed_valuation.weighted_margin).
     """
-    max_margin = max(entry.metrics.combat_margin for entry in pool)
+    field = field_strong_speed_energy(entry.metrics for entry in pool)
+    margins = [weighted_margin(entry.metrics, field) for entry in pool]
+    max_margin = max(margins)
     if isfinite(max_margin):
         return [
             entry
-            for entry in pool
-            if entry.metrics.combat_margin
-            >= max_margin - abs(max_margin) * 0.01
+            for entry, margin in zip(pool, margins)
+            if margin >= max_margin - abs(max_margin) * 0.01
         ]
-    return [entry for entry in pool if entry.metrics.combat_margin == max_margin]
+    return [entry for entry, margin in zip(pool, margins) if margin == max_margin]
 
 
 def _within_half_melee(
@@ -1584,12 +1605,15 @@ def _within_half_melee(
     selector prefers from the worn loadout (n1-c life-105 2026-11-02: a resist
     body armour below half melee refused band 20 only while the pike was worn,
     and the pike and the war hammer were swapped forever).
+
+    Melee is damage per game time (speed_valuation.time_melee, owner
+    2026-11-17 「時間あたりの打撃」), and so is ``reference_melee``.
     """
     if reference_melee <= 0:
         return list(entries)
     return [
         entry for entry in entries
-        if entry.metrics.expected_dps * 2 >= reference_melee
+        if time_melee(entry.metrics) * 2 >= reference_melee
     ]
 
 
@@ -1650,9 +1674,22 @@ def _stable_operational_best(
     # Apply the existing half-melee limit within the already requirement-valid
     # field before survival can reward optional resistance coverage. Otherwise
     # a low-DPS tank becomes both the winner and its own melee_free baseline.
+    # Owner 2026-11-17 「装備最適化のスピードの評価を上げて。特にspeed+20までは生存に
+    # 大きく寄与する」 / 「時間あたりの打撃＋+20までを強く」 (speed_valuation): every
+    # damage compared below is per game time, so the half floor and the 95%
+    # cut no longer discard a faster set for its lower damage per action, and
+    # the survival / kill ratios are weighted by the speed up to +20.  The
+    # weight is relative to this field's best speed capped at +20 (taken once
+    # here; the 1% bands are relative, so the anchor only scales them).  The
+    # 30-turn floor stays on the player turns survived, which already count
+    # the speed once through the energy: weighting that absolute floor by a
+    # field-relative factor let one slow-damage +13 set push the +10
+    # damage-ring set of n1-b life-411 under it (32.4 turns -> 28.2) and chose
+    # an AC ring at 306 instead of 356 damage per time.
     pool = _within_half_melee(
-        pool, max(entry.metrics.expected_dps for entry in pool)
+        pool, max(time_melee(entry.metrics) for entry in pool)
     )
+    speed_field = field_strong_speed_energy(entry.metrics for entry in pool)
 
     # Survival-sufficiency gate.  Loadouts that survive at least
     # SUFFICIENT_SURVIVAL_TURNS are all treated as adequately safe, so the DPS
@@ -1676,45 +1713,50 @@ def _stable_operational_best(
             if entry.metrics.survival_turns == max_survival
         ]
 
-    max_dps = max(entry.metrics.expected_dps for entry in pool)
+    max_dps = max(time_melee(entry.metrics) for entry in pool)
     if max_dps > 0:
         pool = [
             entry
             for entry in pool
-            if entry.metrics.expected_dps >= max_dps * 0.95
+            if time_melee(entry.metrics) >= max_dps * 0.95
         ]
 
     # combat_margin is the ratio survival / kill turns (user decision
-    # 2026-10-02); the 1% band is relative and so unchanged by that.
-    max_margin = max(entry.metrics.combat_margin for entry in pool)
+    # 2026-10-02); the 1% band is relative and so unchanged by that.  The
+    # ratio already counts the speed once (survival in player turns grows
+    # with the energy, kill turns do not); the weight adds the +20 part.
+    margins = {
+        id(entry): weighted_margin(entry.metrics, speed_field) for entry in pool
+    }
+    max_margin = max(margins.values())
     if isfinite(max_margin):
         margin_band = abs(max_margin) * 0.01
         pool = [
             entry
             for entry in pool
-            if entry.metrics.combat_margin >= max_margin - margin_band
+            if margins[id(entry)] >= max_margin - margin_band
         ]
     else:
         pool = [
             entry for entry in pool
-            if entry.metrics.combat_margin == max_margin
+            if margins[id(entry)] == max_margin
         ]
 
     return max(
         pool,
         key=lambda entry: (
-            entry.metrics.ranged_dps,
-            entry.metrics.device_dps,
+            time_ranged(entry.metrics),
+            time_device(entry.metrics),
             entry.metrics.secondary_value,
             entry.metrics.utility_value,
-            entry.metrics.speed_bonus,
+            loadout_speed(entry.metrics),
             light_source_quality(entry.loadout),
             loadout_light_radius(entry.loadout),
             len(entry.loadout.slots),
             entry.loadout.item_ids == current_item_ids,
-            entry.metrics.combat_margin,
+            margins[id(entry)],
             entry.metrics.survival_turns,
-            entry.metrics.expected_dps,
+            time_melee(entry.metrics),
             len(entry.metrics.relevant_traits),
             tuple(sorted(entry.loadout.item_ids)),
         ),
@@ -1886,7 +1928,8 @@ def optimize_loadout(
         )
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
-        melee_free = max(entry.metrics.expected_dps for entry in evaluated)
+        # Damage per game time (speed_valuation), as _within_half_melee.
+        melee_free = max(time_melee(entry.metrics) for entry in evaluated)
         for band in (81, 80, 49, 39, 30, 25, 20, 19):
             satisfying = [
                 entry
@@ -1908,7 +1951,7 @@ def optimize_loadout(
                 continue
             within_melee_limit = _within_half_melee(satisfying, melee_free)
             if not within_melee_limit:
-                melee = max(entry.metrics.expected_dps for entry in satisfying)
+                melee = max(time_melee(entry.metrics) for entry in satisfying)
                 band_decisions.append(BandDecision(
                     band, True, melee, melee_free, "melee-ratio",
                     melee / melee_free,
@@ -1923,7 +1966,7 @@ def optimize_loadout(
                     band, False, None, melee_free, "no-set", None,
                 ))
                 continue
-            melee = band_best.metrics.expected_dps
+            melee = time_melee(band_best.metrics)
             ratio = None if melee_free == 0 else melee / melee_free
             chosen_decision = BandDecision(
                 band, True, melee, melee_free, None, ratio,
@@ -1962,7 +2005,7 @@ def optimize_loadout(
                 best.loadout,
                 intrinsic_abilities=intrinsic_abilities,
                 has_destruction=has_destruction,
-                speed_bonus=best.metrics.speed_bonus,
+                player_speed=loadout_speed(best.metrics),
                 staff_gate=staff_gate,
             )
 

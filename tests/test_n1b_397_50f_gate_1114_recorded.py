@@ -38,6 +38,7 @@ import time
 from hengbot.character_sheet import parse_character_sheet
 from hengbot.cli import TRAVEL_MACRO_TRIGGERS
 from hengbot.equipment_optimizer import ABILITY_FLAG, divable_depth, required_abilities
+from hengbot.speed_valuation import loadout_speed
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
 from tests.support import recorded as executor_harness
@@ -130,7 +131,7 @@ class N1b397FiftyFloorGateRecordedTest(executor_harness.RecordedHarness):
         self.assertNotIn("neck", free_action)
         self.assertEqual(divable_depth(best, intrinsic_abilities=frozenset(intrinsic),
                                        has_destruction=True,
-                                       speed_bonus=result.best.metrics.speed_bonus), 80)
+                                       player_speed=loadout_speed(result.best.metrics)), 80)
         # The worn set reaches 49F, the telepathy its only gap at 50F.
         self.assertEqual(policy._resistance_depth_limit(self.board), 49)
         self.assertEqual(policy._missing_required_abilities(self.board, 50), {"telepathy"})
