@@ -13,7 +13,8 @@ absorbed *Destruction* list row (22 charges at 95%; the snapshots keep no power 
 which the 50F+ means-spent return reads Recall first.  DECLARED CONSTRUCTED: the growth
 window (explored_floor ``MEMORY``) before the last board, which the 15 boards cannot build: the 300
 explore decisions before it seeded at the board's own known-map size (no growth), or at a size 1%
-smaller (growth past the threshold); for the cut itself, the last board's found items dropped (the
+smaller (growth past the threshold; the window counts the cells the map has shown since 1118,
+explored_floor ``note_explore``); for the cut itself, the last board's found items dropped (the
 board shows detected items on unmapped ground, which the loot memory keeps since detected_loot and
 which hold the cut).
 """
@@ -64,7 +65,7 @@ class ExploredFloorRecordedTest(unittest.TestCase):
                 policy._known_loot.clear()
             board = policy.with_known_skill_exp(parse_snapshot(copy.deepcopy(raw), self.monrace))
             if board.turn == LAST and seed_growth is not None:
-                known = len(policy._remembered_marked_t)
+                known = len(policy._remembered_known_t)
                 start = int(known * (1 - seed_growth))
                 setattr(policy, explored_floor.MEMORY, {
                     "floor": board.floor_key,

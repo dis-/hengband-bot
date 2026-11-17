@@ -11,6 +11,23 @@ a row added less than ``GROWTH_RATIO`` of the known cells, and no remembered flo
 the loot owner would fetch) or nothing is left to explore (the loot owner above found no way to
 any item); then the return starts (``TRIGGER``) and Word of Recall is read (not the up stairs).
 
+What the window counts (1118): the cells the visit's map has shown (the union of
+``_remembered_known_t`` over its explore decisions), the known map the threshold below was chosen
+on (impl_threshold.py sums the board's grid-map runs).  It counted the cells swept by the
+player's own light (``_remembered_marked_t``) and started again whenever the map shrank: on the
+Glass castle 60F (n1-c life-216, 2026-11-18 03:53-04:24, 10,232 explore decisions) the glass
+walls show far rooms long before the light reaches them, so the swept cells went on growing
+(04:14:26-04:23:50: +868 swept, +341 known) and the window fired only at 04:24:18; the 20 own
+*Destruction*s of its first 17 minutes each shrank the map and started it again.  Counted on the
+known map and never shrinking (a *Destruction* forgets cells the visit had known; showing them
+again is no new ground), the same record stalls 300 explore decisions after the bot's restart
+at 04:13 (27 cells, 0.44%).  Its 700-1,000 open frontiers are no part of the window: about 280
+of them lie behind glass walls (GLASS_WALL: LOS without PROJECTION or MOVE, a wall the walk
+cannot cross) and no walk reaches them; the reachable rest border floor shown but not yet swept.
+
+Both ends need a full window first (``explored``): the explore's "nothing left" on one board is
+no explored floor while the visit has walked less than a window (see ``explored``).
+
 Owner 2026-11-11 C6 (1) rejected a fixed cut (「400判断で階を切り上げる」): this cut is the map's
 growth, not a count of decisions on the floor.
 
@@ -54,7 +71,9 @@ REASON = "return:recall"
 # the map counts as no longer growing.  The table in the docstring.
 WINDOW = 300
 GROWTH_RATIO = 0.005
-# {"floor": floor_key, "counts": the known-cell count at each of the last WINDOW + 1 explore decisions}
+# {"floor": floor_key, "seen": every cell the visit's map has shown (the union of
+#  ``_remembered_known_t`` over its explore decisions), "counts": the size of ``seen`` at each of
+#  the last WINDOW + 1 explore decisions}
 MEMORY = "_explored_floor_window"
 
 
@@ -78,14 +97,19 @@ def dead_end(policy, snapshot) -> bool:
 
 
 def note_explore(policy, snapshot) -> None:
-    """An explore decision on this floor: the known map's size joins the window.  A shrink (the
-    player's own *Destruction* forgets its circle) starts the window again."""
-    known = len(policy._remembered_marked_t)
+    """An explore decision on this floor: the cells the map knows join the visit's ``seen`` and its
+    size joins the window.  The player's own *Destruction* forgets its circle from the map
+    (destruction_use.forget_circle); the cells the explore then shows there again were known
+    before and are no new ground, so the window neither shrinks nor starts again."""
     memory = getattr(policy, MEMORY, None)
-    counts = () if memory is None or memory.get("floor") != snapshot.floor_key else memory["counts"]
-    if counts and known < counts[-1]:
-        counts = ()
-    setattr(policy, MEMORY, {"floor": snapshot.floor_key, "counts": (*counts, known)[-(WINDOW + 1):]})
+    if memory is None or memory.get("floor") != snapshot.floor_key:
+        memory = {"floor": snapshot.floor_key, "counts": ()}
+    seen = memory.get("seen")
+    if seen is None:
+        seen = set()
+    seen |= policy._remembered_known_t
+    setattr(policy, MEMORY, {"floor": snapshot.floor_key, "seen": seen,
+                             "counts": (*memory["counts"], len(seen))[-(WINDOW + 1):]})
 
 
 def stalled(policy, snapshot) -> bool:
@@ -97,13 +121,32 @@ def stalled(policy, snapshot) -> bool:
     return len(counts) > WINDOW and counts[-1] - counts[0] < GROWTH_RATIO * counts[-1]
 
 
+def explored(policy, snapshot, *, exhausted: bool) -> bool:
+    """The floor's exploration is done (owner 2026-11-17 「探索が済んだら」).
+
+    Both ends ask for a full window first: WINDOW explore decisions on this floor visit.  Then the
+    window must have stalled, or (``exhausted``) the explore found nothing to walk to.  The
+    explore's "nothing" is no reachable frontier on this one board, which is no explored floor
+    while the map is still growing: 2026-11-18, 3 of the 10 explored-dead-end-floor returns read
+    it so -- n1-c life-216 14/50F (02:56:01) after 2 explore decisions, sealed in by its own
+    *Destruction* and a Stone to Mud walk, 31 frontiers open; n1-b life-411 Angband 80F (03:47:07)
+    after 143, its last 100 having grown the known map from 1,855 to 2,254 cells, 144 frontiers
+    open and a summoner sensed; n1-c Angband 80F (03:09:32) after 101 (1,337 to 3,395), right
+    after a Stone to Mud walk to sealed loot.  Such a floor is the ladder's below as before (the
+    secret walls, the stairs, the stuck escape)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.get("floor") != snapshot.floor_key or len(memory["counts"]) <= WINDOW:
+        return False
+    return exhausted or stalled(policy, snapshot)
+
+
 def recall_key(policy, snapshot, *, exhausted: bool) -> str | None:
     """Start the return and read Word of Recall on an explored dead-end floor, else None.  The
     countdown that follows is the return's own wait (policy ``_return_to_town_key``).
 
-    ``exhausted``: the explore found nothing left (the stairs would be taken next); otherwise the
-    window must have stalled."""
-    if not (exhausted or stalled(policy, snapshot)) or not dead_end(policy, snapshot):
+    ``exhausted``: the explore found nothing left (the stairs would be taken next); ``explored``
+    reads it only after a full window of explore decisions on the floor."""
+    if not explored(policy, snapshot, exhausted=exhausted) or not dead_end(policy, snapshot):
         return None
     if not policy._stuck_escape_permitted(snapshot, policy._is_forgetting_maze(snapshot),
                                           policy._is_completed_forgetting_maze(snapshot)):
