@@ -20185,6 +20185,54 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "destruction_loot.py:key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by threat_tiers (the approach, the sleeping or out-of-radius T1 use) and retreat_enclosure.route_veto_sealed_key right before destruction_use.key, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-17 (50F+ efficiency study 2nd) 「価値の高い品は先に拾ってから撃つ」: before a non-urgent *Destruction*, a step to a cell with no remembered floor item within the worst radius 17 (destruction-loot:place), else the pickup of the potions, scrolls, devices, rings and amulets inside it while no hostile is in view (destruction-loot:fetch / :pickup); None and the use goes ahead."
+  },
+  "destruction_loot.py:_committed": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "positioning"
+    ],
+    "context": "Dungeon only: asked by threat_tiers (the approach, the sleeping or out-of-radius T1 use) and retreat_enclosure.route_veto_sealed_key right before destruction_use.key, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The walk to the committed clean place (destruction-loot:place) while it still serves; None drops it."
+  },
+  "destruction_loot.py:_new_place": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "positioning"
+    ],
+    "context": "Dungeon only: asked by threat_tiers (the approach, the sleeping or out-of-radius T1 use) and retreat_enclosure.route_veto_sealed_key right before destruction_use.key, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The nearest cell within 8 that keeps a leaving monster within the sure radius and every remembered item out of the worst radius: committed and stepped to (destruction-loot:place)."
+  },
+  "destruction_loot.py:_fetch": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by threat_tiers (the approach, the sleeping or out-of-radius T1 use) and retreat_enclosure.route_veto_sealed_key right before destruction_use.key, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "With no hostile in view, the nearest valuable pile inside the worst radius: walked to (destruction-loot:fetch) and picked up underfoot through _current_floor_item_key (destruction-loot:pickup)."
+  },
   "explored_floor.py:recall_key": {
     "classification": "producer",
     "rows": [
@@ -20195,5 +20243,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-17 (50F+ efficiency study 1st) 「適当な閾値を決めて、探索が済んだら帰還する」: the map grew less than 0.5% over the last 300 explore decisions with no remembered item to fetch, or nothing is left to explore: the return starts (explored-dead-end-floor) and _return_to_town_key reads Word of Recall (return:recall)."
+  },
+  "policy_supply.py:SupplyMixin._nearest_goal_and_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the BFS goal and its first step.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

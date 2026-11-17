@@ -3,7 +3,7 @@ from __future__ import annotations
 from hengbot import return_start
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, alternate_lease, destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -1083,6 +1083,7 @@ class ObservationMixin:
         disenchant_avoid.observe(self, snapshot)
         sleeper_loot_block.observe(self, snapshot)
         sleeper_reach_memory.observe(self, snapshot)
+        destruction_loot.observe(self, snapshot)
         self._took_curse_damage = self._took_damage and any(
             " drains HP from you!" in message
             or " drains life from you!" in message

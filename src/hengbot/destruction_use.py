@@ -513,6 +513,15 @@ def in_sure_radius(snapshot, subject, *, centre=None) -> bool:
     return game_distance(origin, getattr(subject, "position", subject)) <= GUARANTEED_RADIUS
 
 
+def in_worst_radius(snapshot, subject, *, centre=None) -> bool:
+    """``subject`` (a monster or a Position) is within WORST_RADIUS of ``centre`` (the player's
+    cell by default): a cell some use destroys (13 + randint0(5), cmd-usestaff.cpp:282; the
+    Powerful Activation's 18 is never cast here).  destruction_loot keeps the floor items out of
+    it (owner 2026-11-17)."""
+    origin = snapshot.player.position if centre is None else centre
+    return game_distance(origin, getattr(subject, "position", subject)) <= WORST_RADIUS
+
+
 def walk_step(policy, snapshot, subject):
     """The one walk toward a use (maintainability review 2026-11-17, 5(a)-4), shared by the
     approaches (threat_tiers ``approach_key`` and ``remembered_approach_key``, deep_teleport
