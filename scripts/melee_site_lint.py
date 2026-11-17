@@ -129,9 +129,22 @@ def analyze_repository(root: Path = POLICY_ROOT) -> tuple[int, list[str]]:
     return count, findings
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> int:
+    import sys
+    import lint_baseline
+
     total, problems = analyze_repository()
     print(f"melee sites: {total}, unguarded: {len(problems)}")
     for problem in problems:
         print(problem)
-    raise SystemExit(1 if problems else 0)
+    # 2026-11-17 owner (maintainability review Q9): only sites beyond the recorded
+    # baseline (scripts/melee_site_lint_baseline.json) fail.
+    return lint_baseline.gate(
+        "melee_site_lint", "melee-site-lint", problems,
+        lambda problem: lint_baseline.line_finding_key(problem, POLICY_ROOT),
+        argv=sys.argv[1:] if argv is None else argv,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

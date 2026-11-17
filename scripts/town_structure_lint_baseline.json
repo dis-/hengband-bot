@@ -1,0 +1,16 @@
+{
+  "_comment": "Known findings recorded 2026-11-17 (maintainability review Q9). Keys are <file>:<function>: <message> with counts, never line numbers. Regenerate only to shrink: python scripts/town_structure_lint.py --write-baseline",
+  "findings": {
+    "_anaguma_retry: new unregistered item intent (anaguma.py:give_way, anaguma.py:key)": 1,
+    "_bm_fund_probe: new unregistered item intent (bm_destruction_fund.py:_plan)": 1,
+    "_calibration_observed_equipment: new unregistered item intent (policy.py:HengbotPolicy.choose_key)": 1,
+    "_equipment_pack_view: new unregistered item intent (equipment_pack_loss.py:observe)": 1,
+    "_guardian_rumor_bounced: item-intent baseline/source disappeared; review/remove it": 1,
+    "_new_launcher_ammo: new unregistered item intent (launcher_upgrade.py:observe)": 1,
+    "_store_entry_wait_key: new unregistered item intent (policy_shop.py:ShopMixin._atomic_shop_transaction_key)": 1,
+    "_store_visit: new unregistered item intent (policy_shop.py:ShopMixin._atomic_shop_transaction_key)": 1,
+    "_town_recall_read_pack_slots: new unregistered item intent (policy_town.py:TownMixin._town_special_key.read_recall)": 1,
+    "_unseen_hit_pending_blind: new unregistered item intent (policy.py:HengbotPolicy.__init__, policy_observation.py:ObservationMixin._observe)": 1,
+    "_worn_launcher_ammo: new unregistered item intent (launcher_upgrade.py:observe)": 1
+  }
+}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot import return_start
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import alternate_dungeon_record, alternate_lease, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
@@ -487,9 +488,7 @@ class ObservationMixin:
                 # escape from enemies does (RELOCATING_ESCAPE_REASONS).
                 escape_count.count(self)
                 if self._dive_emergencies >= EMERGENCY_RETURN_COUNT:
-                    self._note_return_start("emergency-repeat")
-                    self._returning_to_town = True
-                    self._last_return_trigger = "emergency-repeat"
+                    return_start.start(self, "emergency-repeat")
             # Owner 2026-11-11 「逃げは階が変わればリセット。」: the escape that left a floor
             # was counted for it above; the new floor starts at 0 (escape_count).
             escape_count.after_board(self, snapshot, previous_floor)

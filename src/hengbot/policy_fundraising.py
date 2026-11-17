@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import return_start
 from hengbot import damaging_ground, locked_doors, me_capability, mining_loadout, status_cure, tunnel_feasibility, walkout_dig
 from hengbot.item_reservation import reserved_item_command
 
@@ -696,8 +697,7 @@ class FundraisingMixin:
         ):
             return None
         self._mining_abort_floor = snapshot.floor_key
-        self._note_return_start(None)
-        self._returning_to_town = True
+        return_start.start(self)
         if self._should_flee(snapshot, hostiles, adjacent):
             return None
         key = self._leave_fundraising_floor(snapshot)
@@ -964,8 +964,7 @@ class FundraisingMixin:
             and self._can_read_scrolls(snapshot)
         ):
             self._stuck_escape_streak = 0
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
             self.last_reason = "fundraise:recall-stuck"
             return self._fundraising_return_route_key(
                 self._town_producer_entry(
@@ -1757,8 +1756,7 @@ class FundraisingMixin:
     @claims(ClaimOwner.FUNDRAISING)
     def _start_fundraising_return(self, snapshot: Snapshot) -> str:
         """Record an ordinary return before leaving the income floor."""
-        self._note_return_start(None)
-        self._returning_to_town = True
+        return_start.start(self)
         return self._leave_fundraising_floor(snapshot)
 
     @claims(ClaimOwner.FUNDRAISING)
@@ -1792,8 +1790,7 @@ class FundraisingMixin:
             snapshot.floor_key[0] == DUNGEON_YEEK_CAVE
             and snapshot.dungeon_level != 1
         ):
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
             return self._return_to_town_key(snapshot, hostiles)
         if (
             snapshot.floor_key[0] != DUNGEON_YEEK_CAVE
@@ -1812,8 +1809,7 @@ class FundraisingMixin:
                 snapshot.turn - run_start_turn
                 >= SCAVENGE_RUN_TURN_LIMIT
             ):
-                self._note_return_start(None)
-                self._returning_to_town = True
+                return_start.start(self)
                 return self._leave_fundraising_floor(snapshot)
         if getattr(self, "_crossarea_fundraising_enforced", False):
             purpose = getattr(self, "_fundraising_run_purpose", None)
@@ -1875,8 +1871,7 @@ class FundraisingMixin:
             # back into the same swarm after every teleport.  Drop the stale
             # combat destination and let the fundraising floor-exit procedure
             # carry out the return.
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
             return self._leave_fundraising_floor(snapshot)
         if (
             snapshot.player.gold >= self._fundraising_gold_target()
@@ -1887,8 +1882,7 @@ class FundraisingMixin:
                 or not self._known_treasure
             )
         ):
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
             return self._leave_fundraising_floor(snapshot)
 
         if getattr(self, "_crossarea_fundraising_enforced", False):
@@ -2061,8 +2055,7 @@ class FundraisingMixin:
                 # This is a recoverable mining run with its tool left in town,
                 # not a loot-only poverty run. Return and let the town plan
                 # withdraw/buy the tool instead of walking past known veins.
-                self._note_return_start(None)
-                self._returning_to_town = True
+                return_start.start(self)
                 return self._leave_fundraising_floor(snapshot)
             if (self._diggerless_scavenge_allowed(snapshot)
                     and self._mining_scroll_used_floor != snapshot.floor_key):
@@ -2081,8 +2074,7 @@ class FundraisingMixin:
                 # Treat the floor as spent and hand the still-populated recent
                 # cycle to the exit router, which prefers a known staircase or
                 # a least-visited step outside the cycle.
-                self._note_return_start(None)
-                self._returning_to_town = True
+                return_start.start(self)
                 self._clear_explore_path(ExplorationPathOutcome.ABANDON)
                 return self._leave_fundraising_floor(snapshot)
             step = self._explore_step(snapshot)
@@ -2123,8 +2115,7 @@ class FundraisingMixin:
                 return WAIT_KEY
             if any(item.slot == "main_hand" and item.is_cursed
                    for item in snapshot.equipment):
-                self._note_return_start(None)
-                self._returning_to_town = True
+                return_start.start(self)
                 leave = self._leave_fundraising_floor(snapshot)
                 if not self.last_reason.startswith("fundraise:recall"):
                     self.last_reason = "fundraise:return-cursed-weapon"
@@ -2155,8 +2146,7 @@ class FundraisingMixin:
                         and self._digger_wield_attempts >= DIGGER_WIELD_LIMIT
                     ):
                         self._digger_wield_attempts = 0
-                        self._note_return_start(None)
-                        self._returning_to_town = True
+                        return_start.start(self)
                         leave = self._leave_fundraising_floor(snapshot)
                         if not self.last_reason.startswith("fundraise:recall"):
                             self.last_reason = "fundraise:abandon-unwieldable-digger"
@@ -2172,8 +2162,7 @@ class FundraisingMixin:
                         cause=f"wield-deferred:{report}",
                     )
                     return None
-                self._note_return_start(None)
-                self._returning_to_town = True
+                return_start.start(self)
                 return self._leave_fundraising_floor(snapshot)
             self._offer_execution(
                 wield, producer="fundraising", work_id="fundraise:wield-digger",

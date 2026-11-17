@@ -35,6 +35,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from hengbot import return_start
 from hengbot import me_powers, threat_tiers
 
 
@@ -110,9 +111,7 @@ def observe(policy, snapshot) -> None:
     gone = any(vanished(message, sent.name) for message in snapshot.messages)
     if not gone or any(each.index == sent.index for each in snapshot.visible_monsters):
         return
-    policy._note_return_start(TRIGGER)
-    policy._returning_to_town = True
-    policy._last_return_trigger = TRIGGER
+    return_start.start(policy, TRIGGER)
 
 
 def forget_destroyed(policy, keys) -> None:

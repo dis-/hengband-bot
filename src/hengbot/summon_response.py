@@ -75,6 +75,7 @@ import re
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
+from hengbot import return_start
 from hengbot import destruction_use, line_of_fire, me_ranged_first, once_quest_recall, return_yield
 from hengbot.model import Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, ExplorationPathOutcome
@@ -364,9 +365,7 @@ def recall_key(policy, snapshot) -> str | None:
         return None
     read = once_quest_recall.read_key(policy, snapshot, RECALL_REASON)
     if read is not None:
-        policy._note_return_start(RETURN_TRIGGER)
-        policy._returning_to_town = True
-        policy._last_return_trigger = RETURN_TRIGGER
+        return_start.start(policy, RETURN_TRIGGER)
     return read
 
 

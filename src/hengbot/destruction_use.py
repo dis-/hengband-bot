@@ -64,6 +64,7 @@ from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
 
+from hengbot import return_start
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
@@ -280,10 +281,7 @@ def means_spent_recall_key(policy, snapshot) -> str | None:
     if not means_spent(policy, snapshot):
         return None
     if not policy._returning_to_town or policy._last_return_trigger != MEANS_SPENT_TRIGGER:
-        if not policy._returning_to_town:
-            policy._note_return_start(MEANS_SPENT_TRIGGER)
-        policy._returning_to_town = True
-        policy._last_return_trigger = MEANS_SPENT_TRIGGER
+        return_start.start(policy, MEANS_SPENT_TRIGGER)
     here = snapshot.player.position
     if any(not monster.asleep and game_distance(here, monster.position) <= GUARANTEED_RADIUS
            for monster in policy._physical_hostiles(snapshot)):

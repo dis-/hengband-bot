@@ -469,6 +469,10 @@ def scan_tests(tests: Path = TESTS) -> list[Finding]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("path", nargs="?", type=Path, default=TESTS)
+    parser.add_argument("--write-baseline", action="store_true",
+                        help="record the current undeclared findings as the baseline")
+    parser.add_argument("--no-baseline", action="store_true",
+                        help="fail on every undeclared finding (the pre-baseline behaviour)")
     args = parser.parse_args()
     findings = scan_tests(args.path) if args.path.is_dir() else analyze_source(args.path.read_text(encoding="utf-8"), args.path)
     for finding in findings:
@@ -478,7 +482,19 @@ def main() -> int:
     undeclared = [finding for finding in findings if not finding.allowed_reason]
     declared = [finding for finding in findings if finding.allowed_reason]
     print(f"test-fakery-lint: {len(undeclared)} violation(s), {len(declared)} declared finding(s) in {len({f.test for f in declared})} test(s)")
-    return bool(undeclared)
+    if args.path.resolve() != TESTS.resolve():
+        return bool(undeclared)  # the baseline describes the whole tests/ tree only
+    # 2026-11-17 owner (maintainability review Q9): only undeclared findings beyond the
+    # recorded baseline (scripts/test_fakery_lint_baseline.json) fail.
+    import lint_baseline
+    flags = ["--write-baseline"] * args.write_baseline + ["--no-baseline"] * args.no_baseline
+    return lint_baseline.gate("test_fakery_lint", "test-fakery-lint", undeclared, baseline_key,
+                              render=Finding.render, argv=flags)
+
+
+def baseline_key(finding: Finding) -> str:
+    """``<path>:<test>: <rule>: <message>`` -- no line number, so moved code keeps its key."""
+    return f"{finding.path.as_posix()}:{finding.test}: {finding.rule}: {finding.message}"
 
 
 if __name__ == "__main__":
