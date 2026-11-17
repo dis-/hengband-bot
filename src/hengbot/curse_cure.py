@@ -53,6 +53,7 @@ me_powerful_activation.ATTEMPTS_PER_TARGET uses, so nothing loops on a curse it 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from hengbot import return_start
 from hengbot import safety_watch
 import re
 
@@ -270,10 +271,7 @@ def recall_key(policy, snapshot) -> str | None:
     if not _dungeon(snapshot) or snapshot.floor_key[2] != 0 or not remains(policy, snapshot):
         return None
     if not policy._returning_to_town or policy._last_return_trigger != RECALL_TRIGGER:
-        if not policy._returning_to_town:
-            policy._note_return_start(RECALL_TRIGGER)
-        policy._returning_to_town = True
-        policy._last_return_trigger = RECALL_TRIGGER
+        return_start.start(policy, RECALL_TRIGGER)
     return once_quest_recall.read_key(policy, snapshot, RECALL_REASON)
 
 

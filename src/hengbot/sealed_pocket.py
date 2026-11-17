@@ -59,6 +59,7 @@ from dataclasses import dataclass, field
 # hengbot.arena first loads me_absorbed_substitutes -> me_powers -> hunt_target
 # -> retreat_enclosure -> this module while me_absorbed_substitutes is still
 # initializing, so a from-import of its names fails (circular import).
+from hengbot import return_start
 from hengbot import area_mapping, me_absorbed_substitutes, me_capability, me_powers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND, Position, Snapshot, game_distance
@@ -420,8 +421,7 @@ def _last_recall_key(policy, snapshot: Snapshot) -> str | None:
     if recall is None:
         return None
     policy._stuck_escape_streak = 0
-    policy._note_return_start(None)
-    policy._returning_to_town = True
+    return_start.start(policy)
     policy.last_reason = RECALL_REASON
     return policy._read_dungeon_recall_scroll_key(snapshot, recall)
 

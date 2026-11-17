@@ -17,6 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
+from hengbot import return_start
 from hengbot import full_pack_exchange, hunt_target
 from hengbot.dungeon_ladder import PASS
 from hengbot.home_visit import HomeVisitKind
@@ -195,9 +196,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         # Preserve quest-floor exit locks below: setting the ordinary
         # return latch is sufficient, and the existing return owner
         # decides whether walking upward is currently legal.
-        policy._note_return_start("recall-shortage")
-        policy._returning_to_town = True
-        policy._last_return_trigger = "recall-shortage"
+        return_start.start(policy, "recall-shortage")
 
     identify = policy._town_producer_entry("_pack_pressure_identify_key", lambda: policy._pack_pressure_identify_key(snapshot), family="identification")
     if identify is not None:
@@ -271,8 +270,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         policy._breeder_walkout_active(snapshot)
         and policy._escape_state.owner in {None, "return"}
     ):
-        policy._note_return_start(None)
-        policy._returning_to_town = True
+        return_start.start(policy)
         walkout = policy._town_producer_entry("_return_to_town_key#2", lambda: policy._return_to_town_key(
             snapshot,
             strategic_hostiles,
