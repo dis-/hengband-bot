@@ -54,7 +54,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import deep_teleport, destruction_use, me_powers, threat_tiers
+from hengbot import deep_teleport, destruction_use, line_of_fire, me_powers, threat_tiers
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
 from hengbot.model import Position, Snapshot, game_distance
@@ -194,7 +194,7 @@ class N1b377Death1112RecordedTest(unittest.TestCase):
             with self.subTest(sequence=sequence):
                 policy, board, _, _ = self.decided[sequence]
                 lord = shown(board, CHAOS_LORD)
-                self.assertFalse(policy._may_project(board, lord.position, board.player.position))
+                self.assertFalse(line_of_fire.projectable(policy, board, lord.position, board.player.position))
                 self.assertEqual(policy._offset_spell_reach(board, lord), (0, False))
                 row = policy.threat_prediction(board, [lord], 1)["monsters"][0]
                 self.assertGreater(row["operational_ranged_prediction"], 0)
@@ -288,7 +288,7 @@ class OffsetSpellReachConstructedTest(unittest.TestCase):
     def test_ball_at_the_grid_beside_the_player(self):
         board, lord = _floor(Position(7, 9), CORRIDOR, speed=130, race=CHAOS_LORD)
         policy, row = self.predict(board, lord)
-        self.assertFalse(policy._may_project(board, lord.position, Position(10, 10)))
+        self.assertFalse(line_of_fire.projectable(policy, board, lord.position, Position(10, 10)))
         self.assertEqual(policy._offset_spell_reach(board, lord), (0, False))
         ball = maximum_ability_hp_damage("BA_CHAO", self.races[CHAOS_LORD], player_hp=600,
                                          blind=False, monster_hp=2475)

@@ -314,7 +314,7 @@ The earlier 3-dig zigzag (`(-1,0),(-2,1),(-3,0)`) is the same shape at L = 3.
 ### 2.4 Requirements on the map (what the bot can see)
 
 - Every cell of the dig, and every neighbour of `P` and of `M` that must stay wall, must be **known** in `snapshot.grids` / remembered grids (`GridState.known`, `.wall`, `.tunnel`, `.permanent`, `src/hengbot/model.py:858-909`).
-- A wall cell must be `wall and (tunnel or permanent)`. Unknown cells count as open: this is the conservative rule `_may_project` already uses (`src/hengbot/policy_combat.py:4616`).
+- A wall cell must be `wall and (tunnel or permanent)`. Unknown cells count as open: this is the conservative rule `line_of_fire.projectable` already uses (`src/hengbot/line_of_fire.py`).
 - A dig target must be `tunnel and not permanent` (`sealed_pocket.can_melt`, `src/hengbot/sealed_pocket.py:240`).
 - **Re-check after every dig.** A melted cell can reveal open floor behind it, such as another corridor or a room. If a neighbour of the planned `P` turns out open, re-plan from the cells already dug, or abandon.
 - Avoid vault interiors (`CAVE_ICKY`) and quest-map cells, which fall under the quest exemptions in section 3.4. Prefer granite: permanent walls on the outside are even better (1.4).

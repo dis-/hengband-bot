@@ -725,7 +725,7 @@ def _in_view(policy, snapshot, monster) -> bool:
     board's test of an attacker, return_yield.awake_hostile_in_view): a monster the
     telepathy shows behind rock is known only by detection."""
     return (monster.perception != "detected"
-            and policy._may_project(snapshot, monster.position, snapshot.player.position))
+            and line_of_fire.projectable(policy, snapshot, monster.position, snapshot.player.position))
 
 
 def _approach_targets(policy, snapshot, strong) -> list:

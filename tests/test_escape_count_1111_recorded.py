@@ -122,7 +122,7 @@ class EscapeCountRecordedTest(deaths.DeathsRecordedHarness):
         self.assertEqual(answers[SECOND_BOARD][2], "sensed-t1:teleport")
         board = parse_snapshot(self.board(LIFE, SECOND_BOARD), self.races)
         self.assertFalse(any(
-            policy._has_line_of_fire(board, monster.position, board.player.position)
+            line_of_fire.straight_line(policy, board, monster.position, board.player.position)
             for monster in (*board.visible_monsters, *board.detected_monsters)
             if monster.hostile and not monster.asleep))
         self.assertEqual((policy._dive_emergencies, policy._last_return_trigger), (1, None))

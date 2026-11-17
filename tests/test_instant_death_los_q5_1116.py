@@ -1,9 +1,9 @@
 """The 50F+ instant-death judgement reads the line of fire as the damage estimate does (review Q5).
 
 Owner 2026-11-15 「被害の見積りと同じにする」: deep_teleport ``fire_p95`` summed the engagement's p95 over
-the monsters line_of_fire ``in_fire`` showed (an unknown grid a wall), while the damage estimate
+the monsters line_of_fire ``counting`` showed (an unknown grid a wall), while the damage estimate
 (``threat_prediction``) reads an awake monster's line over the unknown grids open
-(policy ``_monster_in_line_of_fire``, owner 2026-11-08 「未知のマスを壁と見ない」).  Both now read
+(line_of_fire ``danger``, owner 2026-11-08 「未知のマスを壁と見ない」).  Both now read
 that one function.
 
 Recorded: tests/fixtures/escape-los-1114.jsonl.gz (tests/test_deep_teleport_1114_recorded, its
@@ -19,7 +19,7 @@ from tests import test_deep_teleport_1114_recorded as recorded_deep
 
 
 def _as_before(policy, snapshot, monster):
-    return line_of_fire.in_fire(policy, snapshot, monster)
+    return line_of_fire.counting(policy, snapshot, monster)
 
 
 class InstantDeathLineOfFireTest(unittest.TestCase):
@@ -51,7 +51,7 @@ class InstantDeathLineOfFireTest(unittest.TestCase):
     def test_control_the_old_reading_walks(self):
         """The same boards with the old reading (an unknown grid a wall): 0, the walk."""
         with mock.patch.object(type(self), "_reading", _as_before, create=True), \
-                mock.patch("hengbot.policy.HengbotPolicy._monster_in_line_of_fire",
+                mock.patch("hengbot.line_of_fire.danger",
                            lambda policy, snapshot, monster: _as_before(policy, snapshot, monster)):
             policy, snapshot, reason = self.decide("1654", 7836354)
             self.assertEqual(deep_teleport.fire_p95(policy, snapshot), 0)

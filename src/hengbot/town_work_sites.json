@@ -3773,6 +3773,27 @@
     ],
     "delegation": "no independent success"
   },
+  "line_of_fire.py:danger": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:projectable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "line_of_fire.py:straight_line": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "locked_doors.py:pick_key": {
     "classification": "data",
     "rows": [
@@ -7373,13 +7394,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_combat.py:CombatMixin._has_line_of_fire": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_combat.py:CombatMixin._hostile_nearer_than": {
     "classification": "data",
     "rows": [
@@ -7467,13 +7481,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_combat.py:CombatMixin._may_project": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_combat.py:CombatMixin._melee_adjacency_slots": {
     "classification": "data",
     "rows": [
@@ -7487,13 +7494,6 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "policy_combat.py:CombatMixin._monster_in_line_of_fire": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "policy_combat.py:CombatMixin._offset_fire_aim": {
     "classification": "data",

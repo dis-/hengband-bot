@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
-from hengbot import quest_early_sweep, quest_light_areas
+from hengbot import line_of_fire, quest_early_sweep, quest_light_areas
 import ast
 import gzip
 import inspect
@@ -8386,8 +8386,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         }
         final_hidden = replace(snap, grids=approach_grids, visible_monsters=[])
         policy._build_grid_index(final_hidden)
-        self.assertFalse(policy._has_line_of_fire(
-            final_hidden, Position(10, 20), Position(3, 13)
+        self.assertFalse(line_of_fire.straight_line(policy, final_hidden, Position(10, 20), Position(3, 13)
         ))
         self.assertEqual(
             policy._approved_quest_strategy_key(final_hidden, [], []), "8"

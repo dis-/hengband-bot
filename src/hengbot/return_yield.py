@@ -24,7 +24,7 @@ player, a latched emergency return reads Recall before any shot or blow
 (``quiet_recall_key``); sleepers and monsters known only by detection do not count.
 """
 
-from hengbot import safety_watch
+from hengbot import line_of_fire, safety_watch
 from hengbot import once_quest_recall
 from hengbot.town_hold import SURVIVAL_RETURN_TRIGGER_PREFIX
 
@@ -63,7 +63,7 @@ def awake_hostile_in_view(policy, snapshot) -> bool:
     here = snapshot.player.position
     return any(
         monster.hostile and not monster.asleep
-        and policy._may_project(snapshot, monster.position, here)
+        and line_of_fire.projectable(policy, snapshot, monster.position, here)
         for monster in snapshot.visible_monsters
     )
 

@@ -48,7 +48,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import deep_teleport, destruction_use, me_capability, me_power_success, threat_tiers
+from hengbot import deep_teleport, destruction_use, line_of_fire, me_capability, me_power_success, threat_tiers
 from hengbot.me_absorbed_substitutes import TELEPORTATION
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
@@ -118,7 +118,7 @@ class N1b391Death1113RecordedTest(unittest.TestCase):
         self.assertEqual(sorted(seen), [SMAUG, FAFNER])
         for monster in seen.values():
             self.assertEqual((monster.perception, monster.asleep), ("detected", False))
-            self.assertFalse(policy._may_project(board, monster.position, board.player.position))
+            self.assertFalse(line_of_fire.projectable(policy, board, monster.position, board.player.position))
             self.assertEqual(policy._offset_spell_reach(board, monster), (0, False))
 
     def test_death_board_reads_instant_death(self):

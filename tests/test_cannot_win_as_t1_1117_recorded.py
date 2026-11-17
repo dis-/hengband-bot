@@ -22,7 +22,7 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from hengbot import recall_wait_teleport, threat_tiers
+from hengbot import line_of_fire, recall_wait_teleport, threat_tiers
 from hengbot.policy import ConservativePolicy  # noqa: F401 -- first: the plan modules import in a cycle alone
 from hengbot import quest25_battle as battle
 from tests import test_n1a_525_recall_wait_teleport_1115_recorded as recall_case
@@ -58,7 +58,7 @@ class RecallWaitCannotWinTest(unittest.TestCase):
         _recorded, board, *_rest = self.case.decided[RECALL_SEQUENCE]
         policy = self.case.policy
         hostiles = threat_tiers.engagement(policy, board)
-        self.assertTrue(any(policy._monster_in_line_of_fire(board, m) for m in hostiles))
+        self.assertTrue(any(line_of_fire.danger(policy, board, m) for m in hostiles))
         with mock.patch.object(threat_tiers, "assess",
                                lambda *_args, **_kwargs: capped(board.player.hp)):
             self.assertTrue(recall_wait_teleport._t1_in_fire(policy, board, hostiles))

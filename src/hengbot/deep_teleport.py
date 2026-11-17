@@ -141,8 +141,8 @@ def applies(policy, snapshot) -> bool:
 
 def fire_p95(policy, snapshot) -> int:
     """The next action's p95 of the engagement's monsters with a line of fire, read as the
-    damage estimate reads it (policy ``_monster_in_line_of_fire``: owner 2026-11-15,
-    maintainability review Q5 「被害の見積りと同じにする」; it read line_of_fire.in_fire, which
+    damage estimate reads it (line_of_fire ``danger``: owner 2026-11-15,
+    maintainability review Q5 「被害の見積りと同じにする」; it read line_of_fire.counting, which
     takes an unknown grid for a wall, before)."""
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
@@ -156,7 +156,7 @@ def fire_p95(policy, snapshot) -> int:
         rows = policy.threat_prediction(snapshot, hostiles, 1).get("monsters", ())
         return sum(row.get("operational_contribution", 0)
                    for monster, row in zip(hostiles, rows)
-                   if policy._monster_in_line_of_fire(snapshot, monster))
+                   if line_of_fire.danger(policy, snapshot, monster))
     return decision_memo(policy, "deep_teleport.fire_p95", snapshot, None, compute)
 
 
@@ -180,7 +180,7 @@ def note_teleport(policy, snapshot) -> None:
     if not applies(policy, snapshot):
         return
     in_fire = frozenset(monster.index for monster in _monsters(snapshot)
-                        if line_of_fire.in_fire(policy, snapshot, monster))
+                        if line_of_fire.counting(policy, snapshot, monster))
     _memory(policy).pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position, in_fire)
 
 
@@ -200,7 +200,7 @@ def observe(policy, snapshot) -> None:
     if snapshot.floor_key != floor or snapshot.player.position == position:
         return
     still = frozenset(monster.index for monster in _monsters(snapshot)
-                      if monster.index in in_fire and line_of_fire.in_fire(policy, snapshot, monster))
+                      if monster.index in in_fire and line_of_fire.counting(policy, snapshot, monster))
     memory.landed = (floor, still) if still else None
 
 

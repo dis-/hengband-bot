@@ -29,6 +29,7 @@ minute.  The same boards read across the glass have no 即死 and mostly T3.
 """
 from __future__ import annotations
 
+from hengbot import line_of_fire
 from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE
 
 HALF_RANGE = MONSTER_SPELL_MAX_RANGE // 2  # get_max_range() / 2 (mspell-lite.cpp)
@@ -55,7 +56,7 @@ def passing_abilities(policy, snapshot, monster, knowledge, target) -> frozenset
         return frozenset()
     # The two lines the ordinary reach reads (threat_prediction): the board's and the map
     # memory's, and projectable() with the unknown grids open (owner 2026-11-08), through glass.
-    sight = (policy._has_line_of_fire(snapshot, monster.position, target,
+    sight = (line_of_fire.straight_line(policy, snapshot, monster.position, target,
                                       remembered=policy._remembered_grids, across_glass=True)
-             or policy._may_project(snapshot, monster.position, target, across_glass=True))
+             or line_of_fire.projectable(policy, snapshot, monster.position, target, across_glass=True))
     return held if sight else frozenset()

@@ -23,7 +23,7 @@ applied to the never-moving monster:
   blind nor confused (``_summoner_ranged_attack_available``'s player gates);
 - a shooting cell exists: the player's cell or the nearest walkable cell
   (the routes already leave the rings out) from which the player's bolt path
-  reaches it (``_may_project``) within the ranged range and not beside it;
+  reaches it (line_of_fire ``player_projectable``) within the ranged range and not beside it;
 - the player survives it meanwhile: its one-turn prediction from contact
   (the lethal ring's own ``threat_prediction(..., contact=True)``, which
   over-counts a touch that cannot land) over the walk plus the shots stays
@@ -75,7 +75,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
-from hengbot import disenchant_avoid, immobile_threat_memory, retreat_enclosure
+from hengbot import disenchant_avoid, immobile_threat_memory, line_of_fire, retreat_enclosure
 from hengbot.model import MonsterState, Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, SUMMONER_RANGED_KILL_SHOTS
 
@@ -98,7 +98,7 @@ def _shooting_cell(policy, snapshot, monster: MonsterState, grid) -> bool:
     distance = grid.position.distance_to(monster.position)
     return (grid.passable and not grid.has_monster
             and 2 <= distance <= RANGED_MAX_DISTANCE
-            and policy._player_may_project(snapshot, grid.position, monster.position))
+            and line_of_fire.player_projectable(policy, snapshot, grid.position, monster.position))
 
 
 def _others_present(policy, snapshot, target: MonsterState) -> bool:
