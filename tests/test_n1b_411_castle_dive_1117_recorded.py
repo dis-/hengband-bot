@@ -17,7 +17,8 @@ Owner 2026-11-17 (verbatim): 「想定は城の20Fから潜り城40F付近を探
   unsafe-recall fallback, whose only other answer was the fundraising;
 * an over-extended depth under the floor bounded the fallback by a ceiling below its own floor.
 Now the fallback takes the Castle (dive_floor.pick_refused), holds it across town boards
-(dive_floor.refused_dive_held), and the descent goes on below the floor to 49, the 50F gate.
+(dive_floor.refused_dive_held), and the descent goes on below the floor to 49, the 50F gate
+(since the owner's 2026-11-17 answer for n1-a life-530: to the band 38-42, dive_floor.band).
 
 Recorded: the town-arrival checkpoint of 13:08:41, its 26 journal rows (row 25 the first stop)
 and the sidecar files (tests/extract_n1b_411_castle_dive_1117_fixture.py).
@@ -116,7 +117,7 @@ class N1b411CastleDiveRecordedTest(unittest.TestCase):
         self.assertEqual(reason, "town:recall-to-alt-dungeon")
         self.assertEqual(policy._target_dungeon_id, CASTLE)
 
-    def test_c_the_castle_dive_is_held_and_not_capped(self):
+    def test_c_the_castle_dive_is_held_to_its_band(self):
         policy, board = copy.deepcopy(self.policy), self.board
         self.assertEqual(policy._activate_safe_recall_fallback(board, 51), CASTLE)
         self.assertTrue(dive_floor.refused_dive_held(policy, board))
@@ -124,9 +125,14 @@ class N1b411CastleDiveRecordedTest(unittest.TestCase):
         self.assertFalse(fallback_depth_floor.settle(policy, board))
         self.assertEqual(policy._alternate_dungeon, CASTLE)
         self.assertTrue(policy._recall_destination_safe(board, CASTLE))
-        # The floor is no ceiling there: the descent goes on to the 50F gate.
+        # Owner 2026-11-17 (n1-a life-530) 「49Fに帰還して上り階段を探して適正階層まで行く」, n1-b's
+        # own 「城40F付近を探索」: the descent goes down to the band 38-42 and no further (it went
+        # on to the 50F gate before).
         self.assertIsNone(dive_floor.target(policy))
-        self.assertIn("destruction", policy._missing_required_abilities(board, 50))
+        self.assertEqual(dive_floor.band(policy, board), (38, 42))
+        castle_42 = replace(board, floor_key=(CASTLE, 42, 0))
+        self.assertTrue(dive_floor.capped(policy, castle_42, 43))
+        self.assertFalse(dive_floor.capped(policy, replace(board, floor_key=(CASTLE, 30, 0)), 31))
 
     def test_d_an_over_extension_under_the_floor_bounds_nothing(self):
         # DECLARED CONSTRUCTED: the Castle's landing raised to 45 by a dive.

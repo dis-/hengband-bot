@@ -310,6 +310,7 @@ def normalize_policy_state(restored, *, restart=False):
     # escape_count (owner 2026-11-11) postdates them.
     restored.__dict__.setdefault("_dive_escapes_total", restored.__dict__.get("_dive_emergencies", 0))
     restored.__dict__.setdefault("_floor_escape_causes", [])
+    restored.__dict__.setdefault("_floor_unjudged_escapes", 0)
     restored.__dict__.setdefault("_alternate_lease", 0)
     restored.__dict__.setdefault("_alternate_dives", 0)
     restored.__dict__.setdefault("_escape_cause_board", {})

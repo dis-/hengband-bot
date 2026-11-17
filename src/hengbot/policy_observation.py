@@ -480,7 +480,8 @@ class ObservationMixin:
                 # Owner 2026-11-14 「テレポートを使い逃げにカウントするのは射線が通っている場合のみ
                 # にしたい。」: counted only when a cause had a line of fire (line_of_fire).
                 if line_of_fire.counted(self, self.last_reason):
-                    escape_count.count(self)
+                    escape_count.count(self, judged=not dive_floor.climbing_floor(
+                        self, snapshot, previous_floor))
             elif self.last_reason in RELOCATING_ESCAPE_REASONS and line_of_fire.counted(
                     self, self.last_reason) and (
                 previous_floor != snapshot.floor_key
@@ -495,7 +496,10 @@ class ObservationMixin:
                 # returns to town whether or not the threat was lethal.
                 # Owner 2026-11-09 「全部の逃げを数える」: every relocating
                 # escape from enemies does (RELOCATING_ESCAPE_REASONS).
-                escape_count.count(self)
+                # One decided on a Castle climb floor is no over-extension
+                # evidence (dive_floor.climbing_floor, owner 2026-11-17).
+                escape_count.count(self, judged=not dive_floor.climbing_floor(
+                    self, snapshot, previous_floor))
                 if self._dive_emergencies >= EMERGENCY_RETURN_COUNT:
                     return_start.start(self, "emergency-repeat")
             # Owner 2026-11-11 「逃げは階が変わればリセット。」: the escape that left a floor
@@ -532,8 +536,11 @@ class ObservationMixin:
                 # A dive that started on the floor above a guardian floor the kit
                 # cannot pass is at its ceiling, as one at max_depth is: the descent
                 # is refused there (C2), so it is no lack of depth progress.
+                # The unsafe-recall fallback's Castle is explored in its band,
+                # not dived for depth (dive_floor, owner 2026-11-17).
                 can_descend_further = (
-                    dungeon_info is not None
+                    self._dive_dungeon != dive_floor.climb_dungeon(self)
+                    and dungeon_info is not None
                     and dungeon_info.max_depth > 0
                     and start_depth < dungeon_info.max_depth
                     and not self._guardian_floor_blocked(

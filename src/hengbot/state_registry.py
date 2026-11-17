@@ -243,7 +243,7 @@ REGISTRY = (
       "(turn, causes) of this decision;"),
     # dive_floor
     S("_alternate_dive_floor", "dive_floor", LIFE,
-      "The dive to the fallback floor's (dungeon, target depth) (dive_floor, owner 2026-11-15);"),
+      "The dive to the fallback floor's (dungeon, target depth) (dive_floor, owner 2026-11-15); the unsafe-recall fallback's (dungeon, band's shallowest floor) (owner 2026-11-17);"),
     # dive_haul
     S("_dive_acquisitions", "dive_haul", LIFE,
       "dive_haul: kind -> boards it rose on"),
@@ -269,6 +269,8 @@ REGISTRY = (
       "the causes of the board being decided"),
     S("_floor_escape_causes", "escape_count", LIFE,
       "each counted escape's causes (escape_count)"),
+    S("_floor_unjudged_escapes", "escape_count", LIFE,
+      "this floor's escapes on a Castle climb floor, no over-extension evidence (escape_count)"),
     # esp_tier_hold
     S("_esp_tier_hold", "esp_tier_hold", FLOOR,
       "The rest slot's ESP tier decided first on this floor (esp_tier_hold)."),

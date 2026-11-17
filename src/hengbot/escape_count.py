@@ -18,6 +18,11 @@ on the question 「*破壊*すれば階の脅威は減るので滞在しても�
   cause (an unseen attacker) stays counted.
 - The dive's total of counted escapes (``_dive_escapes_total``) is what the over-extension
   judgement reads, as it read the dive's count before (no floor reset, no removal).
+- An escape decided on a floor the unsafe-recall fallback's Castle climbs from (deeper than its
+  band, dive_floor.climbing_floor; owner 2026-11-17 「49Fに帰還して上り階段を探して適正階層まで
+  行く」) counts for the floor's return as any other but is no over-extension evidence: the
+  floor is deeper than the band by the owner's own choice of landing (``judged=False``; the
+  floor's share of them, ``_floor_unjudged_escapes``, is left out of ``dive_total``).
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ from hengbot.model import Position, game_distance
 CAUSE_BOARD = "_escape_cause_board"
 ESCAPES = "_floor_escape_causes"
 TOTAL = "_dive_escapes_total"
+UNJUDGED = "_floor_unjudged_escapes"
 
 
 def _known_hostiles(snapshot):
@@ -54,6 +60,7 @@ def reset(policy) -> None:
     """A new floor or a new dive: no escape counted here yet."""
     policy._dive_emergencies = 0
     setattr(policy, ESCAPES, [])
+    setattr(policy, UNJUDGED, 0)
 
 
 def start_dive(policy) -> None:
@@ -61,10 +68,14 @@ def start_dive(policy) -> None:
     setattr(policy, TOTAL, 0)
 
 
-def count(policy) -> None:
-    """One escape decided on the previous board, counted with that board's causes."""
+def count(policy, *, judged: bool = True) -> None:
+    """One escape decided on the previous board, counted with that board's causes.
+    ``judged``: the over-extension judgement reads it too (not on a climb floor)."""
     policy._dive_emergencies += 1
-    setattr(policy, TOTAL, getattr(policy, TOTAL, 0) + 1)
+    if judged:
+        setattr(policy, TOTAL, getattr(policy, TOTAL, 0) + 1)
+    else:
+        setattr(policy, UNJUDGED, getattr(policy, UNJUDGED, 0) + 1)
     escapes = getattr(policy, ESCAPES, None)
     if escapes is None:
         escapes = []
@@ -75,7 +86,8 @@ def count(policy) -> None:
 def dive_total(policy) -> int:
     """The dive's counted escapes for the over-extension judgement (a count set without the
     observation, as some callers do, is read as it is)."""
-    return max(getattr(policy, TOTAL, 0), policy._dive_emergencies)
+    return max(getattr(policy, TOTAL, 0),
+               policy._dive_emergencies - getattr(policy, UNJUDGED, 0))
 
 
 def after_board(policy, snapshot, previous_floor) -> None:
