@@ -1588,6 +1588,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:walk_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "device_skill.py:StaffGate.key": {
     "classification": "data",
     "rows": [
@@ -14735,13 +14742,6 @@
     "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:_held_reading": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "threat_tiers.py:_step_into_reach": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

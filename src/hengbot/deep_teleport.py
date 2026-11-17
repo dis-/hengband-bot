@@ -254,14 +254,8 @@ def _walk_step(policy, snapshot, targets):
 
     if not destruction_use.approach_gates(policy, snapshot):
         return None
-    subject = destruction_use.reach_subject(
-        policy, snapshot, targets, destruction_use.quest_target_race(policy, snapshot))
-    if subject is None:
-        return None
-    if destruction_use.in_sure_radius(snapshot, subject):
-        return None
-    return policy._nearest_goal_step(
-        snapshot, lambda grid: destruction_use.in_sure_radius(snapshot, subject, centre=grid.position))
+    return destruction_use.walk_step(policy, snapshot, destruction_use.reach_subject(
+        policy, snapshot, targets, destruction_use.quest_target_race(policy, snapshot)))
 
 
 def _walk_key(policy, snapshot, targets) -> str | None:

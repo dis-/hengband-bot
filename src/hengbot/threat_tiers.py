@@ -759,12 +759,6 @@ def _in_reach(snapshot, subject) -> bool:
     return subject is not None and destruction_use.in_sure_radius(snapshot, subject)
 
 
-def _step_into_reach(policy, snapshot, subject):
-    """The first step of the walk to a cell within the sure radius of ``subject``, else None."""
-    return policy._nearest_goal_step(
-        snapshot, lambda grid: destruction_use.in_sure_radius(snapshot, subject, centre=grid.position))
-
-
 def approach_owns(policy, snapshot, strong) -> bool:
     """The sensed T1 leave gives way to ``approach_key``: every T1 is known only by detection,
     the means are held, and the monster the use asks about (``approach_subject``) is not
@@ -816,10 +810,7 @@ def approach_key(policy, snapshot, strong) -> str | None:
         return used
     # The walk goes to the monster the use asks about (``approach_subject``), not to the
     # nearest target: within reach of another the use still declines.
-    subject = approach_subject(policy, snapshot, targets)
-    if subject is None or _in_reach(snapshot, subject):
-        return None
-    step = _step_into_reach(policy, snapshot, subject)
+    step = destruction_use.walk_step(policy, snapshot, approach_subject(policy, snapshot, targets))
     if step is None:
         return None
     setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
@@ -871,9 +862,7 @@ def remembered_approach_key(policy, snapshot) -> str | None:
         return used
     # The same walk as ``approach_key``'s: to the monster the use asks about, at its last cell;
     # within its reach (the use declined) the memory is dropped and the rungs below answer.
-    subject = approach_subject(policy, snapshot, list(current))
-    step = (None if subject is None or _in_reach(snapshot, subject)
-            else _step_into_reach(policy, snapshot, subject))
+    step = destruction_use.walk_step(policy, snapshot, approach_subject(policy, snapshot, list(current)))
     if step is None:
         forget_approach(policy)
         return None

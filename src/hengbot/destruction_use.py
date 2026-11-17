@@ -510,6 +510,19 @@ def in_sure_radius(snapshot, subject, *, centre=None) -> bool:
     return game_distance(origin, getattr(subject, "position", subject)) <= GUARANTEED_RADIUS
 
 
+def walk_step(policy, snapshot, subject):
+    """The one walk toward a use (maintainability review 2026-11-17, 5(a)-4), shared by the
+    approaches (threat_tiers ``approach_key`` and ``remembered_approach_key``, deep_teleport
+    ``_walk_step``): each caller picks its own ``subject`` (the monster the use asks about) and
+    asks its own gates first.  None without a subject or with it already inside the sure radius
+    (only the use answers there), else the first step toward the nearest cell within the sure
+    radius of it (policy._nearest_goal_step; None when there is no way)."""
+    if subject is None or in_sure_radius(snapshot, subject):
+        return None
+    return policy._nearest_goal_step(
+        snapshot, lambda grid: in_sure_radius(snapshot, subject, centre=grid.position))
+
+
 def quest_target_race(policy, snapshot) -> int | None:
     """The active kill quest's target race (a QUESTOR the use heals and moves, never deletes),
     else None."""
