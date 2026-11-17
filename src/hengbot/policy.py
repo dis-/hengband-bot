@@ -10918,6 +10918,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot,
                 lambda it: it.is_equipment and (it.tval, it.sval) == pending_kind,
             )
+        if item is None and getattr(
+            self, "_home_pending_take_confirmed", None
+        ) == self._home_pending_item:
+            # The take itself was confirmed by the pack's count of its kind
+            # (_observe_home_atomic_withdrawal_outside).  A take that merges
+            # into a carried stack renames it: the game's ItemEntity::absorb
+            # keeps the larger discount and the inscription, so the stored
+            # 耐性の薬 {50%引き} became part of the carried 耐性の薬 {75%引き}.
+            # Its name proves nothing; the carried stack of the kind is the
+            # take.  n1-c life-216 2026-11-18 01:59: the confirmed take was
+            # deferred as failed, the Home kept its 78 potions and the next
+            # Black Market stopped under
+            # town:blocked:home-withdraw-failed-stock-present.
+            item = self._first_item(
+                snapshot, lambda it: (it.tval, it.sval) == pending_kind,
+            )
         if item is not None:
             self._home_pending_slot = item.slot
         return item
