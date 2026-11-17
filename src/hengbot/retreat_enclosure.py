@@ -50,6 +50,7 @@ from __future__ import annotations
 from collections import deque
 from typing import NamedTuple
 
+from hengbot import return_start
 from hengbot import engagement_avoid_seal, random_quest_reserve, sealed_pocket, walkout_dig
 from hengbot.model import Position
 from hengbot.policy_constants import CHEST_DISARM_BUDGET, TELEPORT_RETURN_THRESHOLD
@@ -437,8 +438,7 @@ def _leave_key(policy, snapshot) -> str | None:
         player = snapshot.player
         if (recall is not None and not player.blind and not player.confused
                 and policy._can_read_scrolls(snapshot)):
-            policy._note_return_start(None)
-            policy._returning_to_town = True
+            return_start.start(policy)
             policy.last_reason = RECALL_REASON
             return policy._read_dungeon_recall_scroll_key(snapshot, recall)
     return _read_teleport(policy, snapshot)

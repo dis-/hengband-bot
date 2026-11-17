@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import return_start
 from hengbot import arena, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
@@ -8331,12 +8332,12 @@ class TownMixin:
         if snapshot.in_town:
             return False
         if self._guardian_descent_blocked(snapshot):
-            self._last_return_trigger = "guardian-kit-insufficient"
+            return_start.set_trigger(self, "guardian-kit-insufficient")
             # Read by the dive judgement in _observe: this dive's own return.
             self._dive_guardian_return = True
             return True
         if len(snapshot.inventory) >= PACK_CAPACITY:
-            self._last_return_trigger = "pack-full"
+            return_start.set_trigger(self, "pack-full")
             return True
         # Hungry with nothing edible left ends ANY run — including mining and
         # scavenge dives, which the suppression below otherwise exempts from
@@ -8344,7 +8345,7 @@ class TownMixin:
         # behind that exemption (2026-07-17): income policy owns its economics,
         # never the character's survival.
         if snapshot.player.hungry and self._find_edible(snapshot) is None:
-            self._last_return_trigger = "food-hungry"
+            return_start.set_trigger(self, "food-hungry")
             return True
         if (getattr(self, "_crossarea_fundraising_enforced", False)
                 and self._fundraising_mode in {"mine", "scavenge"}):
@@ -8355,7 +8356,7 @@ class TownMixin:
                     self._fundraising_facts(snapshot), purpose
                 )
                 if verdict.must_return:
-                    self._last_return_trigger = "fundraising-run-exhausted"
+                    return_start.set_trigger(self, "fundraising-run-exhausted")
                     return True
         # Income dives own their completion/return policy in _fundraising_key.
         # Ordinary expedition supply thresholds must not bounce a freshly
@@ -8371,13 +8372,13 @@ class TownMixin:
                     or snapshot.dungeon_level > WALK_OUT_MAX_DEPTH
                 )
             ):
-                self._last_return_trigger = "escape-kit-empty"
+                return_start.set_trigger(self, "escape-kit-empty")
                 return True
             if random_quest_reserve.teleport_reserve_spent(self, snapshot):
-                self._last_return_trigger = random_quest_reserve.RETURN_TRIGGER
+                return_start.set_trigger(self, random_quest_reserve.RETURN_TRIGGER)
                 return True
             if random_quest_reserve.blind_cures_spent(self, snapshot):
-                self._last_return_trigger = random_quest_reserve.BLIND_CURES_RETURN_TRIGGER
+                return_start.set_trigger(self, random_quest_reserve.BLIND_CURES_RETURN_TRIGGER)
                 return True
             # A resistance gap at the CURRENT floor -- not the next one, which
             # _is_descent_target already gates before a descent is taken -- means
@@ -8395,9 +8396,9 @@ class TownMixin:
             if gap:
                 # Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。」: the *Destruction*
                 # label alone is the means spent (destruction_use.means_spent_recall_key).
-                self._last_return_trigger = (
+                return_start.set_trigger(self, (
                     destruction_use.MEANS_SPENT_TRIGGER
-                    if gap == {DESTRUCTION_GATE_LABEL} else "resist-gap")
+                    if gap == {DESTRUCTION_GATE_LABEL} else "resist-gap"))
                 return True
             ledger_shortages = self._ledger_return_shortages(
                 ledger,
@@ -8408,19 +8409,19 @@ class TownMixin:
                 if status.kind in {"recall", "teleport", "cure"}
             ]
             if ledger_shortages:
-                self._last_return_trigger = {
+                return_start.set_trigger(self, {
                     "recall": "recall-low",
                     "teleport": "teleport-low",
                     "cure": "cure-low",
-                }[ledger_shortages[0].kind]
+                }[ledger_shortages[0].kind])
                 return True
             if snapshot.dungeon_level >= 1:
                 if not self._expedition_light_ready(snapshot):
-                    self._last_return_trigger = "light-low"
+                    return_start.set_trigger(self, "light-low")
                     return True
             equipped_light = self._worn_light(snapshot)
             if equipped_light is None:
-                self._last_return_trigger = "no-light"
+                return_start.set_trigger(self, "no-light")
                 return True
             if (
                 equipped_light.known
@@ -8428,14 +8429,14 @@ class TownMixin:
                 and equipped_light.fuel <= 0
                 and self._light_refill_item(snapshot) is None
             ):
-                self._last_return_trigger = "light-empty"
+                return_start.set_trigger(self, "light-empty")
                 return True
             knows_downstairs = bool(self._remembered_downstairs) or any(
                 grid.known and grid.has_down_stairs
                 for grid in snapshot.grids.values()
             )
             if knows_downstairs and self._next_depth_supply_shortage(snapshot):
-                self._last_return_trigger = "next-depth-kit"
+                return_start.set_trigger(self, "next-depth-kit")
                 return True
         # Hunger-without-food already returned True above (it runs before the
         # fundraising exemption); with something edible carried, the survival
@@ -8542,8 +8543,7 @@ class TownMixin:
             )
             return None
         if self._should_start_town_return(snapshot) or player.recalling:
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
         if not self._returning_to_town:
             self._offer_execution_no_step(
                 producer="departure", work_id="return-to-town",

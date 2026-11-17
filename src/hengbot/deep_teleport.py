@@ -91,6 +91,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from hengbot import return_start
 from hengbot import cross_rules, line_of_fire, recall_wait_teleport
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL, game_distance
@@ -297,8 +298,7 @@ def _recall_key(policy, snapshot, reason: str) -> str | None:
     if key is None:
         return None
     policy._stuck_escape_streak = 0
-    policy._note_return_start(None)
-    policy._returning_to_town = True
+    return_start.start(policy)
     policy.last_reason = reason
     return key
 

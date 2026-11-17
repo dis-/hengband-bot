@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import return_start
 from hengbot import quest_optional_carry
 from hengbot import spare_gear
 from hengbot.stair_destination import down_destination
@@ -1828,8 +1829,7 @@ class QuestMixin(OpeningRouteMixin):
             triage = self._full_pack_loot_triage_key(snapshot)
             if triage is not None:
                 return triage
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
             return self._return_to_town_key(
                 snapshot, self._strategic_hostiles(snapshot)
             )
@@ -1849,13 +1849,11 @@ class QuestMixin(OpeningRouteMixin):
         # A conquered guardian floor has no progression goal left. Start the
         # return now instead of falling through to ordinary exploration.
         self._victory_loot_dungeon = None
-        self._note_return_start("conquest-complete")
-        self._returning_to_town = True
-        self._last_return_trigger = "conquest-complete"
+        return_start.start(self, "conquest-complete")
         key = self._return_to_town_key(
             snapshot, self._strategic_hostiles(snapshot)
         )
-        self._last_return_trigger = "conquest-complete"
+        return_start.set_trigger(self, "conquest-complete")
         return key
 
     def _quest_never_move_races(self, profile: StrategyProfile) -> set[int]:
@@ -4726,8 +4724,7 @@ class QuestMixin(OpeningRouteMixin):
                 return self._fixed_quest_reward_key(snapshot, quest_id)
             if quest.status == QUEST_STATUS_COMPLETED:
                 if not snapshot.in_town:
-                    self._note_return_start(None)
-                    self._returning_to_town = True
+                    return_start.start(self)
                     key = self._return_to_town_key(snapshot, hostiles)
                     # The return's bounded stationary holds keep their own
                     # labels, which the cell guard exempts (n1-b life-293).

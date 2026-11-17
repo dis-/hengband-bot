@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import return_start
 from hengbot import safety_watch
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
@@ -4178,7 +4179,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _note_return_start(self, trigger: str | None) -> None:
         """For the town hold: a return starts here.
 
-        Called just before ``_returning_to_town = True``.  Rev 9.3: the
+        Called by ``return_start.start`` / ``relatch`` just before the latch.  Rev 9.3: the
         trigger is written only when no return is running yet; re-asserting
         the latch during a running return -- with or without a trigger of its
         own -- keeps the trigger that return began with.
@@ -8042,8 +8043,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)
             if recall is not None and self._can_read_scrolls(snapshot):
                 self._stuck_escape_streak = 0
-                self._note_return_start(None)
-                self._returning_to_town = True
+                return_start.start(self)
                 self.last_reason = "stuck:recall-escape"
                 return self._read_dungeon_recall_scroll_key(snapshot, recall)
 
@@ -13202,8 +13202,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             triage = self._full_pack_loot_triage_key(snapshot)
             if triage is not None:
                 return triage
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
             return self._return_to_town_key(
                 snapshot, self._strategic_hostiles(snapshot)
             )
@@ -13219,8 +13218,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self.last_reason = "victory:seek-loot"
             self._declare_reach(self._loot_target)
             return self._step_toward(snapshot, step)
-        self._note_return_start(None)
-        self._returning_to_town = True
+        return_start.start(self)
         return self._return_to_town_key(
             snapshot, self._strategic_hostiles(snapshot)
         )
@@ -13579,9 +13577,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._unviable_quest_floor = snapshot.floor_key
         if self._unviable_quest_floor != snapshot.floor_key:
             return
-        self._note_return_start("quest-unviable")
-        self._returning_to_town = True
-        self._last_return_trigger = "quest-unviable"
+        return_start.start(self, "quest-unviable")
 
 
 
@@ -14383,8 +14379,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._fruitless_disengage_decisions
         )
         self._escape_state.enter("disengage", "combat:disengage")
-        self._note_return_start(None)
-        self._returning_to_town = True
+        return_start.start(self)
 
         # On an ordinary floor, the latched return is the single owner of the
         # escape transaction.  Previously local retreat ran first whenever a
@@ -14512,8 +14507,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._fruitless_disengage_decisions = self._escape_state.budgets[
             "fruitless-disengage"
         ]
-        self._note_return_start(None)
-        self._returning_to_town = True
+        return_start.start(self)
         key = self._fruitless_disengage_key(snapshot, hostiles)
         if self.last_reason.startswith("combat:disengage-"):
             self.last_reason = self.last_reason.replace(
@@ -14761,9 +14755,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             or not line_of_fire.counts(self, snapshot, reason)
         ):
             return
-        self._note_return_start("emergency-repeat")
-        self._returning_to_town = True
-        self._last_return_trigger = "emergency-repeat"
+        return_start.start(self, "emergency-repeat")
 
 
     def _unresisted_melee_status_threats(
@@ -16240,8 +16232,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         recall = None if zul_trip.holds_surface_recall(self, snapshot) else self._find_recall_scroll(snapshot)
         if recall is not None and self._can_read_scrolls(snapshot):
             self._stuck_escape_streak = 0
-            self._note_return_start(None)
-            self._returning_to_town = True
+            return_start.start(self)
             self.last_reason = "stuck:recall-escape"
             return self._town_producer_entry("_read_dungeon_recall_scroll_key", lambda: self._read_dungeon_recall_scroll_key(snapshot, recall), family="departure")
         teleport = self._find_teleport_scroll(snapshot)

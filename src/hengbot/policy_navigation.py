@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
+from hengbot import return_start
 from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -764,8 +765,7 @@ class NavigationMixin:
             ):
                 recall = self._find_recall_scroll(snapshot)
                 if recall is not None:
-                    self._note_return_start(None)
-                    self._returning_to_town = True
+                    return_start.start(self)
                     self.last_reason = "livelock:recall-escape"
                     return self._read_dungeon_recall_scroll_key(snapshot, recall)
             here = snapshot.grid_at(player.position)
@@ -926,8 +926,7 @@ class NavigationMixin:
         ):
             recall = self._find_recall_scroll(snapshot)
             if recall is not None:
-                self._note_return_start(None)
-                self._returning_to_town = True
+                return_start.start(self)
                 self.last_reason = "combat:disengage-recall"
                 return self._read_key(snapshot, recall)
         step = self._summoner_retreat_step(snapshot, threats, hostiles)
