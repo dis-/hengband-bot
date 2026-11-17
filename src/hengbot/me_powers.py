@@ -137,6 +137,7 @@ THREAT = "threat"        # asked with each visible hostile (threat_key)
 QUEST_OPENING = "quest-opening"  # asked with a quest plan's opening target (quest_opening_away)
 FIGHT = "fight"          # asked in place of a decided attack (fight_key)
 SEALED = "sealed"        # asked by area_mapping in a sealed pocket
+LOOT_ENCLOSURE = "loot-enclosure"  # asked by area_mapping for loot in unmapped surroundings
 MAP_AREA = "map-area"    # the effect whose area mapped_area reads
 
 DETECT_RAD = 30          # spell/spells-util.h DETECT_RAD_DEFAULT / DETECT_RAD_MAP
@@ -236,11 +237,12 @@ POWERS = (
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           MAP_AREA, DETECT_RAD, 30,
           ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket",
-           "loot-unreachable"),
+           "loot-unreachable", "loot-enclosure"),
           fallback=("staff", SV_STAFF_DETECT_DOOR), beside_harmless=True),
     # The same effect (cmd-zaprod.cpp:102), asked only where the owner named 周辺感知.
     Power("rod", SV_ROD_MAPPING, me_capability.names("rod", SV_ROD_MAPPING),
-          MAP_AREA, DETECT_RAD, 31, ("after-destruction", "sealed-pocket"), beside_harmless=True),
+          MAP_AREA, DETECT_RAD, 31, ("after-destruction", "sealed-pocket", "loot-enclosure"),
+          beside_harmless=True),
     Power("staff", SV_STAFF_DETECT_DOOR, POWER_NAMES[SV_STAFF_DETECT_DOOR],
           "detect-doors-stairs", DETECT_RAD, 40, ("before-secret-search",)),
     Power("staff", SV_STAFF_LITE, POWER_NAMES[SV_STAFF_LITE],
@@ -769,6 +771,8 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     # Owner 2026-11-05 named 周辺感知: its Door/Stairs fallback does not map.
     Trigger("after-destruction", frozenset({FLOOR}), _after_destruction, takes_fallback=False),
     Trigger("sealed-pocket", frozenset({SEALED}), _sealed_pocket, takes_fallback=False),
+    # Owner 2026-11-18 「周辺感知があれば使用して入口を探す。」: sealed_loot asks once an enclosure.
+    Trigger("loot-enclosure", frozenset({LOOT_ENCLOSURE}), _sealed_pocket, takes_fallback=False),
 )}
 
 REQUIREMENTS = {

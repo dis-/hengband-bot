@@ -37,6 +37,21 @@ exe_disarm succeeds at skill - trap power percent, at least 2, and moves onto th
 sets the trap off only when the skill is 5 or less or randint1(skill) <= 5).  A trap past its
 presses with no device use left is no way in, and the melt above stays the way.  *Destruction*
 is not such a means.
+
+Owner 2026-11-18, on sensed loot whose surroundings the map does not know (n1-c life-216, Castle
+64F, 2026-11-17 01:22: an amulet of the Magi at (38,18) inside a vault whose outside was not on the
+map, so the melt route, which runs over known grids only, found no way and the loot was left):
+「周辺感知があれば使用して入口を探す。なければ諦める。」  When no walled pocket above answers, a loot
+candidate the walk does not reach whose enclosure (``enclosures``: the grids joined to it within
+the bounds, short of the reach and the board's edge) holds a grid the map does not know (neither
+known nor a magic mapping's blank floor) is mapped (``_map_key``): the player walks to the reached
+grid nearest the loot and casts 周辺感知 there (area_mapping ``loot_enclosure_key``: the absorbed
+power, then a carried staff or rod).  The ways above then take over: the loot walk through the
+entrance the map shows, or the melt over the walls it shows.  Once an enclosure a floor visit
+(``_MAPPED_MEMORY``, by its loot grids), and not where a live map of this floor visit already
+covers the loot: mapped and still no way in, the loot is given up, as it is without a means.  No
+grid the map does not know is melted through.  An enclosure whose known walls are all permanent
+(a vault the melt cannot open) stays as it was.
 """
 
 from __future__ import annotations
@@ -45,17 +60,26 @@ from hengbot import safety_watch
 import heapq
 from collections import deque
 
-from hengbot import me_powers, retreat_enclosure, sealed_pocket
+from hengbot import area_mapping, mapped_area, me_powers, retreat_enclosure, sealed_pocket
 from hengbot.item_reservation import reserved_item_command
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX
 from hengbot.model import (SV_ROD_DISARMING, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD,
-                           TVAL_WAND, Position)
+                           TVAL_WAND, Position, game_distance)
 from hengbot.policy_constants import CHEST_DISARM_BUDGET, NEIGHBOR_OFFSETS
 
 REASON = "stuck:sealed-loot-stone-to-mud"
 TRAP_REASON = "stuck:sealed-loot-trap"
 DEVICE_SUFFIX = ":device"
-REASONS = frozenset({REASON, REASON + CAST_SUFFIX, TRAP_REASON, TRAP_REASON + DEVICE_SUFFIX})
+MAP_REASON = "stuck:sealed-loot-map"  # the walk to where the enclosure is mapped
+# The casts ``_map_key`` asks for (me_powers' and area_mapping's reasons).
+MAP_CAST_REASONS = frozenset({
+    f"{me_powers.REASON}:{me_powers.LOOT_ENCLOSURE}:{me_powers.MAP_AREA}",
+    f"{area_mapping.REASON}:{area_mapping.LOOT_ENCLOSURE}",
+})
+REASONS = frozenset({REASON, REASON + CAST_SUFFIX, TRAP_REASON, TRAP_REASON + DEVICE_SUFFIX,
+                     MAP_REASON}) | MAP_CAST_REASONS
+# (floor_key, loot grids an enclosure was mapped for) of this floor visit (owner 2026-11-18).
+_MAPPED_MEMORY = "_sealed_loot_mapped"
 # The carried devices that clear a trap on their beam, Disarming first (it keeps the doors).
 TRAP_DEVICES = ((TVAL_ROD, SV_ROD_DISARMING), (TVAL_WAND, SV_WAND_DISARMING),
                 (TVAL_WAND, SV_WAND_TRAP_DOOR_DEST))
@@ -240,8 +264,13 @@ def key(policy, snapshot) -> str | None:
         return None
     reach = _reach(policy, snapshot)
     found = pockets(policy, snapshot, reach)
-    if not found:
-        return None
+    walled = _walled_key(policy, snapshot, reach, found) if found else None
+    # Owner 2026-11-18: the loot whose surroundings the map does not know is mapped once.
+    return walled if walled is not None else _map_key(policy, snapshot, reach)
+
+
+def _walled_key(policy, snapshot, reach: set, found: list) -> str | None:
+    """The next use or step into one of the walled pockets ``found``, else None."""
     # 問い1: the traps on the way in are cleared before any wall is melted.
     route = trap_route(policy, snapshot, reach, set().union(*found))
     if route is not None and all(_clearable(policy, snapshot, cell)
@@ -258,3 +287,104 @@ def key(policy, snapshot) -> str | None:
     if route is None or route[1] > sealed_pocket.melt_charges(policy, snapshot):
         return None
     return retreat_enclosure.melt_toward_key(policy, snapshot, reach, walls, REASON, power_first=True)
+
+
+def _on_board_inside(snapshot, position: Position) -> bool:
+    """Not the board's edge (the permanent outer wall, never mapped: mapped_area.disc_cells)."""
+    return 0 < position.y < snapshot.height - 1 and 0 < position.x < snapshot.width - 1
+
+
+def _enclosure(policy, snapshot, loot: Position, reach: set) -> set[Position]:
+    """The grids joined to ``loot`` within the bounds (``_bound``), short of the reach and the
+    board's edge."""
+    enclosure, queue = {loot}, deque([loot])
+    while queue:
+        for neighbour in _neighbours(queue.popleft()):
+            if (neighbour in enclosure or neighbour in reach or not _on_board_inside(snapshot, neighbour)
+                    or _bound(policy, snapshot, neighbour)):
+                continue
+            enclosure.add(neighbour)
+            queue.append(neighbour)
+    return enclosure
+
+
+def _permanent_only(snapshot, enclosure: set) -> bool:
+    """Every known wall beside ``enclosure`` is permanent (and there is one)."""
+    walls = {wall for cell in enclosure for wall in _neighbours(cell)
+             if wall not in enclosure and _known_wall(snapshot, wall)}
+    return bool(walls) and all(snapshot.grids[wall].permanent for wall in walls)
+
+
+def enclosures(policy, snapshot, reach: set) -> list[frozenset[Position]]:
+    """The loot grids of each enclosure (``_enclosure``) of loot no walk reaches that holds a grid
+    the map does not know, nearest the player first; an enclosure of permanent walls only is not
+    one (the melt cannot open it)."""
+    blank = area_mapping.blank_floor(policy, snapshot)
+    candidates = policy._loot_candidates(snapshot) - reach
+    here = snapshot.player.position
+    found, seen = [], set()
+    for loot in sorted(candidates, key=lambda cell: (game_distance(here, cell), cell.y, cell.x)):
+        if loot in seen:
+            continue
+        enclosure = _enclosure(policy, snapshot, loot, reach)
+        seen |= enclosure
+        unknown = any(((grid := snapshot.grids.get(cell)) is None or not grid.known)
+                      and (cell.y, cell.x) not in blank for cell in enclosure)
+        if unknown and not _permanent_only(snapshot, enclosure):
+            found.append(frozenset(candidates & enclosure))
+    return found
+
+
+def _mapped(policy, snapshot) -> set:
+    """The loot grids an enclosure was mapped for on this floor visit."""
+    memory = getattr(policy, _MAPPED_MEMORY, None)
+    if memory is None or memory[0] != snapshot.floor_key:
+        memory = (snapshot.floor_key, set())
+        setattr(policy, _MAPPED_MEMORY, memory)
+    return memory[1]
+
+
+def _first_step(policy, snapshot, goal: Position) -> Position | None:
+    """The first step of the walk to ``goal`` (``_reach``'s walk), else None."""
+    start = snapshot.player.position
+    came, queue = {start: None}, deque([start])
+    while queue:
+        here = queue.popleft()
+        if here == goal:
+            while came[here] != start:
+                here = came[here]
+            return here
+        for neighbour in policy._walkable_neighbors(snapshot, here):
+            if neighbour not in came:
+                came[neighbour] = here
+                queue.append(neighbour)
+    return None
+
+
+def _map_key(policy, snapshot, reach: set) -> str | None:
+    """The walk to, or the cast of, 周辺感知 for the nearest enclosure not yet mapped, else None
+    (owner 2026-11-18 「周辺感知があれば使用して入口を探す。なければ諦める。」)."""
+    if not area_mapping.means_held(policy, snapshot):
+        return None
+    spent = _mapped(policy, snapshot)
+    discs = mapped_area.floor_discs(policy, snapshot)
+    here = snapshot.player.position
+    for loot in enclosures(policy, snapshot, reach):
+        if loot & spent or any(game_distance(centre, cell) <= radius
+                               for centre, radius in discs for cell in loot):
+            continue  # mapped on this floor visit: given up when still no way in
+
+        def nearness(cell, loot=loot):
+            return min(game_distance(cell, item) for item in loot)
+
+        goal = min(reach, key=lambda cell: (nearness(cell), cell.y, cell.x))
+        if nearness(goal) < nearness(here):
+            step = _first_step(policy, snapshot, goal)
+            if step is not None:
+                policy.last_reason = MAP_REASON
+                return policy._step_toward(snapshot, step)
+        used = area_mapping.loot_enclosure_key(policy, snapshot)
+        if used is not None:
+            spent |= loot
+        return used
+    return None

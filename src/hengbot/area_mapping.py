@@ -32,6 +32,10 @@ blanks no longer read as floor.
 
 In a sealed pocket (sealed_pocket) the map is read before anything is melted, while it is
 due or the player stands in no live map: it may show the way (``sealed_key``).
+
+Owner 2026-11-18, on sensed loot whose surroundings the map does not know (a vault's outside):
+「周辺感知があれば使用して入口を探す。なければ諦める。」 sealed_loot asks ``loot_enclosure_key`` once an
+enclosure a floor visit; without a means it is None and the loot is given up as before.
 """
 
 from __future__ import annotations
@@ -50,6 +54,7 @@ from hengbot.model import (
 REASON = "area-mapping"
 AFTER_DESTRUCTION = "after-destruction"
 SEALED_POCKET = "sealed-pocket"
+LOOT_ENCLOSURE = "loot-enclosure"
 PICKED_UP = "picked-up"
 MEMORY = "_area_mapping_memory"
 CARRIED = {(TVAL_STAFF, SV_STAFF_MAPPING): "staff", (TVAL_ROD, SV_ROD_MAPPING): "rod"}
@@ -261,6 +266,14 @@ def sealed_key(policy, snapshot: Snapshot) -> str | None:
         return None
     return (me_powers.power_key(policy, snapshot, me_powers.SEALED)
             or _carried_key(policy, snapshot, SEALED_POCKET))
+
+
+def loot_enclosure_key(policy, snapshot: Snapshot) -> str | None:
+    """The map sealed_loot asks for sensed loot whose surroundings the map does not know (owner
+    2026-11-18 「周辺感知があれば使用して入口を探す。」), else None: the absorbed power first,
+    then a carried staff or rod.  sealed_loot decides where and how often."""
+    return (me_powers.power_key(policy, snapshot, me_powers.LOOT_ENCLOSURE)
+            or _carried_key(policy, snapshot, LOOT_ENCLOSURE))
 
 
 def blank_floor(policy, snapshot: Snapshot) -> set:
