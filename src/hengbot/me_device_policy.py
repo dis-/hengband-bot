@@ -185,7 +185,25 @@ def purchase_wanted(policy, snapshot, item) -> bool:
     if not _purchase_count_allows(policy, snapshot, row):
         return False
     wanted = row.buy_more if _absorbed(policy, snapshot, row) else row.buy_first
-    return wanted and me_staff_sequence.spare_gold(policy, snapshot) >= item.price
+    return (wanted and me_staff_sequence.spare_gold(policy, snapshot) >= item.price
+            and _black_market_reserve_kept(policy, snapshot, item))
+
+
+def _black_market_reserve_kept(policy, snapshot, item) -> bool:
+    """Owner 2026-10-08 「必需品1回分の補充代を残す」, the optional Black Market purchases'
+    reserve (policy_shop._full_departure_resupply_reserve, an unknown price refusing): a table
+    device bought there leaves the full departure resupply, as the Black Market's own optional
+    picks do (_black_market_optional_reserve_cap).  Owner 2026-11-16 read this rung as 「余った
+    資金で ... 買う」.  n1-b life-411 2026-11-17 13:08: 衝撃の魔法棒 31,808 and 力の杖 31,015
+    left 1,721 gold against a 5,244 reserve, under the 3,000 poverty line, and the resumed
+    character mined the Yeek cave 1F instead of the Castle dive."""
+    from hengbot.model import STORE_BLACK
+
+    store = snapshot.store
+    if store is None or store.store_type != STORE_BLACK:
+        return True
+    reserve = policy._full_departure_resupply_reserve(snapshot)
+    return reserve is not None and snapshot.player.gold - item.price >= reserve
 
 
 def _purchase_count_allows(policy, snapshot, row: Device) -> bool:

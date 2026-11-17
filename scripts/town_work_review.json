@@ -11481,6 +11481,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "me_device_policy.py:_black_market_reserve_kept": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. predicate: whether a me-device:policy buy at the Black Market leaves the full departure resupply reserve (owner 2026-10-08); read only by purchase_wanted; no key, no send seam.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "me_device_policy.py:purchase_wanted": {
     "classification": "data",
     "rows": [
