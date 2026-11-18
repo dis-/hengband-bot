@@ -798,7 +798,7 @@ class HomeMixin:
         relief["sale"] = None
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
-        for field in ("identifying", "identification_counts", "mode", "useless", "destroy_posted", "destroy_pending_key",
+        for field in ("identifying", "identification_counts", "identify_pending", "mode", "useless", "destroy_posted", "destroy_pending_key",
                       "destroy_before_count", "destroy_work_id", "pack_only", "stock_count", "taken"):
             relief.pop(field, None)
         self._release_claim_goal(
@@ -1049,15 +1049,21 @@ class HomeMixin:
                                 return None
                             return self._town_producer_entry("_home_full_skip_key",
                                 lambda: self._home_full_skip_key("identification-source-unavailable"))
-                        relief["identifying"] = (target.tval, target.count,
-                            frozenset(self._item_signature(item) for item in snapshot.inventory),
-                            target.known, target.fully_known)
                         counts = {}
                         for carried in snapshot.inventory:
                             if carried.fully_known if target.known else carried.known:
                                 kind = (carried.tval, carried.sval)
                                 counts[kind] = counts.get(kind, 0) + carried.count
-                        relief["identification_counts"] = counts
+                        # Only an actually posted ID may be awaited, as with the
+                        # destroy below: confirm_key_posted arms the watch.  A
+                        # second reader of the same board (the closing-equipment
+                        # weight transition) found the offered, unposted ID
+                        # "unresolved" and replaced it with a skip, for every
+                        # carried ware in turn, until the relief gave up (n1-b
+                        # life-411 2026-11-18 15:52, rows 22-30).
+                        relief["identify_pending"] = (key, (target.tval, target.count,
+                            frozenset(self._item_signature(item) for item in snapshot.inventory),
+                            target.known, target.fully_known), counts)
                         return key
                     if relief.get("mode") == "identify":
                         if relief.get("sweep"):
