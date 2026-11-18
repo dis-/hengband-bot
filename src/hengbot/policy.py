@@ -10093,6 +10093,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if relief is not None and relief.get("destroy_pending_key") is not None:
             if relief.pop("destroy_pending_key") == key:
                 relief["destroy_posted"] = True
+        if relief is not None and relief.get("identify_pending") is not None:
+            # The relief's offered ID is awaited only once it is posted.
+            offered, identifying, counts = relief.pop("identify_pending")
+            if offered == key:
+                relief["identifying"] = identifying
+                relief["identification_counts"] = counts
         if (
             self._store_visit is not None
             and self._store_visit.operation_posted
