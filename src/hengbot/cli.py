@@ -1491,6 +1491,12 @@ def _decision_record(
             "gold": player.gold,
             "food_state": player.food_state,
             "status": active_status,
+            # The Word of Recall countdown bounds every *:wait-recall hold
+            # (randint0(21) + 15 ticks of 10 game turns).  Without it a
+            # watcher reading only these rows took a fast character's ~100
+            # identical town waits for a stall (n1-b life-411 2026-11-18
+            # 22:40 stall:town:wait-recall, 283 of up to 350 game turns).
+            "recalling": player.recalling,
         },
         "inventory": {
             "used": len(snapshot.inventory),
