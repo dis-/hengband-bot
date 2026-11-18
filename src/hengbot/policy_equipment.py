@@ -10,7 +10,7 @@ from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import consumable_policy, equipment_swap_weight, lamp_fuel, mining_loadout
+from hengbot import consumable_policy, equipment_swap_weight, lamp_fuel, me_deep_launcher, mining_loadout
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_loadout_offense import held_magic_eater_powers
 
@@ -1195,11 +1195,10 @@ class EquipmentMixin:
         )
         has_destruction, staff_gate = self._optimizer_destruction_means(
             snapshot, catalog, calibration)
-        quest_strategy = (
-            self._carry_procurement_strategy(snapshot)
-            or self._quest_strategy_for_errand_or_floor(snapshot)
-        )
-        quest_force = getattr(quest_strategy, "required_force", {})
+        quest_force = me_deep_launcher.quest_force(self, snapshot)
+        # Owner 2026-11-18: a quest asking for ranged power keeps the launcher's power
+        # in the Magic-Eater's 50F+ selection (me_deep_launcher).
+        ranged_quest = me_deep_launcher.ranged_force(quest_force)
         required_launcher_ammo = (
             self._quest_launcher_ammo(snapshot, quest_force)
             if isinstance(quest_force, dict)
@@ -1503,6 +1502,7 @@ class EquipmentMixin:
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
             staff_gate=staff_gate,
+            ranged_quest=ranged_quest,
         )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
@@ -1587,6 +1587,7 @@ class EquipmentMixin:
             obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
+            ranged_quest=ranged_quest,
         )
         result = getattr(preparation, "result", None)
         if result is not None:
