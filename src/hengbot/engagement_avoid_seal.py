@@ -14,6 +14,9 @@ same walk over the retreats' vetoes would.  Such a claim is not made: the retrea
 still taken.  A pocket the retreat could not see the end of when it claimed (its far cell was
 still a frontier) is sealed only afterwards; the idle fallback answers that one with the
 enclosure ladder (retreat_enclosure ``sealed_in_key``).
+
+While a Word of Recall counts down in the dungeon nothing seals: the Recall is the way on
+(``_way_on``, n1-b life-411).
 """
 
 from __future__ import annotations
@@ -27,8 +30,21 @@ def _way_on(policy, snapshot, start: Position, closed: frozenset, *,
             retreat_vetoes: bool = True) -> bool:
     """Whether a walk from ``start`` avoiding the vetoes and ``closed`` reaches a remembered
     frontier or a stair the stuck walk would take (immobile_ranged_kill's way-on reading).
-    Without ``retreat_vetoes`` the retreats' own vetoes are walked over."""
-    stairs = policy._remembered_stair_goals(snapshot, not policy._descent_is_blocked(snapshot))
+    Without ``retreat_vetoes`` the retreats' own vetoes are walked over.
+
+    A Word of Recall counting down in the dungeon is the way on wherever the player stands: no
+    veto seals it in (retreat_enclosure's ``sealed_in_key`` reads the same, None while
+    recalling), so a cell an owner left stays refused even where it is a pocket's only exit.
+    n1-b life-411 (Magic-Eater Lv50, Angband 99F, 2026-11-19 00:55): during the Recall wait the
+    sensed T1 leave (threat_tiers ``sensed_t1_leave_key``, owner 2026-11-08) stepped from the
+    item cell (15,17) into the dead end (14,16) away from アンバーの王『オベロン』 (awake, known by
+    telepathy only, vision 100); its left cell was the pocket's only exit, so the record was not
+    made (``seals``) or not read (left_cells ``_encloses``), and the wait's pickup (owner
+    2026-11-18 「見える敵がいなければ拾う」, which left every other reader of a sensed monster as
+    it was) walked straight back onto it: 15 leaves and 14 pickups until the loop detector."""
+    if snapshot.player.recalling and not snapshot.in_town:
+        return True
+    stairs =policy._remembered_stair_goals(snapshot, not policy._descent_is_blocked(snapshot))
     avoid = policy._engagement_avoid_cells
     if not retreat_vetoes:
         avoid = avoid - policy._engagement_owned_avoid_cells
