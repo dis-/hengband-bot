@@ -26,8 +26,9 @@ Four defects, one class each:
    expectation, so it died in one action and the engagement was T3 at distance 3.  The kill
    time now counts the landings a kill takes over the landing chance (attack_expectation
    ``kill_paced``; melee, the launcher's shots, a thrown torch and the devices' uses).
-   The metal is still T3 on that board: about four actions, while the projection's incoming
-   over four actions (661) stays below the HP (913).
+   With the landings alone the metal was still T3 on that board (about four actions, the
+   projection's incoming 661 below the HP 913); RES_ALL (tests/test_res_all_t1_1118_recorded)
+   makes each landed blow deal 1/3 on average, 72 actions, T1.
 4. ``RetreatHandoverTest``: the unseen retreat (policy_supply ``_unseen_retreat_key``) gave the
    board to the combat ladder only for a hostile in view that was adjacent or named in the
    messages, so the metal seen at distance 3 (p95 299 against the 83 that armed the retreat)
@@ -174,10 +175,12 @@ class KillTimeTest(Replay, unittest.TestCase):
         self.assertEqual(self.monrace[METAL].armor_class, 10000)
         self.assertEqual(snapshot.player.main_hand_blows, 5)
         # Live (min(expected, hp)): 6, one action.  A blow lands 5% of the time: 20 blows a kill.
-        self.assertAlmostEqual(attack_expectation.melee(policy, snapshot, metal), 1.5)
-        free, _cost = threat_projection.free_attack(policy, snapshot, metal)
-        self.assertAlmostEqual(free, 1.5)
-        result = threat_tiers.assess(policy, snapshot, [metal])
+        # The landings alone, RES_ALL left out (tests/test_res_all_t1_1118_recorded reads it).
+        with mock.patch.object(attack_expectation, "resists_all", lambda flags: False):
+            self.assertAlmostEqual(attack_expectation.melee(policy, snapshot, metal), 1.5)
+            free, _cost = threat_projection.free_attack(policy, snapshot, metal)
+            self.assertAlmostEqual(free, 1.5)
+            result = threat_tiers.assess(policy, snapshot, [metal])
         self.assertEqual(result.free_turns, 4)
 
     def test_a_likely_kill_keeps_its_one_action(self):

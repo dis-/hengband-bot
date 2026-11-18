@@ -709,41 +709,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "attack_expectation.py:_armour": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "attack_expectation.py:_flags": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "attack_expectation.py:_race": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "attack_expectation.py:_throw_hit_chance": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "attack_expectation.py:_torch_multiplier": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "attack_expectation.py:aura_self_damage": {
     "classification": "data",
     "rows": [

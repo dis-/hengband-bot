@@ -16717,50 +16717,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "attack_expectation.py:_armour": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure estimate helper: a race's armour class for hit chances; no command, no effect credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "attack_expectation.py:_flags": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure estimate helper: a race's flags for slay multipliers; no command, no effect credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "attack_expectation.py:_race": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure lookup: the race knowledge of a target; no command, no effect credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "attack_expectation.py:_torch_multiplier": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Pure estimate helper: the thrown torch's slay multiplier; no command, no effect credit.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "me_device_attacks.py:expected_damage": {
     "classification": "data",
     "rows": [

@@ -39,6 +39,24 @@ having no flags and the reference armour):
   (combat/shoot.cpp calc_shot_damage_with_slay), times test_hit_fire's chance at the
   target's armour, chance = the sheet's shooting value + (proficiency term + ammo to_h) x 3
   - distance (shoot.cpp:492-507, :737).
+
+RES_ALL (owner 2026-11-18 「RES_ALLの読み取り方がおかしい。はぐれメタルには事実上ダメージを与える
+方法がなく、倒せないのでT1扱い。」), applied here once for every reading:
+
+- A physical hit (a melee blow player-attack.cpp:488, a shot shoot.cpp:799, a throw
+  throw-execution.cpp:517) goes through mon_damage_mod (monster-status.cpp:76-81): the damage
+  after the armour is divided by 100, and a hit that leaves 0 deals 1 one time in 3
+  (``res_all_landing``).  The blow's chance to land is the game's own (5% always hit).
+- A spell effect (a device, an absorbed power, an attack scroll) does nothing
+  (effect-monster.cpp:145-167: only DEBUG, MONSTER_MELEE and MONSTER_SHOOT ignore RES_ALL, and
+  the player sends none of them; the non-damaging OLD_CLONE/heal/speed/CAPTURE/PHOTO pass but
+  deal nothing): ``spell_nullified`` (me_device_attacks.expected_damage reads it as 0).
+- *Destruction* deletes the monster without damage (spells-floor.cpp:277-300 destroy_area
+  checks QUESTOR only), so it still answers such a monster.
+
+はぐれメタル (race 871: AC 10000, 3d2 HP, RES_ALL): a blow lands 5% of the time and a landed
+blow deals 1/3 on average, about 18 landings a kill, so the kill takes tens of actions and the
+tiers read the engagement T1 (n1-c life-216, Angband 80F, 2026-11-18).
 """
 
 from __future__ import annotations
@@ -66,6 +84,37 @@ BTH_PLUS_ADJ = 3
 # (「こんな軟らかいものは切れん！」).
 ZANTETSU_ARTIFACT_ID = 150
 ZANTETSU_UNCUT_SYMBOLS = frozenset("j")
+# monster-status.cpp mon_damage_mod: RES_ALL divides a physical hit by 100; a hit left at 0
+# deals 1 when one_in_(3).
+RES_ALL_DIVISOR = 100
+RES_ALL_ZERO_TO_ONE = 1 / 3
+
+
+def resists_all(flags) -> bool:
+    """The race holds RES_ALL (MonsterResistanceType::RESIST_ALL)."""
+    return "RES_ALL" in flags
+
+
+def spell_nullified(flags) -> bool:
+    """A player's spell effect does nothing to the race (effect-monster.cpp:145-167)."""
+    return resists_all(flags)
+
+
+def res_all_landing(per_landing: float) -> float:
+    """One landed physical hit of ``per_landing`` average damage after mon_damage_mod's RES_ALL:
+    the whole hundreds of it, else (left at 0) 1 one time in 3."""
+    whole = math.floor(per_landing / RES_ALL_DIVISOR)
+    return float(whole) if whole >= 1 else RES_ALL_ZERO_TO_ONE
+
+
+def physical_hits(flags, expected: float, per_landing: float) -> tuple:
+    """(expected damage per player action, damage per landed hit) of a physical attack against a
+    race with ``flags``: unchanged, or through RES_ALL (``res_all_landing``) with the same
+    landings (``expected / per_landing``)."""
+    if not resists_all(flags) or expected <= 0 or per_landing <= 0:
+        return expected, per_landing
+    landed = res_all_landing(per_landing)
+    return expected / per_landing * landed, landed
 
 
 def _race(policy, target):
@@ -195,23 +244,32 @@ def melee(policy, snapshot, target, *, through_aura: bool = False) -> float:
             or (harms_on_touch(policy, target) and not through_aura)
             or blows_cannot_hurt(policy, snapshot, target)):
         return 0.0  # fear or NO_MELEE refuses melee (cmd-attack.cpp:228, :202)
-    ac = _armour(policy, target)
+    ac, flags = _armour(policy, target), _flags(policy, target)
     damage = landings = blows = 0.0
     main = _hand_weapon(snapshot, "main_hand")
     if main is not None and player.main_hand_blows > 0:
-        hand = policy._main_hand_dps(snapshot, main, ac=ac)
+        hand, landed = _resisted_hand(flags, main, policy._main_hand_dps(snapshot, main, ac=ac),
+                                      player.main_hand_to_d)
         damage += hand
-        landings += _hand_landings(main, hand, player.main_hand_to_d)
+        landings += landed
         blows += player.main_hand_blows
     sub = _hand_weapon(snapshot, "sub_hand")
     if sub is not None and player.sub_hand_blows > 0:
-        hand = policy._sub_hand_dps(snapshot, sub, ac=ac)
+        hand, landed = _resisted_hand(flags, sub, policy._sub_hand_dps(snapshot, sub, ac=ac),
+                                      player.sub_hand_to_d)
         damage += hand
-        landings += _hand_landings(sub, hand, player.sub_hand_to_d)
+        landings += landed
         blows += player.sub_hand_blows
     if landings <= 0:
         return min(damage, max(target.hp, 0))
     return kill_paced(damage, damage / landings, target.hp, blows)
+
+
+def _resisted_hand(flags, weapon, hand: float, to_d) -> tuple:
+    """(a hand's expected damage per player action, the blows it lands): each landed blow through
+    RES_ALL (``physical_hits``; a hand without its to_d counted as one landing)."""
+    landed = _hand_landings(weapon, hand, to_d)
+    return physical_hits(flags, hand, hand / landed if landed > 0 else hand)[0], landed
 
 
 def _hand_landings(weapon, hand: float, to_d) -> float:
@@ -278,8 +336,9 @@ def torch_throw(policy, snapshot, target, torch) -> float:
     distance = snapshot.player.position.distance_to(target.position)
     chance = (snapshot.player.shooting_skill
               + (TO_H_B_FLOOR + torch.to_h) * BTH_PLUS_ADJ - distance)
-    return kill_paced(on_hit * _throw_hit_chance(chance, _armour(policy, target)), on_hit,
-                      target.hp)
+    expected, landed = physical_hits(
+        flags, on_hit * _throw_hit_chance(chance, _armour(policy, target)), on_hit)
+    return kill_paced(expected, landed, target.hp)
 
 
 def device_use_success(skill_dev: int, item_level: int) -> float:
@@ -355,12 +414,13 @@ def _slay(policy, race_id, flags) -> int:
     return melee_multiplier(frozenset(flags), knowledge) if knowledge is not None else 10
 
 
-def _slain_hand(snapshot, weapon, base: float, to_d, multiplier: int) -> float:
+def _slain_hand(snapshot, weapon, base: float, to_d, multiplier: int, flags=frozenset()) -> float:
     if base <= 0 or to_d is None:
         return 0.0
     dice = weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
     hits = base / max(1.0, dice + to_d)          # blows x hit chance
-    return hits * max(1.0, dice * multiplier / 10 + to_d)
+    per_hit = max(1.0, dice * multiplier / 10 + to_d)
+    return physical_hits(flags, hits * per_hit, per_hit)[0]
 
 
 def melee_against(policy, snapshot, race_id) -> float:
@@ -374,11 +434,11 @@ def melee_against(policy, snapshot, race_id) -> float:
     main = _hand_weapon(snapshot, "main_hand")
     if main is not None and player.main_hand_blows > 0:
         damage += _slain_hand(snapshot, main, policy._main_hand_dps(snapshot, main, ac=ac),
-                              player.main_hand_to_d, _slay(policy, race_id, main.known_flags))
+                              player.main_hand_to_d, _slay(policy, race_id, main.known_flags), flags)
     sub = _hand_weapon(snapshot, "sub_hand")
     if sub is not None and player.sub_hand_blows > 0:
         damage += _slain_hand(snapshot, sub, policy._sub_hand_dps(snapshot, sub, ac=ac),
-                              player.sub_hand_to_d, _slay(policy, race_id, sub.known_flags))
+                              player.sub_hand_to_d, _slay(policy, race_id, sub.known_flags), flags)
     return damage
 
 
@@ -433,6 +493,13 @@ def _shot_per_turn(launcher, ammo) -> float:
     return launcher_average_damage(launcher, ammo) * 10000 / energy
 
 
+def shot_landing(launcher, ammo, per_turn: float) -> float:
+    """One shot's average damage before the slay: the name's per-shot figure, else the per-turn
+    figure taken as one shot."""
+    shown = _TURN_DISPLAY.search(ammo.name)
+    return float(shown.group(1)) if shown else per_turn
+
+
 def _proficiency_term(launcher) -> int:
     """shoot.cpp:500-507's ``weapon_exp`` term (C division truncates toward zero)."""
     if launcher.weapon_proficiency_rank is None:
@@ -478,15 +545,24 @@ def launcher_shot(policy, snapshot, target, ammo) -> float:
         return 0.0
     distance = snapshot.player.position.distance_to(target.position)
     hit = _throw_hit_chance(shot_chance(snapshot, launcher, ammo, distance), _armour(policy, target))
-    slay = shot_multiplier(ammo.known_flags | launcher.known_flags, _flags(policy, target))
-    return hit * min(_shot_per_turn(launcher, ammo) * slay / 10, max(target.hp, 0))
+    flags = _flags(policy, target)
+    slay = shot_multiplier(ammo.known_flags | launcher.known_flags, flags)
+    per_turn = _shot_per_turn(launcher, ammo)
+    if resists_all(flags):
+        # RES_ALL: each landed shot through mon_damage_mod (shoot.cpp:799).
+        expected, _ = physical_hits(flags, hit * per_turn * slay / 10,
+                                    shot_landing(launcher, ammo, per_turn) * slay / 10)
+        return min(expected, max(target.hp, 0))
+    return hit * min(per_turn * slay / 10, max(target.hp, 0))
 
 
 def _launcher_stack(snapshot, launcher, ammo, race_flags, armour, distance) -> float:
     """``ammo`` from ``launcher``: expected damage per player action, uncapped."""
     hit = _throw_hit_chance(shot_chance(snapshot, launcher, ammo, distance), armour)
     slay = shot_multiplier(ammo.known_flags | launcher.known_flags, race_flags)
-    return _shot_per_turn(launcher, ammo) * slay / 10 * hit
+    per_turn = _shot_per_turn(launcher, ammo)
+    return physical_hits(race_flags, per_turn * slay / 10 * hit,
+                         shot_landing(launcher, ammo, per_turn) * slay / 10)[0]
 
 
 def launcher_against(policy, snapshot, race_id, distance: int) -> float:
