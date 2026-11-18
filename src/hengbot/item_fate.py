@@ -75,8 +75,9 @@ def gear_tier(policy: Any, snapshot: Any, item: Any) -> str:
         # too, pay for the Black Market's Staff of *Destruction*.
         return ANY
     if not policy._home_knowledge_current:
-        relief = policy._home_full_relief or {}
-        return ROOM if relief.get("rank_released") == policy._item_signature(item) else KEEP
+        relief = policy._home_full_relief
+        released = relief.rank_released if relief is not None else None
+        return ROOM if released == policy._item_signature(item) else KEEP
     rank = gear_rank(policy, snapshot, item)
     if rank is None:
         return KEEP
@@ -370,7 +371,7 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
         if _dominated(policy, snapshot, item):
             return "dominated"
     relief = getattr(policy, "_home_full_relief", None)
-    if relief is None or relief.get("sweep"):
+    if relief is None or relief.sweep:
         # Only a full Home's relief (a deposit refused or met by a full Home) makes room.
         return None
     if item.is_ammo and policy._junk_class(snapshot, item) == "unused-ammo":
@@ -391,8 +392,8 @@ def relief_ware(policy: Any, snapshot: Any) -> Any:
     sale's in-store ``@1`` tag renames the ware (n1-a life-530 2026-11-18 01:28
     town:blocked:stage-deadline:sell).
     """
-    relief = getattr(policy, "_home_full_relief", None) or {}
-    sale = relief.get("sale")
+    relief = getattr(policy, "_home_full_relief", None)
+    sale = relief.sale if relief is not None else None
     if sale is None:
         return None
     exact = policy._first_item(snapshot, lambda item: policy._item_signature(item) == sale[0])
@@ -407,12 +408,14 @@ def relief_useless(policy: Any, snapshot: Any, item: Any) -> bool:
 
     Taken out, the ware is a pack stack: the carry plan would rank the bolts it judged past the
     Home keep as the power stack, and the standing digger retention would count the tool again.
-    The relief's choice holds until its sale is observed (policy_home ``relief["useless"]``).
+    The relief's choice holds until its sale is observed (policy_home ``relief.useless``).
     The ware is the stack ``relief_ware`` names.
     """
-    relief = getattr(policy, "_home_full_relief", None) or {}
-    sale = relief.get("sale")
-    if _home_stock(item) or sale is None or relief.get("useless") != sale[0]:
+    relief = getattr(policy, "_home_full_relief", None)
+    if relief is None:
+        return False
+    sale = relief.sale
+    if _home_stock(item) or sale is None or relief.useless != sale[0]:
         return False
     ware = relief_ware(policy, snapshot)
     return (ware is not None and ware.slot == item.slot
@@ -423,16 +426,18 @@ def relief_round_trip(policy: Any, item: Any) -> bool:
     """The full-Home relief's shelf sale ware, not yet taken out.
 
     The clearly useless ware, or any sale ware the relief chose for a pack at the
-    reserve floor (policy_home ``relief["round_trip"]``; n1-a life-531 2026-11-19).
+    reserve floor (policy_home ``relief.round_trip``; n1-a life-531 2026-11-19).
     The relief takes it out of the Home only to sell it at the next store
     (``town_pack_budget.round_trip_fits``); once taken (``withdrawn``) it is a pack
     stack like any other.
     """
-    relief = getattr(policy, "_home_full_relief", None) or {}
-    sale = relief.get("sale")
+    relief = getattr(policy, "_home_full_relief", None)
+    if relief is None:
+        return False
+    sale = relief.sale
     signature = policy._item_signature(item)
-    return (not relief.get("withdrawn")
-            and signature in (relief.get("useless"), relief.get("round_trip"))
+    return (not relief.withdrawn
+            and signature in (relief.useless, relief.round_trip)
             and (sale is None or sale[0] == signature))
 
 

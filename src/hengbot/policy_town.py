@@ -286,7 +286,7 @@ class TownMixin:
         # Retain that space relief across every producer in the round trip,
         # including the next knowledge scan's recurrence/retirement check.
         home_relief = (
-            ("home-full-relief", relief["town"], relief["remaining"])
+            ("home-full-relief", relief.town, relief.remaining)
             if relief is not None else None
         )
         durable = (
