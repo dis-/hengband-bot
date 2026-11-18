@@ -239,8 +239,16 @@ class HomeMixin:
                 shed[item.slot] = item.weight * self._retention_surplus(snapshot, item)
             for _, _, item, count, _ in relief.surplus:
                 shed[item.slot] = max(shed.get(item.slot, 0), item.weight * count)
+            # Home's give-up holds while no relief is open: a full Home with
+            # a changed pack begins a new one (_home_full_relief_key), which
+            # this latch must not refuse.  Read as a standing fact it blocked
+            # the new relief's route to its sale (n1-b life-411 2026-11-18
+            # 15:52: the shelf's ring for the Magic shop, every decision
+            # town:blocked:home-full-surplus-store-unreachable).
+            exhausted = (state.get("home_relief_exhausted")
+                         and self._home_full_relief is None)
             if ((relief.route == "home-relief" and sum(shed.values()) >= relief.excess
-                    and not state.get("home_relief_exhausted"))
+                    and not exhausted)
                     # The owners still taking held items out of the pack go
                     # first (_weight_relief_selection); the need router files
                     # this state again if a sale is still needed after them.
