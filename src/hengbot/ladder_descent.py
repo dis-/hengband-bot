@@ -17,7 +17,6 @@ from hengbot.dungeon_ladder import PASS
 from hengbot.policy_constants import (
     DESCEND_MIN_HP_RATIO, DOWN_STAIRS_KEY, ENTER_DUNGEON_MACRO, UP_STAIRS_KEY,
 )
-from hengbot.policy_fundraising import FundraisingPurpose
 from hengbot.stair_destination import down_destination
 
 
@@ -94,23 +93,8 @@ def key(policy, snapshot, *, strategic_hostiles, here):
                 else DOWN_STAIRS_KEY), family="departure")
         if key is None:
             return None
-        if (getattr(policy, "_crossarea_fundraising_enforced", False)
-                and snapshot.in_town
-                and policy._fundraising_mode in {"mine", "scavenge"}):
-            facts = policy._fundraising_facts(snapshot)
-            prior = policy._fundraising_purpose_record
-            policy._fundraising_run_purpose = (
-                prior.purpose
-                if prior is not None and prior.status == "active"
-                else FundraisingPurpose(
-                    identity=policy._decision_sequence,
-                    mode=policy._fundraising_mode,
-                    first_run_food_waiver=(
-                        not facts.carried_edible and facts.first_run
-                        and facts.procurement_exhausted
-                    ),
-                )
-            )
+        # A walk-in into a fundraising run opens its purpose at the envelope
+        # (FundraisingMixin._post_fundraising_departure).
         return key
 
     # If every known way forward fails the next-depth resistance gate,

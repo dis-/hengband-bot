@@ -90,6 +90,7 @@ from hengbot.policy_constants import (
     TOWN_END_UNMET_STOP_PREFIX,
     SKILL_KNOWLEDGE_MACRO,
     TERMINAL_NUDGE_LIMIT,
+    WALK_IN_DEPARTURE_REASONS,
 )
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT
 from hengbot.policy_supply import supply_ledger_observer_memo
@@ -3136,7 +3137,7 @@ def _dungeon_entrance_continuation(snapshot, key: str, owner: str):
     question, so the optional continuation is dropped at the command board.
     """
     if (key != ENTER_DUNGEON_MACRO or snapshot is None or not snapshot.in_town
-            or owner not in {"descend", "town:repetition-depart:enter"}):
+            or owner not in WALK_IN_DEPARTURE_REASONS):
         return None
     return ">", [Continuation(
         frozenset({ScreenKind.CONFIRM}), "y",

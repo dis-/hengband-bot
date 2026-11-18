@@ -928,6 +928,12 @@ CROSS_TOWN_TOWN_IDS = frozenset(TOWN_TELEPORT_BUILDING_TYPES) - {ZUL_TOWN_ID}
 
 ENTER_DUNGEON_MACRO = ">\ry"
 
+# The departure reasons that walk into a dungeon from town by its entrance (the
+# ordinary descent and the repetition remedy's entry, policy_town).  One reader
+# each: the entrance's first-visit question (cli) and the walk-in that opens a
+# fundraising run's purpose (FundraisingMixin._post_fundraising_departure).
+WALK_IN_DEPARTURE_REASONS = frozenset({"descend", "town:repetition-depart:enter"})
+
 TOWN_CYCLE_WINDOW = 48
 
 TOWN_CYCLE_MAX_DISTINCT = 8
