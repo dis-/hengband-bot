@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
-from hengbot import teleport_away_carry
+from hengbot import destruction_means, teleport_away_carry
 from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.policy_constants import UNSEEN_REVERSE_REASON
 from hengbot.item_reservation import reserved_item_command
@@ -1233,6 +1233,9 @@ class SupplyMixin:
         tval, sval = item_class
         if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL:
             return item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
+        if item_class == destruction_means.STAFF:
+            # The *Destruction* staff is its own need (the 50F+ means), never any device.
+            return destruction_means.is_staff(item) and item.charges > 0
         if tval in {TVAL_WAND, TVAL_STAFF}:
             return item.is_wand_staff and item.charges > 0
         if tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}:
@@ -1251,6 +1254,8 @@ class SupplyMixin:
         tval, sval = item_class
         if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL:
             return "food:tval-food+sval-gte-min"
+        if item_class == destruction_means.STAFF:
+            return "destruction-staff:exact"
         if tval in {TVAL_WAND, TVAL_STAFF}:
             return "device:is-wand-staff"
         if tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT}:

@@ -19,6 +19,7 @@ own quantity where it is a count, but the count holds only what the definition c
 | policy_equipment._optimizer_destruction_means | the absorbed power, else the owned staff per loadout |
 |                                               | at the definition's skill (``staff_gate``)           |
 | destruction_use.usable / key (the means part) | the absorbed cast, else a reliable carried staff     |
+| ``departure_carried`` (the 50F+ arrivals)     | ``carried``: the definition without the Home staves  |
 
 ``supplies(item)`` is the definition's test of one item: the departure's purchase, the Home-first
 take and their quantities count only an item that adds a means (a staff the worn loadout makes
@@ -41,7 +42,7 @@ from __future__ import annotations
 from functools import cached_property
 
 from hengbot.model import SV_SCROLL_STAR_DESTRUCTION, SV_STAFF_DESTRUCTION, TVAL_SCROLL, TVAL_STAFF
-from hengbot.policy_constants import DESTRUCTION_USES_PER_STEP, PLAYER_CLASS_BERSERKER
+from hengbot.policy_constants import DEEP_FLOOR_DEPTH, DESTRUCTION_USES_PER_STEP, PLAYER_CLASS_BERSERKER
 
 SCROLL = (TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)
 STAFF = (TVAL_STAFF, SV_STAFF_DESTRUCTION)
@@ -73,6 +74,13 @@ def stack_charges(item) -> int:
 def charged_staves(items) -> tuple:
     """The known staves with a charge (sval is sent for AWARE items, charges for KNOWN ones)."""
     return tuple(item for item in items if is_staff(item) and item.known and item.charges > 0)
+
+
+def staff_units(item, uses: int) -> int:
+    """The staves of ``item``'s stack that carry ``uses`` charges (at least one, at most the
+    stack): a Home take of the staff moves staves, the shortage counts uses."""
+    per_staff = max(1, item.charges)
+    return max(0, min(item.count, -(-uses // per_staff)))
 
 
 def staff_home_items(policy, snapshot) -> tuple:
@@ -197,6 +205,18 @@ class Means:
         or a charged staff at 80%+ carried or (town) in the Home; a scroll is no means."""
         return self.absorbed_charges > 0 or self.staff_means
 
+    def carried(self) -> bool:
+        """The definition on what the character takes with him: the absorbed power with a charge,
+        or a carried charged staff the worn loadout makes reliable -- the Home staves left out.
+        Out of town it is ``depth_gate`` itself (the Home is counted in town only).
+
+        Owner 2026-11-18 (n1-a life-530), verbatim 「破壊を持っていないのに50F以降にいるのが不具合」:
+        the town's ``depth_gate`` counts a Home staff so the 50F+ destination opens and the
+        departure takes it (owner 2026-11-15); what lands at 50F+ is what is carried, so every
+        town-to-dungeon arrival at 50F+ asks this one (``departure_carried``)."""
+        return self.absorbed_charges > 0 or (
+            self.staff_reliable and self.carried_charged_staff is not None)
+
     def departure_uses(self) -> int:
         """policy._total_destruction_uses: the absorbed charges and, when the worn loadout makes
         the staff reliable, every carried known staff's charges (user decision 2026-09-23 counts
@@ -252,7 +272,16 @@ COMBINATIONS = (
     ("carry", "destruction_use.staff_carry_uses", False),
     ("optimizer", "policy_equipment._optimizer_destruction_means", False),
     ("in-hand", "destruction_use.usable", False),
+    ("carried", "destruction_means.departure_carried", False),
 )
+
+
+def departure_carried(policy, snapshot, depth: int) -> bool:
+    """A town-to-dungeon arrival at ``depth`` is allowed by the *Destruction* rule: short of
+    50F always; from 50F only with the means carried (``Means.carried``).  The departure
+    leaf ``destruction_carried`` (policy_town) and the final town-to-dungeon boundary
+    (policy_navigation._dungeon_entry_allowed) read it."""
+    return depth < DEEP_FLOOR_DEPTH or Means(policy, snapshot).carried()
 
 
 def answers(policy, snapshot) -> tuple:
@@ -268,6 +297,7 @@ def answers(policy, snapshot) -> tuple:
         "carry": lambda: destruction_use.staff_carry_uses(policy, snapshot) > 0,
         "optimizer": means.optimizer_worn,
         "in-hand": means.in_hand,
+        "carried": means.carried,
     }
     return tuple((name, bool(readers[name]())) for name, _reader, _exact in COMBINATIONS)
 

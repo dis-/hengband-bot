@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import return_start
+from hengbot import destruction_means, return_start
 from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -519,6 +519,14 @@ class NavigationMixin:
         if mining_walk_in:
             return True
         if not self._destination_depth_allowed(snapshot, destination_depth):
+            return False
+        # Owner 2026-11-18 「破壊を持っていないのに50F以降にいるのが不具合」: in town the depth
+        # gate counts a Home staff (the departure takes it); what lands at 50F+ is what is
+        # carried.  Every town-to-dungeon arrival (the recall reads, the entrance walk-in and its
+        # travel, the direct descent, the forced departure's minimum) passes here.
+        if not destruction_means.departure_carried(self, snapshot, destination_depth):
+            self.last_reason = (
+                f"depth-gate:destination-{destination_depth}:destruction-not-carried")
             return False
         # Recall, direct entrance confirmation, native entrance travel, and
         # fixed-quest entry share this boundary. Mining is the sole absolute

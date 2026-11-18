@@ -3,7 +3,7 @@ from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
-from hengbot import bm_destruction_fund
+from hengbot import bm_destruction_fund, destruction_means
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import item_use_route
@@ -2569,6 +2569,11 @@ class TownMixin:
             # the departure.  Like the spare gear it never stops a visit
             # (town_terminal.gather_town_end drops it).
             "destruction_staff_settled": bm_destruction_fund.settled(self, snapshot),
+            # Owner 2026-11-18 「破壊を持っていないのに50F以降にいるのが不具合」: a 50F+ destination
+            # (opened in town by a Home staff, destruction_use.holds_means) leaves only with the
+            # means carried; the Home take (policy_home._home_procurement_batch_member) answers it.
+            "destruction_carried": destruction_means.departure_carried(
+                self, snapshot, self._intended_dive_depth(snapshot)),
             # Never depart mid-calibration or with its supplies still at Home.
         }
 
