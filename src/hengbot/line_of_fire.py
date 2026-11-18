@@ -42,12 +42,16 @@ be the only one).  The readings, by name:
 - ``player_projectable``: projectable() for the player's own bolt (glass stops it).
 - ``player_path``: the player's own bolt path itself (``player_projectable``'s), for an aim
   that must pass a monster on its way to another grid (policy ``_offset_fire_aim``).
+- ``own_stop`` (not a reading of this module): a ``projection_path`` given a stop of its own
+  elsewhere, each listed in ``READERS`` with why it is not ``player_path`` (review 2026-11-18
+  S7-3: the glass class, a stop on LOS instead of PROJECTION, was one of these).
 - ``fire_reaches``: the survival gate's "under fire" (within reach, a line of fire, a one-turn
   predicted damage above zero).
 
 Which caller reads which, and why, is ``READERS`` below; scripts/line_of_fire_lint.py fails on a
-call of these readings the table does not list, on a stale row, and on a line-of-fire
-computation outside this module.  Naming the readings changed no caller's reading (whether a
+call of these readings the table does not list, on a stale row, on a line-of-fire
+computation outside this module, and on a ``projection_path`` given a stop of its own that the
+table does not list (``own_stop``).  Naming the readings changed no caller's reading (whether a
 caller should read another one is the owner's question, review Q5).
 
 The "in view" readings (maintainability review 2026-11-17, N9 / 5(a)-8: eight of them, two of
@@ -162,6 +166,23 @@ READERS = {
     ("policy_combat", "_offset_fire_aim", "player_path"):
         "the shot at a victim past a nearer body: the victim before the aim on the arrow's path "
         "(n1-c life-216 Glass castle 60F, 2026-11-18: an LOS-only path through glass)",
+    ("quest_firing_cells", "reach", "player_path"):
+        "the Q2 / Q25 shot at a breeder (the corpse masses) from a firing cell: two grids or more "
+        "away, the arrow's path ends on it (review 2026-11-18 6(a)-8: an LOS stop of its own "
+        "until then; the Q2 and Q25 maps have no glass, tree or curtain, so no answer changed)",
+    # own_stop: a projection_path given a stop of its own outside this module (review
+    # 2026-11-18 S7-3 / 6(a)-8, the glass class).  Each one listed here, and why it keeps it.
+    ("breeder_area_attack", "_projectable", "own_stop"):
+        "the area attack's own projection over the board (ball shape, aimed grid): an unknown "
+        "grid or one without MOVE stops it.  Not the glass class (no LOS read: glass, without "
+        "MOVE, stops it); player_path would open the unknown grids, which changes answers",
+    ("breeder_area_attack", "_ray", "own_stop"):
+        "the area attack's direction-aimed ray (bolt / beam), the same stop as _projectable",
+    ("breeder_area_attack", "_grid_ray", "own_stop"):
+        "the area attack's grid-aimed projection, the same stop as _projectable",
+    ("quest_exposure", "projectable", "own_stop"):
+        "projectable() over a fixed quest's map read from its file (its terrain kinds, "
+        "PROJECTING_KINDS), not over the board: there is no policy or board to read",
     # fire_reaches: the survival gate's "under fire".
     ("policy_combat", "_forbid_wait_while_damaged", "fire_reaches"):
         "the survival gate: a visible hostile can shoot the player",

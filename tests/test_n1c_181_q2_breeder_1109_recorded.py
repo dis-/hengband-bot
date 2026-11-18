@@ -127,7 +127,7 @@ class Q2CorpseMassRecordedTest(swarm.PostedSwarmKey):
         here = board.player.position
         self.assertEqual(here, Position(8, 24))
         breeders = [monster for monster in board.visible_monsters if monster.race_id == MASS]
-        self.assertEqual(quest_firing_cells.reach(board, here, breeders), 0)
+        self.assertEqual(quest_firing_cells.reach(policy, board, here, breeders), 0)
         key = decide(policy, raw)
         self.assertEqual((key, policy.last_reason), ("6", APPROACH))   # the record: "2", south
         self.post(policy, raw, key)
