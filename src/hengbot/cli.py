@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from hengbot import __version__ as HENGBOT_VERSION
-from hengbot import dive_floor, spare_gear, torch_release
+from hengbot import dive_floor, means_spent_loop, spare_gear, torch_release
 
 _CONTROL_OWNER_HANDLES: dict[int, object] = {}
 _TOWN_IDLE_D0_SESSION_ID = uuid.uuid4().hex
@@ -884,6 +884,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "town:blocked:outpost-fare-no-sale": "no legal surplus or releasable reserved sale remains available to fund the Outpost return fare",
         "town:blocked:outpost-fare-return-route-unavailable": "the recovered Outpost fare has no admitted return route",
         "town:blocked:outpost-fare-recall-active": "a recall is already active during Outpost fare recovery",
+        "town:blocked:destruction-means-spent-loop": means_spent_loop.STOP_MESSAGE,
         "town:blocked:guardian-bounce-no-alternate": "every entered dungeon's recall landing is a guardian floor the current kit cannot pass",
         "quest:blocked:opening-route": "the Q34 -> mining kit -> Q1 route cannot continue; inspect _opening_q1_failure in the policy checkpoint",
         "quest:blocked:q34-opening-door-locked": "the Q34 opening door stayed locked after the bounded lock-pick attempts",

@@ -64,7 +64,7 @@ from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
 
-from hengbot import return_start
+from hengbot import means_spent_loop, return_start
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
@@ -281,6 +281,7 @@ def means_spent_recall_key(policy, snapshot) -> str | None:
     if not means_spent(policy, snapshot):
         return None
     if not policy._returning_to_town or policy._last_return_trigger != MEANS_SPENT_TRIGGER:
+        means_spent_loop.note_return(policy, snapshot)
         return_start.start(policy, MEANS_SPENT_TRIGGER)
     here = snapshot.player.position
     if any(not monster.asleep and game_distance(here, monster.position) <= GUARANTEED_RADIUS
@@ -678,6 +679,7 @@ def _race_in_range(policy, snapshot, target, *, applies) -> bool:
 def observe(policy, snapshot) -> None:
     """Every decision, before the board joins the map memory: settle the last use."""
     setattr(policy, UNSAFE_NOTE, None)
+    means_spent_loop.observe(policy, snapshot)
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
         setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
     if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and holds_means(policy, snapshot):

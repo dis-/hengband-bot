@@ -244,6 +244,8 @@ REGISTRY = (
     # destruction_use
     S("_destruction_use_memory", "destruction_use", LIFE,
       "destruction_use: destruction use memory (no comment at its definition)"),
+    S("_means_spent_loop", "means_spent_loop", LIFE,
+      "The dives spent at once on the means-spent Recall (n1-a life-530's loop): the floor entered, the streak to one arrival."),
     S("_means_spent_unsafe", "destruction_use", LIFE,
       "(turn, causes) of this decision;"),
     # dive_floor
