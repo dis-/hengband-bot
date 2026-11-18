@@ -58,6 +58,21 @@ def circuit(policy: Any) -> CrossTownShoppingExpedition | None:
     return expedition
 
 
+def leg_chosen_here(policy: Any, snapshot: Any) -> bool:
+    """This town's stock-out already sent the circuit on: its inn leg is chosen.
+
+    The page that judged the stock-out left the store and the first board outside
+    chose the leg (``target_town_id``, cleared on the arrival).  The town's other
+    store pages until then are its own errands (the leg waits for the visit's
+    errand holder, ``_cross_town_shopping_key``): judging the stock-out again
+    there left every errand store unserved and walked back to the inn for ever
+    (n1-b life-411, 2026-11-18 07:50, the Outpost's Weapon Smiths and Black Market).
+    """
+    expedition = circuit(policy)
+    return (expedition is not None and expedition.target_town_id is not None
+            and expedition.target_town_id != policy._effective_town_id(snapshot))
+
+
 def _remaining(policy: Any, snapshot: Any,
                expedition: CrossTownShoppingExpedition) -> tuple[int, ...]:
     current = policy._effective_town_id(snapshot)
