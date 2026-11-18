@@ -463,6 +463,9 @@ FLOOR_PLANS = (
         Branch("no enemy", (
             # The plan's potion when due; the light may show the summons their caster.
             ("quest_room_light.floor_potion_key", FIRST), ("_unseen_light", FIRST),
+            # QUEST_33: the GOOD and EVIL summoners have begun summoning at each other; the
+            # quest is given up before the summon rules answer a single cast.
+            ("quest_alignment_split.abort_key", FIRST),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
             ("quest_plan_base._restore", OWN), ("_out_of_line", OWN),
             ("quest_plan_base._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
@@ -472,7 +475,8 @@ FLOOR_PLANS = (
             ("quest_plan_base._give_up", SURVIVAL), ("quest_plan_base._below_line", SURVIVAL),
             ("quest_plan_base._heal", SURVIVAL),
             ("quest_plan_base._speed", SURVIVAL), ("quest_room_light.floor_potion_key", FIRST),
-            ("_unseen_light", FIRST), ("summon_response.key", SUMMONS),
+            ("_unseen_light", FIRST), ("quest_alignment_split.abort_key", FIRST),
+            ("summon_response.key", SUMMONS),
             ("resist_potion.key", OWN), ("_light_key", OWN), ("_fight", OWN))),
     )),
 )

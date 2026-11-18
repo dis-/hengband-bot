@@ -59,6 +59,10 @@ cannot be identified, so it is not counted.  Rules 1 and 2 read every cast as be
 of unseen casts is its own count (``unseen_run``), and an unseen cast no longer joins rule 3's.
 Recalls by rule 3 are not counted as over-extension (owner 2026-11-16).
 
+``facing``: an identified cast out of the player's line of fire whose caster stands in the line of
+a monster of the other side (GOOD against EVIL) on a floor whose plan splits the sides
+(quest_alignment_split, QUEST_33); that plan reads the count and gives the quest up.
+
 Rule 3 reads through once_quest_recall.read_key, so every exit lock keeps its floor: a
 kill quest's lock (a runtime RANDOM quest and Q14 until the 11-01 teleport reserve is
 drawn down, random_quest_reserve) still holds such a floor and the read waits for the
@@ -179,6 +183,9 @@ class Memory:
     unseen_run: int = 0               # unseen casts in a row (module docstring)
     last_unseen: tuple[int, Position] | None = None  # the decision and cell of the last
     leave_turn: int | None = None     # the board of the last leave: a redraw reads no second
+    # Casts of this visit at a monster of the other side (quest_alignment_split.facing): the
+    # caster named, out of the player's line of fire, in the line of a monster of the other side.
+    facing: int = 0
 
 
 def _memory(policy) -> Memory:
@@ -209,7 +216,21 @@ def observe(policy, snapshot) -> None:
         memory.unseen_run = 0
     for message in snapshot.messages:
         for summon in summons_of(message):
-            _count(memory, summon, snapshot.player.position, _in_fire(policy, snapshot, summon))
+            in_fire = _in_fire(policy, snapshot, summon)
+            _count(memory, summon, snapshot.player.position, in_fire)
+            if summon.seen and not in_fire and _facing(policy, snapshot, summon):
+                memory.facing += 1
+
+
+def _facing(policy, snapshot, summon: Summon) -> bool:
+    from hengbot import quest_alignment_split
+
+    return quest_alignment_split.facing(policy, snapshot, summon.caster, _plain_name)
+
+
+def facing_casts(policy) -> int:
+    """This floor visit's casts at a monster of the other side (quest_alignment_split)."""
+    return int(getattr(_memory(policy), "facing", 0))
 
 
 def _run_ended(memory: Memory, snapshot) -> bool:

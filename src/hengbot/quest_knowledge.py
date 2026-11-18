@@ -34,8 +34,8 @@ class QuestBattlefield:
     Terrain features are reduced to planning classes: FLOOR and stairs become
     ``floor``; shallow/deep water remain distinct for quest pathing; permanent/granite
     features become ``wall``; TREE becomes walkable ``tree``; CLOSED/OPEN_DOOR
-    becomes ``door``; PASSAGE becomes ``passage``; and RUBBLE features become
-    ``rubble``. Unknown legacy glyphs are conservatively walls. Chokepoints are walkable tiles with at most two
+    becomes ``door``; PASSAGE becomes ``passage``; RUBBLE features become
+    ``rubble``; DARK_PIT becomes ``pit`` and the lavas ``lava`` (no walk, a line over them). Unknown legacy glyphs are conservatively walls. Chokepoints are walkable tiles with at most two
     orthogonal neighbours whose removal disconnects those neighbours.
     """
 
@@ -117,6 +117,22 @@ def _localized_names(value: Any) -> tuple[str, str]:
     return str(value or ""), ""
 
 
+def _legend_race(entry: dict[str, Any]) -> int:
+    """The race a map legend entry places, 0 for none.
+
+    ``"monster": <race>`` places the race; ``"monster": {"cloneOf": <race>}`` places a clone
+    of it (QUEST_33's uniques: fixed-map-generator.cpp lifts the unique's count limit, places it
+    with ``place_specific_monster`` and marks it CLONED); ``{"random": true, ...}`` names no race
+    (``place_random_monster`` at the floor's level plus ``oodLevel``)."""
+    value = entry.get("monster", 0)
+    if isinstance(value, dict):
+        value = value.get("cloneOf", 0)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _terrain_class(feature: str) -> str:
     upper = feature.upper()
     if "QUEST_EXIT" in upper:
@@ -137,6 +153,14 @@ def _terrain_class(feature: str) -> str:
         return "shallow_water"
     if "TREE" in upper:
         return "tree"
+    # DARK_PIT and the lavas (QUEST_33, Q11, Q24): no walk but the levitating one, and a line
+    # passes over them (TerrainDefinitions.jsonc: LOS and PROJECTION, no MOVE).  Classes of their
+    # own, so a plan can see over them; every walk and line set that does not name them reads
+    # them as it read them before, as walls.
+    if upper == "DARK_PIT":
+        return "pit"
+    if "LAVA" in upper:
+        return "lava"
     if any(word in upper for word in ("PERMANENT", "WALL", "GRANITE", "MAGMA", "QUARTZ")):
         return "wall"
     if any(word in upper for word in ("FLOOR", "STAIR", "WATER")):
@@ -284,10 +308,7 @@ def _json_placed_monsters(data: dict[str, Any]) -> Counter[int]:
         for glyph, entry in legend.items():
             if not isinstance(glyph, str) or len(glyph) != 1 or not isinstance(entry, dict):
                 continue
-            try:
-                r_idx = int(entry.get("monster", 0))
-            except (TypeError, ValueError):
-                continue
+            r_idx = _legend_race(entry)
             if r_idx > 0:
                 roster[r_idx] += sum(
                     row.count(glyph) for row in rows if isinstance(row, str)
@@ -319,10 +340,7 @@ def _json_battlefield(
         terrain = entry.get("terrain")
         if isinstance(terrain, str):
             features[glyph] = terrain
-        try:
-            r_idx = int(entry.get("monster", 0))
-        except (TypeError, ValueError):
-            r_idx = 0
+        r_idx = _legend_race(entry)
         if r_idx > 0:
             monster_glyphs[glyph] = r_idx
         if "object" in entry:
