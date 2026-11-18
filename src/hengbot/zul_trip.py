@@ -105,6 +105,7 @@ CURE_REASON = REASON + "cure"
 EDGE_REASON = REASON + "ambush-edge"
 LEAVE_SIGHT_REASON = REASON + "leave-sight"
 WAIT_REFUSED_REASON = REASON + "wait-refused"
+LEAVE_RANGE_REASON = REASON + "leave-range"
 REWEAR_REASON = REASON + "rewear-ring"
 REPLACED_RING_ATTR = "_zul_replaced_ring"
 HOME_PURPOSE = "zul-levitation"
@@ -176,6 +177,8 @@ class ZulTrip:
     shop_walks: dict = field(default_factory=dict)
     # Ambush map position -> orthogonal edge headings tried there (None: none yet).
     edge_tries: dict | None = None
+    # Zul: the cell where '<' was refused for a monster the player does not perceive.
+    refused_at: Position | None = None
 
 
 def state(policy) -> ZulTrip:
@@ -600,11 +603,52 @@ def _enter_global_key(policy, snapshot, record) -> str | None:
     if wilderness_exit.refuses_from(snapshot.player.position, awake):
         return _leave_sight_key(policy, snapshot, awake)
     if wilderness_exit.global_map_refused(snapshot):
-        # A monster near that the player does not perceive: no direction to walk from it.
-        return _wait_refused_key(policy, snapshot, record)
+        # A monster near that the player does not perceive: out of range of where it was refused.
+        record.refused_at = snapshot.player.position
+        return _out_of_range_key(policy, snapshot, record)
+    if record.refused_at is not None and _within_unseen_range(snapshot.player.position, record):
+        return _out_of_range_key(policy, snapshot, record)
+    record.refused_at = None
     record.active = True
     policy.last_reason = ENTER_GLOBAL_REASON
     return UP_STAIRS_KEY
+
+
+# change_wild_mode refuses for an awake hostile within MAX_PLAYER_SIGHT of the player: a cell
+# twice that far from where it refused is out of range of any monster that refused there.
+UNSEEN_RANGE_FACTOR = 2
+
+
+def _within_unseen_range(cell, record) -> bool:
+    from hengbot import wilderness_exit
+    from hengbot.policy_combat import CombatMixin
+    return (CombatMixin._monster_cast_distance(cell, record.refused_at)
+            <= UNSEEN_RANGE_FACTOR * wilderness_exit.MAX_PLAYER_SIGHT)
+
+
+def _out_of_range_key(policy, snapshot, record) -> str | None:
+    """In Zul, a step toward the nearest cell out of range of the monster that refused '<'.
+
+    n1-c life-217 (2026-11-19 01:49, Lv35, after the cure, at night): '<' refused nine times
+    at (20,68) with nothing seen or sensed while the bot waited between them
+    (``_wait_refused_key``); the monster did not move, and the staff sequence's inn leg, which
+    has no route from Zul, stopped the bot again.  Where it is is not known, but it is within
+    MAX_PLAYER_SIGHT of the refused cell, so a cell ``UNSEEN_RANGE_FACTOR`` times that far from
+    it is out of its range: the walk goes there (over the mountains, levitating, as the Tower
+    walk does) and '<' is pressed there.  With no such cell reachable, the wait.
+    """
+    if policy._effective_town_id(snapshot) != ZUL_TOWN_ID:
+        return None
+
+    def far(cell) -> bool:
+        return not _within_unseen_range(cell, record)
+
+    step, target = _flying_step(policy, snapshot, far)
+    if step is None:
+        return _wait_refused_key(policy, snapshot, record)
+    policy.last_reason = LEAVE_RANGE_REASON
+    policy._declare_reach(target)
+    return policy._step_toward(snapshot, step)
 
 
 def _wait_refused_key(policy, snapshot, record) -> str | None:
@@ -678,6 +722,15 @@ def _levitation_walk_step(policy, snapshot, building: int):
     goals = {grid.position for grid in snapshot.grids.values() if grid.building_type == building}
     if not goals:
         return None, False
+    step, _target = _flying_step(policy, snapshot, lambda cell: cell in goals, goals)
+    return step, step in goals
+
+
+def _flying_step(policy, snapshot, is_goal, goals=frozenset()):
+    """(first step, goal) of the levitated walk to the nearest cell ``is_goal`` accepts, or
+    (None, None).  ``goals`` are cells entered although not plain (a building's entrance)."""
+    if not has_levitation(snapshot):
+        return None, None
     height, width = snapshot.height, snapshot.width
     start = snapshot.player.position
     # At night the unlit floor is not drawn: the static town map fills it in,
@@ -705,16 +758,15 @@ def _levitation_walk_step(policy, snapshot, building: int):
     queue = deque([start])
     while queue:
         cell = queue.popleft()
-        if cell in goals:
-            step = first[cell]
-            return step, step in goals
+        if cell != start and is_goal(cell):
+            return first[cell], cell
         for dy, dx, _key in _DIRECTIONS:
             nxt = Position(cell.y + dy, cell.x + dx)
             if nxt in first or not walkable(nxt):
                 continue
             first[nxt] = nxt if cell == start else first[cell]
             queue.append(nxt)
-    return None, False
+    return None, None
 
 
 def _cure_key(policy, snapshot, record) -> str | None:

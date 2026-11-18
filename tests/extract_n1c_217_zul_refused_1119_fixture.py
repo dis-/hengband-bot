@@ -7,6 +7,11 @@ C:/hengband-backups/pdca/n1c-217-me-staff-1119/: the incident capture's ``town-a
 0 is kept) and the last board of the stop capture's ``state.jsonl.gz`` (Zul after the cure,
 the refused '<': 「敵がすぐ近くにいるときは広域マップに入れない！」).
 
+The second stop (2026-11-19 01:49:49, build bot-b94db342c, the first fix in): the restart's
+town-arrival checkpoint in Zul (01:49:41, turn 3,166,824, ``arrival2/``), all 25 journal rows,
+to ``n1c-217-zul-unseen-1119/``: nine refusals at (20,68) with the waits between them, then
+the same stop.
+
     python tests/extract_n1c_217_zul_refused_1119_fixture.py
 """
 import gzip
@@ -19,6 +24,9 @@ SOURCE = Path("C:/hengband-backups/pdca/n1c-217-me-staff-1119")
 VISIT = SOURCE / "incident" / "town-arrival"
 TARGET = Path(__file__).with_name("fixtures") / "n1c-217-zul-refused-1119"
 ROWS = 1
+RESTART = SOURCE / "arrival2"
+RESTART_TARGET = Path(__file__).with_name("fixtures") / "n1c-217-zul-unseen-1119"
+RESTART_ROWS = 25
 
 
 def main() -> None:
@@ -27,6 +35,8 @@ def main() -> None:
         last = stream.read().splitlines()[-1]
     (TARGET / "stop-board.json.xz").write_bytes(lzma.compress(last.encode("utf-8")))
     print(sorted((path.name, path.stat().st_size) for path in TARGET.iterdir()))
+    extract(RESTART, RESTART_TARGET, RESTART_ROWS)
+    print(sorted((path.name, path.stat().st_size) for path in RESTART_TARGET.iterdir()))
 
 
 if __name__ == "__main__":

@@ -92,7 +92,7 @@ from hengbot.morivant_tower import RECHARGE_ALL_TAIL, TOWER_OF_SORCERY
 from hengbot.policy_constants import (
     FIXED_QUEST_TOWNS, MORIVANT_TOWN_ID, OUTPOST_TOWN_ID, QUEST_STATUS_FINISHED,
     QUEST_STATUS_REWARDED, RELIABLE_MIN_SUCCESS_PERCENT, REST_MACRO, STORE_STUCK_LIMIT,
-    TOWN_TELEPORT_COST, WAIT_KEY,
+    TOWN_TELEPORT_BUILDING_TYPES, TOWN_TELEPORT_COST, WAIT_KEY,
 )
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -1010,7 +1010,15 @@ def _quest_holds_town(policy, snapshot) -> bool:
 
 
 def _travel(policy, snapshot, destination: int, step: str) -> str | None:
-    """The inn teleport leg, or None while a quest errand holds this town."""
+    """The inn teleport leg, or None while a quest errand holds this town or the town has no inn.
+
+    Zul has no inn (TOWN_TELEPORT_BUILDING_TYPES): the leg has no route there, and the Zul
+    trip's walk to the global map is the way out (zul_trip ``_zul_stay_key``).  n1-c life-217
+    (2026-11-19 01:14 and 01:49): with '<' refused the trip left the board, and this leg's
+    missing route stopped the bot (return-outpost-unavailable).
+    """
+    if policy._effective_town_id(snapshot) not in TOWN_TELEPORT_BUILDING_TYPES:
+        return None
     if (destination != policy._effective_town_id(snapshot) and _quest_holds_town(policy, snapshot)
             # 「減ったら塔でチャージする」: no departure, the quest's included,
             # has its food until the Tower recharged the staple (n1-c life-120
