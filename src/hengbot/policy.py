@@ -353,6 +353,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_constants import (
     UNSEEN_REVERSE_REASON,
+    WALK_IN_DEPARTURE_REASONS,
     AIM_WAND_KEY,
     EQUIPMENT_SLOT_KEY,
     EXECUTABLE_QUEST_STRATEGY_IDS,
@@ -3238,12 +3239,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if key and key[0] == UP_STAIRS_KEY and self.last_reason == "fundraise:ascend":
                     self._post_fundraising_transport(snapshot, "return")
                 elif (key and key[0] == DOWN_STAIRS_KEY
-                      and self.last_reason == "descend" and snapshot.in_town
+                      and self.last_reason in WALK_IN_DEPARTURE_REASONS
+                      and snapshot.in_town
                       and self._fundraising_mode in {"mine", "scavenge"}):
-                    self._fundraising_runs_started = (
-                        (self._fundraising_runs_started or 0) + 1
-                    )
-                    self._post_fundraising_transport(snapshot, "depart")
+                    self._post_fundraising_departure(snapshot)
         step_off = getattr(self, "_store_entrance_step_off", None)
         if (step_off is not None and step_off[0] == self._decision_sequence
                 and key not in DIRECTION_KEYS.values()):

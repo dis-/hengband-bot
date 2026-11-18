@@ -317,8 +317,8 @@ REGISTRY = (
     S("_kill_all_patrol", "kill_all_patrol", LIFE,
       "kill_all_patrol: kill all patrol (no comment at its definition)"),
     # ladder_descent
-    S("_fundraising_run_purpose", "ladder_descent", LIFE,
-      "ladder_descent: fundraising run purpose (no comment at its definition)"),
+    S("_fundraising_run_purpose", "policy_fundraising", LIFE,
+      "The running fundraising run's purpose, opened by every walk-in departure into its floor."),
     # ladder_objectives
     S("_unknown_lantern_departure_refilled", "ladder_objectives", LIFE,
       "An unidentified lantern hides its fuel."),

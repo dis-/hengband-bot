@@ -212,6 +212,33 @@ class FundraisingMixin:
         self._town_store_attempted.clear()
         self._retire_town_errand_plan_for_rebuild()
 
+    def _post_fundraising_departure(self, snapshot: Snapshot) -> None:
+        """Open the run's purpose and post its departure at the walk-in's envelope.
+
+        Every walk-in from town into the mining floor (``WALK_IN_DEPARTURE_REASONS``) opens
+        it here, whichever rung chose the entrance: the ordinary descent, and the repetition
+        remedy's entry (policy_town).  It was opened only by the descent rung, so the remedy's
+        entry reached the floor with no purpose and stopped there as a contract conflict
+        (n1-a life-531 2026-11-18 18:15).  An active purpose continues; otherwise a new one
+        is opened from this board's facts.
+        """
+        facts = self._fundraising_facts(snapshot)
+        prior = self._fundraising_purpose_record
+        self._fundraising_run_purpose = (
+            prior.purpose
+            if prior is not None and prior.status == "active"
+            else FundraisingPurpose(
+                identity=self._decision_sequence,
+                mode=self._fundraising_mode,
+                first_run_food_waiver=(
+                    not facts.carried_edible and facts.first_run
+                    and facts.procurement_exhausted
+                ),
+            )
+        )
+        self._fundraising_runs_started = (self._fundraising_runs_started or 0) + 1
+        self._post_fundraising_transport(snapshot, "depart")
+
     def _post_fundraising_transport(
         self, snapshot: Snapshot, direction: str
     ) -> None:
