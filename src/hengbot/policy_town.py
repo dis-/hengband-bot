@@ -2631,12 +2631,24 @@ class TownMixin:
         from hengbot.town_pack_headroom import early_key
         return early_key(self, snapshot)
 
-    @staticmethod
-    def _town_order_step4_pending(snapshot: Snapshot) -> bool:
-        """Whether recorded normal-order reward work still exists."""
+    def _bounty_office_in_town(self, snapshot: Snapshot) -> bool:
+        """This town has the Hunter's office: only the Outpost's building 13 is one
+        (lib/edit/towns; Morivant's 13 is the Trump Tower, whose menu has no 'c')."""
+        return self._effective_town_id(snapshot) in {OUTPOST_TOWN_ID, -1}
+
+    def _town_order_step4_pending(self, snapshot: Snapshot) -> bool:
+        """Whether recorded normal-order reward work exists here: wanted remains carried in
+        a town with the Hunter's office.
+
+        Elsewhere the remains keep for the Outpost.  n1-a life-531 (Morivant, 2026-11-19
+        04:47-04:48) carried アルベリヒの死体 {賞金首}: pending read the remains alone, so
+        every supplier it entered was left at once (bounty:leave-supplier) while the
+        cash-out had no office to walk to, and the buy and quest stages alternated until
+        town:blocked:stage-deadline:quest."""
         return bool(
             snapshot.in_town
             and any(item.is_bounty for item in snapshot.inventory)
+            and self._bounty_office_in_town(snapshot)
         )
 
     @claims(ClaimOwner.QUEST_REQUEST)
@@ -2648,7 +2660,9 @@ class TownMixin:
             if self._town_order_operation == "normal-step4-bounty":
                 self._offer_execution_done(
                     producer="quest-request", work_id="normal-step4-bounty",
-                    evidence="bounty-removed",
+                    evidence=("bounty-office-not-in-town"
+                              if any(item.is_bounty for item in snapshot.inventory)
+                              else "bounty-removed"),
                 )
                 self._town_order_operation = None
                 self._town_order_expected_observation = None

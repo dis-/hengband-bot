@@ -13823,7 +13823,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
             return key
 
-        if self._effective_town_id(snapshot) not in {OUTPOST_TOWN_ID, -1}:
+        if not self._bounty_office_in_town(snapshot):
             # Building numbers are per town (lib/edit/towns): only the Outpost
             # has the Hunter's office as building 13; Morivant's 13 is the
             # Trump Tower, whose menu has no 'c' (D34 bounty:cashout).  The
