@@ -26,10 +26,10 @@ and the decision recorded on each, replayed through the public choose_key.
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import gzip
 import hashlib
 import json
-import types
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -60,14 +60,18 @@ def _rows():
 ROWS = _rows()
 
 
-def replay():
-    """[(turn, board, key, reason, pingpong report)] decided through choose_key."""
+def replay(monrace=MONRACE, edit=None):
+    """[(turn, board, key, reason, pingpong report)] decided through choose_key; ``edit(raw)``
+    changes each raw board before it is parsed."""
     out = []
     with TemporaryDirectory() as directory:
-        policy = _policy(Path(directory), MONRACE)
+        policy = _policy(Path(directory), monrace)
         policy._skill_exp_request_key = lambda snapshot: None
         for row in ROWS:
-            snapshot = parse_snapshot(copy.deepcopy(row["board"]), MONRACE)
+            raw = copy.deepcopy(row["board"])
+            if edit is not None:
+                edit(raw)
+            snapshot = parse_snapshot(raw, monrace)
             key = policy.choose_key(snapshot)
             out.append((row["board"]["turn"], snapshot, str(key), policy.last_reason,
                         pingpong_guard.report(policy)))
@@ -131,15 +135,57 @@ class TheFollowerIsFoughtTest(unittest.TestCase):
         self.assertEqual(struck, 9)
 
 
+class NonFollowerCorneredTest(unittest.TestCase):
+    """DECLARED CONSTRUCTED: the recorded boards with 混沌の獣人 made a status monster that does not
+    follow the teleport (TPORT taken from its race) and, in the cornered case, the Teleportation
+    scroll taken from the pack.  Owner 2026-11-18 「付いてくる敵と同じく、*破壊* が使えれば *破壊*、
+    無ければテレポート・アウェイ、それも無ければ隣の敵と戦う。状態異常になったら今のとおり薬で
+    治す。」: cornered beside it with no teleport, the rung fights it instead of waiting."""
+
+    @staticmethod
+    def monrace():
+        monrace = dict(MONRACE)
+        knowledge = monrace[BEASTMAN]
+        monrace[BEASTMAN] = dataclasses.replace(
+            knowledge, abilities=knowledge.abilities - {"TPORT"})
+        return monrace
+
+    @staticmethod
+    def no_teleport(raw):
+        raw["inventory"] = [item for item in raw["inventory"] if item["name"] != "テレポートの巻物"]
+
+    def test_without_a_teleport_the_rung_strikes_the_threat(self):
+        rows = replay(self.monrace(), self.no_teleport)
+        struck = 0
+        for turn, board, key, reason, _report in rows:
+            if turn < FIRST_REWRITE or board.player.confused:
+                continue
+            beastman = next(monster for monster in board.visible_monsters
+                            if monster.race_id == BEASTMAN)
+            here = board.player.position
+            if here.distance_to(beastman.position) > 1:
+                continue
+            self.assertEqual(reason, "status-threat:cornered-attack", turn)
+            offset = (beastman.position.y - here.y, beastman.position.x - here.x)
+            self.assertEqual(pingpong_guard.WALK_OFFSETS[key], offset, turn)
+            struck += 1
+        self.assertGreater(struck, 0)
+
+    def test_with_the_scroll_it_is_read_first(self):
+        # Guard: a teleport that is an escape (no follower beside) still goes before the fight.
+        rows = replay(self.monrace())
+        reasons = [reason for turn, _board, _key, reason, _report in rows if turn >= FIRST_REWRITE]
+        self.assertIn("status-threat:scroll", reasons)
+        self.assertNotIn("status-threat:cornered-attack", reasons)
+
+
 class TheGuardSeesTheRewrittenWalkTest(unittest.TestCase):
-    """DECLARED CONSTRUCTED: the rung's answers beside a follower are taken out (the live build's
-    rung), so the rewritten least-visited steps alternate as recorded."""
+    """DECLARED CONSTRUCTED: the rung's cornered answers (``cornered_key``) are taken out (the
+    live build's rung), so the rewritten least-visited steps alternate as recorded."""
 
     @classmethod
     def setUpClass(cls):
-        without = types.SimpleNamespace(followers=lambda policy, snapshot: [],
-                                        away_key=lambda *args, **kwargs: None)
-        with mock.patch.object(ladder_combat, "teleport_follower", without, create=True):
+        with mock.patch.object(ladder_combat, "cornered_key", lambda *args: None):
             cls.rows = replay()
 
     def test_the_alternation_is_read_and_escalated(self):
