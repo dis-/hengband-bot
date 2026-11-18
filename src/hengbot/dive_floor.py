@@ -61,11 +61,15 @@ owner 2026-11-13 「最新到達-20Fまで」), wherever the recall lands:
 The landing and the band must meet the depth requirements and pass no guardian floor
 (``reaches_band``); the recall depth itself is never reset (the executor refuses the game's
 reset-recall question, fallback_depth_floor).
+
+Owner 2026-11-19 「n1-bは次回潜行時に95Fまで登り階段で戻ること。以降、準備ができるまで鉄獄95Fで探索」:
+an Angband floor deeper than the cap is climbed the same way (``climbing`` / ``climbing_floor``) and
+no stair passes the cap (``capped``); the rule, its cap and its recall-depth answer are angband_cap's.
 """
 
 from __future__ import annotations
 
-from hengbot import fallback_depth_floor
+from hengbot import angband_cap, fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND
 
 DUNGEON_CASTLE = 12  # 城 (lib/edit/DungeonDefinitions.jsonc)
@@ -163,14 +167,18 @@ def climb_dungeon(policy) -> int | None:
 
 
 def climbing_floor(policy, snapshot, floor_key) -> bool:
-    """``floor_key`` is a floor of the held climb switch's dungeon deeper than its band."""
+    """``floor_key`` is a floor of the held climb switch's dungeon deeper than its band, or an
+    Angband floor deeper than the cap (angband_cap, owner 2026-11-19)."""
+    if angband_cap.climbing_floor(floor_key):
+        return True
     dungeon = climb_dungeon(policy)
     return (dungeon is not None and floor_key is not None and floor_key[1] > 0
             and floor_key[0] == dungeon and floor_key[1] > band(policy, snapshot)[1])
 
 
 def climbing(policy, snapshot) -> bool:
-    """On a floor of the held climb switch's dungeon deeper than its band: the up stairs."""
+    """On a floor of the held climb switch's dungeon deeper than its band, or on an Angband floor
+    deeper than the cap: the up stairs."""
     return not snapshot.in_town and climbing_floor(policy, snapshot, snapshot.floor_key)
 
 
@@ -235,7 +243,10 @@ def target(policy) -> int | None:
 
 
 def capped(policy, snapshot, destination: int) -> bool:
-    """A descent to ``destination`` would pass the target of the dungeon being dived."""
+    """A descent to ``destination`` would pass the target of the dungeon being dived, or the
+    Angband cap (angband_cap, owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」)."""
+    if angband_cap.capped(snapshot, destination):
+        return True
     depth = target(policy)
     if depth is None and climb_dungeon(policy) is not None:
         depth = band(policy, snapshot)[1]  # the climb switch: no stair below its band

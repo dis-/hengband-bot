@@ -3,7 +3,7 @@ from __future__ import annotations
 from hengbot import approach_answer, return_start
 from hengbot import guardian_rumor, heal_offset, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, alternate_lease, destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, angband_cap, alternate_lease, destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -541,9 +541,12 @@ class ObservationMixin:
                 # cannot pass is at its ceiling, as one at max_depth is: the descent
                 # is refused there (C2), so it is no lack of depth progress.
                 # The unsafe-recall fallback's Castle is explored in its band,
-                # not dived for depth (dive_floor, owner 2026-11-17).
+                # not dived for depth (dive_floor, owner 2026-11-17); a dive
+                # landing at or below the Angband cap is at its ceiling too
+                # (angband_cap, owner 2026-11-19).
                 can_descend_further = (
                     self._dive_dungeon != dive_floor.climb_dungeon(self)
+                    and not angband_cap.capped_at(self._dive_dungeon, start_depth + 1)
                     and dungeon_info is not None
                     and dungeon_info.max_depth > 0
                     and start_depth < dungeon_info.max_depth

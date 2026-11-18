@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import return_start
-from hengbot import quest_optional_carry
+from hengbot import angband_cap, quest_optional_carry
 from hengbot import spare_gear
 from hengbot.stair_destination import down_destination
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
@@ -5004,6 +5004,10 @@ class QuestMixin(OpeningRouteMixin):
     def _quest_floor_exit_locked(self, snapshot: Snapshot) -> bool:
         """Protect an incomplete kill attempt, with bounded survival releases."""
         if self._unviable_quest_floor == snapshot.floor_key:
+            return False
+        # Owner 2026-11-19 「99F 100Fの戦い方をまだ作っていない」: no kill attempt past the
+        # Angband cap (Oberon's 99F); the up stairs are the way on (angband_cap).
+        if angband_cap.climbing(snapshot):
             return False
         quest_id = self._active_kill_quest_id(snapshot)
         if quest_id is None:

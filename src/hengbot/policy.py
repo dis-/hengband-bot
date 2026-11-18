@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import approach_answer, return_start
 from hengbot import safety_watch
-from hengbot import item_identity
+from hengbot import angband_cap, item_identity
 from hengbot.item_identity import MemorySignatureList, MemorySignatures, same_memory
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
@@ -753,7 +753,8 @@ WARNING_PROMPT_MESSAGE_PREFIXES = (
 
 # Word of Recall asks this only when the current floor is shallower than the
 # dungeon's saved recall destination. Refusing preserves the deepest floor;
-# the executor answers it for every operation (only recall_player asks it).
+# the executor answers it for every operation (only recall_player asks it):
+# y only at the Angband cap (angband_cap.reset_recall_depth, owner 2026-11-19).
 RECALL_DEPTH_PROMPT_MESSAGE_PREFIXES = (
     "ここは最深到達階より浅い階です。この階に戻って来ますか？",
     "Reset recall depth?",
@@ -15673,6 +15674,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 or random_quest_hold.crossing_held(
                     self, snapshot, snapshot.floor_key[0], snapshot.dungeon_level, destination)
                 or self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination)
+                # Owner 2026-11-19: never past the Angband cap, an escape neither (angband_cap).
+                or angband_cap.capped(snapshot, destination)
                 or self._missing_required_abilities(snapshot, destination)):
             return None
         self.last_reason = reason
@@ -15734,6 +15737,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self, snapshot, snapshot.floor_key[0],
             snapshot.dungeon_level, destination,
         ):
+            return False
+        # Owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」: no stair past the Angband cap,
+        # before any quest-depth steering (angband_cap).
+        if angband_cap.capped(snapshot, destination):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.
