@@ -23,10 +23,13 @@ rung (threat_tiers ``sensed_t1_destruction_key``) did not ask destruction_loot, 
 (later the Recall wait's return:seek-loot) stepped east toward (13,122); at (13,118) the use was
 due again and the fetch stepped west: 40 alternations until the loop detector.
 
-The other way round, a fetch beginning while the ordinary walk holds its target, is one hand-over
-and no alternation (the begun fetch then holds until it ends, and the ordinary walk goes on); it
-is left as it was: a rule that held the ordinary walk there changed which board the use was made
-on in recorded replays that do not loop (tests/test_n1b_397_deep_stuck_1115_recorded.py).
+``fetch_yield_key``: the other way round, destruction_loot asked to begin a place or a fetch
+(``key``) while the ordinary walk is walking toward its target (``MEMORY``: the target, the reason
+and the walk's path bound, noted by ``note_walk`` on the board the walk stepped) continues the
+ordinary walk instead; the use waits for it within destruction_loot's ``DECISIONS_MAX``, and a
+use with nothing to begin is made as before.  n1-b life-397 (60F, 2026-11-15, recorded replay
+tests/test_n1b_397_deep_stuck_1115_recorded.py): seek-loot was walking to its pile when the
+use on the sensed T1 came due and the fetch took the board over to another pile.
 
 ``life_danger`` ends the hold: the 即死 projection (threat_tiers ``instant_death``, design 3.1)
 or a strong hostile in view (the tiers' reading of the hostiles in view, T1 or T2).  The rungs
@@ -37,6 +40,11 @@ nothing here moves a walk above them.
 from __future__ import annotations
 
 from hengbot import destruction_loot
+
+# {"floor": floor_key, "target": Position (policy._loot_target when the walk stepped),
+#  "reason": str (seek-loot, return:seek-loot ...), "max_path_distance": int | None}: the
+# ordinary loot walk in progress (``note_walk``), None when it is not walking.
+MEMORY = "_loot_walk_memory"
 
 
 def life_danger(policy, snapshot) -> bool:
@@ -55,3 +63,38 @@ def normal_yield_key(policy, snapshot) -> str | None:
     None when no fetch is committed on this floor, or it ends here (none left, the bound, the
     approach's gates, ``life_danger``: destruction_loot ``continue_fetch`` drops it)."""
     return destruction_loot.continue_fetch(policy, snapshot)
+
+
+def note_walk(policy, snapshot, target, reason, max_path_distance) -> None:
+    """The ordinary walk stepped toward ``target`` (policy_identification ``_normal_loot_key``)."""
+    setattr(policy, MEMORY, {"floor": snapshot.floor_key, "target": target, "reason": reason,
+                             "max_path_distance": max_path_distance})
+
+
+def forget_walk(policy) -> None:
+    """The ordinary walk did not step on this board (it picked up, yielded or found nothing)."""
+    setattr(policy, MEMORY, None)
+
+
+def walk_in_progress(policy, snapshot) -> dict | None:
+    """The ordinary walk's ``MEMORY`` while it still holds its target on this floor."""
+    memory = getattr(policy, MEMORY, None)
+    if (memory is None or memory.get("floor") != snapshot.floor_key
+            or memory.get("target") is None or memory["target"] != policy._loot_target):
+        return None
+    return memory
+
+
+def fetch_yield_key(policy, snapshot) -> str | None:
+    """The ordinary walk's next step or pickup, asked by destruction_loot before it begins a place
+    or a fetch; None when the ordinary walk is not walking toward a target on this floor, on
+    ``life_danger``, or when the walk itself ends here (its own answer is None)."""
+    memory = walk_in_progress(policy, snapshot)
+    if memory is None:
+        return None
+    if life_danger(policy, snapshot):
+        forget_walk(policy)
+        return None
+    return policy._normal_loot_key(
+        snapshot, policy._strategic_hostiles(snapshot),
+        max_path_distance=memory["max_path_distance"], seek_reason=memory["reason"])

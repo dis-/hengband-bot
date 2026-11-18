@@ -23,6 +23,9 @@
   "immobile_ranged_kill.py:key": {
     "policy._ranged_attack_key(snapshot, [target], []) @ For:sorted(immobile_threat_memory.remembered(policy), key=lambda monster: snapshot.player.position.distance_to(monster.position))": 1
   },
+  "loot_walk.py:fetch_yield_key": {
+    "policy._normal_loot_key(snapshot, policy._strategic_hostiles(snapshot), max_path_distance=memory['max_path_distance'], seek_reason=memory['reason']) @ ": 1
+  },
   "me_q1_torch.py:attack_key": {
     "policy._direction_key(player.position, target.position) @ ": 1
   },

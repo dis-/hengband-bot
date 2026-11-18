@@ -34,12 +34,13 @@ patched to False); on the board of the live Teleport Away (turn 5734453) the *De
 taken as having failed the board before (destruction_use's fallback), so the owner's 2026-11-16
 rule 「常に *破壊* を先」 (me_powers ``_destruction_first``) leaves the live Teleport Away (with the
 use listed, it now destroys the shadow instead: DestroyedForgottenTest's path); the absorbed Stone to Mud (wand 岩石溶解, 10 charges) listed before the stuck
-board; the 即死 board (``fire_p95`` at the HP plus one); the visit at 49F (every board's level).
+board; the 即死 board (``fire_p95`` at the HP plus one); the visit at 49F (every board's level); the
+loot walks the window's pins were taken with (``_pinned_loot_rules``).
 The fresh policy reaches the stuck count on turn 5735250, two boards before the live read.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 import copy
 from dataclasses import replace
 import gzip
@@ -105,6 +106,28 @@ def _without_route_veto_seal():
     return mock.patch.object(retreat_enclosure, "route_veto_sealed_key", lambda policy, snapshot: None)
 
 
+def _pinned_loot_rules():
+    """DECLARED CONSTRUCTED: the loot walks this window's pins were taken with (main 05cacb582),
+    so the replay sends the keys that went with the recorded boards' moves (the boards follow
+    the live run whatever key is sent).  Owner 2026-11-18 (maintainability Q3 「命の危険が無ければ
+    取り終える」) changed two decisions of the window (tests/test_loot_walk_commit_2_1119_recorded.py):
+    on 5734210 seek-loot, walking to (49,67), is no longer taken over by destruction_loot's fetch
+    (loot_walk ``fetch_yield_key``), and the fetch's bound counts each decision once (it counted
+    a continued fetch's step twice: the use on 5734305 after 21 fetch boards).  Replayed with
+    them, the boards no longer answer the keys sent (the board's player walks north with the
+    old fetch while the replay walked south-west to the pile: the navigation ledger expires the
+    pile on 5734216 and the fetch begins from another cell; no use of the replay's own on
+    5734305-5734327, so no after-destruction mapping of the circle), and the stuck count is
+    reached on 5735216, on a board whose remembered map has no route to the arrival stairs.
+    Kept here: no hold of the ordinary walk, and the bound at the 21 boards the double count
+    allowed (the same decisions on every board of the three replays)."""
+    from hengbot import destruction_loot, loot_walk
+    stack = ExitStack()
+    stack.enter_context(mock.patch.object(loot_walk, "fetch_yield_key", lambda policy, snapshot: None))
+    stack.enter_context(mock.patch.object(destruction_loot, "DECISIONS_MAX", 21))
+    return stack
+
+
 def _replay(*, sent_away=True, level=None, rod=True, route_seal=None):
     """The visit replayed up to the first stuck escape (or its end): (policy, raw, key, reasons),
     the policy and raw of the board before that decision (deep copies, decided again by each
@@ -138,7 +161,7 @@ def _replay(*, sent_away=True, level=None, rod=True, route_seal=None):
         patch = (nullcontext() if sent_away else mock.patch.object(
             sleeper_loot_block, "shows_sent_away", lambda snapshot, name: False))
         seal = nullcontext() if route_seal else _without_route_veto_seal()
-        with patch, seal:
+        with patch, seal, _pinned_loot_rules():
             for index, raw in enumerate(boards):
                 raw = copy.deepcopy(raw)
                 if previous is not None:

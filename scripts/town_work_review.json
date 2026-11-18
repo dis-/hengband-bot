@@ -21100,6 +21100,41 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-18 maintainability Q3 「命の危険が無ければ取り終える」 (n1-b life-411 Angband 95F loop, 2026-11-19): the ordinary loot walk continues the begun fetch (destruction_loot.continue_fetch) instead of walking toward its own target."
   },
+  "loot_walk.py:fetch_yield_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by destruction_loot._yield_to_walk (destruction_loot.key, before a *Destruction* use) on a floor where the ordinary loot walk (policy_identification._normal_loot_key) noted its walk; never in town (destruction_loot.key is asked only before a dungeon *Destruction*).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-18 maintainability Q3 「命の危険が無ければ取り終える」 (n1-b life-397 Angband 79F replay, tests/test_loot_walk_commit_2_1119_recorded.py): a place or fetch about to begin continues the ordinary loot walk in progress (its own _normal_loot_key with the noted reason and path bound) instead, until it ends or loot_walk.life_danger."
+  },
+  "loot_walk.py:walk_in_progress": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: read by loot_walk.fetch_yield_key (destruction_loot.key before a dungeon *Destruction*).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The ordinary loot walk's noted walk (loot_walk.MEMORY) while it still holds policy._loot_target on this floor; emits no key."
+  },
+  "destruction_loot.py:_yield_to_walk": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by destruction_loot._new_place and _fetch (a fetch to begin) inside destruction_loot.key, before a dungeon *Destruction*; never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-18 maintainability Q3 「命の危険が無ければ取り終える」: returns loot_walk.fetch_yield_key's answer once a place or a fetch would begin, so a use with nothing to begin is made as before."
+  },
   "threat_tiers.py:approach_owns": {
     "classification": "data",
     "rows": [
