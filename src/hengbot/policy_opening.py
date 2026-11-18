@@ -474,10 +474,20 @@ class OpeningRouteMixin:
             if step is None:
                 return self._opening_q1_stop("supplier-route-unavailable:" + stage)
             self.last_reason = "shop:approach"
+            site = "supplier-operation-unavailable:" + stage
+            before = approach_answer.answer_stamp(self)
             key = self._shopping_approach_key(snapshot, step, "shop:travel")
-            if key is None:
-                approach_answer.note_stop(self, "supplier-operation-unavailable:" + stage)
-            return key if key is not None else self._opening_q1_stop("supplier-operation-unavailable:" + stage)
+            if key is not None:
+                return key
+            # Owner 2026-11-18 Q2: a yield to the town's holder waits for it (None this
+            # board), then stops named after it; no route stops as before.
+            verdict = approach_answer.after_empty(self, site, approach_answer.since(self, before))
+            if verdict == approach_answer.WAIT:
+                return None
+            key = self._opening_q1_stop(verdict or site)
+            if verdict is not None:
+                self.last_reason = verdict
+            return key
         self._opening_q1_kit_bought = True
         light = self._opening_q1_light_to_wield(snapshot)
         if light is not None:

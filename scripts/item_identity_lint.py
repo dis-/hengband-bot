@@ -17,6 +17,7 @@ Call the named reading in ``item_identity`` instead (``display_signature``,
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
 
 
@@ -127,6 +128,164 @@ def analyze_source(source: str, filename: str = "<source>") -> list[str]:
     return findings
 
 
+# --------------------------------------------------------------------------
+# Remembered items (owner 2026-11-18, review Q1 「印や割引だけ違えば同じ品」).
+#
+# Every state that remembers an item holds it by the memory reading
+# (item_identity.memory_identity): the sets, maps and queues are
+# MemorySignatures / MemorySignatureMap / MemorySignatureList, which apply the
+# reading to what they hold and are asked about; a remembered single item
+# (the pending take, a candidate) is compared by item_identity.same_memory.
+# Rejected outside item_identity:
+#
+# * ``==`` / ``!=`` with a remembered single item (or a field of it);
+# * a remembered single item looked up ``in`` a collection that does not
+#   remember (a plain set or list answers by the display name);
+# * set algebra whose receiver does not remember and whose operand does
+#   (``plain.issubset(remembered)``, ``plain - remembered``, ...): the
+#   plain receiver compares the display names;
+# * a policy's own remembering attribute assigned anything but a remembering
+#   container (the visit's and the holds' fields are read into theirs by
+#   their forwarding properties).
+
+sys.path.insert(0, str(ROOT / "src"))
+
+from hengbot.policy_state import (  # noqa: E402
+    REMEMBERED_POLICY_ATTRIBUTES, REMEMBERED_POLICY_VALUES,
+)
+from hengbot.town_visit import (  # noqa: E402
+    FLOOR_HOLD_LEGACY_NAMES, HOLD_LEGACY_NAMES, LEGACY_NAMES, REMEMBERED_FIELDS,
+)
+
+
+def _remembered_containers() -> frozenset[str]:
+    names = set(REMEMBERED_POLICY_ATTRIBUTES)
+    for legacy_names in (LEGACY_NAMES, HOLD_LEGACY_NAMES, FLOOR_HOLD_LEGACY_NAMES):
+        names.update(legacy for legacy, field in legacy_names.items()
+                     if field in REMEMBERED_FIELDS)
+    names.update(REMEMBERED_FIELDS)
+    return frozenset(names)
+
+
+REMEMBERED_CONTAINERS = _remembered_containers()
+REMEMBERED_VALUES = REMEMBERED_POLICY_VALUES
+_REMEMBERING_CONSTRUCTORS = frozenset({
+    "MemorySignatures", "MemorySignatureMap", "MemorySignatureList",
+    "remembered_set", "remembered_map", "remembered_list",
+})
+_SET_ALGEBRA = frozenset({
+    "issubset", "issuperset", "isdisjoint", "intersection", "difference", "union",
+    "symmetric_difference", "intersection_update", "difference_update",
+    "symmetric_difference_update", "update",
+})
+
+# (file, enclosing function) -> why a remembered-item comparison stays as it is.
+REMEMBERED_ALLOWED: dict[tuple[str, str], str] = {
+}
+
+
+def _attribute_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
+def _mentions_value(node: ast.AST) -> str | None:
+    """A remembered single item, or a part of it (``pending[0]``)."""
+    while isinstance(node, ast.Subscript):
+        node = node.value
+    name = _attribute_name(node)
+    return name if name in REMEMBERED_VALUES else None
+
+
+def _is_container(node: ast.AST, local: frozenset[str] = frozenset()) -> bool:
+    """A remembered container: a remembering attribute, a remembering
+    constructor call, or a local bound to either in the same function."""
+    if isinstance(node, ast.Name):
+        return node.id in local
+    return _attribute_name(node) in REMEMBERED_CONTAINERS or (
+        isinstance(node, ast.Call) and _is_remembering_value(node))
+
+
+def _is_remembering_value(node: ast.AST | None) -> bool:
+    if node is None:
+        return True
+    if isinstance(node, ast.Call):
+        func = node.func
+        name = func.id if isinstance(func, ast.Name) else _attribute_name(func)
+        return name in _REMEMBERING_CONSTRUCTORS
+    return False
+
+
+def analyze_remembered(source: str, filename: str = "<source>") -> list[str]:
+    tree = ast.parse(source)
+    owner = _functions(tree)
+    findings: list[str] = []
+    locals_by_function: dict[str, set[str]] = {}
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name) and _is_container(node.value)):
+            locals_by_function.setdefault(owner.get(node, "<module>"), set()).add(
+                node.targets[0].id)
+    for node in ast.walk(tree):
+        function = owner.get(node, "<module>")
+        if (filename, function) in REMEMBERED_ALLOWED:
+            continue
+        local = frozenset(locals_by_function.get(function, ()))
+        if isinstance(node, ast.Compare):
+            operands = [node.left, *node.comparators]
+            for position, op in enumerate(node.ops):
+                left, right = operands[position], operands[position + 1]
+                if isinstance(op, (ast.Eq, ast.NotEq)):
+                    name = _mentions_value(left) or _mentions_value(right)
+                    if name:
+                        findings.append(
+                            f"line {node.lineno}: {function} compares the remembered {name} "
+                            "with ==/!=; use item_identity.same_memory")
+                elif isinstance(op, (ast.In, ast.NotIn)):
+                    name = _mentions_value(left)
+                    if name and not _is_container(right, local):
+                        findings.append(
+                            f"line {node.lineno}: {function} looks the remembered {name} up "
+                            "in a collection that does not remember items")
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+              and node.func.attr in _SET_ALGEBRA and not _is_container(node.func.value, local)
+              and any(_is_container(arg, local) for arg in node.args)):
+            findings.append(
+                f"line {node.lineno}: {function} reads a remembered set through a plain "
+                f".{node.func.attr}")
+        elif (isinstance(node, ast.BinOp)
+              and isinstance(node.op, (ast.Sub, ast.BitAnd, ast.BitOr, ast.BitXor))
+              and _is_container(node.right, local) and not _is_container(node.left, local)):
+            findings.append(
+                f"line {node.lineno}: {function} combines a plain set with a remembered set")
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                name = _attribute_name(target)
+                if name in REMEMBERED_POLICY_ATTRIBUTES and not _is_remembering_value(node.value):
+                    findings.append(
+                        f"line {node.lineno}: {function} assigns the remembered {name} "
+                        "something that does not remember items")
+    return findings
+
+
+def _container_findings() -> list[str]:
+    """Each remembering field of the visit and the holds is made remembering."""
+    from dataclasses import fields as dataclass_fields
+
+    from hengbot.item_identity import MemorySignatureList, MemorySignatureMap, MemorySignatures
+    from hengbot.town_visit import FloorHolds, TownHolds, TownVisit
+
+    remembering = (MemorySignatures, MemorySignatureMap, MemorySignatureList)
+    findings = []
+    for cls in (TownVisit, TownHolds, FloorHolds):
+        for spec in dataclass_fields(cls):
+            if spec.name in REMEMBERED_FIELDS and not isinstance(spec.default_factory(), remembering):
+                findings.append(f"town_visit.py: {cls.__name__}.{spec.name} is not made remembering")
+    return findings
+
+
 def main() -> int:
     findings = [
         f"{path.name}: {finding}"
@@ -134,6 +293,13 @@ def main() -> int:
         if path.name != HOME_MODULE
         for finding in analyze_source(path.read_text(encoding="utf-8"), path.name)
     ]
+    findings += [
+        f"{path.name}: {finding}"
+        for path in sorted(POLICY_ROOT.glob("*.py"))
+        if path.name != HOME_MODULE
+        for finding in analyze_remembered(path.read_text(encoding="utf-8"), path.name)
+    ]
+    findings += _container_findings()
     for finding in findings:
         print(f"item-identity-lint: {finding}")
     print(f"item-identity-lint: {len(findings)} violation(s)")

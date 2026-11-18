@@ -7,6 +7,8 @@ from hengbot.policy_types import OwnerProgressCore
 from hengbot.retired_values import is_retired
 from hengbot.town_visit import adopt_legacy_attributes as adopt_town_visit_attributes
 from hengbot.town_visit import adopt_legacy_holds as adopt_town_holds
+from hengbot.town_visit import remember_items as remember_town_items
+from hengbot.item_identity import remembered_list, remembered_set
 
 # Strip-calibration attributes retained by the equipped C-sheet observation.
 _RETAINED_CALIBRATION_NAMES = frozenset({
@@ -237,6 +239,44 @@ def _adopt_town_hold(state) -> None:
     state.setdefault("_town_hold", TownHold(register, delegations))
 
 
+# The policy's own remembering attributes (the visit's and the holds' are
+# town_visit.REMEMBERED_FIELDS).
+REMEMBERED_POLICY_ATTRIBUTES = {
+    "_heavy_cursed_items": remembered_set,
+    "_home_rejected_deposits": remembered_set,
+    "_unidentifiable_sigs": remembered_set,
+    "_unbuyable_full_identify_sigs": remembered_set,
+    "_processed_home_items": remembered_set,
+    "_home_pending_batch": remembered_list,
+    "_permanent_cursed_items": remembered_set,
+}
+
+
+# The remembered single items: the pending take, the batch's head, the
+# disposal and identification candidates.  They keep the recorded display
+# signature (it addresses a stack) and are compared by
+# ``item_identity.same_memory``; a stack is chosen for them by
+# ``item_identity.remembered_stack`` (item_identity_lint holds both).
+REMEMBERED_POLICY_VALUES = frozenset({
+    "_home_pending_item", "_pending_disposal_item", "_identification_candidate",
+    "_device_identification_candidate", "_home_atomic_withdraw_pending",
+    "_home_pending_take_confirmed", "_home_random_teleport_withdrawal",
+    "_heavy_curse_inscription_pending",
+})
+
+
+def remember_policy_items(state: dict) -> None:
+    """Read the remembering attributes of a policy's ``__dict__`` (and of its
+    town visit and hold containers) into their remembering containers."""
+    for name, reader in REMEMBERED_POLICY_ATTRIBUTES.items():
+        if state.get(name) is not None:
+            state[name] = reader(state[name])
+    for holder in ("_town_visit", "_town_holds", "_floor_holds"):
+        container = state.get(holder)
+        if container is not None:
+            remember_town_items(container.__dict__)
+
+
 def normalize_policy_state(restored, *, restart=False):
     """Upgrade ``restored`` in place to the current policy state version.
 
@@ -256,6 +296,10 @@ def normalize_policy_state(restored, *, restart=False):
     adopt_town_visit_attributes(restored.__dict__)
     # Town rebuild stage 3-2: the hold flags live in their containers.
     adopt_town_holds(restored.__dict__)
+    # Owner 2026-11-18 (review Q1): remembered items are held by the memory
+    # reading; an older checkpoint's plain sets and lists are read into the
+    # remembering containers.
+    remember_policy_items(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES:
         restored.__dict__.pop(name, None)

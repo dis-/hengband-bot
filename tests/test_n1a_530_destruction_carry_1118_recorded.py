@@ -31,6 +31,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot import destruction_means, destruction_use
+from hengbot.item_identity import same_memory
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1a-530-destruction-carry-1118"
@@ -99,7 +100,8 @@ class N1a530DestructionCarry1118RecordedTest(unittest.TestCase):
         policy = self.policy
         key, reason, pending, quantity = self.home
         self.assertEqual((key, reason), ("\x1b", "home:queue-catalogue-shortage"))
-        staff = next(item for item in self.staves() if policy._item_signature(item) == pending)
+        staff = next(item for item in self.staves()
+                     if same_memory(policy._item_signature(item), pending))
         self.assertTrue(destruction_means.is_staff(staff))
         # The shortage counts uses; one staff of five charges carries the five.
         self.assertEqual((staff.charges, quantity), (5, 1))

@@ -43,6 +43,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from hengbot import safety_watch
+from hengbot.item_identity import MemorySignatures
 from hengbot import me_capability, me_powers
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS, average_hides_modifiers, equipment_identity, equipment_move_identity,
@@ -498,7 +499,7 @@ def observe(policy, snapshot) -> None:
         # remove_all_curse walks every worn slot (exe_curse_removal with all): whatever it left
         # cursed is PERMA_CURSE, the use's target or not.
         cursed = {policy._item_signature(item) for item in snapshot.equipment if item.is_cursed}
-        policy.__dict__.setdefault("_permanent_cursed_items", set()).update(cursed)
+        policy.__dict__.setdefault("_permanent_cursed_items", MemorySignatures()).update(cursed)
         # A curse removed frees its item's count: the item cursed again later (the Q25 druj's
         # CAUSE_3 curses the worn gear again and again, n1-c life-211) is the same name, and its
         # earlier removals must not use up ``ATTEMPTS_PER_TARGET``.

@@ -1,7 +1,10 @@
 from __future__ import annotations
 from hengbot import quest_optional_carry
-from hengbot.item_identity import display_signature
-from hengbot import bm_destruction_fund, destruction_means, item_fate, mining_oil_sale, spare_gear, torch_release
+from hengbot.item_identity import (
+    MemorySignatures, display_signature,
+    remembered_stack, same_memory,
+)
+from hengbot import bm_destruction_fund, destruction_means, home_cash_sale, item_fate, mining_oil_sale, spare_gear, torch_release
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -384,12 +387,13 @@ class HomeMixin:
         epoch, swept = getattr(self, "_home_junk_sweep_count", None) or (None, 0)
         if epoch != self._town_visit_epoch:
             swept = 0
-        home_visit = getattr(self, "_home_visit", None)
         at_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
         # The Black Market's *Destruction* fund sells until the staff is
         # covered (owner 2026-11-07), past the stay's bound.
+        # So do Home's cash wares under the fundraising line (owner 2026-11-18).
         under_bound = (swept < item_fate.SWEEP_LIMIT_PER_STAY
-                       or (snapshot.in_town and bm_destruction_fund.funding(self, snapshot)))
+                       or (snapshot.in_town and bm_destruction_fund.funding(self, snapshot))
+                       or home_cash_sale.pending(self, snapshot))
         # Outside, only for a rank 21+ ware (owner 2026-10-04, take surplus out
         # and sell): never with a recall running or a Home this town lacks.
         walks_home = (snapshot.store is None and snapshot.in_town
@@ -409,13 +413,8 @@ class HomeMixin:
                 or getattr(self, "_home_full_retry_deposits", None) is not None
                 or self._equipment_transaction_session is not None
                 or self._find_home_deposit(snapshot) is not None
-                or self._inventory_overweight(snapshot)
                 or self._physical_hostiles(snapshot)
-                or PACK_CAPACITY - len(snapshot.inventory)
-                <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
-                or self._town_store_blocked_under_applicable_bound(STORE_HOME)
-                or (home_visit is not None
-                    and home_visit.attempts_used >= home_visit.attempt_limit)):
+                or not self._home_junk_sweep_capacity(snapshot)):
             return False
         self._home_junk_sweep_count = (self._town_visit_epoch, swept + 1)
         self._home_full_relief = {
@@ -424,17 +423,37 @@ class HomeMixin:
         }
         return True
 
+    def _home_junk_sweep_capacity(self, snapshot: Snapshot) -> bool:
+        """The sweep's standing gates: pack room and weight, a Home this visit may still enter.
+
+        Unlike its transient gates (a pending deposit or errand, a hostile), these hold
+        until something else changes the pack or the visit, so the cash sale reads them
+        too (home_cash_sale.pending) and never waits on a sweep that cannot begin.
+        """
+        home_visit = getattr(self, "_home_visit", None)
+        return not (
+            self._inventory_overweight(snapshot)
+            or PACK_CAPACITY - len(snapshot.inventory)
+            <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
+            or self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            or (home_visit is not None
+                and home_visit.attempts_used >= home_visit.attempt_limit))
+
     def _end_home_junk_sweep(self) -> None:
         """Retain the sweep's ware and end the sweep for this town stay."""
         relief = self._home_full_relief
         sale = relief.get("sale") if relief is not None else None
-        if sale is not None and self._home_pending_item == sale[0]:
+        if sale is not None and same_memory(self._home_pending_item, sale[0]):
             self._home_pending_item = None
             self._home_pending_quantity = None
         self._home_full_relief = None
         self._home_errand.finish()
         self._home_junk_sweep_count = (self._town_visit_epoch,
                                        item_fate.SWEEP_LIMIT_PER_STAY)
+        if relief is not None and relief.get("cash"):
+            # A cash ware's sweep that found no take (or no route) ends the
+            # cash sale this stay: the mining set opens (home_cash_sale).
+            home_cash_sale.end(self)
         if getattr(self, "_bm_destruction_shelf", None) is not None:
             # With the *Destruction* staff shelved, a sweep that found no take
             # (or no route) ends the fund's sales this stay too.
@@ -524,7 +543,7 @@ class HomeMixin:
                 or item.is_empty_bottle
                 or signature in self._unsellable_items
                 or (not useless and item_fate.stock_reserved(self, snapshot, probe, item))
-                or signature == self._home_pending_item
+                or same_memory(signature, self._home_pending_item)
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=False)
                 # The store-side sale guard keeps the standing digging tool;
@@ -626,7 +645,7 @@ class HomeMixin:
                 or self._is_high_value_book(item)
                 or signature in self._undestroyable_sigs
                 or item_fate.stock_reserved(self, snapshot, probe, item)
-                or signature == self._home_pending_item
+                or same_memory(signature, self._home_pending_item)
                 or signature in self._home_pending_batch
                 or self._home_full_merge_reserved(snapshot, item, destroy=True)
                 or recall_short):
@@ -760,7 +779,7 @@ class HomeMixin:
         self._home_errand.finish()
         # The take changed shelf addresses (as _home_full_skip_key).
         self._invalidate_home_observation()
-        if signature is not None and self._home_pending_item == signature:
+        if signature is not None and same_memory(self._home_pending_item, signature):
             self._home_pending_item = None
             self._home_pending_slot = None
             self._home_pending_quantity = None
@@ -790,7 +809,7 @@ class HomeMixin:
             # A retained withdrawal still changed shelf addresses. Its old
             # unknown signature may differ from the identified pack item.
             self._invalidate_home_observation()
-        if self._home_pending_item == signature:
+        if same_memory(self._home_pending_item, signature):
             self._home_pending_item = None
             self._home_pending_slot = None
             self._home_pending_quantity = None
@@ -1007,7 +1026,7 @@ class HomeMixin:
                 relief["withdrawn"] = True
                 if relief.get("taken", (None,))[0] != signature:
                     relief["taken"] = (signature, count - before_count)
-                if self._home_pending_item == signature:
+                if same_memory(self._home_pending_item, signature):
                     self._home_pending_item = None
                     self._home_pending_slot = None
                     self._home_pending_quantity = None
@@ -1486,6 +1505,8 @@ class HomeMixin:
                     else:
                         candidates = [ware]
                         signature = self._item_signature(ware[0][0])
+                        if home_cash_sale.ware(self, snapshot, ware[0][0]) and home_cash_sale.due(self, snapshot):
+                            relief["cash"] = signature
                         if signature in bm_destruction_fund.plan(self, snapshot):
                             # Its take and sale keep the fund's exception after
                             # the census that chose it is gone.
@@ -1865,8 +1886,8 @@ class HomeMixin:
                 or self._home_atomic_withdraw_pending is not None):
             return
         from hengbot.town_terminal import gather_home_withdraw, verdict_home_withdraw
-        carried = {self._item_signature(item)
-                   for item in (*snapshot.inventory, *snapshot.equipment)}
+        carried = MemorySignatures(self._item_signature(item)
+                                   for item in (*snapshot.inventory, *snapshot.equipment))
 
         def left_home(signature):
             return signature is not None and not verdict_home_withdraw(
@@ -1877,7 +1898,7 @@ class HomeMixin:
 
         held_before = (self._home_pending_item, tuple(self._home_pending_batch))
         taken = getattr(self, "_home_pending_take_confirmed", None)
-        if taken == self._home_pending_item and left_home(taken):
+        if same_memory(taken, self._home_pending_item) and left_home(taken):
             # Its own take was confirmed (policy observation) and the current
             # Home list no longer holds it: the withdrawal is complete.  n1-b
             # life-295 2026-11-02: the confirmed 財宝感知 take stayed pending
@@ -3593,11 +3614,11 @@ class HomeMixin:
         if not unaware and not item.known and identify_power_available(self, snapshot):
             return False  # Class 16's absorbed Identify is a carried source.
         signature = self._item_signature(item)
-        if (signature == self._home_pending_item
+        if (same_memory(signature, self._home_pending_item)
                 or signature in self._home_pending_batch
                 or self._equipment_transaction_session is not None
                 or (self._home_atomic_withdraw_pending is not None
-                    and signature == self._home_atomic_withdraw_pending[0])):
+                    and same_memory(signature, self._home_atomic_withdraw_pending[0]))):
             return False
         if unaware:
             # Owner 2026-11-15: an unaware potion or scroll no carried means
@@ -3953,7 +3974,7 @@ class HomeMixin:
                     and snapshot.player.hungry and self._find_edible(snapshot) is None)
         survival_device = self._home_mana_food_candidate() if survival else None
         taken = None if survival else getattr(self, "_home_pending_take_confirmed", None)
-        if taken is not None and taken != self._home_pending_item:
+        if taken is not None and not same_memory(taken, self._home_pending_item):
             taken = self._home_pending_take_confirmed = None
         session = (None if (survival or self._home_full_relief is not None
                            or getattr(self, "_home_full_retry_deposits", None) is not None)
@@ -4031,17 +4052,27 @@ class HomeMixin:
         # restore list: every successful restore invalidates later addresses until
         # the next ~9 response, so prioritising restore here starved later diggers
         # forever in the captured 34-item Home.
-        if (
-            not transaction_withdraw_pending and signature is None and (taken is None) and (self._home_pending_item in observed_signatures)
-        ):
-            signature = self._home_pending_item
+        # Owner 2026-11-18 (review Q1): the queued item is the remembered
+        # one; a shelf stack showing its exact name is taken first, else a
+        # stack of the same item under another inscription or discount, and
+        # the queue follows that stack's name.
+        pending_stack = (
+            remembered_stack((item for _, item in address_slots),
+                             self._home_pending_item, self._item_signature)
+            if not transaction_withdraw_pending and signature is None and taken is None
+            else None
+        )
+        if pending_stack is not None:
+            signature = self._home_pending_item = self._item_signature(pending_stack)
             selecting_branch = "home-pending-item"
         if (
             not transaction_withdraw_pending and signature is None and self._home_pending_batch
         ):
-            batch_signature = self._home_pending_batch[0]
-            if batch_signature in observed_signatures:
-                signature = batch_signature
+            batch_stack = remembered_stack((item for _, item in address_slots),
+                                           self._home_pending_batch[0], self._item_signature)
+            if batch_stack is not None:
+                signature = self._item_signature(batch_stack)
+                self._home_pending_batch[0] = signature
                 selecting_branch = "home-pending-batch"
         if signature is None:
             catalogued_transaction_target = next(
@@ -4088,11 +4119,11 @@ class HomeMixin:
                 transaction_identity = equipment_identity(candidate)
                 reason = "equipment-transaction:atomic-withdraw"
             if signature is None:
-                unaddressable_signatures = {
+                unaddressable_signatures = MemorySignatures(
                     candidate
                     for candidate in (self._home_pending_item if taken is None else None, *[], *self._home_pending_batch, self._home_errand.request.signature if self._home_errand.active and self._home_errand.request is not None else None)
                     if candidate is not None
-                }
+                )
                 # A confirmed take at shelf index i shortens the addressable
                 # prefix to i (``_confirm_home_withdrawal_address``).  Work
                 # catalogued at or beyond i is still in Home -- only its
@@ -4395,7 +4426,7 @@ class HomeMixin:
             procurement_probe
             if (
                 procurement_probe is not None
-                and self._home_pending_item == signature
+                and same_memory(self._home_pending_item, signature)
                 and self._procurement_class_matches(item, procurement_probe)
             )
             else None
@@ -4430,7 +4461,7 @@ class HomeMixin:
         # while its latch kept routing Home (n1-c life-157 2026-11-06 23:38:
         # the catalogue errand's cloak was taken, the queued shovel deferred,
         # the digger latch held and Home was re-entered 244 times).
-        own_queued_take = self._home_pending_item is None or self._home_pending_item == signature
+        own_queued_take = self._home_pending_item is None or same_memory(self._home_pending_item, signature)
         if not survival:
             self._home_pending_quantity = None
             getattr(self, "_home_pending_quantities", {}).pop(signature, None)
@@ -4606,16 +4637,15 @@ class HomeMixin:
             return
         if deposited_identification:
             return
-        if (
-            self._identification_candidate is not None
-            and self._identification_candidate in observed
-        ):
-            item = next(
-                item
-                for index, item in enumerate(self._home_knowledge_items)
-                if index < self._home_knowledge_valid_before
-                and self._item_signature(item) == self._identification_candidate
-            )
+        item = (
+            remembered_stack(self._home_knowledge_items[: self._home_knowledge_valid_before],
+                             self._identification_candidate, self._item_signature)
+            if self._home_knowledge_current else None
+        )
+        if item is not None:
+            # The candidate follows the shelf stack it names (owner
+            # 2026-11-18, review Q1: an inscription or discount is the same item).
+            self._identification_candidate = self._item_signature(item)
             full = bool(
                 item.known
                 and item_requires_full_identification(item)
@@ -4731,7 +4761,8 @@ class HomeMixin:
         bound = self._bound_home_take_signatures()
         if not bound:
             return True
-        if bound == {signature} and getattr(self, "_home_pending_take_confirmed", None) == signature:
+        if (len(bound) == 1 and same_memory(next(iter(bound)), signature)
+                and same_memory(getattr(self, "_home_pending_take_confirmed", None), signature)):
             self._release_confirmed_home_take()
             return True
         return False
@@ -4826,7 +4857,7 @@ class HomeMixin:
         take was confirmed; queueing other work (ammo top-up, a batch) beside
         it leaves that take complete.
         """
-        if getattr(self, "_home_pending_take_confirmed", None) == signature:
+        if same_memory(getattr(self, "_home_pending_take_confirmed", None), signature):
             self._home_pending_take_confirmed = None
 
     @claims(ClaimOwner.HOME_VISIT)
@@ -4839,7 +4870,7 @@ class HomeMixin:
                 signature = self._home_pending_item
             elif self._home_pending_batch:
                 signature = self._home_pending_batch[0]
-        if self._home_random_teleport_withdrawal == signature:
+        if same_memory(self._home_random_teleport_withdrawal, signature):
             self._home_random_teleport_withdrawal = None
         session = self._equipment_transaction_session
         action = session.current_action if session is not None else None
@@ -4852,7 +4883,7 @@ class HomeMixin:
             if signature in self._home_pending_batch:
                 self._home_pending_batch.remove(signature)
             self._home_pending_quantities.pop(signature, None)
-        if self._home_pending_item == signature:
+        if same_memory(self._home_pending_item, signature):
             self._home_pending_item = None
             self._home_pending_slot = None
         self._home_pending_quantity = None
@@ -5395,7 +5426,7 @@ class HomeMixin:
             and self._item_signature(item) not in self._home_pending_batch
             and (
                 self._home_atomic_withdraw_pending is None
-                or self._item_signature(item) != self._home_atomic_withdraw_pending[0]
+                or not same_memory(self._item_signature(item), self._home_atomic_withdraw_pending[0])
             )
             and item.slot != self._home_pending_slot
             and item.slot != self._pending_disposal_slot,
@@ -5485,7 +5516,7 @@ class HomeMixin:
         pending = self._home_disposal_pending
         if pending is None:
             return
-        if self._home_pending_item == pending[0]:
+        if same_memory(self._home_pending_item, pending[0]):
             self._home_pending_item = None
             self._home_pending_slot = None
             self._home_pending_quantity = None
@@ -5807,7 +5838,7 @@ class HomeMixin:
         and the digger latch, 244 Home entries).
         """
         deferred = self._deferred_home_items
-        if self._home_pending_item is not None and self._home_pending_item in deferred:
+        if self._home_pending_item is not None and self._home_pending_item in self._deferred_home_items:
             self._home_pending_quantities.pop(self._home_pending_item, None)
             self._home_pending_item = None
             self._home_pending_slot = None
@@ -6197,10 +6228,10 @@ class HomeMixin:
         if self._home_pending_item is None:
             self._home_pending_item = signature
             self._home_pending_quantity = quantity
-        elif signature == self._home_pending_item:
+        elif same_memory(signature, self._home_pending_item):
             self._requeue_home_withdrawal(signature)
         elif (
-            signature != self._home_pending_item
+            not same_memory(signature, self._home_pending_item)
             and signature not in self._home_pending_batch
         ):
             self._home_pending_batch.append(signature)
@@ -6266,7 +6297,7 @@ class HomeMixin:
                 continue
             self._home_pending_quantities.setdefault(signature, quantity)
             if (
-                signature != self._home_pending_item
+                not same_memory(signature, self._home_pending_item)
                 and signature not in self._home_pending_batch
             ):
                 self._home_pending_batch.append(signature)
@@ -6480,8 +6511,8 @@ class HomeMixin:
             for known in matches
             if known.count > 0 and (not known.is_torch or known.fuel > 0)
         }
-        all_viable_deferred = bool(viable_signatures) and viable_signatures.issubset(
-            self._deferred_home_items
+        all_viable_deferred = bool(viable_signatures) and all(
+            signature in self._deferred_home_items for signature in viable_signatures
         )
         retried_deferred = getattr(
             self, "_retried_deferred_home_items", set()

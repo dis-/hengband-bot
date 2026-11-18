@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_identity import same_memory
 from hengbot.item_reservation import reserved_item_command
 from hengbot.town_pack_budget import incoming_slots, permits, pile_fits
 
@@ -1127,7 +1128,7 @@ class IdentificationMixin:
         from hengbot import me_powerful_activation
         return (
             self._identification_flow_candidate(item)
-            or signature == self._home_pending_item
+            or same_memory(signature, self._home_pending_item)
             or signature in self._home_pending_batch
             # A Magic-Eater's Home take waiting for its spare *Identify*.
             or me_powerful_activation.awaits_identify(self, item)

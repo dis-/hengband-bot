@@ -846,6 +846,10 @@ def _policy_final_stop_banner(reason: str) -> str:
                 "or distance progress, the last on the typed wait "
                 f"{reason[len(OWNER_RETIRED_BURST_AFTER_PREFIX):]}; "
                 "stopping the bot for investigation")
+    if reason.startswith(approach_answer.WAIT_STOP_PREFIX):
+        return (f"<{reason}> the store approach yielded to the town's holder for "
+                f"{approach_answer.WAIT_LIMIT} boards and the holder never finished; "
+                "stopping the bot for investigation")
     if reason.startswith(STAGE_DEADLINE_STOP_PREFIX):
         return (f"<{reason}> this town visit spent the stage's deadline of decisions "
                 "(twice the measured per-visit maximum); stopping the bot for investigation")

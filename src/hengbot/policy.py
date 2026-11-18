@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot import approach_answer, return_start
 from hengbot import safety_watch
 from hengbot import item_identity
+from hengbot.item_identity import MemorySignatureList, MemorySignatures, same_memory
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
 from hengbot.item_reservation import (
@@ -17,7 +18,7 @@ from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, hero
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
-from hengbot import amberite_curse, curse_cure, floor_identify, me_capped_pickup, me_inn_refill
+from hengbot import amberite_curse, curse_cure, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
 
 from collections import Counter, deque
 import random
@@ -2196,8 +2197,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # player-visible, savefile-persistent inscription.  All curse consumers
         # consult _curse_unremovable(), never either backing store directly.
         self._remove_curse_watch: tuple[tuple[str, int, int], int, int] | None = None
-        self._permanent_cursed_items: set[tuple[str, int, int]] = set()
-        self._heavy_cursed_items: set[tuple[str, int, int]] = set()
+        self._permanent_cursed_items: set[tuple[str, int, int]] = MemorySignatures()
+        self._heavy_cursed_items: set[tuple[str, int, int]] = MemorySignatures()
         self._heavy_curse_inscription_pending: tuple[str, int, int] | None = None
         self._launcher_enchant_attempted: set[int] = set()
         self._launcher_enchant_watch: tuple[int, tuple[str, int, int], int] | None = None
@@ -2207,7 +2208,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # for this visit; they do not prove that the Home is at capacity.
         self._home_deposit_abandoned = False
         # A command can reject one item even while the Home still has free pages.
-        self._home_rejected_deposits: set[tuple[str, int, int]] = set()
+        self._home_rejected_deposits: set[tuple[str, int, int]] = MemorySignatures()
         # The rejections above whose only cause was a full Home: released
         # when a Home page shows a free slot (n1-a life-530 2026-11-17).
         self._home_full_rejected_deposits: set[tuple[str, int, int]] = set()
@@ -2232,11 +2233,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Pack-pressure identify verification: items whose identify never lands
         # (device use stalls), plus a watch on the last attempt to detect that
         # the pack's unknown count did not change afterwards.
-        self._unidentifiable_sigs: set[tuple[str, int, int]] = set()
+        self._unidentifiable_sigs: set[tuple[str, int, int]] = MemorySignatures()
         # Full-*Identify* scrolls may not exist in a game. Remember equipment
         # proven unobtainable across town visits, but retry it if a source later
         # appears in the pack.
-        self._unbuyable_full_identify_sigs: set[tuple[str, int, int]] = set()
+        self._unbuyable_full_identify_sigs: set[tuple[str, int, int]] = MemorySignatures()
         self._identify_watch: tuple[tuple[str, int, int], int] | None = None
         self._identify_fail_streak = 0
         self._staged_prompt_chain: dict | None = None
@@ -2320,7 +2321,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_random_teleport_withdrawal: tuple[str, int, int] | None = None
         self._home_pending_slot: str | None = None
         self._home_pending_quantity: int | None = None
-        self._home_pending_batch: list[tuple[str, int, int]] = []
+        self._home_pending_batch: list[tuple[str, int, int]] = MemorySignatureList()
         self._home_batch_review_items: set[tuple[str, int, int]] = set()
         self._home_active_from_batch = False
         # One Home take is bound to a fresh-entry macro.  The pending record is
@@ -2375,7 +2376,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             tuple[int, int, str, str, dict[str, object] | None] | None
         ) = None
         self.read_telemetry: dict[str, object] = {}
-        self._processed_home_items: set[tuple[str, int, int]] = set()
+        self._processed_home_items: set[tuple[str, int, int]] = MemorySignatures()
         # ``~9`` is authoritative content knowledge, but its order is not a
         # shelf address.  Keep addresses separately from observed Home pages.
         self._home_knowledge_items: tuple[InventoryItem, ...] = ()
@@ -4565,7 +4566,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     taken=quantity,
                 )
                 if not suspended_same_item:
-                    if signature == self._home_pending_item:
+                    if same_memory(signature, self._home_pending_item):
                         self._home_pending_take_confirmed = signature
                     if signature in self._home_pending_batch:
                         self._home_pending_batch.remove(signature)
@@ -4576,7 +4577,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     # observed inventory gain is confirmed completion.
                     self._home_digger_withdraw_pending = False
                 suppression_withdrawal = (
-                    self._home_random_teleport_withdrawal == signature
+                    same_memory(self._home_random_teleport_withdrawal, signature)
                 )
                 self._equipment_catalog.record_home_withdrawal(
                     withdrawn,
@@ -4586,7 +4587,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # Gear a take brought out goes back unless the loadout uses it.
                 spare_gear.note_taken(self, withdrawn)
                 self._refresh_carried_equipment_catalog(snapshot)
-                if suppression_withdrawal and self._home_pending_item == signature:
+                if suppression_withdrawal and same_memory(self._home_pending_item, signature):
                     self._home_pending_item = None
                     self._home_pending_slot = None
                     self._home_random_teleport_withdrawal = None
@@ -4606,7 +4607,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     and withdrawn.sval
                     in {SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY}
                     and (
-                        self._home_pending_item == signature
+                        same_memory(self._home_pending_item, signature)
                         or (
                             self._home_errand.request is not None
                             and self._home_errand.request.signature == signature
@@ -4626,7 +4627,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     and withdrawn.tval == TVAL_STAFF
                     and withdrawn.sval == SV_STAFF_IDENTIFY
                 ):
-                    if self._home_pending_item == signature:
+                    if same_memory(self._home_pending_item, signature):
                         self._home_pending_item = None
                         self._home_pending_slot = None
                     self._home_pending_quantities.pop(signature, None)
@@ -4650,7 +4651,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     == "operation-released-effect-not-observed"
                 ):
                     self._close_store_visit("home-take-unobserved")
-                if self._home_random_teleport_withdrawal == signature:
+                if same_memory(self._home_random_teleport_withdrawal, signature):
                     self._home_random_teleport_withdrawal = None
                 retry_digger = (
                     withdrawn.is_digging_tool
@@ -4674,7 +4675,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     if signature in self._home_pending_batch:
                         self._home_pending_batch.remove(signature)
                     self._home_pending_quantities.pop(signature, None)
-                    if self._home_pending_item == signature:
+                    if same_memory(self._home_pending_item, signature):
                         self._home_pending_item = None
                         self._home_pending_slot = None
                     if withdrawn.is_digging_tool:
@@ -7010,6 +7011,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and snapshot.player.class_id >= 0
             and treasure_scrolls >= 2
             and snapshot.player.gold < FUNDRAISING_START_GOLD
+            and not home_cash_sale.pending(self, snapshot)
         ):
             self._fundraising_mode = "prepare"
         resumable_fundraising_floor = snapshot.dungeon_level == 1
@@ -7564,6 +7566,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 lambda: self._home_full_relief_key(snapshot))
             if relief_key is not None:
                 return relief_key
+        if (relief_ready and self._home_full_relief is None
+                and home_cash_sale.census_wanted(self, snapshot)):
+            # Home's cash wares wait on a current census (owner 2026-11-18).
+            census_key = self._town_producer_entry(
+                "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                family="home-scan")
+            if census_key is not None:
+                home_cash_sale.census_requested(self, snapshot)
+                return census_key
         if (relief_ready and self._home_full_relief is None
                 and bm_destruction_fund.census_wanted(self, snapshot)):
             # The Black Market's *Destruction* staff is short (owner 2026-11-07):
@@ -10904,14 +10915,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
             if item is not None and (
                 self._home_pending_item is None
-                or self._item_signature(item) == self._home_pending_item
+                or same_memory(self._item_signature(item), self._home_pending_item)
                 or (item.tval, item.sval) == pending_kind
             ):
                 return item
         if self._home_pending_item is None:
             return None
-        item = self._first_item(
-            snapshot, lambda it: self._item_signature(it) == self._home_pending_item
+        item = item_identity.remembered_stack(
+            (it for it in snapshot.inventory if it.slot),
+            self._home_pending_item, self._item_signature,
         )
         if item is None:
             # Consuming an Identify scroll can shift every later inventory slot,
@@ -10922,9 +10934,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 snapshot,
                 lambda it: it.is_equipment and (it.tval, it.sval) == pending_kind,
             )
-        if item is None and getattr(
+        if item is None and same_memory(getattr(
             self, "_home_pending_take_confirmed", None
-        ) == self._home_pending_item:
+        ), self._home_pending_item):
             # The take itself was confirmed by the pack's count of its kind
             # (_observe_home_atomic_withdrawal_outside).  A take that merges
             # into a carried stack renames it: the game's ItemEntity::absorb
@@ -11142,7 +11154,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._identification_candidate = None
         if self._identification_need == "full":
             self._identification_need = None
-        if self._home_pending_item == signature:
+        if same_memory(self._home_pending_item, signature):
             self._home_pending_item = None
             self._home_pending_slot = None
             self._home_candidate_waiting = False
@@ -11523,14 +11535,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if (
                 item is not None
                 and self._pending_disposal_item is not None
-                and self._item_signature(item) == self._pending_disposal_item
+                and same_memory(self._item_signature(item), self._pending_disposal_item)
             ):
                 return item
         if self._pending_disposal_item is None:
             return None
-        item = self._first_item(
-            snapshot,
-            lambda it: self._item_signature(it) == self._pending_disposal_item,
+        item = item_identity.remembered_stack(
+            (it for it in snapshot.inventory if it.slot),
+            self._pending_disposal_item, self._item_signature,
         )
         if item is not None:
             self._pending_disposal_slot = item.slot
@@ -12107,13 +12119,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if expedition is None:
             return
         self._morivant_full_identify_attempted.add(expedition.target_signatures)
-        expedition_targets = set(expedition.home_target_signatures)
+        expedition_targets = MemorySignatures(expedition.home_target_signatures)
         if self._home_pending_item in expedition_targets:
             self._home_pending_item = None
-        self._home_pending_batch = [
+        self._home_pending_batch = MemorySignatureList(
             signature for signature in self._home_pending_batch
             if signature not in expedition_targets
-        ]
+        )
         self._home_candidate_waiting = False
         self._morivant_full_identify = None
 
@@ -12154,6 +12166,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if self._opening_q34_holds_fundraising(snapshot):
             return False
         if snapshot.player.gold >= FUNDRAISING_START_GOLD:
+            return False
+        if home_cash_sale.pending(self, snapshot):
+            # Owner 2026-11-18 「自宅に大量の換金用アイテムがあるので先に売る」: Home's
+            # cash wares are sold first (the junk sweep); mining only if still poor.
             return False
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
@@ -12694,7 +12710,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if item.is_cursed
         }
         self._heavy_cursed_items.intersection_update(cursed_signatures)
-        self.__dict__.setdefault("_permanent_cursed_items", set()).intersection_update(cursed_signatures)
+        self.__dict__.setdefault("_permanent_cursed_items", MemorySignatures()).intersection_update(
+            cursed_signatures)
         watch = self._remove_curse_watch
         if watch is None:
             return
@@ -12709,7 +12726,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if current_count >= previous_count:
             return
         still_cursed = any(
-            item.is_cursed and self._item_signature(item) == signature
+            item.is_cursed and same_memory(self._item_signature(item), signature)
             for item in snapshot.equipment
         )
         if not still_cursed:
@@ -12773,7 +12790,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         target = next(
             (
                 item for item in snapshot.equipment
-                if item.is_cursed and self._item_signature(item) == signature
+                if item.is_cursed and same_memory(self._item_signature(item), signature)
             ),
             None,
         )

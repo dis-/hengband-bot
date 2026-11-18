@@ -293,7 +293,49 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "approach_answer.py:after_empty": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "approach_answer.py:answer_stamp": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "approach_answer.py:answered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "approach_answer.py:holder_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "approach_answer.py:latest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "approach_answer.py:since": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "approach_answer.py:stop_name": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2382,6 +2424,34 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "home_cash_sale.py:sweep_ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "home_cash_sale.py:unneeded_jewelry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "home_cash_sale.py:ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "home_cash_sale.py:wares": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
     "rows": [
@@ -3203,7 +3273,91 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "item_identity.py:MemorySignatureList.copy": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatureList.index": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatureMap.copy": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatureMap.get": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatureMap.pop": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatureMap.setdefault": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatures.copy": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatures.intersection": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:MemorySignatures.union": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "item_identity.py:display_signature": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:memory_identity_of_signature": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:memory_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:remembered_stack": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3218,6 +3372,13 @@
     "delegation": "selected child; no independent success"
   },
   "item_identity.py:sale_identity_of_signature": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:same_memory": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -4828,6 +4989,18 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_staff_sequence.py:_approach_empty": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising",
+      "store-approach"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_staff_sequence.py:_base_definitions": {
     "classification": "data",
     "rows": [
@@ -5155,6 +5328,20 @@
       "data/no-independent-credit"
     ],
     "delegation": "Selected child owns admission and observed effects; no independent success."
+  },
+  "model.py:AbilitySources.__getitem__": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "model.py:AbilitySources.__iter__": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "model.py:Position.distance_to": {
     "classification": "data",
@@ -6221,6 +6408,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._is_frontier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._is_high_value_book": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16048,6 +16242,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "town_visit.py:remembered": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "town_visit.py:town_visit": {
     "classification": "data",
     "rows": [
@@ -16334,6 +16535,13 @@
     "delegation": "selected child; no independent success"
   },
   "warrior_loadout_search.py:WarriorSingleSlotSearch._device_skill_completions.slots": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_search.py:_compress_states.stable_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

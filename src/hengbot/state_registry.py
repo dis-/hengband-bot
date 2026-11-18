@@ -84,6 +84,8 @@ REGISTRY = (
       "the store approach's latest typed answer, stamped with its decision (record only)"),
     S("_approach_yield_notes", "approach_answer", LIFE,
       "stops named after a yielded store approach this decision (decision log, record only)"),
+    S("_approach_yield_waits", "approach_answer", VISIT,
+      "boards each stop site waited for the town's holder its approach yielded to (Q2 11-18)"),
     # anaguma
     S("_anaguma_latches", "anaguma", LIFE,
       "anaguma: anaguma latches (no comment at its definition)"),
@@ -124,6 +126,10 @@ REGISTRY = (
       "bm_destruction_fund: bm fund planning (no comment at its definition)"),
     S("_bm_fund_probe", "bm_destruction_fund", LIFE,
       "bm_destruction_fund: bm fund probe (no comment at its definition)"),
+    # home_cash_sale
+    S("_home_cash_sale", "home_cash_sale", LIFE,
+      "home_cash_sale: Home's cash wares sold before a poverty mining set (owner 2026-11-18): "
+      "the last current census held one, the census mark asked for, the stay whose sale ended"),
     # breeder_floor_record
     S("_breeder_breakthrough_floor", "breeder_floor_record", FLOOR,
       "breeder_floor_record: breeder breakthrough floor (no comment at its definition)"),
