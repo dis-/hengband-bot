@@ -31,11 +31,17 @@ on the ``DESTRUCTION_FORGETS`` rows, with the same owner), when a state name of 
 declared here, when a row names nothing the source has, and when ``saved`` disagrees with the
 checkpoint.
 
+Review 2026-11-18 S4 widened it: an attribute assigned on ``self`` anywhere in HengbotPolicy and
+its mixins is a state name too; the town visit's forwarded names are rows read from
+``town_visit``'s tables (``town_visit_columns``), not copied; a counter-like entry says where the
+source resets it today (``RESET_BY``, the "reset by" column).
+
 A new state: add its row here (the lint names the missing one).
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 DECISION = "decision"
@@ -464,6 +470,9 @@ REGISTRY = (
       "The floor and the trigger indices of choke plans the stall bound released."),
     S("_claim_store_visit_closed", "policy", LIFE,
       "policy: claim store visit closed (no comment at its definition)"),
+    S("_claim_target_capture", "policy", DECISION,
+      "the path target an armed claim site captures from its path helper; taken (popped) by "
+      "_take_claim_target, and at the decision boundary (choose_key) at the latest"),
     S("_confirmed_loadout", "policy", LIFE,
       "policy: confirmed loadout (no comment at its definition)"),
     S("_confirmed_loadout_loaded", "policy", LIFE,
@@ -638,8 +647,6 @@ REGISTRY = (
       "policy: home knowledge scan wait sequence (no comment at its definition)"),
     S("_home_page_size", "policy", LIFE,
       "policy: home page size (no comment at its definition)"),
-    S("_home_procurement_withdraw_failure", "policy", LIFE,
-      "policy: home procurement withdraw failure (no comment at its definition)"),
     S("_home_random_teleport_withdrawal", "policy", LIFE,
       "policy: home random teleport withdrawal (no comment at its definition)"),
     S("_home_full_rejected_deposits", "policy", VISIT,
@@ -660,8 +667,6 @@ REGISTRY = (
       "Decision whose Home scan page handed a bound take to the outside composer (not a charged stop pass)."),
     S("_identification_source_reservation", "policy", LIFE,
       "The identification candidates live in the town visit (slice 3-2)."),
-    S("_identify_staff_mining_plan", "policy", LIFE,
-      "policy: identify staff mining plan (no comment at its definition)"),
     S("_in_store_shadow_last", "policy", LIFE,
       "policy: in store shadow last (no comment at its definition)"),
     S("_intentional_entrance_activation", "policy", DECISION,
@@ -802,8 +807,6 @@ REGISTRY = (
       "policy: queue home catalogue shortages (no comment at its definition)"),
     S("_read_binding", "policy", LIFE,
       "A read command is a capability bound to one scroll identity, not to a pack letter."),
-    S("_recall_stockout_mining_plan", "policy", LIFE,
-      "policy: recall stockout mining plan (no comment at its definition)"),
     S("_remembered_grid_region", "policy", LIFE,
       "Hengband does not mark dark floor permanently, so walked corridors can disappear from later nearby_grids snapshots."),
     S("_remembered_grid_signatures", "policy", LIFE,
@@ -872,16 +875,10 @@ REGISTRY = (
       "policy: town map goal route (no comment at its definition)"),
     S("_town_maps", "policy", LIFE,
       "policy: town maps (no comment at its definition)"),
-    S("_town_supplier_stock", "policy", LIFE,
-      "policy: town supplier stock (no comment at its definition)"),
-    S("_town_travel_state", "policy", LIFE,
-      "policy: town travel state (no comment at its definition)"),
     S("_town_turn_arbiter", "policy", LIFE,
       "policy: town turn arbiter (no comment at its definition)"),
     S("_town_visit", "policy", LIFE,
       "The town visit owns its per-arrival state (structure stage 3-1);"),
-    S("_town_visit_purchases", "policy", LIFE,
-      "policy: town visit purchases (no comment at its definition)"),
     S("_unbuyable_full_identify_sigs", "policy", LIFE,
       "Full-*Identify* scrolls may not exist in a game."),
     S("_unseen_deferred_loot", "policy", LIFE,
@@ -1162,12 +1159,6 @@ REGISTRY = (
       "policy_home: bm fund sweep ended (no comment at its definition)"),
     S("_claim_home_knowledge_observed", "policy_home", LIFE,
       "policy_home: claim home knowledge observed (no comment at its definition)"),
-    S("_deferred_home_item_sites", "policy_home", LIFE,
-      "policy_home: deferred home item sites (no comment at its definition)"),
-    S("_deferred_home_items", "policy_home", LIFE,
-      "policy_home: deferred home items (no comment at its definition)"),
-    S("_home_candidate_waiting", "policy_home", VISIT,
-      "policy_home: home candidate waiting (no comment at its definition)"),
     S("_home_capacity_observation", "policy_home", LIFE,
       "policy_home: home capacity observation (no comment at its definition)"),
     S("_home_deposit_abandoned", "policy_home", VISIT,
@@ -1206,8 +1197,6 @@ REGISTRY = (
       "policy_home: home pending batch (no comment at its definition)"),
     S("_home_pending_item", "policy_home", LIFE,
       "policy_home: home pending item (no comment at its definition)"),
-    S("_home_pending_quantities", "policy_home", VISIT,
-      "policy_home: home pending quantities (no comment at its definition)"),
     S("_home_pending_quantity", "policy_home", LIFE,
       "policy_home: home pending quantity (no comment at its definition)"),
     S("_home_pending_slot", "policy_home", LIFE,
@@ -1216,8 +1205,6 @@ REGISTRY = (
       "The pending item whose own posted take was confirmed."),
     S("_home_processing_seen_pages", "policy_home", VISIT,
       "Normal Home processing has the same paged view."),
-    S("_home_procurement_batch_active", "policy_home", VISIT,
-      "policy_home: home procurement batch active (no comment at its definition)"),
     S("_home_quest_launcher_seen_pages", "policy_home", LIFE,
       "policy_home: home quest launcher seen pages (no comment at its definition)"),
     S("_home_route_refusal", "policy_home", LIFE,
@@ -1234,6 +1221,9 @@ REGISTRY = (
       "A knowledge-only withdrawal must visit Home pages until its selector is observed."),
     S("_home_withdrawal_queued", "policy_home", LIFE,
       "policy_home: home withdrawal queued (no comment at its definition)"),
+    S("_junk_board", "policy_home", DECISION,
+      "the board whose character-dependent junk classes _is_worthless_junk reads while "
+      "_home_full_relief_key ranks the junk (set and deleted within that one call)"),
     S("_latch_capture_assignment", "policy_home", LIFE,
       "policy_home: latch capture assignment (no comment at its definition)", saved=False),
     S("_ordinary_weight_relief_surplus_active", "policy_home", LIFE,
@@ -1293,6 +1283,8 @@ REGISTRY = (
       "policy_identification: safety deferred loot (no comment at its definition)"),
     S("_unidentifiable_sigs", "policy_identification", VISIT,
       "Pack-pressure identify verification: items whose identify never lands (device use stalls), plus a watch on the last attempt to detect that the..."),
+    S("_unseen_attack_area_veto_cache", "policy_identification", LIFE,
+      "_unseen_attack_area_veto's one answer per board, keyed by (id(snapshot), turn)"),
     S("_unseen_attack_read", "policy_identification", LIFE,
       "policy_identification: unseen attack read (no comment at its definition)"),
     S("_unseen_last_hit_floor", "policy_identification", FLOOR,
@@ -1524,14 +1516,10 @@ REGISTRY = (
       "policy_observation: took damage (no comment at its definition)"),
     S("_took_trap_or_terrain_damage", "policy_observation", LIFE,
       "policy_observation: took trap or terrain damage (no comment at its definition)"),
-    S("_town_supplier_stock_observations", "policy_observation", LIFE,
-      "policy_observation: town supplier stock observations (no comment at its definition)"),
     S("_town_visit_epoch", "policy_observation", LIFE,
       "policy_observation: town visit epoch (no comment at its definition)"),
     S("_town_visit_ledger", "policy_observation", LIFE,
       "The town-repetition detector state (TOWN_CYCLE_WINDOW) lives in town_visit.TownHolds."),
-    S("_town_visit_unready_recall_cancelled", "policy_observation", LIFE,
-      "policy_observation: town visit unready recall cancelled (no comment at its definition)"),
     S("_town_wander_streak", "policy_observation", LIFE,
       "policy_observation: town wander streak (no comment at its definition)"),
     S("_town_was_in_town", "policy_observation", LIFE,
@@ -1573,8 +1561,14 @@ REGISTRY = (
       "policy_opening: opening q1 failure (no comment at its definition)"),
     S("_opening_q1_funding", "policy_opening", LIFE,
       "policy_opening: opening q1 funding (no comment at its definition)"),
+    S("_opening_q1_funding_left", "policy_opening", LIFE,
+      "the opening Q1 income run has left town (set by policy_fundraising._fundraising_key, "
+      "cleared by _opening_q1_town_key; no reader in src, record only)"),
     S("_opening_q1_kit_bought", "policy_opening", LIFE,
       "policy_opening: opening q1 kit bought (no comment at its definition)"),
+    S("_opening_q1_positions", "policy_opening", LIFE,
+      "boards stood per cell since the Q1 town progress (_opening_q1_progress) last changed "
+      "(_opening_q1_route_stalled, STORE_STUCK_LIMIT)"),
     S("_opening_q1_progress", "policy_opening", LIFE,
       "policy_opening: opening q1 progress (no comment at its definition)"),
     S("_opening_q1_shelves", "policy_opening", LIFE,
@@ -1669,8 +1663,6 @@ REGISTRY = (
       "policy_shop: home procurement fallthrough equivalence (no comment at its definition)"),
     S("_mana_survival_device_price", "policy_shop", LIFE,
       "policy_shop: mana survival device price (no comment at its definition)"),
-    S("_retried_deferred_home_items", "policy_shop", LIFE,
-      "policy_shop: retried deferred home items (no comment at its definition)"),
     S("_shop_approach_previous_origin", "policy_shop", VISIT,
       "policy_shop: shop approach previous origin (no comment at its definition)"),
     S("_shop_approach_stuck_count", "policy_shop", VISIT,
@@ -1693,12 +1685,8 @@ REGISTRY = (
       "policy_shop: store entry wait key (no comment at its definition)"),
     S("_terminal_store_sale", "policy_shop", LIFE,
       "policy_shop: terminal store sale (no comment at its definition)"),
-    S("_town_errand_plan", "policy_shop", LIFE,
-      "policy_shop: town errand plan (no comment at its definition)"),
     S("_town_plan_projection_telemetry", "policy_shop", LIFE,
       "policy_shop: town plan projection telemetry (no comment at its definition)"),
-    S("_unsellable_items", "policy_shop", LIFE,
-      "policy_shop: unsellable items (no comment at its definition)"),
     # policy_supply
     S("_home_procurement_approach_state", "policy_supply", LIFE,
       "policy_supply: home procurement approach state (no comment at its definition)"),
@@ -1723,8 +1711,6 @@ REGISTRY = (
       "policy_town: cross town shopping (no comment at its definition)"),
     S("_decision_claim_needs", "policy_town", DECISION,
       "(decision_sequence, board, needs) of the last claims evaluation."),
-    S("_deferred_device_items", "policy_town", LIFE,
-      "policy_town: deferred device items (no comment at its definition)"),
     S("_device_identify_fail_streak", "policy_town", VISIT,
       "policy_town: device identify fail streak (no comment at its definition)"),
     S("_device_identify_watch", "policy_town", VISIT,
@@ -1759,6 +1745,9 @@ REGISTRY = (
       "Region-local town facts are updated from emitted cells."),
     S("_town_fact_snapshot", "policy_town", LIFE,
       "policy_town: town fact snapshot (no comment at its definition)", saved=False),
+    S("_town_hunt_commit", "policy_town", LIFE,
+      "(index, race) of the town monster the hunt walks to (class default None); read only "
+      "while _town_hunt_target is set, so every release of the hunt cell ends it"),
     S("_town_inn_accounting", "policy_town", LIFE,
       "policy_town: town inn accounting (no comment at its definition)", saved=False),
     S("_town_map", "policy_town", LIFE,
@@ -1783,8 +1772,6 @@ REGISTRY = (
       "policy_town: town progress last fingerprint (no comment at its definition)"),
     S("_town_recall_issue_rod", "policy_town", LIFE,
       "destination, command turn, and pre-read stack count."),
-    S("_town_recall_read_pack_slots", "policy_town", LIFE,
-      "policy_town: town recall read pack slots (no comment at its definition)"),
     S("_town_store_positions", "policy_town", LIFE,
       "policy_town: town store positions (no comment at its definition)"),
     S("_town_visit_entrances", "policy_town", LIFE,
@@ -1899,6 +1886,13 @@ REGISTRY = (
     # town_terminal
     S("_terminal_admission_memo", "town_terminal", LIFE,
       "Terminal admission (town_terminal): the per-decision verdict memo and the admission rows of the current decision."),
+    # town_visit
+    S("_floor_holds", "town_visit", LIFE,
+      "the FloorHolds container (town_visit.floor_holds): released on every board of another "
+      "floor; its fields are the FLOOR_HOLD_LEGACY_NAMES columns of this registry"),
+    S("_town_holds", "town_visit", LIFE,
+      "the TownHolds container (town_visit.town_holds): released on leaving the floor or a town "
+      "change; its fields are the HOLD_LEGACY_NAMES columns of this registry"),
     # trap_warning
     S("_trap_warning_cells", "trap_warning", FLOOR,
       "Grids warned for a trap, with the searches spent on each (this floor;"),
@@ -1921,3 +1915,248 @@ REGISTRY = (
 )
 
 BY_NAME = {row.name: row for row in REGISTRY}
+
+
+# --- The town visit's forwarded names (review 2026-11-18 S4) ---------------------------------
+#
+# ``town_visit``'s tables are rows of this registry, read from there and not copied here: each
+# former policy attribute forwards to a field of one container (a property of the mixin
+# ``TownVisitAttributes``), so its lifetime is its container's.  ``scripts/state_registry_lint.py``
+# reads them as declared names and fails when one is also a ``REGISTRY`` row.
+TOWN_VISIT_TABLES = (
+    # (table in town_visit, container attribute, lifetime of the container's fields)
+    ("LEGACY_NAMES", "_town_visit", VISIT),  # TownVisit.begin on a fresh town visit
+    ("HOLD_LEGACY_NAMES", "_town_holds", FLOOR),  # TownHolds.release: floor or town change
+    ("FLOOR_HOLD_LEGACY_NAMES", "_floor_holds", FLOOR),  # FloorHolds.release: another floor
+)
+
+
+def town_visit_columns() -> tuple:
+    """((State, container, field), ...): the town visit's forwarded names as registry rows."""
+    from hengbot import town_visit
+
+    rows = []
+    for table, container, lifetime in TOWN_VISIT_TABLES:
+        for name, field in getattr(town_visit, table).items():
+            rows.append((State(name, "town_visit", lifetime,
+                               f"forwarded to {container}.{field} (town_visit.{table})"),
+                         container, field))
+    return tuple(rows)
+
+
+# --- The "reset by" column (review 2026-11-18 S4) --------------------------------------------
+#
+# A counter-like entry (its name matches ``COUNTER_NAME``: an attempt, count, retry, streak,
+# budget, deadline...) says where the source resets it today, so "who resets it, when" is
+# written down beside its lifetime.  Data only, transcribed from the source:
+#
+# - ``sites``: every ``module.function`` that writes it back to an empty value (``None``, ``0``,
+#   a number, ``False``, an empty container, ``del``, ``.clear()``, ``__dict__.pop``; the lint's
+#   ``reset_sites`` says exactly which writes count).  ``__init__`` (the first value) is no reset;
+#   ``floor_visit_memory.forget`` is the floor change of every ``VISIT_MEMORIES`` row.
+# - ``note``: what the sites do not say: a reset the lint does not see (a value stamped with its
+#   floor or visit and read only on that one, an entry dropped by key), or that nothing resets it.
+#
+# ``scripts/state_registry_lint.py`` fails when a counter-like entry has no row here, when a
+# reset site of the source is not listed, and when a listed site resets nothing or is gone.  A
+# new reset of a counter: add its site here.
+COUNTER_NAME = re.compile(
+    r"attempt|count|tries|retry|streak|failures|failed|strikes|budget|deadline|_turns|_boards"
+    r"|rounds")
+
+
+@dataclass(frozen=True)
+class Reset:
+    sites: tuple[str, ...] = ()
+    note: str = ""
+
+
+RESET_BY = {
+    "_anaguma_retry": Reset(("floor_visit_memory.forget",)),
+    "_breeder_engagement_start_count": Reset(("breeder_stalemate.forget",)),
+    "_cli_no_key_streak": Reset(("cli._run_follow",)),
+    "_owner_retired_no_progress_count": Reset(("cli._observe_owner_retired_progress",)),
+    "_departure_rescue_attempts": Reset(note=(
+        "entries keyed by (town visit epoch, leaf, action); departure_rescues._attempted keeps "
+        "only the current visit's entries when it writes (no whole reset)"
+    )),
+    "_me_device_list_boards": Reset(("me_power_success.forget_list_boards",)),
+    "_acquire_store_visit_attempt": Reset(note=(
+        "rewritten to a fresh record (a non-empty dict) in policy.choose_key, policy._choose_key "
+        "and policy_shop._shopping_approach_step; never emptied"
+    )),
+    "_breeder_choke_attempt_ended_floor": Reset(("policy_observation._observe",)),
+    "_choke_outcome_budgets": Reset((
+        "policy._inherit_choke_outcome_budget",
+        "policy_observation._observe",
+    )),
+    "_descent_block_countdown": Reset(("policy_observation._observe",)),
+    "_equipment_mutation_counted_board": Reset(note=(
+        "the board last counted, overwritten in policy._choose_key; never emptied after __init__ "
+        "(the checkpoint leaves it out)"
+    )),
+    "_equipment_transaction_failed_items": Reset((
+        "policy._retire_actionless_equipment_failure",
+        "policy_observation._observe",
+    )),
+    "_escape_wait_budget_floor": Reset(("floor_visit_memory.forget",)),
+    "_home_knowledge_scan_retries_remaining": Reset((
+        "policy._choose_key",
+        "policy_observation.observe_town_visit_epoch",
+    )),
+    "_launcher_enchant_attempted": Reset(("policy_observation._observe",)),
+    "_look_floor_object_counts": Reset((
+        "floor_identify.key",
+        "policy._floor_item_identify_key",
+        "policy_identification._full_pack_loot_triage_key",
+    )),
+    "_morivant_full_identify_attempted": Reset(note=(
+        "a set that only grows for the life (policy._finish_morivant_full_identify adds)"
+    )),
+    "_nav_stall_count": Reset((
+        "destruction_use._restart_progress_marks",
+        "locked_doors.pick_key",
+        "policy._update_navigation_progress",
+        "policy_navigation._navigation_livelock_key",
+        "policy_observation._observe",
+        "quest_target_search._redetect_wait_key",
+        "quest_target_search._walk_key",
+        "sealed_pocket._spend_melt",
+        "sealed_pocket.destroyed_leave_key",
+    )),
+    "_one_step_explore_failures": Reset(("policy_observation._observe",)),
+    "_prev_inv_counts": Reset(note=(
+        "replaced by the board's counts in policy._track_idle_items; never emptied"
+    )),
+    "_q34_sequence_door_attempts": Reset(note=(
+        "per-door entries; policy_quest._quest_sequence_door_key drops a door's entry when the "
+        "door is open (no whole reset)"
+    )),
+    "_quest_regen_zero_rounds": Reset(("policy._start_kill_quest_regeneration",)),
+    "_rest_count": Reset(("policy._choose_key", "policy_observation._observe")),
+    "_store_entry_failed_owner": Reset((
+        "policy._choose_key",
+        "policy_shop._next_required_store_type",
+    )),
+    "_stuck_escape_streak": Reset((
+        "deep_teleport._recall_key",
+        "deep_teleport.stuck_key",
+        "ladder_idle.key",
+        "policy._stuck_escape_key",
+        "policy._town_idle_key",
+        "policy_fundraising._leave_fundraising_floor",
+        "policy_observation._observe",
+        "policy_town._return_to_town_key",
+        "sealed_pocket._last_recall_key",
+        "sealed_pocket.destroyed_leave_key",
+    )),
+    "_escape_speed_attempted": Reset(("policy._choose_key", "policy_combat._flee_sustain_key")),
+    "_ranged_target_attempts": Reset((
+        "policy_combat._ranged_attack_key",
+        "policy_quest._q2_ranged_core_key",
+    )),
+    "_ranged_target_macro_failures": Reset(("policy_combat._ranged_attack_key",)),
+    "_summoner_counter_targets": Reset(("floor_visit_memory.forget",)),
+    "_unseen_recall_damage_streak": Reset(("policy_combat._emergency_item",)),
+    "_digger_wield_attempts": Reset((
+        "policy_equipment._equipment_takeoff",
+        "policy_equipment._equipment_wield",
+        "policy_fundraising._fundraising_key",
+        "policy_shop._restore_mining_combat_hand_key",
+    )),
+    "_equipment_atomic_withdraw_leave_count": Reset((
+        "policy._set_equipment_transaction_session",
+        "policy_equipment._equipment_transaction_home_key",
+        "policy_home._atomic_home_withdraw_dispatch_key",
+    )),
+    "_mining_combat_contact_streak": Reset(("policy_fundraising._update_mining_combat_streaks",)),
+    "_mining_stall_turns": Reset((
+        "policy_fundraising._fundraising_key",
+        "policy_fundraising._mining_closure_key",
+        "policy_observation._observe",
+    )),
+    "_mining_threat_free_streak": Reset(("policy_fundraising._update_mining_combat_streaks",)),
+    "_home_full_retry_deposits": Reset((
+        "policy._observe_home_atomic_deposit_outside",
+        "policy_home._defer_home_full_deposit",
+        "policy_home._home_full_relief_key",
+        "policy_home._release_home_full_relief_for_weight",
+    )),
+    "_home_junk_sweep_count": Reset(note=(
+        "(town visit epoch, sweeps) stamped by policy_home._begin_home_junk_sweep and "
+        "_end_home_junk_sweep; another visit's epoch reads as 0 (no whole reset)"
+    )),
+    "_home_scan_item_count": Reset((
+        "policy._choose_key",
+        "policy_home._invalidate_home_observation",
+    )),
+    "_home_star_remove_curse_count": Reset(("policy_home._invalidate_home_observation",)),
+    "_chest_drop_chest_count": Reset((
+        "policy_identification._clear_chest_drop",
+        "policy_observation._observe",
+    )),
+    "_chest_phase_counts": Reset((
+        "ladder_plan_approved_quest.key",
+        "policy_identification._chest_processing_key",
+        "policy_identification._record_chest_drop",
+        "policy_identification._release_chest_left_by_jump",
+        "policy_observation._observe",
+    )),
+    "_identify_fail_streak": Reset((
+        "policy_identification._absorbed_identify_key",
+        "policy_identification._carried_identify_command",
+        "policy_identification._identify_carried_item_key",
+        "policy_observation._observe",
+    )),
+    "_dig_attempts": Reset((
+        "policy_navigation._forget_left_town_terrain",
+        "policy_observation._observe",
+    )),
+    "_door_attempts": Reset((
+        "policy_navigation._forget_left_town_terrain",
+        "policy_observation._observe",
+    )),
+    "_floor_trap_disarm_attempts": Reset(("policy_observation._observe",)),
+    "_probe_counts": Reset(("policy_observation._observe",)),
+    "_rejected_dig_attempts": Reset(("policy_navigation._step_toward",)),
+    "_dark_goal_counts": Reset(("policy_observation._observe",)),
+    "_fundraising_upstairs_door_attempts": Reset(("policy_observation._observe",)),
+    "_q2_phase_step_failures": Reset(("policy_observation._observe",)),
+    "_q2_speed_attempted": Reset(("policy_observation._observe",)),
+    "_quest_light_attempted": Reset(("policy_observation._observe",)),
+    "_quest_strategy_initial_hold_turns": Reset(("policy_observation._observe",)),
+    "_quest_strategy_post_wave_light_attempted": Reset(("policy_observation._observe",)),
+    "_quest_strategy_sweep_rounds": Reset(("policy_observation._observe",)),
+    "_search_counts": Reset(("policy_observation._observe",)),
+    "_stair_rejection_strikes": Reset(("policy_observation._observe",)),
+    "_town_wander_streak": Reset(("policy_observation._observe", "policy_town._break_town_cycle")),
+    "_unexplained_damage_streak": Reset(("policy_observation._observe",)),
+    "_unexplained_damage_streak_loss": Reset(("policy_observation._observe",)),
+    "_visit_counts": Reset(("policy_observation._observe",)),
+    "_wall_search_counts": Reset(("policy_observation._observe",)),
+    "_weapon_block_streak": Reset(("policy_observation._observe",)),
+    "_fixed_quest_speed_attempted": Reset(("policy_observation._observe",)),
+    "_q2_breach_attempts": Reset(("policy_observation._observe",)),
+    "_q2_phase_light_attempted": Reset(("policy_observation._observe",)),
+    "_q34_final_door_attempts": Reset(("policy_quest._quest_execute_key",)),
+    "_q34_opening_door_attempts": Reset(("policy_quest._quest_execute_key",)),
+    "_unique_speed_attempted": Reset(("policy_quest._unique_combat_consumable",)),
+    "_shop_approach_stuck_count": Reset((
+        "policy.choose_key",
+        "policy_observation._observe",
+        "policy_shop._settle_shopping_approach",
+    )),
+    "_wilderness_edge_tries": Reset(("policy_supply._wilderness_survival_key",)),
+    "_device_identify_fail_streak": Reset((
+        "policy_observation._observe",
+        "policy_town._town_device_processing_key",
+    )),
+    "_town_inn_accounting": Reset((
+        "policy_state.normalize_policy_state",
+        "policy_town._town_inn_route_receipt",
+    )),
+    "_q34_recharge_attempted": Reset(note=(
+        "a set of identities that only grows for the life (q34_recharge.recharge_decision adds)"
+    )),
+    "_tunnel_attempt_memory": Reset(("floor_visit_memory.forget", "tunnel_feasibility.observe")),
+}
