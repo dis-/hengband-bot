@@ -20,6 +20,12 @@ Four defects, one class each:
    loss) held at HP 261 and 133; the finders offered no teleport (``deep-teleport:no-means-fight``
    while Recall counted down).  The unseen loss is proof of a line of fire: the sum adds the
    same correction.
+3. ``KillTimeTest``: the free attack's kill time (threat_projection ``free_attack``, the tiers'
+   ``ceil(hp / free damage)``) read melee as ``min(expected damage, hp)``: five blows at 5% each
+   against AC 10000 (attack-accuracy.cpp: 5% always hit) dealt more than the metal's 6 HP in
+   expectation, so it died in one action and the engagement was T3 at distance 3.  The kill
+   time now counts the landings a kill takes over the landing chance (attack_expectation
+   ``kill_paced``; melee, the launcher's shots, a thrown torch and the devices' uses).
 
 Recorded: tests/fixtures/n1c-216-death-1118.jsonl.gz (tests/extract_n1c_216_death_1118_fixture.py),
 the live boards 7228502-7228558, replayed by one fresh policy through the public ``choose_key``
@@ -32,11 +38,12 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import copy
 import gzip
 import json
+import math
 from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import deep_teleport, heal_offset, threat_tiers
+from hengbot import attack_expectation, deep_teleport, heal_offset, threat_projection, threat_tiers
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -141,6 +148,38 @@ class UnseenFireTest(Replay, unittest.TestCase):
         policy, snapshot, _key = self.decide(INSTANT_DEATH, quiet)
         self.assertEqual(deep_teleport.fire_p95(policy, snapshot), 0)
         self.assertFalse(deep_teleport.allows(policy, snapshot))
+
+
+
+class KillTimeTest(Replay, unittest.TestCase):
+
+    def metal(self):
+        policy = HengbotPolicy(monrace_knowledge=self.monrace, baseitem_costs=self.costs)
+        snapshot = parse_snapshot(copy.deepcopy(self.board(SEEN)), self.monrace)
+        metal = next(monster for monster in snapshot.visible_monsters if monster.race_id == METAL)
+        return policy, snapshot, metal
+
+    def test_the_metal_takes_about_four_actions(self):
+        policy, snapshot, metal = self.metal()
+        self.assertEqual((metal.hp, metal.distance), (6, 3))
+        self.assertEqual(self.monrace[METAL].armor_class, 10000)
+        self.assertEqual(snapshot.player.main_hand_blows, 5)
+        # Live (min(expected, hp)): 6, one action.  A blow lands 5% of the time: 20 blows a kill.
+        self.assertAlmostEqual(attack_expectation.melee(policy, snapshot, metal), 1.5)
+        free, _cost = threat_projection.free_attack(policy, snapshot, metal)
+        self.assertAlmostEqual(free, 1.5)
+        result = threat_tiers.assess(policy, snapshot, [metal])
+        self.assertEqual(result.free_turns, 4)
+
+    def test_a_likely_kill_keeps_its_one_action(self):
+        # Two blows at 90% for 20 against 10 HP: one action, as before.
+        self.assertEqual(attack_expectation.kill_paced(36.0, 20.0, 10, 2), 10)
+        # One blow at 95%: one action.
+        self.assertEqual(attack_expectation.kill_paced(19.0, 20.0, 10, 1), 10)
+        # Far below the HP: the kill time of the expectation (n1-a life-450's 8 blows at 31%
+        # for 16 against 120 HP: ceil(120 / 40.46) = 3 actions).
+        paced = attack_expectation.kill_paced(40.46, 16.31, 120, 8)
+        self.assertEqual(paced, 40.46)
 
 
 if __name__ == "__main__":

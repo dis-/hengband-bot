@@ -271,12 +271,16 @@ def _launcher_stacks(policy, snapshot, target) -> list:
             continue
         shown = attack_expectation._SHOT_DISPLAY.search(ammo.name)
         turn = float(shown.group(2)) if shown else launcher_average_damage(launcher, ammo)
+        shot = float(shown.group(1)) if shown else turn
         multiplier = attack_expectation._slay(
             policy, target.race_id, ammo.known_flags | launcher.known_flags)
         chance = (snapshot.player.shooting_skill
                   + (attack_expectation.TO_H_B_FLOOR + launcher.to_h + ammo.to_h)
                   * attack_expectation.BTH_PLUS_ADJ - target.distance)
-        damage = turn * multiplier / 10 * attack_expectation._throw_hit_chance(chance, armour)
+        # The kill time counts the shots that land (attack_expectation.kill_paced).
+        damage = attack_expectation.kill_paced(
+            turn * multiplier / 10 * attack_expectation._throw_hit_chance(chance, armour),
+            shot * multiplier / 10, target.hp, turn / shot if shot > 0 else 1.0)
         # OQ-6: ego or artifact ammo is a supply; plain ammo is a free attack.
         stacks.append((bool(ammo.is_ego or ammo.is_artifact), damage, ammo.count))
     return stacks
@@ -305,7 +309,8 @@ def _free_devices(policy, snapshot, target) -> float:
             seen_missile = seen_missile or (power.kind, power.sval) == me_device_attacks.MISSILE
             if power.group_only or power.shape == "sight":
                 continue
-            best = max(best, success * me_device_attacks.expected_damage(power, level, flags))
+            best = max(best, _device_paced(success, me_device_attacks.expected_damage(
+                power, level, flags), target))
         if not seen_missile and _missile_ready(policy, snapshot):
             # Design 3.3 names the absorbed Magic Missile (me_ranged_first) a free attack; with
             # no displayed row it is scored as me_ranged_first fires it (optimistic, 100%).
@@ -318,9 +323,16 @@ def _free_devices(policy, snapshot, target) -> float:
         power = me_device_attacks.POWERS.get(("rod", item.sval))
         if power is None or power.group_only or power.shape == "sight":
             continue
-        best = max(best, attack_expectation.rod_use_success(snapshot.player.device_skill, power.level)
-                   * me_device_attacks.expected_damage(power, level, flags))
+        best = max(best, _device_paced(
+            attack_expectation.rod_use_success(snapshot.player.device_skill, power.level),
+            me_device_attacks.expected_damage(power, level, flags), target))
     return best
+
+
+def _device_paced(success: float, damage: float, target) -> float:
+    """A device use's expected damage as the kill time reads it: it lands with its success
+    (attack_expectation.kill_paced)."""
+    return attack_expectation.kill_paced(success * damage, damage, target.hp)
 
 
 def _charge_supplies(policy, snapshot, target) -> list:
