@@ -45,7 +45,7 @@ class QuestKnowledgeTest(unittest.TestCase):
             self.skipTest("real migrated Hengband quest data is not available")
 
         loaded = load_quest_knowledge(quest_dir)
-        allowlist = {1, 2, 14, 18, 22, 25, 28, 31, 34}
+        allowlist = {1, 2, 14, 18, 22, 25, 28, 31, 32, 34}
         self.assertTrue(allowlist <= loaded.keys())
         self.assertEqual(loaded[1].placed_monsters, ((44, 2), (150, 2)))
 

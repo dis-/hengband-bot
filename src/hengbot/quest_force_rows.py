@@ -21,7 +21,7 @@ is asked for: a character that cannot take the quest yet spends nothing on it.
 
 from __future__ import annotations
 
-from hengbot import haste_read, me_capability, quest_ranged_force
+from hengbot import haste_read, me_capability, quest_one_turn_kill, quest_ranged_force
 from hengbot.model import SV_POTION_SPEED
 
 ALTERNATIVES = "force_alternatives"
@@ -57,6 +57,24 @@ def _speed_cost(policy, snapshot, row: dict) -> int:
 
 def resolve(policy, snapshot, force: dict) -> dict:
     """``force`` with the row that serves this character merged in."""
+    one_turn = quest_one_turn_kill.tier(policy, snapshot, force) if quest_one_turn_kill.requirement(
+        force) is not None else "full"
+    if one_turn is None:
+        # QUEST_32: no row serves a character one turn does not kill the summoner with.
+        return {**force, "heal_potions": 0, "speed_potions": 0, **_NO_KIT, "required_scrolls": {}}
+    if one_turn == "hasted":
+        # QUEST_32's hasted row (owner 2026-11-19 「加速手段が十分なら135以上で良いとする」): its
+        # haste doses, Speed potions or an absorbed Speed power holding that many charges,
+        # asked at acceptance and at departure.
+        doses = quest_one_turn_kill.haste_doses(force)
+        row = {"speed_potions": max(doses, int(force.get("speed_potions", 0))),
+               "speed_alternatives": {"absorbed_charges": doses}}
+        cost = _speed_cost(policy, snapshot, row)
+        force = {**force, **row, DEPART_FLAG: True}
+        if cost == _WAITING_FOR_CHARGES:
+            force[ABSORBED_SHORT] = True
+        else:
+            force["speed_potions"] = cost
     alternatives = force.get(ALTERNATIVES)
     if not alternatives:
         # The launcher and rounds the device charges leave (quest_ranged_force: Q2, Q22, Q31).
@@ -99,6 +117,8 @@ def departure_speed_short(policy, snapshot, quest_id: int) -> bool:
     Speed doses, as it is accepted only with them: a quest taken earlier, or doses spent since,
     sends the character back to the shops (the quest's carry rung buys them) instead of in."""
     profile = policy.approved_quest_strategy(quest_id)
-    if profile is None or not profile.required_force.get(DEPART_FLAG):
+    if profile is None:
         return False
-    return speed_short(policy, snapshot, policy._strategy_force_for_snapshot(snapshot, profile))
+    # The resolved force: QUEST_32's hasted row sets the flag for this character only.
+    force = policy._strategy_force_for_snapshot(snapshot, profile)
+    return bool(force.get(DEPART_FLAG)) and speed_short(policy, snapshot, force)

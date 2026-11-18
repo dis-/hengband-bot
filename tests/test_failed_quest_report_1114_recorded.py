@@ -33,6 +33,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from hengbot import quest_one_turn_kill
 from hengbot.model import Position, parse_snapshot
 from hengbot.policy_constants import (
     LEAVE_STORE_KEY, QUEST_STATUS_FAILED, QUEST_STATUS_FAILED_DONE, QUEST_STATUS_UNTAKEN,
@@ -161,10 +162,13 @@ class FailedQuestReport1114RecordedTest(harness.RecordedHarness):
         self.assertNotEqual(policy.last_reason, REPORT)
         self.assertFalse(policy.last_reason.startswith("fixedquest:report-failed"))
         self.assertFalse(key.endswith(ENTER_TAIL) and policy.last_reason.startswith(REPORT))
+        # The castle offers Q32 (level 25) too, and this character meets its one-turn condition
+        # (QUEST_32, owner 2026-11-19 「条件を満たした時だけ割り込む」): it heads ahead of Q25.
+        self.assertFalse(quest_one_turn_kill.holds_back(policy, board, 32))
         head = policy._build_fixed_quest_head(board)
-        self.assertEqual((head.id, head.status), (25, QUEST_STATUS_UNTAKEN))
+        self.assertEqual((head.id, head.status), (32, QUEST_STATUS_UNTAKEN))
         readiness = policy.fixed_quest_readiness_state()
-        self.assertEqual(readiness.get("quest_id"), 25, readiness)
+        self.assertEqual(readiness.get("quest_id"), 32, readiness)
 
 
 if __name__ == "__main__":

@@ -650,9 +650,9 @@ QUEST_ID_THIEF = 1
 
 WIN_QUEST_IDS = frozenset({8, 9})
 
-FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 22, 25, 28, 31, 34})
+FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 22, 25, 28, 31, 32, 34})
 
-EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 18, 22, 25, 31, 34})
+EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 18, 22, 25, 31, 32, 34})
 
 FIXED_QUEST_TOWNS = {2: 1, 22: 3, 31: 0}
 
@@ -694,6 +694,8 @@ FIXED_QUEST_REWARD_POSITIONS = {
     34: (0, frozenset({Position(36, 119)})),
     22: (3, frozenset({Position(31, 99)})),
     31: (0, frozenset({Position(36, 119)})),
+    # Dark Elven Lords: the same `@` square, the Phial at $QUEST32 3 (01_Outpost_Full.jsonc).
+    32: (0, frozenset({Position(36, 119)})),
 }
 
 REST_MACRO = "R&\r"

@@ -744,6 +744,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "attack_expectation.py:melee_against": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:race_knowledge": {
     "classification": "data",
     "rows": [
@@ -13624,6 +13631,55 @@
     "delegation": "selected child; no independent success"
   },
   "quest_navigator.py:_unidentified_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:figures": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:figures.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:haste_doses": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:met": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:requirement": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

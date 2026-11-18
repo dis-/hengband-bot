@@ -10,7 +10,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -1862,10 +1862,15 @@ class QuestMixin(OpeningRouteMixin):
         return key
 
     def _quest_never_move_races(self, profile: StrategyProfile) -> set[int]:
+        # ``engage_never_move_races`` (QUEST_32): never-moving races the plan fights like any
+        # other -- walked to, struck beside, shot when seen -- because its required resists
+        # leave their touch and gaze nothing (owner 2026-11-19, quest_one_turn_kill).
+        engaged = set(profile.engagement_plan.get("engage_never_move_races", ()))
         return {
             race_id for race_id in profile.priority_targets
             if (
-                (knowledge := self._monrace_knowledge.get(race_id)) is not None
+                race_id not in engaged
+                and (knowledge := self._monrace_knowledge.get(race_id)) is not None
                 and "NEVER_MOVE" in knowledge.flags
             )
         }
@@ -3903,6 +3908,22 @@ class QuestMixin(OpeningRouteMixin):
             and monster.race_id in never_move_races
         ]
         engage_adjacent = mobile_adjacent + forced_adjacent
+        # QUEST_32: the one-turn race beside a character whose devices out-damage its blows
+        # takes the device (quest_one_turn_kill.means), not the weaker melee turn.
+        one_turn_race = quest_one_turn_kill.race(profile.required_force)
+        # The hasted tier (owner 2026-11-19 「加速手段が十分なら135以上で良いとする」) fights the
+        # race hasted: the dose comes before any blow or shot at it.
+        if (any(monster.race_id == one_turn_race for monster in combat_hostiles)
+                and quest_one_turn_kill.haste_first(self, snapshot, profile.required_force)):
+            haste = speed_dose.key(self, snapshot, "quest-strategy:one-turn-haste")
+            if haste is not None:
+                return haste
+        one_turn_beside = [monster for monster in engage_adjacent if monster.race_id == one_turn_race]
+        if one_turn_beside and quest_one_turn_kill.means(
+                self, snapshot, profile.required_force) == "device":
+            device = self._q2_ranged_core_key(snapshot, profile, one_turn_beside)
+            if device is not None:
+                return device
         if engage_adjacent and not snapshot.player.afraid and self._can_fight_in_dungeon(snapshot.floor_key[0]):
             ranked = sorted(
                 engage_adjacent,
@@ -3918,8 +3939,16 @@ class QuestMixin(OpeningRouteMixin):
             self.last_reason = "quest-strategy:melee"
             return self._direction_key(snapshot.player.position, ranked[0].position)
 
-        if profile.required_force.get("launcher") and combat_hostiles:
-            ranged = self._q2_ranged_core_key(snapshot, profile, combat_hostiles)
+        # QUEST_32 names no launcher: its Magic-Eater shoots its devices (the ranged core without
+        # ammunition), at every target but the one-turn race when its blows are the stronger turn
+        # (quest_one_turn_kill.means): that one is walked to and struck.
+        one_turn_means = quest_one_turn_kill.means(self, snapshot, profile.required_force)
+        ranged_hostiles = [
+            monster for monster in combat_hostiles
+            if not (one_turn_means == "melee" and monster.race_id == one_turn_race)
+        ]
+        if (profile.required_force.get("launcher") or one_turn_means is not None) and ranged_hostiles:
+            ranged = self._q2_ranged_core_key(snapshot, profile, ranged_hostiles)
             if ranged is not None:
                 return ranged
 
@@ -4538,6 +4567,8 @@ class QuestMixin(OpeningRouteMixin):
             if quest.id in FIXED_QUEST_ALLOWLIST
             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
             and self.approved_quest_strategy(quest.id) is not None
+            and not (quest.status == QUEST_STATUS_UNTAKEN
+                     and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
         ]
         if not candidates:
             return None
@@ -4597,6 +4628,8 @@ class QuestMixin(OpeningRouteMixin):
                     QUEST_STATUS_COMPLETED,
                 }
                 and self.approved_quest_strategy(quest.id) is not None
+                and not (quest.status == QUEST_STATUS_UNTAKEN
+                         and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
             ]
             fixed_quest_head = self._fixed_quest_head(snapshot)
             travel_quest = fixed_quest_head
@@ -4839,6 +4872,8 @@ class QuestMixin(OpeningRouteMixin):
                 QUEST_STATUS_COMPLETED,
             }
             and self.approved_quest_strategy(quest.id) is not None
+            and not (quest.status == QUEST_STATUS_UNTAKEN
+                     and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
         ]
         head = self._fixed_quest_head(snapshot)
         travel = head
@@ -5257,6 +5292,8 @@ class QuestMixin(OpeningRouteMixin):
             if opening_q34 is not None and supported(opening_q34):
                 return opening_q34
 
+        # A non_urgent quest short of its condition is passed over (QUEST_32, owner 2026-11-19
+        # 「条件を満たした時だけ割り込む」): the next quest is taken; once met it is in its place.
         untaken = [
             quest for quest in known_quests.values()
             if supported(quest)
@@ -5265,6 +5302,7 @@ class QuestMixin(OpeningRouteMixin):
                 quest.id in FIXED_QUEST_ALWAYS_OFFERED
                 or self._fixed_quest_is_offered(snapshot, quest.id)
             )
+            and not quest_one_turn_kill.holds_back(self, snapshot, quest.id)
         ]
         return min(untaken, key=self._fixed_quest_order) if untaken else None
 
