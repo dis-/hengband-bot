@@ -64,7 +64,7 @@ from __future__ import annotations
 import math
 import re
 
-from hengbot import me_device_attacks
+from hengbot import me_device_attacks, speed_valuation
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, launcher_average_damage
 from hengbot.model import TVAL_BOLT, TVAL_ROD, TVAL_WAND
@@ -651,3 +651,46 @@ def effective(options) -> list:
 def actions_to_kill(hit_points: float, per_action: float) -> float:
     """Player actions to deal ``hit_points``; infinite without any damage."""
     return math.ceil(hit_points / per_action) if per_action > 0 else math.inf
+
+
+# -- per 10 game turns ---------------------------------------------------------------------
+#
+# Owner 2026-11-19 (verbatim): 「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで
+# 評価して」, on the scope 「攻撃力の判定すべて」.  Every figure above is per player action; a
+# judgement that weighs attack power against a threshold, a hit-point total or another speed
+# reads it per 10 game turns, one turn at normal speed (core/speed-table.cpp extract_energy:
+# a game turn gives 10 energy at +0, 20 at +10, 30 at +20, 38 at +30, and an action costs 100
+# -- player-processor.cpp:149, ``energy_need -= speed_to_energy(pspeed)``).  At +0 the figure
+# is unchanged.  The speed is the player's current one unless the caller names another: a town
+# gate names the permanent speed (a timed haste ends before the quest), a rule that assures a
+# haste names the hasted speed.
+
+# A haste (set_acceleration, a Potion of Speed or an absorbed Speed power) is +10.
+HASTE_BONUS = 10
+
+
+def per_10_game_turns(policy, snapshot, per_action: float, speed: int | None = None) -> float:
+    """``per_action`` damage as damage per 10 game turns at ``speed`` (the board's player speed
+    when None).  The one reader of attack power per game time (speed_valuation's arithmetic)."""
+    del policy  # the reader's signature: every judgement passes its policy and board
+    return speed_valuation.per_10_game_turns_at(
+        per_action, snapshot.player.speed if speed is None else speed)
+
+
+def permanent_speed(snapshot) -> int:
+    """The player's speed without a timed haste or slowness (speed_valuation)."""
+    return speed_valuation.permanent_player_speed(snapshot)
+
+
+def hasted_speed(snapshot) -> int:
+    """The permanent speed with one haste: a rule that doses before the fight."""
+    return permanent_speed(snapshot) + HASTE_BONUS
+
+
+def always_hasted_speed(snapshot) -> int:
+    """The speed an ``always_hasted`` quest row fights at: quest_plan_base ``_speed`` doses only
+    below PERMANENT_HASTE_SPEED (a permanent +10 stands for the dose), so the permanent speed
+    there, else the permanent speed with one haste."""
+    from hengbot.quest_plan_base import PERMANENT_HASTE_SPEED
+    speed = permanent_speed(snapshot)
+    return speed if speed >= PERMANENT_HASTE_SPEED else speed + HASTE_BONUS
