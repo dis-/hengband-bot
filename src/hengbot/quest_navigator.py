@@ -113,6 +113,10 @@ class QuestFloorNavigator:
     sweep_light_read = frozenset()  # rooms read and not yet seen lit (quest_room_light)
     sweep_potion_carried = 0  # the plan's potion, last counted (quest_room_light)
     sweep_potion_due = False
+    # The kill lines of the tracked summoner races (quest_alignment_split): race -> kills, replaced
+    # whole; and the board they were last read from.  Same rule.
+    split_kills = {}
+    split_board = None
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -171,6 +175,8 @@ class QuestFloorNavigator:
         self.sweep_light_read = frozenset()
         self.sweep_potion_carried = 0
         self.sweep_potion_due = False
+        self.split_kills = {}
+        self.split_board = None
         self.phase_battle = None
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:

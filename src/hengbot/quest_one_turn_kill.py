@@ -47,6 +47,9 @@ kit of a character with no tier (a character that cannot take the quest spends n
 the fixed-quest order, but while ``met`` is false it is passed over (``holds_back``) and the
 next quest is taken.
 
+``turns`` (QUEST_33, owner 2026-11-19 「戦力は過剰に要求して良い」): the race's ``hit_points`` within
+that many player turns, so the one-turn figure must reach ``hit_points / turns``.  1 when absent.
+
 ``means`` is the attack the fight uses on the race (quest executor): the one with the larger
 figure, melee on a tie.
 """
@@ -78,7 +81,7 @@ def valid(value) -> bool:
             and isinstance(value.get("device_classes", []), list)
             and all(integer(item) for item in value.get("device_classes", []))
             and all(integer(value[name]) and 0 < value[name]
-                    for name in ("hasted_hit_points", "haste_doses") if name in value)
+                    for name in ("hasted_hit_points", "haste_doses", "turns") if name in value)
             and ("hasted_hit_points" in value) == ("haste_doses" in value))
 
 
@@ -108,7 +111,8 @@ def tier(policy, snapshot, force) -> str | None:
     """"full" (the figure reaches ``hit_points``), "hasted" (it reaches ``hasted_hit_points``:
     the haste doses are asked by ``quest_force_rows.resolve``) or None."""
     required = requirement(force)
-    figure = best(policy, snapshot, force)
+    # ``turns`` (QUEST_33): the race's hit points within that many player turns.
+    figure = best(policy, snapshot, force) * int(required.get("turns", 1))
     if figure >= int(required["hit_points"]):
         return "full"
     if "hasted_hit_points" in required and figure >= int(required["hasted_hit_points"]):
@@ -158,5 +162,6 @@ def details(policy, snapshot, force) -> dict:
     """The readiness telemetry's entry."""
     required = requirement(force)
     return {"race": int(required["race"]), "required": int(required["hit_points"]),
+            "turns": int(required.get("turns", 1)),
             **{name: round(value, 1) for name, value in figures(policy, snapshot, force).items()},
             "means": means(policy, snapshot, force), "tier": tier(policy, snapshot, force)}

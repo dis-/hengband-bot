@@ -21145,5 +21145,49 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Pure reading: whether the approach to *Destruction* owns the sensed T1s (the means usable, or a walk toward the approach subject known); no key."
+  },
+  "quest_alignment_split.py:side": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "GOOD or EVIL by a race's flags (QUEST_33's split of the summoners); a label, not a key; no command."
+  },
+  "quest_alignment_split.py:_monster_side": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "A board monster's side for QUEST_33's facing count (the race's flags, or GOOD for the plan's good_summons_symbols); a label; no command."
+  },
+  "quest_alignment_split.py:leave_goals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: the cells out of the contact set when the player stands in it (positions for the room sweep's walk); no command."
+  },
+  "quest_alignment_split.py:abort_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 owner 2026-11-19: the GOOD and EVIL summoners began summoning at each other (facing_casts_to_abort casts at a monster of the other side); Word of Recall through once_quest_recall.read_key (deliberate), the quest fails."
   }
 }

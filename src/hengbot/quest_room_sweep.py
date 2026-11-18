@@ -22,7 +22,10 @@ The data (QUEST_25 gives the reasons of its cells):
  * ``max_rounds``: full walks with the quest still open before the plan stops by name;
  * ``unseen_attacker``: "cover_or_close", see below;
  * ``light_dark_room``, ``opening_quaff``: quest_room_light;
- * ``exit_when_out_of_healing``: see below.
+ * ``exit_when_out_of_healing``: see below;
+ * ``alignment_split`` (QUEST_33): no walk enters a cell where a GOOD and an EVIL summoner would
+   both act, a stop on one waits, a stop's ``after_races_dead`` waits for those races, and the
+   sides summoning at each other give the quest up (quest_alignment_split).
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
 door and the shot; teleported away, the same stand is walked back to with no limit on
@@ -88,6 +91,7 @@ from hengbot import (
     combat_answer,
     left_cells,
     once_quest_recall,
+    quest_alignment_split,
     quest_exposure,
     quest_plan_base,
     quest_room_light,
@@ -132,6 +136,7 @@ WALK_REASON = "quest-strategy:sweep-walk"
 OPEN_REASON = "quest-strategy:sweep-open-door"
 APPROACH_REASON = "quest-strategy:sweep-approach"
 NOTHING_LEFT_REASON = "quest:blocked:sweep-nothing-left"
+SPLIT_BLOCKED_REASON = "quest:blocked:sweep-split"
 LIGHT_REASON = quest_room_light.LIGHT_REASON
 EXIT_WALK_REASON = "quest-strategy:sweep-exit-walk"
 EXIT_REASON = "quest-strategy:sweep-exit"
@@ -266,14 +271,18 @@ def _refused_cells(policy, snapshot, navigator) -> list[Position]:
     return [cell for cell in cells if policy._warning_step_refused(snapshot, cell)]
 
 
-def _path(policy, navigator, plan, snapshot, goals, blocked=()) -> list[Position]:
+def _path(policy, navigator, plan, snapshot, goals, blocked=(), *, split=True) -> list[Position]:
     """The walk with the fewest cells in a caster's line, then the fewest steps; through
     deep water only from where no dry walk leads (a teleport can land on a shore); never
-    over a cell the warning refused, nor a cell an owner left (left_cells)."""
+    over a cell the warning refused, nor a cell an owner left (left_cells), nor, unless
+    ``split`` is False (the exit walk), a cell where both sides' summoners would act
+    (quest_alignment_split)."""
     start = _cell(snapshot.player.position)
     goals = {_cell(goal) for goal in goals}
     taken = (frozenset(_cell(cell) for cell in (*blocked, *_refused_cells(policy, snapshot, navigator)))
              | left_cells.refused_yx(policy, snapshot))
+    if split:
+        taken |= quest_alignment_split.refused_cells(policy, snapshot, navigator, plan)
     lines = _lines(navigator, plan, snapshot)
     path = quest_plan_base._least_exposed_walk(navigator, snapshot, lines, start, goals, taken)
     return [Position(*cell) for cell in path]
@@ -336,14 +345,34 @@ def _last_target_key(policy, snapshot, navigator, plan, stop) -> str | None:
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
+    # Standing where both sides' summoners act (a teleport's landing): out of it first.
+    if (out := quest_alignment_split.leave_goals(policy, snapshot, navigator, plan)):
+        stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, out, blocked), WALK_REASON)
+        if stepped is not None:
+            return stepped
     if (sought := _to_last_seen(policy, snapshot, navigator, plan, blocked)) is not None:
         return sought
+    refused = quest_alignment_split.refused_cells(policy, snapshot, navigator, plan)
+
+    def waits(stop) -> bool:
+        """Both sides would act on its cell, or its phase's races are not dead yet."""
+        return (_cell(Position(*stop.get("stand", stop.get("cell")))) in refused
+                or quest_alignment_split.stop_waits(policy, snapshot, navigator, plan, stop))
+
+    if quest_alignment_split.split_of(plan) is not None and all(waits(stop) for stop in _stops(plan)):
+        # Every stop waits: no round is spent, and the wait is named.
+        policy.last_reason = SPLIT_BLOCKED_REASON
+        return WAIT_KEY
     for _ in range(len(_stops(plan)) + 1):
         if navigator.sweep_round >= int(plan["max_rounds"]):
             policy.last_reason = NOTHING_LEFT_REASON
             return WAIT_KEY
         stop = _stops(plan)[navigator.sweep_stage]
         goal = Position(*stop.get("stand", stop.get("cell")))
+        if waits(stop):
+            # This stop waits for a later round (one side dead).
+            _next_stop(navigator, plan)
+            continue
         if here != goal:
             stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, {goal}, blocked), WALK_REASON)
             if stepped is not None or not _refused_cells(policy, snapshot, navigator):
@@ -372,6 +401,7 @@ def walk_key(policy, snapshot) -> str | None:
     if plan is None:
         return None
     navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
+    quest_alignment_split.observe(policy, snapshot, navigator, plan)
     _note_gone(policy, snapshot, navigator, plan)
     return _advance(policy, snapshot, navigator, plan)
 
@@ -508,7 +538,7 @@ def _leave_by_exit(policy, snapshot, navigator, plan, board) -> str | None:
     if snapshot.player.position == goal:
         policy.last_reason = EXIT_REASON
         return UP_STAIRS_KEY
-    path = _path(policy, navigator, plan, snapshot, {goal}, board.occupied)
+    path = _path(policy, navigator, plan, snapshot, {goal}, board.occupied, split=False)
     if len(path) - 1 > ITEM_DESTROYING_BREEDER_STAIR_DISTANCE:
         return None
     return _step(policy, snapshot, path, EXIT_WALK_REASON)
@@ -528,6 +558,7 @@ def key(policy, snapshot) -> str | None:
     quest_id = snapshot.floor_key[2]
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
+    quest_alignment_split.observe(policy, snapshot, navigator, plan)
     _note_gone(policy, snapshot, navigator, plan)
     _note_last_seen(snapshot, navigator, plan)
     quest_room_light.note_floor_potion(policy, snapshot, navigator, plan)
@@ -538,6 +569,8 @@ def key(policy, snapshot) -> str | None:
         return (
             quest_room_light.floor_potion_key(policy, snapshot, navigator, plan, quiet=True)
             or _unseen_light(policy, snapshot, navigator, plan, board)
+            # QUEST_33 (owner 2026-11-19): the sides have begun summoning at each other.
+            or quest_alignment_split.abort_key(policy, snapshot, plan)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
             or quest_plan_base._restore(policy, snapshot)
@@ -560,6 +593,8 @@ def key(policy, snapshot) -> str | None:
         or quest_room_light.floor_potion_key(policy, snapshot, navigator, plan, quiet=False)
         # Before the unseen rule and the summons: the light may show them their caster.
         or _unseen_light(policy, snapshot, navigator, plan, board)
+        # QUEST_33 (owner 2026-11-19): the sides have begun summoning at each other.
+        or quest_alignment_split.abort_key(policy, snapshot, plan)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)
         or resist_potion.key(policy, snapshot)
