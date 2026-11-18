@@ -13,7 +13,6 @@ and the ladder that ranks them -- is ``town_hold``.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-import re
 from typing import Any, Callable, NamedTuple
 
 from hengbot.policy_constants import (
@@ -34,6 +33,7 @@ from hengbot.policy_constants import (
     TOWN_TRAVEL_STALL_LIMIT,
 )
 from hengbot.departure_readiness import readiness_table
+from hengbot.item_identity import sale_identity_of_signature
 from hengbot.departure_rescues import rescue_key
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
@@ -450,7 +450,7 @@ def home_full_identification_target(policy: Any, board: Any) -> Any:
         return None
     # The relief body follows its sale identity across inscription changes.
     name, tval, sval = sale[0]
-    identity = (re.sub(r"\s+\{[^{}]*\}\s*$", "", name), tval, sval)
+    identity = sale_identity_of_signature((name, tval, sval))
     return next((item for item in board.inventory
                  if policy._sale_item_identity(item) == identity), None)
 

@@ -363,6 +363,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "area_mapping.py:loot_enclosure_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "area_mapping.py:picked_up_scroll_key": {
     "classification": "data",
     "rows": [
@@ -1889,13 +1896,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "equipment_mutation.py:stable_identity": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "equipment_mutation.py:worn_instance": {
     "classification": "data",
     "rows": [
@@ -3183,6 +3183,83 @@
     "delegation": "selected child; no independent success"
   },
   "item_fate.py:weight_relief_order": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:display_signature": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:sale_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:sale_identity_of_signature": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:shelf_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:stable_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:unidentified_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:without_any_block": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:without_player_inscription": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:without_trailing_block": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:without_trailing_block_loose": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_identity.py:without_trailing_blocks": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14132,12 +14209,33 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "sealed_loot.py:_first_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; a route reading for _map_key"
+  },
   "sealed_loot.py:_known_wall": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "sealed_loot.py:_map_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "sealed_loot.py:_map_key.nearness": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "no emission; a distance reading for _map_key"
   },
   "sealed_loot.py:_neighbours": {
     "classification": "data",
@@ -14161,6 +14259,13 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_loot.py:_trap_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "sealed_loot.py:_walled_key": {
     "classification": "action",
     "rows": [
       "positioning"

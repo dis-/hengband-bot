@@ -455,6 +455,9 @@ MINING_OSCILLATION_RETARGET_LIMIT = 3
 # 切り上げて地上に戻る。序盤の攻撃力では倒せないし非効率。」  Race ids
 # (lib/edit/MonraceDefinitions.jsonc) whose sighting ends a mining run.
 MINING_ABORT_UNIQUE_RACE_IDS = frozenset({39})
+# The reason prefix of that aborted run's exit (policy_fundraising
+# _mining_unbeatable_unique_abort_key / _mining_abort_exit_key).
+MINING_ABORT_REASON_PREFIX = "fundraise:abort-unbeatable-unique"
 
 RECALL_MIN_DEPTH = 5
 

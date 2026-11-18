@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from enum import Enum
-import re
 from typing import Any
 
 from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup
+from hengbot.item_identity import unidentified_identity
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, Snapshot, TVAL_CHEST, TVAL_GOLD
@@ -53,7 +53,7 @@ def _unidentified_identity(item: Any) -> tuple[int, int, str]:
     The display name gains ``{並}`` (a pseudo-ID feeling) or an inscription
     block later; strip trailing brace blocks so the item stays the same one.
     """
-    return (item.tval, item.sval, re.sub(r"(\s*\{[^{}]*\})+\s*$", "", item.name))
+    return unidentified_identity(item)
 
 
 @dataclass

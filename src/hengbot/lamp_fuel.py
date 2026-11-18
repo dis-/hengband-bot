@@ -47,6 +47,7 @@ from __future__ import annotations
 import re
 
 from hengbot.equipment_optimizer import q34_item_tagged
+from hengbot.item_identity import without_trailing_block_loose
 from hengbot.policy_constants import LANTERN_FULL_FUEL, LANTERN_REFILL_FUEL
 from hengbot.town_arbiter import HENGBAND_TURNS_PER_TICK
 
@@ -58,7 +59,6 @@ EAT_LITE_MAX_FUEL = 500  # monster-eating.cpp process_eat_lite: 250 + randint1(2
 _MEMORY = "_lamp_full_memory"
 _SEEN_OUT = "_lamp_seen_out_identity"
 _REPEAT_SUFFIX = re.compile(r" <x([1-9]\d*)>$")
-_INSCRIPTION = re.compile(r"\s*\{[^{}]*\}\s*$")
 
 
 def _worn_lantern(snapshot):
@@ -68,7 +68,7 @@ def _worn_lantern(snapshot):
 
 def _lantern_identity(lantern) -> str:
     # The pseudo-ID inscription changes while worn ({並, Q34} -> {高級品, Q34}).
-    return _INSCRIPTION.sub("", lantern.name)
+    return without_trailing_block_loose(lantern.name)
 
 
 def _counted(messages, texts) -> int:

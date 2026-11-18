@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from hengbot.item_reservation import ReservationVerdict, standalone_verdict, checked_item_command
+from hengbot.item_identity import stable_identity  # review S1: the name-free reading
 from hengbot.town_pack_budget import incoming_slots, permits, reserve_swap_slot
 
 from collections.abc import Callable
@@ -54,31 +55,6 @@ def equipment_signature(snapshot) -> tuple:
 
 _SLOT_BY_KEY = {key: slot for slot, key in EQUIPMENT_SLOT_KEY.items()}
 _EFFECT = "requested-item"
-
-
-def stable_identity(item) -> tuple | None:
-    """What identifies this very item across boards, and nothing mutable.
-
-    Base kind (tval, and sval once the flavor is aware), weight, and the
-    ego/artifact class once the item is known.  Bonuses (disenchantment),
-    charges, fuel, inscription, learned flags and the display name all change
-    without any equipment command and are never part of it.  Knowledge-gated
-    fields are None while unknown, so wearing an item that identifies it on
-    the spot still matches (``same_item``).
-    """
-    if item is None:
-        return None
-    aware = getattr(item, "aware", True)
-    known = getattr(item, "known", True)
-    return (
-        getattr(item, "tval", None),
-        getattr(item, "weight", None),
-        getattr(item, "sval", None) if aware else None,
-        (
-            bool(getattr(item, "is_ego", False)),
-            bool(getattr(item, "is_artifact", False)),
-        ) if known else None,
-    )
 
 
 def same_item(identity: tuple | None, item) -> bool:
