@@ -20921,5 +20921,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "The first fixed-order answer (along a clear ray) or aimed absorbed power (off the rays over a clear projection path, never in town) whose expected damage per action is strictly above the launcher's shot of the given ammunition (0 without it); shared by stronger_than_launcher_key and quest_device_key. Keys come from the reviewed senders (device_key, _fire_missile, _use, _grid_options.send); no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_wait_refused_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "n1-c life-217 2026-11-19: in Zul, '<' refused for an awake monster the player does not perceive (change_wild_mode, MAX_PLAYER_SIGHT): one WAIT_KEY under town:zul:wait-refused so it can move, '<' again on the next board; STORE_STUCK_LIMIT waits on one cell return None (the previous fall-through). Called only by _enter_global_key; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

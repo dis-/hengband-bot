@@ -60,7 +60,7 @@ from hengbot import morivant_tower, town_travel
 from hengbot.model import STORE_BLACK, STORE_MAGIC, Position
 from hengbot.policy_constants import (
     DOWN_STAIRS_KEY, LEAVE_STORE_KEY, STORE_STUCK_LIMIT, TOWN_TELEPORT_BUILDING_TYPES,
-    TOWN_TELEPORT_COST, UP_STAIRS_KEY, ZUL_TOWN_ID,
+    TOWN_TELEPORT_COST, UP_STAIRS_KEY, WAIT_KEY, ZUL_TOWN_ID,
 )
 
 MIN_LEVEL = 30  # owner: 「Lv.30以上」
@@ -104,6 +104,7 @@ APPROACH_REASON = REASON + "approach-tower"
 CURE_REASON = REASON + "cure"
 EDGE_REASON = REASON + "ambush-edge"
 LEAVE_SIGHT_REASON = REASON + "leave-sight"
+WAIT_REFUSED_REASON = REASON + "wait-refused"
 REWEAR_REASON = REASON + "rewear-ring"
 REPLACED_RING_ATTR = "_zul_replaced_ring"
 HOME_PURPOSE = "zul-levitation"
@@ -599,10 +600,29 @@ def _enter_global_key(policy, snapshot, record) -> str | None:
     if wilderness_exit.refuses_from(snapshot.player.position, awake):
         return _leave_sight_key(policy, snapshot, awake)
     if wilderness_exit.global_map_refused(snapshot):
-        return None  # a monster near that the player does not perceive
+        # A monster near that the player does not perceive: no direction to walk from it.
+        return _wait_refused_key(policy, snapshot, record)
     record.active = True
     policy.last_reason = ENTER_GLOBAL_REASON
     return UP_STAIRS_KEY
+
+
+def _wait_refused_key(policy, snapshot, record) -> str | None:
+    """In Zul, one turn's wait after '<' was refused for a monster the player does not perceive.
+
+    Zul has no inn, so no other owner has a way out of it: n1-c life-217 (2026-11-19 01:14,
+    Lv35, the mutation cured, at night) had '<' refused with nothing seen or sensed, the trip
+    left the board, and the Magic-Eater staff sequence's inn leg back to the Outpost had no
+    route there (quest:blocked:me-staff return-outpost-unavailable).  The wait lets the
+    monster move (or come into view: then the fight or ``_leave_sight_key``) and '<' is tried
+    again on the next board.  ``STORE_STUCK_LIMIT`` waits on one cell end it (None, as before).
+    Elsewhere (the start town) the refusal stays the other owners' (``_no_progress`` "leave").
+    """
+    if (policy._effective_town_id(snapshot) != ZUL_TOWN_ID
+            or _no_progress(record, snapshot, "refused")):
+        return None
+    policy.last_reason = WAIT_REFUSED_REASON
+    return WAIT_KEY
 
 
 def _leave_sight_key(policy, snapshot, awake) -> str | None:

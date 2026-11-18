@@ -1025,6 +1025,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("town:zul:levitation-home", T, EFFECT),
         ("town:zul:enter-global", O, FLOOR_CHANGE),
         ("town:zul:leave-sight", R, WALK_TARGET),
+        ("town:zul:wait-refused", T, EFFECT),
         ("town:zul:approach-tower", R, ENTRANCE),
         ("town:zul:cure", T, EFFECT),
         ("town:zul:global-step", R, WALK_TARGET),
