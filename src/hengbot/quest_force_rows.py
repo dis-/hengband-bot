@@ -62,10 +62,11 @@ def resolve(policy, snapshot, force: dict) -> dict:
     if one_turn is None:
         # QUEST_32: no row serves a character one turn does not kill the summoner with.
         return {**force, "heal_potions": 0, "speed_potions": 0, **_NO_KIT, "required_scrolls": {}}
-    if one_turn == "hasted":
-        # QUEST_32's hasted row (owner 2026-11-19 「加速手段が十分なら135以上で良いとする」): its
-        # haste doses, Speed potions or an absorbed Speed power holding that many charges,
-        # asked at acceptance and at departure.
+    if one_turn == "hasted" and "haste_doses" in quest_one_turn_kill.requirement(force):
+        # QUEST_32's hasted row (owner 2026-11-19 「加速手段が十分なら135以上で良いとする」, read per
+        # 10 game turns at the hasted speed since 「10ゲームターンあたり」): its haste doses, Speed
+        # potions or an absorbed Speed power holding that many charges, asked at acceptance and
+        # at departure.  An ``always_hasted`` force (QUEST_33) asks its own Speed supplies.
         doses = quest_one_turn_kill.haste_doses(force)
         row = {"speed_potions": max(doses, int(force.get("speed_potions", 0))),
                "speed_alternatives": {"absorbed_charges": doses}}
