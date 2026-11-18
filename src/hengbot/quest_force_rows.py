@@ -21,7 +21,7 @@ is asked for: a character that cannot take the quest yet spends nothing on it.
 
 from __future__ import annotations
 
-from hengbot import haste_read, me_capability, quest_ranged_force
+from hengbot import haste_read, me_capability, quest_one_turn_kill, quest_ranged_force
 from hengbot.model import SV_POTION_SPEED
 
 ALTERNATIVES = "force_alternatives"
@@ -57,6 +57,9 @@ def _speed_cost(policy, snapshot, row: dict) -> int:
 
 def resolve(policy, snapshot, force: dict) -> dict:
     """``force`` with the row that serves this character merged in."""
+    if not quest_one_turn_kill.met(policy, snapshot, force):
+        # QUEST_32: no row serves a character one turn does not kill the summoner with.
+        return {**force, "heal_potions": 0, "speed_potions": 0, **_NO_KIT, "required_scrolls": {}}
     alternatives = force.get(ALTERNATIVES)
     if not alternatives:
         # The launcher and rounds the device charges leave (quest_ranged_force: Q2, Q22, Q31).

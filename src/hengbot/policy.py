@@ -17,7 +17,7 @@ from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
-from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
+from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 from hengbot import amberite_curse, curse_cure, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
 
 from collections import Counter, deque
@@ -13484,6 +13484,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         }
         if quest_ranged_force.ranged_requirement(force) is not None:
             details["ranged"] = quest_ranged_force.details(self, snapshot, force)
+        if quest_one_turn_kill.requirement(force) is not None:
+            details["one_turn_kill"] = quest_one_turn_kill.details(self, snapshot, force)
         if dps != melee_dps:
             details["melee_dps"] = melee_dps
         lit_torch = carry_status.get("throwing_items.lit_torch")
@@ -13500,6 +13502,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             ]
             if not resists_ready:
                 details["failed"].append("resists")
+            if not quest_one_turn_kill.met(self, snapshot, force):
+                details["failed"].append("one_turn_kill")
             return False
         no_heal = force.get("no_healing_tier")
         if isinstance(no_heal, dict) and (
@@ -13516,6 +13520,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),
                 ("absorbed_speed_charges", not force.get(quest_force_rows.ABSORBED_SHORT)),
                 ("ranged", quest_ranged_force.ready(self, snapshot, force)),
+                # QUEST_32 (owner 2026-11-19): one player turn kills the summoner.
+                ("one_turn_kill", quest_one_turn_kill.met(self, snapshot, force)),
             ) if not ready
         ]
         return not details["failed"]
