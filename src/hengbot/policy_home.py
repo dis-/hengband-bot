@@ -527,6 +527,8 @@ class HomeMixin:
         # Evaluate Home stock with the same pack retention authority, using a
         # distinct slot so an existing pack stack cannot hide its reservation.
         recall_short = self._home_full_relief_leaves_recall_short(snapshot, item)
+        # A pack stack (slot a-w) probed as Home stock; the Home's own slots are numbered.
+        carried = isinstance(item, InventoryItem) and str(item.slot).isalpha()
         if not isinstance(item, InventoryItem):
             item = InventoryItem(**{
                 field.name: ("home-surplus" if field.name == "slot"
@@ -546,7 +548,7 @@ class HomeMixin:
         # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」:
         # clearly useless stock (item_fate.clearly_useless) passes the rank keep,
         # the standing digger retention and the ammunition reservations.
-        useless = item_fate.clearly_useless(self, snapshot, item) is not None
+        useless = item_fate.clearly_useless(self, snapshot, item, carried=carried) is not None
         if (item_fate.held(self, snapshot, item, "home-visit", "home-full-sale")
                 or item.is_empty_bottle
                 or signature in self._unsellable_items
@@ -806,7 +808,7 @@ class HomeMixin:
         relief["sale"] = None
         relief["withdrawn"] = False
         pack_only = relief.get("pack_only", False)
-        for field in ("identifying", "identification_counts", "identify_pending", "mode", "useless", "destroy_posted", "destroy_pending_key",
+        for field in ("identifying", "identification_counts", "identify_pending", "mode", "useless", "round_trip", "destroy_posted", "destroy_pending_key",
                       "destroy_before_count", "destroy_work_id", "pack_only", "stock_count", "taken"):
             relief.pop(field, None)
         self._release_claim_goal(
@@ -1217,6 +1219,7 @@ class HomeMixin:
                 relief["sale"] = None
                 relief["withdrawn"] = False
                 relief.pop("useless", None)
+                relief.pop("round_trip", None)
                 relief.pop("destroy_posted", None)
                 relief.pop("destroy_pending_key", None)
                 relief.pop("destroy_before_count", None)
@@ -1308,6 +1311,7 @@ class HomeMixin:
                     relief["sale"] = None
                     relief["withdrawn"] = False
                     relief.pop("useless", None)
+                    relief.pop("round_trip", None)
                     self._home_errand.finish()
                     self._home_pending_item = None
                     self._home_pending_slot = None
@@ -1396,6 +1400,7 @@ class HomeMixin:
                                  ) if pack_bound else ()
             pack_ids = {id(item) for item in carried_stock}
             shelf_stock = stock
+            round_trip = False
             stock = carried_stock if pack_bound else stock
             # Charged Identify transport may not fill the final required
             # capacity while readiness is false. Empty staves remain ordinary
@@ -1485,13 +1490,19 @@ class HomeMixin:
                     # 03:06: 20 of 23 slots carried, the carried gear waiting on
                     # *Identify* no source here gives, 27 stacks of surplus bolts
                     # on the full shelf, and the visit stopped over the weight limit.
+                    # Every shelf ware the relief sells leaves the pack at the
+                    # next store, so each sale candidate makes the round trip,
+                    # clearly useless stock first (item_fate.relief_order).  n1-a
+                    # life-531 2026-11-19 03:27: 19 of 23 slots, the carried gear
+                    # waiting on *Identify*, no clearly useless stock, and 136
+                    # rank 21+ wares on the full shelf the reserve kept in place.
                     candidates = [
                         (result, item) for item in shelf_stock
                         if (result := self._home_full_sale_candidate(snapshot, item))
-                        and item_fate.clearly_useless(self, snapshot, result[0]) is not None
                         and round_trip_fits(snapshot, item, item.count)]
                     if candidates:
                         unidentified = []
+                        round_trip = True
             else:
                 discard = unidentified = []
             if relief.get("sweep"):
@@ -1579,7 +1590,8 @@ class HomeMixin:
                         discard, unidentified = carried_discard, carried_unidentified
                 if carried_sale:
                     (item, store_type, _value), source = min(
-                        carried_sale, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
+                        carried_sale, key=lambda entry: item_fate.relief_order(
+                            self, snapshot, entry[0][0], carried=True))
                     relief["mode"] = "sale"
                 elif discard:
                     item, source = min(discard, key=lambda entry:
@@ -1606,17 +1618,25 @@ class HomeMixin:
                     store_type = STORE_HOME
             else:
                 (item, store_type, _value), source = min(
-                    candidates, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
+                    candidates, key=lambda entry: item_fate.relief_order(
+                        self, snapshot, entry[0][0], carried=id(entry[1]) in pack_ids))
                 relief["mode"] = "sale"
             signature = self._item_signature(item)
             if relief["mode"] != "identify":
                 relief["rank_released"] = signature
             # The clearly useless ware keeps that verdict off the shelf (item_fate.relief_useless).
             if (relief["mode"] == "sale"
-                    and item_fate.clearly_useless(self, snapshot, item) is not None):
+                    and item_fate.clearly_useless(
+                        self, snapshot, item, carried=id(source) in pack_ids) is not None):
                 relief["useless"] = signature
             else:
                 relief.pop("useless", None)
+            # A ware the reserve-bound pack takes only to sell at once
+            # (item_fate.relief_round_trip).
+            if round_trip and relief["mode"] == "sale":
+                relief["round_trip"] = signature
+            else:
+                relief.pop("round_trip", None)
             # Retain the physical source row even when a shelf and pack stack
             # share the same signature. A shelf take earns a shelf slot.
             pack_only = id(source) in pack_ids
