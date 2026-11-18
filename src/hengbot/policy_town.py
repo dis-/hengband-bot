@@ -2414,7 +2414,23 @@ class TownMixin:
             ):
                 continue
             candidates.append(candidate)
-        if not candidates:
+        # The least-visited exit whose walk is a step.  The walk applies its own gates
+        # (the pack budget's refused pile, a confirm cell, a paralyzer's ring, a latched
+        # warning) and answers WAIT for a refused cell: on an entrance that WAIT is the
+        # entrance's activation, which the final emitted-envelope seam refuses as an
+        # empty decision.  n1-b life-411 2026-11-18 14:27:03 (Home entrance, 20 of 23
+        # slots): the least-visited exit held the chest the town chest pass had opened
+        # there, the pile was refused, and the decision posted nothing
+        # (no-key-exhausted) with two free exits beside it.
+        chosen = None
+        prior_last_reason = self.last_reason
+        for candidate in sorted(candidates, key=lambda position: self._visit_counts[position]):
+            walk = self._step_toward(snapshot, candidate)
+            if walk != WAIT_KEY:
+                chosen = (candidate, walk)
+                break
+            self.last_reason = prior_last_reason
+        if chosen is None:
             if prior_reason == "equipment-transaction:abandon-blocked":
                 # Escape is inert at the outside command loop and, unlike stay,
                 # cannot enter the store beneath the player.  Preserve the
@@ -2423,8 +2439,7 @@ class TownMixin:
                 return LEAVE_STORE_KEY
             self.last_reason = "livelock:exhausted"
             return WAIT_KEY
-        step = min(candidates, key=lambda position: self._visit_counts[position])
-        key = self._step_toward(snapshot, step)
+        step, key = chosen
         if not (
             (prior_reason or "").startswith("town:blocked:")
             or prior_reason == "equipment-transaction:abandon-blocked"
