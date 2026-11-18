@@ -174,7 +174,7 @@ class MePowerScoring1114RecordedTest(unittest.TestCase):
         self.assertGreaterEqual(found.turn, 180)  # condition 1
         self.assertGreaterEqual(found.shots, 40)
         flags = self.policy._monrace_knowledge.get(IPSISSIMUS).flags
-        best = max(quest_ranged_force._absorbed(self.policy, self.board, flags))
+        best = max(quest_ranged_force._absorbed(self.policy, self.board, (flags,)))
         self.assertEqual(best, (190.0, 7))  # Dragon's Flame: its 7 charges once refilled
 
     def test_the_policy_readiness_passes_its_ranged_row(self):

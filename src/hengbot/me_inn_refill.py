@@ -81,7 +81,8 @@ def _ranged(policy, snapshot, quest_id: int) -> dict | None:
     profile = policy.approved_quest_strategy(quest_id)
     if profile is None:
         return None
-    return policy._strategy_force_for_snapshot(snapshot, profile).get("ranged")
+    # Q25's ``ranged``, or Q2's, Q22's and Q31's launcher read the same (owner 2026-11-18).
+    return quest_ranged_force.ranged_requirement(policy._strategy_force_for_snapshot(snapshot, profile))
 
 
 def _inn_open(policy, snapshot) -> bool:

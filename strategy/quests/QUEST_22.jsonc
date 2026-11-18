@@ -53,6 +53,7 @@
       "equipped": true,
       "min_average_damage": 18
     },
+    "launcher_devices": {"device_classes": [16], "reference_races": [162, 285, 244, 251, 215, 149, 118]},
     "throwing_items": {"launcher_ammo": 99},
     "required_scrolls": {"light": 1, "teleport": 10},
     "utility_tools": {},

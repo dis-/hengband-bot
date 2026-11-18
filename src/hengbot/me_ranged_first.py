@@ -63,15 +63,16 @@ TVAL_LIGHT = 39
 SV_LIGHT_TORCH = 0
 
 
-def applies(snapshot) -> bool:
-    """The absorbed Magic Missile rung: a class-16 character off quest floors.
+def applies(snapshot, *, quest_floor: bool = False) -> bool:
+    """The absorbed Magic Missile rung: a class-16 character off quest floors (``quest_floor``:
+    on one too, the quest's ranged plan, ``quest_device_key``).
 
     Blindness does not refuse it (owner 2026-11-08, me_device_attacks.can_use_powers);
     the carried wand and the thrown torch below it keep their sight rule (``_sighted``)."""
     player = snapshot.player
     return (
         player.class_id == PLAYER_CLASS_MAGIC_EATER
-        and snapshot.floor_key[2] == 0
+        and (snapshot.floor_key[2] == 0 or quest_floor)
         and not player.confused
     )
 
@@ -171,7 +172,7 @@ def _missile_option(policy, snapshot, target, direction, send):
     return (me_device_attacks.missile_score(policy, snapshot, target) if seen is None else seen, send)
 
 
-def _fixed_options(policy, snapshot, target, direction, *, torch=True) -> list:
+def _fixed_options(policy, snapshot, target, direction, *, torch=True, quest_floor=False) -> list:
     """(expected damage per action, key sender) of the fixed order's answers along ``direction``."""
     options = []
     # 2026-10-31: an absorbed attack power stronger than Magic Missile, on
@@ -181,7 +182,7 @@ def _fixed_options(policy, snapshot, target, direction, *, torch=True) -> list:
         if choice is not None:
             options.append((choice[0], lambda power=choice[1]: me_device_attacks.device_key(
                 policy, power, direction)))
-    if not applies(snapshot):
+    if not applies(snapshot, quest_floor=quest_floor):
         return options
     if _missile_ready(policy, snapshot):
         options.append(_missile_option(policy, snapshot, target, direction,
@@ -238,7 +239,7 @@ def _clear_projection(policy, snapshot, target) -> bool:
         pos in occupied for pos in path[:path.index(target.position)])
 
 
-def _grid_options(policy, snapshot, target) -> list:
+def _grid_options(policy, snapshot, target, *, quest_floor=False) -> list:
     """Off the eight rays: the absorbed powers aimed at ``target``'s cell (``@y,x``)."""
     direction = _aim(snapshot, target)
     options = []
@@ -257,7 +258,7 @@ def _grid_options(policy, snapshot, target) -> list:
     # optimistic unseen missile was asked again every decision (n1-b life-373 and 375,
     # 2026-11-12 07:30 and 07:54: 'mBp@14,104' until loop-detected).
     seen = me_device_attacks.seen_missile_score(policy, snapshot, target, direction)
-    if applies(snapshot) and seen is not None:
+    if applies(snapshot, quest_floor=quest_floor) and seen is not None:
         options.append((seen, lambda: send(me_device_attacks.POWERS[me_device_attacks.MISSILE])))
     return options
 
@@ -279,13 +280,32 @@ def stronger_than_launcher_key(policy, snapshot, target, ammo) -> str | None:
     The thrown torch is no device and stays out."""
     if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER or ammo is None:
         return None
+    return _device_over(policy, snapshot, target, ammo)
+
+
+def quest_device_key(policy, snapshot, target, ammo) -> str | None:
+    """The Magic-Eater's answer to a distant ``target`` of a quest's ranged plan (Q2, Q22, Q31):
+    as ``stronger_than_launcher_key``, and without ``ammo`` (no launcher or rounds: the devices
+    covered the quest's rounds, owner 2026-11-18 「魔道具術師は魔法道具の力で読む」) any answer
+    that deals some damage.  The absorbed Magic Missile is one of them on the quest floor too
+    (``applies``' quest-floor rule keeps the reviewed strategies elsewhere): the quest's
+    requirement counted its charges where it meets the per-shot figure (quest_ranged_force)."""
+    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
+        return None
+    return _device_over(policy, snapshot, target, ammo, quest_floor=True)
+
+
+def _device_over(policy, snapshot, target, ammo, *, quest_floor=False) -> str | None:
+    """The first answer that reaches ``target`` and out-damages the launcher's shot of ``ammo``
+    (none: 0)."""
     if policy._ranged_target(snapshot, [target]) is target:
-        options = _fixed_options(policy, snapshot, target, _aim(snapshot, target), torch=False)
+        options = _fixed_options(policy, snapshot, target, _aim(snapshot, target), torch=False,
+                                 quest_floor=quest_floor)
     elif not snapshot.in_town and _clear_projection(policy, snapshot, target):
-        options = _grid_options(policy, snapshot, target)
+        options = _grid_options(policy, snapshot, target, quest_floor=quest_floor)
     else:
         return None
-    launcher = attack_expectation.launcher_shot(policy, snapshot, target, ammo)
+    launcher = 0.0 if ammo is None else attack_expectation.launcher_shot(policy, snapshot, target, ammo)
     for score, send in options:
         if score <= launcher:
             return None
