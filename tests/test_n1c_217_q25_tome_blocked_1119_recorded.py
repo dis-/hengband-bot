@@ -27,6 +27,14 @@ set to the first decided board's (decision 8193, the board before the teleport),
 killed after it count as already killed.  The policy holds the magic-eater lists of the visit's
 town arrival (05:10:33) and its ~f reading (the ring carries neither).  The dead dreadmaster test is
 CONSTRUCTED: its kill set on the battle.
+
+The restart (2026-11-19 05:59, build bot-d3b86d8e9, the rule in): the restarted process found the
+player on [8,20] with the teleport line long gone (its battle record, restored from before the
+mark existed, carries it unset), and waited 35 times to the loop guard.  ``_stranded_in_dread_range_key``: a phase with no
+step while the player stands in the living dreadmaster's range is the same displacement (no phase
+before the dreadmaster's stops there by its plan).  The restart's boards (decisions 4-39; 0-3 are
+its periodic reads) are decided by a fresh policy restoring that record, without magic-eater lists
+(not carried across a restart, as live).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -88,6 +96,50 @@ def replay(start=START):
             answers.append(decide(policy, raw))
             answers[-1] += (policy._quest_navigators[25].phase_battle.dread_teleported,)
     return answers
+
+
+def replay_restart():
+    restart = CASE["restart"]
+    boards = restart["boards"]
+    with TemporaryDirectory() as directory:
+        directory = Path(directory)
+        (directory / "q25-battle.json").write_text(
+            json.dumps(dict(restart["battle_record"], turn=boards[0]["turn"])), encoding="utf-8")
+        policy = ConservativePolicy(monrace_knowledge=q25.RACES, quest_knowledge=q25.QUESTS,
+                                    quest_strategies=q25.STRATEGIES)
+        policy._q25_battle_record_path = directory / "q25-battle.json"
+        policy._warning_cell_record_path = directory / "warning-cells.json"
+        two_weapon, shield = CASE["skill_exp"]
+        policy.consume_skill_knowledge({
+            "knowledge": {"skills": [{"id": 1, "exp": two_weapon}, {"id": 3, "exp": shield}]},
+            "turn": boards[0]["turn"], "player": {"level": boards[0]["player"]["level"]}})
+        policy.prime(parse_snapshot(copy.deepcopy(boards[0]), policy._monrace_knowledge))
+        answers = [decide(policy, raw) for raw in boards[4:]]
+        flag = policy._quest_navigators[25].phase_battle.dread_teleported
+    return answers, flag
+
+
+class RestartRecordedTest(unittest.TestCase):
+
+    def test_the_recording(self):
+        restart = CASE["restart"]
+        reasons = [row["reason"] for row in restart["recorded"][4:]]
+        # Every plan decision a blocked wait (one Speed cast by the strong-fight rung between them).
+        self.assertEqual(set(reasons) - {BLOCKED}, {"quest-strategy:quaff-speed:absorbed-power"})
+        self.assertGreaterEqual(reasons.count(BLOCKED), 35)
+        self.assertFalse(restart["battle_record"]["battle"]["dread_teleported"])
+        self.assertFalse(any(message_text(message).endswith("にテレポートさせられた。")
+                             for board in restart["boards"] for message in board["messages"]))
+
+    def test_the_restart_fights_the_dreadmaster_instead_of_waiting(self):
+        answers, flag = replay_restart()
+        self.assertTrue(flag)
+        self.assertNotIn(BLOCKED, {reason for _key, reason in answers})
+
+    def test_control_without_it_the_restart_is_blocked(self):
+        with patch.object(battle, "_stranded_in_dread_range_key", lambda _ctx: None):
+            answers, _flag = replay_restart()
+        self.assertIn(("5", BLOCKED), set(answers))
 
 
 class TomeBlockedRecordedTest(unittest.TestCase):

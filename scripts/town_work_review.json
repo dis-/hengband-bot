@@ -21064,5 +21064,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_stranded_in_dread_range_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-19 (the dreadmaster first after a teleport into its range): the running phase has no step while the player stands in the living dreadmaster's sensing range (no phase before the dreadmaster's stops there by its plan), the same displacement without the teleport line (n1-c life-217 restart 05:59); marks it and returns _teleported_dreadmaster_key's step. No independent progress."
   }
 }
