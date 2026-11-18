@@ -241,8 +241,10 @@ def relief_useless(policy: Any, snapshot: Any, item: Any) -> bool:
 
 
 def relief_round_trip(policy: Any, item: Any) -> bool:
-    """The full-Home relief's clearly useless shelf ware, not yet taken out.
+    """The full-Home relief's shelf sale ware, not yet taken out.
 
+    The clearly useless ware, or any sale ware the relief chose for a pack at the
+    reserve floor (policy_home ``relief["round_trip"]``; n1-a life-531 2026-11-19).
     The relief takes it out of the Home only to sell it at the next store
     (``town_pack_budget.round_trip_fits``); once taken (``withdrawn``) it is a pack
     stack like any other.
@@ -250,7 +252,8 @@ def relief_round_trip(policy: Any, item: Any) -> bool:
     relief = getattr(policy, "_home_full_relief", None) or {}
     sale = relief.get("sale")
     signature = policy._item_signature(item)
-    return (not relief.get("withdrawn") and relief.get("useless") == signature
+    return (not relief.get("withdrawn")
+            and signature in (relief.get("useless"), relief.get("round_trip"))
             and (sale is None or sale[0] == signature))
 
 
