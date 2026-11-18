@@ -1,4 +1,5 @@
 """Bound the Q34 owner's response to a freshly evaluated entry rejection."""
+from hengbot import approach_answer
 from hengbot.policy_constants import REST_MACRO, WAIT_KEY
 
 
@@ -33,5 +34,6 @@ def q34_readiness_rejection_key(policy, snapshot, hostiles, readiness):
             if key is not None:
                 return key
     # The CLI recognizes this reason as a terminal, even though its key is 5.
+    approach_answer.note_stop(policy, "livelock:exhausted")
     policy.last_reason = "livelock:exhausted"
     return WAIT_KEY

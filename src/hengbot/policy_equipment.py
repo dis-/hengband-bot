@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import home_pass_charge, launcher_upgrade, spare_gear
+from hengbot import approach_answer, home_pass_charge, launcher_upgrade, spare_gear
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
@@ -2288,6 +2288,8 @@ class EquipmentMixin:
         key = self._equipment_transaction_town_key(snapshot)
         if key is not None:
             return key
+        # Record only: the transaction's Home approach may have yielded (c7e2f1a4c1).
+        approach_answer.note_stop(self, "equipment-transaction:restore-blocked-terminal")
         self._equipment_transaction_restore_terminal = (
             "equipment-transaction:restore-blocked-terminal"
         )

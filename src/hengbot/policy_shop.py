@@ -43,7 +43,7 @@ from hengbot.policy_instore import InStoreMixin
 from hengbot import launcher_upgrade
 from hengbot import quest_optional_carry
 from hengbot import home_pass_charge
-from hengbot import ability_gear, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
+from hengbot import ability_gear, approach_answer, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
 from hengbot import item_fate, item_use_route
 from hengbot import fundraising_survival, mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
@@ -6365,6 +6365,21 @@ class ShopMixin(InStoreMixin):
     def _shopping_approach_key(
         self, snapshot: Snapshot, step: Position, travel_reason: str
     ) -> str:
+        """The store approach's key: ``_shopping_approach_answer``'s ``key``, unchanged.
+
+        Every caller reads this one value as before: a key, or an empty answer (None or "")
+        whether the approach yielded to the town's holder or found no route.  The typed answer
+        is remembered for this decision (approach_answer.LAST); a stop named right after an
+        empty answer asks approach_answer.note_stop to record who held the town (record only).
+        """
+        answer = self._shopping_approach_answer(snapshot, step, travel_reason)
+        approach_answer.remember(self, answer, travel_reason)
+        return answer.key
+
+    @claims(ClaimOwner.STORE_ROUTER)
+    def _shopping_approach_answer(
+        self, snapshot: Snapshot, step: Position, travel_reason: str
+    ) -> approach_answer.ApproachAnswer:
         """Ride native town travel toward the store, walking only as fallback.
 
         In the original-keyset travel point selector, shifted number-row symbols
@@ -6374,7 +6389,11 @@ class ShopMixin(InStoreMixin):
         ignores that non-direction key. Native travel advances without waiting
         for a bot snapshot after every tile, which removes most town round-trip
         cost; an interruption mid-route is re-issued as long as it made
-        progress (see _town_travel_key)."""
+        progress (see _town_travel_key).
+
+        The answer's kind (approach_answer): a key; yielded, to the board terminal that refused
+        it, the town hold's holder, or the equipment transaction owning the relocation; or no
+        route (every other empty step)."""
         # Record the route named by travel_reason, regardless of last_reason.
         writer_family = town_claim_family_of(self, travel_reason)
         # Direct restock/Home relief routes use the ladder's terminal too.
@@ -6390,13 +6409,23 @@ class ShopMixin(InStoreMixin):
                 else shopping_intended_terminal(self, snapshot))
             if not may_take_board(self, "_shopping_approach_key", writer_family,
                                   snapshot, terminal):
-                return commit_refusal(self, snapshot, terminal,
-                                      rung_name="_shopping_approach_key")
+                return approach_answer.yielded(
+                    commit_refusal(self, snapshot, terminal,
+                                   rung_name="_shopping_approach_key"),
+                    f"terminal:{terminal.terminal_id}")
         # Progress-invariant repairs use this route producer as detectors;
         # apply the same exemptions as the other town producer entry gates.
+        deferred_before = len(getattr(self, "_decision_errand_deferred", ()) or ())
         if (not self._town_gate_exempt(writer_family, travel_reason, snapshot)
                 and self._defer_town_errand(writer_family, "shopping-approach")):
-            return None
+            # The holder of the hold's verdict row (none for the family's own active bar).
+            rows = (getattr(self, "_decision_errand_deferred", ()) or ())[deferred_before:]
+            row = rows[-1] if rows else None
+            return approach_answer.yielded(
+                None,
+                f"town-hold:{row['holder_family']}" if row is not None
+                else f"town-hold:{writer_family}:active-bar",
+                row["holder_claim_id"] if row is not None else None)
         if (
             writer_family != "survival"
             and self._equipment_transaction_owns_town_relocation(snapshot)
@@ -6405,7 +6434,8 @@ class ShopMixin(InStoreMixin):
         ):
             # The owner refusing relocation must execute its own local work;
             # earlier identification and Home dispatch keep their priority.
-            return equipment_route_key(self, snapshot)
+            return approach_answer.yielded(equipment_route_key(self, snapshot),
+                                           "equipment-txn:owns-relocation")
         entry_failed_here = (
             self._store_entry_failed_owner == self._shopping_approach_store_type
         )
@@ -6420,12 +6450,12 @@ class ShopMixin(InStoreMixin):
                            if not self._can_resume_magic_shelf(snapshot)
                            or self._can_compose_shop_observation(snapshot) else None)
             if atomic_shop is not None:
-                return atomic_shop
+                return approach_answer.answered(atomic_shop)
             atomic_withdrawal = (None if acquisition_waits(self, snapshot)
                                  and not self._home_full_relief_take_filed() else
                                  self._atomic_home_withdraw_key(snapshot, step))
             if atomic_withdrawal is not None:
-                return atomic_withdrawal
+                return approach_answer.answered(atomic_withdrawal)
             session = self._equipment_transaction_session
             action = session.current_action if session is not None else None
             if (self._shopping_approach_store_type == STORE_HOME
@@ -6439,11 +6469,11 @@ class ShopMixin(InStoreMixin):
                     and (session is None or session.pending_action is None)):
                 # The composer refuses an unobserved address. Resolve that
                 # prerequisite here instead of labelling fallback travel await.
-                return self._home_full_knowledge_key(snapshot)
+                return approach_answer.answered(self._home_full_knowledge_key(snapshot))
             atomic_deposit = (None if survival_home else
                               self._atomic_home_deposit_key(snapshot, step))
             if atomic_deposit is not None:
-                return atomic_deposit
+                return approach_answer.answered(atomic_deposit)
             if (writer_family == "store-router"
                     and self._shopping_approach_store_type == STORE_HOME
                     and self._shopping_approach_goal == snapshot.player.position
@@ -6459,7 +6489,7 @@ class ShopMixin(InStoreMixin):
                     and (session is None or session.pending_action is None)):
                 # Only this catalogue route's redundant Home entry awaits the
                 # posted scan. Other ladder producers have already had their turn.
-                return self._home_full_knowledge_key(snapshot)
+                return approach_answer.answered(self._home_full_knowledge_key(snapshot))
             # This is one observed-uncomposable-stop rule with two entry
             # points: Home is observed through the ~9 knowledge scan and has
             # no _shop_observation, while ordinary shops must consume their
@@ -6475,7 +6505,7 @@ class ShopMixin(InStoreMixin):
                     expected_effect="home-stop-advanced",
                     post_on_emit=False,
                 )
-                return WAIT_KEY
+                return approach_answer.answered(WAIT_KEY)
         elif step == snapshot.player.position:
             neighbors = self._walkable_neighbors(snapshot, snapshot.player.position)
             self._declare_reach(self._shopping_approach_goal,
@@ -6490,12 +6520,12 @@ class ShopMixin(InStoreMixin):
                              f"{snapshot.player.position.x}"),
                     state="releasing", cause="no-walkable-step-off",
                 )
-            return (
+            return approach_answer.answered((
                 self._stage_shopping_approach_key(
                     snapshot, self._step_toward(snapshot, neighbors[0])
                 )
                 if neighbors else ""
-            )
+            ))
         here = snapshot.grid_at(snapshot.player.position)
         if (
             step == snapshot.player.position
@@ -6517,26 +6547,26 @@ class ShopMixin(InStoreMixin):
                 continuation="store.entry.observe",
                 budget_ref="town-travel",
             )
-            return WAIT_KEY
+            return approach_answer.answered(WAIT_KEY)
         if not self._has_light_equipped(snapshot):
             if self._home_relief_names_approach(writer_family, travel_reason):
                 self.last_reason = "shop:approach"
-            return self._stage_shopping_approach_key(
+            return approach_answer.answered(self._stage_shopping_approach_key(
                 snapshot, approach_walk.walk_key(self, snapshot, step),
                 claim_family=writer_family,
-            )
+            ))
         goal = self._shopping_approach_goal
         clear_traveler = self._town_clear_traveler_key(snapshot, goal)
         if clear_traveler is not None:
-            return clear_traveler
+            return approach_answer.answered(clear_traveler)
         store_type = self._shopping_approach_store_type
         if goal is None or store_type is None:
             if self._home_relief_names_approach(writer_family, travel_reason):
                 self.last_reason = "shop:approach"
-            return self._stage_shopping_approach_key(
+            return approach_answer.answered(self._stage_shopping_approach_key(
                 snapshot, approach_walk.walk_key(self, snapshot, step),
                 claim_family=writer_family,
-            )
+            ))
         # A leading Escape dismisses a lingering -more- or prompt before the
         # backtick opens native travel; at the command loop it is a harmless
         # no-op. Without it, the prompt can eat ` and leave (notably) % to open
@@ -6553,9 +6583,9 @@ class ShopMixin(InStoreMixin):
                 self._release_claim_goal("town-travel:owner-yielded", goal, owners=CLAIM_ENTRANCE_OWNERS)
                 self._town_travel_state = None
                 self.last_reason = "shop:approach"
-                return self._stage_shopping_approach_key(
+                return approach_answer.answered(self._stage_shopping_approach_key(
                     snapshot, approach_walk.walk_key(self, snapshot, step)
-                )
+                ))
             self._post_owner_expectation(
                 snapshot, travel_reason, "position", "store_type"
             )
@@ -6571,13 +6601,13 @@ class ShopMixin(InStoreMixin):
                 self._declare_reach(self._shopping_approach_goal,
                                     family="store-router")
                 self.last_reason = "shop:approach"
-            return travel
+            return approach_answer.answered(travel)
         if self._home_relief_names_approach(writer_family, travel_reason):
             self.last_reason = "shop:approach"
-        return self._stage_shopping_approach_key(
+        return approach_answer.answered(self._stage_shopping_approach_key(
             snapshot, approach_walk.walk_key(self, snapshot, step),
             claim_family=writer_family,
-        )
+        ))
 
     def _can_compose_shop_observation(self, snapshot: Snapshot) -> bool:
         """Whether the latest observed ordinary-shop page is composable now."""

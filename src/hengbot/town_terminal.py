@@ -38,7 +38,7 @@ from hengbot.departure_rescues import rescue_key
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
-from hengbot import home_identification, identification_wait, town_end_mining
+from hengbot import approach_answer, home_identification, identification_wait, town_end_mining
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2504,6 +2504,7 @@ def overweight_home_key(policy: Any, board: Any) -> str | None:
             policy._record_shop_selector_diagnostics(board, key)
             return key
     if attempted or policy._overweight_home_bound_exhausted():
+        approach_answer.note_stop(policy, "overweight-home-unreachable")
         policy._town_blocked_reason = "overweight-home-unreachable"
         return policy._town_blocked_key(board)
     return None
