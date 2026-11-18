@@ -87,6 +87,9 @@ class Guard:
     windows: dict = field(default_factory=dict)  # (A, B, ...) -> last decision of the round's window
     escalated: str | None = None               # this board's escalation event
     report: str | None = None                  # this board's event (decision log)
+    # The previous decision's emitted key and the cell it was decided on (``note_emitted``):
+    # the walk the board after reads, the post-ladder rewrites' included.
+    emitted: tuple | None = None
 
 
 def _guard(policy, snapshot) -> Guard:
@@ -149,10 +152,16 @@ def observe(policy, snapshot) -> None:
     if previous is None or previous == here:
         return  # no move: a wait, a cast, a bookkeeping key (the alternation goes on)
     owner = getattr(policy, "_decision_entry_reason", None) or ""
-    # The previous decision's own walk: its key from that cell, toward this one.
-    walked = (getattr(policy, "_last_move_pos", None) == previous
-              and WALK_OFFSETS.get(getattr(policy, "_last_move_key", None))
-              == (here.y - previous.y, here.x - previous.x))
+    # The previous decision's own walk: its emitted key from that cell, toward this one.  The
+    # emitted key, not the ladder's (policy ``_break_livelock``'s ``_last_move_key``): a rewrite
+    # after the ladder walks too.  n1-c life-217 (2026-11-18, Orc cave 20F): the ladder's WAIT
+    # (status-threat:wait) became the damaged wait's least-visited step (policy_combat
+    # ``_forbid_wait_while_damaged``), '2' and '8' in turn, and every one read as no walk here,
+    # so the alternation was never seen until the loop detector stopped the bot.
+    emitted = getattr(guard, "emitted", None)  # restored checkpoints predate it
+    guard.emitted = None
+    walked = (emitted is not None and emitted[0] == previous
+              and WALK_OFFSETS.get(emitted[1]) == (here.y - previous.y, here.x - previous.x))
     if not owner or not walked:
         guard.moves.clear()  # a relocation, a move no owner named, or not the owner's walk
         return
@@ -175,6 +184,12 @@ def observe(policy, snapshot) -> None:
                      boards=GUARD_BOARDS, step=winner.step)
     guard.windows[names] = left_cells.decision_of(policy) + GUARD_BOARDS
     guard.report = f"{EVENT}:{label}"
+
+
+def note_emitted(policy, snapshot, key) -> None:
+    """The decision's final key (policy ``choose_key``'s last seam) and its cell, for the next
+    board's ``observe``."""
+    _guard(policy, snapshot).emitted = (snapshot.player.position, key)
 
 
 def after_ladder(policy, snapshot, key):

@@ -3269,6 +3269,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._town_progress_note_command(key)
         quest25_battle_record.record(self, snapshot)
         warning_cell_record.record(self, snapshot)
+        # The walk the next board's pingpong guard reads is the one emitted (owner 2026-11-13 part 2).
+        pingpong_guard.note_emitted(self, snapshot, key)
         cross_rules.end(self, snapshot, key)
         return key
 

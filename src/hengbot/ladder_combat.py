@@ -15,12 +15,16 @@ view the pre-combat layer chose (ladder_pre_combat.MiningViews).
 """
 from __future__ import annotations
 
-from hengbot import combat_answer, destruction_use, disenchant_avoid, immobile_threat_memory, me_ranged_first, paralyzer_contact, threat_tiers, town_last_stand, walkout_stairs
+from hengbot import combat_answer, destruction_use, disenchant_avoid, immobile_threat_memory, me_ranged_first, paralyzer_contact, teleport_follower, threat_tiers, town_last_stand, walkout_stairs
 from functools import partial
 from hengbot.dungeon_ladder import PASS
 from hengbot.policy_constants import DETECTED_THREAT_HOLD_MAX_GAME_TURNS, ExplorationPathOutcome, SUMMONER_CHOKE_NEIGHBORS, SUMMONER_EXPOSED_NEIGHBORS, SUMMONER_RANGED_KILL_SHOTS, UP_STAIRS_KEY, WAIT_KEY
 from hengbot.summoner_wait import hold_key
 from hengbot.town_hold import MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS
+
+# The status-threat rung's answers beside a teleport follower (owner 2026-11-09 order).
+STATUS_THREAT_AWAY_REASON = "status-threat:teleport-follower:teleport-away"
+STATUS_THREAT_CORNERED_REASON = "status-threat:cornered-attack"
 
 
 def key(
@@ -120,6 +124,19 @@ def key(
             if scroll is not None:
                 policy.last_reason = "status-threat:scroll"
                 return policy._read_key(snapshot, scroll)
+        # Owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」: beside a monster that follows the
+        # teleport no scroll is an escape (``_escape_scroll``), so the rung answers the rest of the
+        # owner's order as the emergency ladder does: Teleport Other at it, then the fight.  Its
+        # WAIT here was refused as a damaged wait (``_forbid_wait_while_damaged``), whose
+        # least-visited step the follower kept beside (n1-c life-217, 2026-11-18: 混沌の獣人,
+        # TPORT and a confusing blow, two cells walked in turn until the loop stop).
+        followers = teleport_follower.followers(policy, snapshot)
+        if (away := teleport_follower.away_key(
+                policy, snapshot, followers, STATUS_THREAT_AWAY_REASON)) is not None:
+            return away
+        if (cornered := combat_answer.adjacent_attack(
+                policy, snapshot, followers, STATUS_THREAT_CORNERED_REASON)) is not None:
+            return cornered.key
         policy.last_reason = "status-threat:wait"
         return WAIT_KEY
 

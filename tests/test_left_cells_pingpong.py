@@ -188,8 +188,8 @@ class OtherWalkersTest(unittest.TestCase):
 class GuardTest(unittest.TestCase):
     def _walk(self, policy, moves, *, start=P, turn=1000, floor=FLOOR, key=None):
         """Feed ``observe`` the boards of ``moves`` [(owner, position after)], as choose_key would:
-        the previous decision's reason and key (the walk key toward the next cell, else ``key``),
-        then the board the move produced."""
+        the previous decision's reason and emitted key (the walk key toward the next cell, else
+        ``key``; ``note_emitted``), then the board the move produced."""
         board = corridor(start, turn=turn, floor=floor)
         pingpong_guard.observe(policy, board)
         reports = []
@@ -197,8 +197,7 @@ class GuardTest(unittest.TestCase):
             here = board.player.position
             offset = (position.y - here.y, position.x - here.x)
             policy._decision_entry_reason = owner
-            policy._last_move_pos = here
-            policy._last_move_key = key or DIRECTION_KEYS.get(offset, "rf")
+            pingpong_guard.note_emitted(policy, board, key or DIRECTION_KEYS.get(offset, "rf"))
             policy._decision_sequence += 1
             turn += 10
             board = corridor(position, turn=turn, floor=floor)
