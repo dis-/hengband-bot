@@ -20152,6 +20152,50 @@
     "delegation": "selected child; no independent success",
     "evidence": "Pure reading: returns destruction_use._target_race (the active kill quest's target race); no key."
   },
+  "destruction_use.py:spared_positions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: read by destruction_use.walk_step (the approaches' walk to a use cell, n1-b life-411 1118) under the same dungeon-only callers as walk_step (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: the public reader of destruction_use._spared_positions with the active kill quest's target race; returns cells, no key."
+  },
+  "destruction_use.py:_spared_positions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: read by destruction_use.walk_step (the approaches' walk to a use cell, n1-b life-411 1118) under the same dungeon-only callers as walk_step (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: the cells of the damaged quest target and of the floor's guardian to be kept (optionally near a cell); returns cells, no key."
+  },
+  "destruction_use.py:_guardian_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: read by destruction_use.walk_step (the approaches' walk to a use cell, n1-b life-411 1118) under the same dungeon-only callers as walk_step (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: the floor's guardian race on the dungeon's last floor (dungeon knowledge), else None; no key."
+  },
+  "destruction_use.py:_guardian_kept": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: read by destruction_use.walk_step (the approaches' walk to a use cell, n1-b life-411 1118) under the same dungeon-only callers as walk_step (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: whether a monster is the floor's guardian and not T1 alone (threat_tiers.alone_t1 from contact); returns bool, no key."
+  },
   "policy.py:HengbotPolicy._active_kill_quest_id": {
     "classification": "data",
     "rows": [
