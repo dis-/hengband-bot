@@ -14,7 +14,12 @@ Four defects, one class each:
 1. ``HiddenByHealingTest``: the observation's ``_took_damage`` compared HP with the previous
    board's only, so the drink's +300 hid the 225 taken after it and the Recall wait's
    unseen-attacker rung was skipped (``return:wait-recall`` at 7228541).  heal_offset.
-2. (next commits)
+2. ``UnseenFireTest``: deep_teleport ``fire_p95`` (owner 2026-11-14: 50F+ the teleport only when
+   the p95 of the monsters with a line of fire reaches the HP) summed the monsters in view or
+   sensed only, so it read 0 while 即死 (threat_tiers.instant_death, with the observed unseen
+   loss) held at HP 261 and 133; the finders offered no teleport (``deep-teleport:no-means-fight``
+   while Recall counted down).  The unseen loss is proof of a line of fire: the sum adds the
+   same correction.
 
 Recorded: tests/fixtures/n1c-216-death-1118.jsonl.gz (tests/extract_n1c_216_death_1118_fixture.py),
 the live boards 7228502-7228558, replayed by one fresh policy through the public ``choose_key``
@@ -31,7 +36,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import heal_offset
+from hengbot import deep_teleport, heal_offset, threat_tiers
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -44,6 +49,7 @@ METAL = 871                 # はぐれメタル, MonraceDefinitions.jsonc
 SEEN = 7228517              # the one board the metal was in view (distance 3)
 FIRST_DRINK = 7228538       # HP 555: 「何かが魔力の矢の呪文を唱えた。」, the first Healing drunk
 AFTER_DRINK = 7228541       # HP 630: +300 from the drink, 225 from the next bolt
+INSTANT_DEATH = 7228545     # HP 261: 369 taken unseen (bolt and Logrus), 即死 held
 
 
 class Replay:
@@ -111,6 +117,30 @@ class HiddenByHealingTest(Replay, unittest.TestCase):
                                if not message.endswith(heal_offset.HEAL_MESSAGES)]
         policy, _snapshot, _key = self.decide(AFTER_DRINK, silent)
         self.assertFalse(policy._took_damage)
+
+
+
+class UnseenFireTest(Replay, unittest.TestCase):
+
+    def test_instant_death_board_reads_the_teleport(self):
+        policy, snapshot, key = self.decide(INSTANT_DEATH)
+        death = threat_tiers.instant_death(policy, snapshot)
+        self.assertTrue(death.next_action)
+        self.assertEqual(death.unseen_correction, 369)
+        self.assertGreaterEqual(deep_teleport.fire_p95(policy, snapshot), snapshot.player.hp)
+        self.assertTrue(deep_teleport.allows(policy, snapshot))
+        self.assertFalse(deep_teleport.no_means(policy, snapshot))
+        # Live: unseen-recall:heal 'qb' under {"branch": "deep-teleport:no-means-fight"}.
+        self.assertEqual(policy.last_reason, "emergency:teleport")
+
+    def test_without_the_unseen_hit_no_teleport(self):
+        # DECLARED CONSTRUCTED control: the board's messages emptied (no unseen-attack evidence):
+        # nothing in view or sensed has a line of fire, the sum is 0 and the 11-14 rule holds.
+        def quiet(raw):
+            raw["messages"] = []
+        policy, snapshot, _key = self.decide(INSTANT_DEATH, quiet)
+        self.assertEqual(deep_teleport.fire_p95(policy, snapshot), 0)
+        self.assertFalse(deep_teleport.allows(policy, snapshot))
 
 
 if __name__ == "__main__":
