@@ -19081,8 +19081,8 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner.",
-    "context": "Dungeon only: asked from policy _stuck_escape_key after sealed_pocket.key; refuses in town, blind, confused or recalling.",
-    "evidence": "dungeon-only: owner 2026-11-13 「価値に関係なく溶かす」 (n1-c life-205 Orc cave 23F 13:10-13:18, three detected items behind a row of traps in walled rooms; the stuck escape read Recall): with no hostile seen or sensed and the route's walls within the Stone to Mud uses carried (sealed_pocket.melt_charges), retreat_enclosure.melt_toward_key walks to the nearest pocket wall and melts it, the absorbed power first; returns the key or None."
+    "context": "Dungeon only: asked from policy _stuck_escape_key after sealed_pocket.key and from ladder_idle before the known stairs; refuses in town, blind, confused or recalling.",
+    "evidence": "dungeon-only: owner 2026-11-13 「価値に関係なく溶かす」 (n1-c life-205 Orc cave 23F 13:10-13:18, three detected items behind a row of traps in walled rooms; the stuck escape read Recall): with no hostile seen or sensed and the route's walls within the Stone to Mud uses carried (sealed_pocket.melt_charges), retreat_enclosure.melt_toward_key walks to the nearest pocket wall and melts it, the absorbed power first; returns the key or None. Owner 2026-11-18 「周辺感知があれば使用して入口を探す。なければ諦める。」: when no walled pocket answers (_walled_key), _map_key maps an enclosure of loot whose surroundings the map does not know, once an enclosure a floor visit."
   },
   "sealed_loot.py:pockets": {
     "classification": "data",
@@ -20410,5 +20410,60 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "area_mapping.py:loot_enclosure_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The map sealed_loot asks for sensed loot whose surroundings the map does not know (owner 2026-11-18 「周辺感知があれば使用して入口を探す。」): me_powers.power_key LOOT_ENCLOSURE, else _carried_key; dungeon only."
+  },
+  "sealed_loot.py:_first_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; a route reading for _map_key",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the first step of the walk (policy _walkable_neighbors) to the grid where the enclosure is mapped; dungeon only"
+  },
+  "sealed_loot.py:_map_key.nearness": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no emission; a distance reading for _map_key",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the game distance from a grid to the enclosure's nearest loot; dungeon only"
+  },
+  "sealed_loot.py:_walled_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner.",
+    "context": "Dungeon only: asked from sealed_loot.key, itself from policy _stuck_escape_key and ladder_idle; refuses in town, blind, confused or recalling.",
+    "evidence": "dungeon-only: owner 2026-11-13 「価値に関係なく溶かす」 and 問い1: the trap route's next step (_trap_key) or, with the route's walls within the Stone to Mud uses carried, retreat_enclosure.melt_toward_key toward the walled pockets' walls; returns the key or None."
+  },
+  "sealed_loot.py:_map_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner.",
+    "context": "Dungeon only: asked from sealed_loot.key when no walled pocket answers, itself from policy _stuck_escape_key and ladder_idle; refuses in town, blind, confused, recalling or with a hostile seen or sensed.",
+    "evidence": "dungeon-only: owner 2026-11-18 「周辺感知があれば使用して入口を探す。なければ諦める。」 (n1-c life-216 Castle 64F 2026-11-17, an amulet in a vault whose outside the map did not know): with a 周辺感知 held (area_mapping.means_held), walks (policy _step_toward, stuck:sealed-loot-map) to the reached grid nearest the loot of an enclosure not yet mapped this floor visit and casts area_mapping.loot_enclosure_key there, once an enclosure; returns the key or None."
   }
 }

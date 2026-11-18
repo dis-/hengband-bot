@@ -1808,6 +1808,8 @@ REGISTRY = (
     S("_last_return_trigger", "return_start", LIFE,
       "why the last town return began"),
     # sealed_loot
+    S("_sealed_loot_mapped", "sealed_loot", FLOOR,
+      "(floor_key, loot grids an enclosure was mapped for) of this floor visit (owner 2026-11-18)"),
     S("_sealed_loot_trap_device_uses", "sealed_loot", LIFE,
       "sealed_loot: sealed loot trap device uses (no comment at its definition)"),
     # sealed_pocket
