@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.item_identity import same_memory
 from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
@@ -3034,7 +3035,7 @@ class TownMixin:
             return None
         if (
             self._home_atomic_withdraw_pending is not None
-            and self._home_atomic_withdraw_pending[0] == self._home_pending_item
+            and same_memory(self._home_atomic_withdraw_pending[0], self._home_pending_item)
         ):
             self._release_claim_goal(
                 "target-unobserved", owners=("home-visit", "home-errand"),
@@ -3045,7 +3046,7 @@ class TownMixin:
             # life-525 2026-11-15 13:40:36; policy._observe_home_atomic_withdrawal_outside).
             errand = self._home_errand
             if (errand.request is not None
-                    and errand.request.signature == self._home_atomic_withdraw_pending[0]):
+                    and same_memory(errand.request.signature, self._home_atomic_withdraw_pending[0])):
                 errand.observe_outside(self._home_atomic_withdraw_after_count(snapshot))
             self._home_atomic_withdraw_pending = None
             self._home_atomic_withdraw_move_identity = None
@@ -3775,8 +3776,8 @@ class TownMixin:
             )
             or any(
                 owned.origin == "home"
-                and self._item_signature(owned.item)
-                == self._identification_candidate
+                and same_memory(self._item_signature(owned.item),
+                                self._identification_candidate)
                 and self._item_signature(owned.item)
                 not in self._deferred_home_items
                 for owned in self._equipment_catalog.items
@@ -6135,7 +6136,7 @@ class TownMixin:
             # targets (the loadout stopped selecting it, or it was armed
             # before only worn items were targets) is released here, before
             # the entrance composes it.
-            if self._home_pending_item == latched:
+            if same_memory(self._home_pending_item, latched):
                 self._home_pending_item = None
                 self._home_pending_slot = None
             self._home_random_teleport_withdrawal = None

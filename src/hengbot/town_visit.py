@@ -32,6 +32,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from hengbot.model import StoreState
 
+from hengbot.item_identity import (
+    MemorySignatureMap, MemorySignatures, remembered_map, remembered_set,
+)
+
 # An item identity: (name, tval, sval) as ``_item_signature`` makes it.
 Signature = tuple[str, int, int]
 
@@ -44,7 +48,7 @@ class TownVisit:
     # Destruction failures are scoped to one expedition; keeping the watch
     # during the visit lets unchanged attempts reach their retry limit
     # instead of being resent forever.
-    undestroyable_sigs: set[Signature] = field(default_factory=set)
+    undestroyable_sigs: set[Signature] = field(default_factory=MemorySignatures)
     destroy_watch: tuple[Signature, int, int] | None = None
     destroy_fail_streak: int = 0
     # quest_optional_carry filed its Home withdrawal: once a visit.
@@ -70,7 +74,7 @@ class TownVisit:
     # Rejections are only authoritative for the current town visit.  A full
     # store can reject an otherwise sellable item, so retry it after the next
     # dungeon trip instead of blacklisting it for the whole bot session.
-    unsellable_items: set[Signature] = field(default_factory=set)
+    unsellable_items: set[Signature] = field(default_factory=MemorySignatures)
     # Store types that refused a sale this town visit because they are FULL
     # (no room), not because of the item type. While a store is latched here
     # the bot must stop routing spare weapons to it and stop pulling more from
@@ -84,15 +88,15 @@ class TownVisit:
     # spans inscription observation, sale, and post-sale verification.
     batch_sell_pending: dict[str, object] | None = None
     home_candidate_waiting: bool = False
-    deferred_home_items: set[Signature] = field(default_factory=set)
-    retried_deferred_home_items: set[Signature] = field(default_factory=set)
-    deferred_home_item_sites: dict[Signature, str] = field(default_factory=dict)
-    home_pending_quantities: dict[Signature, int] = field(default_factory=dict)
+    deferred_home_items: set[Signature] = field(default_factory=MemorySignatures)
+    retried_deferred_home_items: set[Signature] = field(default_factory=MemorySignatures)
+    deferred_home_item_sites: dict[Signature, str] = field(default_factory=MemorySignatureMap)
+    home_pending_quantities: dict[Signature, int] = field(default_factory=MemorySignatureMap)
     home_procurement_batch_active: bool = False
     # Carried equipment whose identification sources were exhausted is
     # skipped only for the current town visit.  Unlike the dungeon-facing
     # failure set, this must survive every in-town observation.
-    unidentifiable_carried_sigs: set[Signature] = field(default_factory=set)
+    unidentifiable_carried_sigs: set[Signature] = field(default_factory=MemorySignatures)
     # Shelves turn over while the character is away: a page from an earlier
     # visit is no evidence for this one, so its supplier is visited again
     # before a stockout is concluded (n1-c life-109 2026-11-02 21:11 stopped
@@ -105,8 +109,8 @@ class TownVisit:
     supplier_stock_observations: dict[int, tuple[int, int]] = field(
         default_factory=dict
     )
-    deferred_device_items: set[Signature] = field(default_factory=set)
-    retried_home_identification_items: set[Signature] = field(default_factory=set)
+    deferred_device_items: set[Signature] = field(default_factory=MemorySignatures)
+    retried_home_identification_items: set[Signature] = field(default_factory=MemorySignatures)
     # Home errand purposes filed since the last Home pass report
     # (home_pass_charge): the work that pass attempted.
     home_pass_errand_purposes: set[str] = field(default_factory=set)
@@ -221,6 +225,41 @@ class TownVisit:
         # A visit pickled before a field existed holds that field's default.
         self.__dict__.update(_defaults())
         self.__dict__.update(state)
+        remember_items(self.__dict__)
+
+
+# Owner 2026-11-18 (review Q1 「印や割引だけ違えば同じ品」): the fields that
+# remember items hold them by the memory reading (item_identity), so an item
+# keeps what was remembered of it when its inscription or discount changes.
+# An older checkpoint's plain set or dict is read into the remembering
+# container (``remember_items``), and so is a value assigned by name.
+REMEMBERED_FIELDS = {
+    "undestroyable_sigs": remembered_set,
+    "unsellable_items": remembered_set,
+    "deferred_home_items": remembered_set,
+    "retried_deferred_home_items": remembered_set,
+    "deferred_home_item_sites": remembered_map,
+    "home_pending_quantities": remembered_map,
+    "unidentifiable_carried_sigs": remembered_set,
+    "deferred_device_items": remembered_set,
+    "retried_home_identification_items": remembered_set,
+    "purchases": remembered_set,
+    "purchase_quantities": remembered_map,
+}
+
+
+def remembered(name: str, value: Any) -> Any:
+    """``value`` as the field ``name`` holds it: a remembering container for a
+    remembering field, else as it is."""
+    reader = REMEMBERED_FIELDS.get(name)
+    return value if reader is None or value is None else reader(value)
+
+
+def remember_items(state: dict) -> None:
+    """Read a restored container's remembering fields into their containers."""
+    for name, reader in REMEMBERED_FIELDS.items():
+        if state.get(name) is not None:
+            state[name] = reader(state[name])
 
 
 def is_fresh_visit(policy: Any, snapshot: Any) -> bool:
@@ -294,7 +333,7 @@ def town_visit(policy: Any) -> TownVisit:
 def _forward(name: str) -> property:
     return property(
         lambda policy: getattr(town_visit(policy), name),
-        lambda policy, value: setattr(town_visit(policy), name, value),
+        lambda policy, value: setattr(town_visit(policy), name, remembered(name, value)),
         doc=f"TownVisit.{name} (structure stage 3).",
     )
 
@@ -369,6 +408,7 @@ class _Holds:
                         else spec.default)
             for spec in fields(self)})
         self.__dict__.update(state)
+        remember_items(self.__dict__)
 
 
 def _signature_history() -> Any:
@@ -425,8 +465,8 @@ class FloorHolds(_Holds):
     # change forgets it too, by name.
     unready_recall_cancelled: bool = False
     # Store purchases are retained for the rest of the visit.
-    purchases: set = field(default_factory=set)
-    purchase_quantities: dict = field(default_factory=dict)
+    purchases: set = field(default_factory=MemorySignatures)
+    purchase_quantities: dict = field(default_factory=MemorySignatureMap)
     # Sales are retained for the visit: buying the same tval/sval back is churn.
     sale_signatures: set = field(default_factory=set)
     # Most per-staff charges of an Identify staff sold this visit.
@@ -493,7 +533,7 @@ def floor_holds(policy: Any) -> FloorHolds:
 def _forward_hold(attribute: str, name: str) -> property:
     return property(
         lambda policy: getattr(_holder(policy, attribute), name),
-        lambda policy, value: setattr(_holder(policy, attribute), name, value),
+        lambda policy, value: setattr(_holder(policy, attribute), name, remembered(name, value)),
         doc=f"{_HOLD_CONTAINERS[attribute][0].__name__}.{name} (town rebuild stage 3-2).",
     )
 

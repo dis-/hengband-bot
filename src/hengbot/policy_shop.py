@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
+from hengbot.item_identity import same_memory
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
@@ -1352,7 +1353,7 @@ class ShopMixin(InStoreMixin):
         self._defer_unavailable_equipment_full_identification(snapshot)
         identification_home_target = any(
             owned.origin == "home"
-            and self._item_signature(owned.item) == self._identification_candidate
+            and same_memory(self._item_signature(owned.item), self._identification_candidate)
             for owned in self._equipment_catalog.items
         )
         if (
@@ -5549,7 +5550,7 @@ class ShopMixin(InStoreMixin):
                     signature = self._item_signature(candidate)
                     self._defer_home_item(signature, "home-equipment-processing-deferred")
                     self._release_identification_source_reservation(signature)
-                    if self._identification_candidate == signature:
+                    if same_memory(self._identification_candidate, signature):
                         self._identification_candidate = None
                     self._identification_need = None
                     self._home_candidate_waiting = False
