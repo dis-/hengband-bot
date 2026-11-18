@@ -20932,5 +20932,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "zul_trip.py:_out_of_range_key": {
+    "classification": "producer",
+    "rows": [
+      "cross-town"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "n1-c life-217 2026-11-19 01:49: in Zul, '<' refused nine times for an awake monster the player does not perceive. One levitated step (_flying_step, as the Tower walk) toward the nearest cell UNSEEN_RANGE_FACTOR x MAX_PLAYER_SIGHT from the refused cell (Reach, the cell declared) under town:zul:leave-range; '<' again there; no such cell: _wait_refused_key. Called only by _enter_global_key; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
