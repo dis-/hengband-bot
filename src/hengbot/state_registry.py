@@ -1170,7 +1170,8 @@ REGISTRY = (
     S("_home_disposal_seen_pages", "policy_home", LIFE,
       "policy_home: home disposal seen pages (no comment at its definition)"),
     S("_home_full_relief", "policy_home", LIFE,
-      "policy_home: home full relief (no comment at its definition)"),
+      "the full-Home relief running, or None: home_full_relief.HomeFullRelief, its fields "
+      "documented there (review 2026-11-18 (a)-7; an old checkpoint's dict is read into it)"),
     S("_home_full_retry_deposits", "policy_home", LIFE,
       "policy_home: home full retry deposits (no comment at its definition)"),
     S("_home_gate_telemetry", "policy_home", LIFE,

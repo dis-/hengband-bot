@@ -241,7 +241,7 @@ def releases(policy: Any, snapshot: Any, item: Any) -> bool:
     if getattr(policy, "_bm_fund_planning", False):
         return getattr(policy, "_bm_fund_probe", None) == signature
     relief = getattr(policy, "_home_full_relief", None)
-    if relief is not None and relief.get("fund") == signature:
+    if relief is not None and relief.fund == signature:
         return True
     return signature in plan(policy, snapshot)
 
@@ -308,7 +308,7 @@ def _fundable(policy: Any, snapshot: Any) -> bool:
     if policy._home_knowledge_current:
         return bool(plan(policy, snapshot))
     relief = getattr(policy, "_home_full_relief", None)
-    if relief is not None and relief.get("fund") is not None:
+    if relief is not None and relief.fund is not None:
         # A fund piece is out of Home on its way to its buyer.
         return True
     return _census_due(policy, snapshot) or bool(

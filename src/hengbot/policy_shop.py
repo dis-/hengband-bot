@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
 from hengbot.item_identity import same_memory
+from hengbot import sale_progress
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
@@ -4389,8 +4390,7 @@ class ShopMixin(InStoreMixin):
         if current is None:
             # A sale candidate can outlive the inventory board that supplied
             # its letter after an earlier sale removes or reorders the pack.
-            self._last_sell_sig = None
-            self._store_sell_stuck_count = 0
+            sale_progress.end(self, stuck=True)
             self.last_reason = rejected_reason
             self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
@@ -4411,9 +4411,7 @@ class ShopMixin(InStoreMixin):
             self._unsellable_items.add(self._item_signature(item))
             if store is not None:
                 self._set_town_store_attempted(store.store_type, snapshot.turn, "sell-no-item")
-            self._batch_sell_pending = None
-            self._last_sell_sig = None
-            self._store_sell_stuck_count = 0
+            sale_progress.end(self, batch=True, stuck=True)
             self.last_reason = rejected_reason
             self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
@@ -4468,8 +4466,7 @@ class ShopMixin(InStoreMixin):
             # yet rejected the sale: it is FULL. Latch it so the withdraw/route
             # logic stops feeding more spares to a store with no room.
             self._store_sale_refused.add(store.store_type)
-            self._last_sell_sig = None
-            self._store_sell_stuck_count = 0
+            sale_progress.end(self, stuck=True)
             self.last_reason = rejected_reason
             self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
@@ -4479,9 +4476,7 @@ class ShopMixin(InStoreMixin):
             self._unsellable_items.add(item_signature)
             self._set_town_store_attempted(store.store_type, snapshot.turn, "sell-attempt-limit")
             self._store_sale_refused.add(store.store_type)
-            self._last_sell_sig = None
-            self._store_sell_stuck_count = 0
-            self._store_sell_attempt = None
+            sale_progress.end(self, stuck=True, attempt=True)
             self.last_reason = rejected_reason
             self._offer_store_sale_leave(snapshot)
             return LEAVE_STORE_KEY
@@ -4500,8 +4495,8 @@ class ShopMixin(InStoreMixin):
         if store is None:
             return []
         relief = self._home_full_relief
-        if relief is not None and relief["sale"] is not None:
-            signature, store_type, _before = relief["sale"]
+        if relief is not None and relief.sale is not None:
+            signature, store_type, _before = relief.sale
             identity = sale_identity_of_signature(signature)
             return [item for item in snapshot.inventory
                     if store.store_type == store_type
@@ -4659,9 +4654,7 @@ class ShopMixin(InStoreMixin):
                         if sig == entry["signature"] and survivor.count >= previous_count:
                             attempts = previous_attempts + 1
                     self._store_sell_attempt = (entry["signature"], survivor.count, attempts)
-            self._batch_sell_pending = None
-            self._last_sell_sig = None
-            self._store_sell_stuck_count = 0
+            sale_progress.end(self, batch=True, stuck=True)
             if confirmed:
                 # Design rev 9 item 3: the posted sale is confirmed.
                 self._complete_observed_effect(
@@ -5727,9 +5720,8 @@ class ShopMixin(InStoreMixin):
         self._last_buy_sig = None
         self._last_buy_progress_sig = None
         self._store_buy_no_progress_count = 0
-        self._last_sell_sig = None
+        sale_progress.end(self, stuck=True)
         self._store_stuck_count = 0
-        self._store_sell_stuck_count = 0
         # A purchase that only yields to the slot recovery is still owed on
         # this shelf: the latch would end the store for the visit.
         if not acquisition_waits(self, snapshot):

@@ -9,6 +9,7 @@ from hengbot.town_visit import adopt_legacy_attributes as adopt_town_visit_attri
 from hengbot.town_visit import adopt_legacy_holds as adopt_town_holds
 from hengbot.town_visit import remember_items as remember_town_items
 from hengbot.item_identity import remembered_list, remembered_set
+from hengbot.home_full_relief import adopt_saved as adopt_home_full_relief
 
 # Strip-calibration attributes retained by the equipped C-sheet observation.
 _RETAINED_CALIBRATION_NAMES = frozenset({
@@ -300,6 +301,9 @@ def normalize_policy_state(restored, *, restart=False):
     # reading; an older checkpoint's plain sets and lists are read into the
     # remembering containers.
     remember_policy_items(restored.__dict__)
+    # Review 2026-11-18 (a)-7: the full-Home relief is a typed container; an older
+    # checkpoint's dict is read into it.
+    adopt_home_full_relief(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES:
         restored.__dict__.pop(name, None)

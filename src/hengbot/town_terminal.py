@@ -35,6 +35,7 @@ from hengbot.policy_constants import (
 from hengbot.departure_readiness import readiness_table
 from hengbot.item_identity import sale_identity_of_signature
 from hengbot.departure_rescues import rescue_key
+from hengbot import sale_progress
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
@@ -445,7 +446,7 @@ def home_full_identification_target(policy: Any, board: Any) -> Any:
     if not board.in_town or board.store is not None:
         return None
     relief = policy._home_full_relief
-    sale = relief.get("sale") if relief is not None else None
+    sale = relief.sale if relief is not None else None
     if sale is None:
         return None
     # The relief body follows its sale identity across inscription changes.
@@ -1647,17 +1648,14 @@ def _commit_store_sale(policy: Any, board: Any, terminal: TerminalRef,
     item = store_sale_target(policy, board)
     material = gather_store_sale(policy, board)
     if not material.target_present:
-        policy._last_sell_sig = None
-        policy._store_sell_stuck_count = 0
+        sale_progress.end(policy, stuck=True)
     elif material.available and material.retained:
         policy._batch_sell_pending = None
     elif material.available and not material.accepted:
         policy._unsellable_items.add(policy._item_signature(item))
         if board.store is not None:
             policy._set_town_store_attempted(board.store.store_type, board.turn, "sell-no-item")
-        policy._batch_sell_pending = None
-        policy._last_sell_sig = None
-        policy._store_sell_stuck_count = 0
+        sale_progress.end(policy, batch=True, stuck=True)
     policy.last_reason = ("shop:retain-standing-digging-tool"
                           if material.target_present and material.available and material.retained
                           else terminal.args[2] if len(terminal.args) > 2

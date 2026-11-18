@@ -19,7 +19,10 @@ from hengbot.town_hold import claim_family_of as town_claim_family_of
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import home_identification, home_pass_charge, me_deep_launcher
+from hengbot import home_identification, home_pass_charge, me_deep_launcher, sale_progress
+from hengbot.home_full_relief import (
+    DESTROY_FIELDS, SALE_DESTROY_FIELDS, SKIP_FIELDS, HomeFullRelief, ReliefAttribute,
+)
 from hengbot.town_pack_budget import home_take_fits, round_trip_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
@@ -68,6 +71,9 @@ class WeightRelief(NamedTuple):
 
 
 class HomeMixin:
+    # The full-Home relief: None, or the relief running (home_full_relief.HomeFullRelief).
+    # An old checkpoint's or a test's dict is read into the container.
+    _home_full_relief = ReliefAttribute()
 
     def _carried_disposal_preserves_departure(self, snapshot, item, count) -> bool:
         """Probe actual carried counts, including the Identify charge gate."""
@@ -149,9 +155,7 @@ class HomeMixin:
         self._overweight_surplus_ledger.pop("pending", None)
         self._save_overweight_surplus_ledger()
         state.pop("pending", None)
-        self._batch_sell_pending = None
-        self._last_sell_sig = None
-        self._store_sell_attempt = None
+        sale_progress.end(self, batch=True, attempt=True)
         self._complete_claim_goal("overweight-surplus-observed", owners=("shop-sell",),
                                   kinds=("Observe",), sources=("effect", "store-operation"))
         self.last_reason = reason
@@ -375,11 +379,9 @@ class HomeMixin:
         if self._home_full_relief is not None or (not entries and not self._inventory_overweight(snapshot)):
             return
         if refused or self._home_is_full(snapshot):
-            self._home_full_relief = {
-                "deposits": tuple(entries), "remaining": max(1, len(entries)),
-                "sale": None, "withdrawn": False,
-                "town": self._effective_town_id(snapshot),
-            }
+            self._home_full_relief = HomeFullRelief(
+                deposits=tuple(entries), remaining=max(1, len(entries)),
+                town=self._effective_town_id(snapshot))
 
     def _begin_home_junk_sweep(self, snapshot: Snapshot) -> bool:
         """#95 slice 1b-2: file one Home junk ware's relief per Home visit.
@@ -425,10 +427,8 @@ class HomeMixin:
                 or not self._home_junk_sweep_capacity(snapshot)):
             return False
         self._home_junk_sweep_count = (self._town_visit_epoch, swept + 1)
-        self._home_full_relief = {
-            "deposits": (), "remaining": 1, "sale": None, "withdrawn": False,
-            "town": self._effective_town_id(snapshot), "sweep": True,
-        }
+        self._home_full_relief = HomeFullRelief(
+            remaining=1, town=self._effective_town_id(snapshot), sweep=True)
         return True
 
     def _home_junk_sweep_capacity(self, snapshot: Snapshot) -> bool:
@@ -450,7 +450,7 @@ class HomeMixin:
     def _end_home_junk_sweep(self) -> None:
         """Retain the sweep's ware and end the sweep for this town stay."""
         relief = self._home_full_relief
-        sale = relief.get("sale") if relief is not None else None
+        sale = relief.sale if relief is not None else None
         if sale is not None and same_memory(self._home_pending_item, sale[0]):
             self._home_pending_item = None
             self._home_pending_quantity = None
@@ -458,7 +458,7 @@ class HomeMixin:
         self._home_errand.finish()
         self._home_junk_sweep_count = (self._town_visit_epoch,
                                        item_fate.SWEEP_LIMIT_PER_STAY)
-        if relief is not None and relief.get("cash"):
+        if relief is not None and relief.cash:
             # A cash ware's sweep that found no take (or no route) ends the
             # cash sale this stay: the mining set opens (home_cash_sale).
             home_cash_sale.end(self)
@@ -470,22 +470,20 @@ class HomeMixin:
     def _revalidate_home_full_destroy_after_restore(self, snapshot: Snapshot) -> None:
         """A checkpoint cannot prove its pending destroy was posted this run."""
         relief = getattr(self, "_home_full_relief", None)
-        if relief is None or not relief.get("destroy_posted"):
+        if relief is None or not relief.destroy_posted:
             return
-        sale = relief.get("sale")
+        sale = relief.sale
         if sale is not None:
             signature = sale[0]
             identity = self._sale_signature_identity(signature)
             count = sum(item.count for item in snapshot.inventory
                         if self._sale_item_identity(item) == identity)
-            if count <= relief.get("destroy_before_count", count):
+            if count <= (relief.destroy_before_count
+                         if relief.destroy_before_count is not None else count):
                 # The board itself settles a removal that happened before the
                 # restart. Otherwise the command must be selected again.
-                relief["withdrawn"] = True
-        relief.pop("destroy_posted", None)
-        relief.pop("destroy_before_count", None)
-        relief.pop("destroy_pending_key", None)
-        relief.pop("destroy_work_id", None)
+                relief.withdrawn = True
+        relief.reset(*DESTROY_FIELDS)
 
     @claims(ClaimOwner.HOME_VISIT)
     def _defer_home_full_deposit(self, snapshot: Snapshot) -> None:
@@ -497,12 +495,12 @@ class HomeMixin:
             # Required weight work cannot be parked behind its own retry
             # reservation. The separately admitted surplus producer owns it.
             # Home's relief gave up here: the producer never hands back to it.
-            self._overweight_surplus_disposal = {"town": relief["town"], "home_relief_exhausted": True}
+            self._overweight_surplus_disposal = {"town": relief.town, "home_relief_exhausted": True}
             self._home_full_relief = None
             self._home_full_retry_deposits = None
             self._home_errand.finish()
             return
-        self._home_full_retry_deposits = tuple(relief.get("deposits", ())) or None
+        self._home_full_retry_deposits = tuple(relief.deposits) or None
         self._home_full_relief = None
         self._home_errand.finish()
         self._town_blocked_reason = None
@@ -623,11 +621,13 @@ class HomeMixin:
             if carried.inscription and item.inscription and carried.inscription != item.inscription:
                 continue
             sig = self._item_signature(carried)
-            relief = self._home_full_relief or {}
+            relief = self._home_full_relief
+            skipped = relief.skipped if relief is not None else {}
+            deposits = relief.deposits if relief is not None else ()
             if (item_fate.held(self, snapshot, carried, "home-visit",
                                "destroy" if destroy else "home-full-sale")
-                    or sig in relief.get("skipped", {})
-                    or sig in {entry[0] for entry in relief.get("deposits", ())}
+                    or sig in skipped
+                    or sig in {entry[0] for entry in deposits}
                     or (destroy and carried.is_artifact)
                     or item_fate.stock_reserved(self, snapshot, snapshot, carried)
                     or not item_fate.gear_surplus(self, snapshot, carried)):
@@ -719,15 +719,15 @@ class HomeMixin:
     def _observe_home_full_identification(self, snapshot: Snapshot) -> None:
         """Settle the ID owner from item evidence before declaration dispatch."""
         relief = self._home_full_relief
-        identifying = relief.get("identifying") if relief is not None else None
-        if identifying is None or relief["sale"] is None or snapshot.store is not None:
+        identifying = relief.identifying if relief is not None else None
+        if identifying is None or relief.sale is None or snapshot.store is not None:
             return
         tval, quantity, previous, known, fully_known = identifying
-        signature, store_type, before_count = relief["sale"]
+        signature, store_type, before_count = relief.sale
         target = next((item for item in snapshot.inventory
                        if self._item_signature(item) == signature), None)
         if target is None:
-            before_known = relief.get("identification_counts")
+            before_known = relief.identification_counts
             candidates = [item for item in snapshot.inventory
                           if item.tval == tval and item.count == quantity
                           and self._item_signature(item) not in previous
@@ -749,10 +749,9 @@ class HomeMixin:
                     self._complete_claim_goal(
                         "home-full-identification-item-removed", owners=("identification",),
                         kinds=("Observe",), sources=("store-operation",))
-                    relief.pop("identifying", None)
-                    relief.pop("identification_counts", None)
-                    relief["withdrawn"] = True
-                    relief["mode"] = "destroy"
+                    relief.reset("identifying", "identification_counts")
+                    relief.withdrawn = True
+                    relief.mode = "destroy"
                 else:
                     self._release_claim_goal(
                         "home-full-identification-unresolved", owners=("identification",),
@@ -765,9 +764,8 @@ class HomeMixin:
             self._complete_claim_goal(
                 "home-full-identification-observed", owners=("identification",),
                 kinds=("Observe",), sources=("store-operation",))
-            relief["sale"] = (self._item_signature(target), store_type, before_count)
-            relief.pop("identifying", None)
-            relief.pop("identification_counts", None)
+            relief.sale = (self._item_signature(target), store_type, before_count)
+            relief.reset("identifying", "identification_counts")
         else:
             self._release_claim_goal(
                 "home-full-identification-unresolved", owners=("identification",),
@@ -782,7 +780,7 @@ class HomeMixin:
         this take, so a later Home page may take the next unaware ware.
         """
         relief = self._home_full_relief
-        signature = relief["sale"][0] if relief.get("sale") is not None else None
+        signature = relief.sale[0] if relief.sale is not None else None
         self._release_claim_goal(
             "sweep-ware-identified", owners=("identification",), kinds=("Observe",),
             sources=("store-operation",))
@@ -801,16 +799,12 @@ class HomeMixin:
     def _home_full_skip_key(self, reason: str) -> str:
         """Retain an unresolved/protected take and select other stock next."""
         relief = self._home_full_relief
-        signature = relief["sale"][0]
-        relief.setdefault("skipped", {})[signature] = reason
-        if not relief.get("pack_only") and "stock_count" in relief:
-            relief.setdefault("skipped_home_counts", {})[signature] = relief["stock_count"]
-        relief["sale"] = None
-        relief["withdrawn"] = False
-        pack_only = relief.get("pack_only", False)
-        for field in ("identifying", "identification_counts", "identify_pending", "mode", "useless", "round_trip", "destroy_posted", "destroy_pending_key",
-                      "destroy_before_count", "destroy_work_id", "pack_only", "stock_count", "taken"):
-            relief.pop(field, None)
+        signature = relief.sale[0]
+        relief.skipped[signature] = reason
+        if not relief.pack_only and relief.stock_count is not None:
+            relief.skipped_home_counts[signature] = relief.stock_count
+        pack_only = relief.pack_only
+        relief.end_sale(*SKIP_FIELDS)
         self._release_claim_goal(
             reason, owners=("identification",), kinds=("Observe",),
             sources=("store-operation",))
@@ -825,7 +819,7 @@ class HomeMixin:
             self._home_pending_quantity = None
             self._home_pending_take_confirmed = None
         self.last_reason = f"home:full-skip:{reason}"
-        if relief.get("sweep"):
+        if relief.sweep:
             self._end_home_junk_sweep()
         self._offer_execution(
             WAIT_KEY, producer="home-visit", work_id="home-full-relief",
@@ -840,10 +834,10 @@ class HomeMixin:
         if relief is None:
             return
         signature = self._item_signature(item)
-        relief.setdefault("skipped", {})[signature] = "identify-cap-reserved"
-        relief.setdefault("skipped_home_counts", {})[signature] = relief.get(
-            "stock_count", item.count)
-        relief.setdefault("identify_cap_skip_fingerprint", {})[signature] = (
+        relief.skipped[signature] = "identify-cap-reserved"
+        relief.skipped_home_counts[signature] = (
+            relief.stock_count if relief.stock_count is not None else item.count)
+        relief.identify_cap_skip_fingerprint[signature] = (
             sum(staff.count for staff in self._carried_identify_staves(snapshot)),
             bool(self._identify_staff_ready(snapshot)),
             count,
@@ -890,11 +884,11 @@ class HomeMixin:
         """
         relief = self._home_full_relief
         request = self._home_errand.request
-        return bool(relief is not None and relief.get("sale") is not None
-                    and not relief.get("withdrawn")
+        return bool(relief is not None and relief.sale is not None
+                    and not relief.withdrawn
                     and self._home_errand.active and request is not None
                     and request.purpose in {"full-home-sale", "full-home-discard"}
-                    and request.signature == relief["sale"][0])
+                    and request.signature == relief.sale[0])
 
     def _home_full_leave_key(self, reason: str) -> str:
         self.last_reason = reason
@@ -999,32 +993,32 @@ class HomeMixin:
         relief = self._home_full_relief
         if relief is None:
             return None
-        if relief.get("awaiting_identification_source"):
+        if relief.awaiting_identification_source:
             if not self._home_full_has_normal_identification_source(snapshot):
                 # Keep identify-first stock and the blocked deposit pending,
                 # while town procurement tries its existing source owners.
                 return None
-            relief.pop("awaiting_identification_source", None)
+            relief.reset("awaiting_identification_source")
         if self._town_blocked_reason in {
                 "home-full-surplus-store-unreachable", "home-full-no-sellable-surplus",
                 "home-full-surplus-now-reserved"}:
             # These diagnostics are results of this selector/route, not input
             # restrictions on it. Re-evaluate current stock and map evidence.
             self._town_blocked_reason = None
-        if relief["town"] != self._effective_town_id(snapshot):
+        if relief.town != self._effective_town_id(snapshot):
             # A trip to another town (the tower's recharge, the smith) comes
             # first and the relief waits for its own town: its sale and its
             # shop are that town's.  Blocking here held the trip until the
             # burst (n1-a life-487 20:04, n1-c life-145 23:18).
             return None
-        sale = relief["sale"]
+        sale = relief.sale
         if sale is not None:
             signature, store_type, before_count = sale
             sale_identity = self._sale_signature_identity(signature)
             target = item_fate.relief_ware(self, snapshot)
             count = sum(item.count for item in snapshot.inventory
                         if self._sale_item_identity(item) == sale_identity)
-            identifying = relief.get("identifying")
+            identifying = relief.identifying
             if identifying is not None:
                 # Only a normal outside board settles a posted ID. Never send
                 # it again or reinterpret disappearance as a renamed target.
@@ -1033,15 +1027,15 @@ class HomeMixin:
                 return self._town_producer_entry("_home_full_skip_key",
                     lambda: self._home_full_skip_key("identification-effect-unresolved"))
             if count > before_count:
-                relief["withdrawn"] = True
-                if relief.get("taken", (None,))[0] != signature:
-                    relief["taken"] = (signature, count - before_count)
+                relief.withdrawn = True
+                if (relief.taken[0] if relief.taken is not None else None) != signature:
+                    relief.taken = (signature, count - before_count)
                 if same_memory(self._home_pending_item, signature):
                     self._home_pending_item = None
                     self._home_pending_slot = None
                     self._home_pending_quantity = None
                     self._home_pending_take_confirmed = None
-                if relief.get("mode") in {"destroy", "identify"}:
+                if relief.mode in {"destroy", "identify"}:
                     if snapshot.store is not None:
                         return self._home_full_leave_key("home:full-leave-with-surplus")
                     if not target.known or self._disposal_protected_by_identification(target):
@@ -1055,7 +1049,7 @@ class HomeMixin:
                         if key is None:
                             if (not target.known
                                     and not self._identify_staff_ready(snapshot)):
-                                relief["awaiting_identification_source"] = True
+                                relief.awaiting_identification_source = True
                                 return None
                             return self._town_producer_entry("_home_full_skip_key",
                                 lambda: self._home_full_skip_key("identification-source-unavailable"))
@@ -1071,12 +1065,12 @@ class HomeMixin:
                         # "unresolved" and replaced it with a skip, for every
                         # carried ware in turn, until the relief gave up (n1-b
                         # life-411 2026-11-18 15:52, rows 22-30).
-                        relief["identify_pending"] = (key, (target.tval, target.count,
+                        relief.identify_pending = (key, (target.tval, target.count,
                             frozenset(self._item_signature(item) for item in snapshot.inventory),
                             target.known, target.fully_known), counts)
                         return key
-                    if relief.get("mode") == "identify":
-                        if relief.get("sweep"):
+                    if relief.mode == "identify":
+                        if relief.sweep:
                             # The sweep's unaware potion or scroll is now known:
                             # the existing rules keep, sell or destroy it as any
                             # carried stock (owner 2026-11-15); the sweep goes on.
@@ -1086,10 +1080,10 @@ class HomeMixin:
                                 carried for carried in snapshot.inventory
                                 if self._sale_item_identity(carried) != sale_identity)), target)
                         if candidate is not None:
-                            relief["sale"] = (signature, candidate[1], before_count)
-                            relief["mode"] = "sale"
+                            relief.sale = (signature, candidate[1], before_count)
+                            relief.mode = "sale"
                             return self._home_full_relief_key(snapshot)
-                        relief["mode"] = "destroy"
+                        relief.mode = "destroy"
                     probe = replace(snapshot, inventory=tuple(
                         carried for carried in snapshot.inventory
                         if self._sale_item_identity(carried) != sale_identity))
@@ -1100,8 +1094,10 @@ class HomeMixin:
                         # neither its take nor its identification is disposal.
                         return self._town_producer_entry("_home_full_skip_key",
                             lambda: self._home_full_skip_key("identified-item-protected"))
-                    posted = relief.get("destroy_posted", False)
-                    if posted and count < relief.get("destroy_before_count", count):
+                    posted = relief.destroy_posted
+                    if posted and count < (relief.destroy_before_count
+                                           if relief.destroy_before_count is not None
+                                           else count):
                         # Several physical stacks can share the sale identity.
                         # Consume this observed removal before sending another
                         # destroy for the still-carried surplus, never wait for
@@ -1114,26 +1110,26 @@ class HomeMixin:
                     if key is None:
                         return None
                     self.last_reason = ("home:full-destroy-await-effect" if posted
-                                        else f"home:junk-sweep:{relief['sweep_class']}"
-                                        if relief.get("sweep")
+                                        else f"home:junk-sweep:{relief.sweep_class}"
+                                        if relief.sweep
                                         else "home:full-destroy-surplus")
                     if not posted:
-                        relief["destroy_work_id"] = (
+                        relief.destroy_work_id = (
                             f"home-full-destroy:{sale_identity}:{self._decision_sequence}")
                     self._offer_execution(
-                        key, producer="home-visit", work_id=relief["destroy_work_id"],
+                        key, producer="home-visit", work_id=relief.destroy_work_id,
                         next_step="home.full-destroy.observe" if posted else "inventory.destroy.send",
                         arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
                         continuation="home.full-destroy.observe",
                         budget_ref="home-visit-existing-budget")
                     if posted:
-                        relief.pop("destroy_pending_key", None)
+                        relief.reset("destroy_pending_key")
                     else:
                         # Only an actually posted destroy may be awaited: a
                         # later rewrite (entrance step-off, exits) can replace
                         # this key, and confirm_key_posted commits it.
-                        relief["destroy_pending_key"] = key
-                        relief["destroy_before_count"] = count
+                        relief.destroy_pending_key = key
+                        relief.destroy_before_count = count
                     return key
                 if (signature in self._unsellable_items
                         or store_type in self._store_sale_refused):
@@ -1141,7 +1137,7 @@ class HomeMixin:
                         carried for carried in snapshot.inventory
                         if self._sale_item_identity(carried) != sale_identity))
                     if self._home_full_discard_candidate(probe, target) is not None:
-                        relief["mode"] = "destroy"
+                        relief.mode = "destroy"
                         return self._town_producer_entry("_home_full_relief_key",
                             lambda: self._home_full_relief_key(snapshot))
                     return self._town_producer_entry("_home_full_skip_key",
@@ -1170,7 +1166,7 @@ class HomeMixin:
                             and self._store_visit is not None):
                         return self._in_store_commit_operation(snapshot, key)
                     return key
-            elif (relief["withdrawn"] and relief.get("mode") == "sale"
+            elif (relief.withdrawn and relief.mode == "sale"
                     and snapshot.store is not None
                     and snapshot.store.store_type == STORE_HOME):
                 # The taken ware left the pack on the Home page: only a deposit
@@ -1181,32 +1177,32 @@ class HomeMixin:
                 # shelf ware is not taken out again this relief.
                 return self._town_producer_entry("_home_full_skip_key",
                     lambda: self._home_full_skip_key("surplus-put-back"))
-            elif relief["withdrawn"]:
-                if relief.get("mode") == "destroy":
+            elif relief.withdrawn:
+                if relief.mode == "destroy":
                     self._complete_claim_goal(
                         "home-full-destroy-observed", owners=("home-visit",),
                         kinds=("Observe",), sources=("effect",))
-                    if relief.get("destroy_posted"):
+                    if relief.destroy_posted:
                         self._offer_execution_done(
                             producer="home-visit",
-                            work_id=relief["destroy_work_id"],
+                            work_id=relief.destroy_work_id,
                             evidence="surplus-stack-removal-observed",
                         )
                 # Stock space is earned by the take, but the next take/deposit
                 # starts only after the sale's inventory effect is observed.
-                pack_only = relief.pop("pack_only", False)
+                pack_only = relief.consume("pack_only")
                 if not pack_only:
-                    relief["remaining"] -= 1
-                taken = relief.pop("taken", None)
-                if (not pack_only and relief.get("mode") == "sale"
+                    relief.remaining -= 1
+                taken = relief.consume("taken")
+                if (not pack_only and relief.mode == "sale"
                         and taken is not None and taken[0] == signature
-                        and "stock_count" in relief):
+                        and relief.stock_count is not None):
                     # Off the Home page the departure reads as the sale.  The
                     # next census tells a deposit from it: the shelf count
                     # must stay below its count before the take.
-                    relief.setdefault("settled_home_counts", {})[signature] = max(
-                        0, relief["stock_count"] - taken[1])
-                if relief.get("mode") == "sale":
+                    relief.settled_home_counts[signature] = max(
+                        0, relief.stock_count - taken[1])
+                if relief.mode == "sale":
                     # The observed sale ends its store attempts, as the
                     # overweight-surplus sale's does (_observe_overweight_surplus_effect).
                     # Left counting, the next stack of the same name was
@@ -1214,30 +1210,21 @@ class HomeMixin:
                     # 2026-11-18 03:53, the third round trip of 99 {@1} bolts
                     # (rows 44, 71, 84) was held unsellable until
                     # town:blocked:stage-deadline:sell.
-                    self._store_sell_attempt = None
-                    self._last_sell_sig = None
-                relief["sale"] = None
-                relief["withdrawn"] = False
-                relief.pop("useless", None)
-                relief.pop("round_trip", None)
-                relief.pop("destroy_posted", None)
-                relief.pop("destroy_pending_key", None)
-                relief.pop("destroy_before_count", None)
-                relief.pop("destroy_work_id", None)
-                relief.pop("mode", None)
+                    sale_progress.end(self, attempt=True)
+                relief.end_sale(*SALE_DESTROY_FIELDS)
                 self._home_errand.finish()
                 self._invalidate_home_observation()
-                if relief["remaining"] == 0 and relief.get("sweep"):
+                if relief.remaining == 0 and relief.sweep:
                     # The sweep freed no deposit: no retry batch, no release
                     # of the visit bound.
                     self._home_full_relief = None
-                elif relief["remaining"] == 0:
+                elif relief.remaining == 0:
                     self._home_rejected_deposits.difference_update(
-                        entry[0] for entry in relief["deposits"])
+                        entry[0] for entry in relief.deposits)
                     self._home_deposit_abandoned = False
                     self._home_capacity_observation = None
                     self._home_full_refused = False
-                    self._home_full_retry_deposits = relief["deposits"]
+                    self._home_full_retry_deposits = relief.deposits
                     self._home_full_relief = None
                     self._invalidate_home_observation()
                     self._rearm_town_store_for_new_work(STORE_HOME,
@@ -1254,7 +1241,7 @@ class HomeMixin:
                 sale = None
             elif (snapshot.store is not None
                     and snapshot.store.store_type == STORE_HOME
-                    and not relief["withdrawn"]
+                    and not relief.withdrawn
                     and self._home_errand.state.value not in {"failed", "stopped"}):
                 # A pending relief take can outlive its errand (for example,
                 # after recovery from a stopped unaddressed entry). Do not
@@ -1298,20 +1285,17 @@ class HomeMixin:
                     return None
                 if (self._home_full_relief_take_blocks_identify(
                         snapshot, observed, observed.count)):
-                    relief["stock_count"] = observed.count
+                    relief.stock_count = observed.count
                     self._home_full_record_identify_cap_skip(
                         snapshot, observed, observed.count)
-                    relief["identify_cap_skip_fingerprint"][
+                    relief.identify_cap_skip_fingerprint[
                         self._item_signature(observed)] = (
                             sum(staff.count for staff in
                                 self._carried_identify_staves(snapshot)),
                             bool(self._identify_staff_ready(snapshot)),
                             observed.count,
                         )
-                    relief["sale"] = None
-                    relief["withdrawn"] = False
-                    relief.pop("useless", None)
-                    relief.pop("round_trip", None)
+                    relief.end_sale()
                     self._home_errand.finish()
                     self._home_pending_item = None
                     self._home_pending_slot = None
@@ -1325,19 +1309,19 @@ class HomeMixin:
                     # do not recursively reenter this claims producer.
                     return None
                 if not self._home_errand.active:
-                    relief["sale"] = (self._item_signature(observed), store_type,
+                    relief.sale = (self._item_signature(observed), store_type,
                                       before_count)
-                    signature = relief["sale"][0]
+                    signature = relief.sale[0]
                     if not self._file_home_errand(snapshot, HomeErrandRequest(
                             signature, observed.count, "home-catalog",
-                            "full-home-sale" if relief.get("mode") == "sale"
+                            "full-home-sale" if relief.mode == "sale"
                             else "full-home-discard"),
                             knowledge_current=self._home_knowledge_current):
                         return None
-                self._home_pending_item = relief["sale"][0]
+                self._home_pending_item = relief.sale[0]
                 self._home_pending_quantity = observed.count
                 return (self._home_full_leave_key(
-                    "home:junk-sweep-withdraw" if relief.get("sweep")
+                    "home:junk-sweep-withdraw" if relief.sweep
                     else "home:full-queue-surplus-withdraw")
                     if errand_was_active else None)
             elif self._home_errand.state.value in {"failed", "stopped"}:
@@ -1358,28 +1342,28 @@ class HomeMixin:
             for item in self._home_knowledge_items:
                 sig = self._item_signature(item)
                 counts[sig] = counts.get(sig, 0) + item.count
-            settled = relief.get("settled_home_counts", {})
+            settled = relief.settled_home_counts
             for sig, expected in tuple(settled.items()):
                 if counts.get(sig, 0) > expected:
                     # Taken and then shelved again by another owner (a weight
                     # or equipment deposit off the Home page), not sold: the
                     # entry freed no slot and the ware stays on the shelf.
                     settled.pop(sig)
-                    relief["remaining"] += 1
-                    relief.setdefault("skipped", {})[sig] = "surplus-put-back"
-                    relief.setdefault("skipped_home_counts", {})[sig] = counts[sig]
+                    relief.remaining += 1
+                    relief.skipped[sig] = "surplus-put-back"
+                    relief.skipped_home_counts[sig] = counts[sig]
             carry_count = sum(staff.count for staff in
                               self._carried_identify_staves(snapshot))
             ready = bool(self._identify_staff_ready(snapshot))
-            cap_skips = relief.get("identify_cap_skip_fingerprint", {})
+            cap_skips = relief.identify_cap_skip_fingerprint
             for signature, fingerprint in tuple(cap_skips.items()):
                 if fingerprint[:2] != (carry_count, ready):
                     cap_skips.pop(signature, None)
-                    if relief.get("skipped", {}).get(signature) == "identify-cap-reserved":
-                        relief["skipped"].pop(signature, None)
-                        relief.get("skipped_home_counts", {}).pop(signature, None)
+                    if relief.skipped.get(signature) == "identify-cap-reserved":
+                        relief.skipped.pop(signature, None)
+                        relief.skipped_home_counts.pop(signature, None)
             stock = tuple(item for item in self._home_knowledge_items
-                          if self._item_signature(item) not in relief.get("skipped", {})
+                          if self._item_signature(item) not in relief.skipped
                           or counts[self._item_signature(item)] < relief.get(
                               "skipped_home_counts", {}).get(self._item_signature(item), 0))
             # A full pack cannot take shelf surplus. Free a carried surplus
@@ -1391,9 +1375,9 @@ class HomeMixin:
             pack_bound = item_fate.home_take_blocked(snapshot)
             full_pack = len(snapshot.inventory) >= PACK_CAPACITY
             carried_stock = tuple(item for item in snapshot.inventory
-                                 if self._item_signature(item) not in relief.get("skipped", {})
+                                 if self._item_signature(item) not in relief.skipped
                                  and (not full_pack or self._item_signature(item) not in {
-                                     entry[0] for entry in relief["deposits"]})
+                                     entry[0] for entry in relief.deposits})
                                  and self._retention_reservation(snapshot, item) == 0
                                  and not self._home_full_equipment_reserved(snapshot, item)
                                  and self._carried_disposal_preserves_departure(snapshot, item, item.count)
@@ -1408,7 +1392,7 @@ class HomeMixin:
             carry_count = sum(staff.count for staff in
                               self._carried_identify_staves(snapshot))
             ready = self._identify_staff_ready(snapshot)
-            skipped = relief.setdefault("identify_cap_skip_fingerprint", {})
+            skipped = relief.identify_cap_skip_fingerprint
             kept_stock = []
             for candidate in stock:
                 if id(candidate) in pack_ids:
@@ -1423,7 +1407,7 @@ class HomeMixin:
                     continue
                 if self._home_full_relief_take_blocks_identify(
                         snapshot, candidate, count):
-                    relief["stock_count"] = counts.get(sig, candidate.count)
+                    relief.stock_count = counts.get(sig, candidate.count)
                     self._home_full_record_identify_cap_skip(snapshot, candidate, count)
                     skipped[sig] = fingerprint
                     continue
@@ -1467,7 +1451,7 @@ class HomeMixin:
                     if junk:
                         break
             del self._junk_board
-            candidates = [] if junk or relief.get("sweep") else [
+            candidates = [] if junk or relief.sweep else [
                 (result, item) for item in sale_stock
                 if (result := self._home_full_sale_candidate(probes[id(item)], item))]
             if junk:
@@ -1480,7 +1464,7 @@ class HomeMixin:
                                     probes[id(item)], item, identify=True))
                                 and (id(item) in pack_ids
                                      or item_fate.can_identify_now(self, snapshot, candidate))]
-                if (pack_bound and not discard and not relief.get("sweep")
+                if (pack_bound and not discard and not relief.sweep
                         and not any(item_fate.can_identify_now(self, snapshot, candidate)
                                     for candidate, _ in unidentified)):
                     # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを
@@ -1505,10 +1489,10 @@ class HomeMixin:
                         round_trip = True
             else:
                 discard = unidentified = []
-            if relief.get("sweep"):
+            if relief.sweep:
                 # The sweep destroys junk only, a ware the pack can carry.
                 if junk and self._can_add_item_without_overweight(snapshot, junk[0][1]):
-                    relief["sweep_class"] = self._junk_class(replace(
+                    relief.sweep_class = self._junk_class(replace(
                         snapshot, inventory=(*snapshot.inventory, junk[0][0])),
                         junk[0][0])
                 else:
@@ -1523,7 +1507,7 @@ class HomeMixin:
                             else item_fate.sweep_ware(self, snapshot, sale_stock))
                     if identify_ware is not None:
                         discard, unidentified = [], [identify_ware]
-                        relief["sweep_class"] = "identified"
+                        relief.sweep_class = "identified"
                     elif ware is None:
                         self._end_home_junk_sweep()
                         return None
@@ -1531,11 +1515,11 @@ class HomeMixin:
                         candidates = [ware]
                         signature = self._item_signature(ware[0][0])
                         if home_cash_sale.ware(self, snapshot, ware[0][0]) and home_cash_sale.due(self, snapshot):
-                            relief["cash"] = signature
+                            relief.cash = signature
                         if signature in bm_destruction_fund.plan(self, snapshot):
                             # Its take and sale keep the fund's exception after
                             # the census that chose it is gone.
-                            relief["fund"] = signature
+                            relief.fund = signature
             carried_sale = []
             if not candidates:
                 if not pack_bound:
@@ -1556,9 +1540,9 @@ class HomeMixin:
                             if not item.is_equipment
                             and not (item.tval == TVAL_STAFF
                                      and item.sval == SV_STAFF_IDENTIFY)
-                            and self._item_signature(item) not in relief.get("skipped", {})
+                            and self._item_signature(item) not in relief.skipped
                             and self._item_signature(item) not in {
-                                entry[0] for entry in relief["deposits"]}
+                                entry[0] for entry in relief.deposits}
                             and self._retention_reservation(snapshot, item) == 0
                             and not self._home_full_equipment_reserved(snapshot, item)
                             and self._carried_disposal_preserves_departure(
@@ -1592,18 +1576,18 @@ class HomeMixin:
                     (item, store_type, _value), source = min(
                         carried_sale, key=lambda entry: item_fate.relief_order(
                             self, snapshot, entry[0][0], carried=True))
-                    relief["mode"] = "sale"
+                    relief.mode = "sale"
                 elif discard:
                     item, source = min(discard, key=lambda entry:
                                        self._home_full_discard_rank(snapshot, entry[0]))
-                    relief["mode"] = "destroy"
+                    relief.mode = "destroy"
                 elif unidentified:
                     item, source = min(unidentified, key=lambda entry: self._item_signature(entry[0]))
                     if (not self._home_full_has_normal_identification_source(snapshot)
                             and not self._identify_staff_ready(snapshot)):
-                        relief["awaiting_identification_source"] = True
+                        relief.awaiting_identification_source = True
                         return None
-                    relief["mode"] = "identify"
+                    relief.mode = "identify"
                 else:
                     self._town_producer_entry(
                         "_defer_home_full_deposit",
@@ -1620,23 +1604,23 @@ class HomeMixin:
                 (item, store_type, _value), source = min(
                     candidates, key=lambda entry: item_fate.relief_order(
                         self, snapshot, entry[0][0], carried=id(entry[1]) in pack_ids))
-                relief["mode"] = "sale"
+                relief.mode = "sale"
             signature = self._item_signature(item)
-            if relief["mode"] != "identify":
-                relief["rank_released"] = signature
+            if relief.mode != "identify":
+                relief.rank_released = signature
             # The clearly useless ware keeps that verdict off the shelf (item_fate.relief_useless).
-            if (relief["mode"] == "sale"
+            if (relief.mode == "sale"
                     and item_fate.clearly_useless(
                         self, snapshot, item, carried=id(source) in pack_ids) is not None):
-                relief["useless"] = signature
+                relief.useless = signature
             else:
-                relief.pop("useless", None)
+                relief.reset("useless")
             # A ware the reserve-bound pack takes only to sell at once
             # (item_fate.relief_round_trip).
-            if round_trip and relief["mode"] == "sale":
-                relief["round_trip"] = signature
+            if round_trip and relief.mode == "sale":
+                relief.round_trip = signature
             else:
-                relief.pop("round_trip", None)
+                relief.reset("round_trip")
             # Retain the physical source row even when a shelf and pack stack
             # share the same signature. A shelf take earns a shelf slot.
             pack_only = id(source) in pack_ids
@@ -1645,33 +1629,33 @@ class HomeMixin:
                              if self._sale_item_identity(source) == self._sale_item_identity(item))
                 count = sum(source.count for source in snapshot.inventory
                             if self._sale_item_identity(source) == self._sale_item_identity(item))
-                relief["sale"] = (signature, store_type, count - first.count)
-                relief["withdrawn"] = True
-                relief["pack_only"] = True
+                relief.sale = (signature, store_type, count - first.count)
+                relief.withdrawn = True
+                relief.pack_only = True
                 return self._home_full_relief_key(snapshot)
-            relief["stock_count"] = counts[signature]
+            relief.stock_count = counts[signature]
             if not self._file_home_errand(snapshot, HomeErrandRequest(
                     signature, item.count, "home-catalog",
-                    "full-home-sale" if relief["mode"] == "sale" else "full-home-discard"),
+                    "full-home-sale" if relief.mode == "sale" else "full-home-discard"),
                     knowledge_current=True):
                 return None
-            relief["sale"] = (signature, store_type,
+            relief.sale = (signature, store_type,
                 sum(carried.count for carried in snapshot.inventory
                     if self._sale_item_identity(carried) == self._sale_item_identity(item)))
             self._home_pending_item = signature
             self._home_pending_quantity = item.count
             self._rearm_town_store_for_new_work(
-                STORE_HOME, release_visit_bound=not relief.get("sweep"))
-            sale = relief["sale"]
-        store_type = sale[1] if relief["withdrawn"] else STORE_HOME
+                STORE_HOME, release_visit_bound=not relief.sweep)
+            sale = relief.sale
+        store_type = sale[1] if relief.withdrawn else STORE_HOME
         if snapshot.store is not None:
             # The sweep's leave never says "full": the Home is not full.
             return self._home_full_leave_key(
-                "home:junk-sweep-withdraw" if relief.get("sweep")
+                "home:junk-sweep-withdraw" if relief.sweep
                 else "home:full-queue-surplus-withdraw")
         self._rearm_town_store_for_new_work(store_type)
         step = self._shopping_approach_step(snapshot, store_type, requester="home-visit")
-        if step is None and relief.get("sweep"):
+        if step is None and relief.sweep:
             # The sweep never routes back to Home: no take now ends it.
             self._end_home_junk_sweep()
             return None
@@ -3560,8 +3544,8 @@ class HomeMixin:
         """
         relief = self._home_full_relief
         if (weight_relief is None or weight_relief.route != "deposit"
-                or relief is None or relief.get("sale") is not None
-                or relief.get("withdrawn")):
+                or relief is None or relief.sale is not None
+                or relief.withdrawn):
             return False
         self._home_full_relief = None
         self._home_full_retry_deposits = None
@@ -4261,7 +4245,8 @@ class HomeMixin:
                 snapshot, item, take_quantity)):
             relief = self._home_full_relief
             if relief is not None:
-                relief["stock_count"] = relief.get("stock_count", item.count)
+                if relief.stock_count is None:
+                    relief.stock_count = item.count
                 self._home_full_record_identify_cap_skip(snapshot, item, take_quantity)
             self._home_errand.finish()
             self._home_pending_item = None
