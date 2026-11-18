@@ -686,8 +686,19 @@ def _haste_key(policy, snapshot: Snapshot) -> str | None:
     return me_absorbed_substitutes.cast(policy, snapshot, ("staff", SV_STAFF_SPEED), REASON_CLOSE_HASTE)
 
 
+CLOSE_BLOCKED = "close-blocked"
+
+
 def _close_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
-    """The last animal (design 5.1): area, haste, step out and strike, chase to the exit."""
+    """The last animal (design 5.1): area, haste, step out and strike, chase to the exit.
+
+    The step back along the tunnel is taken only onto an open cell: a tunnel cell the board
+    shows closed leaves no exit to follow, and the plan ends (``CLOSE_BLOCKED``), as the walk
+    and the dig end on a board that no longer fits (``_site_lost``).  n1-b life-411 (Angband
+    95F, 2026-11-19 05:15, loop-detected): stepped out of the pocket (19,91) to (20,92), an
+    emergency *Destruction* there turned the tunnel cell (21,91) into a magma vein, and
+    ``anaguma:close-step`` sent '1' into it twelve times (「溶岩の鉱脈が行く手をはばんでいる。」,
+    no game turn spent) until the loop guard stopped the bot."""
     members = _members(snapshot, current.races)
     here = snapshot.player.position
     if len(members) > 1:
@@ -717,6 +728,10 @@ def _close_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
         _release(policy, "close-exit")   # 「出口まで追う」: the start cell is the exit
         return None
     following = current.tunnel.before(standing)
+    if not geo.open_cell(snapshot.grid_at(following)):
+        # The tunnel back is closed: no exit to follow it to (``CLOSE_BLOCKED``).
+        _release(policy, CLOSE_BLOCKED)
+        return None
     return _step(policy, snapshot, following, REASON_CLOSE_STEP)
 
 
