@@ -29,6 +29,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import base64
 import copy
+from dataclasses import replace
 import gzip
 import json
 import lzma
@@ -190,7 +191,14 @@ class N1c205ItemUseRoute1113RecordedTest(ProductionHarness):
         """v1329 row 0: the Home sweep's ware is a Home kind no consumer uses."""
         policy, recorded, steps = self.load("v1329")
         board = steps[0][1]()
-        ware = item_fate.sweep_ware(policy, board, policy._home_knowledge_items)
+        # Owner 2026-11-19's clearly useless stock goes first (the Amulet of Resist Acid
+        # here, outdone by a kept piece); the use-route surplus comes next.
+        first = item_fate.sweep_ware(policy, board, policy._home_knowledge_items)
+        self.assertEqual(item_fate.clearly_useless(policy, board, first[0][0]), "dominated")
+        stock = tuple(item for item in policy._home_knowledge_items
+                      if item_fate.clearly_useless(policy, board, replace(
+                          item, slot=item_fate.HOME_STOCK_SLOT)) is None)
+        ware = item_fate.sweep_ware(policy, board, stock)
         self.assertIsNotNone(ware)
         (result, _store, _value), stock = ware
         self.assertIn(kind(stock), SURPLUS_HOME_1329)

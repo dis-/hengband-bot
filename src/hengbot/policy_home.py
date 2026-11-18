@@ -527,6 +527,8 @@ class HomeMixin:
         # Evaluate Home stock with the same pack retention authority, using a
         # distinct slot so an existing pack stack cannot hide its reservation.
         recall_short = self._home_full_relief_leaves_recall_short(snapshot, item)
+        # A pack stack (slot a-w) probed as Home stock; the Home's own slots are numbered.
+        carried = isinstance(item, InventoryItem) and str(item.slot).isalpha()
         if not isinstance(item, InventoryItem):
             item = InventoryItem(**{
                 field.name: ("home-surplus" if field.name == "slot"
@@ -546,7 +548,7 @@ class HomeMixin:
         # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」:
         # clearly useless stock (item_fate.clearly_useless) passes the rank keep,
         # the standing digger retention and the ammunition reservations.
-        useless = item_fate.clearly_useless(self, snapshot, item) is not None
+        useless = item_fate.clearly_useless(self, snapshot, item, carried=carried) is not None
         if (item_fate.held(self, snapshot, item, "home-visit", "home-full-sale")
                 or item.is_empty_bottle
                 or signature in self._unsellable_items
@@ -1588,7 +1590,8 @@ class HomeMixin:
                         discard, unidentified = carried_discard, carried_unidentified
                 if carried_sale:
                     (item, store_type, _value), source = min(
-                        carried_sale, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
+                        carried_sale, key=lambda entry: item_fate.relief_order(
+                            self, snapshot, entry[0][0], carried=True))
                     relief["mode"] = "sale"
                 elif discard:
                     item, source = min(discard, key=lambda entry:
@@ -1615,14 +1618,16 @@ class HomeMixin:
                     store_type = STORE_HOME
             else:
                 (item, store_type, _value), source = min(
-                    candidates, key=lambda entry: item_fate.relief_order(self, snapshot, entry[0][0]))
+                    candidates, key=lambda entry: item_fate.relief_order(
+                        self, snapshot, entry[0][0], carried=id(entry[1]) in pack_ids))
                 relief["mode"] = "sale"
             signature = self._item_signature(item)
             if relief["mode"] != "identify":
                 relief["rank_released"] = signature
             # The clearly useless ware keeps that verdict off the shelf (item_fate.relief_useless).
             if (relief["mode"] == "sale"
-                    and item_fate.clearly_useless(self, snapshot, item) is not None):
+                    and item_fate.clearly_useless(
+                        self, snapshot, item, carried=id(source) in pack_ids) is not None):
                 relief["useless"] = signature
             else:
                 relief.pop("useless", None)

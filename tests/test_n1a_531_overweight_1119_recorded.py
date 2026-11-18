@@ -18,6 +18,8 @@ the relief sells whenever the pack has room.  A ware taken out only to be sold a
 store leaves the pack as it found it, whatever it is: the relief now takes any of its sale
 candidates on that round trip, clearly useless stock first (``item_fate.relief_order``),
 and ``item_fate.relief_round_trip`` admits it in one free pack slot (``relief["round_trip"]``).
+Since owner 2026-11-19 (tests/test_n1a_531_clearly_useless_1119_recorded.py) the first is a
+clearly useless ware: the six Rods of Trap Location no rule uses.
 
 Recorded: the stop's town-arrival checkpoint and all 28 journal rows
 (tests/extract_n1a_531_overweight_1119_fixture.py), posted through the live CLI's
@@ -46,7 +48,7 @@ LOG_ONLY = SimpleNamespace(owner_retired_log_only=True, decision_log=None)
 CHOICE_ROW = 22
 STOP_ROW = 27
 HOME_ROW = 1
-TVAL_RING = 45
+TVAL_ROD = 66
 STORE_MAGIC = 5
 
 
@@ -106,10 +108,11 @@ class N1a531Overweight1119RecordedTest(unittest.TestCase):
         self.assertTrue(item_fate.home_take_blocked(board))
         self.assertEqual(len(policy._home_knowledge_items), 240)
         self.assertIsNotNone(policy._home_full_relief)
-        # No clearly useless stock: life-530's round trip had nothing to take.
+        # None of life-530's classes (diggers, bolts): its round trip had nothing to take.
         self.assertEqual([item for item in policy._home_knowledge_items
                           if item_fate.clearly_useless(policy, board, replace(
-                              item, slot=item_fate.HOME_STOCK_SLOT))], [])
+                              item, slot=item_fate.HOME_STOCK_SLOT)) in (
+                                  "unused-ammo", "surplus-digger", "surplus-ammo")], [])
 
     def test_the_relief_takes_a_shelf_sale_ware_on_a_round_trip(self):
         policy = self.policy
@@ -118,10 +121,10 @@ class N1a531Overweight1119RecordedTest(unittest.TestCase):
         signature = relief["sale"][0]
         ware = next(item for item in policy._home_knowledge_items
                     if policy._item_signature(item) == signature)
-        self.assertEqual((ware.tval, ware.to_d, ware.count), (TVAL_RING, 6, 3))
+        self.assertEqual((ware.tval, ware.sval, ware.count), (TVAL_ROD, 0, 6))
         self.assertEqual((relief["mode"], relief["round_trip"], relief["withdrawn"], relief["sale"][1]),
                          ("sale", signature, False, STORE_MAGIC))
-        self.assertNotIn("useless", relief)
+        self.assertEqual(relief["useless"], signature)
         # The take needs a pack slot, not the reserve; no other Home take does.
         self.assertFalse(town_pack_budget.permits(self.board, 1))
         self.assertTrue(town_pack_budget.home_take_fits(
@@ -142,9 +145,9 @@ class N1a531Overweight1119RecordedTest(unittest.TestCase):
             key = policy.choose_key(at_home)
             decided.append((key, policy.last_reason))
             post(policy, at_home, key, before)
-        # The take of the 3 rings of Damage (+6) on the Home's fifth page, composed outside.
+        # The take of the 6 Rods of Trap Location off the Home shelf, composed outside.
         self.assertEqual(decided, [("", "store:entry-await-observation"),
-                                   ("5 pl3\r\x1b", "home-errand:atomic-withdraw:full-home-sale")])
+                                   ("5pD6\r\x1b", "home-errand:atomic-withdraw:full-home-sale")])
 
     def test_taken_out_the_ware_is_a_pack_stack_sold_at_once(self):
         policy = self.policy
