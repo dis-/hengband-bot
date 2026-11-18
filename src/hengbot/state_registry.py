@@ -304,6 +304,9 @@ REGISTRY = (
     # haste_read
     S("_haste_read_memory", "haste_read", LIFE,
       "haste_read: haste read memory (no comment at its definition)"),
+    # heal_offset
+    S("_heal_potions_carried", "heal_offset", LIFE,
+      "{sval: count} of the healing potions on the previous board (the drink's HP offset)."),
     # hunt_target
     S("_hunt_target_memory", "hunt_target", FLOOR,
       "hunt_target: hunt target memory (no comment at its definition)", destruction=True),

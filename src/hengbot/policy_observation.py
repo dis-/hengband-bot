@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from hengbot import approach_answer, return_start
-from hengbot import guardian_rumor, warning_cell_record
+from hengbot import guardian_rumor, heal_offset, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import alternate_dungeon_record, alternate_lease, destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
@@ -1083,8 +1083,11 @@ class ObservationMixin:
         # drop below that clamp as damage.
         hp = snapshot.player.hp
         max_hp = snapshot.player.max_hp
+        # A healing drink since the previous board raised the HP the damage is taken from
+        # (heal_offset: n1-c life-216, a Potion of Healing's 300 hid an unseen 225).
+        healed = heal_offset.observe(self, snapshot)
         hp_without_damage = (
-            min(self._last_hp, max_hp) if self._last_hp is not None else hp
+            min(self._last_hp + healed, max_hp) if self._last_hp is not None else hp
         )
         # The Magic-Eater's Powerful Activation pays its cost in HP: that
         # drop is no hit (me_powerful_activation.own_cost).
