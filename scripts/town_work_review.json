@@ -21020,5 +21020,49 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Names QUEST_32's one-turn tier ('full', 'hasted' or None) for acceptance, quest_force_rows.resolve and the fight; a label, not a key; no command."
+  },
+  "quest25_battle.py:_teleported_dreadmaster_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-19 「テレポートで飛ばされてドリードマスターの感知範囲内に行ってしまったら優先してドリードマスターを倒す」: after a monster's teleport into the living dreadmaster's sensing range, the dreadmaster phase's fight (_dreadmaster) ahead of the running phase, the breeders in line shot first when it walks or holds; ends when it is dead or the player is out of range. A step, shot, blow or hold of Q25's phase battle; no independent progress."
+  },
+  "quest25_battle.py:_dreadmaster": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q25 phase5 (owner 2026-11-06): the dreadmaster fight, haste, the engage, else the walk to or hold on its stand (melee stand or the vision edge in the north corridor); also asked first after a monster's teleport into its range (_teleported_dreadmaster_key). A step, shot, blow, potion or hold of Q25's phase battle; no independent progress."
+  },
+  "quest25_battle.py:_walk_to_widest": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-09 「一番多く届く位置へ」 and 2026-11-08 「道をふさがれたら待たずに撃って開ける」: the walk to the cells that reach the most corpse masses in view (_mass_firing_cells), in phase4 and when a phase has no step (_act); None when no cell reaches more than here. A step of Q25's phase battle; no independent progress."
+  },
+  "quest25_battle.py:_mass_firing_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of Q25's phase battle: reach -> the cells a shot at the corpse masses in view reaches that many from, of the cells the plan may stand on (_mass_stand_cells).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

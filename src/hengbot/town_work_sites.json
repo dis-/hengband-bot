@@ -12403,6 +12403,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_dreadmaster": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_druj_retreat": {
     "classification": "producer",
     "rows": [
@@ -12514,6 +12521,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_mass_firing_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest25_battle.py:_match_strong": {
     "classification": "data",
@@ -12732,6 +12746,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_teleported_dreadmaster_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest25_battle.py:_tome": {
     "classification": "producer",
     "rows": [
@@ -12782,6 +12803,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest25_battle.py:_walk_to_sight": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_walk_to_widest": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -12950,6 +12978,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest25_geometry.py:summon_counts": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_geometry.py:vision_cells": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
