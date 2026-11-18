@@ -196,14 +196,58 @@ def melee(policy, snapshot, target, *, through_aura: bool = False) -> float:
             or blows_cannot_hurt(policy, snapshot, target)):
         return 0.0  # fear or NO_MELEE refuses melee (cmd-attack.cpp:228, :202)
     ac = _armour(policy, target)
-    damage = 0.0
+    damage = landings = blows = 0.0
     main = _hand_weapon(snapshot, "main_hand")
     if main is not None and player.main_hand_blows > 0:
-        damage += policy._main_hand_dps(snapshot, main, ac=ac)
+        hand = policy._main_hand_dps(snapshot, main, ac=ac)
+        damage += hand
+        landings += _hand_landings(main, hand, player.main_hand_to_d)
+        blows += player.main_hand_blows
     sub = _hand_weapon(snapshot, "sub_hand")
     if sub is not None and player.sub_hand_blows > 0:
-        damage += policy._sub_hand_dps(snapshot, sub, ac=ac)
-    return min(damage, max(target.hp, 0))
+        hand = policy._sub_hand_dps(snapshot, sub, ac=ac)
+        damage += hand
+        landings += _hand_landings(sub, hand, player.sub_hand_to_d)
+        blows += player.sub_hand_blows
+    if landings <= 0:
+        return min(damage, max(target.hp, 0))
+    return kill_paced(damage, damage / landings, target.hp, blows)
+
+
+def _hand_landings(weapon, hand: float, to_d) -> float:
+    """The blows a hand lands per player action (blows x hit chance): its expected damage over
+    one landed blow's (``_main_hand_dps``: blows x max(1, dice + to_d) x hit chance)."""
+    if hand <= 0 or to_d is None:
+        return 0.0
+    dice = weapon.damage_dice_num * (weapon.damage_dice_sides + 1) / 2
+    return hand / max(1.0, dice + to_d)
+
+
+def kill_paced(expected: float, per_landing: float, hit_points: float,
+               trials: float = 1.0) -> float:
+    """``expected`` damage per player action as the kill time reads it (the threat tiers'
+    ``ceil(hp / damage)``), for an action of ``trials`` attempts (blows, shots, uses) that land
+    ``expected / per_landing`` times between them.
+
+    The kill takes ``ceil(hp / per_landing)`` landings, and those take that many over the
+    landing chance of an attempt on average (the negative binomial's mean); over ``trials``
+    attempts an action, rounded to whole actions, at least one.  When that is longer than the
+    expectation's own kill time (``ceil(hp / expected)``) the figure is ``hit_points`` over those
+    actions, else ``min(expected, hp)`` as before.  Where an action deals far less than the
+    HP it is ``expected`` itself (the landings' granularity aside); where one landing kills but
+    landing is unlikely it is not the HP, as ``min(expected, hp)`` read it: n1-c life-216
+    (Angband 80F, 2026-11-18): はぐれメタル (AC 10000, 6 HP) is hit by a blow 5% of the time
+    (attack-accuracy.cpp test_hit_norm: 5% always hit), a quarter of five blows land an action,
+    about four actions to kill it; ``min(expected, hp)`` read one."""
+    hit_points = max(hit_points, 0)
+    if expected <= 0 or per_landing <= 0 or hit_points <= 0 or trials <= 0:
+        return min(expected, hit_points)
+    landing = min(1.0, expected / per_landing / trials)
+    attempts = math.ceil(hit_points / per_landing) / landing
+    actions = max(1, math.floor(attempts / trials + 0.5))
+    if actions <= math.ceil(hit_points / expected):
+        return min(expected, hit_points)  # no longer than the expectation's own kill time
+    return hit_points / actions
 
 
 def _torch_multiplier(flags) -> int:
@@ -234,8 +278,8 @@ def torch_throw(policy, snapshot, target, torch) -> float:
     distance = snapshot.player.position.distance_to(target.position)
     chance = (snapshot.player.shooting_skill
               + (TO_H_B_FLOOR + torch.to_h) * BTH_PLUS_ADJ - distance)
-    return min(on_hit * _throw_hit_chance(chance, _armour(policy, target)),
-               max(target.hp, 0))
+    return kill_paced(on_hit * _throw_hit_chance(chance, _armour(policy, target)), on_hit,
+                      target.hp)
 
 
 def device_use_success(skill_dev: int, item_level: int) -> float:

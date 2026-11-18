@@ -105,8 +105,9 @@ READERS = {
     # danger: an awake monster's unknown grids are open.  What may hurt the player.
     ("policy_combat", "threat_prediction", "danger"):
         "the damage estimate (owner 2026-11-08 「未知のマスを壁と見ない」)",
-    ("deep_teleport", "compute", "danger"):
-        "fire_p95, the 50F+ instant death (owner 2026-11-15 Q5 「被害の見積りと同じにする」)",
+    ("deep_teleport", "in_fire_p95", "danger"):
+        "fire_p95, the 50F+ instant death (owner 2026-11-15 Q5 「被害の見積りと同じにする」), and the "
+        "unseen retreat's attacker come into view (policy_supply _unseen_attacker_in_view)",
     ("recall_wait_teleport", "_t1_in_fire", "danger"):
         "the recall wait's 「射線の通る T1」 (owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
     ("amberite_curse", "struck", "danger"):

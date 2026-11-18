@@ -11,8 +11,9 @@ scrolls, the Staff of Teleportation, the absorbed Teleportation; anything that m
 to a random cell (spells-teleport.cpp teleport_player) -- is allowed only when the summed
 one-turn p95 of the monsters that have a line of fire to the player (line_of_fire, the game's
 projectable at range 18) reaches the current HP.  It is the 即死 test's sum (instant_death: the
-next action's operational p95 of the engagement, each monster at its adjusted speed, ``>=``
-the HP as there) with every monster without a line of fire left out.  Not covered (owner's
+next action's operational p95 of the engagement, each monster at its adjusted speed, plus the
+observed unseen loss, ``>=`` the HP as there) with every monster without a line of fire left out
+(an unseen attacker whose damage reached the player has one: ``fire_p95``).  Not covered (owner's
 reading of 2026-11-14): Teleport Away (it moves the monster), Teleport Level, Word of Recall,
 stairs.
 
@@ -142,21 +143,39 @@ def fire_p95(policy, snapshot) -> int:
     """The next action's p95 of the engagement's monsters with a line of fire, read as the
     damage estimate reads it (line_of_fire ``danger``: owner 2026-11-15,
     maintainability review Q5 「被害の見積りと同じにする」; it read line_of_fire.counting, which
-    takes an unknown grid for a wall, before)."""
+    takes an unknown grid for a wall, before).
+
+    Plus the observed unseen loss, the correction the 即死 test adds (threat_projection
+    ``unseen_correction``, instant_death's own reader): damage that reached the player is proof
+    of a line of fire (line_of_fire ``note(proof=True)``), so an unseen attacker is not a monster
+    "without a line of fire".  n1-c life-216 (Angband 80F, 2026-11-18): while Recall counted
+    down an unseen はぐれメタル took 369 and then 228 per board; 即死 held (HP 261, 133), but this
+    sum read 0, so no teleport was offered (``no_means``) and the character died waiting."""
     from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
-    from hengbot.threat_projection import _with_adjusted_speed
+    from hengbot.threat_projection import _with_adjusted_speed, unseen_correction
 
     def compute():
         hostiles = [_with_adjusted_speed(monster)
                     for monster in threat_tiers.engagement(policy, snapshot)]
         if not hostiles:
             return 0
-        rows = policy.threat_prediction(snapshot, hostiles, 1).get("monsters", ())
-        return sum(row.get("operational_contribution", 0)
-                   for monster, row in zip(hostiles, rows)
-                   if line_of_fire.danger(policy, snapshot, monster))
+        in_fire = sum(p95 for _monster, p95 in in_fire_p95(policy, snapshot, hostiles))
+        return in_fire + unseen_correction(policy, snapshot, hostiles)
     return decision_memo(policy, "deep_teleport.fire_p95", snapshot, None, compute)
+
+
+def in_fire_p95(policy, snapshot, hostiles) -> list:
+    """(monster, its next action's operational p95) of each of ``hostiles`` (at their adjusted
+    speed) with a line of fire to the player (line_of_fire ``danger``): ``fire_p95``'s terms,
+    also the unseen retreat's reading of a monster that came into view (policy_supply
+    ``_unseen_retreat_key``)."""
+    if not hostiles:
+        return []
+    rows = policy.threat_prediction(snapshot, hostiles, 1).get("monsters", ())
+    return [(monster, row.get("operational_contribution", 0))
+            for monster, row in zip(hostiles, rows)
+            if line_of_fire.danger(policy, snapshot, monster)]
 
 
 def allows(policy, snapshot) -> bool:

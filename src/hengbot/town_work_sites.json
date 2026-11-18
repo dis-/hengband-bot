@@ -765,6 +765,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "attack_expectation.py:kill_paced": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:melee": {
     "classification": "data",
     "rows": [
@@ -1396,6 +1403,13 @@
     "delegation": "selected child; no independent success"
   },
   "deep_teleport.py:fire_p95.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "deep_teleport.py:in_fire_p95": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2253,6 +2267,20 @@
       "departure"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "fallback_depth_floor.py:deepest_reached": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "fallback_depth_floor.py:floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "flight_recorder.py:_position": {
     "classification": "data",
@@ -15257,6 +15285,13 @@
     "delegation": "selected child; no independent success"
   },
   "threat_projection.py:Projection.affordable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:_device_paced": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
