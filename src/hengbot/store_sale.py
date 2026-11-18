@@ -6,10 +6,10 @@ The zero base kinds are enumerated from definitions, not a potion blacklist.
 Unaware flavors use get_baseitem_price's positive guesses, never hidden sval.
 """
 from hengbot.model import BAD_PSEUDO_FEELINGS, InventoryItem
+from hengbot.item_identity import without_trailing_block
 from functools import lru_cache
 import json
 from pathlib import Path
-import re
 
 # All nonpositive base kinds in BaseitemDefinitions.jsonc (2026-10-05).
 ZERO_BASE_KINDS = frozenset({
@@ -93,7 +93,7 @@ def _value_knowledge():
 
 def _named_definition(item, definitions):
     # Strip inscriptions: text there is player input, not an item identity.
-    name = re.sub(r"\s+\{[^{}]*\}\s*$", "", item.name)
+    name = without_trailing_block(item.name)
     matches = []
     for entry in definitions:
         if 'slot' in entry and entry['slot'] != EGO_SLOTS.get(item.tval):

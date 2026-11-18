@@ -21,6 +21,7 @@ Home (Phase 2) is not part of this module.
 
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
+from hengbot.item_identity import shelf_identity, without_any_block
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_visit import town_visit
 
@@ -30,7 +31,6 @@ from dataclasses import replace
 from datetime import datetime
 import json
 from pathlib import Path
-import re
 import time
 
 from hengbot.model import Snapshot, StoreState, TVAL_WAND
@@ -53,12 +53,9 @@ from hengbot.policy_types import ProcurementHomeGate, StoreVisitPhase
 from hengbot.town_pack_budget import room_assumed
 
 
-_INSCRIPTION = re.compile(r"\s*\{[^{}]*\}")
-
-
 def shelf_item_name(name: str) -> str:
     """The emitted name without inscriptions (owner change: {売出中}, discounts)."""
-    return _INSCRIPTION.sub("", name).strip()
+    return without_any_block(name)
 
 
 def shelf_signature(store: StoreState) -> tuple[tuple[str, int, int, int], ...]:
@@ -958,8 +955,7 @@ class InStoreMixin:
         name = shelf_item_name(str(name))
         if kind == "buy" and quantity <= 0:
             row = next((item for item in record["page"].items
-                        if (shelf_item_name(item.name), item.tval, item.sval)
-                        == (name, tval, sval)), None)
+                        if shelf_identity(item) == (name, tval, sval)), None)
             quantity = (
                 max(1, gold_spent // row.price)
                 if row is not None and row.price > 0 and gold_spent > 0 else 1
@@ -988,7 +984,7 @@ class InStoreMixin:
             return page
         items = []
         for item in page.items:
-            identity = (shelf_item_name(item.name), item.tval, item.sval)
+            identity = shelf_identity(item)
             taken = min(bought[identity], item.count)
             bought[identity] -= taken
             if item.count - taken > 0:

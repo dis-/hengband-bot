@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot import home_pass_charge, launcher_upgrade, spare_gear
+from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import item_available
@@ -3656,7 +3657,7 @@ class EquipmentMixin:
             and self._blocks_teleport(it)
             and self._store_accepts_sale(STORE_WEAPON, it)
             and item_available(self, snapshot, it, "shop-sell", "sell")
-            and (it.name, it.tval, it.sval) not in self._unsellable_items,
+            and display_signature(it) not in self._unsellable_items,
         )
         if no_teleport is not None:
             return no_teleport
@@ -3697,7 +3698,7 @@ class EquipmentMixin:
             and self._junk_class(snapshot, it) is None
             and self._store_accepts_sale(STORE_WEAPON, it)
             and item_available(self, snapshot, it, "shop-sell", "sell")
-            and (it.name, it.tval, it.sval) not in self._unsellable_items,
+            and display_signature(it) not in self._unsellable_items,
         )
 
     @staticmethod
