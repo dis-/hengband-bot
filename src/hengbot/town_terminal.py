@@ -2492,6 +2492,7 @@ def overweight_home_key(policy: Any, board: Any) -> str | None:
             or "weight-overload" not in policy._town_claim_categories):
         return None
     attempted = STORE_HOME in policy._town_store_attempted
+    before = approach_answer.answer_stamp(policy)
     if attempted and not policy._overweight_home_bound_exhausted():
         # Each unfulfilled pass is charged to Home's bound; the router's own
         # approach step files and begins the Home visit request.
@@ -2504,10 +2505,21 @@ def overweight_home_key(policy: Any, board: Any) -> str | None:
             policy._record_shop_selector_diagnostics(board, key)
             return key
     if attempted or policy._overweight_home_bound_exhausted():
-        approach_answer.note_stop(policy, "overweight-home-unreachable")
-        policy._town_blocked_reason = "overweight-home-unreachable"
+        # Owner 2026-11-18 Q2: this board's Home approach yielded to the town's holder:
+        # wait for it (None, the town end's other rungs and the holder go on), then stop
+        # named after it.  No route (or no approach this board) stops as before.
+        verdict = approach_answer.after_empty(policy, OVERWEIGHT_HOME_UNREACHABLE,
+                                              approach_answer.since(policy, before))
+        if verdict == approach_answer.WAIT:
+            return None
+        policy._town_blocked_reason = (
+            OVERWEIGHT_HOME_UNREACHABLE if verdict is None
+            else verdict[len("town:blocked:"):])
         return policy._town_blocked_key(board)
     return None
+
+
+OVERWEIGHT_HOME_UNREACHABLE = "overweight-home-unreachable"
 
 
 def town_end_key(policy: Any, board: Any) -> str:

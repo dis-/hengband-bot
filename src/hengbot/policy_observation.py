@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot import return_start
+from hengbot import approach_answer, return_start
 from hengbot import guardian_rumor, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import alternate_dungeon_record, alternate_lease, destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
@@ -26,6 +26,8 @@ from hengbot.unwanted_kinds import own_book_tvals
 class ObservationMixin:
     def observe_town_visit_epoch(self, in_town: bool, turn: int) -> None:
         """Mint the town-visit identity on entry and end it on exit."""
+        if not in_town or self._town_visit_epoch is None:
+            approach_answer.forget_visit(self)   # no yield wait carries across visits
         if not in_town:
             if self._overweight_surplus_ledger.get("epoch") is not None:
                 self._overweight_surplus_ledger = {"epoch": None, "sold": []}

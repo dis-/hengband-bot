@@ -20575,5 +20575,87 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Pure selector: the cash wares of a stock that pass the Home sale gates, most valuable first (owner 2026-11-18); no command or independent credit."
+  },
+  "approach_answer.py:after_empty": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-18 Q2: the verdict of a stop site after an empty store approach (None: no yield, the site stops as before; WAIT: answer nothing this board; else the named stop reason after WAIT_LIMIT yielded boards). Counts the wait in _approach_yield_waits and writes the decision log row; emits no key, the site does."
+  },
+  "approach_answer.py:holder_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The holder family named by a yielded approach answer (a name for the stop reason); emits no key."
+  },
+  "approach_answer.py:latest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The store approach answer remembered for this decision, else None; reads only, emits no key."
+  },
+  "approach_answer.py:answer_stamp": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The remembered approach record before a call (identity compared by since); reads only, emits no key."
+  },
+  "approach_answer.py:since": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The approach answer remembered after answer_stamp, else None; reads only, emits no key."
+  },
+  "approach_answer.py:stop_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The named stop reason of a wait that did not end (owner 2026-11-18 Q2); a reason string, emits no key."
+  },
+  "me_staff_sequence.py:_approach_empty": {
+    "classification": "producer",
+    "rows": [
+      "quest-buy",
+      "quest-service",
+      "rumor",
+      "cross-town",
+      "fundraising",
+      "store-approach"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-18 Q2: an empty store approach of the staff sequence. No route: the named _stop as before; a yield to the town holder: None this board (the holder proceeds); past approach_answer.WAIT_LIMIT boards the stop named after the holder (empty envelope for the CLI final stop).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

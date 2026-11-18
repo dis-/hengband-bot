@@ -2285,11 +2285,32 @@ class EquipmentMixin:
                 continuation="equipment.next-action",
             )
             return LEAVE_STORE_KEY
+        before = approach_answer.answer_stamp(self)
         key = self._equipment_transaction_town_key(snapshot)
         if key is not None:
             return key
-        # Record only: the transaction's Home approach may have yielded (c7e2f1a4c1).
-        approach_answer.note_stop(self, "equipment-transaction:restore-blocked-terminal")
+        # Owner 2026-11-18 Q2: an approach that yielded to the town's holder is no missing
+        # route; wait for the holder, then stop under its name (c7e2f1a4c1's misreading).
+        verdict = approach_answer.after_empty(
+            self, "equipment-transaction:restore-blocked-terminal",
+            approach_answer.since(self, before))
+        if verdict == approach_answer.WAIT:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="equipment:town-owner",
+                cause="approach-yielded-waiting-for-holder",
+            )
+            return None
+        if verdict is not None:
+            # The named stop holds like the restore terminal below.
+            self._equipment_transaction_restore_terminal = verdict
+            self.last_reason = verdict
+            self._offer_execution(
+                WAIT_KEY, producer="equipment-txn",
+                work_id="equipment:restore-terminal",
+                next_step="equipment.restore-blocked-stop",
+                expected_effect="transaction-terminal-recorded",
+            )
+            return WAIT_KEY
         self._equipment_transaction_restore_terminal = (
             "equipment-transaction:restore-blocked-terminal"
         )

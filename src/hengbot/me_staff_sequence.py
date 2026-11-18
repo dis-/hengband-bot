@@ -670,6 +670,22 @@ def _stop(policy, detail: str) -> str:
     return ""
 
 
+def _approach_empty(policy, site: str, answer) -> str | None:
+    """An empty store approach at ``site`` (owner 2026-11-18 Q2, approach_answer.after_empty).
+
+    No route: the named stop ``site`` as before.  A yield to the town's holder: nothing this
+    board (None), the holder proceeds; past the bound, the stop named after the holder.
+    """
+    verdict = approach_answer.after_empty(policy, site, answer)
+    if verdict is None:
+        return _stop(policy, site)
+    if verdict == approach_answer.WAIT:
+        return None
+    key = _stop(policy, verdict)
+    policy.last_reason = verdict
+    return key
+
+
 def supply_cost(policy, snapshot) -> int:
     """Gold the departure plan's still-unmet survival supplies cost.
 
@@ -1250,10 +1266,11 @@ def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
                 if step is None:
                     return _stop(policy, "magic-shop-route-unavailable")
                 policy.last_reason = "shop:approach"
+                before = approach_answer.answer_stamp(policy)
                 key = policy._shopping_approach_key(snapshot, step, "shop:travel")
-                if key is None:
-                    approach_answer.note_stop(policy, "magic-shop-operation-unavailable")
-                return key if key is not None else _stop(policy, "magic-shop-operation-unavailable")
+                if key is not None:
+                    return key
+                return _approach_empty(policy, "magic-shop-operation-unavailable", approach_answer.since(policy, before))
             # Observed shelf without one of the staffs: the other towns'
             # shelves when the spare gold pays the trip, else one ordinary
             # mining run passes the restock time (mines_floor_out).
@@ -1277,10 +1294,11 @@ def _phase_key(policy, snapshot, phase: str, stage) -> str | None:
         if step is None:
             return _stop(policy, f"store-{offer[0]}-route-unavailable")
         policy.last_reason = "shop:approach"
+        before = approach_answer.answer_stamp(policy)
         key = policy._shopping_approach_key(snapshot, step, "shop:travel")
-        if key is None:
-            approach_answer.note_stop(policy, "shop-operation-unavailable")
-        return key if key is not None else _stop(policy, "shop-operation-unavailable")
+        if key is not None:
+            return key
+        return _approach_empty(policy, "shop-operation-unavailable", approach_answer.since(policy, before))
     if phase in {"rumor", "travel", "recharge"} and _stow_pending(policy, snapshot):
         # The staffs ``stows`` names go to Home first, by Home's own deposit
         # flow; the expedition is priced without them (owner 2026-11-08).
