@@ -169,8 +169,8 @@ LADDER = (
         *I("status-threat:retreat"),
         *D("destruction_use.key"),
         *I("status-threat:scroll"),
-        # n1-c life-217: beside a teleport follower, Teleport Other, then the fight (owner 2026-11-09).
-        *D("teleport_follower.away_key", "combat_answer.adjacent_attack"),
+        # Cornered beside the threat: Teleport Other, then the fight (owner 2026-11-09, 2026-11-18).
+        *D("cornered_key"),
         *I("status-threat:wait"),
         *E("_escape_by_stairs"),
         *I("flee:stairs-quest-fail|flee:stairs"),

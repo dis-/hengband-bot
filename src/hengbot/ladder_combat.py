@@ -23,8 +23,35 @@ from hengbot.summoner_wait import hold_key
 from hengbot.town_hold import MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS
 
 # The status-threat rung's answers beside a teleport follower (owner 2026-11-09 order).
-STATUS_THREAT_AWAY_REASON = "status-threat:teleport-follower:teleport-away"
+STATUS_THREAT_AWAY_REASON = "status-threat:teleport-away"
 STATUS_THREAT_CORNERED_REASON = "status-threat:cornered-attack"
+
+
+
+def cornered_key(policy, snapshot, status_threats) -> str | None:
+    """The status-threat rung's answer with no retreat step and no teleport, beside the threat:
+    Teleport Other at the worst beside the player, then the fight (``combat_answer``); None when
+    neither answers (the rung's WAIT).  *Destruction* goes before it, at the rung's own call.
+
+    The one reader of the order for two cases.  Beside a monster that follows the teleport no
+    scroll is an escape (``_escape_scroll``; owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」,
+    as the emergency ladder answers): n1-c life-217 (2026-11-18, Orc cave 20F), 混沌の獣人
+    (TPORT, a confusing blow) beside the player; the rung's WAIT, refused as a damaged wait
+    (policy_combat ``_forbid_wait_while_damaged``), became the least-visited step the follower
+    kept beside, two cells in turn until the loop stop.  Beside a status monster that does not
+    follow, with no teleport carried, the same order (owner 2026-11-18, verbatim: 「付いてくる敵と
+    同じく、*破壊* が使えれば *破壊*、無ければテレポート・アウェイ、それも無ければ隣の敵と戦う。
+    状態異常になったら今のとおり薬で治す。」); the cure is the survival gate's, above this rung."""
+    here = snapshot.player.position
+    beside = list(teleport_follower.followers(policy, snapshot))
+    beside += [monster for monster in status_threats
+               if here.distance_to(monster.position) <= 1
+               and all(monster.index != other.index for other in beside)]
+    if (away := teleport_follower.away_key(
+            policy, snapshot, beside, STATUS_THREAT_AWAY_REASON)) is not None:
+        return away
+    answer = combat_answer.adjacent_attack(policy, snapshot, beside, STATUS_THREAT_CORNERED_REASON)
+    return None if answer is None else answer.key
 
 
 def key(
@@ -124,19 +151,11 @@ def key(
             if scroll is not None:
                 policy.last_reason = "status-threat:scroll"
                 return policy._read_key(snapshot, scroll)
-        # Owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」: beside a monster that follows the
-        # teleport no scroll is an escape (``_escape_scroll``), so the rung answers the rest of the
-        # owner's order as the emergency ladder does: Teleport Other at it, then the fight.  Its
-        # WAIT here was refused as a damaged wait (``_forbid_wait_while_damaged``), whose
-        # least-visited step the follower kept beside (n1-c life-217, 2026-11-18: 混沌の獣人,
-        # TPORT and a confusing blow, two cells walked in turn until the loop stop).
-        followers = teleport_follower.followers(policy, snapshot)
-        if (away := teleport_follower.away_key(
-                policy, snapshot, followers, STATUS_THREAT_AWAY_REASON)) is not None:
-            return away
-        if (cornered := combat_answer.adjacent_attack(
-                policy, snapshot, followers, STATUS_THREAT_CORNERED_REASON)) is not None:
-            return cornered.key
+        # Cornered beside the threat: no retreat step and no teleport (the scroll above, or none
+        # that is an escape).  *Destruction* was asked above; the rung answers the rest of the
+        # order: Teleport Other at the worst beside it, then the fight (``cornered_key``).
+        if (cornered := cornered_key(policy, snapshot, status_threats)) is not None:
+            return cornered
         policy.last_reason = "status-threat:wait"
         return WAIT_KEY
 

@@ -3803,6 +3803,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ladder_combat.py:cornered_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "ladder_combat.py:key": {
     "classification": "adapter",
     "rows": [
