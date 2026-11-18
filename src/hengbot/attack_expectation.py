@@ -136,6 +136,30 @@ def harms_on_touch(policy, target) -> bool:
     return bool(_flags(policy, target) & TOUCH_AURAS)
 
 
+# The older winnability readers (policy_combat _engagement_is_winnable, _esp_threat_kill_feasibility,
+# _fruitless_fight_is_winnable) weigh melee at the reference armour (``_main_hand_dps``'s
+# AC_REFERENCE) and a shot without its hit chance.  RES_ALL alone at that armour still reads the
+# metal (AC 10000) as about four actions, so against a RES_ALL race they take this reader's own
+# figure (the race's armour, each landing through mon_damage_mod); every other race keeps their
+# figure unchanged.
+
+def legacy_melee(policy, snapshot, target, per_action: float) -> float:
+    """An older reader's melee ``per_action`` against ``target``: ``melee`` (through the aura, as
+    those readers count it) against a RES_ALL race, else unchanged."""
+    if per_action <= 0 or not resists_all(_flags(policy, target)):
+        return per_action
+    return melee(policy, snapshot, target, through_aura=True)
+
+
+def legacy_shot(policy, snapshot, target, per_shot: float) -> float:
+    """An older reader's shot (policy._estimated_ranged_damage_per_shot: one shot, no hit chance)
+    against ``target``: against a RES_ALL race the worn launcher's best stack at the race's armour
+    and its distance (``launcher_against``, each landed shot through RES_ALL), else unchanged."""
+    if per_shot <= 0 or not resists_all(_flags(policy, target)):
+        return per_shot
+    return launcher_against(policy, snapshot, target.race_id, target.distance)
+
+
 def _hand_weapon(snapshot, slot):
     """The worn melee weapon of ``slot`` (a digger counts in the main hand)."""
     return next((item for item in snapshot.equipment if item.slot == slot and (

@@ -140,5 +140,55 @@ class MetalIsT1Test(Replay, unittest.TestCase):
         self.assertFalse(policy.last_reason.startswith(destruction_use.REASON), policy.last_reason)
 
 
+class OlderWinnabilityTest(MetalIsT1Test):
+    """The older winnability readers (policy_combat): the metal is not winnable; without RES_ALL
+    their reading is the one they had (melee at the reference armour, AC_REFERENCE)."""
+
+    def beside(self, monrace=None):
+        """CONSTRUCTED: the metal moved beside the player (``_fruitless_fight_is_winnable`` weighs
+        melee only for an adjacent target)."""
+        policy, snapshot, metal = self.metal(monrace)
+        return policy, snapshot, dataclasses.replace(metal, distance=1)
+
+    def test_engagement_is_not_winnable(self):
+        policy, snapshot, metal = self.metal()
+        self.assertFalse(policy._engagement_is_winnable(snapshot, [metal]))
+
+    def test_engagement_without_res_all_is_winnable(self):
+        policy, snapshot, metal = self.metal(self.without_res_all())
+        self.assertTrue(policy._engagement_is_winnable(snapshot, [metal]))
+
+    def test_fruitless_fight_is_not_winnable(self):
+        policy, snapshot, metal = self.beside()
+        self.assertFalse(policy._fruitless_fight_is_winnable(snapshot, [metal]))
+
+    def test_fruitless_fight_without_res_all_is_winnable(self):
+        policy, snapshot, metal = self.beside(self.without_res_all())
+        self.assertTrue(policy._fruitless_fight_is_winnable(snapshot, [metal]))
+
+    def test_esp_feasibility(self):
+        policy, snapshot, metal = self.metal()
+        result = policy._esp_threat_kill_feasibility(snapshot, [metal])
+        self.assertEqual(result["attack_turns"], 72)
+        self.assertFalse(result["feasible"])
+
+    def test_esp_feasibility_without_res_all(self):
+        policy, snapshot, metal = self.metal(self.without_res_all())
+        result = policy._esp_threat_kill_feasibility(snapshot, [metal])
+        self.assertEqual(result["attack_turns"], 1)   # the reference armour's one action
+        self.assertTrue(result["feasible"])
+
+    def test_other_races_keep_the_figure(self):
+        policy, snapshot, metal = self.metal(self.without_res_all())
+        self.assertEqual(attack_expectation.legacy_melee(policy, snapshot, metal, 123.0), 123.0)
+        self.assertEqual(attack_expectation.legacy_shot(policy, snapshot, metal, 45.0), 45.0)
+
+    # The decision tests run once, in MetalIsT1Test.
+    test_the_t1_answer_is_destruction = None
+    test_without_res_all_no_destruction = None
+    test_the_metal_reads_t1 = None
+    test_without_res_all_the_metal_is_t3 = None
+
+
 if __name__ == "__main__":
     unittest.main()
