@@ -7,6 +7,10 @@ floor, to the stop) and jsonlog/q25-battle.json as the process left it at 05:24:
 3582917, the tome's phase, ``phase`` 5), copied read-only to
 C:/hengband-backups/pdca/n1c-217-q25-blocked-1119/ (``capture/`` and ``q25-battle.json``).
 
+The restart (05:59:24-05:59:29, build bot-d3b86d8e9, the first fix in): the restarted process's
+boards (decisions 0-39) of captures/20261119-055929-loop-detected (``capture2/``) and the battle
+record it left (``q25-battle-2.json``, turn 3583032).
+
 One board per recorded decision (the decisions of one turn take that turn's last rows in order)
 with its decision row's messages and the recorded reason and key.  Only this extraction tool
 reads the capture; the committed test reads the fixture alone.
@@ -43,14 +47,18 @@ def main():
     lists = {kind: [turn, list(rows)] for kind, (turn, rows) in state["_me_device_lists"].items()}
     # Its ~f skill reading (two-weapon, shield exp): the ring holds no knowledge row.
     two_weapon, shield = state["_skill_exp_cache"][:2]
+    restart_boards, restart_recorded, _ = base.process("capture2", restarted=True)
     races = load_monrace_knowledge(find_monrace_definitions(Path(__file__), None))
-    ids = {monster["race_id"] for board in boards
+    ids = {monster["race_id"] for board in (*boards, *restart_boards)
            for field in ("visible_monsters", "detected_monsters") for monster in board.get(field, [])}
     case = dict(source="n1c-217-q25-tome-blocked-1119",
                 boards=boards, recorded=recorded, lists=lists, skill_exp=[two_weapon, shield],
                 skill=knowledge.get("skill_exp"), home=knowledge.get("home"),
                 monraces={key: asdict(races[key]) for key in sorted(ids) if key in races},
-                battle_record=json.loads((SOURCE / "q25-battle.json").read_text(encoding="utf-8")))
+                battle_record=json.loads((SOURCE / "q25-battle.json").read_text(encoding="utf-8")),
+                restart=dict(boards=restart_boards, recorded=restart_recorded,
+                             battle_record=json.loads((SOURCE / "q25-battle-2.json")
+                                                      .read_text(encoding="utf-8"))))
     with gzip.open(OUTPUT, "wt", encoding="utf-8", newline="\n") as stream:
         json.dump(case, stream, ensure_ascii=False, default=sorted, separators=(",", ":"))
     sys.stdout.write(f"{OUTPUT} {OUTPUT.stat().st_size} {len(boards)} "

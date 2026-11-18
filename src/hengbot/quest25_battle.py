@@ -2243,6 +2243,21 @@ def _note_dread_teleport(ctx: _Ctx) -> None:
         ctx.battle.dread_teleported = True
 
 
+def _stranded_in_dread_range_key(ctx: _Ctx) -> str | None:
+    """The running phase has no step and the player stands in the living dreadmaster's range: the
+    owner's 2026-11-19 rule as after the teleport line (``_note_dread_teleport``).
+
+    No phase before the dreadmaster's own stops in that range by its plan (phase4 「ドリードマスター
+    の感知範囲の外」; the walks only pass through it), so a standstill there is a displacement the
+    teleport line may no longer show: n1-c life-217's restart (2026-11-19 05:59) found the player on
+    [8,20] with the line long gone and a battle record that predated the mark, and waited 35 times
+    to the loop guard."""
+    if ctx.battle.dread_teleported or ctx.here not in _dread_vision(ctx):
+        return None
+    ctx.battle.dread_teleported = True
+    return _teleported_dreadmaster_key(ctx)
+
+
 def _teleported_dreadmaster_key(ctx: _Ctx) -> str | None:
     """Owner 2026-11-19 「テレポートで飛ばされてドリードマスターの感知範囲内に行ってしまったら優先して
     ドリードマスターを倒す」: the dreadmaster phase's fight (``_dreadmaster``: haste, the engage, its
@@ -2768,7 +2783,8 @@ def _phase_key(policy, snapshot) -> str | None:
 
     return (_adjacent_mass_key(ctx) or _teleported_dreadmaster_key(ctx)
             or quest25_sealed_room.key(ctx)
-            or _prepare(ctx, phase) or quest25_presence.presence_key(ctx, phase) or _act(ctx, phase))
+            or _prepare(ctx, phase) or quest25_presence.presence_key(ctx, phase) or _act(ctx, phase)
+            or _stranded_in_dread_range_key(ctx))
 
 
 def _after_the_phases(ctx: _Ctx) -> str | None:
