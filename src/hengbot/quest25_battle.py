@@ -2159,7 +2159,7 @@ def _masses(ctx: _Ctx) -> str | None:
     return None
 
 
-def _mass_firing_cells(ctx: _Ctx) -> dict:
+def _mass_firing_cells(ctx: _Ctx, *, dread_range: bool = False) -> dict:
     """reach -> the cells a shot at the masses in view reaches that many from (owner 2026-11-09
     「一番多く届く位置へ」, quest_firing_cells ``reach``, the Q2 fix's measure), of the cells the plan
     may stand on: floor through the doors as the board shows them, no trap not answered, out of
@@ -2170,7 +2170,7 @@ def _mass_firing_cells(ctx: _Ctx) -> dict:
     masses = _masses_seen(ctx)
     if not masses:
         return {}
-    cells = {Position(*cell) for cell in _mass_stand_cells(ctx, masses)}
+    cells = {Position(*cell) for cell in _mass_stand_cells(ctx, masses, dread_range=dread_range)}
     by_reach: dict = {}
     for cell in cells:
         count = quest_firing_cells.reach(ctx.snapshot, cell, masses)
@@ -2179,14 +2179,16 @@ def _mass_firing_cells(ctx: _Ctx) -> dict:
     return by_reach
 
 
-def _mass_stand_cells(ctx: _Ctx, masses) -> set:
-    """The cells ``_mass_firing_cells`` may shoot the masses from (its docstring), (y, x) each."""
+def _mass_stand_cells(ctx: _Ctx, masses, *, dread_range: bool = False) -> set:
+    """The cells ``_mass_firing_cells`` may shoot the masses from (its docstring), (y, x) each.
+    ``dread_range``: the dreadmaster's sensing range is not shunned (owner 2026-11-19 「ドリード
+    マスターを優先撃破する決まりのとき、邪魔なら死体の塊を倒して良い」)."""
     bf = ctx.navigator.battlefield
     avoid = set(_fire(ctx)) | {cell for cell in (*bf.trap_cells, *bf.maybe_trap_cells)
                                if cell not in ctx.battle.cleared}
     if _ipsissimus_alive(ctx):
         avoid |= geo.summon_cells(ctx.terrain)
-    if not _dreadmaster_done(ctx):
+    if not _dreadmaster_done(ctx) and not dread_range:
         dreadmaster = next((cell for cell, race in bf.monster_placements if race == geo.DREADMASTER), None)
         if dreadmaster is not None:
             avoid |= geo.vision_cells(ctx.terrain, dreadmaster, geo.DREADMASTER_VISION)
@@ -2199,11 +2201,11 @@ def _mass_stand_cells(ctx: _Ctx, masses) -> set:
     return {(cell.y, cell.x) for cell in cells}
 
 
-def _walk_to_widest(ctx: _Ctx) -> str | None:
+def _walk_to_widest(ctx: _Ctx, *, dread_range: bool = False) -> str | None:
     """To the cells that reach the most masses (``_mass_firing_cells``), the most first among the
     reachable; None when no cell reaches more than this one (a cell the plan may not stand on
     reaches none) or none that does can be walked to."""
-    by_reach = _mass_firing_cells(ctx)
+    by_reach = _mass_firing_cells(ctx, dread_range=dread_range)
     here = next((count for count, cells in by_reach.items() if ctx.here in cells), 0)
     for count in sorted(by_reach, reverse=True):
         if count <= here:
@@ -2285,6 +2287,14 @@ def _teleported_dreadmaster_key(ctx: _Ctx) -> str | None:
         reason = ctx.policy.last_reason
         if (shot := _breeders_in_line_key(ctx)) is not None:
             return shot
+        if reason == HOLD_REASON and battle.no_way == ctx.here:
+            # Owner 2026-11-19 「ドリードマスターを優先撃破する決まりのとき、邪魔なら死体の塊を倒して
+            # 良い」: the way to its stand is shut (a mass on it): to the cell that reaches the most
+            # masses in view, its sensing range not shunned (phase4's rule yields here); the shot
+            # above then opens the way.  n1-c life-217's restart (2026-11-19 05:59): [1,18] shut
+            # the corridor and the fight held on [8,20].
+            if (walk := _walk_to_widest(ctx, dread_range=True)) is not None:
+                return walk
         ctx.policy.last_reason = reason
     return key
 
