@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
-from hengbot import deep_teleport, destruction_means, teleport_away_carry
+from hengbot import deep_teleport, destruction_means, me_deep_launcher, teleport_away_carry
 from hengbot.threat_projection import _with_adjusted_speed
 from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.policy_constants import UNSEEN_REVERSE_REASON
@@ -1358,7 +1358,10 @@ class SupplyMixin:
         )
         if quest is not None:
             return quest[2], quest[1]
-        if self._matching_ammo(snapshot) is None:
+        if (self._matching_ammo(snapshot) is None
+                # Owner 2026-11-18: a Magic-Eater that carries no ammunition at 50F+
+                # does not take throwing torches in its place.
+                and not me_deep_launcher.ammo_unneeded(self, snapshot)):
             return TORCH_THROW_TARGET, self._count_throwing_torches(snapshot)
         if self._owns_usable_permanent_light(snapshot):
             # Spare torches only back up a fuelled light; with a permanent

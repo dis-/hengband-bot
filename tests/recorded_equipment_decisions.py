@@ -74,6 +74,12 @@ def input_signature(items, kwargs):
     # fact; a value narrowed by search exclusions stays in and fails closed.
     if facts.get("require_armor_slots") == equipment_optimizer.owned_armor_fill_slots(items):
         del facts["require_armor_slots"]
+    # launcher_power_unscored (me_deep_launcher, owner 2026-11-18) postdates every capture
+    # too, and is a function.  A capture it changes nothing for (it leaves the power in at
+    # every band) is the input it signed; one it would change fails closed.
+    unscored = facts.pop("launcher_power_unscored", None)
+    if unscored is not None and any(unscored(band) for band in (49, 80, 81)):
+        raise AssertionError("captured optimizer input without the 50F+ launcher rule")
     return hashlib.sha256(json.dumps(encode((items, facts)), sort_keys=True,
                                     ensure_ascii=True).encode()).hexdigest()
 

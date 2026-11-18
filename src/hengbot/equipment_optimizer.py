@@ -1607,8 +1607,15 @@ def _stable_operational_best(
     current_item_ids: frozenset[str],
     launcher_damage: Mapping[str, float] | None = None,
     usable_launcher_ids: frozenset[str] = frozenset(),
+    *,
+    launcher_power: bool = True,
 ) -> EvaluatedLoadout | None:
     """Select from the whole field without a non-transitive winner chain.
+
+    ``launcher_power=False`` (me_deep_launcher, owner 2026-11-18 「射撃威力を評価値から外し、
+    弓枠は追加能力や耐性のみで評価する」): the launcher's shooting power is left out, so the
+    grade rule and the obtainable-ammunition damage filter do not apply and every
+    ``ranged_dps`` reads 0; the bow slot competes through its flags like any other slot.
 
     Pairwise "material offense if survival is within 5%" comparisons can form
     a cycle (A outdamages B, B outdamages C, C outlasts A).  A sequential
@@ -1619,6 +1626,16 @@ def _stable_operational_best(
     pool = list(evaluated)
     if not pool:
         return None
+    # The entry chosen from the field without the launcher's power is returned as evaluated.
+    original: dict[int, EvaluatedLoadout] | None = None
+    if not launcher_power:
+        unscored = [
+            replace(entry, metrics=replace(entry.metrics, ranged_dps=0.0))
+            for entry in pool
+        ]
+        original = {id(stripped): entry for stripped, entry in zip(unscored, pool)}
+        pool = unscored
+        launcher_damage = None
 
     # Preserve the explicit launcher policy: an ordinary Sling or Short Bow
     # does not compete with an available Light Crossbow (before the damage
@@ -1629,7 +1646,7 @@ def _stable_operational_best(
         if (bow := entry.loadout.item_at(SLOT_BOW)) is not None
         and bow.item.sval == SV_BOW_LIGHT_XBOW
     ]
-    if light_crossbows:
+    if light_crossbows and launcher_power:
         pool = [
             entry
             for entry in pool
@@ -1727,7 +1744,7 @@ def _stable_operational_best(
             if margins[id(entry)] == max_margin
         ]
 
-    return max(
+    best = max(
         pool,
         key=lambda entry: (
             time_ranged(entry.metrics),
@@ -1746,6 +1763,7 @@ def _stable_operational_best(
             tuple(sorted(entry.loadout.item_ids)),
         ),
     )
+    return best if original is None else original[id(best)]
 
 
 def optimize_loadout(
@@ -1764,11 +1782,16 @@ def optimize_loadout(
     obtainable_ammunition: Iterable[EquipmentItem] = (),
     require_armor_slots: frozenset[str] | None = None,
     staff_gate=None,
+    launcher_power_unscored: Callable[[int | None], bool] | None = None,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out.
 
     ``staff_gate`` (device_skill.StaffGate): an owned *Destruction* staff is the
-    50F+ means of the loadouts whose device skill makes it reliable."""
+    50F+ means of the loadouts whose device skill makes it reliable.
+
+    ``launcher_power_unscored(depth)`` (me_deep_launcher, owner 2026-11-18): whether the
+    loadout chosen for ``depth`` (the given depth, or the descent's band) is chosen
+    without the launcher's shooting power."""
     catalog = tuple(items)
     ammunition = tuple(obtainable_ammunition)
     launcher_damage = {
@@ -1803,6 +1826,14 @@ def optimize_loadout(
         and not item.evaluable
         and item.id not in identification_exempt_item_ids
     )
+
+    def select(entries, band):
+        unscored = launcher_power_unscored is not None and launcher_power_unscored(band)
+        return _stable_operational_best(
+            entries, current_item_ids, launcher_damage, usable_launcher_ids,
+            launcher_power=not unscored,
+        )
+
     started = monotonic()
     # Unevaluable items are already excluded by the loadout enumerators.  Keep
     # reporting them so callers can block transaction execution until the
@@ -1942,10 +1973,7 @@ def optimize_loadout(
                     melee / melee_free,
                 ))
                 continue
-            band_best = _stable_operational_best(
-                within_melee_limit, current_item_ids, launcher_damage,
-                usable_launcher_ids,
-            )
+            band_best = select(within_melee_limit, band)
             if band_best is None:
                 band_decisions.append(BandDecision(
                     band, False, None, melee_free, "no-set", None,
@@ -1982,9 +2010,7 @@ def optimize_loadout(
         # viable loadout.  The strict Pareto frontier is retained separately for
         # storage/disposal; using it here would discard the current loadout for a
         # mathematically positive but operationally insignificant 0.5% gain.
-        best = _stable_operational_best(
-            operational_pool, current_item_ids, launcher_damage, usable_launcher_ids
-        )
+        best = select(operational_pool, depth if depth is not None else chosen_depth)
         if depth is not None and best is not None:
             chosen_depth = divable_depth(
                 best.loadout,

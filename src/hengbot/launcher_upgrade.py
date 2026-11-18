@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hengbot import spare_gear
+from hengbot import me_deep_launcher, spare_gear
 from hengbot.equipment_optimizer import ordinary_launcher_yields_to_light_crossbow
 from hengbot.launcher_damage import (
     LAUNCHER_PROPERTIES,
@@ -62,6 +62,10 @@ def waiting_launcher(policy: Any, snapshot: Any) -> Any:
     """
     if not snapshot.in_town or not _buys_ammunition(policy):
         return None
+    if me_deep_launcher.planned_unscored(policy, snapshot):
+        # Owner 2026-11-18: the Magic-Eater's 50F+ selection does not rank launchers by
+        # their shooting power, so none waits for its ammunition.
+        return None
     obtainable = policy._obtainable_launcher_ammunition(snapshot)
     seen = {ammo.tval for ammo in obtainable if ammo.count > 0}
     worn = policy._equipped_launcher(snapshot)
@@ -90,7 +94,8 @@ def ammo_work_tval(policy: Any, snapshot: Any) -> int | None:
     worn = policy._equipped_launcher(snapshot)
     if (worn is not None and snapshot.in_town and _buys_ammunition(policy)
             and getattr(policy, "_new_launcher_ammo", None) == (policy._town_visit_epoch, worn.ammo_tval)
-            and policy._count_matching_ammo(snapshot) == 0):
+            and policy._count_matching_ammo(snapshot) == 0
+            and not me_deep_launcher.ammo_unneeded(policy, snapshot)):
         return worn.ammo_tval
     return None
 

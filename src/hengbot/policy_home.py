@@ -19,7 +19,7 @@ from hengbot.town_hold import claim_family_of as town_claim_family_of
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import home_identification, home_pass_charge
+from hengbot import home_identification, home_pass_charge, me_deep_launcher
 from hengbot.town_pack_budget import home_take_fits, round_trip_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
@@ -3118,10 +3118,16 @@ class HomeMixin:
 
         Quest force accounting keeps its existing fixed target. No visit latch
         is needed: Home deposits remain excluded by the observed carried weight.
+
+        Owner 2026-11-18 「射撃威力が100ダメージ/ターンを下回る場合は矢も持たない」: the
+        Magic-Eater planning a 50F+ dive with weaker shooting carries none
+        (me_deep_launcher.ammo_unneeded).
         """
         launcher = self._equipped_launcher(snapshot)
         if launcher is None:
             return AMMO_CARRY_TARGET
+        if me_deep_launcher.ammo_unneeded(self, snapshot):
+            return 0
         if snapshot.floor_key[2] != 0:
             return AMMO_CARRY_TARGET
         limit = self._inventory_weight_limit(snapshot)

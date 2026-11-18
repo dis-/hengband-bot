@@ -34,6 +34,7 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_utility import with_destruction_means
+from hengbot import me_deep_launcher
 from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
 from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -1001,6 +1002,10 @@ def prepare_warrior_optimization(
                     else obtainable_ammunition
                 ),
                 staff_gate=staff_gate,
+                # Owner 2026-11-18 「魔道具術師については射撃威力を評価値から外し、弓枠は
+                # 追加能力や耐性のみで評価する」 (50F+).
+                launcher_power_unscored=lambda band: me_deep_launcher.launcher_power_unscored(
+                    player.class_id, band),
             )
 
         def search(seed=None, flags=flags):
