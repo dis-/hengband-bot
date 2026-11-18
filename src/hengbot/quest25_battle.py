@@ -229,6 +229,9 @@ def _pain_of(text: str, names) -> bool:
 # mspell-floor.cpp spell_RF6_TPORT, printed only while the caster is seen.
 _TELEPORT_LINE = "がテレポートした。"
 _TELEPORT_LINE_EN = " teleports away."
+# A monster moved the player (mspell-floor.cpp spell_RF6_TELE_AWAY, spell_RF6_TELE_TO).
+_TELEPORTED_LINES = ("にテレポートさせられた。", "があなたを引き戻した。")
+_TELEPORTED_LINES_EN = (" teleports you away.", " commands you to return.")
 # The counted rest between phases (between_phases 「回数を指定して休み、回数を見て続けるかを
 # 決める」); the count is the Q34 recharge's (q34_recharge, LUNA-REPORT-me-rest-recharge).
 RECHARGE_REST_KEY = "R100\r"
@@ -355,6 +358,11 @@ class Battle:
     pocket: tuple | None = None
     pocket_shot: bool = False
     pocket_misses: int = 0
+    # Owner 2026-11-19 「テレポートで飛ばされてドリードマスターの感知範囲内に行ってしまったら優先して
+    # ドリードマスターを倒す」: a monster's teleport left the player in its sensing range
+    # (``_note_dread_teleport``), and the style that fight chose (kept apart from the phase's).
+    dread_teleported: bool = False
+    dread_style: str | None = None
 
 
 def _memory(navigator, policy=None, snapshot=None) -> Battle:
@@ -371,7 +379,8 @@ def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "kill_turns", "searches", "cleared", "found", "escaped", "quyls_done",
         "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
-        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone", "absent", "cast", "recheck")}
+        "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone", "absent", "cast", "recheck",
+        "dread_teleported", "dread_style")}
     kept["phase"] += 1
     fresh = Battle(**kept)
     battle.__dict__.update(fresh.__dict__)
@@ -2208,6 +2217,63 @@ def _dreadmaster_done(ctx: _Ctx) -> bool:
     return ctx.kills(geo.DREADMASTER) >= geo.ROSTER[geo.DREADMASTER]
 
 
+def _dread_vision(ctx: _Ctx) -> set:
+    """The cells within the living dreadmaster's sensing range (phase4's 「感知範囲」), else empty."""
+    if _dreadmaster_done(ctx):
+        return set()
+    dreadmaster = _placed(ctx, geo.DREADMASTER)
+    if dreadmaster is None:
+        return set()
+    return set(geo.vision_cells(ctx.terrain, dreadmaster, geo.DREADMASTER_VISION))
+
+
+def _teleported(ctx: _Ctx) -> bool:
+    """This board says a monster moved the player (``_TELEPORTED_LINES``)."""
+    for message in ctx.snapshot.messages:
+        text = message_text(message)
+        if text.endswith(_TELEPORTED_LINES) or any(line in text for line in _TELEPORTED_LINES_EN):
+            return True
+    return False
+
+
+def _note_dread_teleport(ctx: _Ctx) -> None:
+    """Owner 2026-11-19: a monster's teleport that leaves the player in the living dreadmaster's
+    sensing range makes killing it the plan's first step (``_teleported_dreadmaster_key``)."""
+    if _teleported(ctx) and ctx.here in _dread_vision(ctx):
+        ctx.battle.dread_teleported = True
+
+
+def _teleported_dreadmaster_key(ctx: _Ctx) -> str | None:
+    """Owner 2026-11-19 「テレポートで飛ばされてドリードマスターの感知範囲内に行ってしまったら優先して
+    ドリードマスターを倒す」: the dreadmaster phase's fight (``_dreadmaster``: haste, the engage, its
+    stand) ahead of the running phase, until it is dead or the player is out of its range; the
+    phase's own order then goes on.  The survival rungs above the plan still come first.
+
+    n1-c life-217 (2026-11-19 05:24): the nexus quylthulg teleported the Lv38 Magic-Eater into the
+    east room, inside the dreadmaster's range; the way back west, [1,18], was a corpse mass every
+    line to which lay in that range too (phase4 shoots masses only from outside it), and the tome's
+    phase had no step: 32 ``quest:blocked:execute`` waits to the loop guard."""
+    battle = ctx.battle
+    if not battle.dread_teleported:
+        return None
+    if ctx.here not in _dread_vision(ctx):
+        battle.dread_teleported, battle.dread_style = False, None
+        return None
+    style, battle.style = battle.style, battle.dread_style
+    try:
+        key = _dreadmaster(ctx)
+    finally:
+        battle.dread_style, battle.style = battle.style, style
+    if key is not None and ctx.policy.last_reason in _IDLE_REASONS:
+        # Walking to its stand or holding there, the breeders in line are shot first (owner
+        # 2026-11-08 「射線にいれば範囲で撃つ」, as the phases' own walks and waits, ``_act``).
+        reason = ctx.policy.last_reason
+        if (shot := _breeders_in_line_key(ctx)) is not None:
+            return shot
+        ctx.policy.last_reason = reason
+    return key
+
+
 def _dreadmaster(ctx: _Ctx) -> str | None:
     battle = ctx.battle
     if battle.style is None:
@@ -2595,6 +2661,13 @@ def _act(ctx: _Ctx, phase: Phase) -> str | None:
     if key is None or own in _IDLE_REASONS:
         if (shot := _breeders_in_line_key(ctx)) is not None:
             return shot
+        if key is None and (walk := _walk_to_widest(ctx)) is not None:
+            # Owner 2026-11-08 「道をふさがれたら待たずに撃って開ける」: the phase has no step (its
+            # way is shut, a mass on it) and no mass is in the line from here: to the cell that
+            # reaches the most of them in view (``_mass_firing_cells``), then the shot above.
+            # n1-c life-217 (2026-11-19 05:24): the tome's phase on [8,20], the north corridor's
+            # only cell [1,18] a mass out of every line from there, 32 waits to the loop guard.
+            return walk
         if not own:
             ctx.policy.last_reason = entry
         elif key is not None:
@@ -2662,6 +2735,7 @@ def _observe(ctx: _Ctx) -> None:
     _note_strong(ctx)
     _note_glow(ctx)
     _note_tome_health(ctx)
+    _note_dread_teleport(ctx)
     quest25_presence.note_absent(ctx)
     phase = current_phase(ctx)
     waiting = ctx.battle.ready or (ctx.battle.rest_cut and bool(_sensed_movers(ctx)))
@@ -2692,7 +2766,8 @@ def _phase_key(policy, snapshot) -> str | None:
                 or _after_the_phases(ctx))
     from hengbot import quest25_presence, quest25_sealed_room
 
-    return (_adjacent_mass_key(ctx) or quest25_sealed_room.key(ctx)
+    return (_adjacent_mass_key(ctx) or _teleported_dreadmaster_key(ctx)
+            or quest25_sealed_room.key(ctx)
             or _prepare(ctx, phase) or quest25_presence.presence_key(ctx, phase) or _act(ctx, phase))
 
 
