@@ -224,6 +224,11 @@ _RULE_CASTLE_CLIMB = ("the unsafe-recall fallback's Castle below its band takes 
                       "階段を探して適正階層まで行く」, dive_floor.climbing)")
 _rows(EXCLUDED, "ladder_descent", _RULE_CASTLE_CLIMB, "castle-climb:ascend")
 _rows(WALK, "ladder_descent", _RULE_CASTLE_CLIMB, "castle-climb:seek-upstairs")
+_RULE_ANGBAND_CAP = ("an Angband floor deeper than the cap takes the up stairs in the down stairs' "
+                     "place: no enemy prompted it (owner 2026-11-19 「n1-bは次回潜行時に95Fまで登り"
+                     "階段で戻ること」, angband_cap.climbing)")
+_rows(EXCLUDED, "ladder_descent", _RULE_ANGBAND_CAP, "angband-cap-95:ascend")
+_rows(WALK, "ladder_descent", _RULE_ANGBAND_CAP, "angband-cap-95:seek-upstairs")
 _RULE_STUCK = "stuck / livelock relocations: no enemy prompted them"
 _rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation", "sealed_pocket"), _RULE_STUCK,
       "stuck:destroyed-circle-teleport", "stuck:destroyed-circle-recall",

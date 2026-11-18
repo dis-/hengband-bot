@@ -68,7 +68,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot import retreat_enclosure
+from hengbot import angband_cap, retreat_enclosure
 from hengbot.model import Position, game_distance
 from hengbot.policy_constants import HUNT_RANGE, SEARCH_KEY
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_RANDOM
@@ -177,8 +177,10 @@ def quest_target_unbeatable(policy, snapshot) -> bool:
 
 
 def target_race(policy, snapshot) -> int | None:
-    """The race hunted on this floor, else None."""
-    if snapshot.in_town or snapshot.dungeon_level <= 0:
+    """The race hunted on this floor, else None.  None past the Angband cap: the 99F/100F
+    tactics do not exist yet and the up stairs are the way on there (angband_cap, owner
+    2026-11-19 「99F 100Fの戦い方をまだ作っていない」)."""
+    if snapshot.in_town or snapshot.dungeon_level <= 0 or angband_cap.climbing(snapshot):
         return None
     quest_race = _quest_race(policy, snapshot)
     if quest_race is not None:

@@ -1167,8 +1167,9 @@ class OperationExecutor:
         # spells-world.cpp recall_player is the only source of this question:
         # a Word of Recall activation underground, on a floor shallower than
         # the saved depth, with no recall active.  Whichever operation caused
-        # that activation, the same refusal keeps the deepest floor and never
-        # changes the trip, so the question is answered for every owner.  An
+        # that activation, the same answer (a refusal that keeps the deepest
+        # floor, but y at the Angband cap, angband_cap.reset_recall_depth)
+        # never changes the trip, so the question is answered for every owner.  An
         # owner list fell behind each new dungeon-side reader
         # (breeder-breakthrough:recall 2026-10-16, fixedquest:claim:return
         # 2026-10-26, esp-threat:leave-recall n1-c life-103 2026-11-02 06:49).
@@ -1690,7 +1691,12 @@ class OperationExecutor:
             match.kind is ScreenKind.CONFIRM
             and self._is_recall_depth_confirm(match.feature)
         ):
-            return self._post_and_barrier("n", deadline, role="answer")
+            # Owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」: on the Angband cap's floor the
+            # saved depth past it is set to this floor (angband_cap); refused everywhere else.
+            from hengbot import angband_cap
+
+            answer = "y" if angband_cap.reset_recall_depth(self.active.observation) else "n"
+            return self._post_and_barrier(answer, deadline, role="answer")
         if match.kind is ScreenKind.DUNGEON_CHOICE and self.active.keys[:1] in ("r", "z") \
                 and self.active.business_outcome != RECALL_DESTINATION_UNCHOSEN:
             # D22: a surface recall read with no owned, listed destination.
