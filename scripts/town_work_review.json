@@ -20343,17 +20343,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "With no hostile in view, the nearest valuable pile inside the worst radius: walked to (destruction-loot:fetch) and picked up underfoot through _current_floor_item_key (destruction-loot:pickup)."
   },
-  "destruction_loot.py:_committed_fetch": {
+  "destruction_loot.py:continue_fetch": {
     "classification": "producer",
     "rows": [
       "destruction",
       "loot-exploration"
     ],
-    "context": "Dungeon only: asked by threat_tiers (the approach, the sleeping or out-of-radius T1 use) and retreat_enclosure.route_veto_sealed_key right before destruction_use.key, never in town.",
+    "context": "Dungeon only: asked by threat_tiers (the approach, the sleeping or out-of-radius T1 use) and retreat_enclosure.route_veto_sealed_key right before destruction_use.key, and by loot_walk.normal_yield_key from the ordinary loot walk (policy_identification._normal_loot_key, a dungeon floor's loot), never in town.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "n1-c life-216 Glass castle 59F loop (2026-11-17): on a board where the use is not due, the fetch begun where it was due goes on (destruction-loot:fetch / :pickup) for the piles a use at that cell may delete, while a leaving hostile is shown and the approach gates hold; else the commitment drops and None."
+    "evidence": "n1-c life-216 Glass castle 59F loop (2026-11-17), owner 2026-11-18 maintainability Q3 (the loot walk commitment, loot_walk): the fetch begun where the use was due goes on (destruction-loot:fetch / :pickup) for the piles a use at that cell may delete, until none is left, DECISIONS_MAX, the approach gates failing or life danger (loot_walk.life_danger); then the commitment drops and None."
   },
   "explored_floor.py:recall_key": {
     "classification": "producer",
@@ -21020,5 +21020,40 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Names QUEST_32's one-turn tier ('full', 'hasted' or None) for acceptance, quest_force_rows.resolve and the fight; a label, not a key; no command."
+  },
+  "destruction_use.py:loot_then_use": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: the one entry of the non-urgent *Destruction* uses, asked by threat_tiers (the sensed T1 leave, its emergency-layer use, the approach and the remembered approach) and retreat_enclosure.route_veto_sealed_key; refused in town (destruction_use._floor_destroyed).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Maintainability review 1118 (a)-6: destruction_loot.key (owner 2026-11-17 「価値の高い品は先に拾ってから撃つ」) then destruction_use.key leaving the given hostiles; returns the key and whether it is the use, for the callers' bookkeeping. Moved verbatim from the five call sites."
+  },
+  "loot_walk.py:normal_yield_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by policy_identification._normal_loot_key (seek-loot, the return sweep, the Recall wait's return:seek-loot) on a floor where destruction_loot's fetch is committed; never in town (the fetch is begun only before a dungeon *Destruction*).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-18 maintainability Q3 「命の危険が無ければ取り終える」 (n1-b life-411 Angband 95F loop, 2026-11-19): the ordinary loot walk continues the begun fetch (destruction_loot.continue_fetch) instead of walking toward its own target."
+  },
+  "threat_tiers.py:approach_owns": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: asked from threat_tiers sensed_t1_leave_key and sensed_t1_destruction_key after leave_decided_here (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: whether the approach to *Destruction* owns the sensed T1s (the means usable, or a walk toward the approach subject known); no key."
   }
 }

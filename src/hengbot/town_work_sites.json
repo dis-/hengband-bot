@@ -1505,14 +1505,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "destruction_loot.py:_committed_fetch": {
-    "classification": "producer",
-    "rows": [
-      "destruction",
-      "loot-exploration"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "destruction_loot.py:_fetch": {
     "classification": "producer",
     "rows": [
@@ -1526,6 +1518,14 @@
     "rows": [
       "destruction",
       "positioning"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "destruction_loot.py:continue_fetch": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
@@ -1683,6 +1683,14 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:loot_then_use": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "destruction_use.py:means_spent_recall_key": {
     "classification": "producer",
@@ -4226,6 +4234,14 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "loot_walk.py:normal_yield_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "magic_eater.py:absorb_key": {
     "classification": "producer",
@@ -15486,6 +15502,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "threat_tiers.py:approach_owns": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "threat_tiers.py:approach_subject": {
     "classification": "data",

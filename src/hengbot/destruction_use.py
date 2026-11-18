@@ -644,6 +644,32 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None)
     return used
 
 
+@dataclass(frozen=True)
+class LootThenUse:
+    """``loot_then_use``'s answer: the key (None: neither) and whether it is the use itself."""
+    key: str | None
+    used: bool
+
+
+def loot_then_use(policy, snapshot, leaving, *, loot=True, use=True, suffix="") -> LootThenUse:
+    """The one entry of the uses that wait for no blow (the maintainability review 1118 (a)-6):
+    the floor items out of the circle first (destruction_loot ``key``, owner 2026-11-17
+    「価値の高い品は先に拾ってから撃つ」), then the use that leaves ``leaving`` (``key``).
+
+    The callers: threat_tiers' sensed T1 leave on a T1 it does not leave, its emergency-layer
+    *Destruction*, the approach and the remembered approach; retreat_enclosure's sealers of a
+    route veto.  ``loot`` False skips the items (the T1 the 11-08 rule leaves: a leave, not a
+    use that waits); ``use`` False asks the items alone (the remembered approach with no target
+    shown).  The answer says which it was, for the callers' own bookkeeping after a use."""
+    from hengbot import destruction_loot  # import cycle
+
+    if loot and (kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
+        return LootThenUse(kept, False)
+    if use and (used := key(policy, snapshot, leaving=leaving, suffix=suffix)) is not None:
+        return LootThenUse(used, True)
+    return LootThenUse(None, False)
+
+
 def success(policy, snapshot) -> float | None:
     """The success percent of the means ``key`` would use (the absorbed power first), else
     None; the scene's gates are not asked."""

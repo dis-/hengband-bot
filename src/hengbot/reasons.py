@@ -319,6 +319,12 @@ _rows(NOT_ESCAPE, "me_powers", "the absorbed detection when the stairs are neede
       "me-power:stairs-needed-and-unknown:*")
 _rows(NOT_ESCAPE, "me_powers", "the absorbed area mapping when seen loot has no known way to it "
       "(owner 2026-11-13 「経路が見つからない時に周辺感知を使う」)", "me-power:loot-unreachable:*")
+_rows(NOT_ESCAPE, "destruction_loot",
+      "the steps and pickups before a non-urgent *Destruction* (owner 2026-11-17 「価値の高い品は先に拾って"
+      "から撃つ」; a begun fetch is walked to its end, owner 2026-11-18 Q3 「命の危険が無ければ取り終える」): "
+      "a walk to loot, no escape",
+      "destruction-loot:place", "destruction-loot:fetch", "destruction-loot:pickup",
+      "destruction-loot:trigger-autodestroy")
 _rows(NOT_ESCAPE, "item_use_route",
       "a retention label naming why a kind is kept (item_use_route.RETENTION_KINDS, the item-use-route "
       "report and lint); never sent as a decision reason, no read and no escape",

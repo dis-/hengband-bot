@@ -13,7 +13,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import full_pack_exchange, left_cells, loot_frontier, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot, walk_vetoes
+from hengbot import full_pack_exchange, left_cells, loot_frontier, loot_walk, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot, walk_vetoes
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
     PLAYER_CLASS_WARRIOR,
@@ -1890,6 +1890,11 @@ class IdentificationMixin:
                 "loot-underfoot", snapshot.player.position, owners=CLAIM_LOOT_OWNERS
             )
             return current_loot
+        # Owner 2026-11-18 (maintainability Q3 「命の危険が無ければ取り終える」): a begun
+        # *Destruction* fetch is walked to its end before this walk takes the board (loot_walk).
+        held = loot_walk.normal_yield_key(self, snapshot)
+        if held is not None:
+            return held
         step = self._loot_step(
             snapshot, max_path_distance=max_path_distance,
             through=self._loot_route_hostile_cells(hostiles),
