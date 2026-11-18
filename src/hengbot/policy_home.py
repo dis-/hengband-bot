@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import quest_optional_carry
 from hengbot.item_identity import display_signature
-from hengbot import bm_destruction_fund, item_fate, mining_oil_sale, spare_gear, torch_release
+from hengbot import bm_destruction_fund, home_cash_sale, item_fate, mining_oil_sale, spare_gear, torch_release
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -384,12 +384,13 @@ class HomeMixin:
         epoch, swept = getattr(self, "_home_junk_sweep_count", None) or (None, 0)
         if epoch != self._town_visit_epoch:
             swept = 0
-        home_visit = getattr(self, "_home_visit", None)
         at_home = snapshot.store is not None and snapshot.store.store_type == STORE_HOME
         # The Black Market's *Destruction* fund sells until the staff is
         # covered (owner 2026-11-07), past the stay's bound.
+        # So do Home's cash wares under the fundraising line (owner 2026-11-18).
         under_bound = (swept < item_fate.SWEEP_LIMIT_PER_STAY
-                       or (snapshot.in_town and bm_destruction_fund.funding(self, snapshot)))
+                       or (snapshot.in_town and bm_destruction_fund.funding(self, snapshot))
+                       or home_cash_sale.pending(self, snapshot))
         # Outside, only for a rank 21+ ware (owner 2026-10-04, take surplus out
         # and sell): never with a recall running or a Home this town lacks.
         walks_home = (snapshot.store is None and snapshot.in_town
@@ -409,13 +410,8 @@ class HomeMixin:
                 or getattr(self, "_home_full_retry_deposits", None) is not None
                 or self._equipment_transaction_session is not None
                 or self._find_home_deposit(snapshot) is not None
-                or self._inventory_overweight(snapshot)
                 or self._physical_hostiles(snapshot)
-                or PACK_CAPACITY - len(snapshot.inventory)
-                <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
-                or self._town_store_blocked_under_applicable_bound(STORE_HOME)
-                or (home_visit is not None
-                    and home_visit.attempts_used >= home_visit.attempt_limit)):
+                or not self._home_junk_sweep_capacity(snapshot)):
             return False
         self._home_junk_sweep_count = (self._town_visit_epoch, swept + 1)
         self._home_full_relief = {
@@ -423,6 +419,22 @@ class HomeMixin:
             "town": self._effective_town_id(snapshot), "sweep": True,
         }
         return True
+
+    def _home_junk_sweep_capacity(self, snapshot: Snapshot) -> bool:
+        """The sweep's standing gates: pack room and weight, a Home this visit may still enter.
+
+        Unlike its transient gates (a pending deposit or errand, a hostile), these hold
+        until something else changes the pack or the visit, so the cash sale reads them
+        too (home_cash_sale.pending) and never waits on a sweep that cannot begin.
+        """
+        home_visit = getattr(self, "_home_visit", None)
+        return not (
+            self._inventory_overweight(snapshot)
+            or PACK_CAPACITY - len(snapshot.inventory)
+            <= max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)
+            or self._town_store_blocked_under_applicable_bound(STORE_HOME)
+            or (home_visit is not None
+                and home_visit.attempts_used >= home_visit.attempt_limit))
 
     def _end_home_junk_sweep(self) -> None:
         """Retain the sweep's ware and end the sweep for this town stay."""
@@ -435,6 +447,10 @@ class HomeMixin:
         self._home_errand.finish()
         self._home_junk_sweep_count = (self._town_visit_epoch,
                                        item_fate.SWEEP_LIMIT_PER_STAY)
+        if relief is not None and relief.get("cash"):
+            # A cash ware's sweep that found no take (or no route) ends the
+            # cash sale this stay: the mining set opens (home_cash_sale).
+            home_cash_sale.end(self)
         if getattr(self, "_bm_destruction_shelf", None) is not None:
             # With the *Destruction* staff shelved, a sweep that found no take
             # (or no route) ends the fund's sales this stay too.
@@ -1486,6 +1502,8 @@ class HomeMixin:
                     else:
                         candidates = [ware]
                         signature = self._item_signature(ware[0][0])
+                        if home_cash_sale.ware(self, snapshot, ware[0][0]) and home_cash_sale.due(self, snapshot):
+                            relief["cash"] = signature
                         if signature in bm_destruction_fund.plan(self, snapshot):
                             # Its take and sale keep the fund's exception after
                             # the census that chose it is gone.
