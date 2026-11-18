@@ -35,6 +35,12 @@ step while the player stands in the living dreadmaster's range is the same displ
 before the dreadmaster's stops there by its plan).  The restart's boards (decisions 4-39; 0-3 are
 its periodic reads) are decided by a fresh policy restoring that record, without magic-eater lists
 (not carried across a restart, as live).
+
+Owner 2026-11-19 (verbatim): 「ドリードマスターを優先撃破する決まりのとき、邪魔なら死体の塊を倒して
+良い」.  In that fight, with the way to its stand shut on the player's cell (the mass on [1,18]), the
+walk goes to the cell that reaches the most masses with the dreadmaster's range not shunned, and
+the shot there opens the way.  ``test_the_walk_reaches_a_line_and_shoots_the_mass`` is
+CONSTRUCTED: the restart's first plan board, the player moved one cell per walk key.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -136,6 +142,42 @@ class RestartRecordedTest(unittest.TestCase):
         self.assertTrue(flag)
         self.assertNotIn(BLOCKED, {reason for _key, reason in answers})
 
+    def test_the_walk_reaches_a_line_and_shoots_the_mass(self):
+        restart = CASE["restart"]
+        boards = restart["boards"]
+        step = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1),
+                "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+        with TemporaryDirectory() as directory:
+            directory = Path(directory)
+            (directory / "q25-battle.json").write_text(
+                json.dumps(dict(restart["battle_record"], turn=boards[0]["turn"])), encoding="utf-8")
+            policy = ConservativePolicy(monrace_knowledge=q25.RACES, quest_knowledge=q25.QUESTS,
+                                        quest_strategies=q25.STRATEGIES)
+            policy._q25_battle_record_path = directory / "q25-battle.json"
+            policy._warning_cell_record_path = directory / "warning-cells.json"
+            two_weapon, shield = CASE["skill_exp"]
+            policy.consume_skill_knowledge({
+                "knowledge": {"skills": [{"id": 1, "exp": two_weapon}, {"id": 3, "exp": shield}]},
+                "turn": boards[0]["turn"], "player": {"level": boards[0]["player"]["level"]}})
+            policy.prime(parse_snapshot(copy.deepcopy(boards[0]), policy._monrace_knowledge))
+            raw = copy.deepcopy(boards[4])
+            raw["messages"] = []
+            walked = []
+            for _ in range(12):
+                key, reason = decide(policy, raw)
+                if key not in step:
+                    break
+                self.assertEqual(reason, battle.MASS_CELL_REASON)
+                walked.append((raw["player"]["y"], raw["player"]["x"]))
+                dy, dx = step[key]
+                raw["player"]["y"] += dy
+                raw["player"]["x"] += dx
+                raw["turn"] += 10
+        self.assertEqual(walked, [(8, 20), (7, 19), (6, 19), (5, 19), (4, 19)])
+        self.assertEqual((raw["player"]["y"], raw["player"]["x"]), (3, 19))
+        self.assertEqual(reason, battle.SHOT_REASON)   # at the mass on [1,18]
+        self.assertTrue(key.startswith("f"))
+
     def test_control_without_it_the_restart_is_blocked(self):
         with patch.object(battle, "_stranded_in_dread_range_key", lambda _ctx: None):
             answers, _flag = replay_restart()
@@ -161,8 +203,9 @@ class TomeBlockedRecordedTest(unittest.TestCase):
             self.assertEqual(answers[index][:2], (recorded[index]["key"], recorded[index]["reason"]),
                              index + START)
         self.assertNotIn(BLOCKED, {reason for _key, reason, _flag in answers})
-        # On [8,20] the way to its stand is shut too: it is met where the player stands.
-        self.assertEqual(set(answers[WALL - START:]), {("5", battle.HOLD_REASON, True)})
+        # On [8,20] the way to its stand is shut by the mass on [1,18]: owner 2026-11-19 「邪魔なら
+        # 死体の塊を倒して良い」, the walk to a cell with a line to it, its range not shunned.
+        self.assertEqual(set(answers[WALL - START:]), {("7", battle.MASS_CELL_REASON, True)})
 
     def test_control_without_it_the_plan_is_blocked(self):
         with patch.object(battle, "_teleported_dreadmaster_key", lambda _ctx: None):
