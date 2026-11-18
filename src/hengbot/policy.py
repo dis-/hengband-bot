@@ -11736,6 +11736,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         """
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
+        if recall_stockout_travel.leg_chosen_here(self, snapshot):
+            return False
         if (
             not self._recall_stockout_persists(snapshot)
             or not self._food_ready(snapshot)
