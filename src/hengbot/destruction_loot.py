@@ -164,11 +164,17 @@ def key(policy, snapshot, leaving) -> str | None:
     memory = _memory(policy, snapshot)
     if memory["decisions"] >= DECISIONS_MAX:
         return None
+    # A committed fetch's step counts itself (``continue_fetch``, which the ordinary walk asks
+    # too): counted once here it went to the bound at half its decisions.  The committed place's
+    # walk is counted as before.
+    fetching = memory.get("place") is None
     answer = _committed(policy, snapshot, leaving)
+    if answer is not None and fetching:
+        return answer
     if answer is None:
         answer = _new_place(policy, snapshot, leaving)
     if answer is None:
-        answer = _fetch(policy, snapshot)
+        answer = _fetch(policy, snapshot, begin=True)
     if answer is not None:
         memory["decisions"] += 1
     return answer
@@ -209,6 +215,9 @@ def _new_place(policy, snapshot, leaving) -> str | None:
         and _place(policy, snapshot, grid.position, shown)))
     if found is None:
         return None
+    held = _yield_to_walk(policy, snapshot)
+    if held is not None:
+        return held
     place, step = found
     _memory(policy, snapshot)["place"] = place
     policy.last_reason = PLACE_REASON
@@ -247,11 +256,22 @@ def continue_fetch(policy, snapshot) -> str | None:
     return answer
 
 
-def _fetch(policy, snapshot, centre=None) -> str | None:
+def _yield_to_walk(policy, snapshot) -> str | None:
+    """Owner 2026-11-18 Q3: a place or a fetch about to begin leaves the board to the ordinary
+    loot walk in progress (loot_walk ``fetch_yield_key``); asked only once one would begin, so a
+    use with nothing to begin is made as before."""
+    from hengbot import loot_walk  # import cycle
+
+    return loot_walk.fetch_yield_key(policy, snapshot)
+
+
+def _fetch(policy, snapshot, centre=None, *, begin=False) -> str | None:
     """The step toward (or the pickup of) the nearest untried valuable pile a use at ``centre``
     (the player's cell by default, where the use is due) may delete; ``centre`` is committed
     (``MEMORY`` "fetch") while such a pile is left, else dropped and None.  A hostile in view
-    withholds the fetch until the flash (``MEMORY`` "withheld", n1-c life-216 1118)."""
+    withholds the fetch until the flash (``MEMORY`` "withheld", n1-c life-216 1118).  A fetch
+    to ``begin`` continues the ordinary loot walk in progress instead (loot_walk
+    ``fetch_yield_key``, owner 2026-11-18 Q3)."""
     memory = _memory(policy, snapshot)
     here = snapshot.player.position
     centre = here if centre is None else centre
@@ -266,6 +286,10 @@ def _fetch(policy, snapshot, centre=None) -> str | None:
     if not piles:
         return None
     if here in piles:
+        if begin:
+            held = _yield_to_walk(policy, snapshot)
+            if held is not None:
+                return held
         pickup = policy._current_floor_item_key(
             snapshot, pickup_reason=PICKUP_REASON, trigger_reason=TRIGGER_REASON)
         if pickup is None or policy.last_reason == PICKUP_REASON:
@@ -280,6 +304,10 @@ def _fetch(policy, snapshot, centre=None) -> str | None:
     found = policy._nearest_goal_and_step(snapshot, lambda grid: grid.position in piles)
     if found is None:
         return None
+    if begin:
+        held = _yield_to_walk(policy, snapshot)
+        if held is not None:
+            return held
     memory["fetch"] = centre
     policy.last_reason = FETCH_REASON
     return policy._step_toward(snapshot, found[1])

@@ -1521,6 +1521,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "destruction_loot.py:_yield_to_walk": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "destruction_loot.py:continue_fetch": {
     "classification": "producer",
     "rows": [
@@ -4235,6 +4243,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "loot_walk.py:fetch_yield_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "loot_walk.py:normal_yield_key": {
     "classification": "producer",
     "rows": [
@@ -4242,6 +4258,13 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "loot_walk.py:walk_in_progress": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "magic_eater.py:absorb_key": {
     "classification": "producer",

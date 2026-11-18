@@ -1808,7 +1808,12 @@ class IdentificationMixin:
         Adjacent combat and survival have already had priority. Distant weak
         monsters do not erase realised floor value. Trap-undetected grids are
         eligible because ordinary exploration already traverses them.
+
+        The board's walk is noted for loot_walk (``note_walk``, forgotten on any other answer):
+        destruction_loot does not begin a place or a fetch while it walks (owner 2026-11-18,
+        maintainability Q3 「命の危険が無ければ取り終える」).
         """
+        loot_walk.forget_walk(self)
         if self._safety_deferred_loot:
             blocker_now = self._loot_block_reason(snapshot, hostiles)
             if blocker_now not in LOOT_DEFER_BLOCKERS:
@@ -1907,6 +1912,7 @@ class IdentificationMixin:
             return None
         self.last_reason = seek_reason
         self._declare_reach(self._loot_target)
+        loot_walk.note_walk(self, snapshot, self._loot_target, seek_reason, max_path_distance)
         return self._step_toward(snapshot, step)
 
     def _set_aside_loot_goal(self, cause: str) -> None:

@@ -360,6 +360,9 @@ REGISTRY = (
       "(floor_key, {frontier: times chosen})"),
     S("_loot_unreachable_note", "loot_frontier", FLOOR,
       "(floor_key, game turn, frozenset of candidates, boards)"),
+    # loot_walk
+    S("_loot_walk_memory", "loot_walk", FLOOR,
+      "the ordinary loot walk in progress: its target, reason and path bound, so destruction_loot begins no place or fetch over it"),
     # magic_eater
     S("_q34_empty_magic_board", "magic_eater", LIFE,
       "magic_eater: q34 empty magic board (no comment at its definition)"),

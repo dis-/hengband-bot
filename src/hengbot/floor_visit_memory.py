@@ -71,6 +71,7 @@ VISIT_MEMORIES = (
     ("_q2_breeder_last_seen_floor", None, "policy_quest"),
     ("_explored_floor_window", None, "explored_floor"),
     ("_destruction_loot_memory", None, "destruction_loot"),
+    ("_loot_walk_memory", None, "loot_walk"),
     ("_recall_wait_clock", None, "recall_wait_reach"),
     ("_floor_identify_tried", None, "floor_identify"),
     ("_sealed_loot_mapped", None, "sealed_loot"),
