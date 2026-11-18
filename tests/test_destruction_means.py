@@ -196,6 +196,9 @@ class DestructionMeansFactTest(unittest.TestCase):
                 self.assertEqual(destruction_use.owns_charged_staff(self.policy, board), in_town)
                 # Counted once carried: the departure takes it from the Home first.
                 self.assertEqual(self.policy._total_destruction_uses(board), 0)
+                # A 50F+ arrival asks it carried (owner 2026-11-18, n1-a life-530).
+                self.assertFalse(destruction_means.departure_carried(self.policy, board, 50))
+                self.assertTrue(destruction_means.departure_carried(self.policy, board, 49))
                 self.assertEqual(destruction_means.violations(self.policy, board), ())
 
     def test_a_broken_invariant_is_recorded_and_decides_nothing(self):
@@ -205,7 +208,7 @@ class DestructionMeansFactTest(unittest.TestCase):
             cross_rules.begin(self.policy)
             cross_rules.end(self.policy, self.board, "5")
         self.assertIn("cross-rule:destruction-means:broken:holds=0/departure=0/departure-uses=0/"
-                      "owns=1/carry=0/optimizer=0/in-hand=0", cross_rules.report(self.policy))
+                      "owns=1/carry=0/optimizer=0/in-hand=0/carried=0", cross_rules.report(self.policy))
         self.assertEqual(set(vars(self.policy)), set(before))
 
 

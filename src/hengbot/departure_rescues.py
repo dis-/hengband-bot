@@ -100,6 +100,9 @@ RESCUES: dict[str, Rescue] = {
     "organization_complete": Rescue((), "the organization sale answers before the town end"),
     "spare_gear_stowed": Rescue((), "never stops a visit (gather_town_end drops it)"),
     "destruction_staff_settled": Rescue((), "never stops a visit (gather_town_end drops it)"),
+    # Owner 2026-11-18: the 50F+ destination's *Destruction* staff still at Home -- walk back
+    # to Home, where the catalogue shortage binder takes it out.
+    "destruction_carried": _HOME_SETTLE,
     "quest_carry_ready": Rescue((), "always ready: the quest-entry contract owns quest carry"),
     # Owner 2026-11-13 「足さない」: a stop-only leaf whose owner did not answer
     # (n1-c life-205 06:49, the Home catalogue check left in flight) gets no

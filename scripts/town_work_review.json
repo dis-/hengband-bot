@@ -19964,6 +19964,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "destruction_means.py:departure_carried": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: a town-to-dungeon arrival at a depth is allowed by the *Destruction* rule (short of 50F always, from 50F with the means carried, destruction_means.Means.carried; owner 2026-11-18); read by the departure leaf destruction_carried and policy_navigation._dungeon_entry_allowed; returns bool, no key or offer",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "destruction_means.py:Means.supplies": {
     "classification": "data",
     "rows": [

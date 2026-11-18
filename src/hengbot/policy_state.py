@@ -329,6 +329,8 @@ def normalize_policy_state(restored, *, restart=False):
     # The escape's haste seen in its episode (_flee_sustain_key, n1-a life-525): a checkpoint
     # from before it has seen none, so its first board at +0 asks as before.
     restored.__dict__.setdefault("_escape_haste_seen", False)
+    # An escape episode begun with no hostile (n1-a life-530): none pending in an older checkpoint.
+    restored.__dict__.setdefault("_escape_start_on_threat", False)
     if current_ledger is not None:
         current_ledger.__dict__.setdefault("purchase_churn_exclusions", set())
         current_ledger.__dict__.setdefault(

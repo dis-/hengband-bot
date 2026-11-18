@@ -888,6 +888,8 @@ _DEPARTURE_LEAF_SERVERS: dict[str, tuple[Server, ...]] = {
     # The fund's Home takes and sales, then the Black Market purchase.
     "destruction_staff_settled": (
         Server("home-scan"), Server("home-visit"), Server("shop-sell"), Server("shop-buy")),
+    # The Home take of the 50F+ destination's *Destruction* staff (the catalogue shortage).
+    "destruction_carried": (Server("home-scan"), Server("home-errand"), Server("home-visit")),
     # Always ready (the quest-entry contract owns quest carry).
     "quest_carry_ready": (),
     "combat_weapon_ready": _TRANSACTION_SERVERS,

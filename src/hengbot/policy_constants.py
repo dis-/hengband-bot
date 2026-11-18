@@ -376,6 +376,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'quest:blocked:me-staff',
         'quest:blocked:quest-patrol-rounds',
         'town:blocked:departure-unsatisfiable',
+        'town:blocked:destruction-means-spent-loop',
         'town:blocked:guardian-bounce-no-alternate',
         'town:blocked:home-known-empty-withdrawal',
         'town:blocked:home-withdraw-failed-stock-present',

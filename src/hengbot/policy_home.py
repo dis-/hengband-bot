@@ -4,7 +4,7 @@ from hengbot.item_identity import (
     MemorySignatures, display_signature,
     remembered_stack, same_memory,
 )
-from hengbot import bm_destruction_fund, home_cash_sale, item_fate, mining_oil_sale, spare_gear, torch_release
+from hengbot import bm_destruction_fund, destruction_means, home_cash_sale, item_fate, mining_oil_sale, spare_gear, torch_release
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -6290,8 +6290,8 @@ class HomeMixin:
             signature = self._item_signature(candidate)
             if not hasattr(self, "_home_pending_quantities"):
                 self._home_pending_quantities = {}
-            quantity = min(
-                candidate.count, self._procurement_missing_amount(snapshot, candidate)
+            quantity = self._home_procurement_units(
+                snapshot, candidate, self._procurement_missing_amount(snapshot, candidate)
             )
             if quantity <= 0:
                 continue
@@ -6302,6 +6302,16 @@ class HomeMixin:
             ):
                 self._home_pending_batch.append(signature)
                 self._home_procurement_batch_active = True
+
+    def _home_procurement_units(
+        self, snapshot: Snapshot, item: StoreItem, missing: int
+    ) -> int:
+        """The units of a Home stack a procurement shortage of ``missing`` takes: a *Destruction*
+        staff's shortage counts uses (charges), so as many staves as carry them
+        (destruction_means.staff_units); any other ware's shortage counts units."""
+        if self._supplies_destruction(snapshot, item):
+            return destruction_means.staff_units(item, missing)
+        return min(item.count, missing)
 
     def _home_procurement_batch_member(
         self, snapshot: Snapshot, item: StoreItem,
@@ -6326,6 +6336,12 @@ class HomeMixin:
             or item.is_digging_tool
             # Owner 2026-11-14 「1本持ち歩く」: the Home Teleport Other device to carry.
             or teleport_away_carry.home_missing(self, snapshot, item) > 0
+            # Owner 2026-11-15 「*破壊* の杖と技能の装備は深さに関係なく持つ」 and 2026-11-18
+            # 「破壊を持っていないのに50F以降にいるのが不具合」: a Home staff that adds the means
+            # (destruction_means ``supplies``) is taken out for the departure's *Destruction*
+            # uses.  n1-a life-530 (2026-11-18 10:29-12:50) left 17 staves (63 charges) at Home
+            # on ~250 round trips: the town's 50F+ gate counted them, nothing took them out.
+            or self._supplies_destruction(snapshot, item)
         )
 
     def _queue_home_catalogue_shortages(
@@ -6374,6 +6390,8 @@ class HomeMixin:
             return bool(
                 item.is_treasure_detection_scroll
                 or item.is_digging_tool
+                # The departure leaf ``destruction_carried`` (policy_town) waits for it.
+                or self._supplies_destruction(snapshot, item)
                 or any(
                     self._store_item_is_supply(item, kind)
                     for kind in SUPPLY_STORES
@@ -6432,8 +6450,8 @@ class HomeMixin:
                     if departure_blocking_shortage(candidate):
                         make_room_for_home_take(self, snapshot)
                     continue
-            quantity = min(
-                candidate.count,
+            quantity = self._home_procurement_units(
+                snapshot, candidate,
                 self._procurement_missing_amount(snapshot, candidate),
             )
             if quantity <= 0:
