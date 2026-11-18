@@ -392,7 +392,6 @@ def warrior_optimizer_input_key(
     curse_pinned_item_ids: frozenset[str] = frozenset(),
     magic_eater_powers: tuple[tuple[str, int], ...] = (),
     staff_gate=None,
-    ranged_quest: bool = False,
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
@@ -406,7 +405,6 @@ def warrior_optimizer_input_key(
         "depth": depth,
         "home_scan_complete": home_scan_complete,
         "has_destruction": has_destruction,
-        "ranged_quest": ranged_quest,
         "preserve_pack_item_ids": preserve_pack_item_ids,
         "search_excluded_item_ids": search_excluded_item_ids,
         "identification_exempt_item_ids": identification_exempt_item_ids,
@@ -778,13 +776,8 @@ def prepare_warrior_optimization(
     curse_pinned_item_ids: frozenset[str] = frozenset(),
     magic_eater_powers: tuple[tuple[str, int], ...] = (),
     staff_gate=None,
-    ranged_quest: bool = False,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command.
-
-    ``ranged_quest``: the quest the town prepares for asks for ranged power
-    (me_deep_launcher.ranged_force); the Magic-Eater's 50F+ selection then keeps
-    the launcher's shooting power (me_deep_launcher.launcher_power_unscored).
 
     ``staff_gate`` (device_skill.StaffGate): an owned *Destruction* staff that is
     the 50F+ means of a loadout whose device skill makes it reliable; the search
@@ -1012,7 +1005,7 @@ def prepare_warrior_optimization(
                 # Owner 2026-11-18 「魔道具術師については射撃威力を評価値から外し、弓枠は
                 # 追加能力や耐性のみで評価する」 (50F+).
                 launcher_power_unscored=lambda band: me_deep_launcher.launcher_power_unscored(
-                    player.class_id, band, ranged_quest=ranged_quest),
+                    player.class_id, band),
             )
 
         def search(seed=None, flags=flags):

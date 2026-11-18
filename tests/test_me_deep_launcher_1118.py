@@ -39,6 +39,14 @@ WORN_CROSSBOW = "高速度のヘヴィ・クロスボウ (x4) (1.33turn) (+10,+1
 CRIMSON = "★進化する銃『クリムゾン』"
 BUCKLAND = "★バック郷のスリング"
 PLAYER_CLASS_WARRIOR = 0
+# Q2's and Q25's required force (strategy/quests/QUEST_2.jsonc, QUEST_25.jsonc).
+RANGED_QUEST_FORCES = (
+    {"launcher": {"ammo": "equipped", "equipped": True, "min_average_damage": 25},
+     "throwing_items": {"launcher_ammo": 99}},
+    {"ranged": {"shot_average": 65, "ammo": 40, "turn_average": 180, "device_classes": [16],
+                "reference_race": 571},
+     "throwing_items": {"launcher_ammo": 40}},
+)
 
 
 def _decide(policy, rows):
@@ -104,6 +112,20 @@ class RecordedLoadoutTest(unittest.TestCase):
     def test_n1c_wears_bucklands_sling(self):
         _, result = self.check("n1-c", BUCKLAND)
         self.assertEqual(result.best.metrics.speed_bonus, 22)
+
+    def test_a_pending_ranged_quest_changes_nothing(self):
+        """Owner 2026-11-18 「魔道具術師は矢の威力ではなく魔法道具の攻撃力で評価する。装備優先度の
+        例外にはしない。」: with Q25's force pending n1-c still wears Buckland's sling.
+
+        DECLARED CONSTRUCTED: the quest the town prepares for is set to the approved Q25."""
+        recorded = RecordedBoard("n1-c")
+        self.addCleanup(recorded.close)
+        quest = recorded.policy.approved_quest_strategy(25)
+        self.assertIn("ranged", quest.required_force)
+        with patch.object(type(recorded.policy), "_carry_procurement_strategy",
+                          lambda _policy, _board, **_kwargs: quest):
+            bow = recorded.optimize().best.loadout.item_at(SLOT_BOW)
+        self.assertTrue(bow.item.name.startswith(BUCKLAND), bow.item.name)
 
     def test_a_warrior_of_the_same_board_keeps_the_crossbow(self):
         """The rule is the Magic-Eater's: as class 0 the same catalog keeps the crossbow."""
@@ -234,38 +256,33 @@ class SelectionTest(unittest.TestCase):
 
 
 class JudgementTest(unittest.TestCase):
-    def test_class_depth_and_quest(self):
+    def test_class_and_depth(self):
         unscored = me_deep_launcher.launcher_power_unscored
         self.assertTrue(unscored(PLAYER_CLASS_MAGIC_EATER, 50))
         self.assertTrue(unscored(PLAYER_CLASS_MAGIC_EATER, 81))
         self.assertFalse(unscored(PLAYER_CLASS_MAGIC_EATER, 49))
         self.assertFalse(unscored(PLAYER_CLASS_MAGIC_EATER, None))
         self.assertFalse(unscored(PLAYER_CLASS_WARRIOR, 80))
-        self.assertFalse(unscored(PLAYER_CLASS_MAGIC_EATER, 80, ranged_quest=True))
-
-    def test_quest_forces_that_ask_for_ranged_power(self):
-        ranged = me_deep_launcher.ranged_force
-        self.assertTrue(ranged({"launcher": {"ammo": "equipped", "min_average_damage": 25}}))
-        self.assertTrue(ranged({"ranged": {"turn_average": 180}}))
-        self.assertTrue(ranged({"throwing_items": {"launcher_ammo": 40}}))
-        self.assertFalse(ranged({"throwing_items": {"lit_torch": 5}}))
-        self.assertFalse(ranged({}))
-        self.assertFalse(ranged(None))
 
     def test_the_floor_is_100_per_turn(self):
-        def policy(figure):
+        def policy(figure, quest=None):
             ammo = SimpleNamespace(tval=18, count=10, name=f"bolt (1/shot {figure}/turn)")
             launcher = SimpleNamespace(sval=24, ammo_tval=18)
             return SimpleNamespace(
                 _equipped_launcher=lambda _board: launcher,
                 _obtainable_launcher_ammunition=lambda _board: (ammo,),
                 _planned_depth=lambda: 80,
-                _carry_procurement_strategy=lambda _board: None,
-                _quest_strategy_for_errand_or_floor=lambda _board: None)
+                _carry_procurement_strategy=lambda _board: quest,
+                _quest_strategy_for_errand_or_floor=lambda _board: quest)
 
         board = SimpleNamespace(player=SimpleNamespace(class_id=PLAYER_CLASS_MAGIC_EATER))
         self.assertTrue(me_deep_launcher.ammo_unneeded(policy(99), board))
         self.assertFalse(me_deep_launcher.ammo_unneeded(policy(100), board))
+        # Owner 2026-11-18 「装備優先度の例外にはしない」: a pending ranged quest changes nothing.
+        for force in RANGED_QUEST_FORCES:
+            quest = SimpleNamespace(required_force=force)
+            self.assertTrue(me_deep_launcher.ammo_unneeded(policy(99, quest), board))
+            self.assertFalse(me_deep_launcher.ammo_unneeded(policy(100, quest), board))
 
 
 if __name__ == "__main__":

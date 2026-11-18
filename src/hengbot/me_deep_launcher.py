@@ -26,9 +26,8 @@ optimizer counts: policy_equipment._obtainable_launcher_ammunition).  Without an
 store round's figure for that launcher (launcher_damage), so a newly worn launcher is judged
 before its first round is bought.
 
-A quest whose force asks for ranged power (Q2, Q22, Q31's ``launcher``, Q25's ``ranged``, a
-``throwing_items.launcher_ammo`` carry) keeps the existing rules: the decision is about the
-50F+ dive, not the shallower quests (owner 2026-11-02 Q2's average 25).
+A pending quest is no exception (owner 2026-11-18 「魔道具術師は矢の威力ではなく魔法道具の攻撃力で
+評価する。装備優先度の例外にはしない。」): the rules hold whatever quest the town prepares for.
 """
 from __future__ import annotations
 
@@ -43,27 +42,10 @@ from hengbot.policy_constants import DEEP_FLOOR_DEPTH
 SHOT_POWER_FLOOR = 100.0
 
 
-def ranged_force(force: Any) -> bool:
-    """Whether a quest's required force asks for ranged power."""
-    if not isinstance(force, dict):
-        return False
-    throwing = force.get("throwing_items")
-    return bool(force.get("launcher") or force.get("ranged")
-                or (isinstance(throwing, dict) and throwing.get("launcher_ammo")))
-
-
-def quest_force(policy: Any, snapshot: Any) -> dict:
-    """The required force of the quest the town prepares for (the optimizer's reading)."""
-    strategy = (policy._carry_procurement_strategy(snapshot)
-                or policy._quest_strategy_for_errand_or_floor(snapshot))
-    force = getattr(strategy, "required_force", {})
-    return force if isinstance(force, dict) else {}
-
-
-def launcher_power_unscored(class_id: int, depth: int | None, *, ranged_quest: bool = False) -> bool:
+def launcher_power_unscored(class_id: int, depth: int | None) -> bool:
     """Whether the selection leaves the launcher's shooting power out at ``depth``."""
     return (class_id == PLAYER_CLASS_MAGIC_EATER and depth is not None
-            and depth >= DEEP_FLOOR_DEPTH and not ranged_quest)
+            and depth >= DEEP_FLOOR_DEPTH)
 
 
 def shot_power_per_turn(policy: Any, snapshot: Any) -> float:
@@ -81,11 +63,7 @@ def shot_power_per_turn(policy: Any, snapshot: Any) -> float:
 
 def planned_unscored(policy: Any, snapshot: Any) -> bool:
     """``launcher_power_unscored`` for the departure the town plans (``_planned_depth``)."""
-    class_id, depth = snapshot.player.class_id, policy._planned_depth()
-    # The quest is read only where it can matter (it is the costly part).
-    return (launcher_power_unscored(class_id, depth)
-            and launcher_power_unscored(class_id, depth,
-                                        ranged_quest=ranged_force(quest_force(policy, snapshot))))
+    return launcher_power_unscored(snapshot.player.class_id, policy._planned_depth())
 
 
 def ammo_unneeded(policy: Any, snapshot: Any) -> bool:
