@@ -886,6 +886,7 @@ class CombatMixin:
             self._escape_speed_baseline = None
             self._escape_speed_attempted = False
             self._escape_haste_seen = False
+            self._escape_start_on_threat = False
             return key
 
         instant_escape = self.last_reason.startswith(
@@ -916,6 +917,17 @@ class CombatMixin:
             episode_start = not self._escape_sustain_active
             if episode_start:
                 self._escape_sustain_active = True
+                self._escape_start_on_threat = not hostiles
+            # An episode begun with no hostile in view or sensed (a Recall countdown's wait
+            # on an empty board) starts, for the haste, on its first board with one.  n1-a
+            # life-530 (2026-11-18 12:50, Castle 51F): the episode began at the enemy-free
+            # ``return:wait-recall``; when the dragon came it was neither the start nor a haste
+            # run out, and the Speed dose was never asked (owner 2026-11-10 「接敵してしまったら
+            # まず加速」).
+            elif hostiles and self._escape_start_on_threat:
+                episode_start = True
+                self._escape_start_on_threat = False
+            if episode_start:
                 self._escape_speed_baseline = snapshot.player.speed
                 self._escape_speed_attempted = False
                 self._escape_haste_seen = False

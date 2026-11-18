@@ -1965,6 +1965,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._escape_speed_baseline: int | None = None
         self._escape_speed_attempted = False
         self._escape_haste_seen = False
+        self._escape_start_on_threat = False
         self._last_damage_amount = 0
         self._unseen_recall_damage_streak = 0
         self._unseen_retreat_floor: tuple[int, int, int] | None = None
@@ -5088,6 +5089,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._escape_speed_baseline = None
             self._escape_speed_attempted = False
             self._escape_haste_seen = False
+            self._escape_start_on_threat = False
         latest_snapshot = snapshot
         self._decision_input_snapshot = latest_snapshot
         # Immutable, so the decision-row observer scope (cli

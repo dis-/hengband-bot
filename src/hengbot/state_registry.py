@@ -950,6 +950,8 @@ REGISTRY = (
       "Cells from which the material-engagement gate deliberately retreated."),
     S("_escape_haste_seen", "policy_combat", LIFE,
       "policy_combat: escape haste seen (no comment at its definition)"),
+    S("_escape_start_on_threat", "policy_combat", LIFE,
+      "An escape episode began with no hostile in view or sensed: its first board with one is its start for the haste decision (n1-a life-530)."),
     S("_escape_speed_attempted", "policy_combat", LIFE,
       "policy_combat: escape speed attempted (no comment at its definition)"),
     S("_escape_speed_baseline", "policy_combat", LIFE,
