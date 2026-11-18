@@ -20531,5 +20531,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "home_cash_sale.py:sweep_ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read in town by the Home junk sweep (item_fate.sweep_ware, policy_home._begin_home_junk_sweep) and by _start_fundraising while the gold is under FUNDRAISING_START_GOLD.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure selector: the most valuable Home cash ware (a high-value realm book or clearly unneeded jewelry) the junk sweep sells before a poverty mining set (owner 2026-11-18 「魔法書と明確に不要な指輪アミュレットを売る」); no command or independent credit."
+  },
+  "home_cash_sale.py:unneeded_jewelry": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read in town by the Home junk sweep (item_fate.sweep_ware, policy_home._begin_home_junk_sweep) and by _start_fundraising while the gold is under FUNDRAISING_START_GOLD.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure predicate: a known non-artifact ring or amulet outside the ranking's keep with no kept ability flag (owner 2026-11-18); no command or independent credit."
+  },
+  "home_cash_sale.py:ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read in town by the Home junk sweep (item_fate.sweep_ware, policy_home._begin_home_junk_sweep) and by _start_fundraising while the gold is under FUNDRAISING_START_GOLD.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure predicate: a Home stack kept only for its sale value (owner 2026-11-18); no command or independent credit."
+  },
+  "home_cash_sale.py:wares": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read in town by the Home junk sweep (item_fate.sweep_ware, policy_home._begin_home_junk_sweep) and by _start_fundraising while the gold is under FUNDRAISING_START_GOLD.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure selector: the cash wares of a stock that pass the Home sale gates, most valuable first (owner 2026-11-18); no command or independent credit."
   }
 }
