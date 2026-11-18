@@ -37,9 +37,9 @@ shown, the approach's gates hold and no hostile is in view.  n1-c life-216 (Glas
 off, the use due, and the fetch stepped west toward the potions at (42,24); at (37,36) it was 14
 off, the use not due, and the approach stepped back east: 40 alternations until the loop detector.
 A target the remembered approach still goes to while detection has lost it (threat_tiers
-``remembered_approach_key``, n1-b life-377) holds the commitment as a shown one does
-(``key``'s ``remembered``).  n1-b life-411 (Angband 80F, 2026-11-18 01:51-01:52, loop-detected):
-the fetch began at (8,102), the use due on the sleeping T1 (race 1306) at (12,90), and walked
+``remembered_approach_key``, n1-b life-377) held the commitment as a shown one does (since Q3,
+below, every begun fetch holds without either).  n1-b life-411 (Angband 80F, 2026-11-18
+01:51-01:52, loop-detected): the fetch began at (8,102), the use due on the sleeping T1 (race 1306) at (12,90), and walked
 east toward the staff, potion and ring at (8,110)-(10,111); at (8,109) the T1 was 21 off
 (monster-update.cpp: telepathy within MAX_PLAYER_SIGHT 20), no longer shown, the commitment was
 not asked and the remembered approach stepped back west, until the loop detector (40 decisions).
@@ -56,6 +56,13 @@ loop detector.
 Every scene is bounded: ``DECISIONS_MAX`` decisions of this module per floor between two flashes
 (a flash resets it), and a pile the pickup did not take is not gone to again on the floor; past
 the bound the use is made as before, so no walk here can hold a use back for good.
+
+Owner 2026-11-18 (maintainability Q3 「命の危険が無ければ取り終える」): a begun fetch is walked to its
+end whoever asks (loot_walk, the one loot walk commitment): it no longer needs a hostile the use
+leaves to be shown or remembered, only no life danger (loot_walk ``life_danger``), the approach's
+gates and the bound above; the ordinary loot walk asked meanwhile continues it
+(loot_walk ``normal_yield_key``).  The one entry of the non-urgent uses is
+destruction_use ``loot_then_use`` (the maintainability review 1118 (a)-6).
 """
 
 from __future__ import annotations
@@ -145,14 +152,12 @@ def _in_view(snapshot, *, awake_only: bool) -> bool:
                for monster in snapshot.visible_monsters)
 
 
-def key(policy, snapshot, leaving, *, remembered=()) -> str | None:
+def key(policy, snapshot, leaving) -> str | None:
     """A step or a pickup before the use that leaves ``leaving``, else None (the use is made).
-
-    ``remembered``: the targets threat_tiers' remembered approach still goes to while detection
-    has lost them; they hold the committed fetch (``_committed_fetch``) as a shown one does."""
+    Asked through destruction_use ``loot_then_use``."""
     leaving = list(leaving or ())
     if not leaving or not destruction_use.usable(policy, snapshot, leaving=leaving):
-        return _committed(policy, snapshot, leaving, remembered)
+        return _committed(policy, snapshot, leaving)
     if not exposed(policy, snapshot):
         _memory(policy, snapshot)["place"] = None
         return None
@@ -169,14 +174,14 @@ def key(policy, snapshot, leaving, *, remembered=()) -> str | None:
     return answer
 
 
-def _committed(policy, snapshot, leaving, remembered=()) -> str | None:
+def _committed(policy, snapshot, leaving) -> str | None:
     """The walk to the committed place, while it still serves (``MEMORY``); else the walk to the
-    committed pile and its pickup (``_committed_fetch``)."""
+    committed pile and its pickup (``continue_fetch``)."""
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.get("floor") != snapshot.floor_key:
         return None
     if memory.get("place") is None:
-        return _committed_fetch(policy, snapshot, leaving, remembered)
+        return continue_fetch(policy, snapshot)
     place = memory["place"]
     shown = _shown_leaving(snapshot, leaving)
     if (memory["decisions"] >= DECISIONS_MAX or not shown or not _place(policy, snapshot, place, shown)
@@ -210,18 +215,30 @@ def _new_place(policy, snapshot, leaving) -> str | None:
     return policy._step_toward(snapshot, step)
 
 
-def _committed_fetch(policy, snapshot, leaving, remembered=()) -> str | None:
-    """The fetch on a board where the use is not due (``key``'s first test): the piles a use at
-    the committed cell (``MEMORY`` "fetch", where the use was due when the fetch began) may
-    delete are walked to and picked up one after another, while a hostile the use leaves is
-    still shown (or ``remembered`` by the approach, n1-b life-411) and the approach's gates
-    hold; else the commitment is dropped and None (n1-c life-216, the module docstring)."""
+def fetch_committed(policy, snapshot) -> bool:
+    """A fetch is committed on this floor (``MEMORY`` "fetch")."""
     memory = getattr(policy, MEMORY, None)
-    if memory.get("fetch") is None:
+    return (memory is not None and memory.get("floor") == snapshot.floor_key
+            and memory.get("fetch") is not None)
+
+
+def continue_fetch(policy, snapshot) -> str | None:
+    """The committed fetch on a board where no use asks (``key``'s first test) or where another
+    loot walk asks (loot_walk ``normal_yield_key``): the piles a use at the committed cell
+    (``MEMORY`` "fetch", where the use was due when the fetch began) may delete are walked to and
+    picked up one after another, until none is left, ``DECISIONS_MAX``, the approach's gates
+    failing or life danger (owner 2026-11-18 Q3 「命の危険が無ければ取り終える」, loot_walk); then
+    the commitment is dropped and None.  Before Q3 it also ended once no hostile the use leaves
+    was shown (n1-c life-216 1117) or remembered by the approach (n1-b life-411 1118), and the
+    ordinary loot walk took the board over (n1-b life-411 1119, loot_walk)."""
+    from hengbot import loot_walk  # import cycle
+
+    if not fetch_committed(policy, snapshot):
         return None
+    memory = getattr(policy, MEMORY)
     if (memory["decisions"] >= DECISIONS_MAX
-            or not (_shown_leaving(snapshot, leaving) or remembered)
-            or not destruction_use.approach_gates(policy, snapshot)):
+            or not destruction_use.approach_gates(policy, snapshot)
+            or loot_walk.life_danger(policy, snapshot)):
         memory["fetch"] = None
         return None
     answer = _fetch(policy, snapshot, memory["fetch"])

@@ -49,7 +49,6 @@ are unchanged.  Functions that call a name tests patch here (``tiered``, ``asses
 from __future__ import annotations
 
 from hengbot import (
-    destruction_loot,
     destruction_use,
     disenchant_avoid,
     hunt_target,
@@ -535,10 +534,8 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
         # 11-08 rule), but the use in reach (sensed_t1_destruction_key asks it first), else the
         # remembered approach as with none sensed.  No blow waits on it: the remembered floor
         # items are kept out of its circle first (destruction_loot, owner 2026-11-17).
-        if (kept := destruction_loot.key(policy, snapshot, strong)) is not None:
-            return kept
-        used = destruction_use.key(policy, snapshot, leaving=strong)
-        return used if used is not None else remembered_approach_key(policy, snapshot)
+        answer = destruction_use.loot_then_use(policy, snapshot, strong)
+        return answer.key if answer.key is not None else remembered_approach_key(policy, snapshot)
     strong = leaving
     # Owner 2026-11-13 「射線にT1が入っていない=感知しただけはカウントしない」 (2026-11-14 for every
     # escape, line_of_fire): the leave below is counted as an escape (escape_count, the
@@ -675,13 +672,12 @@ def sensed_t1_destruction_key(policy, snapshot) -> str | None:
     # The approach's use and the one on a T1 the 11-08 rule does not leave (asleep, or the player
     # outside its sensing radius) wait for no blow: the remembered floor items are kept out of
     # its circle first (destruction_loot, owner 2026-11-17 「価値の高い品は先に拾ってから撃つ」).
-    if (approaching or not _sensed_strong(policy, snapshot, leave=True)[1]) and (
-            kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
-        return kept
-    used = destruction_use.key(policy, snapshot, leaving=leaving)
-    if used is not None and approaching and _reached(snapshot, targets):
+    answer = destruction_use.loot_then_use(
+        policy, snapshot, leaving,
+        loot=approaching or not _sensed_strong(policy, snapshot, leave=True)[1])
+    if answer.used and approaching and _reached(snapshot, targets):
         forget_approach(policy)
-    return used
+    return answer.key
 
 
 APPROACH_REASON = SENSED_LEAVE_PREFIX + "approach-destruction"
@@ -823,17 +819,16 @@ def approach_key(policy, snapshot, strong) -> str | None:
     if not targets:
         return None
     # The remembered floor items out of the circle first (destruction_loot, owner 2026-11-17).
-    kept = destruction_loot.key(policy, snapshot, destruction_leaving(policy, snapshot, targets))
-    if kept is not None:
-        return kept
-    used = destruction_use.key(policy, snapshot, leaving=destruction_leaving(policy, snapshot, targets))
-    if used is not None:
+    answer = destruction_use.loot_then_use(policy, snapshot,
+                                           destruction_leaving(policy, snapshot, targets))
+    if answer.used:
         if _reached(snapshot, targets):
             forget_approach(policy)
         else:
             # A strong monster on the way was the use's subject: the targets are still gone to.
             setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
-        return used
+    if answer.key is not None:
+        return answer.key
     # The walk goes to the monster the use asks about (``approach_subject``), not to the
     # nearest target: within reach of another the use still declines.
     step = destruction_use.walk_step(policy, snapshot, approach_subject(policy, snapshot, targets))
@@ -882,17 +877,16 @@ def remembered_approach_key(policy, snapshot) -> str | None:
     current = tuple(shown.get((monster.index, monster.race_id), monster) for monster in targets)
     seen = [monster for monster in current if (monster.index, monster.race_id) in shown]
     leaving = destruction_leaving(policy, snapshot, seen)
-    # The targets lost from detection hold destruction_loot's committed fetch as a shown one
-    # does (n1-b life-411, destruction_loot's module docstring): the walk below is the same
-    # approach, so the piles its use may delete are still picked up first (owner 2026-11-17).
+    # The targets lost from detection still ask destruction_loot (n1-b life-411, its module
+    # docstring): the walk below is the same approach, so a begun fetch is walked to its end
+    # first (owner 2026-11-17; 2026-11-18 Q3 holds it without them as well).
     lost = [monster for monster in current if (monster.index, monster.race_id) not in shown]
-    if (leaving or lost) and (
-            kept := destruction_loot.key(policy, snapshot, leaving, remembered=lost)) is not None:
-        return kept
-    if leaving and (used := destruction_use.key(policy, snapshot, leaving=leaving)) is not None:
-        if _reached(snapshot, seen):
-            forget_approach(policy)
-        return used
+    answer = destruction_use.loot_then_use(policy, snapshot, leaving, loot=bool(leaving or lost),
+                                           use=bool(leaving))
+    if answer.used and _reached(snapshot, seen):
+        forget_approach(policy)
+    if answer.key is not None:
+        return answer.key
     # The same walk as ``approach_key``'s: to the monster the use asks about, at its last cell;
     # within its reach (the use declined) the memory is dropped and the rungs below answer.
     step = destruction_use.walk_step(policy, snapshot, approach_subject(policy, snapshot, list(current)))
