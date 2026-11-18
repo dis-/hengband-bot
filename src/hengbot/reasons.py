@@ -190,6 +190,11 @@ _rows(EXCLUDED, "teleport_follower",
       "player (owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」; E handles a T1 sent away)",
       "emergency:teleport-follower:teleport-away",
       "emergency:teleport-follower:teleport-away:absorbed-power")
+_rows(EXCLUDED, ("teleport_follower", "ladder_combat"),
+      "the status-threat rung's Teleport Other at a follower beside it moves the enemy, not the "
+      "player (owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」, n1-c life-217)",
+      "status-threat:teleport-follower:teleport-away",
+      "status-threat:teleport-follower:teleport-away:absorbed-power")
 _rows(EXCLUDED, ("teleport_follower", "policy_combat"),
       "Teleport Other at a faster blinder beside a blind player moves the enemy, not the player "
       "(design 4.2 「逃げる手段を取り戻すのが先」, status_cure.outpacing_blinders)",
@@ -373,6 +378,9 @@ _rows(None, "anaguma", _RULE_ATTACK, "melee:anaguma", "melee:anaguma-close", "ra
 # Escape-vocabulary attacks: their kind is no escape, their action strikes.
 _rows(WALK, ("combat_answer", "blind_strike", "policy_quest", "speed_dose"), _RULE_ATTACK + " (cornered)",
       "flee:cornered-attack", "flee:cornered-attack:absorbed-power", attack=True)
+# Owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」: the status-threat rung's fight beside a follower.
+_rows(None, ("combat_answer", "ladder_combat"), _RULE_ATTACK + " (a teleport follower beside)",
+      "status-threat:cornered-attack", attack=True)
 _rows(NOT_ESCAPE, ("blind_strike", "policy_combat", "policy_quest", "speed_dose"),
       _RULE_ATTACK + " (blind, a Recall read)",
       "unseen-recall:blind-strike", "unseen-recall:strike", "unseen-recall:strike:absorbed-power",
