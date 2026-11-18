@@ -12421,12 +12421,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _preferred_home_quest_launcher(
         self, snapshot: Snapshot, profile: StrategyProfile
     ) -> InventoryItem | StoreItem | None:
-        ammo_tval = self._quest_launcher_ammo(snapshot, profile.required_force)
-        selected_launcher = self._quest_uses_selected_launcher(
-            profile.required_force
-        )
+        # Owner 2026-11-18: no launcher when the device charges cover the rounds.
+        force = quest_ranged_force.settled_force(self, snapshot, profile.required_force)
+        if not isinstance(force.get("launcher"), dict):
+            return None
+        ammo_tval = self._quest_launcher_ammo(snapshot, force)
+        selected_launcher = self._quest_uses_selected_launcher(force)
         equipped = self._equipped_launcher(snapshot)
-        if self._quest_launcher_meets_force(equipped, profile.required_force):
+        if self._quest_launcher_meets_force(equipped, force):
             return None
         home = [
             owned.item
@@ -12434,9 +12436,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if owned.origin == "home"
             and owned.item.tval == TVAL_BOW
             and (selected_launcher or owned.item.ammo_tval == ammo_tval)
-            and self._quest_launcher_meets_force(
-                owned.item, profile.required_force
-            )
+            and self._quest_launcher_meets_force(owned.item, force)
         ]
         if not home:
             return None
@@ -12445,7 +12445,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             item for item in snapshot.inventory
             if item.tval == TVAL_BOW
             and (selected_launcher or item.ammo_tval == ammo_tval)
-            and self._quest_launcher_meets_force(item, profile.required_force)
+            and self._quest_launcher_meets_force(item, force)
         ]
         if carried and self._quest_launcher_quality(preferred) <= max(
             self._quest_launcher_quality(item) for item in carried
@@ -13481,7 +13481,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
             "resists": {"ready": resists_ready, "required": list(force.get("resists", ()))},
         }
-        if "ranged" in force:
+        if quest_ranged_force.ranged_requirement(force) is not None:
             details["ranged"] = quest_ranged_force.details(self, snapshot, force)
         if dps != melee_dps:
             details["melee_dps"] = melee_dps

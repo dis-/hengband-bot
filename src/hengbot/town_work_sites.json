@@ -4928,6 +4928,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_ranged_first.py:_device_over": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "me_ranged_first.py:_fire_missile": {
     "classification": "producer",
     "rows": [
@@ -4999,6 +5006,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_ranged_first.py:outpaced_afraid_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:quest_device_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -13801,19 +13815,19 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_ranged_force.py:score": {
-    "classification": "producer",
+  "quest_ranged_force.py:ranged_requirement": {
+    "classification": "data",
     "rows": [
-      "survival"
+      "data/no-independent-credit"
     ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
+    "delegation": "selected child; no independent success"
   },
-  "quest_ranged_force.py:settle_ammo": {
-    "classification": "producer",
+  "quest_ranged_force.py:settled_force": {
+    "classification": "data",
     "rows": [
-      "survival"
+      "data/no-independent-credit"
     ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
+    "delegation": "selected child; no independent success"
   },
   "quest_room_light.py:_light_key": {
     "classification": "producer",

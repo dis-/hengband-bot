@@ -66,6 +66,7 @@
       {"min_ac":80,"min_hp":244,"heal_potions":2,"operational_first_turn_damage":243,"operational_three_turn_damage":405}
     ],
     "launcher": {"ammo": "equipped", "equipped": true},
+    "launcher_devices": {"device_classes": [16], "reference_races": [206, 329]},
     "throwing_items": {"launcher_ammo": 99},
     "required_scrolls": {"light": 1, "teleport": 15},
     "utility_tools": {},

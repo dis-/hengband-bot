@@ -10,9 +10,10 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_opening_away, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 
 from collections import Counter, deque
 from dataclasses import dataclass, field, replace
@@ -924,6 +925,8 @@ class QuestMixin(OpeningRouteMixin):
     def _quest_carry_status(
         self, snapshot: Snapshot, force: dict
     ) -> dict[str, dict[str, int | bool]]:
+        # Owner 2026-11-18: the launcher and rounds the device charges leave (quest_ranged_force).
+        force = quest_ranged_force.settled_force(self, snapshot, force)
         status: dict[str, dict[str, int | bool]] = {}
         launcher_ammo = self._quest_launcher_ammo(snapshot, force)
         launcher_required = isinstance(force.get("launcher"), dict)
@@ -1125,6 +1128,7 @@ class QuestMixin(OpeningRouteMixin):
     def _quest_carry_target_for_item(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem, force: dict
     ) -> tuple[str, int, int] | None:
+        force = quest_ranged_force.settled_force(self, snapshot, force)
         launcher_ammo = self._quest_launcher_ammo(snapshot, force)
         selected_launcher = self._quest_uses_selected_launcher(force)
         if item.tval == TVAL_BOW and (
@@ -1760,6 +1764,7 @@ class QuestMixin(OpeningRouteMixin):
 
         It must fit the pack: a free slot or a carried stack it merges into.
         """
+        force = quest_ranged_force.settled_force(self, snapshot, force)
         launcher = self._equipped_launcher(snapshot)
         spec = force.get("launcher")
         if (
@@ -1983,7 +1988,9 @@ class QuestMixin(OpeningRouteMixin):
         if snapshot.player.blind or snapshot.player.confused:
             return None
         ammo = self._quest_profile_ammo(snapshot, profile)
-        if ammo is None:
+        # Owner 2026-11-18 「魔道具術師は魔法道具の力で読む」: a Magic-Eater whose devices covered the
+        # quest's rounds (quest_ranged_force) shoots its devices without a launcher.
+        if ammo is None and snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
             return None
         ordered_races = (
             *profile.priority_targets,
@@ -2042,6 +2049,13 @@ class QuestMixin(OpeningRouteMixin):
             if light is not None:
                 self._quest_light_attempted.add(light_key)
                 return light
+        # The Magic-Eater's absorbed power or carried attack wand when it out-damages the shot
+        # (me_ranged_first, owner 2026-11-12), or in place of the launcher it does not carry.
+        device = me_ranged_first.quest_device_key(self, snapshot, target, ammo)
+        if device is not None:
+            return device
+        if ammo is None:
+            return None
         self.last_reason = (
             "quest-strategy:q2-fire"
             if profile.quest_id == 2
@@ -3652,6 +3666,15 @@ class QuestMixin(OpeningRouteMixin):
                 if ammo_tval is not None
             }
         )
+        if (
+            profile.quest_id == 31
+            and profile.quest_id in self._quest_strategy_pending_recovery
+            and not recoverable_tvals
+            and snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+        ):
+            # Owner 2026-11-18: a Magic-Eater that shot its devices (no launcher) has no rounds
+            # to recover.
+            self._quest_strategy_pending_recovery.pop(profile.quest_id, None)
         if (
             profile.quest_id == 31
             and profile.quest_id in self._quest_strategy_pending_recovery

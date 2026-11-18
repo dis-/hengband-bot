@@ -59,7 +59,8 @@ def resolve(policy, snapshot, force: dict) -> dict:
     """``force`` with the row that serves this character merged in."""
     alternatives = force.get(ALTERNATIVES)
     if not alternatives:
-        return force
+        # The launcher and rounds the device charges leave (quest_ranged_force: Q2, Q22, Q31).
+        return quest_ranged_force.settled_force(policy, snapshot, force)
     rows = [{name: force[name] for name in ROW_FIELDS if name in force}, *alternatives]
     max_hp = snapshot.player.max_hp
     damage = policy._strategy_measured_dps(snapshot, force)
@@ -71,7 +72,7 @@ def resolve(policy, snapshot, force: dict) -> dict:
     if not capable:
         return {**force, "heal_potions": 0, "speed_potions": 0, **_NO_KIT}
     cost, index = min(capable)
-    resolved = quest_ranged_force.settle_ammo(policy, snapshot, {**force, **rows[index]})
+    resolved = quest_ranged_force.settled_force(policy, snapshot, {**force, **rows[index]})
     if cost == _WAITING_FOR_CHARGES:
         resolved[ABSORBED_SHORT] = True
     else:

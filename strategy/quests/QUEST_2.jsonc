@@ -47,6 +47,11 @@
     "reference_ac": 40,
     "resists": [], "speed_potions": 2, "heal_potions": 2,
     "launcher": {"ammo": "equipped", "equipped": true, "min_average_damage": 25},
+    // 魔道具術師は魔法道具の力で読む（2026-11-18 ユーザーの選択「Q2・Q22・Q31 も Q25 と同じく、取り込んだ
+    // 攻撃の力（と攻撃の魔法棒・ロッド）の成功率込みの期待値と回数で条件を満たせば受ける。足りない分だけ弓と矢で
+    // 補う。」）。1発の値は上の平均25、回数は launcher_ammo の99（quest_ranged_force.py）。的は平均25の基準の
+    // グレムリン153と、近接しない死体の塊202・水たまり885/944（どれにも25以上の物だけ数える）。
+    "launcher_devices": {"device_classes": [16], "reference_races": [153, 202, 885, 944]},
     "throwing_items": {"launcher_ammo": 99},
     "required_scrolls": {"light": 6, "teleport": 2},
     "utility_tools": {"wall_breach": 1},

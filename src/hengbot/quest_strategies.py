@@ -168,6 +168,15 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
             raise ValueError(
                 "launcher min_average_damage must be a non-negative number"
             )
+    devices = force.get("launcher_devices")
+    if devices is not None and not (
+        isinstance(launcher, dict) and isinstance(devices, dict)
+        and all(isinstance(devices.get(key), list) and devices[key]
+                and all(isinstance(v, int) and not isinstance(v, bool) for v in devices[key])
+                for key in ("device_classes", "reference_races"))
+    ):
+        raise ValueError("launcher_devices must give device_classes and reference_races "
+                         "as integer lists beside a launcher (quest_ranged_force)")
     alternatives = force.get("resist_alternatives", {})
     if not isinstance(alternatives, dict) or not all(
             isinstance(names, list) and all(isinstance(name, str) for name in names)
