@@ -43,6 +43,7 @@ ALLOWLIST_CONSTANTS = (
     ('scripts/melee_site_lint.py', 'GUARDED_ELSEWHERE'),
     ('scripts/step_gate_lint.py', 'MOVEMENT_BYPASSES'),
     ('scripts/step_gate_lint.py', 'WARNING_READ_BYPASSES'),
+    ('scripts/tier_reading_lint.py', 'BASELINE'),
     ('scripts/verify_scope.py', 'EXCLUDED_TESTS'),
     ('scripts/verify_scope.py', 'KNOWN_FAILURES'),
     ('scripts/verify_scope.py', 'KNOWN_LINT_FAILURES'),

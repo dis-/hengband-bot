@@ -17,7 +17,13 @@ Findings:
 - a line of fire computed outside line_of_fire: a ``projection_path`` whose blocker reads the
   monster's projection blocker (``_may_block_projection``), or the player's
   (``_stops_player_projection``) without ``through=True`` (a beam, me_powers, is not a line
-  of fire to a target).
+  of fire to a target);
+- a ``projection_path`` outside line_of_fire given a stop of its own (any blocker that does
+  not read ``_may_block_projection`` / ``_stops_player_projection``) that ``READERS`` does not
+  list under the reading ``own_stop``.  Maintainability review 2026-11-18 (S7-3 / 6(a)-8):
+  the glass bug class (ea26e01d4a, n1-c life-216 Glass castle 60F) was a path that stopped on
+  a known grid without LOS instead of one without PROJECTION, written by hand and passed to
+  ``projection_path``; read ``line_of_fire.player_path`` instead, or list the call with why.
 
     python scripts/line_of_fire_lint.py          # exit 1 on a finding
     python scripts/line_of_fire_lint.py --print  # the (module, function, reading) of every call
@@ -37,6 +43,10 @@ READINGS = frozenset({"counting", "counting_reaches", "danger", "projectable", "
                       "player_projectable", "player_path", "fire_reaches"})
 # counting_reaches is the counting reading from a cell; the table names ``counting`` for it.
 TABLE_NAME = {"counting_reaches": "counting"}
+# A projection_path given a stop of its own outside line_of_fire: READERS lists each with why.
+OWN_STOP = "own_stop"
+# The blockers that are the bot's projection readings (policy_combat): not a stop of one's own.
+PROJECTION_BLOCKERS = frozenset({"_may_block_projection", "_stops_player_projection"})
 RETIRED_METHODS = frozenset({"_monster_in_line_of_fire", "_has_line_of_fire", "_may_project",
                              "_player_may_project", "_fire_reaches"})
 RETIRED_MODULE_NAMES = frozenset({"in_fire", "reaches"})
@@ -108,6 +118,9 @@ class _Calls(ast.NodeVisitor):
                       for k in node.keywords)
         if "_may_block_projection" in names or ("_stops_player_projection" in names and not through):
             self.computed.append((self.module, node.lineno, "projection_path"))
+        elif not names & PROJECTION_BLOCKERS:
+            # A stop of its own (a lambda, a local function, a name): a reading READERS lists.
+            self.calls.append((self.module, self._function(), OWN_STOP, node.lineno))
 
 
 def scan(root: Path = POLICY_ROOT, tests: Path = TEST_ROOT):
@@ -131,7 +144,14 @@ def findings(root: Path = POLICY_ROOT, tests: Path = TEST_ROOT) -> list[str]:
     lines = []
     seen = {(module, function, reading) for module, function, reading, _line in calls}
     for module, function, reading, line in calls:
-        if (module, function, reading) not in table:
+        if (module, function, reading) in table:
+            continue
+        if reading == OWN_STOP:
+            lines.append(f"{module}.py:{line} {function} passes a stop of its own to projection_path "
+                         f"(the glass class: a stop on LOS, not PROJECTION): read "
+                         f"line_of_fire.player_path, or add ({module!r}, {function!r}, {OWN_STOP!r}) "
+                         f"to line_of_fire.READERS with why")
+        else:
             lines.append(f"{module}.py:{line} {function} reads line_of_fire.{reading}, not in "
                          f"line_of_fire.READERS: add the row with why it reads that one")
     for key in sorted(set(table) - seen):
