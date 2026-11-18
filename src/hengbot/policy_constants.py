@@ -654,14 +654,6 @@ FIXED_QUEST_ALLOWLIST = frozenset({QUEST_ID_THIEF, 2, 14, 18, 22, 25, 28, 31, 32
 
 EXECUTABLE_QUEST_STRATEGY_IDS = frozenset({1, 2, 14, 18, 22, 25, 31, 32, 34})
 
-# The level a fixed quest is ordered by in place of its own (policy_quest _fixed_quest_order:
-# the transaction head is the lowest (level, id) offered).  QUEST_32 (level 25) is taken only
-# once one player turn kills 閾に棲む者 (owner 2026-11-19 「受注を急がないクエストなので」,
-# quest_one_turn_kill): ordered at its own level it would head the Outpost's offers and hold
-# Q18 (35) and Q25 (48) behind a quest the character is not ready for.  49 puts it after Q25
-# and before Q28 (70), which has no approved strategy.
-FIXED_QUEST_ORDER_LEVEL = {32: 49}
-
 FIXED_QUEST_TOWNS = {2: 1, 22: 3, 31: 0}
 
 FIXED_QUEST_ALWAYS_OFFERED = frozenset({QUEST_ID_THIEF, *FIXED_QUEST_TOWNS})

@@ -244,7 +244,6 @@ from hengbot.policy_constants import (
     EQUIPMENT_SLOT_KEY,
     EXECUTABLE_QUEST_STRATEGY_IDS,
     FIXED_QUEST_ALLOWLIST,
-    FIXED_QUEST_ORDER_LEVEL,
     FIXED_QUEST_ALWAYS_OFFERED,
     FIXED_QUEST_CURE_CRITICAL_HP,
     FIXED_QUEST_MAX_DAMAGE_RATIO,
@@ -3912,6 +3911,13 @@ class QuestMixin(OpeningRouteMixin):
         # QUEST_32: the one-turn race beside a character whose devices out-damage its blows
         # takes the device (quest_one_turn_kill.means), not the weaker melee turn.
         one_turn_race = quest_one_turn_kill.race(profile.required_force)
+        # The hasted tier (owner 2026-11-19 「加速手段が十分なら135以上で良いとする」) fights the
+        # race hasted: the dose comes before any blow or shot at it.
+        if (any(monster.race_id == one_turn_race for monster in combat_hostiles)
+                and quest_one_turn_kill.haste_first(self, snapshot, profile.required_force)):
+            haste = speed_dose.key(self, snapshot, "quest-strategy:one-turn-haste")
+            if haste is not None:
+                return haste
         one_turn_beside = [monster for monster in engage_adjacent if monster.race_id == one_turn_race]
         if one_turn_beside and quest_one_turn_kill.means(
                 self, snapshot, profile.required_force) == "device":
@@ -4561,6 +4567,8 @@ class QuestMixin(OpeningRouteMixin):
             if quest.id in FIXED_QUEST_ALLOWLIST
             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
             and self.approved_quest_strategy(quest.id) is not None
+            and not (quest.status == QUEST_STATUS_UNTAKEN
+                     and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
         ]
         if not candidates:
             return None
@@ -4620,6 +4628,8 @@ class QuestMixin(OpeningRouteMixin):
                     QUEST_STATUS_COMPLETED,
                 }
                 and self.approved_quest_strategy(quest.id) is not None
+                and not (quest.status == QUEST_STATUS_UNTAKEN
+                         and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
             ]
             fixed_quest_head = self._fixed_quest_head(snapshot)
             travel_quest = fixed_quest_head
@@ -4862,6 +4872,8 @@ class QuestMixin(OpeningRouteMixin):
                 QUEST_STATUS_COMPLETED,
             }
             and self.approved_quest_strategy(quest.id) is not None
+            and not (quest.status == QUEST_STATUS_UNTAKEN
+                     and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
         ]
         head = self._fixed_quest_head(snapshot)
         travel = head
@@ -5280,6 +5292,8 @@ class QuestMixin(OpeningRouteMixin):
             if opening_q34 is not None and supported(opening_q34):
                 return opening_q34
 
+        # A non_urgent quest short of its condition is passed over (QUEST_32, owner 2026-11-19
+        # 「条件を満たした時だけ割り込む」): the next quest is taken; once met it is in its place.
         untaken = [
             quest for quest in known_quests.values()
             if supported(quest)
@@ -5288,6 +5302,7 @@ class QuestMixin(OpeningRouteMixin):
                 quest.id in FIXED_QUEST_ALWAYS_OFFERED
                 or self._fixed_quest_is_offered(snapshot, quest.id)
             )
+            and not quest_one_turn_kill.holds_back(self, snapshot, quest.id)
         ]
         return min(untaken, key=self._fixed_quest_order) if untaken else None
 
@@ -5295,7 +5310,7 @@ class QuestMixin(OpeningRouteMixin):
         quest_id = quest.id
         info = self._quest_knowledge.get(quest_id)
         level = info.level if info is not None else quest.level
-        return FIXED_QUEST_ORDER_LEVEL.get(quest_id, level), quest_id
+        return level, quest_id
 
     @staticmethod
     def _quest_abort_hp_ratio(profile) -> float | None:

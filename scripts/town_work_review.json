@@ -21009,5 +21009,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Reads required_force.one_turn_kill from a strategy force; no command."
+  },
+  "quest_one_turn_kill.py:tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Names QUEST_32's one-turn tier ('full', 'hasted' or None) for acceptance, quest_force_rows.resolve and the fight; a label, not a key; no command."
   }
 }

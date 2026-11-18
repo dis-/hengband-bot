@@ -4,19 +4,24 @@ Owner 2026-11-19, verbatim: 「Q32の戦略を作って。受注を急がない�
 倒せる程度の強さを要求する。」 and 「閾に棲む者の召喚魔法を受ける回数を最小化するのが目的なので、
 1ターンで倒せれば良い」.  required_force.one_turn_kill: one player turn's expected damage
 (melee's blows, or a Magic-Eater's attack device) against race 263 reaches 240, the largest
-roll of its 30d8 (no FORCE_MAXHP: one-monster-placer.cpp rolls the dice).
+roll of its 30d8 (no FORCE_MAXHP: one-monster-placer.cpp rolls the dice).  Owner's answers of
+the same day: 「加速手段が十分なら135以上で良いとする」 (135 with two haste doses carried, read by
+quest_force_rows' haste reader) and 「条件を満たした時だけ割り込む」 (non_urgent: an unmet Q32 is
+passed over in the fixed-quest order, a met one is taken in its level-25 place).
 
 Recorded: the newest town arrivals of 2026-11-19 (tests/extract_quest32_one_turn_kill_1119_fixtures.py),
 all three in the Outpost with Q32 offered:
 
-* n1-c life-217 (Magic-Eater Lv36): melee 231.8, devices 72.2 -- short of 240, refused, and the
-  quest asks it no kit; it also lacks resist_fear.  Its head is Q18 (untaken), not Q32: Q32 is
-  ordered after Q25 (FIXED_QUEST_ORDER_LEVEL), so an unready Q32 holds nothing back.
+* n1-c life-217 (Magic-Eater Lv36): melee 231.8, devices 72.2 -- the hasted tier (135..240).  Its
+  absorbed Speed holds the two doses, so no potion is asked; it is refused only for lacking
+  resist_fear, and Q32 heads its offers ahead of Q18 (met: it takes its level-25 place).
 * n1-a life-531 (warrior Lv42): melee 496.9 -- met; it is short only of the four Light scrolls.
 * n1-b life-411 (Magic-Eater Lv50): melee 504.6, devices 280 -- met; refused only for not-full-hp.
 
-DECLARED CONSTRUCTED: n1-b's board at full HP (accepted); n1-c's board with resist_fear
-(refused by the one-turn kill alone).
+DECLARED CONSTRUCTED: n1-b's board at full HP (accepted); n1-c's board with resist_fear and full HP
+(accepted on the hasted tier), the same without its absorbed Speed and with no potion (refused:
+two Speed potions asked), and with three blows a turn instead of seven (no tier: refused, no kit,
+and Q18 heads the offers instead).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -28,7 +33,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hengbot import quest_one_turn_kill
-from hengbot.policy_constants import FIXED_QUEST_ORDER_LEVEL
 from hengbot.quest_strategies import load_quest_strategies
 from support.town_arrival_fixture import load
 
@@ -59,7 +63,8 @@ class Quest32StrategyTest(unittest.TestCase):
         profile = load_quest_strategies(STRATEGIES)[32]
         self.assertTrue(profile.approved)
         force = profile.required_force
-        self.assertEqual(force["one_turn_kill"], {"race": DWELLER, "hit_points": 240, "device_classes": [16]})
+        self.assertEqual(force["one_turn_kill"], {"race": DWELLER, "hit_points": 240, "hasted_hit_points": 135,
+                                                  "haste_doses": 2, "device_classes": [16]})
         self.assertEqual(force["resists"], ["free_action", "confusion", "fear"])
         self.assertTrue(force["floors_replace_projection"])
         self.assertNotIn("launcher", force)
@@ -75,8 +80,11 @@ class Quest32StrategyTest(unittest.TestCase):
             with patch("sys.stderr"):
                 self.assertNotIn(32, load_quest_strategies(Path(temp)))
 
-    def test_ordered_after_quest_25(self):
-        self.assertEqual(FIXED_QUEST_ORDER_LEVEL[32], 49)
+    def test_the_hasted_tier_and_the_order(self):
+        force = load_quest_strategies(STRATEGIES)[32].required_force
+        self.assertEqual((force["one_turn_kill"]["hasted_hit_points"],
+                          force["one_turn_kill"]["haste_doses"]), (135, 2))
+        self.assertTrue(force["non_urgent"])
 
 
 def quest_one_turn_kill_text() -> str:
@@ -85,31 +93,58 @@ def quest_one_turn_kill_text() -> str:
 
 
 class Quest32RecordedAcceptanceTest(unittest.TestCase):
-    def test_n1c_short_of_one_turn_is_refused_and_buys_nothing(self):
+    def test_n1c_on_the_hasted_tier_heads_the_offers(self):
         scratch, policy, board = recorded("n1c-217")
         with scratch:
             force = policy.approved_quest_strategy(32).required_force
             found = quest_one_turn_kill.details(policy, board, force)
-            self.assertEqual((found["melee"], found["device"]), (231.8, 72.2))
-            self.assertFalse(quest_one_turn_kill.met(policy, board, force))
-            verdict, telemetry, strategy = readiness(policy, board)
-            self.assertFalse(verdict)
-            self.assertEqual(telemetry["reason"], "strategy-force")
-            self.assertEqual(strategy["failed"], ["resists", "one_turn_kill"])
+            self.assertEqual((found["melee"], found["device"], found["tier"]), (231.8, 72.2, "hasted"))
             resolved = policy._strategy_force_for_snapshot(board, policy.approved_quest_strategy(32))
-            self.assertEqual((resolved["heal_potions"], resolved["speed_potions"],
-                              resolved["required_scrolls"]), (0, 0, {}))
-            # The Outpost offers Q32, yet Q18 heads the offers: Q32 waits behind it.
+            # The absorbed Speed holds the two doses: no potion asked, carried at departure.
+            self.assertEqual((resolved["speed_potions"], resolved["speed_required_to_depart"]), (0, True))
+            verdict, telemetry, strategy = readiness(policy, board)
+            self.assertEqual((verdict, telemetry["reason"], strategy["failed"]),
+                             (False, "strategy-force", ["resists"]))
             self.assertTrue(policy._fixed_quest_is_offered(board, 32))
-            self.assertEqual(policy._fixed_quest_head(board).id, 18)
+            self.assertEqual(policy._fixed_quest_head(board).id, 32)
 
-    def test_n1c_with_fear_resistance_is_refused_by_the_one_turn_kill_alone(self):
+    def test_n1c_with_enough_haste_is_accepted(self):
         scratch, policy, board = recorded("n1c-217")
         with scratch:
-            player = replace(board.player, abilities=board.player.abilities | {"resist_fear"})
-            verdict, _, strategy = readiness(policy, replace(board, player=player))
+            player = replace(board.player, abilities=board.player.abilities | {"resist_fear"},
+                             hp=board.player.max_hp)
+            verdict, telemetry, strategy = readiness(policy, replace(board, player=player))
+            self.assertEqual((verdict, telemetry["reason"], strategy["failed"]), (True, "ready", []))
+
+    def test_n1c_without_haste_is_refused(self):
+        scratch, policy, board = recorded("n1c-217")
+        with scratch, patch("hengbot.me_capability.replaced_by_absorbed", return_value=False):
+            player = replace(board.player, abilities=board.player.abilities | {"resist_fear"},
+                             hp=board.player.max_hp)
+            constructed = replace(board, player=player)
+            resolved = policy._strategy_force_for_snapshot(constructed, policy.approved_quest_strategy(32))
+            self.assertEqual(resolved["speed_potions"], 2)
+            verdict, _, strategy = readiness(policy, constructed)
             self.assertFalse(verdict)
-            self.assertEqual(strategy["failed"], ["one_turn_kill"])
+            self.assertEqual(strategy["failed"], ["speed_potions"])
+
+    def test_n1c_short_of_both_tiers_is_passed_over_for_q18(self):
+        scratch, policy, board = recorded("n1c-217")
+        with scratch:
+            weak = replace(board, player=replace(board.player, main_hand_blows=3))
+            force = policy.approved_quest_strategy(32).required_force
+            self.assertLess(quest_one_turn_kill.best(policy, weak, force), 135)
+            self.assertIsNone(quest_one_turn_kill.tier(policy, weak, force))
+            verdict, _, strategy = readiness(policy, weak)
+            self.assertFalse(verdict)
+            self.assertIn("one_turn_kill", strategy["failed"])
+            resolved = policy._strategy_force_for_snapshot(weak, policy.approved_quest_strategy(32))
+            self.assertEqual((resolved["heal_potions"], resolved["speed_potions"],
+                              resolved["required_scrolls"]), (0, 0, {}))
+            # Q32 is offered and level 25, yet the unmet non_urgent quest does not block Q18.
+            self.assertTrue(policy._fixed_quest_is_offered(weak, 32))
+            self.assertTrue(quest_one_turn_kill.holds_back(policy, weak, 32))
+            self.assertEqual(policy._fixed_quest_head(weak).id, 18)
 
     def test_n1a_warrior_kills_it_in_one_melee_turn(self):
         scratch, policy, board = recorded("n1a-531")
