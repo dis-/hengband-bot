@@ -326,9 +326,13 @@ def sweep_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
     """The cheapest rank 21+ Home row with a buyer, the pack able to carry it.
 
     While the Black Market's *Destruction* staff is short of gold, its fund's
-    next piece first (bm_destruction_fund, owner 2026-11-07).
+    next piece first (bm_destruction_fund, owner 2026-11-07).  Under the fundraising line
+    Home's cash wares go first, most valuable first (home_cash_sale, owner 2026-11-18).
     """
-    from hengbot import bm_destruction_fund
+    from hengbot import bm_destruction_fund, home_cash_sale
+    cash = home_cash_sale.sweep_ware(policy, snapshot, stock)
+    if cash is not None:
+        return cash
     for signature in bm_destruction_fund.plan(policy, snapshot):
         ware = next(((result, item) for item in stock
                      if policy._item_signature(item) == signature
