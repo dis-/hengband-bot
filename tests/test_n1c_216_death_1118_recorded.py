@@ -26,6 +26,13 @@ Four defects, one class each:
    expectation, so it died in one action and the engagement was T3 at distance 3.  The kill
    time now counts the landings a kill takes over the landing chance (attack_expectation
    ``kill_paced``; melee, the launcher's shots, a thrown torch and the devices' uses).
+   The metal is still T3 on that board: about four actions, while the projection's incoming
+   over four actions (661) stays below the HP (913).
+4. ``RetreatHandoverTest``: the unseen retreat (policy_supply ``_unseen_retreat_key``) gave the
+   board to the combat ladder only for a hostile in view that was adjacent or named in the
+   messages, so the metal seen at distance 3 (p95 299 against the 83 that armed the retreat)
+   was walked away from (``unseen:reverse-choke`` at 7228518).  A hostile in view with a line
+   of fire whose p95 covers the retreat's unseen loss now ends the retreat.
 
 Recorded: tests/fixtures/n1c-216-death-1118.jsonl.gz (tests/extract_n1c_216_death_1118_fixture.py),
 the live boards 7228502-7228558, replayed by one fresh policy through the public ``choose_key``
@@ -46,6 +53,7 @@ from unittest import mock
 from hengbot import attack_expectation, deep_teleport, heal_offset, threat_projection, threat_tiers
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import parse_snapshot
+from hengbot.policy_constants import UNSEEN_REVERSE_REASON
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 
@@ -53,6 +61,7 @@ from hengbot.policy import HengbotPolicy
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-216-death-1118.jsonl.gz"
 EDIT = Path(r"C:\hengband\lib\edit")
 METAL = 871                 # はぐれメタル, MonraceDefinitions.jsonc
+FIRST_HIT = 7228514         # 「何かが純ログルスを放った。」, 83 taken: the unseen retreat arms
 SEEN = 7228517              # the one board the metal was in view (distance 3)
 FIRST_DRINK = 7228538       # HP 555: 「何かが魔力の矢の呪文を唱えた。」, the first Healing drunk
 AFTER_DRINK = 7228541       # HP 630: +300 from the drink, 225 from the next bolt
@@ -180,6 +189,51 @@ class KillTimeTest(Replay, unittest.TestCase):
         # for 16 against 120 HP: ceil(120 / 40.46) = 3 actions).
         paced = attack_expectation.kill_paced(40.46, 16.31, 120, 8)
         self.assertEqual(paced, 40.46)
+
+
+
+class RetreatHandoverTest(Replay, unittest.TestCase):
+
+    def seen_board(self, edit=None):
+        """(policy, the SEEN board) with the retreat armed on FIRST_HIT.  DECLARED CONSTRUCTED:
+        the fresh process reads Recall on these boards (the live one walked the retreat), so the
+        retreat is armed by asking its rung on FIRST_HIT, as the live ladder did."""
+        policy = HengbotPolicy(monrace_knowledge=self.monrace, baseitem_costs=self.costs)
+        policy._skill_exp_request_key = lambda snapshot: None
+        with mock.patch.object(HengbotPolicy, "_missing_required_abilities",
+                               lambda self, *args, **kwargs: frozenset()):
+            for raw in self.boards:
+                raw = copy.deepcopy(raw)
+                if raw["turn"] == SEEN and edit is not None:
+                    edit(raw)
+                snapshot = parse_snapshot(raw, self.monrace)
+                key = policy.choose_key(snapshot)
+                if raw["turn"] == FIRST_HIT:
+                    armed = policy._unseen_retreat_key(snapshot, policy._physical_hostiles(snapshot))
+                    self.assertEqual(policy.last_reason, UNSEEN_REVERSE_REASON)
+                    self.assertIsNotNone(armed)
+                    self.assertEqual(policy._unseen_retreat_loss, 83)
+                if raw["turn"] == SEEN:
+                    return policy, snapshot
+                if key:
+                    policy.confirm_key_posted(key)
+        raise AssertionError(SEEN)
+
+    def test_the_metal_in_view_ends_the_retreat(self):
+        policy, snapshot = self.seen_board()
+        self.assertEqual(policy._unseen_retreat_floor, snapshot.floor_key)
+        # Live: unseen:reverse-choke, walking out of the metal's sight.
+        self.assertIsNone(policy._unseen_retreat_key(snapshot, policy._physical_hostiles(snapshot)))
+        self.assertIsNone(policy._unseen_retreat_floor)
+
+    def test_a_weak_monster_in_view_does_not(self):
+        # DECLARED CONSTRUCTED control: the retreat's loss raised above the metal's p95 (299):
+        # a monster in view that cannot account for the unseen hits leaves the retreat walking.
+        policy, snapshot = self.seen_board()
+        policy._unseen_retreat_loss = 300
+        key = policy._unseen_retreat_key(snapshot, policy._physical_hostiles(snapshot))
+        self.assertIsNotNone(key)
+        self.assertEqual(policy.last_reason, UNSEEN_REVERSE_REASON)
 
 
 if __name__ == "__main__":

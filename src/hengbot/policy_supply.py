@@ -1,7 +1,8 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
-from hengbot import destruction_means, teleport_away_carry
+from hengbot import deep_teleport, destruction_means, teleport_away_carry
+from hengbot.threat_projection import _with_adjusted_speed
 from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.policy_constants import UNSEEN_REVERSE_REASON
 from hengbot.item_reservation import reserved_item_command
@@ -2275,6 +2276,14 @@ class SupplyMixin:
             for monster in hostiles
         ):
             return None
+        # So does a hostile that came into view with a line of fire to the player whose next
+        # action's p95 covers the unseen loss the retreat walks from: the attacker is seen now,
+        # and walking on leaves it free volleys.  n1-c life-216 (Angband 80F, 2026-11-18): after
+        # 「何かが純ログルスを放った。」 (83) はぐれメタル showed at distance 3 (p95 299) and the
+        # retreat walked on out of its sight; the volleys from the dark killed the character.
+        if active and not eligible_hit and self._unseen_attacker_in_view(snapshot, hostiles):
+            self._clear_unseen_retreat()
+            return None
         # A melee blow is struck back; spell and missile evidence is walked
         # out of (owner 2026-11-01, unseen_strike).
         if (strike := unseen_strike.key(
@@ -2306,6 +2315,8 @@ class SupplyMixin:
             self._unseen_retreat_blind_only = False
         if eligible_hit:
             self._record_unseen_attack(snapshot)
+            self._unseen_retreat_loss = max(getattr(self, "_unseen_retreat_loss", 0),
+                                            self._last_damage_amount if self._took_damage else 0)
 
         if self._unseen_choke_position is not None:
             if eligible_hit:
@@ -2361,6 +2372,17 @@ class SupplyMixin:
         # and unseen:reverse-choke '6' alternated until the loop detector).
         self._clear_unseen_retreat()
         return None
+
+    def _unseen_attacker_in_view(self, snapshot: Snapshot, hostiles: list[MonsterState]) -> bool:
+        """A hostile in view (``hostiles`` the player sees) with a line of fire whose next
+        action's p95 (deep_teleport ``in_fire_p95``, the 50F+ teleport's reading) is positive
+        and reaches the largest unseen loss of this retreat (``_unseen_retreat_loss``)."""
+        shown = {monster.index for monster in snapshot.visible_monsters
+                 if not monster.pet and not monster.friendly}
+        seen = [_with_adjusted_speed(monster) for monster in hostiles if monster.index in shown]
+        loss = getattr(self, "_unseen_retreat_loss", 0)
+        return any(p95 > 0 and p95 >= loss
+                   for _monster, p95 in deep_teleport.in_fire_p95(self, snapshot, seen))
 
     def _nearest_goal_step(self, snapshot: Snapshot, predicate) -> Position | None:
         """Uniform-cost BFS returning the first step toward the nearest goal.

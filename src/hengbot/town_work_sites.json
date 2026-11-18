@@ -1409,6 +1409,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "deep_teleport.py:in_fire_p95": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "deep_teleport.py:landed_threats": {
     "classification": "data",
     "rows": [

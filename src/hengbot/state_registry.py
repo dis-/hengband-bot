@@ -1705,6 +1705,8 @@ REGISTRY = (
       "policy_supply: unseen choke started turn (no comment at its definition)"),
     S("_unseen_retreat_blind_only", "policy_supply", LIFE,
       "policy_supply: unseen retreat blind only (no comment at its definition)"),
+    S("_unseen_retreat_loss", "policy_supply", LIFE,
+      "The largest unseen loss since the unseen retreat armed (a monster in view that covers it ends the retreat)."),
     S("_unseen_retreat_target", "policy_supply", LIFE,
       "policy_supply: unseen retreat target (no comment at its definition)"),
     S("_wilderness_edge_last_position", "policy_supply", LIFE,

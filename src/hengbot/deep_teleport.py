@@ -160,12 +160,22 @@ def fire_p95(policy, snapshot) -> int:
                     for monster in threat_tiers.engagement(policy, snapshot)]
         if not hostiles:
             return 0
-        rows = policy.threat_prediction(snapshot, hostiles, 1).get("monsters", ())
-        in_fire = sum(row.get("operational_contribution", 0)
-                      for monster, row in zip(hostiles, rows)
-                      if line_of_fire.danger(policy, snapshot, monster))
+        in_fire = sum(p95 for _monster, p95 in in_fire_p95(policy, snapshot, hostiles))
         return in_fire + unseen_correction(policy, snapshot, hostiles)
     return decision_memo(policy, "deep_teleport.fire_p95", snapshot, None, compute)
+
+
+def in_fire_p95(policy, snapshot, hostiles) -> list:
+    """(monster, its next action's operational p95) of each of ``hostiles`` (at their adjusted
+    speed) with a line of fire to the player (line_of_fire ``danger``): ``fire_p95``'s terms,
+    also the unseen retreat's reading of a monster that came into view (policy_supply
+    ``_unseen_retreat_key``)."""
+    if not hostiles:
+        return []
+    rows = policy.threat_prediction(snapshot, hostiles, 1).get("monsters", ())
+    return [(monster, row.get("operational_contribution", 0))
+            for monster, row in zip(hostiles, rows)
+            if line_of_fire.danger(policy, snapshot, monster)]
 
 
 def allows(policy, snapshot) -> bool:
