@@ -266,6 +266,7 @@ def _launcher_stacks(policy, snapshot, target) -> list:
         return []
     stacks = []
     armour = attack_expectation._race_armour(policy, target.race_id)
+    race_flags = attack_expectation._race_flags(policy, target.race_id)
     for ammo in snapshot.inventory:
         if ammo.tval != launcher.ammo_tval or ammo.count <= 0:
             continue
@@ -277,10 +278,14 @@ def _launcher_stacks(policy, snapshot, target) -> list:
         chance = (snapshot.player.shooting_skill
                   + (attack_expectation.TO_H_B_FLOOR + launcher.to_h + ammo.to_h)
                   * attack_expectation.BTH_PLUS_ADJ - target.distance)
-        # The kill time counts the shots that land (attack_expectation.kill_paced).
-        damage = attack_expectation.kill_paced(
+        # The kill time counts the shots that land (attack_expectation.kill_paced), each through
+        # RES_ALL (attack_expectation.physical_hits).
+        expected, landed = attack_expectation.physical_hits(
+            race_flags,
             turn * multiplier / 10 * attack_expectation._throw_hit_chance(chance, armour),
-            shot * multiplier / 10, target.hp, turn / shot if shot > 0 else 1.0)
+            shot * multiplier / 10)
+        damage = attack_expectation.kill_paced(
+            expected, landed, target.hp, turn / shot if shot > 0 else 1.0)
         # OQ-6: ego or artifact ammo is a supply; plain ammo is a free attack.
         stacks.append((bool(ammo.is_ego or ammo.is_artifact), damage, ammo.count))
     return stacks
@@ -426,6 +431,14 @@ def scroll_damage_at(scroll: AttackScroll, distance: int) -> int:
     return (scroll.damage + distance) // (distance + 1)
 
 
+def scroll_damage_on(policy, scroll: AttackScroll, target) -> int:
+    """``scroll_damage_at`` on ``target``: nothing on a race whose RES_ALL nullifies the ball
+    (effect-monster.cpp:145-167, attack_expectation.spell_nullified)."""
+    if attack_expectation.spell_nullified(attack_expectation._race_flags(policy, target.race_id)):
+        return 0
+    return scroll_damage_at(scroll, target.distance)
+
+
 def _self_damage(snapshot, scroll: AttackScroll) -> int:
     player = snapshot.player
     held = set(player.abilities) | {f"immune:{name}" for name in player.immunities}
@@ -447,7 +460,7 @@ def _attack_schedule(policy, snapshot, hostiles, allowed, free, free_self=None):
         for scroll in _scroll_reads(snapshot):
             useful = [monster for monster in hostiles
                       if remaining[monster.index] > 0
-                      and scroll_damage_at(scroll, monster.distance)
+                      and scroll_damage_on(policy, scroll, monster)
                       > free[monster.index]]
             if not useful:
                 break
@@ -455,7 +468,7 @@ def _attack_schedule(policy, snapshot, hostiles, allowed, free, free_self=None):
             scrolls_read += 1
             self_damage += _self_damage(snapshot, scroll)
             for monster in hostiles:
-                remaining[monster.index] -= scroll_damage_at(scroll, monster.distance)
+                remaining[monster.index] -= scroll_damage_on(policy, scroll, monster)
     ammo_pool: dict = {}
     charge_pool: dict = {}
     ammo_used = charges_used = 0

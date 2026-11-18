@@ -1238,8 +1238,11 @@ class CombatMixin:
         attack_turns = 0
         shots_left = ammo
         for monster in sorted(monsters, key=lambda m: (m.distance, m.index)):
-            melee_turns = ceil(monster.hp / melee) if melee > 0 else None
-            shots = ceil(monster.hp / ranged) if ranged > 0 else None
+            # RES_ALL read by the common reader (owner 2026-11-18: such a monster cannot be killed).
+            against = attack_expectation.legacy_melee(self, snapshot, monster, melee)
+            shot = attack_expectation.legacy_shot(self, snapshot, monster, ranged)
+            melee_turns = ceil(monster.hp / against) if against > 0 else None
+            shots = ceil(monster.hp / shot) if shot > 0 else None
             if (
                 shots is not None
                 and shots <= shots_left
@@ -1975,9 +1978,12 @@ class CombatMixin:
         ranged_damage = self._estimated_ranged_damage_per_shot(snapshot)
         turns_to_clear = 0
         for monster in hostiles:
-            damage = melee_damage
+            # RES_ALL read by the common reader (owner 2026-11-18 「はぐれメタルには事実上ダメージを
+            # 与える方法がなく、倒せないのでT1扱い。」).
+            damage = attack_expectation.legacy_melee(self, snapshot, monster, melee_damage)
             if self._summoner_ranged_attack_available(snapshot, monster):
-                damage = max(damage, ranged_damage)
+                damage = max(damage, attack_expectation.legacy_shot(
+                    self, snapshot, monster, ranged_damage))
             if damage_against is not None:
                 damage = max(damage, damage_against(monster))
             if damage <= 0:
@@ -2144,9 +2150,12 @@ class CombatMixin:
                 None,
             )
             if weapon is not None:
-                damage = self._main_hand_dps(snapshot, weapon)
+                # RES_ALL read by the common reader (owner 2026-11-18).
+                damage = attack_expectation.legacy_melee(
+                    self, snapshot, target, self._main_hand_dps(snapshot, weapon))
         elif self._summoner_ranged_attack_available(snapshot, target):
-            damage = self._estimated_ranged_damage_per_shot(snapshot)
+            damage = attack_expectation.legacy_shot(
+                self, snapshot, target, self._estimated_ranged_damage_per_shot(snapshot))
         if damage <= 0:
             return False
 

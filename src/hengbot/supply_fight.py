@@ -29,7 +29,7 @@ from hengbot.threat_projection import (
     _resistance_after,
     _scroll_reads,
     heal_credit,
-    scroll_damage_at,
+    scroll_damage_on,
 )
 
 
@@ -169,7 +169,7 @@ def _charge_key(policy, snapshot, result, target):
 def _scroll_key(policy, snapshot, result, target):
     reads = _scroll_reads(snapshot)
     free = result.free_damage.get(target.index, 0.0)
-    if not reads or scroll_damage_at(reads[0], target.distance) <= free:
+    if not reads or scroll_damage_on(policy, reads[0], target) <= free:
         return None
     sval = next(sval for sval, scroll in ATTACK_SCROLLS.items() if scroll == reads[0])
     item = next((item for item in snapshot.inventory
