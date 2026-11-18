@@ -4,6 +4,7 @@ from enum import Enum
 
 from hengbot import reasons, torch_release
 from hengbot.town_visit_plan import CYCLE_BREAK_REASON, STAGE_DEADLINE_STOP_PREFIX
+from hengbot.approach_answer import WAIT_STOP_PREFIX as APPROACH_WAIT_STOP_PREFIX
 from hengbot.model import (
     Position, SV_SCROLL_TELEPORT, TVAL_ARROW, TVAL_BOLT, TVAL_SHOT,
     STORE_ALCHEMIST,
@@ -416,8 +417,11 @@ TOWN_END_UNMET_STOP_PREFIX = 'town:blocked:unmet:'
 OWNER_RETIRED_BURST_AFTER_PREFIX = 'town:blocked:owner-retired-burst:after:'
 
 # Reason families on which the driver stops, beside the exact set above.
+# APPROACH_WAIT_STOP_PREFIX: a store approach that kept yielding to the town's holder past
+# approach_answer.WAIT_LIMIT boards (owner 2026-11-18 Q2), named after the holder.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
-                              OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX)
+                              OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX,
+                              APPROACH_WAIT_STOP_PREFIX)
 
 TUNNEL_KEY = "T"
 

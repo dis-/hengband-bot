@@ -20,6 +20,7 @@ def q34_readiness_rejection_key(policy, snapshot, hostiles, readiness):
         return REST_MACRO
     # Reuse the bounded supplier/fundraising routes for every rejection,
     # including light/pack/equipment checks with no strategy-force deficit.
+    before = approach_answer.answer_stamp(policy)
     step = policy._shopping_approach_step(snapshot, router_plan_stop=True)
     if step is not None:
         policy.last_reason = "shop:approach"
@@ -33,7 +34,12 @@ def q34_readiness_rejection_key(policy, snapshot, hostiles, readiness):
             key = policy._shopping_approach_key(snapshot, step, "shop:travel")
             if key is not None:
                 return key
+    # Owner 2026-11-18 Q2: the latest approach yielded to the town's holder: wait for it
+    # (None this board, the rungs below and the holder go on), then stop named after it.
+    verdict = approach_answer.after_empty(policy, "livelock:exhausted",
+                                          approach_answer.since(policy, before))
+    if verdict == approach_answer.WAIT:
+        return None
     # The CLI recognizes this reason as a terminal, even though its key is 5.
-    approach_answer.note_stop(policy, "livelock:exhausted")
-    policy.last_reason = "livelock:exhausted"
+    policy.last_reason = verdict or "livelock:exhausted"
     return WAIT_KEY
