@@ -158,7 +158,7 @@ from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT
 
 
 LOOP_REASON = "quest-search:loop"
-REDETECT_WAIT_REASON = "quest-search:wait-redetect"  # cli.STATIONARY_EXEMPT_REASONS
+REDETECT_WAIT_REASON = "quest-search:wait-redetect"  # reasons.STATIONARY_ROWS (EXEMPT)
 GAME_TURNS_PER_REST = 10  # a player turn at normal speed (policy's R300 note)
 DETECT_REASON = "quest-search:detect"
 DOOR_REASON = "quest-search:seek-door"

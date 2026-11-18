@@ -99,7 +99,7 @@ REASON_CLOSE_AREA = "ranged:anaguma-close-area"
 REASON_CLOSE_HASTE = "anaguma:close-haste"
 REASON_CLOSE_STEP = "anaguma:close-step"
 REASON_CLOSE_MELEE = "melee:anaguma-close"
-# Reasons that keep the player on one cell by design (cli.STATIONARY_EXEMPT_REASONS).
+# Reasons that keep the player on one cell by design (reasons.STATIONARY_ROWS, EXEMPT).
 STATIONARY = frozenset({REASON_DIG, REASON_DIG + me_absorbed_substitutes.CAST_SUFFIX,
                         REASON_HOLD, REASON_DETECT, REASON_CLOSE_HASTE})
 

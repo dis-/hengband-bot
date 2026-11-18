@@ -1099,7 +1099,7 @@ SELL_CONFIRM_SUFFIX = "\r"
 # is deliberately a mining readiness window, independent of terminal recovery.
 # Consecutive turns spent tunnelling toward a walled-off vein before giving up on it
 # and ascending. Digging holds the player on one tile, so `fundraise:tunnel-to-treasure`
-# is EXEMPT from the harness loop guard (cli.py STATIONARY_EXEMPT_REASONS) — this leash, not the
+# is EXEMPT from the harness loop guard (reasons.STATIONARY_ROWS) — this leash, not the
 # 40-decision window, is what bounds a dig, so it can run long: a vein 3-4 rock tiles deep
 # needs ~30 turns per granite tile. Reaching a vein (mine-treasure) resets it, so a
 # productive floor mines indefinitely; only an unreachably-deep vein burns the full leash.

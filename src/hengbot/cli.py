@@ -46,7 +46,6 @@ from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, pingpong_guard, safety_watch
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
-from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
     EXTENDED_STUCK_WINDOW,
@@ -59,21 +58,17 @@ from hengbot.policy import (
     required_depth_gates,
     staged_prompt_chain_matches,
 )
-from hengbot.quest25_battle import SEARCH_REASON as Q25_TRAP_SEARCH_REASON
-from hengbot.quest25_battle import RECHARGE_REASON as Q25_RECHARGE_REASON
 # After hengbot.policy: threat_tiers' dependencies import through it (a cycle otherwise).
 from hengbot import threat_tiers
 from hengbot import town_visit_plan
 from hengbot import spectator_threat
-from hengbot.anaguma import STATIONARY as ANAGUMA_STATIONARY
+from hengbot import reasons
 from hengbot.reasons import SURVIVAL_PREFIXES
 from hengbot.policy_constants import (
     DIRECTION_DELTAS,
     CHARACTER_DUMP_MACRO,
     COMBAT_REASON_PREFIXES,
     ENTER_DUNGEON_MACRO,
-    ESP_THREAT_LEAVE_PREFIX,
-    MINING_ABORT_REASON_PREFIX,
     HOME_CHARACTER_DUMP_MACRO,
     HOME_KNOWLEDGE_MACRO,
     IN_STORE_BREAKER_REASON_PREFIX,
@@ -84,7 +79,6 @@ from hengbot.policy_constants import (
     OWNER_RETIRED_BURST_AFTER_PREFIX,
     POLICY_FINAL_STOP_REASONS,
     POLICY_FINAL_STOP_PREFIXES,
-    RETURN_STATIONARY_REASONS,
     STAGE_DEADLINE_STOP_PREFIX,
     TOWN_END_SURVIVAL_STOP_PREFIX,
     TOWN_END_UNMET_STOP_PREFIX,
@@ -381,138 +375,17 @@ TRAVEL_MACRO_PREF_TRIGGERS = {
     "\x1b`n>.": "^T",
 }
 
-# Decision reasons that legitimately hold the player on one tile for many
-# consecutive snapshots and so must NOT feed the loop detector: searching a
-# dead-end, meleeing in place, and waiting out a Word of Recall countdown
-# (~15-35 stationary turns — enough to trip a ≤4-cell window by itself).
-STATIONARY_REASONS = frozenset(
-    {
-        "search",
-        "melee",
-        # Walking returns may need SEARCH_LIMIT stationary searches at each
-        # candidate wall before moving to the next one.  The policy bounds that
-        # work with _wall_search_counts; feeding these deliberate holds to the
-        # 40-cell watchdog produces a false loop at five walls (5 * 8).
-        *RETURN_STATIONARY_REASONS,
-        # The ESP-threat leave relabels the same return machinery
-        # (_esp_threat_leave_key: return:X -> esp-threat:leave-X), so the
-        # same bounded holds arrive under these names.  The recall wait is
-        # emitted only while player.recalling and ends when the recall fires
-        # (n1-b life-357 2026-11-09 14:06 stopped as loop-detected after 32
-        # esp-threat:leave-wait-recall waits on 48F).
-        *(
-            ESP_THREAT_LEAVE_PREFIX + reason[len("return:"):]
-            for reason in RETURN_STATIONARY_REASONS
-        ),
-        "fundraise:wait-recall",
-        # The mining run aborted on a ruled-out unique waits for its Recall
-        # under the abort's name (_mining_abort_exit_key), emitted only while
-        # player.recalling; the countdown (15-35 ticks) ends the hold
-        # (n1-a life-530 2026-11-18 06:40 stopped as loop-detected after 33
-        # waits on Yeek cave 1F with the recall running).
-        f"{MINING_ABORT_REASON_PREFIX}:wait-recall",
-        # Clearing a physically occupied escape route attacks without changing
-        # cells. Accuracy-aware combat projection bounds whether this is chosen.
-        "fundraise:clear-escape-path",
-        "town:wait-recall",
-        "wilderness:wait-recall",
-        # Waiting in place for Word of Recall to fire after a breeder disengage
-        # is a bounded, stationary hold (FRUITLESS_DISENGAGE_LIMIT backstops it,
-        # and recall triggers within ~35 turns).  Like the other *:wait-recall
-        # reasons it must not feed the position loop guard, or the very escape
-        # armed by the breeder-containment disengage re-trips it.
-        "combat:disengage-wait-recall",
-        "breeder-breakthrough:wait-recall",
-        "summoner:wait-recall",
-        # _fruitless_disengage_key re-labels return:* reasons before the CLI
-        # sees them; this is the same bounded _wall_search_counts search above.
-        "combat:disengage-search-upstairs",
-        # Riding out confusion with no physical hostile: the game's
-        # confusion timer counts down every player turn
-        # (magic-effects-timeout-reducer.cpp mod_confusion(-1)), so the hold
-        # ends by itself (n1-b life-297 2026-11-02 22:49 stopped as
-        # loop-detected after 170 waits).
-        "confused:wait",
-    }
-)
-
-# These productive actions deliberately hold the player on ONE tile, which looks
-# like a confined oscillation to the position-based guard. Mining has its own
-# MINING_STALL_LIMIT leash; a quest hold ends when a wave appears or completion
-# routing takes ownership. Walking and failed-position reasons remain guardable.
-STATIONARY_EXEMPT_REASONS = frozenset(
-    {
-        "breakout:dig-to-stairs",
-        # Mining-rework dig, bounded by the sweep's MINING_SWEEP_HARD_LIMIT.
-        "fundraise:dig-to-treasure",
-        "fundraise:dig-mark-bump",
-        "fundraise:mine-treasure",
-        "fundraise:tunnel-out",
-        # Picking the closed door that leads back to a known up staircase;
-        # bounded per door by FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT (D19).
-        "fundraise:open-upstairs-door",
-        # Picking a locked door on the mining closure's route to a detected
-        # vein; bounded per target by MINING_STALL_LIMIT and per floor by
-        # MINING_SWEEP_HARD_LIMIT (D31).
-        "fundraise:seek-treasure:open-door",
-        "unseen:choke-wait",
-        # Repeated opens against the reviewed Q34 ordinary locked door are
-        # productive game actions: each lock-pick attempt advances the game
-        # even while the player stays at the approved approach cell. Counting
-        # them as a position loop stops the quest before the lock is picked.
-        "quest-strategy:open-opening-door",
-        # The approved final door is a locked glass door picked the same way;
-        # its unanswered picks are bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT.
-        "quest-strategy:open-final-door",
-        # The doors opened in order after it; unanswered picks bounded by
-        # Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT per door.
-        "quest-strategy:open-sequence-door",
-        # Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
-        "summoner:hold-choke",
-        "detected:hold-choke",
-        # The Anaguma pocket (owner 2026-11-10): the uses of Stone to Mud from one cell, the hold
-        # on the pocket (bounded by anaguma.WAIT_GAME_TURNS without contact, then a detection
-        # and the plan's end), the detection and the absorbed Speed of the close-in.
-        *ANAGUMA_STATIONARY,
-        "quest-strategy:hold",
-        # Resting on a quest search's cast stop until the detection spacing comes
-        # (quest_target_search._redetect_wait): bounded by HUNT_REDETECT_GAME_TURNS
-        # from the latest cast, then the rows cast and the stop is covered.
-        "quest-search:wait-redetect",
-        # Bounded by the plan's dig_attempt_limit (quest_find_exit).
-        "quest-strategy:exit-dig",
-        # Bounded per warned cell by SEARCH_LIMIT (trap_warning): a corridor of
-        # traps walked one search at a time is no confined loop.
-        "warning:trap-search",
-        # Q25's own trap rule (quest25_battle._trap_key, owner 2026-11-09 「罠探知があるなら使用する
-        # ことで確定。そうでなければ10回で打ち切る。」): bounded per cell by the plan's
-        # revised_plan_values.trap_searches, then the cell is passed.  A trapped corridor walked
-        # one cell at a time is no confined loop (n1-a life-508 2026-11-11: row 1 from [1,14] to
-        # [1,9], at most 10 searches a cell, stopped by the 40-decision window).
-        Q25_TRAP_SEARCH_REASON,
-        # Q25's between-phases rest (quest25_battle._recharge_key, owner 2026-11-06 「各段階の間に、
-        # 魔道具術師の使用回数のうち、攻撃に使うものを全快させる」): each 'R100' advances the game, the
-        # list reads between them spend no turn, and a phase takes at most RECHARGE_REST_LIMIT of
-        # them.  n1-b life-382 2026-11-13 04:42:57: eleven rests on [5,1] tripped the 40-decision
-        # window before the wands were full.
-        Q25_RECHARGE_REASON,
-        ONCE_QUEST_TICK_REST_REASON,
-        # Exact policy-registered escape WAIT terminals. Each owns the existing
-        # bound recorded in ESCAPE_BUDGETED_WAIT_LIMITS and ends visibly as
-        # livelock:exhausted; no other escape reason bypasses the outer guard.
-        *ESCAPE_BUDGETED_WAIT_LIMITS,
-    }
-)
-
-# Fixed-quest combat is productive even when a strategy deliberately fights
-# from one post for an entire wave.  Route/avoid failures remain guardable;
-# only commands which actually attack are exempt from the positional loop net.
-QUEST_COMBAT_REASON_PREFIXES = (
-    "quest-strategy:melee",
-    "quest-strategy:ranged-fire",
-    # The same ranged core labels its Q2 shots separately.
-    "quest-strategy:q2-fire",
-)
+# Decision reasons that legitimately hold the player on one tile and so must
+# NOT feed the loop detector (searching a dead end, meleeing in place, waiting
+# out a Word of Recall countdown, the bounded productive holds, fixed-quest
+# attacks from one post, item use, ranged attacks and chests).  The knowledge,
+# with each reason's bound, lives in the registry (hengbot.reasons
+# STATIONARY_ROWS); these names are its views, read by _cell_loop_guard_applies
+# (tests patch them).  scripts/reason_registry_lint.py fails on a hand list here.
+STATIONARY_REASONS = reasons.stationary_set(reasons.HOLD)
+STATIONARY_EXEMPT_REASONS = reasons.stationary_set(reasons.EXEMPT)
+QUEST_COMBAT_REASON_PREFIXES = reasons.stationary_prefixes(reasons.QUEST_COMBAT)
+STATIONARY_ACTION_PREFIXES = reasons.stationary_prefixes(reasons.ACTION)
 
 # Consecutive town:blocked:* decisions before the bot stops itself. The block
 # is a deliberate stationary latch, so this is a short fuse — it exists because
@@ -956,17 +829,11 @@ def _cell_loop_guard_applies(
         not snapshot.in_town
         and not (
             previous_position == snapshot.player.position
-            and (
-                any(
-                    reason == stationary
-                    or reason.startswith(f"{stationary}:")
-                    for stationary in STATIONARY_REASONS
-                )
-                or reason in STATIONARY_EXEMPT_REASONS
-                or reason.startswith(QUEST_COMBAT_REASON_PREFIXES)
-                or reason.startswith("item:")
-                or reason.startswith("ranged:")
-                or reason.startswith("chest:")
+            and reasons.stationary_matches(
+                reason,
+                STATIONARY_REASONS,
+                STATIONARY_EXEMPT_REASONS,
+                QUEST_COMBAT_REASON_PREFIXES + STATIONARY_ACTION_PREFIXES,
             )
         )
     )

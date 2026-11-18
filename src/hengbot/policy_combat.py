@@ -725,7 +725,7 @@ class CombatMixin:
                 for monster in strategic_hostiles
             )
         )
-        # Keep this aligned with cli.STATIONARY_REASONS and the
+        # Keep this aligned with reasons.STATIONARY_ROWS and the
         # stationary_by_design cases in _break_positional_oscillation. Importing
         # the CLI set here would introduce a policy/CLI cycle; these are the
         # bounded recall/confirmation waits and deliberate quest/rest holds.

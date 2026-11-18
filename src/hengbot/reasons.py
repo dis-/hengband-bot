@@ -524,3 +524,200 @@ def is_survival(reason: str | None, return_trigger: str | None = None) -> bool:
     return reason.startswith(SURVIVAL_RETURN_PREFIX) and is_survival_return_trigger(
         return_trigger
     )
+
+
+# ---------------------------------------------------------------- stationary (cli's loop guard)
+# The reasons that hold the player on one cell by design, so the position loop guard
+# (cli._cell_loop_guard_applies) does not count their boards: each one is bounded by its own
+# leash, named in its rule.  Before this table they were hand lists in cli.py (STATIONARY_REASONS,
+# STATIONARY_EXEMPT_REASONS, QUEST_COMBAT_REASON_PREFIXES and three literal prefixes), and a
+# reason left out of them stopped the bot as loop-detected (11-06 Q18's rest, 11-11 Q25's trap
+# search, 11-13 Q25's recharge rest).  cli reads this table (``stationary_set`` /
+# ``stationary_prefixes``) and scripts/reason_registry_lint.py fails on a hand list in cli.py.
+# Add a row in the same commit as a new stationary reason.
+#
+# How a row matches a reason:
+#
+# ``HOLD``          the reason itself or any ``reason + ":..."`` (cli.STATIONARY_REASONS).
+# ``EXEMPT``        the reason exactly (cli.STATIONARY_EXEMPT_REASONS).
+# ``QUEST_COMBAT``  every reason that starts with it: fixed-quest attacks from one post
+#                   (cli.QUEST_COMBAT_REASON_PREFIXES).
+# ``ACTION``        every reason that starts with it: item use, ranged attacks and chests
+#                   (cli.STATIONARY_ACTION_PREFIXES).
+#
+# The guard skips a board only when the player did not move.  tests/test_stationary_reasons.py
+# pins the answer for every reason the code knows, and that the producers' own constants
+# (policy_constants.RETURN_STATIONARY_REASONS, anaguma.STATIONARY, policy.ESCAPE_BUDGETED_WAIT_LIMITS,
+# quest25_battle, quest_target_search, ...) are rows of this table.
+HOLD = "hold"
+EXEMPT = "exempt"
+QUEST_COMBAT = "quest-combat"
+ACTION = "action"
+STATIONARY_MATCHES = (HOLD, EXEMPT, QUEST_COMBAT, ACTION)
+
+
+class Stationary(NamedTuple):
+    reason: str
+    match: str
+    rule: str
+
+
+STATIONARY_ROWS: list[Stationary] = []
+
+
+def _stationary(match, rule, *names) -> None:
+    STATIONARY_ROWS.extend(Stationary(name, match, rule) for name in names)
+
+
+# ======================================== HOLD: the reason or reason + ":..."
+_stationary(HOLD, "searching a dead end in place", "search")
+_stationary(HOLD, "meleeing in place", "melee")
+# Walking returns may need SEARCH_LIMIT stationary searches at each candidate wall before moving
+# to the next one; the policy bounds that work with _wall_search_counts (feeding these holds to
+# the 40-cell watchdog produces a false loop at five walls, 5 * 8).  The Recall countdown (15-35
+# turns) and the walk-out dig (walkout_dig; one cell tunnelled over several decisions, ended by
+# the navigation ledger) are the other holds (policy_constants.RETURN_STATIONARY_REASONS).
+_RULE_RETURN_HOLD = ("the walking return's bounded holds: the wall search (_wall_search_counts), the "
+                     "Recall countdown, the walk-out dig (policy_constants.RETURN_STATIONARY_REASONS)")
+_stationary(HOLD, _RULE_RETURN_HOLD,
+            "return:search-upstairs", "return:wait-recall", "return:dig-to-upstairs",
+            "return:dig-to-frontier")
+# The ESP-threat leave relabels the same return machinery (_esp_threat_leave_key: return:X ->
+# esp-threat:leave-X), so the same bounded holds arrive under these names.  The recall wait is
+# emitted only while player.recalling and ends when the recall fires (n1-b life-357 2026-11-09
+# 14:06 stopped as loop-detected after 32 esp-threat:leave-wait-recall waits on 48F).
+_stationary(HOLD, _RULE_RETURN_HOLD + ", relabelled by the ESP-threat leave",
+            "esp-threat:leave-search-upstairs", "esp-threat:leave-wait-recall",
+            "esp-threat:leave-dig-to-upstairs", "esp-threat:leave-dig-to-frontier")
+_RULE_WAIT_RECALL = "waiting in place for Word of Recall to fire: the countdown (15-35 turns) ends the hold"
+_stationary(HOLD, _RULE_WAIT_RECALL, "fundraise:wait-recall")
+# The mining run aborted on a ruled-out unique waits for its Recall under the abort's name
+# (_mining_abort_exit_key, policy_constants.MINING_ABORT_REASON_PREFIX + ":wait-recall"), emitted
+# only while player.recalling (n1-a life-530 2026-11-18 06:40 stopped as loop-detected after 33
+# waits on Yeek cave 1F with the recall running).
+_stationary(HOLD, _RULE_WAIT_RECALL + " (the mining abort's)",
+            "fundraise:abort-unbeatable-unique:wait-recall")
+# Clearing a physically occupied escape route attacks without changing cells; accuracy-aware
+# combat projection bounds whether this is chosen.
+_stationary(HOLD, "clearing an occupied escape route attacks without moving",
+            "fundraise:clear-escape-path")
+_stationary(HOLD, _RULE_WAIT_RECALL, "town:wait-recall", "wilderness:wait-recall")
+# Waiting for Recall after a breeder disengage is bounded (FRUITLESS_DISENGAGE_LIMIT backstops it);
+# like the other *:wait-recall reasons it must not feed the guard, or the very escape armed by the
+# breeder-containment disengage re-trips it.
+_stationary(HOLD, _RULE_WAIT_RECALL + " (FRUITLESS_DISENGAGE_LIMIT)",
+            "combat:disengage-wait-recall", "breeder-breakthrough:wait-recall", "summoner:wait-recall")
+# _fruitless_disengage_key re-labels return:* reasons before the CLI sees them; this is the same
+# bounded _wall_search_counts search as return:search-upstairs.
+_stationary(HOLD, _RULE_RETURN_HOLD + ", relabelled by the fruitless disengage",
+            "combat:disengage-search-upstairs")
+# Riding out confusion with no physical hostile: the game's confusion timer counts down every
+# player turn (magic-effects-timeout-reducer.cpp mod_confusion(-1)), so the hold ends by itself
+# (n1-b life-297 2026-11-02 22:49 stopped as loop-detected after 170 waits).
+_stationary(HOLD, "riding out confusion: the game's timer ends it", "confused:wait")
+
+# ======================================== EXEMPT: the reason exactly
+# Productive actions that deliberately hold the player on one tile, which looks like a confined
+# oscillation to the position-based guard.  Walking and failed-position reasons remain guardable.
+_stationary(EXEMPT, "digging toward the stairs", "breakout:dig-to-stairs")
+# Mining-rework digs, bounded by the sweep's MINING_SWEEP_HARD_LIMIT and MINING_STALL_LIMIT.
+_stationary(EXEMPT, "mining: MINING_STALL_LIMIT / MINING_SWEEP_HARD_LIMIT",
+            "fundraise:dig-to-treasure", "fundraise:dig-mark-bump", "fundraise:mine-treasure",
+            "fundraise:tunnel-out")
+# Picking the closed door that leads back to a known up staircase; bounded per door by
+# FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT (D19).
+_stationary(EXEMPT, "FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT per door (D19)",
+            "fundraise:open-upstairs-door")
+# Picking a locked door on the mining closure's route to a detected vein; bounded per target by
+# MINING_STALL_LIMIT and per floor by MINING_SWEEP_HARD_LIMIT (D31).
+_stationary(EXEMPT, "MINING_STALL_LIMIT per target, MINING_SWEEP_HARD_LIMIT per floor (D31)",
+            "fundraise:seek-treasure:open-door")
+_stationary(EXEMPT, "waiting at a choke for an unseen attacker", "unseen:choke-wait")
+# Repeated opens against the reviewed Q34 doors are productive game actions: each lock-pick
+# attempt advances the game while the player stays at the approved approach cell.  The final
+# (glass) door is bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT, the doors after it by
+# Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT per door.
+_stationary(EXEMPT, "Q34's lock picks (Q34_FINAL_DOOR_ATTEMPT_LIMIT, Q34_SEQUENCE_DOOR_ATTEMPT_LIMIT)",
+            "quest-strategy:open-opening-door", "quest-strategy:open-final-door",
+            "quest-strategy:open-sequence-door")
+# Bounded by DETECTED_THREAT_HOLD_MAX_GAME_TURNS (50 player / 500 game turns).
+_stationary(EXEMPT, "DETECTED_THREAT_HOLD_MAX_GAME_TURNS",
+            "summoner:hold-choke", "detected:hold-choke")
+# The Anaguma pocket (owner 2026-11-10): the uses of Stone to Mud from one cell (also through the
+# absorbed power), the hold on the pocket (bounded by anaguma.WAIT_GAME_TURNS without contact,
+# then a detection and the plan's end), the detection and the absorbed Speed of the close-in
+# (anaguma.STATIONARY).
+_stationary(EXEMPT, "the Anaguma pocket's own bounds (anaguma.WAIT_GAME_TURNS, the plan's end)",
+            "anaguma:dig", "anaguma:dig:absorbed-power", "anaguma:hold", "anaguma:detect",
+            "anaguma:close-haste")
+# A quest hold ends when a wave appears or completion routing takes ownership.
+_stationary(EXEMPT, "a quest hold ends with a wave or the completion routing",
+            "quest-strategy:hold")
+# Resting on a quest search's cast stop until the detection spacing comes
+# (quest_target_search._redetect_wait): bounded by HUNT_REDETECT_GAME_TURNS from the latest cast,
+# then the rows cast and the stop is covered.
+_stationary(EXEMPT, "HUNT_REDETECT_GAME_TURNS from the latest cast",
+            "quest-search:wait-redetect")
+_stationary(EXEMPT, "the plan's dig_attempt_limit", "quest-strategy:exit-dig")
+# Bounded per warned cell by SEARCH_LIMIT (trap_warning): a corridor of traps walked one search at
+# a time is no confined loop.
+_stationary(EXEMPT, "SEARCH_LIMIT per warned cell", "warning:trap-search")
+# Q25's own trap rule (quest25_battle._trap_key, owner 2026-11-09 「罠探知があるなら使用することで確定。
+# そうでなければ10回で打ち切る。」): bounded per cell by the plan's revised_plan_values.trap_searches
+# (n1-a life-508 2026-11-11: row 1 from [1,14] to [1,9], stopped by the 40-decision window).
+_stationary(EXEMPT, "the plan's trap_searches per cell (owner 2026-11-09)",
+            "quest25:trap-search")
+# Q25's between-phases rest (quest25_battle._recharge_key, owner 2026-11-06 「各段階の間に、魔道具術師の
+# 使用回数のうち、攻撃に使うものを全快させる」): each 'R100' advances the game and a phase takes at most
+# RECHARGE_REST_LIMIT of them (n1-b life-382 2026-11-13 04:42:57: eleven rests on [5,1]).
+_stationary(EXEMPT, "RECHARGE_REST_LIMIT per phase (owner 2026-11-06)",
+            "quest25:rest-recharge")
+_stationary(EXEMPT, "the once-quest floor's rest (policy_constants.ONCE_QUEST_TICK_REST_REASON)",
+            "once-quest:recover")
+# Exact policy-registered escape WAIT terminals (policy.ESCAPE_BUDGETED_WAIT_LIMITS).  Each owns
+# the bound recorded there and ends visibly as livelock:exhausted; no other escape reason bypasses
+# the outer guard.
+_stationary(EXEMPT, "policy.ESCAPE_BUDGETED_WAIT_LIMITS",
+            "status-threat:wait", "flee:wait", "return:wait", "combat:disengage-wait", "emergency:wait",
+            "town:blocked:repetition")
+
+# ======================================== QUEST_COMBAT: every reason starting with it
+# Fixed-quest combat is productive even when a strategy deliberately fights from one post for an
+# entire wave.  Route/avoid failures remain guardable; only commands which actually attack are exempt.
+_RULE_QUEST_COMBAT = "a fixed-quest attack from one post: the wave or the quest ends it"
+_stationary(QUEST_COMBAT, _RULE_QUEST_COMBAT,
+            "quest-strategy:melee", "quest-strategy:ranged-fire",
+            # The same ranged core labels its Q2 shots separately.
+            "quest-strategy:q2-fire")
+
+# ======================================== ACTION: every reason starting with it
+_stationary(ACTION, "using an item in place", "item:")
+_stationary(ACTION, "a ranged attack from one cell", "ranged:")
+_stationary(ACTION, "opening or disarming a chest in place", "chest:")
+
+
+def stationary_set(match: str) -> frozenset:
+    """The reasons of the ``HOLD`` or ``EXEMPT`` rows."""
+    return frozenset(row.reason for row in STATIONARY_ROWS if row.match == match)
+
+
+def stationary_prefixes(match: str) -> tuple:
+    """The prefixes of the ``QUEST_COMBAT`` or ``ACTION`` rows, in the table's order."""
+    return tuple(row.reason for row in STATIONARY_ROWS if row.match == match)
+
+
+def stationary_matches(reason: str, holds, exempt, prefixes) -> bool:
+    """``reason`` holds the player on one cell by design, read from the given sets (cli passes
+    its module names, which a test may patch)."""
+    return (
+        any(reason == hold or reason.startswith(f"{hold}:") for hold in holds)
+        or reason in exempt
+        or reason.startswith(tuple(prefixes))
+    )
+
+
+def stationary(reason: str | None) -> bool:
+    """``reason`` holds the player on one cell by design (the table above)."""
+    return bool(reason) and stationary_matches(
+        reason, stationary_set(HOLD), stationary_set(EXEMPT),
+        stationary_prefixes(QUEST_COMBAT) + stationary_prefixes(ACTION))

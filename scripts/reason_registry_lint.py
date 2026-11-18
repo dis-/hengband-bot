@@ -29,6 +29,15 @@ row, say); what resolves to a shape is checked:
   list), and a function named ``*survival*`` that tests a reason with ``.startswith``
   (a second survival test), fail.
 
+* a hand list of stationary reasons in ``cli.py`` is a finding: the reasons that hold the
+  player on one cell by design (the loop guard's exemptions, ``cli._cell_loop_guard_applies``)
+  live in ``reasons.STATIONARY_ROWS`` only.  A ``cli`` module constant named ``*STATIONARY*``,
+  ``*EXEMPT*`` or ``*COMBAT_REASON_PREFIXES`` other than the town fuse's that holds a literal,
+  and a literal ``startswith`` / ``in`` test of the reason in ``_cell_loop_guard_applies``, fail.
+
+Report only (no failure): the count of resolved shapes that no row of the registry knows
+(neither ``reasons.lookup`` nor ``reasons.stationary``); ``--unregistered`` lists them.
+
 ``--print`` lists every resolved shape with its registry entry, for writing the registry's
 diff.
 """
@@ -410,9 +419,16 @@ def repository_sources() -> dict[str, str]:
             if path.stem != 'reasons'}
 
 
+_REPOSITORY_SHAPES: dict = {}
+
+
 def shapes(sources: dict[str, str] | None = None) -> dict[str, list[tuple[str, int]]]:
-    """Every resolved reason shape -> where the source sends it."""
-    scanner = Scanner(sources if sources is not None else repository_sources())
+    """Every resolved reason shape -> where the source sends it (the repository's, once a run)."""
+    if sources is None:
+        if 'shapes' not in _REPOSITORY_SHAPES:
+            _REPOSITORY_SHAPES['shapes'] = shapes(repository_sources())
+        return _REPOSITORY_SHAPES['shapes']
+    scanner = Scanner(sources)
     out: dict[str, list[tuple[str, int]]] = {}
     for site in scanner.sites():
         for shape in site.shapes:
@@ -462,8 +478,68 @@ def survival_findings(sources: dict[str, str] | None = None) -> list[str]:
     return findings
 
 
+STATIONARY_MODULE = 'cli'
+STATIONARY_GUARD = '_cell_loop_guard_applies'
+# cli's town-blocked fuse reads the survival families, not the loop guard's exemptions.
+STATIONARY_NAME_ALLOWED = frozenset({'TOWN_FUSE_COMBAT_REASON_PREFIXES'})
+
+
+def _stationary_name(name: str) -> bool:
+    return name not in STATIONARY_NAME_ALLOWED and (
+        'STATIONARY' in name or 'EXEMPT' in name or name.endswith('COMBAT_REASON_PREFIXES'))
+
+
+def _literal(node) -> bool:
+    """``node`` writes reasons by hand: a string literal, or a set / list / tuple display."""
+    return any(isinstance(sub, (ast.Set, ast.List, ast.Tuple, ast.JoinedStr))
+               or (isinstance(sub, ast.Constant) and isinstance(sub.value, str))
+               for sub in ast.walk(node))
+
+
+def stationary_findings(sources: dict[str, str] | None = None) -> list[str]:
+    """A stationary reason listed by hand in cli.py (``reasons.STATIONARY_ROWS`` holds them)."""
+    sources = sources if sources is not None else repository_sources()
+    source = sources.get(STATIONARY_MODULE)
+    if source is None:
+        return []
+    findings = []
+    tree = ast.parse(source)
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            names = [name.id for target in targets for name in ast.walk(target)
+                     if isinstance(name, ast.Name) and _stationary_name(name.id)]
+            if names and _literal(node.value):
+                findings.append(
+                    f'stationary reasons listed by hand in {STATIONARY_MODULE}.py:{node.lineno} '
+                    f'{names[0]}: declare them in hengbot/reasons.py STATIONARY_ROWS and read '
+                    'reasons.stationary_set / stationary_prefixes')
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == STATIONARY_GUARD:
+            for sub in ast.walk(node):
+                hand = None
+                if (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute)
+                        and sub.func.attr == 'startswith' and _is_reason_value(sub.func.value)
+                        and any(_literal(arg) for arg in sub.args)):
+                    hand = 'startswith'
+                elif (isinstance(sub, ast.Compare) and _is_reason_value(sub.left)
+                        and any(isinstance(op, (ast.In, ast.NotIn)) for op in sub.ops)
+                        and any(_literal(comparator) for comparator in sub.comparators)):
+                    hand = 'in'
+                if hand:
+                    findings.append(
+                        f'a stationary reason tested by hand in {STATIONARY_MODULE}.py:{sub.lineno} '
+                        f'{STATIONARY_GUARD} ({hand}): declare it in hengbot/reasons.py STATIONARY_ROWS')
+    return findings
+
+
+def unregistered_shapes(sources: dict[str, str] | None = None) -> dict[str, list[tuple[str, int]]]:
+    """The resolved shapes no row of the registry knows (report only)."""
+    return {shape: places for shape, places in shapes(sources).items()
+            if reasons.lookup(shape) is None and not reasons.stationary(shape)}
+
+
 def analyze(sources: dict[str, str] | None = None) -> list[str]:
-    findings = survival_findings(sources)
+    findings = survival_findings(sources) + stationary_findings(sources)
     for shape, places in sorted(shapes(sources).items()):
         if reasons.escape_shaped(shape) and reasons.lookup(shape) is None:
             where = ', '.join(f'{module}.py:{line}' for module, line in sorted(set(places))[:3])
@@ -479,9 +555,16 @@ def main(argv: list[str]) -> int:
             where = ', '.join(f'{module}:{line}' for module, line in sorted(set(places))[:2])
             print(f'{shape}\t{entry.kind if entry else "-"}\t{where}')
         return 0
+    if '--unregistered' in argv:
+        for shape, places in sorted(unregistered_shapes().items()):
+            where = ', '.join(f'{module}:{line}' for module, line in sorted(set(places))[:2])
+            print(f'{shape}	{where}')
+        return 0
     findings = analyze()
     for finding in findings:
         print(finding)
+    print(f'report only: {len(unregistered_shapes())} reason shapes sent by the source are not in '
+          'the registry (--unregistered lists them)')
     return 1 if findings else 0
 
 
