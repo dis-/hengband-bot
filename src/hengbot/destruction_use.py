@@ -376,16 +376,25 @@ def spares(policy, snapshot, monster) -> bool:
             or _guardian_kept(policy, snapshot, monster, _guardian_race(policy, snapshot)))
 
 
-def _spared_in_circle(policy, snapshot, target) -> bool:
+def _spared_in_circle(policy, snapshot, target, *, centre=None) -> bool:
     """A damaged quest target (healed by the use) or the floor's guardian to be kept
     (``_guardian_kept``: deleted by the use; a T1 guardian is not kept, owner 2026-11-17 Q3)
-    within the worst radius."""
+    within the worst radius of ``centre`` (the player's cell by default)."""
+    origin = snapshot.player.position if centre is None else centre
+    return any(game_distance(origin, position) <= WORST_RADIUS
+               for position in _spared_positions(policy, snapshot, target, near=origin))
+
+
+def _spared_positions(policy, snapshot, target, *, near=None) -> list:
+    """The cells of the monsters a use must not reach (``_spared_in_circle``): a damaged quest
+    target, the floor's guardian to be kept.  With ``near``, only those within the worst radius
+    of it are judged (the guardian's reading is a threat projection)."""
     guardian = _guardian_race(policy, snapshot)
-    return any(
-        game_distance(snapshot.player.position, monster.position) <= WORST_RADIUS
-        and (_guardian_kept(policy, snapshot, monster, guardian)
-             or (monster.race_id == target and monster.hp < monster.max_hp))
-        for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
+    return [monster.position
+            for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            if (near is None or game_distance(near, monster.position) <= WORST_RADIUS)
+            and (_guardian_kept(policy, snapshot, monster, guardian)
+                 or (monster.race_id == target and monster.hp < monster.max_hp))]
 
 
 def _visible_hostiles_except_target(policy, snapshot, target) -> list:
@@ -527,13 +536,38 @@ def walk_step(policy, snapshot, subject):
     """The one walk toward a use (maintainability review 2026-11-17, 5(a)-4), shared by the
     approaches (threat_tiers ``approach_key`` and ``remembered_approach_key``, deep_teleport
     ``_walk_step``): each caller picks its own ``subject`` (the monster the use asks about) and
-    asks its own gates first.  None without a subject or with it already inside the sure radius
-    (only the use answers there), else the first step toward the nearest cell within the sure
-    radius of it (policy._nearest_goal_step; None when there is no way)."""
-    if subject is None or in_sure_radius(snapshot, subject):
+    asks its own gates first.  None without a subject or on a use cell already (``use_cell``:
+    only the use answers there), else the first step toward the nearest use cell
+    (policy._nearest_goal_step; None when there is no way).
+
+    n1-b life-411 (城65階, 2026-11-18 21:29, loop-detected): the walk stopped at the first cell
+    within 13 of the T1 it went to (ストーム・ワイアーム), where the use was refused: the floor's
+    guardian 皇帝『レイザーク』 (T2 alone, kept) stood within the worst radius 17
+    (``_spared_in_circle``).  threat_tiers ``approach_owns`` then gave the board to the sensed
+    leave's walk, one step out of reach, and the approach walked back: (10,73)-(9,74) until the
+    loop detector.  The walk now goes to a cell where the use is not refused for its place."""
+    if subject is None:
+        return None
+    spared = spared_positions(policy, snapshot)
+    if use_cell(snapshot, subject, spared):
         return None
     return policy._nearest_goal_step(
-        snapshot, lambda grid: in_sure_radius(snapshot, subject, centre=grid.position))
+        snapshot, lambda grid: use_cell(snapshot, subject, spared, centre=grid.position))
+
+
+def use_cell(snapshot, subject, spared, *, centre=None) -> bool:
+    """``centre`` (the player's cell by default) is a cell the approach walks to: ``subject`` is
+    inside its sure radius and none of ``spared`` (``spared_positions``) inside its worst radius,
+    so the use is not refused for its place (``_spared_in_circle``)."""
+    origin = snapshot.player.position if centre is None else centre
+    return (in_sure_radius(snapshot, subject, centre=origin)
+            and not any(game_distance(origin, position) <= WORST_RADIUS for position in spared))
+
+
+def spared_positions(policy, snapshot) -> list:
+    """The cells a use must keep out of its worst radius (the damaged quest target, the floor's
+    guardian to be kept): ``use_cell``'s ``spared``."""
+    return _spared_positions(policy, snapshot, _target_race(policy, snapshot))
 
 
 def quest_target_race(policy, snapshot) -> int | None:

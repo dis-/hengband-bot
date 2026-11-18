@@ -1614,7 +1614,28 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:_guardian_kept": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:_guardian_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_reliable_carried_staff": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:_spared_positions": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1684,6 +1705,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:spared_positions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:staff_carry_uses": {
     "classification": "data",
     "rows": [
@@ -1692,6 +1720,13 @@
     "delegation": "selected child; no independent success"
   },
   "destruction_use.py:usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:use_cell": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

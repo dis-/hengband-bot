@@ -774,13 +774,22 @@ def _in_reach(snapshot, subject) -> bool:
 def approach_owns(policy, snapshot, strong) -> bool:
     """The sensed T1 leave gives way to ``approach_key``: every T1 is known only by detection,
     the means are held, and the monster the use asks about (``approach_subject``) is not
-    already in reach of a use the gates refuse."""
+    already in reach of a use the gates refuse, unless the use is refused only for this cell's
+    place and the walk goes on to a cell where it is not (destruction_use ``walk_step``, the
+    same reading as the walk's).
+
+    n1-b life-411 (城65階, 2026-11-18 21:29, loop-detected): at (10,73) the ストーム・ワイアーム
+    was 13 off, in reach, and the use refused (the guardian 皇帝『レイザーク』, kept, within the
+    worst radius): the leave walked to (9,74), 14 off, where the approach owned the board again
+    and walked back.  The walk's own reading now decides both boards."""
     targets = _approach_targets(policy, snapshot, strong)
     if not targets:
         return False
-    return (not _in_reach(snapshot, approach_subject(policy, snapshot, targets))
+    subject = approach_subject(policy, snapshot, targets)
+    return (not _in_reach(snapshot, subject)
             or destruction_use.usable(policy, snapshot,
-                                      leaving=destruction_leaving(policy, snapshot, targets)))
+                                      leaving=destruction_leaving(policy, snapshot, targets))
+            or destruction_use.walk_step(policy, snapshot, subject) is not None)
 
 
 def approach_key(policy, snapshot, strong) -> str | None:
