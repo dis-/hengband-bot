@@ -20,8 +20,10 @@ all three in the Outpost with Q32 offered:
 
 * n1-c life-217 (Magic-Eater Lv36, permanent +6, hasted on the board): melee 231.8, devices 72.2;
   per action it was the hasted tier (135..240), per 10 game turns at +6 (energy 16) it is 370.8,
-  the full tier: no Speed dose is asked; it is refused only for lacking resist_fear, and Q32 heads
-  its offers ahead of Q18 (met: it takes its level-25 place).
+  the full tier: no Speed dose is asked; it lacks resist_fear, but it carries the heroism rule's 15
+  Potions of Heroism, which stand in for it (owner 2026-11-19 「恐怖攻撃はヒーローの薬で対処する決まり
+  が既にある」, resist_alternatives): it is accepted, and Q32 heads its offers ahead of Q18 (met: it
+  takes its level-25 place).
 * n1-a life-531 (warrior Lv42, +4): melee 496.9 (695.6 per 10 game turns) -- met; it is short only
   of the four Light scrolls.
 * n1-b life-411 (Magic-Eater Lv50, +25): melee 504.6 (1766.2), devices 280 -- met; refused only for
@@ -127,8 +129,9 @@ class Quest32RecordedAcceptanceTest(unittest.TestCase):
             # The full tier asks no haste: the force's own Speed potion, no departure flag.
             self.assertEqual((resolved["speed_potions"], resolved.get("speed_required_to_depart")), (1, None))
             verdict, telemetry, strategy = readiness(policy, board)
-            self.assertEqual((verdict, telemetry["reason"], strategy["failed"]),
-                             (False, "strategy-force", ["resists"]))
+            self.assertEqual((verdict, telemetry["reason"], strategy["failed"]), (True, "ready", []))
+            self.assertEqual(strategy["carries"]["heroism_potions"],
+                             {"measured": 15, "required": 15, "ready": True})
             self.assertTrue(policy._fixed_quest_is_offered(board, 32))
             self.assertEqual(policy._fixed_quest_head(board).id, 32)
 

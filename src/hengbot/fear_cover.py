@@ -9,7 +9,8 @@ Owner 2026-11-11, answer to 「恐怖耐性が無い時のヒーローの薬…�
 強い相手（T2 以上の戦い）と戦い始める時に先に飲む。持っていれば、さっきの「恐怖の呪文の相手は
 T2 にしない」の除外は外す」.  So fear is covered by the resistance, by a running heroism or
 berserk, or by a carried Potion of Heroism (drunk by its own rung); blindness only by the
-resistance.
+resistance -- or, owner 2026-11-19, for a Magic-Eater with telepathy, whose absorbed powers work
+blind (resist_alternatives).
 
 Game (C:/hengband/src):
 - mspell-status.cpp:248-262 ``spell_RF5_SCARE``: resisted by ``has_resist_fear``, else a saving
@@ -46,8 +47,12 @@ def fear_covered(policy, snapshot) -> bool:
 
 
 def blind_covered(snapshot) -> bool:
-    """The player resists a blindness spell (no potion stands in for it)."""
-    return "resist_blind" in snapshot.player.abilities
+    """The player resists a blindness spell (no potion stands in for it), or is a Magic-Eater
+    with telepathy (owner 2026-11-19 「魔道具術師でテレパシーがあるなら盲目でも戦闘に支障はない」,
+    resist_alternatives)."""
+    from hengbot import resist_alternatives
+    return ("resist_blind" in snapshot.player.abilities
+            or resist_alternatives.blind_covered_by_telepathy(snapshot))
 
 
 def withheld(policy, snapshot, hostiles) -> tuple:
