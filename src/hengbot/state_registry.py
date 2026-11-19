@@ -1864,6 +1864,9 @@ REGISTRY = (
     # summoner_wait
     S("_immobile_summoner_memory", "summoner_wait", FLOOR,
       "summoner_wait: immobile summoner memory (no comment at its definition)", destruction=True),
+    S("_detected_hold_outwaited", "summoner_wait", FLOOR,
+      "The detected hostiles an expired choke hold waited out on this floor visit: they arm no later detected-pack wait.",
+      destruction=True),
     S("_summoner_wait", "summoner_wait", FLOOR,
       "summoner_wait: summoner wait (no comment at its definition)"),
     # survival_preemption
