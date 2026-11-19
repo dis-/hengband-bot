@@ -147,6 +147,11 @@ class QuestFloorNavigator:
     # spent (held to the bound with nothing come), a frozenset replaced whole.  Same rule.
     lure_hold = 0
     lure_spent = frozenset()
+    # The trees and walls the plan opened on this floor (quest_lure_approach, owner 2026-11-19
+    # 「壁を溶かして道を作る。邪魔なら木もファイアボルトなどで燃やして良い」), and the uses aimed at each
+    # cell: (cell, count) pairs.  Replaced whole.  Same rule.
+    opened_cells = frozenset()
+    open_tries = ()
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -219,6 +224,8 @@ class QuestFloorNavigator:
         self.wait_idle = None
         self.lure_hold = 0
         self.lure_spent = frozenset()
+        self.opened_cells = frozenset()
+        self.open_tries = ()
         self.summon_chase = None
         self.phase_battle = None
 

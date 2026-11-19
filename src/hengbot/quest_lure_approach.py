@@ -33,6 +33,20 @@ and who are closed on afterwards).  The phase runs while an approach race lives.
      sides act and no approach race has a line (the owner's allowance), none other the split refuses.
      Held there until a lure race is seen, up to ``enemy_wait_turns``; then the cell is spent.
 
+1b. The way opened (``_open_way``), owner 2026-11-19 (verbatim) for a lure with no cell a Gachapin
+   walks to: 「壁を溶かして道を作る。邪魔なら木もファイアボルトなどで燃やして良い」.  With no start, or a lure
+   race seen out of the approach races' range that neither comes nor can be shot: the fewest trees and
+   granite walls (at most ``MAX_OPENINGS``) whose opening lets one walk, as the game moves it
+   (quest_wait_placement ``walks``: the cells its moves were refused, else headed for), to a cell where
+   it acts and no approach race has a line of fire, the map opened counted too (an opening changes the
+   Queens' lines as well).  From the nearest cell out of every approach race's line of fire that reaches
+   the first of them, it is opened: a tree by a burning power or device aimed at it (effect-feature.cpp
+   affect_feature: FIRE, ELEC and PLASMA 「燃えた」, the tree becoming GRASS, or BRAKE one time in three;
+   a bolt stops on the tree, the first grid without PROJECTION on its path), a granite wall by Stone to Mud
+   along a ray every grid of which passes the beam (sealed_pocket ``melt_at_key``).  ``OPEN_TRIES`` uses
+   per tree, sealed_pocket's own count per wall.  The map the plan reads is the board's where a tree is
+   burnt or a wall melted (quest_alignment_split ``board_terrain``).
+
 2. The approach, the lure races dead (``_approach``): nothing of the approach races in view, a walk to
    the cell from which exactly one approach race has a line to the player (where only one sees him),
    counting a granite wall beside it melted from there, on the forest side (a tree beside it) first,
@@ -62,6 +76,17 @@ LURE_WALK_REASON = "quest-strategy:lure-walk"
 LURE_BACK_REASON = "quest-strategy:lure-back"
 APPROACH_WALK_REASON = "quest-strategy:queen-approach"
 MELT_REASON = "quest-strategy:queen-approach-melt"
+OPEN_WALK_REASON = "quest-strategy:lure-open-walk"
+OPEN_BURN_REASON = "quest-strategy:lure-burn-tree"
+OPEN_MELT_REASON = "quest-strategy:lure-melt-wall"
+# The openings one way may need (the fewest are chosen; a way needing more is not opened).
+MAX_OPENINGS = 3
+# The uses aimed at one tree before it is given up (the wand's or the power's failures).
+OPEN_TRIES = 3
+# effect-feature.cpp affect_feature: the elements a tree 「燃えた」 to (owner 2026-11-19
+# 「木もファイアボルトなどで燃やして良い」); disintegration stays refused (owner 2026-11-16).
+BURNING_ELEMENTS = frozenset({"FIRE", "ELEC", "PLASMA"})
+SPELL_RANGE = 18  # AngbandSystem::get_max_range
 MAX_PLAYER_SIGHT = 20
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 _STAND = frozenset({"floor", "passage"})
@@ -225,6 +250,161 @@ def _lure_start(policy, snapshot, navigator, plan, read, lure, approach, taken) 
     return _hold(policy, navigator)
 
 
+# -- 1b. opening the way (owner 2026-11-19 「壁を溶かして道を作る。邪魔なら木もファイアボルトなどで燃やして良い」)
+
+
+def _openable(policy, snapshot, navigator, read, cell, burn: bool, melt: bool) -> bool:
+    if cell in navigator.opened_cells or dict(navigator.open_tries).get(cell, 0) >= OPEN_TRIES:
+        return False
+    if read.terrain.get(cell) == "tree":
+        return burn
+    return melt and _meltable(snapshot, navigator, cell)
+
+
+def _openings(policy, snapshot, navigator, read, row, spot, burn, melt):
+    """The fewest trees and walls whose opening lets ``row`` walk to a player on ``spot`` as the game
+    moves it (quest_wait_placement ``walks``): each time its walk stops or goes round, the first of the
+    cells of the move that found none free, else of the cells its moves headed for, that can be opened.
+    None beyond MAX_OPENINGS or with nothing to open."""
+    opened: list = []
+    current = read
+    for _ in range(MAX_OPENINGS + 1):
+        if current.walks(row, spot, current._blocked(row, spot) - {spot}):
+            return opened
+        candidates = [*current.last_refused, *reversed(current.last_headed)]
+        cell = next((cell for cell in candidates if cell not in opened
+                     and _openable(policy, snapshot, navigator, current, cell, burn, melt)), None)
+        if cell is None or len(opened) >= MAX_OPENINGS:
+            return None
+        opened.append(cell)
+        current = read.with_opened(opened)
+    return None
+
+
+def _fire_key(policy, snapshot, cell) -> str | None:
+    """A burning power or device aimed at ``cell`` (me_device_attacks ``device_target_key``; a carried
+    wand or rod through get_aim_dir's free cursor, as quest25_battle aims at a grid)."""
+    from hengbot import me_device_attacks
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.model import TVAL_ROD, TVAL_WAND
+
+    if snapshot.player.blind or snapshot.player.confused:
+        return None
+    best = None
+    if me_device_attacks.can_use_powers(snapshot):
+        for power, success in me_device_attacks.attack_uses(policy, snapshot, powerful=False):
+            if power.element in BURNING_ELEMENTS and power.aimed and (best is None or success > best[0]):
+                best = (success, power)
+    if best is not None:
+        key = me_device_attacks.device_target_key(policy, best[1], Position(*cell), snapshot)
+        policy.last_reason = OPEN_BURN_REASON
+        return key
+    for item in snapshot.inventory:
+        kind = {TVAL_WAND: "wand", TVAL_ROD: "rod"}.get(item.tval)
+        power = me_device_attacks.POWERS.get((kind, item.sval)) if kind else None
+        if (power is None or power.element not in BURNING_ELEMENTS or not item.known or item.charging
+                or (kind == "wand" and item.charges <= 0)):
+            continue
+        suffix = "*p" + policy._cursor_delta_keys(snapshot.player.position, Position(*cell)) + "t5\x1b"
+        key = reserved_item_command(policy, snapshot, kind, item, suffix=suffix)
+        if key is not None:
+            policy.last_reason = OPEN_BURN_REASON
+            return key
+    return None
+
+
+def _can_burn(policy, snapshot) -> bool:
+    from hengbot import me_device_attacks
+    from hengbot.model import TVAL_ROD, TVAL_WAND
+
+    if me_device_attacks.can_use_powers(snapshot) and any(
+            power.element in BURNING_ELEMENTS and power.aimed
+            for power, _success in me_device_attacks.attack_uses(policy, snapshot, powerful=False)):
+        return True
+    for item in snapshot.inventory:
+        kind = {TVAL_WAND: "wand", TVAL_ROD: "rod"}.get(item.tval)
+        power = me_device_attacks.POWERS.get((kind, item.sval)) if kind else None
+        if (power is not None and power.element in BURNING_ELEMENTS and item.known and not item.charging
+                and (kind != "wand" or item.charges > 0)):
+            return True
+    return False
+
+
+def _reaches(policy, snapshot, read, origin, cell, tree: bool) -> bool:
+    """From ``origin`` a bolt aimed at ``cell`` stops on it (its first grid without PROJECTION, within
+    the spell range: projection-path-calculator.cpp), or a Stone to Mud beam along a ray meets it."""
+    from hengbot import me_powers
+    from hengbot.projection_path import projection_path
+
+    if tree:
+        if quest_exposure.game_distance(origin, cell) > SPELL_RANGE:
+            return False
+        path = projection_path(Position(*origin), Position(*cell), SPELL_RANGE,
+                               lambda pos: (pos.y, pos.x) not in read.open_cells)
+        return bool(path) and path[-1] == Position(*cell)
+    dy, dx = cell[0] - origin[0], cell[1] - origin[1]
+    if (dy, dx) == (0, 0) or not (dy == 0 or dx == 0 or abs(dy) == abs(dx)) or max(abs(dy), abs(dx)) > SPELL_RANGE:
+        return False
+    step = ((dy > 0) - (dy < 0), (dx > 0) - (dx < 0))
+    # Every grid before the wall passes the beam on the map as it is (a tree does not: it would
+    # stop the beam and Stone to Mud leaves it, effect-feature.cpp KILL_WALL needs STONE).
+    for index in range(1, max(abs(dy), abs(dx))):
+        if (origin[0] + step[0] * index, origin[1] + step[1] * index) not in read.open_cells:
+            return False
+    return me_powers.beam_direction(policy, snapshot, Position(*origin), Position(*cell)) is not None
+
+
+def _open_way(policy, snapshot, navigator, plan, read, lure, approach, taken) -> str | None:
+    """No cell brings a Gachapin: the fewest openings that make one walk to a cell where it acts and no
+    Queen has a line of fire (counted over the map opened too); then, from the nearest cell out of the
+    Queens' lines of fire that reaches it, the first of them burnt or melted."""
+    from hengbot import left_cells, sealed_pocket
+
+    burn, melt = _can_burn(policy, snapshot), sealed_pocket.can_melt(policy, snapshot)
+    if not (burn or melt):
+        return None
+    here = _cell(snapshot.player.position)
+    seen = _walk_from(navigator, snapshot, here, taken | left_cells.refused_yx(policy, snapshot))
+    kinds = navigator.battlefield.terrain
+    best = None
+    for cell, (steps, _previous) in seen.items():
+        if kinds.get(cell) not in _STAND or cell in navigator.lure_spent:
+            continue
+        acting = [row for row in lure if read.acts(row, cell)]
+        if not acting or any(_line_of_fire(read, row, cell) for row in approach):
+            continue
+        for row in acting:
+            openings = _openings(policy, snapshot, navigator, read, row, cell, burn, melt)
+            if not openings:
+                continue
+            opened = read.with_opened(openings)
+            if any(_line_of_fire(opened, other, cell) for other in approach):
+                continue  # the opening would give a Queen a line to the player there
+            rank = (len(openings), sum(1 for other in approach if read.acts(other, cell)), steps)
+            if best is None or rank < best[0]:
+                best = (rank, cell, openings)
+    if best is None:
+        return None
+    _rank, _stand, openings = best
+    target = openings[0]
+    tree = read.terrain.get(target) == "tree"
+    origins = [(steps, cell) for cell, (steps, _previous) in seen.items()
+               if kinds.get(cell) in _STAND and not any(_line_of_fire(read, row, cell) for row in approach)
+               and _reaches(policy, snapshot, read, cell, target, tree)]
+    if not origins:
+        return None
+    _steps, origin = min(origins)
+    if origin != here:
+        return quest_plan_base._path_step(policy, snapshot, _path_to(seen, origin), OPEN_WALK_REASON)
+    tries = dict(navigator.open_tries)
+    key = (_fire_key(policy, snapshot, target) if tree
+           else sealed_pocket.melt_at_key(policy, snapshot, Position(*target), OPEN_MELT_REASON))
+    if key is not None:
+        tries[target] = tries.get(target, 0) + 1
+        navigator.open_tries = tuple(sorted(tries.items()))
+    return key
+
+
 def _lure(policy, snapshot, navigator, plan, board, value, read) -> str | None:
     from hengbot import quest_summon_answer as answer
 
@@ -240,8 +420,12 @@ def _lure(policy, snapshot, navigator, plan, board, value, read) -> str | None:
         if any(read.acts(row, here) for row in approach):
             return _back(policy, snapshot, navigator, plan, read, lure_seen, approach, taken)
         navigator.lure_hold = 0
-        return None  # out of their range: the plan's fight
-    return _lure_start(policy, snapshot, navigator, plan, read, lure, approach, taken)
+        if (any(read.comes(row, here) for row in lure_seen)
+                or any(quest_plan_base._shot(policy, snapshot, row.monster) is not None for row in lure_seen)):
+            return None  # out of their range: the plan's fight (the shot, the wait for what comes)
+        return _open_way(policy, snapshot, navigator, plan, read, lure_seen, approach, taken)
+    return (_lure_start(policy, snapshot, navigator, plan, read, lure, approach, taken)
+            or _open_way(policy, snapshot, navigator, plan, read, lure, approach, taken))
 
 
 # -- 2. the approach ---------------------------------------------------------------------------

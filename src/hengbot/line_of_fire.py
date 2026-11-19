@@ -189,6 +189,10 @@ READERS = {
         "quest_exposure.projectable over QUEST_33's map (quest_alignment_split's sight map, the "
         "doors as the board shows them) with the open cells computed once for the many cells the "
         "lure weighs; the map's own reading, as quest_exposure's row",
+    ("quest_lure_approach", "_reaches", "own_stop"):
+        "whether a bolt aimed at a tree of QUEST_33's map stops on that tree (the first grid without "
+        "PROJECTION) over the map as the plan may open it (quest_wait_placement's reader, trees burnt "
+        "and walls melted counted, ``with_opened``), not the board's own path",
     # fire_reaches: the survival gate's "under fire".
     ("policy_combat", "_forbid_wait_while_damaged", "fire_reaches"):
         "the survival gate: a visible hostile can shoot the player",
