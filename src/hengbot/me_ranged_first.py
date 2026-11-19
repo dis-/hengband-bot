@@ -40,6 +40,11 @@ rung's shot gives way to the answer when the answer's is strictly larger
 (``stronger_than_launcher_key``, which policy_combat ``_ranged_attack_key`` asks before
 it fires); beside the target the launcher joins the candidates while melee answers
 nothing there (owner 2026-11-01 21h 「近接できない時だけ使う」).
+
+Each weighing reads its figures per 10 game turns (owner 2026-11-19 「攻撃力の判定を1行動あたり
+ではなく、10ゲームターンあたりのダメージで評価して」, ``_timed``: attack_expectation.per_10_game_turns
+at the board's speed).  Every candidate here takes one player action at the same speed, so the
+order and every choice are the per-action ones.
 """
 
 from hengbot import attack_expectation, breeder_area_attack, line_of_fire, me_device_attacks
@@ -200,6 +205,11 @@ def _fixed_options(policy, snapshot, target, direction, *, torch=True, quest_flo
     return attack_expectation.effective(options)
 
 
+def _timed(policy, snapshot, score: float) -> float:
+    """A candidate's per-action ``score`` per 10 game turns at the board's speed."""
+    return attack_expectation.per_10_game_turns(policy, snapshot, score)
+
+
 def _launcher_ammo(policy, snapshot):
     """The ammunition the launcher rung fires (``_ranged_projectile``), else None."""
     chosen = policy._ranged_projectile(snapshot)
@@ -216,9 +226,10 @@ def _first_key(policy, snapshot, target, direction) -> str | None:
     ranged rung (``_ranged_attack_key``, which weighs the same answers the other way)."""
     options = _fixed_options(policy, snapshot, target, direction)
     ammo = _launcher_ammo(policy, snapshot) if options else None
-    launcher = 0.0 if ammo is None else attack_expectation.launcher_shot(policy, snapshot, target, ammo)
+    launcher = 0.0 if ammo is None else _timed(
+        policy, snapshot, attack_expectation.launcher_shot(policy, snapshot, target, ammo))
     for score, send in options:
-        if launcher > score:
+        if launcher > _timed(policy, snapshot, score):
             if (key := policy._ranged_attack_key(snapshot, [target], [])) is not None:
                 return key
             launcher = 0.0  # the rung refused the shot: the fixed order goes on
@@ -305,9 +316,10 @@ def _device_over(policy, snapshot, target, ammo, *, quest_floor=False) -> str | 
         options = _grid_options(policy, snapshot, target, quest_floor=quest_floor)
     else:
         return None
-    launcher = 0.0 if ammo is None else attack_expectation.launcher_shot(policy, snapshot, target, ammo)
+    launcher = 0.0 if ammo is None else _timed(
+        policy, snapshot, attack_expectation.launcher_shot(policy, snapshot, target, ammo))
     for score, send in options:
-        if score <= launcher:
+        if _timed(policy, snapshot, score) <= launcher:
             return None
         if (key := send()) is not None:
             return key
@@ -352,11 +364,11 @@ def _adjacent_options(policy, snapshot, target, direction) -> list:
 
 def _strongest_adjacent_key(policy, snapshot, target, direction) -> str | None:
     """The answer with the larger expected damage per action; None is melee."""
-    melee = attack_expectation.melee(policy, snapshot, target)
+    melee = _timed(policy, snapshot, attack_expectation.melee(policy, snapshot, target))
     # sorted() is stable: a tie keeps the fixed order.
     for score, send in sorted(_adjacent_options(policy, snapshot, target, direction),
                               key=lambda option: -option[0]):
-        if score < melee:
+        if _timed(policy, snapshot, score) < melee:
             return None
         if (key := send()) is not None:
             return key
