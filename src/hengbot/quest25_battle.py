@@ -2102,8 +2102,8 @@ def _masses_seen(ctx: _Ctx) -> list:
 
 def _mass_reached(ctx: _Ctx, cell, monster) -> bool:
     """A shot from ``cell`` reaches ``monster`` (quest_firing_cells ``reach``: two grids or more away,
-    the projection path ends on it before a grid that stops sight)."""
-    return quest_firing_cells.reach(ctx.snapshot, Position(*cell), [monster]) == 1
+    the player's bolt path ends on it before a grid that stops it)."""
+    return quest_firing_cells.reach(ctx.policy, ctx.snapshot, Position(*cell), [monster]) == 1
 
 
 def _phase_masses(ctx: _Ctx) -> list:
@@ -2173,7 +2173,7 @@ def _mass_firing_cells(ctx: _Ctx, *, dread_range: bool = False) -> dict:
     cells = {Position(*cell) for cell in _mass_stand_cells(ctx, masses, dread_range=dread_range)}
     by_reach: dict = {}
     for cell in cells:
-        count = quest_firing_cells.reach(ctx.snapshot, cell, masses)
+        count = quest_firing_cells.reach(ctx.policy, ctx.snapshot, cell, masses)
         if count:
             by_reach.setdefault(count, set()).add((cell.y, cell.x))
     return by_reach

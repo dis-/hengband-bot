@@ -2508,6 +2508,7 @@ class QuestMixin(OpeningRouteMixin):
             # Of those, the cells whose shot reaches the most of them (n1-c life-181: the
             # nearest firing cell of each next corpse mass, three steps per two shots).
             firing_cells = quest_firing_cells.widest(
+                self,
                 snapshot,
                 quest_firing_cells.usable(
                     self, snapshot, target.position, ranged_vantages
