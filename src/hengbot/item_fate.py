@@ -61,11 +61,12 @@ def gear_rank(policy: Any, snapshot: Any, item: Any) -> int | None:
     return ranks.get(policy._item_signature(item))
 
 
-def gear_tier(policy: Any, snapshot: Any, item: Any) -> str:
+def gear_tier(policy: Any, snapshot: Any, item: Any, ranks: dict | None = None) -> str:
     """KEEP, ROOM (11-20) or ANY (21+); anything unranked is kept.
 
     Without a current Home census the rank is unknown, so nothing is released,
     except the ware the relief already chose from a census and has taken out.
+    ``ranks`` is ``_ranks`` of this board when the caller asks many pieces.
     """
     if item.is_artifact or not item.known or SLOT_BY_TVAL.get(item.tval) is None:
         return KEEP
@@ -80,7 +81,8 @@ def gear_tier(policy: Any, snapshot: Any, item: Any) -> str:
         released = ({relief.rank_released, *(entry[0] for entry in relief.carried)}
                     if relief is not None else ())
         return ROOM if policy._item_signature(item) in released else KEEP
-    rank = gear_rank(policy, snapshot, item)
+    rank = (ranks.get(policy._item_signature(item)) if ranks is not None
+            else gear_rank(policy, snapshot, item))
     if rank is None:
         return KEEP
     return KEEP if rank <= KEPT_RANKS else ROOM if rank <= ROOM_RANKS else ANY
@@ -169,13 +171,16 @@ DEVICE_USES = {
     (TVAL_ROD, 14): "sealed_loot / quest25_battle (Disarming)",
 }
 
-# object-enchant/tr-types.h: what a piece of jewelry gives that no rule reads (the
-# IGNORE_* elements, display flags, ACTIVATE: the bot activates no jewelry).
+# object-enchant/tr-types.h: what a piece gives that no rule reads (the IGNORE_* elements,
+# display flags, ACTIVATE: the bot activates no equipment -- no rule sends the 'A' command).
 _COSMETIC_FLAGS = frozenset({73, 74, 84, 85, 86, 87, 88, 116, 117})
-# The pval abilities (TR_STR .. TR_BLOWS).
+# The pval abilities (TR_STR .. TR_BLOWS, TR_FORCE_WEAPON aside): each is worth the piece's pval.
 _PVAL_FLAGS = frozenset(range(0, 14)) - {7}
-# A drawback a dominating piece must not add (NO_TELE, NO_MAGIC, curses, drains, calls).
-_DRAWBACK_FLAGS = frozenset({68, 69, 71, 89, 90, 91, *range(118, 138)})
+# A drawback a dominating piece must not add: EARTHQUAKE, NO_TELE, NO_MAGIC, TY_CURSE, the
+# drains and calls, the curses (ADD_*_CURSE .. SLOW_REGEN, DOWN_SAVING, NO_AC, BERS_RAGE), the
+# darkness source, the elemental vulnerabilities, the self damage and PERSISTENT/VUL_CURSE.
+_DRAWBACK_FLAGS = frozenset({26, 68, 69, 71, 89, 90, 91, *range(118, 138), 140, 141, 146,
+                             149, *range(152, 157), *range(158, 163)})
 # TR flag -> player.ability_sources key (bot-json-output.cpp
 # make_bot_player_ability_sources_json).
 _ABILITY_KEY = {
@@ -244,42 +249,100 @@ def _innate_covered(snapshot: Any, item: Any) -> bool:
         for flag in abilities)
 
 
+# Worn slots per kind of ``SLOT_BY_TVAL`` (equipment_optimizer.hand_configurations: two
+# weapons when dual wielding; two rings).  The digging tool keeps its own rule
+# (``_surplus_digger``).
+DOMINANCE_SLOTS = {"launcher": 1, "melee": 2, "feet": 1, "arms": 1, "head": 1, "shield": 1,
+                   "cloak": 1, "body": 1, "neck": 1, "ring": 2}
+MELEE_TVALS = frozenset({21, 22, 23})
+TVAL_BOW = 19
+
+
+def _pval_on(piece: Any, flag: int) -> int:
+    """What the piece's pval gives the pval ability ``flag`` (0 without the flag)."""
+    return piece.pval if flag in piece.known_flags else 0
+
+
 def _at_most(item: Any, other: Any) -> bool:
-    """``other`` gives every ability and bonus of ``item``, adding no drawback."""
-    mine, theirs = _abilities(item), _abilities(other)
+    """``other`` is at least as good as ``item`` on every axis the equipment evaluation reads.
+
+    Both of one slot kind (``SLOT_BY_TVAL``).  Every ability ``item`` shows ``other`` shows too,
+    adding no drawback (``_DRAWBACK_FLAGS``); every pval ability as high (``_pval_on``: a
+    negative pval is a penalty ``other`` may lack); to-hit, to-dam, base AC and to-AC as high.
+    A melee weapon of the same kind and weight (blows, two hands: warrior_loadout_search
+    ``_item_dominance_parts``) with dice and proficiency as high; a launcher of the same kind
+    (its multiplier and ammunition, equipment_optimizer ``_prefer``) no heavier with proficiency
+    as high; armour no heavier (the caster's mana weight).  Jewelry weighs alike.
+    """
+    if SLOT_BY_TVAL.get(item.tval) != SLOT_BY_TVAL.get(other.tval):
+        return False
+    mine, theirs = _abilities(item) - _PVAL_FLAGS, _abilities(other) - _PVAL_FLAGS
     if not mine <= theirs or (theirs - mine) & _DRAWBACK_FLAGS:
         return False
-    if item.pval > 0 and (mine & _PVAL_FLAGS) and other.pval < item.pval:
+    if any(_pval_on(other, flag) < _pval_on(item, flag) for flag in _PVAL_FLAGS):
         return False
-    return item.to_a <= other.to_a and item.to_h <= other.to_h and item.to_d <= other.to_d
+    if (item.to_a > other.to_a or item.to_h > other.to_h or item.to_d > other.to_d
+            or item.ac > other.ac):
+        return False
+    if item.tval in JEWELRY_SLOTS:
+        return True
+    if item.tval in MELEE_TVALS:
+        return (item.tval == other.tval and item.weight == other.weight
+                and item.damage_dice_num <= other.damage_dice_num
+                and item.damage_dice_sides <= other.damage_dice_sides
+                and item.weapon_proficiency <= other.weapon_proficiency)
+    if item.tval == TVAL_BOW:
+        return (item.sval == other.sval and item.weight >= other.weight
+                and item.weapon_proficiency <= other.weapon_proficiency)
+    return other.weight <= item.weight
+
+
+def _dominance_piece(snapshot: Any, piece: Any) -> bool:
+    """A piece the dominance compares: of a ``DOMINANCE_SLOTS`` kind, known whole
+    (``_flags_complete``), uncursed, and not jewelry the character's own race already gives
+    (``_innate_covered`` sells that)."""
+    return bool(SLOT_BY_TVAL.get(piece.tval) in DOMINANCE_SLOTS
+                and piece.is_equipment and not piece.is_ammo and not piece.is_cursed
+                and not getattr(piece, "is_broken", False) and _flags_complete(piece)
+                and not _innate_covered(snapshot, piece))
 
 
 def _dominated(policy: Any, snapshot: Any, item: Any) -> bool:
-    """Jewelry the kept pieces of its kind outdo (owner 2026-11-19 「耐性のアミュレットの下位互換」).
+    """A clearly dominated piece, artifact or not (owner 2026-11-19 「耐性のアミュレットの下位互換」,
+    then 「アーティファクトであっても明確な下位互換は売る」).
 
-    A piece another of its kind gives every ability and bonus of (``_at_most``; between
-    equals the lesser signature is the other) is dominated.  The pieces dominated by fewer
-    than the kind's worn slots are kept; a piece goes when at least that many kept pieces
-    (worn, carried or on the Home shelf) dominate it.  Artifacts and pieces whose
-    abilities are not all shown are never sold on this ground, nor counted as kept.
+    Dominance, not a weighted score: a piece another kept piece of its slot kind is at least as
+    good as on every axis (``_at_most``; between equals the lesser signature is the other) is
+    dominated, and it goes when at least the kind's worn slots (``DOMINANCE_SLOTS``) of kept
+    pieces dominate it.  Kept pieces are the worn ones and the carried or Home pieces the
+    owner's ranking keeps (``gear_tier`` KEEP: the top ten, artifacts) and nothing dominates
+    away.  A piece whose abilities are not all shown is never sold on this ground, nor counted
+    as kept; neither is a piece the equipment transaction owns (the optimizer's chosen
+    loadout), a bounty or a quest's tagged piece (Q34).  A worn piece is never dominated.
     """
-    if (item.tval not in JEWELRY_SLOTS or item.is_artifact or item.is_cursed
-            or not _flags_complete(item)):
+    from hengbot.equipment_optimizer import q34_item_tagged
+    slot = SLOT_BY_TVAL.get(item.tval)
+    if (not _dominance_piece(snapshot, item) or item.is_bounty
+            or q34_item_tagged(item) or policy._equipment_transaction_owns_item(item)):
         return False
     return policy._item_signature(item) in decision_memo(
-        policy, "dominated-jewelry", snapshot, item.tval,
-        lambda: _dominated_signatures(policy, snapshot, item.tval))
+        policy, "dominated-gear", snapshot, slot,
+        lambda: _dominated_signatures(policy, snapshot, slot))
 
 
-def _dominated_signatures(policy: Any, snapshot: Any, tval: int) -> frozenset:
-    """The signatures of ``tval`` jewelry ``_dominated`` sells, one census per decision."""
-    slots = JEWELRY_SLOTS[tval]
+def _dominated_signatures(policy: Any, snapshot: Any, slot: str) -> frozenset:
+    """The signatures of ``slot`` pieces ``_dominated`` sells, one census per decision."""
+    slots = DOMINANCE_SLOTS[slot]
+    worn = {policy._item_signature(piece) for piece in snapshot.equipment}
     pieces: dict = {}
     for piece in (*snapshot.equipment, *snapshot.inventory, *policy._home_knowledge_items):
-        if (piece.tval == tval and not piece.is_cursed and _flags_complete(piece)
-                and not _innate_covered(snapshot, piece)):
+        if SLOT_BY_TVAL.get(piece.tval) == slot and _dominance_piece(snapshot, piece):
             key = policy._item_signature(piece)
             pieces[key] = (piece, pieces.get(key, (piece, 0))[1] + max(1, piece.count))
+    # What may dominate: worn, or kept by the ranking (a rank 11+ piece may itself be sold).
+    ranks = decision_memo(policy, "gear-ranks", snapshot, None, lambda: _ranks(policy, snapshot))
+    eligible = {key for key, (piece, _) in pieces.items()
+                if key in worn or gear_tier(policy, snapshot, piece, ranks) == KEEP}
 
     def outdoes(other_key, key) -> bool:
         other, piece = pieces[other_key][0], pieces[key][0]
@@ -287,12 +350,12 @@ def _dominated_signatures(policy: Any, snapshot: Any, tval: int) -> frozenset:
             return False
         return not _at_most(other, piece) or other_key < key
 
-    dominators = {key: [other for other in pieces if outdoes(other, key)] for key in pieces}
-    kept = {key for key, others in dominators.items()
-            if sum(pieces[other][1] for other in others) < slots}
+    dominators = {key: [other for other in eligible if outdoes(other, key)] for key in pieces}
+    kept = {key for key in eligible
+            if sum(pieces[other][1] for other in dominators[key]) < slots}
     return frozenset(
         key for key, others in dominators.items()
-        if not pieces[key][0].is_artifact
+        if key not in worn
         and sum(pieces[other][1] for other in others if other in kept) >= slots)
 
 
@@ -364,20 +427,23 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
     * ``unused-book``: ``_unused_book`` (「高位魔法書→自宅に溜め込まずに売る」);
     * ``unused-device``: ``_unused_device`` (「使わない魔法道具は売る」);
     * ``innate-covered``: ``_innate_covered`` (「ゾンビなら絶対装備しないので売って良い」);
-    * ``dominated``: ``_dominated`` (「耐性のアミュレットの下位互換」).
+    * ``dominated``: ``_dominated`` (「耐性のアミュレットの下位互換」; every slot, artifacts too:
+      「アーティファクトであっても明確な下位互換は売る」).
 
     They judge what the Home hoards: ``carried`` (a pack stack the relief probes with the Home
     slot, ``_home_full_sale_candidate``) keeps its own rules.
 
     ``always`` asks the 11-17 classes with no relief running (the Home ledger, ``fate``).
     """
-    if _home_stock(item) and not carried and not item.is_artifact:
-        if _unused_book(policy, item):
-            return "unused-book"
-        if _unused_device(policy, snapshot, item):
-            return "unused-device"
-        if _innate_covered(snapshot, item):
-            return "innate-covered"
+    if _home_stock(item) and not carried:
+        if not item.is_artifact:
+            if _unused_book(policy, item):
+                return "unused-book"
+            if _unused_device(policy, snapshot, item):
+                return "unused-device"
+            if _innate_covered(snapshot, item):
+                return "innate-covered"
+        # Owner 2026-11-19 「アーティファクトであっても明確な下位互換は売る」.
         if _dominated(policy, snapshot, item):
             return "dominated"
     relief = getattr(policy, "_home_full_relief", None)
@@ -600,15 +666,20 @@ SELL = "sell"              # rank 21+, clearly useless, a kind no consumer uses
 DESTROY = "destroy"        # junk (policy_helpers ``_junk_class``)
 USE_NOW = "use-now"        # a Home potion drunk at once (consumable_policy.drunk_now)
 IDENTIFY = "identify"      # unidentified: known only after a means identifies it
-FATES = (CARRY, HOME, ROOM_SALE, SELL, DESTROY, USE_NOW, IDENTIFY)
+ABSORB = "absorb"          # a Home device the Magic-Eater's table absorbs (me_device_policy.home_fate)
+FATES = (CARRY, HOME, ROOM_SALE, SELL, DESTROY, USE_NOW, IDENTIFY, ABSORB)
 # Where the item is: worn, carried, or a Home stack.
 WORN, PACK, SHELF = "worn", "pack", "home"
 
 
-def _protected(policy: Any, snapshot: Any, item: Any) -> bool:
-    """Never sold or destroyed: an artifact, a bounty, a *Destruction* means, a named keep."""
+def _protected(policy: Any, snapshot: Any, item: Any, probe: Any) -> bool:
+    """Never sold or destroyed: an artifact (but a Home one clearly dominated, owner 2026-11-19
+    「アーティファクトであっても明確な下位互換は売る」), a bounty, a *Destruction* means, a named
+    keep."""
     from hengbot.model import SV_STAFF_DESTRUCTION
-    return bool(item.is_artifact or item.is_bounty
+    return bool((item.is_artifact
+                 and not (_home_stock(probe) and _dominated(policy, snapshot, item)))
+                or item.is_bounty
                 or (item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION)
                 or policy._home_disposal.decision(policy._item_signature(item)) == "keep")
 
@@ -618,13 +689,15 @@ def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
 
     The rows are the owner's standing rules, in this order: what is worn or carried by a
     retention stays carried; an unidentified piece waits for a means; a Home potion drunk at
-    once is taken out; the protected never go; junk is destroyed; clearly useless stock
+    once is taken out; a Home device the Magic-Eater's table absorbs is taken out to absorb
+    (``ABSORB``), its capped Staff of *Destruction* destroyed (me_device_policy.home_fate);
+    the protected never go; junk is destroyed; clearly useless stock
     (``clearly_useless``, every class) and kinds no consumer uses (item_use_route) are sold;
     ranked gear by its tier (``gear_tier``: rank 21+ sold, 11-20 sold for room, top 10 kept);
     everything else (supplies' spares included, owner 2026-11-19 「上限を置かない」) is kept
     at Home.
     """
-    from hengbot import consumable_policy
+    from hengbot import consumable_policy, me_device_policy
     if where == WORN:
         return CARRY
     probe = replace(item, slot=HOME_STOCK_SLOT) if where == SHELF else item
@@ -635,7 +708,12 @@ def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
         return IDENTIFY
     if where == SHELF and consumable_policy.drunk_now(snapshot, item):
         return USE_NOW
-    if _protected(policy, snapshot, item):
+    if where == SHELF:
+        # Owner 2026-11-19 「魔法道具を自宅にため込んでいる。魔道具術師の処理ルールに従って処分」.
+        device = me_device_policy.home_fate(policy, snapshot, item)
+        if device is not None:
+            return ABSORB if device == me_device_policy.ABSORB else DESTROY
+    if _protected(policy, snapshot, item, probe):
         return HOME
     if policy._junk_class(snapshot, probe) is not None:
         return DESTROY

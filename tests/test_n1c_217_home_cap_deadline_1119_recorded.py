@@ -23,7 +23,7 @@ live bot counted them.
 
 DECLARED CONSTRUCTED: in the accounting, the cap tidy the live bot held from row 8 (the record's
 home:cap-tidy-* reasons) is given to the policy, and row 282 is asked as the buy decision it
-replaced (shop:observe-and-leave).
+replaced (shop:observe-and-leave); for the batch, the dominance of jewelry only (see that test).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -32,8 +32,9 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-from hengbot import home_cap, town_visit_plan
+from hengbot import home_cap, item_fate, town_visit_plan
 from hengbot.home_full_relief import HomeFullRelief
 from hengbot.town_visit import town_visit
 from support.town_arrival_fixture import load
@@ -90,6 +91,13 @@ class N1c217HomeCapDeadline1119RecordedTest(unittest.TestCase):
         self.assertLess(row, STOP_ROW)
 
     def test_the_take_that_fills_the_pack_sells_the_whole_batch(self):
+        # DECLARED CONSTRUCTED: the dominance of jewelry only, as when recorded (bot main
+        # 53c53f00d8).  Owner 2026-11-19 「アーティファクトであっても明確な下位互換は売る」 sells
+        # more of n1-c's pieces (item_fate.DOMINANCE_SLOTS), so the batch takes other shelf
+        # wares than the recorded rows 15-17 (tests/test_home_dominated_1119_recorded).
+        patcher = patch.dict(item_fate.DOMINANCE_SLOTS, clear=True, neck=1, ring=2)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         policy = self.policy
         for row, (recorded, supply) in enumerate(self.steps[:FILLING_TAKE + 2]):
             board = supply()

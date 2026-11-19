@@ -35,7 +35,9 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+from hengbot import me_device_policy
 from hengbot.home_full_relief import HomeFullRelief
 from hengbot.model import STORE_BLACK, STORE_FULL_SALE_MESSAGES, STORE_MAGIC, parse_snapshot
 from hengbot.policy_constants import IN_STORE_SELL_REASON
@@ -48,6 +50,14 @@ BOARDS = Path(__file__).with_name("fixtures") / "n1c-217-store-full-1119" / "boa
 
 class N1c217StoreFull1119RecordedTest(unittest.TestCase):
     def setUp(self):
+        # DECLARED CONSTRUCTED: the staff is the relief's sale ware, as recorded.  Owner
+        # 2026-11-19 「魔法道具を自宅にため込んでいる。魔道具術師の処理ルールに従って処分」 now
+        # absorbs a carried charged Staff of Object Location (absorb_now, 25 of 99) in town
+        # (me_device_policy.absorbed_in_town, tests/test_me_home_devices_1119_recorded); the
+        # full store's handling is asked of a ware the table does not absorb.
+        patcher = patch.object(me_device_policy, "absorbed_in_town", lambda *args: False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.scratch = TemporaryDirectory()
         self.policy, _, steps = load(FIXTURE, Path(self.scratch.name))
         raw = [json.loads(line) for line in lzma.decompress(BOARDS.read_bytes()).splitlines()]

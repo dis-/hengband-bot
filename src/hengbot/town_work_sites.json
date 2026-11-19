@@ -4727,7 +4727,28 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_device_policy.py:_usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_device_policy.py:absorb_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:absorbed_in_town": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:absorbs": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -4748,7 +4769,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_device_policy.py:home_fate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_device_policy.py:purchase_wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:town_absorb_candidate": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
