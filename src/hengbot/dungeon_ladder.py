@@ -479,7 +479,11 @@ FLOOR_PLANS = (
             ("quest_plan_base._cure", SURVIVAL), ("_leave_by_exit", SURVIVAL),
             ("quest_plan_base._give_up", SURVIVAL), ("quest_plan_base._below_line", SURVIVAL),
             ("quest_plan_base._heal", SURVIVAL),
-            ("quest_plan_base._speed", SURVIVAL), ("quest_room_light.floor_potion_key", FIRST),
+            ("quest_plan_base._speed", SURVIVAL),
+            # QUEST_33, owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」: the summoner
+            # gone after on the boards after its summon.
+            ("quest_summon_answer.chase_key", FIRST),
+            ("quest_room_light.floor_potion_key", FIRST),
             ("_unseen_light", FIRST), ("quest_alignment_split.abort_key", FIRST),
             # The disengage walk held under the survival rungs.
             ("quest_summon_answer.walk_key", FIRST),

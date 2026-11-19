@@ -10,7 +10,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_summon_answer, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -5055,7 +5055,9 @@ class QuestMixin(OpeningRouteMixin):
             return False
         # Once relocation is exhausted, dying on the floor is worse than the
         # visible loss of even an ONCE/RANDOM quest.
-        if snapshot.player.hp_ratio <= PANIC_HP_RATIO and self._escape_scroll(snapshot) is None:
+        # Owner 2026-11-19 「階段へ逃げず戦い続ける」: not on Quest 33 (quest_summon_answer.fights_on).
+        if (snapshot.player.hp_ratio <= PANIC_HP_RATIO and self._escape_scroll(snapshot) is None
+                and not quest_summon_answer.fights_on(self, snapshot)):
             return False
         # Starvation kills through paralysis with HP untouched, so the panic
         # release above never sees it coming. Weak-or-worse with nothing edible

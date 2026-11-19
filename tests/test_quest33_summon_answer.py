@@ -32,6 +32,11 @@ from hengbot.model import SV_STAFF_TELEPORTATION, GridState, Position
 from hengbot.quest_plan_base import _navigator
 from tests.test_quest33_alignment_split import DAGON, QUEEN, QUEST, monster, on_floor, quest_dir, recorded
 
+# Owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」 (「小さい」 = 「受けても HP40% を割らない
+# 間」): the summoner is gone after while the HP less the predicted damage stays at or above 40% of the
+# max HP (1103 on this board: 441.2).  The constructed summoner carries no damage (predicted 0), so
+# the disengage boards below stand one HP under the line.
+UNDER_THE_LINE = 441
 TAILS = {QUEEN: "が魔法でアリを召喚した。", DAGON: "が魔法で仲間を召喚した。"}
 
 
@@ -132,9 +137,11 @@ class Quest33SummonAnswerTest(unittest.TestCase):
         self.assertTrue(key.startswith("m"))
         self.assertIsNone(self.navigator.summon_state)
 
-    def test_an_unhurt_summoner_beside_is_disengaged_from_on_foot(self):
-        # The Dagon at 1881 HP: no single action kills it.  [14,37] is out of its line one step away.
-        snapshot = self.board_of((15, 38), DAGON, (15, 41))
+    def test_an_unhurt_summoner_under_the_line_is_disengaged_from_on_foot(self):
+        # The Dagon at 1881 HP: no single action kills it, and the HP is under the line.  [14,37] is
+        # out of its line one step away.
+        snapshot = self.board_of((15, 38), DAGON, (15, 41), player_hp=UNDER_THE_LINE)
+        self.assertFalse(quest_summon_answer.bears_the_fight(self.policy, snapshot))
         self.assertFalse(quest_summon_answer.next_action_kills(self.policy, snapshot, snapshot.visible_monsters[0]))
         key = quest_room_sweep.key(self.policy, snapshot)
         self.assertEqual((key, self.policy.last_reason), ("7", quest_summon_answer.DISENGAGE_WALK_REASON))
@@ -146,7 +153,7 @@ class Quest33SummonAnswerTest(unittest.TestCase):
 
     def test_with_no_short_way_out_the_absorbed_teleportation_is_cast(self):
         # The open corridor of row 14: no cell out of the Dagon's line within three steps.
-        snapshot = self.board_of((14, 30), DAGON, (14, 34))
+        snapshot = self.board_of((14, 30), DAGON, (14, 34), player_hp=UNDER_THE_LINE)
         key = quest_room_sweep.key(self.policy, snapshot)
         power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
         self.assertEqual((key, self.policy.last_reason),
@@ -157,10 +164,19 @@ class Quest33SummonAnswerTest(unittest.TestCase):
 
     def test_with_no_short_way_out_and_no_power_the_scroll_is_read(self):
         self.without_absorbed_teleportation()
-        snapshot = self.board_of((14, 30), DAGON, (14, 34))
+        snapshot = self.board_of((14, 30), DAGON, (14, 34), player_hp=UNDER_THE_LINE)
         key = quest_room_sweep.key(self.policy, snapshot)
         self.assertEqual((key, self.policy.last_reason), ("re", quest_summon_answer.DISENGAGE_TELEPORT_REASON))
         self.assertEqual(self.navigator.summon_state, quest_summon_answer.DISENGAGED)
+
+    def test_an_unhurt_summoner_is_gone_after_on_the_line(self):
+        # The same board at 442 HP (442 - 0 >= 441.2): the Dagon three cells east is shot.
+        snapshot = self.board_of((15, 38), DAGON, (15, 41), player_hp=UNDER_THE_LINE + 1)
+        self.assertTrue(quest_summon_answer.bears_the_fight(self.policy, snapshot))
+        key = quest_room_sweep.key(self.policy, snapshot)
+        self.assertTrue(key.startswith("m"))
+        self.assertEqual(self.navigator.summon_state, quest_summon_answer.ENGAGING)
+        self.assertEqual(self.navigator.summon_chase, 1)
 
     def test_three_summons_never_read_recall(self):
         for _ in range(4):

@@ -23,6 +23,23 @@ QUEST_33 (クローン地獄), owner 2026-11-19 (verbatim): 「召喚を受け�
      the larger of the launcher and the devices): that blow or shot.  "One action" is one player
      action (100 energy), as attack_expectation reads it today; the per-10-game-turn rework
      (2026-11-19, attack-per-10gt-1119) keeps the per-action figures, and this rule reads those.
+  2b. Else, owner 2026-11-19 (verbatim): 「召還からの離脱の優先度を下げ、予測被害が小さいうちは召還主の
+     撃破を優先する」, 「小さい」 answered as 「受けても HP40% を割らない間」 (``bears_the_fight``): while
+     the HP less the predicted damage -- the 即死 reading itself (instant_death's next player
+     action p95 plus its unseen correction) -- stays at or above the plan's withdrawal line
+     (``abort_conditions.hp_ratio`` of the max HP), the summoner is gone after (``ENGAGING``,
+     ``navigator.summon_chase``): the blow beside the player, else the shot aimed at it
+     (me_ranged_first: the absorbed powers aimed at its cell, the launcher when stronger; else the
+     launcher), else a step toward it over the plan's walks
+     (which never cross the cells where both sides act, quest_alignment_split).  It stays the
+     target on the boards after (``chase_key``, under the plan's survival rungs) while the line
+     holds, until it dies or leaves sight; then the next summoner of the group in sight, then the
+     summoned (nearest first).  With none left in sight the chase ends in the steps after a
+     disengage (below) while the group lasts.  The line broken, the player disengages as in 3.
+     On the summon's board another wounded monster in view the next action kills (the one being
+     fought, nearly dead) is finished first (``_finishing_blow``), and the summoner chased after it.
+     A summon by a caster not seen (「何かが魔法で…」) names no summoner: this rule does not answer
+     it; summon_response's leave answers it, with the absorbed Teleportation first on Quest 33.
   3. Else disengage: a walk of at most ``DISENGAGE_WALK_STEPS`` to the nearest cell no awake
      hostile on the board (the summoner and its summons) has a line to; else the absorbed
      Teleportation or a Scroll of Teleportation; else the longer walk.  The walk is held over the next boards (``walk_key``)
@@ -79,6 +96,7 @@ from hengbot import (
     attack_expectation,
     combat_answer,
     me_absorbed_substitutes,
+    me_ranged_first,
     quest_alignment_split,
     quest_exposure,
     quest_no_teleport,
@@ -98,6 +116,8 @@ KILL_OR_DISENGAGE = "kill_or_disengage"
 DISENGAGING = "disengaging"
 DISENGAGED = "disengaged"
 LURING = "luring"
+# Going after the summoner while the HP bears its fight (``bears_the_fight``, owner 2026-11-19).
+ENGAGING = "engaging"
 # The states after the disengage (``after_key``): the surroundings first, then the luring.
 AFTER_STATES = frozenset({DISENGAGED, LURING})
 TELEPORT_REASON = "quest-strategy:summoned-teleport"
@@ -105,6 +125,7 @@ STRIKE_REASON = "quest-strategy:summoned-strike"
 DISENGAGE_TELEPORT_REASON = "quest-strategy:summoned-disengage-teleport"
 DISENGAGE_WALK_REASON = "quest-strategy:summoned-disengage-walk"
 LURE_WALK_REASON = "quest-strategy:summoned-lure-walk"
+APPROACH_REASON = "quest-strategy:summoned-approach"
 REST_REASON = "quest-strategy:summoned-rest"
 # A walk this short is taken before a scroll: a teleport on this floor lands among sleeping clones
 # and summoners of both sides (quest_alignment_split), a walk keeps the plan's map.  Three steps:
@@ -189,6 +210,17 @@ def _out_of_lines(snapshot, navigator, watchers) -> bool:
 # forbids the absorbed one, quest_no_teleport).
 ABSORBED_FIRST_QUESTS = frozenset({33})
 
+# Owner 2026-11-19 「階段へ逃げず戦い続ける」 (on Q33 with the absorbed Teleportation, the scrolls and the
+# potions gone on a 即死 board): the quests on whose floors no escape leaves the level by a staircase
+# -- the emergency's walk to the up stair (policy_combat), its '<' (the exit lock's panic release,
+# policy_quest._quest_floor_exit_locked) -- and the player fights on.
+FIGHT_ON_QUESTS = frozenset({33})
+
+
+def fights_on(policy, snapshot) -> bool:
+    """On a ``FIGHT_ON_QUESTS`` floor: no stair escape, the fight goes on."""
+    return policy._active_fixed_quest_id(snapshot) in FIGHT_ON_QUESTS
+
 
 def absorbed_teleport_key(policy, snapshot, reason) -> str | None:
     """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation with a charge, cast as
@@ -237,10 +269,14 @@ def next_action_kills(policy, snapshot, target) -> bool:
 
 
 def _strike(policy, snapshot, target) -> str | None:
+    """The blow beside the player, else the shot aimed at the target itself: me_ranged_first's
+    answer (it aims at the target's cell off the eight lines, and weighs the launcher against the
+    devices), else the launcher."""
     if snapshot.player.position.distance_to(target.position) <= 1:
         answer = combat_answer.adjacent_attack(policy, snapshot, [target], STRIKE_REASON)
         return None if answer is None else answer.key
-    return quest_plan_base._shot(policy, snapshot, target)
+    return (me_ranged_first.attack_key(policy, snapshot, target)
+            or policy._ranged_attack_key(snapshot, [target], []))
 
 
 def _walk(policy, snapshot, navigator, plan, board, *, limit=None) -> str | None:
@@ -267,39 +303,150 @@ def _disengage(policy, snapshot, navigator, plan, board) -> str | None:
             or _walk(policy, snapshot, navigator, plan, board))
 
 
+def _withdrawal_line(policy, snapshot) -> float | None:
+    """The plan's withdrawal line in HP: ``abort_conditions.hp_ratio`` of the max HP (QUEST_33: 40%)."""
+    quest_id = policy._active_fixed_quest_id(snapshot)
+    profile = None if quest_id is None else policy.approved_quest_strategy(quest_id)
+    ratio = None if profile is None else profile.abort_conditions.get("hp_ratio")
+    return None if ratio is None else float(ratio) * snapshot.player.max_hp
+
+
+def predicted_damage(death) -> int:
+    """The damage taken before the player acts again, as 即死 reads it (instant_death: the next
+    player action's p95 plus the unseen correction)."""
+    return death.next_action_p95 + death.unseen_correction
+
+
+def bears_the_fight(policy, snapshot, death=None) -> bool:
+    """Owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」 (「小さい」 = 「受けても HP40% を
+    割らない間」): the HP less the predicted damage stays at or above the plan's withdrawal line."""
+    line = _withdrawal_line(policy, snapshot)
+    if line is None:
+        return False
+    if death is None:
+        death = threat_tiers.instant_death(policy, snapshot)
+    return snapshot.player.hp - predicted_damage(death) >= line
+
+
+def _chase_order(snapshot, navigator) -> list:
+    """The group in sight to go after: the chased summoner first, then the other summoners, then
+    the summoned, each nearest first."""
+    here = snapshot.player.position
+    members = [monster for monster in snapshot.visible_monsters
+               if monster.hostile and monster.index in navigator.summon_group]
+    return sorted(members, key=lambda monster: (
+        monster.index != navigator.summon_chase, not monster.can_summon,
+        here.distance_to(monster.position), monster.index))
+
+
+def _approach(policy, snapshot, navigator, plan, board, target) -> str | None:
+    """A step toward the cells beside ``target`` over the plan's walks."""
+    from hengbot import quest_room_sweep  # it asks this module for its rungs
+
+    goals = {Position(target.position.y + dy, target.position.x + dx)
+             for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx}
+    path = quest_room_sweep._path(policy, navigator, plan, snapshot, goals, board.occupied)
+    return quest_plan_base._path_step(policy, snapshot, path, APPROACH_REASON) if path else None
+
+
+def _go_after(policy, snapshot, navigator, plan, board) -> str | None:
+    """The blow, the shot or the step at the first of the chase order that has one; the summoner
+    chased stays the target while it is in sight."""
+    order = _chase_order(snapshot, navigator)
+    if not order:
+        return None
+    navigator.summon_chase = order[0].index
+    for target in order:
+        answer = _strike(policy, snapshot, target)
+        if answer is None and snapshot.player.position.distance_to(target.position) > 1:
+            answer = _approach(policy, snapshot, navigator, plan, board, target)
+        if answer is not None:
+            navigator.summon_state = ENGAGING
+            navigator.summon_walk = 0
+            return answer
+    return None
+
+
 def key(policy, snapshot, navigator, plan, board) -> str | None:
-    """The board of a summon received: teleport on 即死, else the killing action, else disengage."""
+    """The board of a summon received: teleport on 即死, else the killing action, else the
+    summoner gone after while the HP bears it, else disengage."""
     if not answers(plan):
         return None
     summoners = summon_response.summoners_at_player(policy, snapshot)
     if not summoners:
         return None
-    if threat_tiers.instant_death(policy, snapshot).holds:
-        answer = _teleport(policy, snapshot, navigator, TELEPORT_REASON)
-    else:
-        for target in summoners:
-            if next_action_kills(policy, snapshot, target) and (struck := _strike(policy, snapshot, target)):
-                # The strike ends a walk out; the steps after a disengage go on (``after_key``).
-                if navigator.summon_state not in AFTER_STATES:
-                    navigator.summon_state = None
-                return struck
-        answer = _disengage(policy, snapshot, navigator, plan, board)
-    if answer is not None:
-        # The group the steps after the disengage reduce: the summoner and its summons.
-        _join(navigator, (*summoners, *_watchers(snapshot)))
-    return answer
+    # The group the steps after the disengage reduce, and the chase goes after: the summoner and
+    # its summons.
+    _join(navigator, (*summoners, *_watchers(snapshot)))
+    death = threat_tiers.instant_death(policy, snapshot)
+    if death.holds:
+        return _teleport(policy, snapshot, navigator, TELEPORT_REASON)
+    for target in summoners:
+        if next_action_kills(policy, snapshot, target) and (struck := _strike(policy, snapshot, target)):
+            # The strike ends a walk out; the steps after a disengage go on (``after_key``).
+            if navigator.summon_state not in AFTER_STATES:
+                navigator.summon_state = None
+            return struck
+    if bears_the_fight(policy, snapshot, death):
+        if navigator.summon_chase not in {monster.index for monster in summoners}:
+            navigator.summon_chase = summoners[0].index
+        # Another monster the next action kills (the one being fought, nearly dead) is finished
+        # first: the summon of a different monster does not make the player leave it; the
+        # summoner is then gone after on the boards that follow (``chase_key``).
+        if (finished := _finishing_blow(policy, snapshot, summoners)) is not None:
+            navigator.summon_state = ENGAGING
+            navigator.summon_walk = 0
+            return finished
+        if (answer := _go_after(policy, snapshot, navigator, plan, board)) is not None:
+            return answer
+    navigator.summon_chase = None
+    return _disengage(policy, snapshot, navigator, plan, board)
+
+
+def _finishing_blow(policy, snapshot, summoners) -> str | None:
+    """The blow or shot at a wounded hostile in view (the one being fought) other than the
+    summoners that the next player action kills (``next_action_kills``), nearest first.  An unhurt
+    one is no fight under way: the summoner comes first."""
+    named = {monster.index for monster in summoners}
+    here = snapshot.player.position
+    for target in sorted((monster for monster in snapshot.visible_monsters
+                          if monster.hostile and monster.index not in named and monster.hp < monster.max_hp),
+                         key=lambda monster: (here.distance_to(monster.position), monster.index)):
+        if next_action_kills(policy, snapshot, target) and (struck := _strike(policy, snapshot, target)):
+            return struck
+    return None
+
+
+def chase_key(policy, snapshot, navigator, plan, board) -> str | None:
+    """The boards after the summon while going after the summoner: on while the HP bears the
+    fight, else the disengage (3).  Under the plan's survival rungs: 即死 is theirs."""
+    if not answers(plan) or navigator.summon_state != ENGAGING:
+        return None
+    if not bears_the_fight(policy, snapshot):
+        navigator.summon_chase = None
+        return _disengage(policy, snapshot, navigator, plan, board)
+    return _go_after(policy, snapshot, navigator, plan, board)
+
+
+def _end_chase(navigator) -> None:
+    """None of the group left in sight: the steps after a disengage while the group lasts."""
+    navigator.summon_chase = None
+    navigator.summon_state = DISENGAGED if navigator.summon_group else None
 
 
 def observe(policy, snapshot, navigator, plan) -> None:
-    """Every board: a walk out that has left every line is done; the group is brought up to date."""
+    """Every board: a walk out that has left every line is done; the group is brought up to date;
+    a chase with none of the group left in sight ends."""
     if not answers(plan):
         return
     if (navigator.summon_state == DISENGAGING
             and _out_of_lines(snapshot, navigator, _watchers(snapshot))):
         navigator.summon_state = DISENGAGED
         navigator.summon_walk = 0
-    if navigator.summon_state in AFTER_STATES:
+    if navigator.summon_state in AFTER_STATES or navigator.summon_state == ENGAGING:
         _note_group(policy, snapshot, navigator)
+    if navigator.summon_state == ENGAGING and not _chase_order(snapshot, navigator):
+        _end_chase(navigator)
 
 
 def walk_key(policy, snapshot, navigator, plan, board) -> str | None:

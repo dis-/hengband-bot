@@ -3,7 +3,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
 from hengbot import return_start
-from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
@@ -2847,14 +2847,17 @@ class CombatMixin:
                 # gate held this only below its line; n1-a life-504 (2026-11-10, 鉄獄24階)
                 # walked toward an up-stair 11 cells away at HP 488-429, bitten blind.
                 blind_biter = player.blind and unseen_strike.hit_in_melee(self, snapshot)
+                # Owner 2026-11-19 「階段へ逃げず戦い続ける」: on Quest 33 no walk to the up stair nor
+                # away from the fight (quest_summon_answer.fights_on); the strikes below answer.
+                fight_on = quest_summon_answer.fights_on(self, snapshot)
                 self._claim_target_capture = []
                 try:
-                    route_step = self._nearest_goal_step(
+                    route_step = None if fight_on else self._nearest_goal_step(
                         snapshot, self._is_upstairs_target
                     )
                 finally:
                     route_step_target = self._take_claim_target()
-                if route_step is None:
+                if route_step is None and not fight_on:
                     blocker = self._blocking_escape_melee_key(
                         snapshot, hostiles, self._is_upstairs_target
                     )
@@ -2870,7 +2873,7 @@ class CombatMixin:
                     return self._step_toward(snapshot, route_step)
                 if (stand := town_last_stand.key(self, snapshot, hostiles, "emergency:cornered-attack")) is not None:
                     return stand
-                flee_step = self._flee_step(snapshot, hostiles)
+                flee_step = None if fight_on else self._flee_step(snapshot, hostiles)
                 if flee_step is not None and blind_biter and not self._blind_biter_stair_step(
                         snapshot, flee_step):
                     flee_step = None
@@ -2899,6 +2902,9 @@ class CombatMixin:
                 if (down := self._down_stairs_underfoot_key(
                         snapshot, DOWN_STAIRS_LAST_RESORT_REASON)) is not None:
                     return down
+                if fight_on:
+                    # Nothing beside him: the plan's fight (its shot, summoners first) in the wait's place.
+                    return None
                 self.last_reason = "emergency:wait"
                 return WAIT_KEY
 

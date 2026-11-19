@@ -607,6 +607,9 @@ def key(policy, snapshot) -> str | None:
         or quest_plan_base._below_line(policy, snapshot, profile, navigator)
         or quest_plan_base._heal(policy, snapshot, profile)
         or quest_plan_base._speed(policy, snapshot, profile, board)
+        # QUEST_33 (owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」): the summoner gone
+        # after on the boards after its summon, under the survival rungs.
+        or quest_summon_answer.chase_key(policy, snapshot, navigator, plan, board)
         or quest_room_light.floor_potion_key(policy, snapshot, navigator, plan, quiet=False)
         # Before the unseen rule and the summons: the light may show them their caster.
         or _unseen_light(policy, snapshot, navigator, plan, board)
