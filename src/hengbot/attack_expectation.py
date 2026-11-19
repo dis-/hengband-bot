@@ -713,18 +713,36 @@ def hasted_speed(snapshot) -> int:
 
 
 def always_hasted_speed(snapshot) -> int:
-    """The speed an ``always_hasted`` quest row fights at: quest_plan_base ``_speed`` doses only
-    below PERMANENT_HASTE_SPEED (a permanent +10 stands for the dose), so the permanent speed
-    there, else the permanent speed with one haste."""
-    from hengbot.quest_plan_base import PERMANENT_HASTE_SPEED
-    speed = permanent_speed(snapshot)
-    return speed if speed >= PERMANENT_HASTE_SPEED else speed + HASTE_BONUS
+    """The speed an ``always_hasted`` quest row fights at: the permanent speed with one haste.
+
+    Owner 2026-11-19 (verbatim) 「+10 以上でも飲んで読む」: quest_plan_base ``_speed`` doses an
+    ``always_hasted`` row whenever the haste is off, whatever the permanent speed, and the haste
+    adds +10 on top of any speed (player-speed.cpp PlayerSpeed::time_effect_bonus: ``is_fast``
+    -> +10; quaff-effects.cpp ``speed()``: set_acceleration), so the reading is ``hasted_speed``.
+    A row whose Speed doses its gear waives reads ``row_speed``'s permanent speed instead."""
+    return hasted_speed(snapshot)
+
+
+def gear_waives(snapshot, row) -> bool:
+    """``row``'s ``speed_alternatives.gear_speed_bonus`` is met by the permanent speed: the row asks
+    no Speed doses of this character (quest_force_rows), so none is assured."""
+    gear = (row.get("speed_alternatives") or {}).get("gear_speed_bonus")
+    return gear is not None and permanent_speed(snapshot) >= speed_valuation.BASE_SPEED + int(gear)
 
 
 def force_speed(snapshot, always_hasted) -> int:
-    """The speed a quest force's (or row's) attack floors are read at: ``always_hasted_speed``
-    for a row that lives hasted, else the permanent speed."""
+    """The speed a quest force's attack floors are read at: ``always_hasted_speed`` for a force
+    that lives hasted, else the permanent speed."""
     return always_hasted_speed(snapshot) if always_hasted else permanent_speed(snapshot)
+
+
+def row_speed(snapshot, force, row) -> int:
+    """The speed ``row``'s floors are read at: ``force_speed``, but the permanent speed for an
+    ``always_hasted`` row whose gear waives its doses (``gear_waives``: nothing is carried to
+    dose with, so the fight keeps the permanent speed unless the character dosed anyway)."""
+    if row_always_hasted(force, row) and gear_waives(snapshot, row):
+        return permanent_speed(snapshot)
+    return force_speed(snapshot, row_always_hasted(force, row))
 
 
 def row_always_hasted(force, row) -> bool:
