@@ -21299,5 +21299,114 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "QUEST_33: the short walk out of the lines, else a Scroll of Teleportation, else the longer walk."
+  },
+  "quest_force_rows.py:_resolve_row": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The force row that serves this character (resolve before the teleport scroll count); emits no key."
+  },
+  "quest_force_rows.py:_teleport_scrolls": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33 owner 2026-11-19: required_scrolls.teleport raised to teleport_scrolls_without_absorbed without an absorbed Teleportation; emits no key."
+  },
+  "quest_summon_answer.py:_side_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "A race's side (GOOD/EVIL, the plan's good summons symbols) for the lure's split rule; emits no key."
+  },
+  "quest_summon_answer.py:_lure_path": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The walk to a member's reachable pulling cells where the fewest others act; emits no key."
+  },
+  "quest_summon_answer.py:_absorbed_teleport": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the absorbed Teleportation cast through teleport_follower.device_teleport_key."
+  },
+  "quest_summon_answer.py:_scroll_teleport": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33: a Scroll of Teleportation read when the player can read."
+  },
+  "quest_summon_answer.py:_strike_around": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 after a disengage: the blow or shot at what acts on the player, summoners first."
+  },
+  "quest_summon_answer.py:_hold_for": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 after a disengage: the plan's hold for what acts on the player or is being lured."
+  },
+  "quest_summon_answer.py:_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 after a disengage, safe: the rest (R&) while HP or SP is short."
+  },
+  "quest_summon_answer.py:_lure": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 after a disengage: a step toward a group member's pulling cell, or the hold on it."
+  },
+  "quest_summon_answer.py:after_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 owner 2026-11-19 「まず離脱後の周辺状況を確認…少しずつ釣りだして数を減らす」: what acts on the player fought summoners first, then the rest, then the lure; None once the group is gone."
   }
 }

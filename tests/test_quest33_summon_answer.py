@@ -20,13 +20,15 @@ import unittest
 from dataclasses import replace
 
 from hengbot import (
+    me_absorbed_substitutes,
+    me_capability,
     quest_alignment_split,
     quest_room_sweep,
     quest_summon_answer,
     summon_response,
     threat_tiers,
 )
-from hengbot.model import GridState, Position
+from hengbot.model import SV_STAFF_TELEPORTATION, GridState, Position
 from hengbot.quest_plan_base import _navigator
 from tests.test_quest33_alignment_split import DAGON, QUEEN, QUEST, monster, on_floor, quest_dir, recorded
 
@@ -83,9 +85,33 @@ class Quest33SummonAnswerTest(unittest.TestCase):
         snapshot = self.board_of((15, 38), DAGON, (15, 41))
         self.assertEqual([m.race_id for m in summon_response.summoners_at_player(self.policy, snapshot)], [DAGON])
 
-    def test_instant_death_reads_teleportation(self):
+    def without_absorbed_teleportation(self):
+        """DECLARED CONSTRUCTED: n1-b's absorption record and displayed staff list without the
+        Teleportation row (a Magic-Eater that never absorbed it)."""
+        sequence = self.policy._me_staff_sequence
+        sequence.absorbed = {name: count for name, count in sequence.absorbed.items()
+                             if name != me_capability.record_key("staff", SV_STAFF_TELEPORTATION)}
+        lists = dict(getattr(self.policy, "_me_device_lists", None) or {})
+        if "staff" in lists:
+            names = me_capability.names("staff", SV_STAFF_TELEPORTATION)
+            turn, rows = lists["staff"][0], lists["staff"][1]
+            lists["staff"] = (turn, [row for row in rows if row.get("name") not in names], *lists["staff"][2:])
+        self.policy._me_device_lists = lists
+
+    def test_instant_death_casts_the_absorbed_teleportation(self):
+        # Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: n1-b holds it (34 charges).
         snapshot = self.board_of((15, 38), DAGON, (15, 39), player_hp=30, max_melee=300)
         self.assertTrue(threat_tiers.instant_death(self.policy, snapshot).holds)
+        key = quest_room_sweep.key(self.policy, snapshot)
+        power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
+        self.assertEqual((key, self.policy.last_reason),
+                         (power.key, quest_summon_answer.TELEPORT_REASON + me_absorbed_substitutes.CAST_SUFFIX))
+        self.assertEqual(self.navigator.summon_state, quest_summon_answer.DISENGAGED)
+
+    def test_instant_death_reads_teleportation_without_the_power(self):
+        self.without_absorbed_teleportation()
+        snapshot = self.board_of((15, 38), DAGON, (15, 39), player_hp=30, max_melee=300)
+        self.assertFalse(me_capability.has(self.policy, snapshot, "staff", SV_STAFF_TELEPORTATION))
         key = quest_room_sweep.key(self.policy, snapshot)
         self.assertEqual((key, self.policy.last_reason), ("re", quest_summon_answer.TELEPORT_REASON))
         self.assertEqual(self.navigator.summon_state, quest_summon_answer.DISENGAGED)
@@ -118,8 +144,19 @@ class Quest33SummonAnswerTest(unittest.TestCase):
         quest_room_sweep.key(self.policy, after)
         self.assertEqual(self.navigator.summon_state, quest_summon_answer.DISENGAGED)
 
-    def test_with_no_short_way_out_the_scroll_is_read(self):
+    def test_with_no_short_way_out_the_absorbed_teleportation_is_cast(self):
         # The open corridor of row 14: no cell out of the Dagon's line within three steps.
+        snapshot = self.board_of((14, 30), DAGON, (14, 34))
+        key = quest_room_sweep.key(self.policy, snapshot)
+        power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
+        self.assertEqual((key, self.policy.last_reason),
+                         (power.key, quest_summon_answer.DISENGAGE_TELEPORT_REASON + me_absorbed_substitutes.CAST_SUFFIX))
+        self.assertEqual(self.navigator.summon_state, quest_summon_answer.DISENGAGED)
+        # The summoner is the group the steps after the disengage reduce.
+        self.assertEqual(self.navigator.summon_group, {1: (DAGON, (14, 34), True)})
+
+    def test_with_no_short_way_out_and_no_power_the_scroll_is_read(self):
+        self.without_absorbed_teleportation()
         snapshot = self.board_of((14, 30), DAGON, (14, 34))
         key = quest_room_sweep.key(self.policy, snapshot)
         self.assertEqual((key, self.policy.last_reason), ("re", quest_summon_answer.DISENGAGE_TELEPORT_REASON))
