@@ -33,6 +33,7 @@ from hengbot import fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND, parse_snapshot
 from hengbot.policy_constants import EMPTY_DIVE_LIMIT
 from tests.support.fallback_floor import floor_lifted
+from tests.support.angband_hold import hold_lifted
 from tests.test_guardian_floor_above_1111_recorded import quiet
 
 ORC_CAVE, CASTLE, MOUNTAIN = 3, 12, 14
@@ -89,6 +90,7 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
     # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 70 is held
     @floor_lifted()
     def test_five_orc_cave_dives_then_the_deepest_destination(self):
         policy, board = self.start()
@@ -105,6 +107,7 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
     # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 70 is held
     @floor_lifted()
     def test_hard_again_the_next_switch_lasts_ten(self):
         policy, board = self.start()
@@ -118,6 +121,7 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
     # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 70 is held
     @floor_lifted()
     def test_a_restart_keeps_the_lease(self):
         policy, board = self.start()
@@ -128,6 +132,7 @@ class AlternateLeaseRecordedTest(castle.CastleSummonerLootRecordedTest):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 70 reached, the floor 50 ends the
     # Orc cave 23 switch at once (test_the_floor_ends_the_orc_cave_switch); the lease predates it.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 70 is held
     @floor_lifted()
     def test_with_angband_shut_the_castle_64_is_the_deepest(self):
         """C5 with C2: the Castle's landing 64 (the floor above its guardian) qualifies; the

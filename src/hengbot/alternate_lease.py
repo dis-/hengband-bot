@@ -37,7 +37,7 @@ the over-extended depth and the lease length stay.
 """
 from __future__ import annotations
 
-from hengbot import dive_floor, fallback_depth_floor, random_quest_hold
+from hengbot import angband_hold, dive_floor, fallback_depth_floor, random_quest_hold
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE
 
@@ -91,11 +91,16 @@ def deepest_destination(policy, snapshot) -> int | None:
     """The deepest recall destination this character may land on now (C5).
 
     None when it would land under the fallback depth floor (owner 2026-11-13
-    「フォールバックは最新到達-20Fまでにする。」, ``fallback_depth_floor``)."""
+    「フォールバックは最新到達-20Fまでにする。」, ``fallback_depth_floor``).
+
+    Owner 2026-11-19 「鉄獄50F以降は浅い階層へのフォールバックをやめる」: Angband only for a
+    character held at Angband 50F+ (angband_hold)."""
     best, best_depth = None, -1
     candidates = list(snapshot.entered_dungeon_ids or ())
     if snapshot.angband_recall_unlocked and DUNGEON_ANGBAND not in candidates:
         candidates.append(DUNGEON_ANGBAND)
+    if angband_hold.held(policy, snapshot):
+        candidates = [DUNGEON_ANGBAND]
     for did in candidates:
         if not _destination_takeable(policy, snapshot, did):
             continue

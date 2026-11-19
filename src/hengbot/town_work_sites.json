@@ -293,6 +293,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "angband_hold.py:pick": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "approach_answer.py:after_empty": {
     "classification": "data",
     "rows": [

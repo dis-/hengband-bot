@@ -43,6 +43,7 @@ import unittest
 from hengbot import alternate_lease, destruction_use, dive_floor, fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND
 from hengbot.policy import staged_prompt_chain_matches
+from support.angband_hold import hold_lifted
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-411-castle-dive-1117"
@@ -105,6 +106,7 @@ class N1b411CastleDiveRecordedTest(unittest.TestCase):
         self.assertIsNone(policy._pick_alternate_dungeon(
             board, max_entry_depth=50, prefer_deepest=True, refused_dungeon=DUNGEON_ANGBAND))
 
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 51 is held
     def test_b_the_stop_board_switches_to_the_castle(self):
         policy = self.stop_policy()
         key, reason = decide(policy, self.board)
@@ -117,6 +119,7 @@ class N1b411CastleDiveRecordedTest(unittest.TestCase):
         self.assertEqual(reason, "town:recall-to-alt-dungeon")
         self.assertEqual(policy._target_dungeon_id, CASTLE)
 
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 51 is held
     def test_c_the_castle_dive_is_held_to_its_band(self):
         policy, board = copy.deepcopy(self.policy), self.board
         self.assertEqual(policy._activate_safe_recall_fallback(board, 51), CASTLE)
@@ -134,6 +137,7 @@ class N1b411CastleDiveRecordedTest(unittest.TestCase):
         self.assertTrue(dive_floor.capped(policy, castle_42, 43))
         self.assertFalse(dive_floor.capped(policy, replace(board, floor_key=(CASTLE, 30, 0)), 31))
 
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 51 is held
     def test_d_an_over_extension_under_the_floor_bounds_nothing(self):
         # DECLARED CONSTRUCTED: the Castle's landing raised to 45 by a dive.
         board = replace(self.board, dungeon_recall_depths={
@@ -142,6 +146,21 @@ class N1b411CastleDiveRecordedTest(unittest.TestCase):
         self.assertEqual(policy._activate_safe_recall_fallback(board, 51), CASTLE)
         self.assertEqual(policy._alternate_dungeon_reason, "safe_fallback")
         self.assertIsNone(getattr(policy, dive_floor.STATE))  # an ordinary landing, no dive
+
+    def test_e_held_at_angband_51_no_castle_dive(self):
+        # Owner 2026-11-19 「鉄獄50F以降は浅い階層へのフォールバックをやめる」 (angband_hold) supersedes
+        # the Castle dive of b-d: the stop board takes no fallback and the recorded stop's
+        # departure gate decides again (the gate is not relaxed).
+        policy, board = self.stop_policy(), self.board
+        self.assertIsNone(copy.deepcopy(policy)._activate_safe_recall_fallback(board, 51))
+        key, reason = decide(policy, board)
+        self.assertNotEqual(reason, "town:unsafe-recall-fallback")
+        self.assertEqual((policy._target_dungeon_id, policy._alternate_dungeon,
+                          policy._alternate_dungeon_reason),
+                         (DUNGEON_ANGBAND, DUNGEON_ANGBAND, alternate_lease.DEEPEST_REASON))
+        # The recorded visit's answer to a refused landing with no fallback (11-17 13:08).
+        self.assertTrue(reason.startswith(
+            "fundraising:no-safe-destination:depth-gate:destination-51:missing-destruction"), reason)
 
 
 if __name__ == "__main__":
