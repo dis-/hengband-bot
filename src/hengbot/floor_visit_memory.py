@@ -91,6 +91,7 @@ KEPT = {
     "_mining_viability_pending_floor": "the floor change forgets it",
     "_unseen_retreat_floor": "the floor change forgets it (_clear_unseen_retreat)",
     "_immobile_summoner_memory": "summoner_wait.forget_floor_visit at the floor change",
+    "_detected_hold_outwaited": "summoner_wait.forget_floor_visit at the floor change",
     "_sensed_approach_memory": "threat_tiers.forget_floor_visit at the floor change",
     "_enclosure_teleport_read": "retreat_enclosure.forget_floor_visit at the floor change",
     "_breeder_floor_record": "a write cache of the breeder record file, no judgement reads it",

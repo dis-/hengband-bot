@@ -93,6 +93,7 @@ DESTRUCTION_FORGETS = (
     Forgotten("_disenchant_avoid_seen", "monster_memory", "kind"),
     Forgotten("_breeder_quest_seen", "monster_memory", "kind"),
     Forgotten("_immobile_summoner_memory", "summoner_wait", "visit"),
+    Forgotten("_detected_hold_outwaited", "summoner_wait", "visit"),
     Forgotten("_immobile_threat_memory", "immobile_threat_memory", "visit"),
     Forgotten("_hunt_target_memory", "hunt_target", "visit"),
     Forgotten("_left_cells", "left_cells", "visit"),

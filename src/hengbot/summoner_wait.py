@@ -16,6 +16,14 @@ HOLD_CHOKE_REASON = "summoner:hold-choke"
 # (``_detected_threat_preparation_key``).
 DETECTED_HOLD_CHOKE_REASON = "detected:hold-choke"
 HOLD_CHOKE_REASONS = frozenset({HOLD_CHOKE_REASON, DETECTED_HOLD_CHOKE_REASON})
+# The detected hostiles a choke hold waited out on this floor visit:
+# (floor_key, start turn of the hold that recorded last, frozenset of (index, race)).
+OUTWAITED = "_detected_hold_outwaited"
+# How far from the hold an awake detected hostile counts as waited out when the hold
+# expires (the game's distance).  The hold lasts DETECTED_THREAT_HOLD_MAX_GAME_TURNS (500
+# game turns): a hostile of normal speed takes 50 steps in it, so one 20 cells away with a
+# walk of up to two and a half times that length would have come.
+OUTWAITED_REACH = 20
 
 
 @dataclass
@@ -49,6 +57,39 @@ class SummonerWait:
                     del remembered[position]
 
 
+def record_outwaited(policy, snapshot, hold_turn) -> None:
+    """The detected-pack hold started at ``hold_turn`` expired: every awake detected hostile
+    within ``OUTWAITED_REACH`` waited it out without coming into view.
+
+    Owner 2026-09-20 「構えて待つと決めて50ターン敵の目視がなければ解除する」 ends the wait; owner
+    2026-10-28 「待っても来ないかで判定」 makes such a hostile one that does not come, and the
+    anaguma answer of 2026-11-11 「その階ではもう掘らない」 does not wait for a pack waited out
+    again on the same floor.  The expiry only latched the owner until the next visible hostile,
+    so the same pack re-armed a fresh wait from the next choke: n1-b life-411 (Angband 95F,
+    2026-11-19 15:21-15:52) waited out a wolf pack and a snaga nest behind their walls at two
+    cells for 500 game turns each, six times, 61% of the floor's game turns, until the server's
+    floor-dwell watcher halted it.  Recorded once per hold (its start turn)."""
+    memory = getattr(policy, OUTWAITED, None)
+    if memory is not None and memory[0] == snapshot.floor_key and memory[1] == hold_turn:
+        return
+    earlier = memory[2] if memory is not None and memory[0] == snapshot.floor_key else frozenset()
+    awaited = frozenset(
+        (monster.index, monster.race_id)
+        for monster in policy._perceived_hostiles(snapshot)
+        if monster.perception == "detected" and not monster.asleep
+        and monster.distance <= OUTWAITED_REACH
+    )
+    setattr(policy, OUTWAITED, (snapshot.floor_key, hold_turn, earlier | awaited))
+
+
+def outwaited(policy, snapshot, monster) -> bool:
+    """``monster`` waited out an expired choke hold on this floor visit (``record_outwaited``):
+    it no longer arms the detected-pack preparation.  In view it is the visible channel's."""
+    memory = getattr(policy, OUTWAITED, None)  # restored checkpoints may predate it
+    return (memory is not None and memory[0] == snapshot.floor_key
+            and (monster.index, monster.race_id) in memory[2])
+
+
 def forget_floor_visit(policy):
     """End this floor visit's summoner evidence (D46).
 
@@ -62,6 +103,7 @@ def forget_floor_visit(policy):
     policy._immobile_summoner_memory = (None, {})
     policy._immobile_summoner_avoid_cells = set()
     policy._summoner_wait = None
+    setattr(policy, OUTWAITED, None)
 
 
 def wait_state(policy, snapshot):
