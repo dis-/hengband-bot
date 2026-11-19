@@ -68,7 +68,11 @@ def _quiet(policy, snapshot) -> bool:
 def below_scroll_floor(policy, snapshot, profile) -> bool | None:
     """``abort_conditions.recall_below_teleports``: this count, not the HP line, decides
     the recall (Q25, owner 2026-11-04 「テレポートで立て直すだけ」, and below 5 scrolls
-    Recall is read, the give-up point of a kill-all floor).  None: the plan names no count."""
+    Recall is read, the give-up point of a kill-all floor).  None: the plan names no count.
+
+    0 is never below: QUEST_33, owner 2026-11-19 「Q33内ではテレポートの巻物の不足による帰還は却下する」.
+    The count still decides ``held``, so neither the HP line nor an empty pack of escape scrolls
+    releases the hold there: no rung reads Recall for a shortage of Teleportation."""
     floor = profile.abort_conditions.get("recall_below_teleports")
     if floor is None:
         return None
