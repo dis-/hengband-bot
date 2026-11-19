@@ -105,7 +105,8 @@ class Quest33StrategyTest(unittest.TestCase):
             "poison", "fear", "acid", "hold_exp"})
         split = profile.engagement_plan["room_sweep"]["alignment_split"]
         self.assertEqual(split["tracked_races"], [QUEEN, IT, GACHAPIN, BOKRUG, DAGON])
-        self.assertEqual(split["facing_casts_to_abort"], summon_response.SUMMONS_TO_RECALL)
+        # Owner 2026-11-19 「召喚を何度受けても放棄しない」: no abort for the sides' summons.
+        self.assertNotIn("facing_casts_to_abort", split)
         self.assertEqual(profile.priority_targets[0], QUEEN)
 
     def test_a_malformed_split_is_not_loaded(self):
@@ -313,7 +314,7 @@ class Quest33SplitTest(unittest.TestCase):
 
 
 class Quest33FacingTest(unittest.TestCase):
-    """A summon cast at a monster of the other side, and the abort it counts toward."""
+    """A summon cast at a monster of the other side: counted, no longer an abort for QUEST_33."""
 
     def setUp(self):
         if quest_dir() is None:
@@ -344,12 +345,21 @@ class Quest33FacingTest(unittest.TestCase):
         self.cast((20, 69), IT, (20, 76), 1)
         self.assertEqual(summon_response.facing_casts(self.policy), 0)
 
-    def test_the_third_one_gives_the_quest_up(self):
+    def test_the_third_one_no_longer_gives_the_quest_up(self):
+        # Owner 2026-11-19 「召喚を何度受けても放棄しない」 (quest_summon_answer).
         for turn in (1, 2, 3):
             snapshot = self.cast((22, 70), IT, (22, 77), turn)
-        self.assertTrue(quest_alignment_split.abort_due(self.policy, self.plan))
+        self.assertEqual(summon_response.facing_casts(self.policy), 3)
+        self.assertFalse(quest_alignment_split.abort_due(self.policy, self.plan))
+        self.assertIsNone(quest_alignment_split.abort_key(self.policy, snapshot, self.plan))
+
+    def test_a_plan_naming_the_count_still_gives_up(self):
+        plan = {**self.plan, "alignment_split": {**self.plan["alignment_split"], "facing_casts_to_abort": 3}}
+        for turn in (1, 2, 3):
+            snapshot = self.cast((22, 70), IT, (22, 77), turn)
+        self.assertTrue(quest_alignment_split.abort_due(self.policy, plan))
         with patch("hengbot.once_quest_recall.read_key", return_value="r_") as read:
-            self.assertEqual(quest_alignment_split.abort_key(self.policy, snapshot, self.plan), "r_")
+            self.assertEqual(quest_alignment_split.abort_key(self.policy, snapshot, plan), "r_")
         self.assertTrue(read.call_args.kwargs["deliberate"])
 
 

@@ -21299,5 +21299,71 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Reads the board's player speed without a timed haste or slowness; a number, no command."
+  },
+  "quest_summon_answer.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 owner 2026-11-19: a summon received (summon_response.summoners_at_player): 即死 reads a Scroll of Teleportation, else the action that kills the summoner (attack_expectation per player action), else _disengage; None without a summon on this board."
+  },
+  "quest_summon_answer.py:walk_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 owner 2026-11-19: the disengage walk held over the boards after a summon, at most DISENGAGE_WALK_LIMIT steps, then a Scroll of Teleportation."
+  },
+  "quest_summon_answer.py:_teleport": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33: a Scroll of Teleportation read when the floor allows it (quest_no_teleport) and the player can read; marks the battle state disengaged."
+  },
+  "quest_summon_answer.py:_strike": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33: the blow beside the player (combat_answer.adjacent_attack) or the plan's shot (quest_plan_base._shot) at the summoner."
+  },
+  "quest_summon_answer.py:_walk": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33: a step of the room sweep's walk (quest_room_sweep._path) toward the nearest cell out of every awake hostile's line."
+  },
+  "quest_summon_answer.py:_disengage": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33: the short walk out of the lines, else a Scroll of Teleportation, else the longer walk."
   }
 }
