@@ -31,6 +31,20 @@ use with nothing to begin is made as before.  n1-b life-397 (60F, 2026-11-15, re
 tests/test_n1b_397_deep_stuck_1115_recorded.py): seek-loot was walking to its pile when the
 use on the sensed T1 came due and the fetch took the board over to another pile.
 
+``approach_yield_key``: the approach to *Destruction* (threat_tiers ``approach_key`` and
+``remembered_approach_key``: a walk, never an escape, reasons.WALK) about to step while a loot walk
+is begun continues the loot walk instead: the committed fetch (``normal_yield_key``), else the
+ordinary walk in progress (``fetch_yield_key``, counted in destruction_loot's ``DECISIONS_MAX``).
+The use itself is not held (destruction_use ``loot_then_use`` asks it first, as before), only the
+approach's step.  The owner's words are 「ほかの歩きに譲らない」, and 2026-11-17's
+「価値の高い品は先に拾ってから撃つ」 puts the pickup before the use as well.  n1-c life-217
+(Magic-Eater Lv42, Angband 80F, 2026-11-19 12:40, loop-detected, build bot-23df91ff8,
+tests/test_n1c_217_approach_loot_1119_recorded.py): seek-loot was walking to the rod at (16,46);
+at (14,36) 蛇たちの父『イグ』 (14,23) was 13 off, the use due, destruction_loot asked to begin its
+fetch and continued the ordinary walk ('9' to (13,37)); at (13,37) it was 14 off, the use not
+due, and the approach stepped '1' straight back without asking the walk: about 40 decisions, a
+ping-pong escalation and a Word of Recall read until the loop detector.
+
 ``life_danger`` ends the hold: the 即死 projection (threat_tiers ``instant_death``, design 3.1)
 or a strong hostile in view (the tiers' reading of the hostiles in view, T1 or T2).  The rungs
 above the walks (the emergency ladder, the escapes) answer before any loot walk as before:
@@ -98,3 +112,13 @@ def fetch_yield_key(policy, snapshot) -> str | None:
     return policy._normal_loot_key(
         snapshot, policy._strategic_hostiles(snapshot),
         max_path_distance=memory["max_path_distance"], seek_reason=memory["reason"])
+
+
+def approach_yield_key(policy, snapshot) -> str | None:
+    """The begun loot walk's next step or pickup, asked by the approach to *Destruction* before
+    its own step (module docstring): the committed fetch, else the ordinary walk in progress
+    within destruction_loot's bound; None when neither is begun (or either ends here)."""
+    held = normal_yield_key(policy, snapshot)
+    if held is not None:
+        return held
+    return destruction_loot.walk_held(policy, snapshot)

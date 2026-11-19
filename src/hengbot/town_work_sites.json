@@ -1580,6 +1580,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "destruction_loot.py:walk_held": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "destruction_means.py:Means.carried": {
     "classification": "data",
     "rows": [
@@ -4305,6 +4313,14 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "loot_walk.py:approach_yield_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "loot_walk.py:fetch_yield_key": {
     "classification": "producer",
@@ -15896,6 +15912,14 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:_loot_walk_first": {
+    "classification": "producer",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "threat_tiers.py:approach_key": {
     "classification": "producer",

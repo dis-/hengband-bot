@@ -256,6 +256,19 @@ def continue_fetch(policy, snapshot) -> str | None:
     return answer
 
 
+def walk_held(policy, snapshot) -> str | None:
+    """The ordinary loot walk in progress, continued in place of the approach's own step
+    (loot_walk ``approach_yield_key``) within this module's bound: counted as a decision of the
+    scene, so past ``DECISIONS_MAX`` the approach walks on (owner 2026-11-18 Q3 「上限40回は残す」)."""
+    memory = _memory(policy, snapshot)
+    if memory["decisions"] >= DECISIONS_MAX:
+        return None
+    held = _yield_to_walk(policy, snapshot)
+    if held is not None:
+        memory["decisions"] += 1
+    return held
+
+
 def _yield_to_walk(policy, snapshot) -> str | None:
     """Owner 2026-11-18 Q3: a place or a fetch about to begin leaves the board to the ordinary
     loot walk in progress (loot_walk ``fetch_yield_key``); asked only once one would begin, so a

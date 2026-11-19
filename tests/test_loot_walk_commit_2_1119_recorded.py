@@ -24,6 +24,12 @@ this replay on main 05cacb582 (the first Q3 commit):
 
 Only the first changed decision of each is examined: from there the recorded boards follow the
 live run, not the keys the replay sends.
+
+Since n1-c life-217 (1119, loot_walk ``approach_yield_key``) the sensed T1's approach does not
+take the walk over either: on 5734191 (before: '9', sensed-t1:approach-destruction at (46,71))
+the walk goes on ('4', seek-loot), the first changed decision of this window now.  DECLARED
+CONSTRUCTED for the points above: that hold taken out (``approach_hold`` False), so the window
+replays as before up to 5734210.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -34,7 +40,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import destruction_loot, destruction_use, loot_walk
+from hengbot import destruction_loot, destruction_use, loot_walk, threat_tiers
 from hengbot.model import Position, parse_snapshot
 from tests import test_n1b_397_deep_stuck_1115_recorded as deep
 from tests.test_me_device_attacks import power_list, row
@@ -44,9 +50,10 @@ NEXT_BOARD = 5734213        # before: '3' destruction-loot:fetch at (42,72)
 LAST_FETCH = 5734299        # before: '6' destruction-loot:fetch, the 21st fetch board
 USE_AT_HALF = 5734305       # before: 'mA3' emergency:destruction:absorbed-power at (33,62)
 WALK_TARGET = Position(49, 67)
+APPROACH_TAKES_OVER = 5734191  # before: '9' sensed-t1:approach-destruction
 
 
-def _window(until, *, hold=True):
+def _window(until, *, hold=True, approach_hold=False):
     """The visit replayed up to ``until``: (policy, {turn: (key, reason)})."""
     directory = TemporaryDirectory()
     boards = copy.deepcopy(deep.BOARDS)
@@ -63,7 +70,9 @@ def _window(until, *, hold=True):
     answers, previous = {}, None
     unheld = (nullcontext() if hold else mock.patch.object(
         loot_walk, "fetch_yield_key", lambda policy, snapshot: None, create=True))
-    with unheld:
+    approach = (nullcontext() if approach_hold else mock.patch.object(
+        threat_tiers, "_loot_walk_first", lambda policy, snapshot: None))
+    with unheld, approach:
         for raw in boards:
             raw = copy.deepcopy(raw)
             if previous is not None:
@@ -104,6 +113,16 @@ class LootWalkHeldTest(unittest.TestCase):
             policy, answers = _window(WALK_TAKEN_OVER)
         self.assertEqual(answers[WALK_TAKEN_OVER][1], "destruction-loot:fetch")
         self.assertIsNone(getattr(policy, loot_walk.MEMORY))
+
+
+class ApproachHoldTest(unittest.TestCase):
+    def test_the_approach_does_not_take_the_walk_over(self):
+        _policy, answers = _window(APPROACH_TAKES_OVER, approach_hold=True)
+        self.assertEqual(answers[APPROACH_TAKES_OVER], ("4", "seek-loot"))
+
+    def test_before_the_hold_the_approach_took_it_over(self):
+        _policy, answers = _window(APPROACH_TAKES_OVER)
+        self.assertEqual(answers[APPROACH_TAKES_OVER], ("9", threat_tiers.APPROACH_REASON))
 
 
 class FetchBoundTest(unittest.TestCase):

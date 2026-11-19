@@ -20,6 +20,11 @@ the boards does not rebuild, so the replay finds no route to the recorded cell; 
 route is known, starts with the same step west, and the next board (31,54) is the recorded one
 without the wyrm: the same alternation, reproduced on main before and after the 2026-11-11
 threat-tier change (the wyrm reads T1 on both).
+DECLARED CONSTRUCTED as well (n1-c life-217, 2026-11-19): the moved cell leaves the approach no
+route before turn 9031416, so this replay's seek-loot walks from 9031399 where the live run
+approached; since loot_walk ``approach_yield_key`` (owner 2026-11-18 Q3 「命の危険が無ければ取り
+終える」) that begun walk would hold against the approach, a walk the live run never began.  The
+hold is taken out (threat_tiers ``_loot_walk_first`` None) so the approach is replayed as live.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 from recorded_junk_scope import install_past_destroyed_junk
@@ -31,6 +36,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 from hengbot import threat_tiers
 from hengbot.me_device_attacks import observe_lists
@@ -75,6 +81,10 @@ class N1b377ApproachLootRecordedTest(unittest.TestCase):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
+        # DECLARED CONSTRUCTED: no begun loot walk holds the approach (module docstring).
+        unheld = mock.patch.object(threat_tiers, "_loot_walk_first", lambda policy, snapshot: None)
+        unheld.start()
+        self.addCleanup(unheld.stop)
 
     def replay(self):
         boards = CASE["boards"]
