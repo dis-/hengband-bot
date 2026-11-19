@@ -21649,7 +21649,7 @@
       "data/no-independent-credit"
     ],
     "context": "Read by home_ledger (record only, stage 1) in town once per visit, and by the Home cap's deciders.",
-    "evidence": "The one fate of an item (carry, home, room-sale, sell, destroy, use-now, identify; owner 2026-11-19 「自宅の満杯問題で問題を起こしすぎなので根本解決すること」); no command or independent credit.",
+    "evidence": "The one fate of an item (carry, home, room-sale, sell, destroy, use-now, identify, absorb; owner 2026-11-19 「自宅の満杯問題で問題を起こしすぎなので根本解決すること」); no command or independent credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -21672,6 +21672,50 @@
     ],
     "context": "Read by home_ledger.summary (record only) in town once per visit.",
     "evidence": "An item's display name for the ledger's record; no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:absorbs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by item_fate.fate, home_cap and the Home take binder in town; magic_eater.absorb_key emits the key.",
+    "evidence": "Data predicate: the device table absorbs this identified copy now or after the Tower's recharge, below the count cap (owner 2026-11-19 「魔法道具を自宅にため込んでいる。魔道具術師の処理ルールに従って処分」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:home_fate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by item_fate.fate, home_cap and the Home take binder in town; magic_eater.absorb_key emits the key.",
+    "evidence": "Data result: ABSORB, DESTROY or None for a Magic-Eater's Home device, read by item_fate.fate (owner 2026-11-19); the returned str is a fate name, never a key; no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:absorbed_in_town": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by item_fate.fate, home_cap and the Home take binder in town; magic_eater.absorb_key emits the key.",
+    "evidence": "Data predicate: a carried absorb_now copy the town absorbs (retention and magic_eater.absorb_key read it); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_device_policy.py:town_absorb_candidate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by item_fate.fate, home_cap and the Home take binder in town; magic_eater.absorb_key emits the key.",
+    "evidence": "Data/selector result; no independent command or effect credit. selector: the carried copy magic_eater.absorb_key absorbs in town; no key of its own.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

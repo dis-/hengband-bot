@@ -661,7 +661,8 @@ SELL = "sell"              # rank 21+, clearly useless, a kind no consumer uses
 DESTROY = "destroy"        # junk (policy_helpers ``_junk_class``)
 USE_NOW = "use-now"        # a Home potion drunk at once (consumable_policy.drunk_now)
 IDENTIFY = "identify"      # unidentified: known only after a means identifies it
-FATES = (CARRY, HOME, ROOM_SALE, SELL, DESTROY, USE_NOW, IDENTIFY)
+ABSORB = "absorb"          # a Home device the Magic-Eater's table absorbs (me_device_policy.home_fate)
+FATES = (CARRY, HOME, ROOM_SALE, SELL, DESTROY, USE_NOW, IDENTIFY, ABSORB)
 # Where the item is: worn, carried, or a Home stack.
 WORN, PACK, SHELF = "worn", "pack", "home"
 
@@ -683,13 +684,15 @@ def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
 
     The rows are the owner's standing rules, in this order: what is worn or carried by a
     retention stays carried; an unidentified piece waits for a means; a Home potion drunk at
-    once is taken out; the protected never go; junk is destroyed; clearly useless stock
+    once is taken out; a Home device the Magic-Eater's table absorbs is taken out to absorb
+    (``ABSORB``), its capped Staff of *Destruction* destroyed (me_device_policy.home_fate);
+    the protected never go; junk is destroyed; clearly useless stock
     (``clearly_useless``, every class) and kinds no consumer uses (item_use_route) are sold;
     ranked gear by its tier (``gear_tier``: rank 21+ sold, 11-20 sold for room, top 10 kept);
     everything else (supplies' spares included, owner 2026-11-19 「上限を置かない」) is kept
     at Home.
     """
-    from hengbot import consumable_policy
+    from hengbot import consumable_policy, me_device_policy
     if where == WORN:
         return CARRY
     probe = replace(item, slot=HOME_STOCK_SLOT) if where == SHELF else item
@@ -700,6 +703,11 @@ def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
         return IDENTIFY
     if where == SHELF and consumable_policy.drunk_now(snapshot, item):
         return USE_NOW
+    if where == SHELF:
+        # Owner 2026-11-19 「魔法道具を自宅にため込んでいる。魔道具術師の処理ルールに従って処分」.
+        device = me_device_policy.home_fate(policy, snapshot, item)
+        if device is not None:
+            return ABSORB if device == me_device_policy.ABSORB else DESTROY
     if _protected(policy, snapshot, item, probe):
         return HOME
     if policy._junk_class(snapshot, probe) is not None:

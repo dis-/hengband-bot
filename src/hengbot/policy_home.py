@@ -2682,6 +2682,10 @@ class HomeMixin:
         from hengbot.me_staff_sequence import retains as staff_sequence_retains
         if staff_sequence_retains(self, snapshot, item):
             return item.count, "me-staff:absorb"
+        from hengbot import me_device_policy
+        if me_device_policy.absorbed_in_town(self, snapshot, item):
+            # Owner 2026-11-19: a Home copy the table absorbs is absorbed in town, not shelved.
+            return item.count, "me-device:absorb-in-town"
         from hengbot import zul_trip
         if zul_trip.retains(self, snapshot, item):
             return 1, "zul-trip:levitation"
@@ -4872,6 +4876,39 @@ class HomeMixin:
         self._rearm_town_store_for_new_work(STORE_HOME)
         self._home_pending_item = self._item_signature(potion)
         self._home_pending_quantity = potion.count
+        self._home_withdrawal_queued = True
+
+    def _bind_home_absorb_device_withdrawal(self, snapshot: Snapshot) -> None:
+        """Owner 2026-11-19 「魔法道具を自宅にため込んでいる。魔道具術師の処理ルールに従って処分」:
+        take a Home device the Magic-Eater's table absorbs out to absorb it.
+
+        me_device_policy.home_absorb_takes lists them (item_fate ABSORB).  The same addressed
+        Home take as the "drink at once" potions (_bind_home_drink_potion_withdrawal); an
+        ``absorb_now`` copy is absorbed in town (magic_eater.absorb_key), a ``charge_first`` one
+        is carried to the Tower by the staff sequence (me_staff_sequence.retains).
+        """
+        from hengbot import me_device_policy
+        plan = self._town_errand_plan
+        if plan is not None and plan.index < len(plan.stops) and plan.stops[plan.index] != STORE_HOME:
+            return
+        here = snapshot.grid_at(snapshot.player.position)
+        if ((snapshot.store is None and self._last_snapshot_was_store
+             and here is not None and here.is_store)
+                or self._home_pending_item is not None or self._home_pending_batch
+                or self._home_errand.active
+                or snapshot.store is not None or self._home_full_relief is not None
+                or self._home_atomic_deposit_pending is not None
+                or self._home_is_full(snapshot)
+                or self._inventory_overweight(snapshot)):
+            return
+        devices = me_device_policy.home_absorb_takes(self, snapshot)
+        # The last shelf slot first (as the potions): the next stack keeps its address.
+        device = devices[-1] if devices else None
+        if device is None or not home_take_fits(snapshot, device, device.count, policy=self):
+            return
+        self._rearm_town_store_for_new_work(STORE_HOME)
+        self._home_pending_item = self._item_signature(device)
+        self._home_pending_quantity = device.count
         self._home_withdrawal_queued = True
 
     def _home_takes_let_drink(self, signature: tuple[str, int, int]) -> bool:

@@ -106,9 +106,22 @@ def begin(policy: Any, snapshot: Any) -> bool:
             or item_fate.home_take_blocked(snapshot)
             or policy._town_store_blocked_under_applicable_bound(STORE_HOME)):
         return False
+    # The Magic-Eater's Home devices taken out to absorb leave the Home on their own take
+    # (item_fate ABSORB, owner 2026-11-19): the tidy sheds only the rest.
+    over = count - HOME_KEEP_CAP - absorb_count(policy, snapshot)
+    if over <= 0:
+        return False
     policy._home_full_relief = HomeFullRelief(
-        remaining=count - HOME_KEEP_CAP, town=policy._effective_town_id(snapshot), cap=True)
+        remaining=over, town=policy._effective_town_id(snapshot), cap=True)
     return True
+
+
+def absorb_count(policy: Any, snapshot: Any) -> int:
+    """The Home stacks the Magic-Eater takes out to absorb (me_device_policy.home_fate)."""
+    from hengbot import me_device_policy
+    return sum(1 for item in policy._home_knowledge_items
+               if item.tval in me_device_policy.KINDS
+               and me_device_policy.home_fate(policy, snapshot, item) == me_device_policy.ABSORB)
 
 
 def batch_grows(policy: Any, snapshot: Any, relief: Any) -> bool:

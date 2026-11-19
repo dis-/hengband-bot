@@ -1,7 +1,8 @@
 """O3: reserve the birth wand, absorb it safely, and use it at Q34's stands.
 
 ``absorb_key`` absorbs whatever the device policy table absorbs on the spot
-(me_device_policy.absorb_candidate), the birth Magic Missile wand included.
+(me_device_policy.absorb_candidate), the birth Magic Missile wand included, and in town a
+Home copy taken out to be absorbed (me_device_policy.town_absorb_candidate, owner 2026-11-19).
 """
 
 from hengbot.model import TVAL_WAND
@@ -9,7 +10,7 @@ from hengbot.town_arbiter import claims
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, is_absorption_device, power_command_refused,
 )
-from hengbot.me_device_policy import absorb_candidate
+from hengbot.me_device_policy import absorb_candidate, town_absorb_candidate
 from hengbot.policy_constants import MAGIC_MISSILE_REASON
 
 
@@ -31,6 +32,15 @@ def absorb_key(policy, snapshot, hostiles):
     # found: in town only the birth Magic Missile wand (O3).
     candidate = absorb_candidate(
         policy, snapshot, only=((TVAL_WAND, MAGIC_MISSILE),) if snapshot.in_town else None)
+    home_copy = False
+    if candidate is None and snapshot.in_town:
+        # Owner 2026-11-19 「魔法道具を自宅にため込んでいる。魔道具術師の処理ルールに従って処分」:
+        # a Home copy the table absorbs is taken out (item_fate ABSORB) and absorbed here,
+        # once no other Home take is in flight.
+        candidate = town_absorb_candidate(policy, snapshot)
+        if candidate is not None and not policy._home_takes_let_drink(policy._item_signature(candidate)):
+            return None
+        home_copy = candidate is not None
     if candidate is not None and not is_absorption_device(player.class_id, candidate):
         candidate = None
     if candidate is None:
@@ -40,7 +50,7 @@ def absorb_key(policy, snapshot, hostiles):
     if snapshot.in_town:
         policy._offer_execution(
             key, producer="quest-request", work_id=ABSORB_REASON,
-            next_step="quest.absorb-birth-wand",
+            next_step="home.absorb-home-device" if home_copy else "quest.absorb-birth-wand",
             arguments=(policy._item_signature(candidate),),
             expected_effect="device-absorbed")
     return key

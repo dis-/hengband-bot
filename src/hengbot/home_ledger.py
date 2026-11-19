@@ -17,7 +17,8 @@ decision log's ``home_ledger`` field on the decision that took it (``report``):
   ``artifacts``; ``fits`` whether they stay within the cap;
 * ``shed``: the stacks the first visit would move out to reach the cap, in the cap's order
   (destroy, sell, ranks 11-20 cheapest first), counted by fate and by kind, and ``short`` the
-  stacks still over the cap when only kept stock is left;
+  stacks still over the cap when only kept stock is left; the Magic-Eater's devices taken out to
+  absorb (fate ``absorb``, owner 2026-11-19) leave the Home too and are counted in ``absorb``;
 * ``disagree``: Home stacks whose fate and today's deciders differ (``fate-only``: the fate moves
   it, no decider would; ``decider-only``: a decider would, the fate keeps it), with up to
   ``EXAMPLES`` names each.
@@ -87,7 +88,8 @@ def summary(policy: Any, snapshot: Any) -> dict:
     top10 = sum(1 for item in kept
                 if item_fate.SLOT_BY_TVAL.get(item.tval) is not None and item.is_equipment
                 and not item.is_ammo and not item.is_artifact and item.known)
-    excess = max(0, len(shelf) - HOME_KEEP_CAP)
+    absorbed = sum(1 for _, fate in shelf if fate == item_fate.ABSORB)
+    excess = max(0, len(shelf) - HOME_KEEP_CAP - absorbed)
     order = sorted(
         ((SHED_ORDER.index(fate), item_fate.sale_value(policy, item), policy._item_signature(item),
           item, fate) for item, fate in shelf if fate in SHED_ORDER),
@@ -114,6 +116,7 @@ def summary(policy: Any, snapshot: Any) -> dict:
         "top10": top10,
         "artifacts": sum(1 for item in kept if item.is_artifact),
         "fits": len(kept) <= HOME_KEEP_CAP,
+        "absorb": absorbed,
         "shed": {"count": len(shed), "fates": by_fate, "kinds": by_kind,
                  "short": max(0, excess - len(shed))},
         "disagree": {"fate-only": len(fate_only), "fate-only-examples": fate_only[:EXAMPLES],

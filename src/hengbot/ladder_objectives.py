@@ -415,6 +415,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         return remove_curse
     policy._bind_home_star_remove_curse_withdrawal(snapshot)
     policy._bind_home_drink_potion_withdrawal(snapshot)
+    policy._bind_home_absorb_device_withdrawal(snapshot)
 
     enchant_launcher = policy._town_producer_entry("_town_enchant_launcher_key", lambda: policy._town_enchant_launcher_key(snapshot))
     if enchant_launcher is not None:
@@ -526,6 +527,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         policy._town_order_select_required_supply(snapshot)
         policy._bind_home_star_remove_curse_withdrawal(snapshot)
         policy._bind_home_drink_potion_withdrawal(snapshot)
+        policy._bind_home_absorb_device_withdrawal(snapshot)
         # The departure seam (_town_special_key) releases a stale Home
         # candidate latch before it evaluates departure; _observe re-derives
         # that latch on every in-town board (a Home identify scroll alone
