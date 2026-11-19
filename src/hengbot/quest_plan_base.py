@@ -157,8 +157,16 @@ def _aligned(snapshot, target) -> bool:
 
 
 def _shot(policy, snapshot, target) -> str | None:
-    """An absorbed power along a clear ray, else the launcher; both as everywhere else."""
-    device = me_ranged_first.attack_key(policy, snapshot, target) if _aligned(snapshot, target) else None
+    """An absorbed power along a clear ray by direction, off the rays at the target's cell,
+    else the launcher; each weighed against the launcher as everywhere else.
+
+    Off the rays the direction would fly past the target, so the power is aimed at its cell
+    (me_ranged_first.off_ray_key); n1-b life-411 (Quest 33, 2026-11-19) held 1,679 boards
+    with a Rock troll in a clear line of fire off the rays while that gate fired nothing."""
+    if _aligned(snapshot, target):
+        device = me_ranged_first.attack_key(policy, snapshot, target)
+    else:
+        device = me_ranged_first.off_ray_key(policy, snapshot, target)
     return device or policy._ranged_attack_key(snapshot, [target], [])
 
 

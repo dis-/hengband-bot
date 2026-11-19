@@ -306,6 +306,30 @@ def quest_device_key(policy, snapshot, target, ammo) -> str | None:
     return _device_over(policy, snapshot, target, ammo, quest_floor=True)
 
 
+def off_ray_key(policy, snapshot, target) -> str | None:
+    """The Magic-Eater's answer to a distant ``target`` off the eight rays (a quest plan's shot,
+    quest_plan_base._shot), else None (the launcher's rung).
+
+    ``attack_key`` aims by direction, and a direction off the eight rays flies past the
+    target: Direction::get_target_position (floor/geometry.h) is the player's grid plus the
+    direction's vector times 99 unless the aim is a target (``5``/``*``), whose grid it is.
+    So off the rays the absorbed power is aimed at the cell (``@y,x``, _grid_options) over a
+    clear projection path (``_clear_projection``), and only when it out-damages the worn
+    launcher's shot (owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を
+    使用する」; ``_device_over``); with no launcher or rounds any damaging power answers.
+    n1-b life-411, Quest 33 (2026-11-19): 1,679 boards held ('5') with a Rock troll in a
+    clear line of fire off the rays and absorbed bolts and balls charged.  Confusion turns
+    get_aim_dir's aim at random and blindness hides the cell: neither aims here.  A breeder
+    beside the target or the player keeps the group's area attack first, as ``attack_key``."""
+    player = snapshot.player
+    if player.class_id != PLAYER_CLASS_MAGIC_EATER or player.confused or player.blind:
+        return None
+    beside = [monster for monster in snapshot.visible_monsters if monster.distance <= 1]
+    if (group := breeder_area_attack.key(policy, snapshot, [target, *beside])) is not None:
+        return group
+    return _device_over(policy, snapshot, target, _launcher_ammo(policy, snapshot))
+
+
 def _device_over(policy, snapshot, target, ammo, *, quest_floor=False) -> str | None:
     """The first answer that reaches ``target`` and out-damages the launcher's shot of ``ammo``
     (none: 0)."""

@@ -20899,6 +20899,28 @@
     "evidence": "Owner 2026-11-18 「魔道具術師は魔法道具の力で読む」: called by policy_quest._q2_ranged_core_key (Q2, Q22, Q31's ranged plan) before it fires; the Magic-Eater's device answer to the distant quest target when it out-damages the launcher's shot, or any damaging answer when no quest rounds are carried (the devices covered them). Its key comes from the reviewed senders through _device_over; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_ranged_first.py:off_ray_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する。」: called by quest_plan_base._shot (the quest plans' shot: quest_room_sweep, quest25_battle, kill_all_patrol, quest_summon_answer) at a distant target off the eight rays; the Magic-Eater's absorbed power aimed at the target's cell when it out-damages the worn launcher's shot (none without rounds), or the breeder group's area attack. Its key comes from the reviewed breeder_area_attack.key and the senders through _device_over; never in town (_device_over); no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_launcher_ammo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure read: the ammunition policy._ranged_projectile would fire from the worn launcher, else None (a throw or nothing); the launcher's figure the device answers are weighed against. No command of its own."
+  },
   "me_ranged_first.py:_device_over": {
     "classification": "producer",
     "rows": [
