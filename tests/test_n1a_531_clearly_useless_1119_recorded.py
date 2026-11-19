@@ -72,6 +72,18 @@ EXPECTED = {
     # ... the two worn rings of Damage (+10), (+12) outdo the shelf's lesser ones
     "ダメージの指輪 (+9)": "dominated",
     "ダメージの指輪 (+6)": "dominated",
+    # 5. 「アーティファクトであっても明確な下位互換は売る」: the dominance of every slot, each
+    # piece outdone on every axis by a kept piece of its slot kind ...
+    "ブラックドラゴン・スケイルメイル (-2) [40,+15]": "dominated",    # the [40,+17] one
+    "全耐性のスプリント・メイル (-2) [19,+15] {r酸電火冷沌}": "dominated",  # ★ロヒアリム
+    "エルフの金属製ラメラー・アーマー (-3) [23,+4] (+1隠密) {+隠r酸電火冷暗}": "dominated",
+    "忍びの毛皮のクローク [3,+5] (+2隠密) {+隠}": "dominated",      # エルフのクローク (+3)
+    "反射の革製スモール・シールド [3,+7] {反}": "dominated",        # the [3,+9] one
+    "耐冷の革製スモール・シールド [3,+7] {r冷}": "dominated",       # the [3,+13] one
+    "耐火の革製ラージ・シールド [6,+3] {r火}": "dominated",         # ドワーフの [10,+8] {+耐r火}
+    "耐火の金属製ラージ・シールド [8,+4] {r火}": "dominated",
+    "耐冷の金属製ラージ・シールド [8,+2] {r冷}": "dominated",
+    "麻痺知らずのセスタス [5,+7] {麻}": "dominated",               # ★フィンゴルフィン
 }
 
 
