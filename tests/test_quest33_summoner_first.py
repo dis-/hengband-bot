@@ -56,7 +56,9 @@ BOARDS = {
               "忌まわしき狩人は魔法で混沌の宮廷から悪魔を召喚した！"),
 }
 # The answers of the disengage (quest_summon_answer 3).
-SHOT = "ranged:magic-eater-device"
+# The shot at the summoner: an absorbed attack power, cast normally or by Powerful Activation
+# (me_device_attacks.POWERFUL_REASON, me-powerful-attack-1119: the stronger of the two is sent).
+SHOT = "ranged:magic-eater-powerful"
 DISENGAGE_REASONS = {
     quest_summon_answer.DISENGAGE_WALK_REASON, quest_summon_answer.DISENGAGE_TELEPORT_REASON,
     quest_summon_answer.DISENGAGE_TELEPORT_REASON + ":absorbed-power"}
@@ -121,11 +123,12 @@ class Quest33SummonerFirstTest(unittest.TestCase):
     def test_each_recorded_summon_goes_after_the_summoner(self):
         # (predicted damage, the summoner chased, the answer): of the three Dagons that share a name
         # the nearest is chased; each summoner is shot by the absorbed power aimed at its cell
-        # (me_ranged_first, off the eight lines too).
+        # (me_ranged_first, off the eight lines too), by Powerful Activation (385 an action against
+        # 280 cast normally, me-powerful-attack-1119).  8489425's Bodak (350 HP) falls to that one
+        # shot: it is the 2nd rule's killing shot (``next_action_kills``), with no chase after it.
         expected = {
             8488751: (107, 3, SHOT),
             8489035: (56, 1, SHOT),
-            8489425: (55, 1, SHOT),
             8489971: (138, 1, SHOT),
         }
         for turn, (damage, chased, reason) in expected.items():
@@ -140,6 +143,17 @@ class Quest33SummonerFirstTest(unittest.TestCase):
                 key = quest_room_sweep.key(self.policy, snapshot)
                 self.assertEqual(self.policy.last_reason, reason)
                 self.assert_goes_after(key, chased)
+
+    def test_a_summoner_the_next_shot_kills_is_shot_without_a_chase(self):
+        snapshot = self.board_at(8489425)
+        death = threat_tiers.instant_death(self.policy, snapshot)
+        self.assertEqual(quest_summon_answer.predicted_damage(death), 55)
+        bodak = summon_response.summoners_at_player(self.policy, snapshot)[0]
+        self.assertTrue(quest_summon_answer.next_action_kills(self.policy, snapshot, bodak))
+        key = quest_room_sweep.key(self.policy, snapshot)
+        self.assertEqual(self.policy.last_reason, SHOT)
+        self.assertTrue(key.startswith("U"), key)
+        self.assertIsNone(self.navigator.summon_state)
 
     def test_the_line_decides_on_a_recorded_board(self):
         # 8489035: 56 predicted; the line 451.2.  HP 508 leaves 452 (on); HP 507 leaves 451 (off).
