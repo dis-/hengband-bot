@@ -179,9 +179,14 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
                              (578.3, {"permanent": 809.7, "hasted": 1388.0}, "full"))
             self.assertFalse(quest_one_turn_kill.holds_back(policy, board, QUEST))
             verdict, telemetry, strategy = readiness(policy, board)
-            # Short of the ten Light scrolls, resist_blind and telepathy.
+            # Short of the Teleportation scrolls (a warrior has no absorbed Teleportation, so 40: owner
+            # 2026-11-19 「ない場合はテレポートの巻物を40巻用意すること」), the ten Light scrolls,
+            # resist_blind and telepathy.
             self.assertEqual((verdict, telemetry["reason"], strategy["failed"]),
-                             (False, "strategy-force", ["required_scrolls.light", "resists"]))
+                             (False, "strategy-force", ["required_scrolls.teleport", "required_scrolls.light",
+                                                        "resists"]))
+            resolved = policy._strategy_force_for_snapshot(board, policy.approved_quest_strategy(QUEST))
+            self.assertEqual(resolved["required_scrolls"]["teleport"], 40)
 
     def test_n1a_with_four_blows_meets_the_one_line_hasted(self):
         scratch, policy, board = recorded("n1a-531")
