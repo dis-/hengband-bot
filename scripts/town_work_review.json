@@ -21977,5 +21977,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_wait_placement.py:_Reader.walks": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The game's moves of an awaited monster followed step by step (quest_wait_placement); no independent progress."
   }
 }

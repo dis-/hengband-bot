@@ -9,8 +9,9 @@ again, holding each one's meet_turns ([13,39] [11,39] [2,46] [2,30] [5,10] [14,1
 The reader (quest_wait_placement), owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」:
 
 * At [14,47] the Queens act (27 from [22,70], vision 30) and the flyers' flow reaches them within its
-  32 steps (grid.cpp update_flow): the reader keeps the plan's stand for their first wait.  The
-  Gachapins (vision 10) do not act there, the Queens' way north over the pits passes none of their
+  32 steps (grid.cpp update_flow), but followed step by step as the game moves them (the point 16
+  grids past the player, quest_wait_placement ``walks``) they do not come: the recorded nine rounds.
+  The Gachapins (vision 10) do not act there, the Queens' way north over the pits passes none of their
   lines.  A cell where the Queens' way passes the Gachapins' mouth (the lower floor, [25,44]) is not
   chosen (``_passes_the_other_side``).  The corridor east of x=50 is where both sides act.
 * The 段1 stands bring nothing of 段1 any more: [5,10] and [14,10] are passed, and the waits around the
@@ -84,23 +85,25 @@ class N1c217Q33QueenWaitTest(unittest.TestCase):
         self.assertGreaterEqual(held.count((5, 10)), 8)
         self.assertGreaterEqual(held.count((14, 10)), 8)
 
-    def test_the_queens_are_awaited_at_their_stand_first(self):
+    def test_the_queens_act_at_their_stand_but_do_not_come(self):
+        # As the game moves them (quest_wait_placement ``walks``): the recorded nine rounds of 300.
         self.assertFalse(any(m.race_id == QUEEN for m in (*self.board.visible_monsters, *self.board.detected_monsters)))
+        read = quest_wait_placement.reader(self.policy, self.board, self.navigator, self.plan)
+        queens = [row for row in read.rows if row.race == QUEEN]
+        self.assertEqual(len(queens), 3)
+        self.assertTrue(all(read.acts(row, QUEEN_STAND) for row in queens))
         comers = quest_wait_placement.comers_at(self.policy, self.board, self.navigator, self.plan, QUEEN_STAND)
-        self.assertEqual(len(self.queens(comers)), 3)
-        self.assertEqual(quest_room_sweep._advance(self.policy, self.board, self.navigator, self.plan), WAIT_KEY)
-        self.assertEqual(self.policy.last_reason, quest_room_sweep.HOLD_REASON)
-        self.assertEqual(self.navigator.wait_goal[2].cell, QUEEN_STAND)
+        self.assertEqual(self.queens(comers), set())
 
     def test_no_cell_where_the_queens_pass_the_gachapins(self):
         read = quest_wait_placement.reader(self.policy, self.board, self.navigator, self.plan)
         mouth = (25, 44)
-        keys = read.comers(mouth)
-        self.assertEqual(len(self.queens(keys)), 3)
+        keys = frozenset(row.key for row in read.rows if row.race == QUEEN)
+        self.assertEqual(len(keys), 3)
         self.assertFalse(read.both_sides_act(mouth))
-        choice = quest_wait_placement.Choice(mouth, frozenset(keys), 0.0)
+        choice = quest_wait_placement.Choice(mouth, keys, 0.0)
         self.assertTrue(quest_wait_placement._passes_the_other_side(self.policy, self.navigator, self.plan, read, choice))
-        stand = quest_wait_placement.Choice(QUEEN_STAND, frozenset(read.comers(QUEEN_STAND)), 0.0)
+        stand = quest_wait_placement.Choice(QUEEN_STAND, keys, 0.0)
         self.assertFalse(quest_wait_placement._passes_the_other_side(self.policy, self.navigator, self.plan, read, stand))
         self.assertIn((15, 60), quest_alignment_split.refused_cells(self.policy, self.board, self.navigator, self.plan))
 
@@ -124,7 +127,7 @@ class N1c217Q33QueenWaitTest(unittest.TestCase):
                 held = self.navigator.wait_goal
                 board = self.at(held[2].cell if held and held[2] is not None else tuple(stop["cell"]))
         self.assertEqual(self.policy.last_reason, quest_room_sweep.NOTHING_COMES_REASON)
-        self.assertEqual(holds[0], (QUEEN_STAND, QUEEN_STAND))
+        self.assertNotIn(QUEEN_STAND, [cell for _stand, cell in holds])  # the Queens do not come there
         waited = [cell for _stand, cell in holds]
         self.assertEqual(len(waited), len(set(waited)))  # no waiting cell twice
         self.assertLessEqual(len(holds), 6)

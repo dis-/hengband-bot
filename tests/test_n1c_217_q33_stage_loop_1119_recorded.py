@@ -76,13 +76,15 @@ class N1c217Q33StageLoopTest(unittest.TestCase):
     def test_the_hand_added_stand_is_gone(self):
         self.assertNotIn(list(COLUMN_TOP), [stop["cell"] for stop in self.plan["stands"]])
 
-    def test_from_the_stand_only_one_dagon_comes(self):
+    def test_from_the_stand_one_dagon_acts_and_none_comes(self):
         self.assertEqual(self.dagons(), [(23, 44), (25, 44), (25, 45)])
         vision = self.policy._monrace_knowledge[DAGON].vision
         near = [cell for cell in self.dagons() if quest_exposure.game_distance(cell, (15, 38)) <= vision]
         self.assertEqual(near, [(23, 44)])
         comers = quest_wait_placement.comers_at(self.policy, self.board, self.navigator, self.plan, (15, 38))
-        self.assertEqual(len(comers & self.dagon_keys()), 1)
+        # The one acting goes back and forth at the wall of its room as the game moves it
+        # (quest_wait_placement ``walks``, tests/test_n1c_217_q33_gachapin_wait_1119_recorded).
+        self.assertEqual(comers & self.dagon_keys(), frozenset())
 
     def test_the_wait_is_held_where_all_three_dagons_come(self):
         key = quest_room_sweep.walk_key(self.policy, self.board)
