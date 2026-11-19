@@ -13935,6 +13935,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_lure_approach.py:_fire_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_lure_approach.py:_hold": {
     "classification": "producer",
     "rows": [
@@ -13957,6 +13964,20 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_lure_approach.py:_lure_start": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_open_way": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_openings": {
     "classification": "producer",
     "rows": [
       "survival"

@@ -299,7 +299,7 @@ class _Reader:
 
         self.policy, self.snapshot, self.navigator, self.plan = policy, snapshot, navigator, plan
         self.rows = rows
-        self.terrain = navigator.battlefield.terrain
+        self.terrain = quest_alignment_split.board_terrain(navigator, snapshot)
         self.open_cells = answer._open_cells(navigator, snapshot)
         self.flows: dict = {}
         self.steps: dict = {}
@@ -309,8 +309,15 @@ class _Reader:
         self.summoners = quest_alignment_split.summoners(policy, snapshot, navigator, plan)
 
     def acts(self, row: Awaited, spot) -> bool:
+        """decide_process_continue; a monster the player sees from where he stands is in his view
+        (``has_los_at``), whatever the map remembers of the cells between (a tree burnt out of
+        memory: GRASS has no REMEMBER)."""
         from hengbot import quest_summon_answer as answer
 
+        monster = row.monster
+        if (monster is not None and monster.perception != "detected" and spot == _cell(self.snapshot.player.position)
+                and quest_exposure.game_distance(row.cell, spot) <= MAX_PLAYER_SIGHT):
+            return True
         return answer._acts(self.open_cells, row.cell, int(getattr(row.knowledge, "vision", 0) or 0), spot)
 
     def _flow(self, row: Awaited) -> dict:
@@ -477,6 +484,9 @@ class _Reader:
         distances, costs = self.flow_maps(spot, "CAN_FLY" in flags)
         gauge = distances if doors else costs
         cell, seen = row.cell, set()
+        # The cells each move headed for first, and the five of the move that found none free:
+        # what an opening of the way may clear (quest_lure_approach ``_openings``).
+        self.last_headed, self.last_refused = [], []
         for _ in range(STEP_LIMIT):
             if max(abs(cell[0] - spot[0]), abs(cell[1] - spot[1])) <= 1:
                 return True
@@ -486,18 +496,34 @@ class _Reader:
             target = self._heading(row, cell, spot, gauge, flags, doors)
             if target is True:
                 return True
+            tried = []
             for direction in _moves_val((cell[0] - target[0], cell[1] - target[1])):
                 dy, dx = _DIR_VEC[direction]
                 nxt = (cell[0] + dy, cell[1] + dx)
+                tried.append(nxt)
                 if nxt == spot:
                     return True
                 if nxt in blocked or not _crosses(self.snapshot, self.terrain, flags, nxt):
                     continue
+                self.last_headed.append(tried[0])
                 cell = nxt
                 break
             else:
+                self.last_refused = tried
                 return False
         return False
+
+    def with_opened(self, cells) -> "_Reader":
+        """This board's reader on the map with ``cells`` opened (a tree burnt, a wall melted)."""
+        import copy
+
+        clone = copy.copy(self)
+        clone.terrain = {**self.terrain, **{cell: "floor" for cell in cells}}
+        clone.open_cells = frozenset(self.open_cells) | frozenset(cells)
+        clone.flows, clone.steps = {}, {}
+        if hasattr(clone, "_open_terrain"):
+            del clone._open_terrain
+        return clone
 
     def comers(self, spot) -> frozenset:
         return frozenset(row.key for row in self.rows if self.comes(row, spot))

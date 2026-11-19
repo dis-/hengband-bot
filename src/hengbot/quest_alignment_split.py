@@ -246,10 +246,30 @@ def _monster_side(policy, monster, split) -> str | None:
     return mark
 
 
-def _sight(navigator, snapshot) -> dict:
-    """The map as the game's lines cross it, through the doors the board shows open."""
-    terrain = {}
+# TerrainDefinitions.jsonc ids: what a burnt tree leaves (effect-feature.cpp affect_feature: TREE ->
+# BRAKE one time in three, else GRASS; both LOS, PROJECTION and MOVE) and the floor Stone to Mud leaves.
+_OPENED_TERRAIN_IDS = frozenset({1, 89, 94})
+
+
+def board_terrain(navigator, snapshot) -> dict:
+    """The quest map as it is now: a tree burnt or a wall melted (the board shows the grid as
+    floor, grass or brake, or the plan opened it: ``navigator.opened_cells``) is floor."""
+    terrain = dict(navigator.battlefield.terrain)
+    opened = set(getattr(navigator, "opened_cells", ()))
     for spot, kind in navigator.battlefield.terrain.items():
+        if kind not in {"tree", "wall"}:
+            continue
+        grid = snapshot.grid_at(Position(*spot))
+        if spot in opened or (grid is not None and grid.known and grid.terrain_id in _OPENED_TERRAIN_IDS):
+            terrain[spot] = "floor"
+    return terrain
+
+
+def _sight(navigator, snapshot) -> dict:
+    """The map as the game's lines cross it, through the doors the board shows open and the trees
+    and walls the board shows gone (``board_terrain``)."""
+    terrain = {}
+    for spot, kind in board_terrain(navigator, snapshot).items():
         if kind == "door":
             grid = snapshot.grid_at(Position(*spot))
             kind = "floor" if grid is not None and grid.known and not grid.is_closed_door else "wall"
