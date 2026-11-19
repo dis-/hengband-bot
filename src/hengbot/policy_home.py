@@ -6020,6 +6020,20 @@ class HomeMixin:
         re-enters Home (n1-c life-157 2026-11-06 23:38, the deferred shovel
         and the digger latch, 244 Home entries).
         """
+        if ((self._home_pending_item is not None or self._home_pending_batch)
+                and self._home_atomic_withdraw_pending is None
+                and STORE_HOME in self._town_store_attempted
+                and self._town_store_blocked_under_applicable_bound(STORE_HOME)):
+            # Home is closed for this visit (its pass closed unsatisfied, or full): no Home
+            # page will serve a queued take again, and the departure's Home-settle rescue
+            # walks back only while Home was not tried.  The takes are deferred for the
+            # visit; what they were for is the supply leaves' (buy) or the next visit's.
+            # n1-b life-411 2026-11-20 03:33: the Potion of Resistance take queued before
+            # the shop bought it stayed pending behind a closed Home, and the visit stopped
+            # under town:blocked:unmet:home_pending_item_clear.
+            for signature in (self._home_pending_item, *self._home_pending_batch):
+                if signature is not None and signature not in self._deferred_home_items:
+                    self._defer_home_item(signature, "home-closed-this-visit")
         deferred = self._deferred_home_items
         if self._home_pending_item is not None and self._home_pending_item in self._deferred_home_items:
             self._home_pending_quantities.pop(self._home_pending_item, None)
