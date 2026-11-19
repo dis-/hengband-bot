@@ -5990,7 +5990,7 @@ class ShopMixin(InStoreMixin):
             self._equipment_transaction_session is not None
             and self._equipment_transaction_session.required_context == "home"
             and not self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
-            and self._town_visit_ledger.unsatisfied_passes[STORE_HOME]
+            and self._home_unsatisfied_passes()
             < self._town_store_visit_limit(STORE_HOME)
         )
         if not snapshot.in_town or (

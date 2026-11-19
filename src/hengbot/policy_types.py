@@ -433,6 +433,11 @@ class TownVisitLedger:
     need_attempts: dict[str, int] = field(default_factory=dict)
     approach_fails: Counter[int] = field(default_factory=Counter)
     unsatisfied_passes: Counter[int] = field(default_factory=Counter)
+    # Of ``unsatisfied_passes``, the Home passes charged while the equipment
+    # allowance (CALIBRATION_HOME_VISIT_LIMIT) applied: they are that work's
+    # and are not counted against the ordinary TOWN_STOP_PASS_LIMIT of the
+    # Home work after it (n1-a life-531 2026-11-19 14:17).
+    allowance_passes: Counter[int] = field(default_factory=Counter)
     blocked_stores: set[int] = field(default_factory=set)
     blocked_store_limits: dict[int, int] = field(default_factory=dict)
     blocked_store_work_signatures: dict[int, tuple[object, ...] | None] = field(
@@ -464,6 +469,11 @@ class TownVisitLedger:
     closed_terminals: dict[tuple, str] = field(default_factory=dict)
     terminal_route_edges: dict[tuple, int] = field(default_factory=dict)
     terminal_server_vectors: dict[tuple, object] = field(default_factory=dict)
+
+    def __setstate__(self, state: dict) -> None:
+        """Migrate ledgers captured before ``allowance_passes`` existed."""
+        self.__dict__.update(state)
+        self.__dict__.setdefault("allowance_passes", Counter())
 
 
 @dataclass
