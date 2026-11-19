@@ -13456,12 +13456,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     ) -> bool:
         force = self._strategy_force_for_snapshot(snapshot, profile)
         reference_ac = force_reference_ac(force)
-        dps = self._strategy_measured_dps(snapshot, force)
+        per_action = self._strategy_measured_dps(snapshot, force)
         # A class that fights this quest with thrown lit torches (QUEST_1
         # class 16) is measured by that output; melee is its fallback once
         # the carried torches are gone, never the gate (#47 n1-c life-058).
-        melee_dps = dps
-        dps = max(dps, torch_throw_output(force, snapshot.player.class_id))
+        # Owner 2026-11-19 「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで
+        # 評価して」: the floors are per 10 game turns at the speed the force fights at
+        # (quest_force_rows.row_damage).
+        melee_dps = quest_force_rows.row_damage(self, snapshot, force, force, per_action)
+        dps = quest_force_rows.row_damage(
+            self, snapshot, force, force,
+            max(per_action, torch_throw_output(force, snapshot.player.class_id)))
         carry_status = self._quest_carry_status(snapshot, force)
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
         resists_ready = all(
@@ -13475,7 +13480,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         healing = self._strategy_heal_potion_count(snapshot, force)
         details = {
             "reference_ac": reference_ac,
-            "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id)},
+            "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id),
+                    "per_action": max(per_action, torch_throw_output(force, snapshot.player.class_id))},
             "hp": {"measured": snapshot.player.max_hp, "required": acceptance_hp_floor(force, snapshot.player.class_id)},
             "carries": carry_status,
             "speed_potions": {"measured": speed_count, "required": speed_required},

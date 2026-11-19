@@ -15,13 +15,20 @@ and ``speed_potions``, and may name
 town route and the fight all read the same counts through
 ``_strategy_force_for_snapshot``.  A row counts when the character's maximum HP,
 measured damage and (where the force names one) ranged damage per turn meet its floors
-(quest_ranged_force); of those, the one that asks for the fewest Speed potions.  With no such row the floors of the first row refuse the quest and no potion
+(quest_ranged_force); of those, the one that asks for the fewest Speed potions.
+
+The damage floors are per 10 game turns (owner 2026-11-19 「攻撃力の判定を1行動あたりではなく、
+10ゲームターンあたりのダメージで評価して」, ``row_damage``): the measured per-action figure at the
+permanent speed, or at the hasted speed for an ``always_hasted`` row.  A floor derived per action
+at +0 keeps its number; the always-hasted rows whose floor was halved per action for the haste
+(QUEST_18 row 2: 75, QUEST_25 row 2: 100 and ranged 120) read twice that per 10 game turns, the
+same per-action line at a +0 permanent speed.  With no such row the floors of the first row refuse the quest and no potion
 is asked for: a character that cannot take the quest yet spends nothing on it.
 """
 
 from __future__ import annotations
 
-from hengbot import haste_read, me_capability, quest_one_turn_kill, quest_ranged_force
+from hengbot import attack_expectation, haste_read, me_capability, quest_one_turn_kill, quest_ranged_force
 from hengbot.model import SV_POTION_SPEED
 
 ALTERNATIVES = "force_alternatives"
@@ -85,7 +92,8 @@ def resolve(policy, snapshot, force: dict) -> dict:
     damage = policy._strategy_measured_dps(snapshot, force)
     capable = [
         (_speed_cost(policy, snapshot, row), index) for index, row in enumerate(rows)
-        if max_hp >= int(row["min_hp"]) and damage >= float(row["min_expected_dps"])
+        if max_hp >= int(row["min_hp"])
+        and row_damage(policy, snapshot, force, row, damage) >= float(row["min_expected_dps"])
         and quest_ranged_force.turn_met(policy, snapshot, force, row)
     ]
     if not capable:
@@ -97,6 +105,16 @@ def resolve(policy, snapshot, force: dict) -> dict:
     else:
         resolved["speed_potions"] = cost
     return resolved
+
+
+def row_damage(policy, snapshot, force, row, per_action: float) -> float:
+    """``per_action`` (the measured melee) per 10 game turns at the speed ``row`` fights at.
+
+    Owner 2026-11-19 「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで評価して」:
+    ``min_expected_dps`` is damage per 10 game turns, read at the permanent speed, or for an
+    ``always_hasted`` row at the speed its haste assures (attack_expectation.force_speed)."""
+    speed = attack_expectation.force_speed(snapshot, attack_expectation.row_always_hasted(force, row))
+    return attack_expectation.per_10_game_turns(policy, snapshot, per_action, speed=speed)
 
 
 DEPART_FLAG = "speed_required_to_depart"

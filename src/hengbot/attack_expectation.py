@@ -694,3 +694,14 @@ def always_hasted_speed(snapshot) -> int:
     from hengbot.quest_plan_base import PERMANENT_HASTE_SPEED
     speed = permanent_speed(snapshot)
     return speed if speed >= PERMANENT_HASTE_SPEED else speed + HASTE_BONUS
+
+
+def force_speed(snapshot, always_hasted) -> int:
+    """The speed a quest force's (or row's) attack floors are read at: ``always_hasted_speed``
+    for a row that lives hasted, else the permanent speed."""
+    return always_hasted_speed(snapshot) if always_hasted else permanent_speed(snapshot)
+
+
+def row_always_hasted(force, row) -> bool:
+    """``row``'s ``always_hasted``, else the force's (a merged row inherits it)."""
+    return bool(row.get("always_hasted", force.get("always_hasted")))
