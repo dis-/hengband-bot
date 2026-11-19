@@ -8,15 +8,22 @@ The strategy (strategy/quests/QUEST_33.jsonc) walks the floor room by room (ques
 refuses every cell from which a living GOOD summoner (クイーン・アント 581) and a living EVIL one
 (イット 393, ガチャピン 441, ボクルグ 489, ダゴン 595) would both act: the game processes a monster
 only while the player is within its vision (monster-processor.cpp decide_process_continue), and two
-monsters fight only GOOD against EVIL (monster-entity.cpp check_sub_alignments).  Acceptance asks one
-player turn of 750 against the Queen (1500 HP in two turns, quest_one_turn_kill ``turns``).
+monsters fight only GOOD against EVIL (monster-entity.cpp check_sub_alignments).  Acceptance asks
+750 per 10 game turns against the Queen as its one damage line (owner 2026-11-19 「Q33の受注条件は
+10ゲームターンあたり750のダメージを与える能力にする。女王アリを20ゲームターンで処理できる能力である。」;
+1500 HP in 20 game turns, quest_one_turn_kill ``turns``), read
+at the speed the always-hasted force fights at (owner 2026-11-19 「攻撃力の判定を1行動あたりでは
+なく、10ゲームターンあたりのダメージで評価して」).
 
 Recorded: the town arrivals of 2026-11-19 shared with QUEST_32's tests
-(tests/fixtures/quest32-one-turn-kill-1119): n1-a life-531 (warrior Lv42, 578.3 a turn on the
-Queen), n1-b life-411 (Magic-Eater Lv50, 415.0 melee, 280.0 devices), n1-c life-217 (Magic-Eater
-Lv36, 180.6) -- all refused for the one-turn figure, and the non-urgent quest is passed over.
+(tests/fixtures/quest32-one-turn-kill-1119): n1-a life-531 (warrior Lv42, +4: 578.3 an action on
+the Queen, 809.7 per 10 game turns) and n1-b life-411 (Magic-Eater Lv50, +25: 415.0 melee, 280.0
+devices, 1452.4) meet it -- n1-a is refused for its Light scrolls and resists, n1-b only for its HP and is accepted at
+full HP; n1-c life-217 (Magic-Eater Lv36, +6: 180.6, 288.9, 469.5 at the hasted +16) is refused for
+the figure, and the non-urgent quest is passed over.  Per action all three were refused.
 
-DECLARED CONSTRUCTED: n1-b's board with 13 blows a turn (770.6 on the Queen) at full HP is accepted;
+DECLARED CONSTRUCTED: n1-a's board with 4 blows a turn instead of 7 (330.5: 462.7 at +4, 793.2
+at the hasted +14) meets the one line, with three blows (594.9 hasted) it does not; n1-b's board at full HP;
 the floor boards below put the recorded n1-b policy on the Q33 floor (floor key, the quest TAKEN,
 the player's cell, the monsters and messages of the board) to drive the split's own functions.
 """
@@ -162,29 +169,62 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
             self.assertEqual((resolved["heal_potions"], resolved["speed_potions"], resolved["required_scrolls"]),
                              (0, 0, {}))
 
-    def test_n1a_warrior_is_refused(self):
-        # Short of 750 on the Queen; also of resist_blind and telepathy.
-        self.assert_refused_for_the_queen("n1a-531", 578.3, 0.0, ["resists"])
+    def test_n1a_warrior_meets_the_figure_and_lacks_resists(self):
+        scratch, policy, board = recorded("n1a-531")
+        with scratch:
+            force = policy.approved_quest_strategy(QUEST).required_force
+            found = quest_one_turn_kill.details(policy, board, force)
+            # Per action 578.3 < 750; per 10 game turns at the +14 it fights at (energy 24) 1388.0.
+            self.assertEqual((found["melee"], found["per_10_game_turns"], found["tier"]),
+                             (578.3, {"permanent": 809.7, "hasted": 1388.0}, "full"))
+            self.assertFalse(quest_one_turn_kill.holds_back(policy, board, QUEST))
+            verdict, telemetry, strategy = readiness(policy, board)
+            # Short of the ten Light scrolls, resist_blind and telepathy.
+            self.assertEqual((verdict, telemetry["reason"], strategy["failed"]),
+                             (False, "strategy-force", ["required_scrolls.light", "resists"]))
 
-    def test_n1b_magic_eater_is_refused(self):
-        # Every resist and the HP are there; the one-turn figure alone is short.
-        self.assert_refused_for_the_queen("n1b-411", 415.0, 280.0)
+    def test_n1a_with_four_blows_meets_the_one_line_hasted(self):
+        scratch, policy, board = recorded("n1a-531")
+        with scratch:
+            weaker = replace(board, player=replace(board.player, main_hand_blows=4))
+            force = policy.approved_quest_strategy(QUEST).required_force
+            found = quest_one_turn_kill.details(policy, weaker, force)
+            self.assertEqual((found["melee"], found["per_10_game_turns"], found["tier"]),
+                             (330.5, {"permanent": 462.7, "hasted": 793.2}, "full"))
+            # The force's own ten Speed doses carry the haste: no QUEST_32 haste row is merged.
+            resolved = policy._strategy_force_for_snapshot(weaker, policy.approved_quest_strategy(QUEST))
+            self.assertEqual((resolved["speed_potions"], resolved["speed_required_to_depart"]), (10, True))
+            # One line, no hasted tier: the always-hasted plan keeps the haste, no extra dose rule.
+            self.assertFalse(quest_one_turn_kill.haste_first(policy, weaker, force))
+            # Three blows (247.9 an action, 594.9 at +14) are short of it.
+            weakest = replace(board, player=replace(board.player, main_hand_blows=3))
+            self.assertIsNone(quest_one_turn_kill.tier(policy, weakest, force))
+
+    def test_n1b_magic_eater_meets_it_and_is_accepted_at_full_hp(self):
+        scratch, policy, board = recorded("n1b-411")
+        with scratch:
+            force = policy.approved_quest_strategy(QUEST).required_force
+            found = quest_one_turn_kill.details(policy, board, force)
+            # +25 (energy 35): no dose at +10 or more, so the hasted speed is the permanent one.
+            self.assertEqual((found["melee"], found["device"], found["per_10_game_turns"], found["tier"]),
+                             (415.0, 280.0, {"permanent": 1452.4, "hasted": 1452.4}, "full"))
+            verdict, telemetry, _ = readiness(policy, board)
+            self.assertEqual((verdict, telemetry["reason"]), (False, "not-full-hp"))
+            full = replace(board, player=replace(board.player, hp=board.player.max_hp))
+            self.assertFalse(quest_one_turn_kill.holds_back(policy, full, QUEST))
+            verdict, telemetry, strategy = readiness(policy, full)
+            self.assertEqual((verdict, telemetry["reason"], strategy["failed"]), (True, "ready", []))
+            # Its permanent speed (+25) stands for the ten Speed potions (the force's second row).
+            resolved = policy._strategy_force_for_snapshot(full, policy.approved_quest_strategy(QUEST))
+            self.assertEqual((resolved["speed_potions"], resolved["heal_potions"]), (0, 10))
 
     def test_n1c_magic_eater_is_refused(self):
         self.assert_refused_for_the_queen("n1c-217", 180.6, 140.4, ["resists"])
-
-    def test_a_constructed_n1b_that_meets_it_is_accepted(self):
-        scratch, policy, board = recorded("n1b-411")
+        scratch, policy, board = recorded("n1c-217")
         with scratch:
-            strong = replace(board, player=replace(board.player, main_hand_blows=13, hp=board.player.max_hp))
-            force = policy.approved_quest_strategy(QUEST).required_force
-            self.assertEqual(quest_one_turn_kill.details(policy, strong, force)["tier"], "full")
-            self.assertFalse(quest_one_turn_kill.holds_back(policy, strong, QUEST))
-            verdict, telemetry, strategy = readiness(policy, strong)
-            self.assertEqual((verdict, telemetry["reason"], strategy["failed"]), (True, "ready", []))
-            # Its permanent speed (+25) stands for the ten Speed potions (the force's second row).
-            resolved = policy._strategy_force_for_snapshot(strong, policy.approved_quest_strategy(QUEST))
-            self.assertEqual((resolved["speed_potions"], resolved["heal_potions"]), (0, 10))
+            found = quest_one_turn_kill.details(
+                policy, board, policy.approved_quest_strategy(QUEST).required_force)
+            self.assertEqual(found["per_10_game_turns"], {"permanent": 288.9, "hasted": 469.5})
 
 
 class Quest33SplitTest(unittest.TestCase):

@@ -87,6 +87,11 @@ def _replay():
 ANSWERS = {}
 
 
+def _replay_fresh():
+    with patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False):
+        return _replay()
+
+
 def answer(turn):
     if not ANSWERS:
         with patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False):
@@ -358,7 +363,13 @@ class HasteUnderSlownessRecordedTest(unittest.TestCase):
 
     def test_the_haste_truly_over_the_speed_potion_is_still_drunk(self):
         # 「動きの素早さがなくなったようだ。」 at 11651714: the same field and the same value.
-        raw, key, reason, _ = answer(11651714)
+        # DECLARED CONSTRUCTED: the Q25 rows read at a +0 permanent speed (+10 for the always-hasted row).  Recorded, the +3 board's 367.4 melee a
+        # turn reads 477.6 per 10 game turns (owner 2026-11-19 「10ゲームターンあたりのダメージで
+        # 評価して」), so condition 1 (not always hasted, three potions) serves it and the quiet
+        # walk drinks nothing; at +0 condition 2 (always hasted) serves it, as recorded.
+        with patch("hengbot.attack_expectation.force_speed",
+                   lambda _board, always_hasted: 120 if always_hasted else 110):
+            raw, key, reason, _ = _replay_fresh()[11651714]
         self.assertEqual(raw["player"]["speed_display"]["color"], "light_green")
         self.assertEqual(reason, quest_find_exit.SPEED_REASON)
         self.assertTrue(key.startswith("q"), key)

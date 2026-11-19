@@ -8,6 +8,12 @@ with 1発65以上・矢弾40発以上: the fire to kill the summoning イプシ�
 ``device_classes``, the ``reference_race`` the devices are scored against.  A row may
 override the last with ``ranged_turn_average``.
 
+``turn_average`` is damage per 10 game turns (owner 2026-11-19 「攻撃力の判定を1行動あたりでは
+なく、10ゲームターンあたりのダメージで評価して」, ``timed_turn``): the best per-action figure below
+times the actions 10 game turns hold at the permanent speed, or at the hasted speed for an
+``always_hasted`` row (attack_expectation.force_speed).  ``shot_average`` stays per shot (a use's
+damage, not a rate).
+
 The launcher: the game's own figures on the ammunition's name, "(68/shot 121/turn)"
 (flavor-describer.cpp describe_ammo_detail, describe_fire_energy: average damage and
 shots per turn of the worn launcher), which is what the player reads.  A stack counts
@@ -199,9 +205,18 @@ def _turn_floor(force, row) -> float:
     return float(row.get("ranged_turn_average", force["ranged"]["turn_average"]))
 
 
+def timed_turn(policy, snapshot, force, row, turn: float) -> float:
+    """A per-action ``turn`` figure per 10 game turns at the speed ``row`` fights at (owner
+    2026-11-19 「10ゲームターンあたりのダメージで評価して」; quest_force_rows.row_damage's speed)."""
+    speed = attack_expectation.force_speed(snapshot, attack_expectation.row_always_hasted(force, row))
+    return attack_expectation.per_10_game_turns(policy, snapshot, turn, speed=speed)
+
+
 def turn_met(policy, snapshot, force, row) -> bool:
-    """The row's damage per turn is met; ammunition can still be bought, this cannot."""
-    return "ranged" not in force or score(policy, snapshot, force["ranged"]).turn >= _turn_floor(force, row)
+    """The row's damage per turn (per 10 game turns) is met; ammunition can still be bought, this
+    cannot."""
+    return "ranged" not in force or timed_turn(
+        policy, snapshot, force, row, score(policy, snapshot, force["ranged"]).turn) >= _turn_floor(force, row)
 
 
 def settled_force(policy, snapshot, force) -> dict:
@@ -247,7 +262,8 @@ def ready(policy, snapshot, force) -> bool:
     if "ranged" not in force:
         return True
     found = score(policy, snapshot, force["ranged"])
-    return found.turn >= _turn_floor(force, force) and found.shots >= int(force["ranged"]["ammo"])
+    return (timed_turn(policy, snapshot, force, force, found.turn) >= _turn_floor(force, force)
+            and found.shots >= int(force["ranged"]["ammo"]))
 
 
 def details(policy, snapshot, force) -> dict:
@@ -257,5 +273,6 @@ def details(policy, snapshot, force) -> dict:
              "device": found.device_shots}
     if "ranged" not in force:
         return {"shots": shots, "short": bool(force.get(SHORT))}
-    return {"turn": {"measured": found.turn, "required": _turn_floor(force, force)},
+    return {"turn": {"measured": round(timed_turn(policy, snapshot, force, force, found.turn), 1),
+                     "per_action": found.turn, "required": _turn_floor(force, force)},
             "shots": shots}

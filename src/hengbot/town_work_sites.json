@@ -709,6 +709,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "attack_expectation.py:always_hasted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:aura_self_damage": {
     "classification": "data",
     "rows": [
@@ -730,6 +737,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "attack_expectation.py:hasted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:kill_paced": {
     "classification": "data",
     "rows": [
@@ -745,6 +759,20 @@
     "delegation": "selected child; no independent success"
   },
   "attack_expectation.py:melee_against": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:per_10_game_turns": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:permanent_speed": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13802,6 +13830,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_one_turn_kill.py:best": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_one_turn_kill.py:figures": {
     "classification": "data",
     "rows": [
@@ -13837,7 +13872,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_one_turn_kill.py:per_10_game_turns": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_one_turn_kill.py:requirement": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_one_turn_kill.py:speeds": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15063,13 +15112,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "speed_valuation.py:loadout_energy": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "speed_valuation.py:loadout_speed": {
     "classification": "data",
     "rows": [
@@ -15077,7 +15119,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "speed_valuation.py:per_10_game_turns_at": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "speed_valuation.py:per_game_time": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "speed_valuation.py:permanent_player_speed": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

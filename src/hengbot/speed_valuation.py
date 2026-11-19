@@ -16,7 +16,10 @@ Two rules, both here:
 
 * Damage per game time (「時間あたりの打撃」): every damage the selection compares
   (melee, the absorbed devices, the launcher) is per player action times
-  ``loadout_energy / NORMAL_ENERGY``.  At +0 the value is unchanged.
+  ``loadout_energy / NORMAL_ENERGY``: damage per 10 game turns, the unit every attack-power
+  judgement reads since 2026-11-19 (``per_10_game_turns_at``; attack_expectation
+  ``per_10_game_turns``).  At +0 the value is unchanged.  The loadout's speed is counted
+  here once: the survival weight below is a separate rule, not a second damage scaling.
 * Speed up to +20 strongly (「+20までを強く」): the survival / kill ratio is
   weighted by ``speed_energy(min(speed, +20))`` relative to the field's best
   capped speed (``weighted_margin``).  Survival already grows with the energy,
@@ -65,9 +68,21 @@ def loadout_energy(metrics) -> int:
     return speed_energy(loadout_speed(metrics))
 
 
+def per_10_game_turns_at(value: float, speed: int) -> float:
+    """A per-action damage ``value`` at ``speed`` as damage per 10 game turns (one +0 turn).
+
+    The arithmetic of every attack-power figure (owner 2026-11-19 「攻撃力の判定を1行動あたり
+    ではなく、10ゲームターンあたりのダメージで評価して」): a game turn gives ``speed_energy``,
+    an action costs 100, so 10 game turns hold ``speed_energy(speed) / NORMAL_ENERGY`` actions.
+    The judgements read it through attack_expectation.per_10_game_turns; the loadout
+    comparison through ``per_game_time``."""
+    return value * speed_energy(speed) / NORMAL_ENERGY
+
+
 def per_game_time(value: float, metrics) -> float:
-    """A per-action damage ``value`` as damage per game time (+0 scale)."""
-    return value * loadout_energy(metrics) / NORMAL_ENERGY
+    """A per-action damage ``value`` as damage per game time (+0 scale): per 10 game turns at
+    the loadout's permanent speed (``per_10_game_turns_at``)."""
+    return per_10_game_turns_at(value, loadout_speed(metrics))
 
 
 def time_melee(metrics) -> float:
