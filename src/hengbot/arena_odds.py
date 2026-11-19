@@ -39,8 +39,9 @@ Where the number errs:
     DAMAGE_MARGIN stands against these.  Not modelled at all: the race's HASTE, INVULNER
     and SLOW (or BRAIN_SMASH's slowness, which free action does not stop).
   * mechanics not modelled refuse the fight (chance None): ``refusal``.  Paralysis,
-    confusion, stun without the resistance, fear for a melee plan, blindness for a plan
-    with no melee, and an invisible opponent without See Invisible.  Blindness for a
+    confusion, stun without the resistance, fear for a melee plan (no potion is drunk in the
+    arena: heroism_potion._drink_possible), blindness for a plan with no melee (not for a
+    Magic-Eater with telepathy, owner 2026-11-19, resist_alternatives), and an invisible opponent without See Invisible.  Blindness for a
     melee plan counts the whole fight at BLIND_MARGIN.  Unknown means do not fight.
 """
 
@@ -52,7 +53,7 @@ import re
 
 import numpy as np
 
-from hengbot import arena_fight_chain, attack_expectation, me_capability, me_device_attacks
+from hengbot import arena_fight_chain, attack_expectation, me_capability, me_device_attacks, resist_alternatives
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_STAFF_SPEED, MonsterState, Position
 from hengbot.monrace_knowledge import SUMMON_ABILITIES
@@ -121,6 +122,9 @@ def opponent_state(snapshot, race_id: int, knowledge) -> MonsterState:
 
 
 def open_to_blindness(snapshot, knowledge) -> bool:
+    # Owner 2026-11-19 「魔道具術師でテレパシーがあるなら盲目でも戦闘に支障はない」 (resist_alternatives).
+    if resist_alternatives.blind_covered_by_telepathy(snapshot):
+        return False
     return "resist_blind" not in snapshot.player.abilities and bool(
         knowledge.abilities & {"BLIND", "BRAIN_SMASH"}
         or any(blow.effect == "BLIND" for blow in knowledge.blows))

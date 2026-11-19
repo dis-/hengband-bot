@@ -103,9 +103,13 @@ class AfraidTest(RecordedBoards):
         self.assertEqual(self.decide(AFRAID_AGAIN), (DRINK, "heroism:afraid"))
 
     def test_a_leave_the_tiers_decide_keeps_the_board(self):
-        # Since main 1d38485a92 (re-landed threat-heal-credit) the tiers decide a leave on the
-        # first afraid board (leave_due): the flee rung reads Teleportation, potion or not.
-        self.assertEqual(self.decide(AFRAID), ("rh", "flee:scroll"))
+        # Since main 1d38485a92 (re-landed threat-heal-credit) the tiers decided a leave on the
+        # first afraid board (leave_due), potion or not: the Black Knights' BLIND withheld T2.
+        # Owner 2026-11-19 「魔道具術師でテレパシーがあるなら盲目でも戦闘に支障はない」: this
+        # Magic-Eater wears telepathy, so blindness no longer withholds it (fear_cover.blind_covered,
+        # resist_alternatives) and, carrying the potion, fear is answered by the drink; without the
+        # potion fear still withholds T2 and the flee rung reads Teleportation.
+        self.assertEqual(self.decide(AFRAID), (DRINK, "heroism:afraid"))
         self.assertEqual(self.decide(AFRAID, _no_potion), ("rh", "flee:scroll"))
 
     def test_the_carried_potion_is_what_fear_cover_counts(self):

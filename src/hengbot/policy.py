@@ -17,7 +17,7 @@ from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
-from hengbot import summoner_wait
+from hengbot import resist_alternatives, summoner_wait
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 from hengbot import amberite_curse, curse_cure, home_cap, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
 
@@ -488,7 +488,7 @@ from hengbot.quest_knowledge import (
     QuestInfo,
 )
 from hengbot.quest_strategies import (
-    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor, has_ability_or_alternative,
+    StrategyProfile, acceptance_dps_floor, acceptance_hp_floor,
     heal_potion_sval, torch_throw_output,
 )
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
@@ -13484,11 +13484,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self, snapshot, force, force,
             max(per_action, torch_throw_output(force, snapshot.player.class_id)))
         carry_status = self._quest_carry_status(snapshot, force)
+        # Owner 2026-11-19 「魔道具術師でテレパシーがあるなら盲目でも戦闘に支障はない。また、恐怖攻撃は
+        # ヒーローの薬で対処する決まりが既にある。」: fear is the heroism carry, blindness a Magic-Eater's
+        # telepathy (resist_alternatives).
+        carry_status.update(resist_alternatives.carry_status(
+            force, self._profile_resistance_name, snapshot))
         carries_ready = all(bool(item["ready"]) for item in carry_status.values())
         resists_ready = all(
-            has_ability_or_alternative(
-                force, self._profile_resistance_name(str(name)),
-                snapshot.player.abilities, snapshot.equipment)
+            resist_alternatives.resist_met(
+                force, self._profile_resistance_name(str(name)), snapshot)
             for name in force.get("resists", ())
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
