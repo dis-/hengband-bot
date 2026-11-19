@@ -15571,6 +15571,55 @@
     ],
     "delegation": "no emission; observational data for the quest search's lap"
   },
+  "sellable_artifacts.py:_posted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sellable_artifacts.py:_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sellable_artifacts.py:drop_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "destruction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "sellable_artifacts.py:drop_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sellable_artifacts.py:listed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "sellable_artifacts.py:town_drop_key": {
+    "classification": "producer",
+    "rows": [
+      "destruction"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "sellable_artifacts.py:unsellable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "shop_purchase_dispatch.py:next_purchase_key": {
     "classification": "operation",
     "rows": [

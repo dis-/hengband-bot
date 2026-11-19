@@ -18,7 +18,7 @@ still states this order.
 from __future__ import annotations
 
 from hengbot import approach_answer, return_start
-from hengbot import full_pack_exchange, hunt_target
+from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
 from hengbot.home_visit import HomeVisitKind
 from hengbot.item_reservation import reserved_item_command
@@ -416,6 +416,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
     policy._bind_home_star_remove_curse_withdrawal(snapshot)
     policy._bind_home_drink_potion_withdrawal(snapshot)
     policy._bind_home_absorb_device_withdrawal(snapshot)
+    policy._bind_home_artifact_drop_withdrawal(snapshot)
 
     enchant_launcher = policy._town_producer_entry("_town_enchant_launcher_key", lambda: policy._town_enchant_launcher_key(snapshot))
     if enchant_launcher is not None:
@@ -528,6 +529,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         policy._bind_home_star_remove_curse_withdrawal(snapshot)
         policy._bind_home_drink_potion_withdrawal(snapshot)
         policy._bind_home_absorb_device_withdrawal(snapshot)
+        policy._bind_home_artifact_drop_withdrawal(snapshot)
         # The departure seam (_town_special_key) releases a stale Home
         # candidate latch before it evaluates departure; _observe re-derives
         # that latch on every in-town board (a Home identify scroll alone
@@ -594,6 +596,12 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
                 approach = policy._town_producer_entry("_shopping_approach_key#2", lambda: policy._shopping_approach_key(snapshot, step, "shop:travel"))
                 if approach is not None or not refused:
                     return approach
+
+    # Owner 2026-11-20 「街の床に捨ててダンジョンに帰還すれば消える」: a named artifact no store buys
+    # is dropped on the town floor before the departure (sellable_artifacts).
+    artifact_drop = policy._town_producer_entry("sellable_artifacts.town_drop_key", lambda: sellable_artifacts.town_drop_key(policy, snapshot), family="equipment-txn")
+    if artifact_drop is not None:
+        return artifact_drop
 
     destroy = policy._town_producer_entry("_town_destroy_key", lambda: policy._town_destroy_key(snapshot), family="equipment-txn")
     if destroy is not None:

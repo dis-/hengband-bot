@@ -12,7 +12,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import area_mapping, consumable_policy, curse_cure, junk_destroy_now, magic_eater, me_powers, quest_target_search, status_cure
+from hengbot import area_mapping, consumable_policy, curse_cure, junk_destroy_now, magic_eater, me_powers, quest_target_search, sellable_artifacts, status_cure
 from hengbot.dungeon_ladder import PASS
 
 
@@ -74,6 +74,11 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles):
     junk_now = policy._town_producer_entry("junk_destroy_now.destroy_now_key", lambda: junk_destroy_now.destroy_now_key(policy, snapshot), board=snapshot)
     if junk_now is not None:
         return junk_now
+    # A named artifact no store buys is dropped on the town floor (owner 2026-11-20); one carried
+    # out of town anyway is dropped here at the same safe point (sellable_artifacts.drop_key).
+    artifact_drop = policy._town_producer_entry("sellable_artifacts.drop_key", lambda: sellable_artifacts.drop_key(policy, snapshot), board=snapshot)
+    if artifact_drop is not None:
+        return artifact_drop
     # A 「拾って使う」 scroll of the owner's table is read at the same safe
     # point (consumable_policy, owner 2026-11-02).
     use_now = policy._town_producer_entry("consumable_policy.use_now_key", lambda: consumable_policy.use_now_key(policy, snapshot), board=snapshot)

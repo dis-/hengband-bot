@@ -1,0 +1,47 @@
+{
+  "owner": "2026-11-20 「今回は名指ししたリストを売る。名指ししたもののうち、固定アーティファクトは売却可能リストに入れ、50F到達以降は売って良い」",
+  "owner_unsellable": "2026-11-20 「アーティファクトは壊せないので捨てて帰還すること」; corrected: 「ダンジョンに持って潜る必要はない。街の床に捨ててダンジョンに帰還すれば消える」",
+  "source": "C:\\hengband-backups\\pdca\\home-full-root-1119\\n1b-artifact-candidates.md (#3 4 6 7 8 10 11 12 13 14 15 16 17 18 19 20 22 24 25 28 30 31 33 34 36 37 39 47 50 52 55 57 68)",
+  "reached_depth": 50,
+  "fixed": [
+    {"id": 267, "ja": "『アラララング』", "en": "'Alalarang'", "base": [23, 20], "candidate": 3},
+    {"id": 78, "ja": "『神々の黄昏』", "en": "'Twilight'", "base": [23, 25], "candidate": 4},
+    {"id": 177, "ja": "『エクスカリパー』", "en": "'Excalipur'", "base": [23, 17], "candidate": 6},
+    {"id": 200, "ja": "ダ", "en": "'Dasai'", "base": [36, 8], "candidate": 10},
+    {"id": 35, "ja": "ベルシエル王妃の", "en": "of Beruthiel", "base": [33, 10], "candidate": 12},
+    {"id": 142, "ja": "『ウォーパルブレード』", "en": "'Worpal Blade'", "base": [23, 17], "candidate": 13},
+    {"id": 169, "ja": "『拍子木』", "en": "'Hyousi-gi'", "base": [21, 4], "candidate": 14},
+    {"id": 170, "ja": "『纏』", "en": "'Matoi'", "base": [21, 7], "candidate": 15},
+    {"id": 237, "ja": "『デーモンベーン』", "en": "'Demonbane'", "base": [23, 17], "candidate": 16},
+    {"id": 230, "ja": "手品師の", "en": "of a Magician", "base": [23, 1], "candidate": 17},
+    {"id": 159, "ja": "太公望の", "en": "of Taikobo", "base": [22, 40], "candidate": 22},
+    {"id": 67, "ja": "『ニムサンク』", "en": "'Nimthanc'", "base": [23, 4], "candidate": 25},
+    {"id": 261, "ja": "『モルサンク』", "en": "'Morthanc'", "base": [23, 4], "candidate": 28},
+    {"id": 68, "ja": "『デサンク』", "en": "'Dethanc'", "base": [23, 4], "candidate": 30},
+    {"id": 86, "ja": "『フォラスギル』", "en": "'Forasgil'", "base": [23, 7], "candidate": 31},
+    {"id": 191, "ja": "『ナルシル』", "en": "'Narsil'", "base": [23, 2], "candidate": 34},
+    {"id": 109, "ja": "『アヴァビア』", "en": "'Avavir'", "base": [22, 17], "candidate": 36},
+    {"id": 188, "ja": "ボリショイの", "en": "of Bolshoi", "base": [21, 2], "candidate": 39},
+    {"id": 96, "ja": "『ティル=イ=アルク』", "en": "'Til-i-arc'", "base": [22, 8], "candidate": 47},
+    {"id": 115, "ja": "『焔の星』", "en": "'Firestar'", "base": [21, 12], "candidate": 50},
+    {"id": 75, "ja": "『オルクリスト』", "en": "'Orcrist'", "base": [23, 16], "candidate": 55},
+    {"id": 231, "ja": "暗殺者荊軻の", "en": "of Jing Ke", "base": [23, 6], "candidate": 57},
+    {"id": 74, "ja": "『ノートゥング』", "en": "'Nothung'", "base": [23, 16], "candidate": 68}
+  ],
+  "one_time": {
+    "character": "n1-b life-411 (Magic-Eater): this time only",
+    "class_id": 16,
+    "names": [
+      {"name": "☆フランベルジュ『ファイカイシル』 (3d7) (-10,-15) (-5攻撃)", "base": [23, 26], "candidate": 7},
+      {"name": "☆偽りのバスタード・ソード (3d4) (-27,-25)", "base": [23, 21], "candidate": 8},
+      {"name": "☆降伏の硬革よろい (-1) [6,-16] (-6隠密)", "base": [36, 6], "candidate": 11},
+      {"name": "☆ギザルム『ロリータ』 (2d5) (+12,+20) (+3)", "base": [22, 16], "candidate": 18},
+      {"name": "☆強化鎖かたびら『ヰ=ミダス』 (-2) [18,+17] (+2)", "base": [37, 8], "candidate": 19},
+      {"name": "☆電気の司ボルタの防護服 [6,+13] (+3探索)", "base": [36, 9], "candidate": 20},
+      {"name": "☆エスパドン『鮫！鮫！鮫！』 (2d9) (+13,+5)", "base": [23, 24], "candidate": 24},
+      {"name": "☆鎖つき鉄球『盲信者』 (2d4) (+14,+9) (+1攻撃)", "base": [21, 6], "candidate": 33},
+      {"name": "☆鉄ヘルメット『サキュバスの接吻』 [5,+20] (+4)", "base": [32, 5], "candidate": 37},
+      {"name": "☆トゥック翁のブロンズドラゴン・スケイルメイル (-2) [40,+20] (+4隠密)", "base": [38, 14], "candidate": 52}
+    ]
+  }
+}

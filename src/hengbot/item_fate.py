@@ -68,7 +68,11 @@ def gear_tier(policy: Any, snapshot: Any, item: Any, ranks: dict | None = None) 
     except the ware the relief already chose from a census and has taken out.
     ``ranks`` is ``_ranks`` of this board when the caller asks many pieces.
     """
-    if item.is_artifact or not item.known or SLOT_BY_TVAL.get(item.tval) is None:
+    if item.is_artifact:
+        # Owner 2026-11-20: the named artifacts go once 50F is reached (sellable_artifacts).
+        from hengbot import sellable_artifacts
+        return ANY if sellable_artifacts.listed(policy, snapshot, item) else KEEP
+    if not item.known or SLOT_BY_TVAL.get(item.tval) is None:
         return KEEP
     from hengbot import bm_destruction_fund
     if bm_destruction_fund.releases(policy, snapshot, item):
@@ -667,18 +671,21 @@ DESTROY = "destroy"        # junk (policy_helpers ``_junk_class``)
 USE_NOW = "use-now"        # a Home potion drunk at once (consumable_policy.drunk_now)
 IDENTIFY = "identify"      # unidentified: known only after a means identifies it
 ABSORB = "absorb"          # a Home device the Magic-Eater's table absorbs (me_device_policy.home_fate)
-FATES = (CARRY, HOME, ROOM_SALE, SELL, DESTROY, USE_NOW, IDENTIFY, ABSORB)
+DROP = "floor-drop"        # a named artifact no store buys: dropped on the town floor (sellable_artifacts)
+FATES = (CARRY, HOME, ROOM_SALE, SELL, DESTROY, USE_NOW, IDENTIFY, ABSORB, DROP)
 # Where the item is: worn, carried, or a Home stack.
 WORN, PACK, SHELF = "worn", "pack", "home"
 
 
 def _protected(policy: Any, snapshot: Any, item: Any, probe: Any) -> bool:
     """Never sold or destroyed: an artifact (but a Home one clearly dominated, owner 2026-11-19
-    「アーティファクトであっても明確な下位互換は売る」), a bounty, a *Destruction* means, a named
-    keep."""
+    「アーティファクトであっても明確な下位互換は売る」, and one the owner named, 2026-11-20
+    sellable_artifacts), a bounty, a *Destruction* means, a named keep."""
+    from hengbot import sellable_artifacts
     from hengbot.model import SV_STAFF_DESTRUCTION
     return bool((item.is_artifact
-                 and not (_home_stock(probe) and _dominated(policy, snapshot, item)))
+                 and not (_home_stock(probe) and _dominated(policy, snapshot, item))
+                 and not sellable_artifacts.listed(policy, snapshot, item))
                 or item.is_bounty
                 or (item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION)
                 or policy._home_disposal.decision(policy._item_signature(item)) == "keep")
@@ -693,6 +700,8 @@ def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
     (``ABSORB``), its capped Staff of *Destruction* destroyed (me_device_policy.home_fate);
     the protected never go; junk is destroyed; clearly useless stock
     (``clearly_useless``, every class) and kinds no consumer uses (item_use_route) are sold;
+    the owner's named artifacts (sellable_artifacts) are sold, or dropped on the town floor
+    (``DROP``) when no store buys them;
     ranked gear by its tier (``gear_tier``: rank 21+ sold, 11-20 sold for room, top 10 kept);
     everything else (supplies' spares included, owner 2026-11-19 「上限を置かない」) is kept
     at Home.
@@ -715,6 +724,11 @@ def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
             return ABSORB if device == me_device_policy.ABSORB else DESTROY
     if _protected(policy, snapshot, item, probe):
         return HOME
+    from hengbot import sellable_artifacts
+    if item.is_artifact and sellable_artifacts.listed(policy, snapshot, item):
+        # Owner 2026-11-20 「50F到達以降は売って良い」; no store buys it: 「捨てて帰還すること」
+        # (「街の床に捨ててダンジョンに帰還すれば消える」).
+        return DROP if sellable_artifacts.unsellable(policy, item) else SELL
     if policy._junk_class(snapshot, probe) is not None:
         return DESTROY
     if (clearly_useless(policy, snapshot, probe, always=True) is not None

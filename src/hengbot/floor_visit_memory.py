@@ -75,6 +75,7 @@ VISIT_MEMORIES = (
     ("_recall_wait_clock", None, "recall_wait_reach"),
     ("_floor_identify_tried", None, "floor_identify"),
     ("_sealed_loot_mapped", None, "sealed_loot"),
+    ("_artifact_drop_memory", None, "sellable_artifacts"),
 )
 
 # The memories that keep the floor key on purpose, or that the floor change forgets already

@@ -462,7 +462,7 @@ def item_command(kind, item, verdict: ReservationVerdict):
                 'inscribe-equipped': '{/', 'uninscribe-equipped': '}/',
                 'read': 'r', 'quaff': 'q', 'eat': 'E', 'staff': 'u',
                 'wand': 'a', 'rod': 'z', 'fire': 'f', 'throw': 'v',
-                'refill': '\\F'}
+                'refill': '\\F', 'drop': 'd'}
     if kind == "overweight-surplus":
         if verdict.quantity is None or not 0 < verdict.quantity <= actual.count:
             raise ValueError("surplus destroy requires a positive retained quantity")
