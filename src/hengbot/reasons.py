@@ -207,6 +207,11 @@ _rows(EXCLUDED, "policy_quest", _RULE_PLAN,
       "quest-strategy:opening-teleport", "quest-strategy:q22-opening-teleport",
       "quest-strategy:q2-teleport-reset")
 _rows(EXCLUDED, "quest_plan_base", _RULE_PLAN, "quest-strategy:sweep-teleport")
+# QUEST_33 (owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」): the same escape cast
+# from the absorbed Teleportation (quest_summon_answer.absorbed_teleport_key); its "-staff" form is
+# teleport_follower.device_teleport_key's carried-staff reason, never sent here.
+_rows(EXCLUDED, ("quest_plan_base", "quest_summon_answer"), _RULE_PLAN,
+      "quest-strategy:sweep-teleport:absorbed-power", "quest-strategy:sweep-teleport-staff")
 # QUEST_33, owner 2026-11-19 「召喚を何度受けても放棄しない。即死はテレポートで離脱。…無理なら離脱。」: the
 # plan's own answer to a summon received (quest_summon_answer); the floor is never left for summons.
 # Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the absorbed Teleportation first.

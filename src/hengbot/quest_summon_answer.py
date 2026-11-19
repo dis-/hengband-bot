@@ -63,9 +63,10 @@ vision or its line), so the pulled monster is not drawn into the other side's li
 while luring is answered as above (即死 first) and the disengage starts the steps again.
 
 Owner 2026-11-19 (verbatim): 「Q33では離脱に取り込んだテレポートの杖の使用を許可する。ない場合はテレポート
-の巻物を40巻用意すること。」  Every teleport here casts the absorbed Teleportation first when it has a charge
-and the ``m`` command can cast it (blind too: cmd-magiceat.cpp refuses confusion only), else reads the
-scroll; quest_force_rows asks for ``teleport_scrolls_without_absorbed`` scrolls of a character with no
+の巻物を40巻用意すること。」  Every teleport here, and the plan's own escape (quest_plan_base._below_line: the
+HP line and the 即死 step of a board with no summon), casts the absorbed Teleportation first on Quest 33
+(``ABSORBED_FIRST_QUESTS``) when it has a charge and the ``m`` command can cast it (blind too:
+cmd-magiceat.cpp refuses confusion only), else reads the scroll; quest_force_rows asks for ``teleport_scrolls_without_absorbed`` scrolls of a character with no
 absorbed Teleportation.
 
 The lines are the game's (quest_alignment_split's sight map: the pits and lavas pass a line, a tree and a
@@ -182,11 +183,20 @@ def _out_of_lines(snapshot, navigator, watchers) -> bool:
 # -- the answers ------------------------------------------------------------------------
 
 
-def _absorbed_teleport(policy, snapshot, reason) -> str | None:
-    """Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the absorbed
-    Teleportation with a charge, cast as teleport_follower casts it (through the 50F+ rule's point)."""
+# Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the quests whose every
+# teleport away casts the absorbed Teleportation before reading the scroll (this module's answers and
+# the plan's own escape, quest_plan_base._below_line).  Other quests keep the scroll first (Q25
+# forbids the absorbed one, quest_no_teleport).
+ABSORBED_FIRST_QUESTS = frozenset({33})
+
+
+def absorbed_teleport_key(policy, snapshot, reason) -> str | None:
+    """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation with a charge, cast as
+    teleport_follower casts it (through the 50F+ rule's point); not confused (cmd-magiceat.cpp
+    refuses only confusion, so blind it is cast).  Else None: the caller reads the scroll."""
     power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
-    if (quest_no_teleport.forbids_absorbed(policy, snapshot) or snapshot.player.confused
+    if (policy._active_fixed_quest_id(snapshot) not in ABSORBED_FIRST_QUESTS
+            or quest_no_teleport.forbids_absorbed(policy, snapshot) or snapshot.player.confused
             or policy._teleport_blocked_by_equipment(snapshot)
             or me_absorbed_substitutes.cast_key(policy, snapshot, power, blind_ok=True) is None):
         return None
@@ -208,7 +218,7 @@ def _teleport(policy, snapshot, navigator, reason) -> str | None:
     """The absorbed Teleportation first, else the scroll; the player is then out (``disengaged``)."""
     if quest_no_teleport.forbids(policy, snapshot):
         return None
-    key = _absorbed_teleport(policy, snapshot, reason) or _scroll_teleport(policy, snapshot, reason)
+    key = absorbed_teleport_key(policy, snapshot, reason) or _scroll_teleport(policy, snapshot, reason)
     if key is None:
         return None
     navigator.summon_state = DISENGAGED

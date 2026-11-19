@@ -14358,13 +14358,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "quest_summon_answer.py:_absorbed_teleport": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "quest_summon_answer.py:_acts": {
     "classification": "data",
     "rows": [
@@ -14497,6 +14490,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest_summon_answer.py:absorbed_teleport_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_summon_answer.py:acting_around": {
     "classification": "data",
