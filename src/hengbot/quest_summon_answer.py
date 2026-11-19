@@ -105,6 +105,7 @@ from hengbot import (
     quest_no_teleport,
     quest_plan_base,
     quest_room_light,
+    quest_wait_placement,
     summon_response,
     teleport_follower,
     threat_tiers,
@@ -712,7 +713,11 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
     # the others and the plan's own sweep go on.
     unreached = _unreached(navigator, board)
     acting = [monster for monster in acting if monster.index not in unreached]
-    if acting and navigator.summon_hold < int(plan.get("enemy_wait_turns", 0)):
+    # Owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: held for only while one
+    # of them will come here (quest_wait_placement); else closed on at once, as past the wait.
+    coming = [monster for monster in acting
+              if quest_wait_placement.comes(policy, snapshot, navigator, plan, monster)]
+    if coming and navigator.summon_hold < int(plan.get("enemy_wait_turns", 0)):
         return _hold_for(policy, navigator)
     if acting:
         # Past the plan's wait they have not come: each is closed on as a lure (step 4), those no

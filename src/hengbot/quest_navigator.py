@@ -133,6 +133,14 @@ class QuestFloorNavigator:
     # summoners' kills when found so, replaced whole.  Same rule.
     summon_unreached = {}
     summon_chase = None
+    # Where the room sweep waits (quest_wait_placement): the stop being waited for and the chosen
+    # quest_wait_placement.Choice, as (stage, round, Choice); and the waits that ran out with nothing
+    # come, (monster keys, mean distance), a tuple replaced whole.  Same rule.
+    wait_goal = None
+    wait_spent = ()
+    # The (kills, spent waits) of the last full pass of the stops that found nothing to walk or hold
+    # (quest_room_sweep ``NOTHING_COMES_REASON``); None otherwise.  Same rule.
+    wait_idle = None
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -199,6 +207,9 @@ class QuestFloorNavigator:
         self.summon_target = None
         self.summon_hold = 0
         self.summon_unreached = {}
+        self.wait_goal = None
+        self.wait_spent = ()
+        self.wait_idle = None
         self.summon_chase = None
         self.phase_battle = None
 

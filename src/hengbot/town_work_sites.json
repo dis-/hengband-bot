@@ -14346,6 +14346,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_room_sweep.py:_hold_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_room_sweep.py:_in_light_and_line": {
     "classification": "data",
     "rows": [
@@ -14366,6 +14373,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_room_sweep.py:_left_alone_races": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_room_sweep.py:_light_key": {
     "classification": "producer",
@@ -14452,6 +14466,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest_room_sweep.py:_unseen_light": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_room_sweep.py:_wait_choice": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -14849,6 +14870,62 @@
       "data/no-independent-credit"
     ],
     "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "quest_wait_placement.py:_Reader.open_terrain": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_wait_placement.py:_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_wait_placement.py:_reachable": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_wait_placement.py:awaited": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_wait_placement.py:awaited.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_wait_placement.py:choose": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_wait_placement.py:choose.compute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_wait_placement.py:reader": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "recall_stockout_travel.py:start": {
     "classification": "data",

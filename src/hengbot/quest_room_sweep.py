@@ -105,6 +105,7 @@ from hengbot import (
     quest_plan_base,
     quest_room_light,
     quest_summon_answer,
+    quest_wait_placement,
     resist_potion,
     summon_response,
     threat_tiers,
@@ -147,6 +148,7 @@ OPEN_REASON = "quest-strategy:sweep-open-door"
 APPROACH_REASON = "quest-strategy:sweep-approach"
 NOTHING_LEFT_REASON = "quest:blocked:sweep-nothing-left"
 SPLIT_BLOCKED_REASON = "quest:blocked:sweep-split"
+NOTHING_COMES_REASON = "quest:blocked:sweep-nothing-comes"
 LIGHT_REASON = quest_room_light.LIGHT_REASON
 EXIT_WALK_REASON = "quest-strategy:sweep-exit-walk"
 EXIT_REASON = "quest-strategy:sweep-exit"
@@ -324,6 +326,7 @@ def _stops(plan) -> list[dict]:
 def _next_stop(navigator, plan) -> None:
     navigator.sweep_stage += 1
     navigator.sweep_meet_turns = 0
+    navigator.wait_goal = None
     if navigator.sweep_stage >= len(_stops(plan)):
         navigator.sweep_stage = 0
         navigator.sweep_round += 1
@@ -352,6 +355,66 @@ def _last_target_key(policy, snapshot, navigator, plan, stop) -> str | None:
     return None
 
 
+def _light_due(policy, snapshot, navigator, plan, stop) -> bool:
+    """A ``read_light`` stop whose room is dark and not lit this round (quest_room_light's own
+    reading: a floor cell drawn lit, or the room read and not yet seen lit)."""
+    if not stop.get("read_light") or navigator.sweep_round in navigator.sweep_lit_rounds:
+        return False
+    terrain = _open_terrain(navigator, snapshot)
+    room = quest_room_light.room_of(terrain, tuple(stop["cell"]))
+    if room in navigator.sweep_light_read:
+        return False
+    return not any(quest_room_light.drawn_lit(snapshot, cell) for cell in room if terrain.get(cell) == "floor")
+
+
+def _wait_choice(policy, snapshot, navigator, plan, stop):
+    """Where this stop's ``meet_turns`` are waited (quest_wait_placement): kept while monsters still
+    come there, else chosen again; None when nothing comes to any cell around the stop."""
+    left_alone = _left_alone_races(navigator, plan)
+    held = navigator.wait_goal
+    if held is not None and held[:2] == (navigator.sweep_stage, navigator.sweep_round):
+        choice = held[2]
+        if choice is not None and quest_wait_placement.still_comes(
+                policy, snapshot, navigator, plan, choice, left_alone):
+            return choice
+    choice = quest_wait_placement.choose(policy, snapshot, navigator, plan, tuple(stop["cell"]), left_alone)
+    navigator.wait_goal = (navigator.sweep_stage, navigator.sweep_round, choice)
+    return choice
+
+
+def _skipped(policy, snapshot, navigator, plan, stop) -> bool:
+    """Owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: a stop held only to
+    wait (``meet_turns``) where nothing will come, and a stop walked only to light (``read_light``,
+    no ``meet_turns``) whose room needs no light, are passed.  A door, a last target and a plain
+    visit are walked as before."""
+    if "door" in stop or "race" in stop:
+        return False
+    if int(stop.get("meet_turns", 0)) > 0:
+        return (not _light_due(policy, snapshot, navigator, plan, stop)
+                and _wait_choice(policy, snapshot, navigator, plan, stop) is None)
+    return bool(stop.get("read_light")) and not _light_due(policy, snapshot, navigator, plan, stop)
+
+
+def _hold_key(policy, snapshot, navigator, plan, stop) -> str | None:
+    """On the stop: walk to its waiting cell and hold there while monsters come; a wait run out
+    with nothing come is spent (quest_wait_placement.spend); None passes to the next stop."""
+    meet = int(stop.get("meet_turns", 0))
+    left_alone = _left_alone_races(navigator, plan)
+    if navigator.sweep_meet_turns >= meet:
+        held = navigator.wait_goal
+        if meet and held is not None and held[2] is not None:
+            quest_wait_placement.spend(policy, snapshot, navigator, plan, held[2], left_alone)
+        return None
+    choice = _wait_choice(policy, snapshot, navigator, plan, stop)
+    if choice is None:
+        return None  # nothing comes now: the wait ends early
+    if _cell(snapshot.player.position) != choice.cell:
+        return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, {Position(*choice.cell)}), WALK_REASON)
+    navigator.sweep_meet_turns += 1
+    policy.last_reason = HOLD_REASON
+    return WAIT_KEY
+
+
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
@@ -373,14 +436,37 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
         # Every stop waits: no round is spent, and the wait is named.
         policy.last_reason = SPLIT_BLOCKED_REASON
         return WAIT_KEY
-    for _ in range(len(_stops(plan)) + 1):
+    idle = (tuple(sorted(navigator.split_kills.items())), navigator.wait_spent)
+    if navigator.wait_idle == idle:
+        # A full pass found no stop to walk or hold (below), and no kill or spent wait since.
+        policy.last_reason = NOTHING_COMES_REASON
+        return WAIT_KEY
+    navigator.wait_idle = None
+    passed = 0
+    for _ in range(2 * len(_stops(plan)) + 1):
         if navigator.sweep_round >= int(plan["max_rounds"]):
             policy.last_reason = NOTHING_LEFT_REASON
             return WAIT_KEY
+        if passed >= len(_stops(plan)):
+            # Every stop waits for its phase or is passed for nothing to do there (_skipped): the
+            # plan has no next step, and the stop is named instead of walking the round again.
+            navigator.wait_idle = idle
+            policy.last_reason = NOTHING_COMES_REASON
+            return WAIT_KEY
         stop = _stops(plan)[navigator.sweep_stage]
         goal = Position(*stop.get("stand", stop.get("cell")))
-        if waits(stop):
-            # This stop waits for a later round (one side dead).
+        if waits(stop) or _skipped(policy, snapshot, navigator, plan, stop):
+            # This stop waits for a later round (one side dead), or nothing is there to do.
+            _next_stop(navigator, plan)
+            passed += 1
+            continue
+        passed = 0
+        light = _light_due(policy, snapshot, navigator, plan, stop)
+        if not light and "door" not in stop and int(stop.get("meet_turns", 0)) > 0:
+            # No light to read first: straight to where the wait is held.
+            held = _hold_key(policy, snapshot, navigator, plan, stop)
+            if held is not None:
+                return held
             _next_stop(navigator, plan)
             continue
         if here != goal:
@@ -390,17 +476,20 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
             # Only over a refused cell: this stop waits for the next round.
             _next_stop(navigator, plan)
             continue
-        if (light := _light_key(policy, snapshot, navigator, plan)) is not None:
-            return light
+        if (lit := _light_key(policy, snapshot, navigator, plan)) is not None:
+            return lit
+        if light:
+            # No light could be read here: this round's light is done all the same.
+            navigator.sweep_lit_rounds = navigator.sweep_lit_rounds | {navigator.sweep_round}
         if "door" in stop:
             opened = _last_target_key(policy, snapshot, navigator, plan, stop)
             if opened is not None:
                 return opened
             continue
-        if navigator.sweep_meet_turns < int(stop.get("meet_turns", 0)):
-            navigator.sweep_meet_turns += 1
-            policy.last_reason = HOLD_REASON
-            return WAIT_KEY
+        if int(stop.get("meet_turns", 0)) > 0:
+            held = _hold_key(policy, snapshot, navigator, plan, stop)
+            if held is not None:
+                return held
         _next_stop(navigator, plan)
     return None
 
@@ -514,7 +603,10 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         if target not in board.beside and (shot := _shot(policy, snapshot, target)) is not None:
             navigator.sweep_enemy_turns = 0
             return shot
-    if (board.mobile and not _in_line(navigator, plan, snapshot)
+    # Owner 2026-11-19 「有効な場所で待つ」: only for what will come here (quest_wait_placement).
+    coming = [monster for monster in board.mobile
+              if quest_wait_placement.comes(policy, snapshot, navigator, plan, monster)]
+    if (coming and not _in_line(navigator, plan, snapshot)
             and navigator.sweep_enemy_turns < int(plan["enemy_wait_turns"])):
         navigator.sweep_enemy_turns += 1
         policy.last_reason = HOLD_REASON
