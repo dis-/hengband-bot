@@ -106,10 +106,28 @@ def gear_surplus(policy: Any, snapshot: Any, item: Any) -> bool:
     return item.is_digging_tool or spare_gear.released(policy, snapshot, item)
 
 
+def supply_kept(policy: Any, snapshot: Any, item: Any) -> bool:
+    """A supply the owner keeps at Home: never surplus to any sale or destroy.
+
+    The consumable table's 「拾って自宅に片付ける」 kinds without 「拾って持ち歩く」 (Restore Mana,
+    the stat restores, *Healing*, Life, Runes of Protection, *Destruction* scrolls ...,
+    consumable_policy ``shelved_at_home``) unless no consumer uses the kind (item_use_route),
+    and the never-disposed items (never_dispose).  Owner 2026-11-19 「上限を置かない」 and
+    2026-11-20 「絶対に売ってはならない」: n1-b life-411's full-Home relief sold its Restore Mana
+    (11-20 02:57, 03:59, 05:36) and a Potion of Restore Life Levels (03:33).
+    """
+    from hengbot import consumable_policy
+    from hengbot.never_dispose import never_disposed
+    return bool(never_disposed(snapshot, item)
+                or (consumable_policy.shelved_at_home(item)
+                    and not item_use_route.surplus(policy, snapshot, item)))
+
+
 def held(policy: Any, snapshot: Any, item: Any, owner: str, sink: str, *, known: bool = True) -> bool:
     """The gate every disposal path shares; ``known`` also asks for identification."""
     return bool(
-        not item_available(policy, snapshot, item, owner, sink)
+        supply_kept(policy, snapshot, item)
+        or not item_available(policy, snapshot, item, owner, sink)
         or item.is_bounty
         or policy._home_disposal.decision(policy._item_signature(item)) == "keep"
         or (known and (not item.known or policy._disposal_protected_by_identification(item))))

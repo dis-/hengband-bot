@@ -350,6 +350,7 @@ STAT_NAMES = ("str", "int", "wis", "dex", "con", "chr")
 # Experience potions (sv-potion-types.h).  Restore Life Levels (the Temple's
 # regular stock) undoes an experience drain; the Potion of Experience grants
 # experience and is drunk once no drain is left for it to merely refill.
+SV_POTION_RESTORE_MANA = 40
 SV_POTION_RESTORE_EXP = 41
 SV_POTION_EXPERIENCE = 59
 SV_POTION_RESTORE_STR = 42

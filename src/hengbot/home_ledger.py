@@ -20,6 +20,8 @@ decision log's ``home_ledger`` field on the decision that took it (``report``):
   stacks still over the cap when only kept stock is left, after the Magic-Eater's devices taken out
   to absorb (fate ``absorb``, owner 2026-11-19, counted in ``absorb``; the tidy sheds its own
   count over the cap regardless, home_cap.begin);
+* ``restore_mana`` (a Magic-Eater): the Potions of Restore Mana held against the 99F/100F rocket
+  target (restore_mana_target, owner 2026-11-20), and the absorbed rocket count it reads;
 * ``disagree``: Home stacks whose fate and today's deciders differ (``fate-only``: the fate moves
   it, no decider would; ``decider-only``: a decider would, the fate keeps it), with up to
   ``EXAMPLES`` names each.
@@ -107,7 +109,11 @@ def summary(policy: Any, snapshot: Any) -> dict:
     decider_only = [_name(item) for item, fate in
                     [row for row in shelf if row[1] == item_fate.HOME][:DECIDER_SAMPLE]
                     if _decider_moves(policy, snapshot, item)]
+    from hengbot import restore_mana_target
+    mana = restore_mana_target.plan(policy, snapshot)
     return {
+        **({"restore_mana": {key: mana[key] for key in ("held", "target", "rockets")}}
+           if mana is not None else {}),
         "home": {"count": len(shelf), "cap": HOME_KEEP_CAP},
         "fates": fates,
         "pack": {name: pack.count(name) for name in item_fate.FATES if pack.count(name)},
