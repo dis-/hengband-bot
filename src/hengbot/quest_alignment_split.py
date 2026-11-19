@@ -37,7 +37,9 @@ its kill line is read (``tracked_races``, counted from the game's kill lines as 
 q2_kill_credit).  A race of the board that summons (MonraceKnowledge.can_summon) and has a side
 counts as well (the floor's random monsters).
 
-The abort, owner 2026-11-17 「固定クエストの失敗処理はそんなに手厚くしなくていい」: one rung.  A summon
+The abort, owner 2026-11-17 「固定クエストの失敗処理はそんなに手厚くしなくていい」: one rung, only for a
+plan that names ``facing_casts_to_abort``.  QUEST_33 no longer does (owner 2026-11-19 「召喚を何度
+受けても放棄しない」, quest_summon_answer): the count is still kept (summon_response) for the record.  A summon
 whose named caster has no line of fire to the player while a monster of the other side is in its
 line (``facing``; summon_response counts it, the one reader of summon messages) is a cast at a
 monster: once ``facing_casts_to_abort`` of them are read on the floor, Word of Recall is read and
@@ -79,7 +81,8 @@ def valid(value) -> bool:
     return (isinstance(value, dict)
             and isinstance(value.get("tracked_races"), list)
             and all(integer(item) and item > 0 for item in value["tracked_races"])
-            and integer(value.get("facing_casts_to_abort")) and value["facing_casts_to_abort"] > 0
+            and ("facing_casts_to_abort" not in value
+                 or (integer(value["facing_casts_to_abort"]) and value["facing_casts_to_abort"] > 0))
             and isinstance(value.get("good_summons_symbols", []), list)
             and all(isinstance(item, str) and len(item) == 1
                     for item in value.get("good_summons_symbols", [])))
@@ -280,7 +283,8 @@ def abort_due(policy, plan) -> bool:
     from hengbot import summon_response
 
     split = split_of(plan)
-    return split is not None and summon_response.facing_casts(policy) >= int(split["facing_casts_to_abort"])
+    return (split is not None and "facing_casts_to_abort" in split
+            and summon_response.facing_casts(policy) >= int(split["facing_casts_to_abort"]))
 
 
 def abort_key(policy, snapshot, plan) -> str | None:

@@ -207,6 +207,12 @@ _rows(EXCLUDED, "policy_quest", _RULE_PLAN,
       "quest-strategy:opening-teleport", "quest-strategy:q22-opening-teleport",
       "quest-strategy:q2-teleport-reset")
 _rows(EXCLUDED, "quest_plan_base", _RULE_PLAN, "quest-strategy:sweep-teleport")
+# QUEST_33, owner 2026-11-19 「召喚を何度受けても放棄しない。即死はテレポートで離脱。…無理なら離脱。」: the
+# plan's own answer to a summon received (quest_summon_answer); the floor is never left for summons.
+_rows(EXCLUDED, "quest_summon_answer", _RULE_PLAN + " (QUEST_33's answer to a summon received)",
+      "quest-strategy:summoned-teleport", "quest-strategy:summoned-disengage-teleport")
+_rows(WALK, "quest_summon_answer", "a walk out of the summoner's lines (owner 2026-11-09 「歩いての後退は数えない」)",
+      "quest-strategy:summoned-disengage-walk")
 _rows(EXCLUDED, "quest25_battle", _RULE_PLAN, "quest25:teleport")
 _rows(EXCLUDED, "breeder_quest", _RULE_PLAN + " (Q2's breeder breakthrough)", "breeder-breakthrough:teleport")
 _rows(NOT_ESCAPE, "policy_quest",
@@ -383,6 +389,8 @@ _rows(None, ("policy_combat", "policy", "magic_eater", "me_device_attacks", "me_
       "summoner:ranged-kill", "summoner:ranged-kill:can-summon", "summoner:ranged-kill:named-caster",
       "supply-fight:aim-wand", "supply-fight:fire-good-ammo", "supply-fight:read-attack-scroll",
       attack=True)
+# QUEST_33 (owner 2026-11-19 「次の一行動で召喚主を倒す見込みがあるなら戦闘」): the blow at the summoner.
+_rows(None, "quest_summon_answer", _RULE_ATTACK, "quest-strategy:summoned-strike", attack=True)
 # The Anaguma pocket's blows and its area attack into the mouth (anaguma, owner 2026-11-10).
 _rows(None, "anaguma", _RULE_ATTACK, "melee:anaguma", "melee:anaguma-close", "ranged:anaguma-close-area",
       attack=True)

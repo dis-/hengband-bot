@@ -61,7 +61,13 @@ Recalls by rule 3 are not counted as over-extension (owner 2026-11-16).
 
 ``facing``: an identified cast out of the player's line of fire whose caster stands in the line of
 a monster of the other side (GOOD against EVIL) on a floor whose plan splits the sides
-(quest_alignment_split, QUEST_33); that plan reads the count and gives the quest up.
+(quest_alignment_split, QUEST_33); a plan that names ``facing_casts_to_abort`` reads the count and
+gives the quest up (QUEST_33 no longer names it: owner 2026-11-19 「召喚を何度受けても放棄しない」).
+
+``at_player``: the casters of the latest board whose cast counted for rule 3 (named, with a line of
+fire to the player), the summons received on this board.  ``summoners_at_player`` finds them on the
+board for a plan that answers each summon itself (quest_summon_answer, QUEST_33).  Such a plan
+never abandons its floor for summons, so rule 3 does not read Recall there (``recall_due``).
 
 Rule 3 reads through once_quest_recall.read_key, so every exit lock keeps its floor: a
 kill quest's lock (a runtime RANDOM quest and Q14 until the 11-01 teleport reserve is
@@ -186,6 +192,9 @@ class Memory:
     # Casts of this visit at a monster of the other side (quest_alignment_split.facing): the
     # caster named, out of the player's line of fire, in the line of a monster of the other side.
     facing: int = 0
+    # The plain names of the casters of the latest board read whose cast counted for rule 3 (named,
+    # in line of fire to the player): the summons received on that board (quest_summon_answer).
+    at_player: tuple[str, ...] = ()
 
 
 def _memory(policy) -> Memory:
@@ -212,12 +221,15 @@ def observe(policy, snapshot) -> None:
         return
     memory.board = board
     memory.decisions += 1
+    memory.at_player = ()
     if _run_ended(memory, snapshot):
         memory.unseen_run = 0
     for message in snapshot.messages:
         for summon in summons_of(message):
             in_fire = _in_fire(policy, snapshot, summon)
             _count(memory, summon, snapshot.player.position, in_fire)
+            if in_fire and _plain_name(summon.caster) not in memory.at_player:
+                memory.at_player = (*memory.at_player, _plain_name(summon.caster))
             if summon.seen and not in_fire and _facing(policy, snapshot, summon):
                 memory.facing += 1
 
@@ -231,6 +243,19 @@ def _facing(policy, snapshot, summon: Summon) -> bool:
 def facing_casts(policy) -> int:
     """This floor visit's casts at a monster of the other side (quest_alignment_split)."""
     return int(getattr(_memory(policy), "facing", 0))
+
+
+def summoners_at_player(policy, snapshot) -> list:
+    """The monsters in view that summoned at the player on this board (``at_player``), nearest
+    first; a caster known only by telepathy is not one (it cannot be struck or shot)."""
+    memory = _memory(policy)
+    names = getattr(memory, "at_player", ())
+    if not names or memory.board != (snapshot.turn, snapshot.messages):
+        return []
+    here = snapshot.player.position
+    return sorted((monster for monster in snapshot.visible_monsters
+                   if monster.hostile and _plain_name(monster.name) in names),
+                  key=lambda monster: here.distance_to(monster.position))
 
 
 def _run_ended(memory: Memory, snapshot) -> bool:
@@ -371,11 +396,15 @@ def _once_floor(policy, snapshot) -> bool:
 
 
 def recall_due(policy, snapshot) -> bool:
-    """The floor visit's casts reached the count and a Recall can be read for it."""
+    """The floor visit's casts reached the count and a Recall can be read for it.  A plan that
+    answers each summon itself never abandons its floor for them (quest_summon_answer)."""
+    from hengbot import quest_summon_answer
+
     return (_memory(policy).summons >= SUMMONS_TO_RECALL
             and snapshot.dungeon_level >= 1
             and not snapshot.player.recalling
             and not _once_floor(policy, snapshot)
+            and not quest_summon_answer.never_abandons(policy, snapshot)
             and not policy._quest_floor_exit_locked(snapshot)
             and policy._find_recall_scroll(snapshot) is not None)
 
