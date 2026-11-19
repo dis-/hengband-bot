@@ -65,6 +65,12 @@ def normal_encounters(
     Dungeon-specific terrain and theme restrictions can be supplied through
     ``permitted``. Out-of-depth selection is intentionally excluded: the agreed
     policy values common enemies, while rare exceptional enemies are avoided.
+
+    The draw (owner 2026-11-20 「吸血も評価に入れて直す」 with the population by
+    depth): get_mon_num (src/monster/monster-list.cpp) draws 1 race (40%), 2
+    (50%) or 3 (10%) from the pool and keeps the highest level, so a race's
+    chance is its level's share of P(max level = L) split by base weight
+    (``draw_weights``), not its base weight alone.
     """
     weighted: list[tuple[int, int, MonraceKnowledge]] = []
     for race_id, monster in knowledge.items():
@@ -80,10 +86,57 @@ def normal_encounters(
     total = sum(weight for _, weight, _ in weighted)
     if total == 0:
         return ()
+    shares = draw_weights(
+        [(race_id, weight, monster.level) for race_id, weight, monster in weighted])
     return tuple(
-        EncounterTarget(race_id, weight / total, monster)
-        for race_id, weight, monster in weighted
+        EncounterTarget(race_id, shares[race_id], monster)
+        for race_id, _, monster in weighted
     )
+
+
+# get_mon_num's draw count: 40% one, 50% two, 10% three (p < 60 adds one, p < 10 another).
+DRAW_COUNT_PROBABILITIES = ((1, 0.4), (2, 0.5), (3, 0.1))
+
+
+def draw_weights(pool: list[tuple[int, int, int]]) -> dict[int, float]:
+    """{race: chance} of get_mon_num's highest-level-of-n draw over ``pool``.
+
+    ``pool`` holds (race, base weight, level).  With F(L) the base-weight share
+    of the levels up to L, the kept race's level is L with probability
+    sum_n p_n (F(L)^n - F(L-1)^n); within a level the first drawn of that level
+    is kept (std::max_element), so the level's chance splits by base weight.
+    """
+    total = sum(weight for _, weight, _ in pool)
+    by_level: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    for race_id, weight, level in pool:
+        by_level[level].append((race_id, weight))
+    shares: dict[int, float] = {}
+    below = 0.0
+    for level in sorted(by_level):
+        members = by_level[level]
+        level_weight = sum(weight for _, weight in members)
+        upto = below + level_weight / total
+        level_chance = sum(
+            probability * (upto ** count - below ** count)
+            for count, probability in DRAW_COUNT_PROBABILITIES
+        )
+        for race_id, weight in members:
+            shares[race_id] = level_chance * weight / level_weight
+        below = upto
+    return shares
+
+
+def ordinary_encounters(
+    encounters: tuple[EncounterTarget, ...],
+) -> tuple[EncounterTarget, ...]:
+    """The non-unique encounters, their weights summing to 1 (the sample's pool)."""
+    ordinary = [encounter for encounter in encounters
+                if "UNIQUE" not in encounter.knowledge.flags]
+    total = sum(encounter.weight for encounter in ordinary)
+    if total <= 0:
+        return ()
+    return tuple(EncounterTarget(encounter.race_id, encounter.weight / total,
+                                 encounter.knowledge) for encounter in ordinary)
 
 
 def representative_encounters(
@@ -91,7 +144,7 @@ def representative_encounters(
     *,
     max_count: int = 64,
 ) -> tuple[EncounterTarget, ...]:
-    """Keep common non-unique enemies while preserving depth-band mass.
+    """Sample the non-unique enemies while preserving depth-band mass.
 
     This is the explicit terminal-scale model simplification: rare exceptional
     enemies are handled by avoidance policy, while equipment is optimized for a
@@ -146,24 +199,10 @@ def representative_encounters(
 
     selected: list[EncounterTarget] = []
     for band, members in bands.items():
-        members.sort(
-            key=lambda encounter: (
-                encounter.weight,
-                encounter.knowledge.level,
-                encounter.knowledge.average_hp,
-            ),
-            reverse=True,
-        )
-        chosen = members[: quotas[band]]
         band_weight = sum(encounter.weight for encounter in members)
-        chosen_weight = sum(encounter.weight for encounter in chosen)
         selected.extend(
-            EncounterTarget(
-                encounter.race_id,
-                band_weight * encounter.weight / chosen_weight,
-                encounter.knowledge,
-            )
-            for encounter in chosen
+            EncounterTarget(encounter.race_id, band_weight / quotas[band], encounter.knowledge)
+            for encounter in _systematic_sample(members, quotas[band])
         )
     selected_total = sum(encounter.weight for encounter in selected)
     return tuple(
@@ -174,6 +213,36 @@ def representative_encounters(
         )
         for encounter in selected
     )
+
+
+def _systematic_sample(
+    members: list[EncounterTarget], count: int,
+) -> list[EncounterTarget]:
+    """``count`` distinct members at even steps of the band's cumulative weight.
+
+    Each carries an equal share of the band (representative_encounters), so
+    the sample keeps the band's mix of kinds.  Taking the heaviest members
+    instead (before 2026-11-20) kept the races of rarity 1, many of them
+    dragons: n1-b life-411's 95F sample held 30% dragons against 12.5% of the
+    pool, and ★アイシングデス's dragon slaying decided the weapon.  Members are
+    ordered by level and race; a step landing on a member already taken takes
+    the next one not taken.
+    """
+    ordered = sorted(members, key=lambda encounter: (encounter.knowledge.level, encounter.race_id))
+    total = sum(encounter.weight for encounter in ordered)
+    taken: list[int] = []
+    cumulative = 0.0
+    index = 0
+    for step in range(count):
+        target = (step + 0.5) * total / count
+        while index < len(ordered) - 1 and cumulative + ordered[index].weight < target:
+            cumulative += ordered[index].weight
+            index += 1
+        pick = index
+        while pick in taken:
+            pick = (pick + 1) % len(ordered)
+        taken.append(pick)
+    return [ordered[pick] for pick in sorted(taken)]
 
 
 def melee_multiplier(

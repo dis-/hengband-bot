@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isfinite, isinf
 
 from hengbot.equipment_encounters import EncounterTarget
@@ -22,6 +22,7 @@ from hengbot.monster_ranged_evaluator import (
     evaluate_warrior_ranged_defense,
 )
 from hengbot.policy_constants import speed_energy
+from hengbot.saving_throw import loadout_saving
 from hengbot.warrior_defense_evaluator import (
     TR_SPEED,
     WarriorDefenseInputs,
@@ -128,6 +129,12 @@ class WarriorLoadoutInputs:
     # Class 16 only (me_loadout_offense, owner 2026-11-08): the held absorbed
     # attack powers whose INT-dependent fail rate scores ``device_dps``.
     magic_eater: MagicEaterOffenseInputs | None = None
+    # The board's saving throw without the worn gear's terms (saving_throw):
+    # each loadout adds its own resist / vulnerability to curse, WIS index and
+    # anti-magic floor.  None scores every loadout at defense.saving_skill.
+    saving_base: int | None = None
+    natural_wis: int = 3
+    intrinsic_wis: int = 0
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,80 @@ def _pval_total(loadout: Loadout, flag: int) -> int:
 
 def constitution_hp_bonus(constitution: int, level: int) -> int:
     return trunc_div(ADJ_CON_HP[stat_index(constitution)] * level, 4)
+
+
+TR_VAMPIRIC = 15
+# MAX_VAMPIRIC_DRAIN (src/player-attack/player-attack.cpp): the HP one hand's
+# blows of one player turn can drain.
+MAX_VAMPIRIC_DRAIN = 50
+# A drain needs more than 5 damage (blood-sucking-processor.cpp drain_result).
+VAMPIRIC_MIN_DRAIN = 5
+NON_LIVING_KINDS = frozenset({"DEMON", "UNDEAD", "NONLIVING"})
+
+
+def living_encounters(
+    encounters: tuple[EncounterTarget, ...],
+) -> tuple[tuple[EncounterTarget, ...], float]:
+    """The living encounters (has_living_flag) renormalized, and their share."""
+    living = [encounter for encounter in encounters
+              if not encounter.knowledge.flags & NON_LIVING_KINDS]
+    share = sum(encounter.weight for encounter in living)
+    if share <= 0:
+        return (), 0.0
+    return tuple(EncounterTarget(encounter.race_id, encounter.weight / share,
+                                 encounter.knowledge) for encounter in living), share
+
+
+def vampiric_heal_per_turn(
+    loadout: Loadout, melee: WarriorMeleeResult | None, living_share: float,
+) -> float:
+    """HP a vampiric weapon drains per player turn, over the encounter mix.
+
+    Owner 2026-11-20 「吸血も評価に入れて直す」 (★首切りソード『スレイヤー』).  A
+    hit with TR_VAMPIRIC (src/player-attack/blood-sucking-processor.cpp) on a
+    living monster (has_living_flag: not DEMON, UNDEAD or NONLIVING) whose
+    damage - after slays and criticals, plus the weapon's and the hand's to_d -
+    is above 5 heals 2d(damage/6), on average damage/6 + 1 with the division
+    truncated (taken as damage/6 + 7/12); one hand drains at most
+    MAX_VAMPIRIC_DRAIN = 50 in a player turn.  ``melee`` is this loadout's
+    melee against the living encounters only, ``living_share`` their weight.
+    Not modelled: the killing blow drains nothing and a hit drains at most the
+    monster's remaining HP.
+    """
+    if melee is None or living_share <= 0:
+        return 0.0
+    weapons = [weapon for slot in ("main_hand", "sub_hand")
+               if (weapon := loadout.item_at(slot)) is not None
+               and weapon.item.tval in {20, 21, 22, 23}]
+    heal = 0.0
+    for weapon, hand in zip(weapons, melee.hands):
+        if TR_VAMPIRIC not in weapon.flags:
+            continue
+        damage = hand.expected_damage_per_hit
+        per_hit = damage / 6 + 7 / 12 if damage > VAMPIRIC_MIN_DRAIN else 0.0
+        heal += min(float(MAX_VAMPIRIC_DRAIN),
+                    hand.blows * hand.hit_chance_ac100 * per_hit)
+    return heal * living_share
+
+
+def drains(loadout: Loadout) -> bool:
+    return any((weapon := loadout.item_at(slot)) is not None and TR_VAMPIRIC in weapon.flags
+               for slot in ("main_hand", "sub_hand"))
+
+
+def loadout_defense_inputs(
+    loadout: Loadout, inputs: WarriorLoadoutInputs,
+) -> WarriorDefenseInputs:
+    """``inputs.defense`` with ``loadout``'s own saving throw (saving_throw)."""
+    if inputs.saving_base is None:
+        return inputs.defense
+    saving = loadout_saving(
+        inputs.saving_base, loadout, level=inputs.combat.level,
+        natural_wis=inputs.natural_wis, intrinsic_wis=inputs.intrinsic_wis,
+        intrinsic_flags=inputs.defense.intrinsic_flags)
+    if saving == inputs.defense.saving_skill:
+        return inputs.defense
+    return replace(inputs.defense, saving_skill=saving)
 
 
 def loadout_max_hp(loadout: Loadout, inputs: WarriorLoadoutInputs) -> int:
@@ -217,9 +298,17 @@ class CachedWarriorLoadoutEvaluator:
         self,
         inputs: WarriorLoadoutInputs,
         encounters: tuple[EncounterTarget, ...],
+        offense_encounters: tuple[EncounterTarget, ...] | None = None,
     ) -> None:
         self.inputs = inputs
         self.encounters = encounters
+        # The whole ordinary pool the melee slays and kill turns are read
+        # against when ``encounters`` is a sample (owner 2026-11-20): the
+        # weapon's multipliers are per weapon and cheap, and a 64-race sample
+        # tilted them (n1-b life-411: 26-30% dragons against 12.5%).
+        self.offense_encounters = offense_encounters or encounters
+        self._living, self._living_share = living_encounters(self.offense_encounters)
+        self._living_melee: dict[tuple[object, ...], WarriorMeleeResult] = {}
         self._melee: dict[tuple[object, ...], WarriorMeleeResult] = {}
         self._defense: dict[tuple[object, ...], WarriorDefenseResult] = {}
         self._ranged: dict[
@@ -229,7 +318,7 @@ class CachedWarriorLoadoutEvaluator:
         self._device: dict[tuple[int, frozenset[int]], tuple[float, float]] = {}
         self._average_target_hp = sum(
             encounter.weight * encounter.knowledge.average_hp
-            for encounter in encounters
+            for encounter in self.offense_encounters
         )
 
     @property
@@ -245,7 +334,7 @@ class CachedWarriorLoadoutEvaluator:
                 if weapon is None or weapon.id in self._weapon_multipliers:
                     continue
                 multiplier_weights: dict[int, float] = {}
-                for encounter in self.encounters:
+                for encounter in self.offense_encounters:
                     multiplier = melee_multiplier(
                         weapon.flags, encounter.knowledge
                     )
@@ -259,28 +348,30 @@ class CachedWarriorLoadoutEvaluator:
             melee = evaluate_warrior_melee(
                 loadout,
                 self.inputs.combat,
-                self.encounters,
+                self.offense_encounters,
                 multiplier_weights_by_item=self._weapon_multipliers,
                 average_target_hp=self._average_target_hp,
             )
             self._melee[melee_key] = melee
 
-        defense_key = warrior_defense_signature(loadout, self.inputs.defense)
+        defense_inputs = loadout_defense_inputs(loadout, self.inputs)
+        defense_key = (warrior_defense_signature(loadout, defense_inputs),
+                       defense_inputs.saving_skill)
         defense = self._defense.get(defense_key)
         if defense is None:
             defense = evaluate_warrior_defense(
-                loadout, self.inputs.defense, self.encounters
+                loadout, defense_inputs, self.encounters
             )
             self._defense[defense_key] = defense
 
         flags = loadout.flags | self.inputs.defense.intrinsic_flags
         player_hp = loadout_max_hp(loadout, self.inputs)
-        ranged_key = (flags, player_hp)
+        ranged_key = (flags, player_hp, defense_inputs.saving_skill)
         ranged = self._ranged.get(ranged_key)
         if ranged is None:
             ranged = evaluate_warrior_ranged_defense(
                 flags,
-                saving_skill=self.inputs.defense.saving_skill,
+                saving_skill=defense_inputs.saving_skill,
                 player_hp=player_hp,
                 encounters=self.encounters,
                 selection_context=self.inputs.spell_selection,
@@ -300,8 +391,20 @@ class CachedWarriorLoadoutEvaluator:
             )
             device_cache[device_key] = cached
 
+        heal = 0.0
+        if drains(loadout):
+            # setdefault: an evaluator restored from an older checkpoint.
+            if "_living" not in self.__dict__:
+                self._living, self._living_share = living_encounters(self.offense_encounters)
+            living_cache = self.__dict__.setdefault("_living_melee", {})
+            living_melee = living_cache.get(melee_key)
+            if living_melee is None:
+                living_melee = evaluate_warrior_melee(
+                    loadout, self.inputs.combat, self._living)
+                living_cache[melee_key] = living_melee
+            heal = vampiric_heal_per_turn(loadout, living_melee, self._living_share)
         return _combine_warrior_results(
-            loadout, self.inputs, melee, defense, ranged, *cached)
+            loadout, self.inputs, melee, defense, ranged, *cached, heal)
 
 
 def _speed_bonus(loadout: Loadout) -> int:
@@ -342,12 +445,13 @@ def evaluate_warrior_loadout(
 ) -> WarriorLoadoutResult:
     """Combine offense and incoming damage without enabling incomplete data."""
     melee = evaluate_warrior_melee(loadout, inputs.combat, encounters)
-    defense = evaluate_warrior_defense(loadout, inputs.defense, encounters)
+    defense_inputs = loadout_defense_inputs(loadout, inputs)
+    defense = evaluate_warrior_defense(loadout, defense_inputs, encounters)
     flags = loadout.flags | inputs.defense.intrinsic_flags
     player_hp = loadout_max_hp(loadout, inputs)
     ranged = evaluate_warrior_ranged_defense(
         flags,
-        saving_skill=inputs.defense.saving_skill,
+        saving_skill=defense_inputs.saving_skill,
         player_hp=player_hp,
         encounters=encounters,
         selection_context=inputs.spell_selection,
@@ -355,8 +459,13 @@ def evaluate_warrior_loadout(
     int_pval = _pval_total(loadout, TR_INT)
     device = magic_eater_device_dps(inputs.magic_eater, int_pval, flags, encounters)
     factor = survival_factor(inputs.magic_eater, int_pval, flags, encounters)
+    heal = 0.0
+    if drains(loadout):
+        living, share = living_encounters(encounters)
+        heal = vampiric_heal_per_turn(
+            loadout, evaluate_warrior_melee(loadout, inputs.combat, living), share)
     return _combine_warrior_results(
-        loadout, inputs, melee, defense, ranged, device, factor)
+        loadout, inputs, melee, defense, ranged, device, factor, heal)
 
 
 def _combine_warrior_results(
@@ -367,6 +476,7 @@ def _combine_warrior_results(
     ranged: WarriorRangedDefenseResult,
     device_dps: float = 0.0,
     me_survival_factor: float = 1.0,
+    vampiric_heal: float = 0.0,
 ) -> WarriorLoadoutResult:
     player_speed = inputs.defense.base_speed + _speed_bonus(loadout)
     player_energy = speed_energy(player_speed)
@@ -378,11 +488,18 @@ def _combine_warrior_results(
     survival_turns = (
         player_hp / incoming if incoming > 0 else float("inf")
     )
+    # The vampiric drain (vampiric_heal_per_turn, owner 2026-11-20): what it
+    # restores in one engagement - kill_turns of melee, and no more than the
+    # damage taken meanwhile - in turns of incoming damage.  The engagement
+    # bounds it: over the whole survival horizon an average drain above the
+    # (mix-averaged) incoming damage would read as immortality.
+    kill_turns = melee.expected_kill_turns
+    if vampiric_heal > 0 and incoming > 0 and isfinite(kill_turns):
+        survival_turns += kill_turns * min(vampiric_heal, incoming) / incoming
     # Class 16 (me_loadout_offense.survival_factor, owner 2026-11-08): the
     # absorbed powers' success under this loadout's INT and the escape
     # reliability lost to blindness scale the survival side; 1.0 otherwise.
     survival_turns *= me_survival_factor
-    kill_turns = melee.expected_kill_turns
     # User decision 2026-10-02 (verbatim: 「指輪で優先度が低いのはどう見ても守りの
     # 指輪。ACの評価が高すぎる。」 -> 「生存÷撃破の比で比べる」): the combat
     # margin is the ratio survival / kill, not the difference.  A difference

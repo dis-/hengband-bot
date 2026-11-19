@@ -6,11 +6,14 @@ from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 import hashlib
 import json
+from time import monotonic
 from math import isfinite
 from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
-from hengbot.equipment_encounters import normal_encounters, representative_encounters
+from hengbot.equipment_encounters import (
+    normal_encounters, ordinary_encounters, representative_encounters,
+)
 from hengbot.speed_valuation import permanent_player_speed
 from hengbot.equipment_optimizer import (
     ABILITY_FLAG,
@@ -35,12 +38,13 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_utility import with_destruction_means
-from hengbot import me_deep_launcher
+from hengbot import angband_cap, me_deep_launcher
 from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
 from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
 from hengbot.protocol import skill_exp_known
+from hengbot.saving_throw import saving_base
 from hengbot.warrior_defense_evaluator import (
     TR_SPEED,
     WarriorDefenseInputs,
@@ -103,6 +107,15 @@ TR_FREE_ACT = 46
 # The strongest-melee sets of the chosen band whose neighbourhoods the
 # single-slot closure also expands (owner 2026-11-20, n1-b life-411).
 CLOSURE_MELEE_LEADERS = 3
+# The whole single-slot closure, every pass and every flag set of one search
+# (owner 2026-11-20).  Each pass has the search's 25 s budget, but n1-c
+# life-214 needed nine passes and 41.7 s in all; the town decision watchdog is
+# 90 s and the same decision also builds the catalog, plans the transaction
+# and decides the town step (n1-c 214: about 3 s besides the search on this
+# PC, the viewing server is slower).  30 s keeps a third of the watchdog for
+# that and for a slower host; a capped search returns its last completed
+# pass (``OptimizationResult.search_capped``).
+CLOSURE_TIME_CAP_SECONDS = 30.0
 
 
 def _loadout_key(loadout: Loadout) -> tuple[frozenset[str], str]:
@@ -130,7 +143,9 @@ def optimize_single_slot_closure(
     boards above choose over the same union and keep one glove.  The loop ends
     because every pass expands a loadout not expanded before, from a finite
     catalog.  Each pass is one optimization under the search's own time
-    budget; the evaluator cache keeps the loadouts already scored.
+    budget; the evaluator cache keeps the loadouts already scored.  ``optimize``
+    gives each pass what is left of CLOSURE_TIME_CAP_SECONDS; a pass that runs
+    out returns the previous pass's result marked ``search_capped``.
 
     The field also holds the neighbourhoods of the CLOSURE_MELEE_LEADERS sets
     with the most melee per game time among the chosen band's sets that clear
@@ -148,15 +163,21 @@ def optimize_single_slot_closure(
     candidates: dict[tuple[frozenset[str], str], Loadout] = {}
     expanded: set[tuple[frozenset[str], str]] = set()
     seeds = [current]
+    previous: OptimizationResult | None = None
     while True:
         for seed in seeds:
             expanded.add(_loadout_key(seed))
             for loadout in neighbours(seed):
                 candidates.setdefault(_loadout_key(loadout), loadout)
         result = optimize(tuple(candidates.values()))
+        if result.timed_out and previous is not None:
+            # The whole-search cap (CLOSURE_TIME_CAP_SECONDS) ran out in this
+            # pass: the last completed pass's choice stands.
+            return replace(previous, search_capped=True)
         best = result.best
         if best is None or result.timed_out:
             return result
+        previous = result
         seeds = []
         for entry in (best, *melee_leaders(
                 result.chosen_band_entries, CLOSURE_MELEE_LEADERS)):
@@ -165,6 +186,32 @@ def optimize_single_slot_closure(
                 seeds.append(entry.loadout)
         if not seeds:
             return result
+
+
+def destination_encounter_depth(snapshot, knowledge) -> int:
+    """The floor whose monsters an unconstrained search scores against.
+
+    Owner 2026-11-20 (「吸血も評価に入れて直す」, with the population by depth):
+    the destination, not the deepest known monster.  n1-b life-411 searched
+    against every race up to level 127 although it explores Angband 95F, and
+    the 64-race sample held 26% dragons (13% on 95F, 3% of what it met), so
+    ★アイシングデス's dragon slaying outscored ★スレイヤー.  The destination is
+    the deepest floor reached in any dungeon (each within its cap: angband_cap,
+    95F) and the deepest known monster; the deepest known monster when the
+    board names no depth.  Not the recall dungeon's own depth: that is often a
+    shallow side dungeon (n1-c life-205 recalled to 23F with 80F reached in
+    Angband, n1-a life-525 to 13F with 50F reached).
+    """
+    deepest_known = max((monster.level for monster in knowledge.values()), default=1)
+    reached = [
+        depth if (cap := angband_cap.cap(dungeon_id)) is None else min(depth, cap)
+        for dungeon_id, depth in getattr(snapshot, "dungeon_recall_depths", {}).items()
+        if depth
+    ]
+    landing = max(reached, default=getattr(snapshot, "recall_depth", 0))
+    if not landing:
+        return deepest_known
+    return max(1, min(landing, deepest_known))
 
 
 def blocker_leaves_no_target(blocker: str) -> bool:
@@ -681,16 +728,18 @@ class WarriorEvaluatorCache:
         self,
         inputs: WarriorLoadoutInputs,
         encounters: tuple,
+        offense_encounters: tuple | None = None,
     ) -> CachedWarriorLoadoutEvaluator:
         normalized_inputs = (
             replace(inputs, current_hp=0)
             if inputs.base_hp is not None
             else inputs
         )
-        context = (normalized_inputs, encounters)
+        context = (normalized_inputs, encounters, offense_encounters)
         if self.context != context or self.evaluator is None:
             self.context = context
-            self.evaluator = CachedWarriorLoadoutEvaluator(inputs, encounters)
+            self.evaluator = CachedWarriorLoadoutEvaluator(
+                inputs, encounters, offense_encounters)
         return self.evaluator
 
 def weapon_expected_dps(
@@ -858,9 +907,7 @@ def prepare_warrior_optimization(
         return WarriorOptimizationPreparation(current, None, None, tuple(blockers))
 
     encounter_depth = (
-        depth
-        if depth is not None
-        else max((monster.level for monster in knowledge.values()), default=1)
+        depth if depth is not None else destination_encounter_depth(snapshot, knowledge)
     )
     all_encounters = normal_encounters(knowledge, encounter_depth)
     if not all_encounters:
@@ -871,6 +918,10 @@ def prepare_warrior_optimization(
         all_encounters,
         catalog_size=len(items),
     )
+    # The melee side reads the whole ordinary pool when the defense reads a
+    # sample (CachedWarriorLoadoutEvaluator.offense_encounters).
+    offense_encounters = (
+        None if encounters is all_encounters else ordinary_encounters(all_encounters))
 
     # P1: every character constant comes from the unequipped calibration
     # observation, never from de-gearing the currently worn snapshot.  The
@@ -942,11 +993,19 @@ def prepare_warrior_optimization(
         magic_eater=magic_eater_offense_inputs(
             player.class_id, player.level, stats[1], adjustments[1],
             calibration.personality_id, magic_eater_powers),
+        # The saving throw per loadout (saving_throw): the board's value is the
+        # worn loadout's, so its gear terms are taken out once here.
+        saving_base=saving_base(
+            player.saving_skill, current, level=player.level,
+            natural_wis=stats[2], intrinsic_wis=adjustments[2],
+            intrinsic_flags=intrinsic_flags),
+        natural_wis=stats[2],
+        intrinsic_wis=adjustments[2],
     )
     evaluator = (
-        evaluator_cache.get(inputs, encounters)
+        evaluator_cache.get(inputs, encounters, offense_encounters)
         if evaluator_cache is not None
-        else CachedWarriorLoadoutEvaluator(inputs, encounters)
+        else CachedWarriorLoadoutEvaluator(inputs, encounters, offense_encounters)
     )
     pinned = {
         item.equipped_slot: item
@@ -1001,8 +1060,12 @@ def prepare_warrior_optimization(
         # Free Action first; when no complete loadout can wear it (a cursed
         # piece pinned in its slot, say), the search without it stands.
         flag_sets.insert(0, required_flags | {TR_FREE_ACT})
+    closure_deadline = monotonic() + CLOSURE_TIME_CAP_SECONDS
     for flags in flag_sets:
         def optimize(candidates):
+            budget = timeout_seconds
+            if search_factory is enumerate_single_slot_variants:
+                budget = max(0.0, min(timeout_seconds, closure_deadline - monotonic()))
             return optimize_loadout(
                 items,
                 # Owner 2026-11-15 「深さに関係なく持っていく」: a set that makes an owned
@@ -1013,7 +1076,7 @@ def prepare_warrior_optimization(
                 intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
                 has_destruction=has_destruction,
                 current_item_ids=current.item_ids,
-                timeout_seconds=timeout_seconds,
+                timeout_seconds=budget,
                 candidate_loadouts=candidates,
                 require_light=require_light,
                 require_body=require_body,
@@ -1158,6 +1221,7 @@ def _append_loadout_report(
         "combat_inputs": asdict(evaluator.inputs.combat),
         "timed_out": result.timed_out,
         "search_truncated": result.search_truncated,
+        "search_capped": getattr(result, "search_capped", False),
         "considered": result.combinations_considered,
         "evaluated": result.combinations_evaluated,
         "band_descent": [asdict(decision) for decision in result.band_decisions],
