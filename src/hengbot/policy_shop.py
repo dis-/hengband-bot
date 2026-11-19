@@ -47,6 +47,7 @@ from hengbot import quest_optional_carry
 from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_answer, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
 from hengbot.never_dispose import never_disposed
+from hengbot import restore_mana_target
 from hengbot import item_fate, item_use_route
 from hengbot import fundraising_survival, mining_loadout, mining_oil_sale
 from hengbot.magic_eater_devices import is_mana_food_ware
@@ -2917,7 +2918,9 @@ class ShopMixin(InStoreMixin):
                 # sells it (store/articles-on-sale.cpp), the Black Market's are bought
                 # and shelved at Home (consumable_policy.shelved_at_home).
                 or (never_disposed(snapshot, item)
-                    and consumable_policy.discretionary_buy((item.tval, item.sval)))
+                    and consumable_policy.discretionary_buy((item.tval, item.sval))
+                    # Owner 2026-11-20: up to the 99F/100F rocket target (restore_mana_target).
+                    and restore_mana_target.wanted(self, snapshot))
                 or (
                     (
                         (
