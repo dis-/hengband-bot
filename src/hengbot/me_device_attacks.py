@@ -60,7 +60,7 @@ breath_shape).  The blast is over-approximated: walls that block it
 (is_prevent_blast) are ignored.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from hengbot import me_power_success
@@ -70,6 +70,8 @@ from hengbot.policy_constants import DIRECTION_KEYS
 
 
 DEVICE_REASON = "ranged:magic-eater-device"
+# The same attack powers cast through Powerful Activation (``powered``, the racial ``U``).
+POWERFUL_REASON = "ranged:magic-eater-powerful"
 KIND_LETTER = {"staff": "A", "wand": "B", "rod": "C"}
 MISSILE = ("wand", 15)
 # Blast radius by shape (powerful=false): wand/rod balls ``rad = powerful ? 3
@@ -93,10 +95,27 @@ class Power:
     damage: Callable[[int], float]  # average damage at player level
     beam_percent: int = 0    # fire_bolt_or_beam's beam chance
     group_only: bool = False  # weaker than every one-target answer: breeder_area_attack alone uses it
+    powerful: bool = False    # cast through Powerful Activation (``powered``)
 
     @property
     def aimed(self) -> bool:
         return self.shape != "sight"
+
+    @property
+    def ident(self) -> tuple[str, int]:
+        return self.kind, self.sval
+
+    @property
+    def is_missile(self) -> bool:
+        """The ordinary absorbed Magic Missile (the callers' own ``mBp`` path fires it)."""
+        return self.ident == MISSILE and not self.powerful
+
+    @property
+    def area_radius(self) -> int | None:
+        """The blast radius of a ball or breath: a powerful ball's is 3 (``POWERFUL_BALL_RADIUS``)."""
+        if self.powerful and self.shape == "ball":
+            return POWERFUL_BALL_RADIUS
+        return AREA_RADIUS.get(self.shape)
 
     @property
     def letter(self) -> str:
@@ -180,6 +199,41 @@ POWERS = {(power.kind, power.sval): power for power in _ALL_POWERS
           if power.element not in FORBIDDEN_ELEMENTS}
 _BY_NAME = {(power.kind, name): power for power in POWERS.values() for name in power.names}
 
+# Powerful Activation (owner 2026-11-19 「魔道具術師の遠距離攻撃の選択肢に協力発動も入れたい」, 強力発動):
+# racial-switcher.cpp:208 calls do_cmd_magic_eater(player, false, true), which differs from the
+# ordinary ``m`` only in ``powerful`` reaching the effect (cmd-magiceat.cpp:521, :539, :548): the
+# same fail chance (:475-490; nothing of the racial's own: rpi.fail 0, racial-execution.cpp
+# racial_chance and check_racial_level never fail it) and the same one charge (:570-575).  The
+# effects double the player level they read (cmd-zapwand.cpp:56, cmd-zaprod.cpp:49,
+# cmd-usestaff.cpp:59 ``lev = powerful ? lev * 2 : lev``), widen a ball to radius 3
+# (cmd-zapwand.cpp:57, cmd-zaprod.cpp:51) and raise the fixed figures below; a power whose damage
+# reads neither gains nothing and never wins the comparison (a tie keeps the ordinary use,
+# ``scored``).  Its cost is hit points (me_powerful_activation.cost, on a failed use too), so it
+# is offered only while me_powerful_activation.pays_safely holds (``powerful_ready``).
+POWERFUL_BALL_RADIUS = 3
+_POWERFUL_FIXED = {
+    ("wand", 7): lambda lev: _dice(12, 8),      # cmd-zapwand.cpp:147 lite_line 12d8
+    ("wand", 26): lambda lev: 300,              # cmd-zapwand.cpp:263 fire_breath 300
+    ("wand", 27): lambda lev: 270,              # cmd-zapwand.cpp:269 fire_breath 270
+    ("rod", 12): lambda lev: 8,                 # cmd-zaprod.cpp:154 dispel_monsters(8)
+    ("rod", 15): lambda lev: _dice(12, 8),      # cmd-zaprod.cpp:179 lite_line 12d8
+    ("staff", 24): lambda lev: 120,             # cmd-usestaff.cpp:252 dispel_evil(120)
+    ("staff", 25): lambda lev: 225,             # cmd-usestaff.cpp:257 dispel_monsters(225)
+    ("staff", 26): lambda lev: 225,             # spells-staff-only.cpp:23 dispel_evil(225)
+}
+# cmd-zapwand.cpp:285-287: Dragon's Breath ``dam = (dam * 3) / 2``.
+POWERFUL_BREATH_SHARE = 3 / 2
+
+
+def powered(power: Power) -> Power:
+    """``power`` cast through Powerful Activation: its damage at the doubled level (or its raised
+    fixed figure, ``_POWERFUL_FIXED``) and a ball's radius 3 (``Power.area_radius``)."""
+    if power.powerful:
+        return power
+    fixed = _POWERFUL_FIXED.get(power.ident)
+    damage = fixed if fixed is not None else (lambda lev, base=power.damage: base(2 * lev))
+    return replace(power, damage=damage, powerful=True)
+
 # The monster's side of each element, one row per element (a new attack power names one of
 # these, or adds its element here).
 #
@@ -233,6 +287,8 @@ def expected_damage(power, level, flags):
     if power.element == "DRAGON_BREATH":
         damage = sum(value * _element_multiplier(element, known)
                      for value, element in _DRAGON_BREATH) / len(_DRAGON_BREATH)
+        if power.powerful:
+            damage *= POWERFUL_BREATH_SHARE
     else:
         share = _element_multiplier(power.element, known, race_known=flags is not None)
         if share <= IMMUNE_SHARE:
@@ -278,7 +334,7 @@ def _blast_centres(snapshot, power, target, direction):
 
 def catches_unbeatable_friendly(policy, snapshot, power, target, direction) -> bool:
     """Whether a town ball/breath would anger a friendly this character cannot defeat."""
-    radius = AREA_RADIUS.get(power.shape)
+    radius = power.area_radius
     if radius is None or not snapshot.in_town:
         return False
     centres = _blast_centres(snapshot, power, target, direction)
@@ -372,17 +428,26 @@ def usable_powers(policy, snapshot):
             yield power, power_success(policy, snapshot, power, row)
 
 
-def _candidates(policy, snapshot, target, direction):
+def powerful_ready(policy, snapshot) -> bool:
+    """Powerful Activation may cast an attack: its level and the HP rule of every use of it
+    (me_powerful_activation.pays_safely: the worst cost leaves HP above every low-HP rung)."""
+    from hengbot import me_powerful_activation
+    return me_powerful_activation.pays_safely(policy, snapshot)
+
+
+def _candidates(policy, snapshot, target, direction, powerful):
     flags = race_flags(policy, target)
     level = snapshot.player.level
     bystander = sight_hits_bystander(snapshot)
-    for power, success in usable_powers(policy, snapshot):
-        if power.group_only or (power.shape == "sight" and bystander):
+    powerful = powerful and powerful_ready(policy, snapshot)
+    for held, success in usable_powers(policy, snapshot):
+        if held.group_only or (held.shape == "sight" and bystander):
             continue
-        if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
-            continue
-        damage = min(expected_damage(power, level, flags), max(target.hp, 0))
-        yield success * damage, power
+        for power in (held, powered(held)) if powerful else (held,):
+            if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
+                continue
+            damage = min(expected_damage(power, level, flags), max(target.hp, 0))
+            yield success * damage, power
 
 
 def optimistic_score(policy, snapshot, power, target):
@@ -397,27 +462,47 @@ def missile_score(policy, snapshot, target):
     return optimistic_score(policy, snapshot, POWERS[MISSILE], target)
 
 
-def scored(policy, snapshot, target, direction) -> list:
-    """(score, power) of every usable absorbed attack power, best first."""
+def scored(policy, snapshot, target, direction, *, powerful: bool = True) -> list:
+    """(score, power) of every usable absorbed attack power, best first.
+
+    With HP to pay (``powerful_ready``) each power is offered a second time cast through
+    Powerful Activation (``powered``, the same success: one fail chance); a tie keeps the
+    ordinary use, which costs no hit points (a target the ordinary use already kills scores
+    the same both ways: the score is capped by its HP).  ``powerful`` False keeps the ordinary
+    uses alone (arena_odds counts each power's charges once, without the HP each cast pays)."""
     if not can_use_powers(snapshot):
         return []
-    return sorted(_candidates(policy, snapshot, target, direction),
-                  key=lambda pair: (-pair[0], pair[1].kind != "rod", pair[1].level))
+    return sorted(_candidates(policy, snapshot, target, direction, powerful),
+                  key=lambda pair: (-pair[0], pair[1].powerful, pair[1].kind != "rod", pair[1].level))
 
 
 def seen_missile_score(policy, snapshot, target, direction) -> float | None:
     """Magic Missile's score from its displayed row, else None (row not seen)."""
     return next((score for score, power in scored(policy, snapshot, target, direction)
-                 if (power.kind, power.sval) == MISSILE), None)
+                 if power.is_missile), None)
 
 
-def device_key(policy, power, direction) -> str:
-    """``m`` + kind + power (+ direction): the power's key (``DEVICE_REASON``)."""
-    policy.last_reason = DEVICE_REASON
-    return "m" + KIND_LETTER[power.kind] + power.letter + (direction if power.aimed else "")
+def _prefix(policy, power, snapshot) -> str:
+    """``m`` + kind + power, or for a powerful power ``U`` + kind + power with its HP cost noted
+    (me_powerful_activation.note_attack: the drop it pays is no hit)."""
+    if not power.powerful:
+        policy.last_reason = DEVICE_REASON
+        return "m" + KIND_LETTER[power.kind] + power.letter
+    if snapshot is None:
+        raise ValueError("a powerful use notes its cost from the board")
+    from hengbot import me_powerful_activation
+    me_powerful_activation.note_attack(policy, snapshot, power.kind, power.sval, POWERFUL_REASON)
+    policy.last_reason = POWERFUL_REASON
+    return me_powerful_activation.racial_key(power.kind, power.sval)
 
 
-def device_target_key(policy, power, grid) -> str:
+def device_key(policy, power, direction, snapshot=None) -> str:
+    """``m`` + kind + power (+ direction): the power's key (``DEVICE_REASON``); a powerful
+    power's is ``U`` + kind + power (+ direction) (``POWERFUL_REASON``, ``snapshot`` required)."""
+    return _prefix(policy, power, snapshot) + (direction if power.aimed else "")
+
+
+def device_target_key(policy, power, grid, snapshot=None) -> str:
     """``m`` + kind + power + ``@y,x``: an aimed power at ``grid``.
 
     The executor answers get_aim_dir with ``*`` and moves the target cursor
@@ -429,15 +514,15 @@ def device_target_key(policy, power, grid) -> str:
     it reaches a monster off the eight rays, as the arena's fight uses it."""
     if not power.aimed:
         raise ValueError("a power that needs no aim has no target grid")
-    policy.last_reason = DEVICE_REASON
-    return "m" + KIND_LETTER[power.kind] + power.letter + f"@{grid.y},{grid.x}"
+    return _prefix(policy, power, snapshot) + f"@{grid.y},{grid.x}"
 
 
-def strongest(policy, snapshot, target, direction):
+def strongest(policy, snapshot, target, direction, *, powerful: bool = True):
     """(score, power) of the best usable absorbed attack power other than
     Magic Missile (the callers' own missile path fires that), else None."""
-    return next(((score, power) for score, power in scored(policy, snapshot, target, direction)
-                 if score > 0 and (power.kind, power.sval) != MISSILE), None)
+    ranked = scored(policy, snapshot, target, direction, powerful=powerful)
+    return next(((score, power) for score, power in ranked
+                 if score > 0 and not power.is_missile), None)
 
 
 def attack_choice(policy, snapshot, target, direction):
@@ -450,9 +535,9 @@ def attack_choice(policy, snapshot, target, direction):
     if not ranked or ranked[0][0] <= 0:
         return None
     score, power = ranked[0]
-    if (power.kind, power.sval) == MISSILE:
+    if power.is_missile:
         return None  # the caller's own Magic Missile path fires it
-    seen_missile = any((power.kind, power.sval) == MISSILE for _, power in ranked)
+    seen_missile = any(power.is_missile for _, power in ranked)
     if not seen_missile and "wand" not in getattr(policy, "_me_device_lists", {}):
         # The wand list was never displayed: the caller may still fire Magic
         # Missile, so a power must beat it at an optimistic 100% success.
@@ -464,4 +549,4 @@ def attack_choice(policy, snapshot, target, direction):
 def attack_key(policy, snapshot, target, direction) -> str | None:
     """``m`` + kind + power (+ direction) of an absorbed power that beats Magic Missile."""
     choice = attack_choice(policy, snapshot, target, direction)
-    return None if choice is None else device_key(policy, choice[1], direction)
+    return None if choice is None else device_key(policy, choice[1], direction, snapshot)

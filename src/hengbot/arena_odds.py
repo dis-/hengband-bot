@@ -156,7 +156,7 @@ def _power_charges(policy, power) -> int:
 def attack_plan(policy, arena_board, target) -> list[tuple[float, float, str]]:
     """(damage per action, uses, name), strongest first."""
     plan = []
-    best = me_device_attacks.strongest(policy, arena_board, target, "2")
+    best = me_device_attacks.strongest(policy, arena_board, target, "2", powerful=False)
     if best is not None:
         plan.append((best[0], _power_charges(policy, best[1]), "power"))
     melee = attack_expectation.melee(policy, arena_board, target)
@@ -184,7 +184,8 @@ def launcher_per_action(policy, arena_board) -> tuple[float, int]:
 def ranged_force(policy, arena_board, target) -> list[tuple[float, float, str]]:
     """(damage per action, uses, name) of what reaches the opponent away, strongest first."""
     rows = [(score, _power_charges(policy, power), "power")
-            for score, power in me_device_attacks.scored(policy, arena_board, target, "2")
+            for score, power in me_device_attacks.scored(policy, arena_board, target, "2",
+                                                          powerful=False)
             if score > 0]
     shot, shots = launcher_per_action(policy, arena_board)
     if shot > 0:

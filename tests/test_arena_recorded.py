@@ -26,7 +26,7 @@ from hengbot import arena, arena_odds, line_of_fire, me_powers, me_ranged_first
 from hengbot.character_sheet import SHEET_ENCODINGS, ArenaStanding, _decode_sheet, arena_standing
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_new_decision_key
 from hengbot.input_executor import ScreenKind, classify_screen
-from hengbot.me_device_attacks import DEVICE_REASON
+from hengbot.me_device_attacks import DEVICE_REASON, POWERFUL_REASON
 from hengbot.model import ARENA_FLOOR_KEY, SV_STAFF_SPEED, TVAL_WAND, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import ConservativePolicy
@@ -180,6 +180,9 @@ class ArenaRecorded(executor_pins.ProductionHarness):
     # --- the Magic-Eater's plan (owner 2026-11-05)
     # CONSTRUCTED: the recorded Lv45 board as class 16 with the displayed rows named, and no
     # ammunition; the first opponent has 200 HP, the melee's walk is 4 cells.
+    # Since 2026-11-19 (owner 「魔道具術師の遠距離攻撃の選択肢に協力発動も入れたい」) the full-HP
+    # character casts the Fire Bolt through Powerful Activation (``U``; the arena refuses no racial
+    # power, cmd-racial.cpp has no cmd_limit_arena): (7 + 90 / 6)d8 = 99 over (7 + 45 / 6)d8 = 63.
 
     def magic_eater(self, *rows, label="03-enter", **player):
         policy = self.policy()
@@ -205,7 +208,7 @@ class ArenaRecorded(executor_pins.ProductionHarness):
     def test_a_hasted_magic_eater_attacks(self):
         policy, raw = self.magic_eater(self.SPEED, self.FIRE_BOLT)
         policy._player_hasted = lambda _snapshot: True
-        self.assertRegex(self.key(policy, raw, prefix=DEVICE_REASON), r"^mB")
+        self.assertRegex(self.key(policy, raw, prefix=POWERFUL_REASON), r"^UB")
 
     def test_a_low_rate_speed_is_not_cast(self):
         policy, raw = self.magic_eater(("staff", {"name": "スピード", "success": 79, "current": 3}), self.FIRE_BOLT)
@@ -214,7 +217,7 @@ class ArenaRecorded(executor_pins.ProductionHarness):
     def test_the_fewest_actions_fire_when_the_power_is_fewer(self):
         # 200 HP: about 3.3 bolts against the 4 cells' walk and the blows.
         policy, raw = self.magic_eater(self.FIRE_BOLT)
-        self.assertRegex(self.key(policy, raw, prefix=DEVICE_REASON), r"^mB")
+        self.assertRegex(self.key(policy, raw, prefix=POWERFUL_REASON), r"^UB")
 
     def test_the_fewest_actions_walk_when_melee_is_fewer(self):
         # 200 HP: about ten missiles against the 4 cells' walk and the blows.
@@ -223,13 +226,13 @@ class ArenaRecorded(executor_pins.ProductionHarness):
         self.assertEqual(policy.last_reason, arena.WALK_REASON)
 
     def test_a_power_reaches_a_cell_off_the_rays(self):
-        from hengbot.me_device_attacks_input import compile_device
+        from hengbot.me_menu_uses import compile_menu_key
         policy, raw = self.magic_eater(self.FIRE_BOLT)
         monster = raw["visible_monsters"][0]  # recorded on (11, 33), the board's own grid
         raw["player"]["y"], raw["player"]["x"] = monster["y"] - 4, monster["x"] - 1
-        key = self.key(policy, raw, prefix=DEVICE_REASON)
+        key = self.key(policy, raw, prefix=POWERFUL_REASON)
         self.assertTrue(key.endswith(f"@{monster['y']},{monster['x']}"), key)
-        self.assertEqual(compile_device(key, policy.last_reason)[1][0].goal, (monster["y"], monster["x"]))
+        self.assertEqual(compile_menu_key(key, policy.last_reason)[1][0].goal, (monster["y"], monster["x"]))
 
     def test_healing_above_the_owner_s_rate_is_used(self):
         policy, raw = self.magic_eater(("staff", {"name": "体力回復", "success": 81, "current": 3}), hp=40)

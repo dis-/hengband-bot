@@ -25,7 +25,13 @@ knowledge is supplied before the decision (tests/support/recorded ``skill``); th
 lists are the spectator frame's (the live policy held them; the boards carry no menu).
 DECLARED CONSTRUCTED (each named at its test): the counter-pins' displayed success of 20% and
 the Magic-Missile-only wand list (also for the fixed-order chooser); the adjacent pin's ニーベルング moved beside the player and
-the player afraid (fear refuses melee only, attack_expectation.melee_refused).
+the player afraid (fear refuses melee only, attack_expectation.melee_refused); the HP of 384 that
+leaves Powerful Activation's cost (27 at Lv45) on the low-HP line (657 - 300 = 357).
+
+Owner 2026-11-19 「魔道具術師の遠距離攻撃の選択肢に協力発動も入れたい」 (強力発動): every absorbed
+attack power is weighed a second time cast through Powerful Activation (the doubled level, the
+raised fixed figures) while its HP cost leaves the character above every low-HP rung
+(me_powerful_activation.pays_safely); a tie keeps the ordinary use.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -37,7 +43,7 @@ from pathlib import Path
 
 from hengbot import attack_expectation, me_device_attacks, me_ranged_first
 from hengbot.dungeon_knowledge import load_dungeon_knowledge
-from hengbot.me_device_attacks import DEVICE_REASON, observe_lists
+from hengbot.me_device_attacks import DEVICE_REASON, POWERFUL_REASON, observe_lists
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
@@ -106,14 +112,21 @@ class RangedVersusDeviceRecordedTest(unittest.TestCase):
     def test_the_absorbed_dragons_flame_beats_the_arrow_at_the_bubble(self):
         # Owner 2026-11-16 「分解攻撃は…使用を禁止する」 (test_no_disintegrate_1116_recorded):
         # the absorbed 分解 (``mBz8``, 245 at 88%) answered here until then; the next strongest
-        # absorbed power, ドラゴンの火炎 (wand sval 26, letter 0), answers in its place.
+        # absorbed power, ドラゴンの火炎 (wand sval 26, letter 0), answers in its place, since
+        # 2026-11-19 through Powerful Activation (fire_breath 300 instead of 200 at the 400 hp
+        # bubble: 0.96 x 300 = 288 over 0.96 x 200 = 192), the full-HP character paying its cost.
         key, reason, policy, snapshot = self.decide(self.case(34326))
-        self.assertEqual((key, reason), ("mB08", DEVICE_REASON))
+        self.assertEqual((key, reason), ("UB08", POWERFUL_REASON))
         target = self.monster(snapshot, BUBBLE, snapshot.player.position.__class__(5, 116))
         ammo = next(item for item in snapshot.inventory if item.slot == ARROWS)
         launcher = attack_expectation.launcher_shot(policy, snapshot, target, ammo)
         device = me_device_attacks.attack_choice(policy, snapshot, target, "8")
         self.assertEqual(device[1].names[1], "Dragon's Flame")
+        self.assertTrue(device[1].powerful)
+        self.assertAlmostEqual(device[0], 0.96 * 300)
+        ordinary = next(score for score, power in me_device_attacks.scored(policy, snapshot, target, "8")
+                        if power.ident == ("wand", 26) and not power.powerful)
+        self.assertAlmostEqual(ordinary, 0.96 * 200)
         self.assertGreater(device[0], launcher)
         self.assertNotIn(("wand", 25), {(power.kind, power.sval) for _, power in
                                         me_device_attacks.scored(policy, snapshot, target, "8")})
@@ -133,13 +146,40 @@ class RangedVersusDeviceRecordedTest(unittest.TestCase):
             if kind == "rod":
                 return [dict(row, charging=row["max"]) for row in rows]
             return rows
-        key, reason, policy, snapshot = self.decide(self.case(34173), rows=missile_only)
+        key, reason, policy, snapshot = self.decide(self.case(34173), rows=missile_only,
+                                                    change=self.on_the_low_hp_line)
         self.assertEqual((key, reason), ("fl4", "ranged:fire"))
         # (2 + 45 / 10)d6 at 96% (21 x 0.96) is below the arrow's 29.
         target = self.monster(snapshot, NIBELUNG, snapshot.player.position.__class__(37, 68))
         ammo = next(item for item in snapshot.inventory if item.slot == ARROWS)
         self.assertLess(me_device_attacks.seen_missile_score(policy, snapshot, target, "4"),
                         attack_expectation.launcher_shot(policy, snapshot, target, ammo))
+        self.assertFalse(me_device_attacks.powerful_ready(policy, snapshot))
+
+    @staticmethod
+    def on_the_low_hp_line(raw):
+        """DECLARED CONSTRUCTED: HP 384, so the cost 27 leaves 357, the low-HP line itself."""
+        raw["player"]["hp"] = 384
+
+    def test_the_powerful_magic_missile_beats_the_arrow_with_hp_to_pay(self):
+        # DECLARED CONSTRUCTED: the wand list holds Magic Missile alone, the rods recharge; the
+        # recorded full HP (657) pays the cost.  Powerful Activation doubles the level the
+        # missile reads: (2 + 90 / 10)d6 = 38.5, capped at the ニーベルング's 32 hp, at 96%
+        # (30.72) over the arrow's 29.2.
+        def missile_only(kind, rows):
+            if kind == "wand":
+                return [row for row in rows if row["name"] == "マジック・ミサイル"]
+            if kind == "rod":
+                return [dict(row, charging=row["max"]) for row in rows]
+            return rows
+        key, reason, policy, snapshot = self.decide(self.case(34173), rows=missile_only)
+        self.assertEqual((key, reason), ("UBp4", POWERFUL_REASON))
+        target = self.monster(snapshot, NIBELUNG, snapshot.player.position.__class__(37, 68))
+        ammo = next(item for item in snapshot.inventory if item.slot == ARROWS)
+        score, power = me_device_attacks.attack_choice(policy, snapshot, target, "4")
+        self.assertEqual((power.ident, power.powerful), (("wand", 15), True))
+        self.assertAlmostEqual(score, 0.96 * 32)
+        self.assertGreater(score, attack_expectation.launcher_shot(policy, snapshot, target, ammo))
 
     def test_the_fixed_order_answer_gives_way_to_a_stronger_launcher(self):
         # The distant chooser of the quest plans, the summon response and the blind strike
@@ -152,7 +192,8 @@ class RangedVersusDeviceRecordedTest(unittest.TestCase):
             if kind == "rod":
                 return [dict(row, charging=row["max"]) for row in rows]
             return rows
-        _, _, policy, snapshot = self.decide(self.case(34173), rows=missile_only)
+        _, _, policy, snapshot = self.decide(self.case(34173), rows=missile_only,
+                                             change=self.on_the_low_hp_line)
         target = self.monster(snapshot, NIBELUNG, snapshot.player.position.__class__(37, 68))
         self.assertEqual(me_ranged_first.attack_key(policy, snapshot, target), "fl4")
         self.assertEqual(policy.last_reason, "ranged:fire")
