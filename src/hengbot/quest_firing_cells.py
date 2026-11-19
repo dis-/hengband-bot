@@ -8,10 +8,9 @@ that forbids a damaged WAIT (policy_combat._forbid_wait_while_damaged) read Tele
 
 from __future__ import annotations
 
-from hengbot import immobile_threat_memory
+from hengbot import immobile_threat_memory, line_of_fire
 from hengbot.model import Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE
-from hengbot.projection_path import projection_path
 
 
 def touching_cells(policy, snapshot, cells) -> set[Position]:
@@ -38,24 +37,28 @@ def usable(policy, snapshot, target: Position, vantages: set[Position]) -> set[P
             if _lane_is_clear(snapshot, cell, target)}
 
 
-def reach(snapshot, cell: Position, breeders) -> int:
+def reach(policy, snapshot, cell: Position, breeders) -> int:
     """How many of ``breeders`` the Q2 shot reaches from ``cell``.
 
     The shot's own model (policy_quest ``_q2_ranged_core_key``, policy_combat
-    ``_offset_fire_aim``): two grids or more away, and the projection path of
-    ``RANGED_MAX_DISTANCE`` ends on the breeder before a known grid that stops sight."""
-    def blocks(pos: Position) -> bool:
-        grid = snapshot.grids.get(pos)
-        return grid is not None and grid.known and not grid.allows_los
+    ``_offset_fire_aim``): two grids or more away, and the player's own bolt path
+    (line_of_fire ``player_path``) of ``RANGED_MAX_DISTANCE`` ends on the breeder before a
+    known grid that stops it.
 
+    Maintainability review 2026-11-18 (S7-3 / 6(a)-8): this read its own stop until then, a
+    known grid without LOS (the glass class of n1-c life-216: a path that stops on LOS, not
+    PROJECTION).  The Q2 (002_TheSewer) and Q25 (025_HauntedHouse) maps, its only boards, hold
+    floor, water, granite, mineral veins, permanent walls, doors and traps, on which the two
+    stops agree (they differ only on glass, trees and curtains); no answer changed."""
     return sum(
         1 for monster in breeders
         if cell.distance_to(monster.position) >= 2
-        and monster.position in projection_path(cell, monster.position, RANGED_MAX_DISTANCE, blocks)
+        and monster.position in line_of_fire.player_path(
+            policy, snapshot, cell, monster.position, RANGED_MAX_DISTANCE)
     )
 
 
-def widest(snapshot, cells: set[Position], breeders) -> set[Position]:
+def widest(policy, snapshot, cells: set[Position], breeders) -> set[Position]:
     """``cells`` from which the shot reaches the most of ``breeders`` (``reach``).
 
     Owner 2026-11-08 「20行動で減らせないのであれば倒すアルゴリズム側に問題がある。」: n1-c life-181
@@ -64,6 +67,6 @@ def widest(snapshot, cells: set[Position], breeders) -> set[Position]:
     12 walks, 9 masses killed and 9 born (10 at both ends)."""
     if not cells:
         return set()
-    scores = {cell: reach(snapshot, cell, breeders) for cell in cells}
+    scores = {cell: reach(policy, snapshot, cell, breeders) for cell in cells}
     best = max(scores.values())
     return {cell for cell, score in scores.items() if score == best}
