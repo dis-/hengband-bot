@@ -33,6 +33,7 @@ from tests.support import q25_house as q25
 from tests.support.q25_house import (
     BASE, FILE_STRATEGIES, QUESTS, RACES, _CASE, _palette_row, board, monster, open_door,
 )
+from tests.support.me_powerful import ORDINARY_ONLY
 
 APPROVED = {**FILE_STRATEGIES, 25: replace(FILE_STRATEGIES[25], approved=True)}
 BATTLEFIELD = QUESTS[25].battlefield
@@ -415,6 +416,7 @@ class Q25IpsissimusTest(unittest.TestCase):
         self.assertTrue(key.endswith("*p" + "33" + "6" * 14 + "t5\x1b"), key)   # to [7,17]
         self.assertTrue(key.startswith("f"), key)
 
+    @ORDINARY_ONLY
     def test_the_strongest_attack_an_absorbed_ball_bursts_on_the_pen(self):
         raw = with_wand_list(board((5, 1)), FIRE_BALL)
         policy = new_policy(raw)
@@ -430,6 +432,7 @@ class Q25IpsissimusTest(unittest.TestCase):
         raw["messages"] = [*raw.get("messages", []), "何かが魔法でアンデッドを召喚した。"]
         return raw
 
+    @ORDINARY_ONLY
     def test_summons_with_a_piercing_attack_and_a_low_threat_keep_the_fire_on_the_pen(self):
         raw = self.summoned(with_wand_list(board((5, 1)), FIRE_BALL), cell=(4, 1))
         policy = new_policy(raw)
@@ -647,6 +650,7 @@ class Q25StragglersTest(unittest.TestCase):
 class Q25QuylthulgTest(unittest.TestCase):
     """phase3 1): 「範囲攻撃があればネクサス・クイルスルグを倒すまたはショートテレポートさせるまで撃つ」."""
 
+    @ORDINARY_ONLY
     def test_a_radius_2_ball_catches_9_13_from_5_2(self):
         raw = with_wand_list(board((5, 2)), FIRE_BALL)
         policy = new_policy(raw)
@@ -873,6 +877,7 @@ class Q25DrujTest(unittest.TestCase):
         self.assertTrue(key.startswith("af*p"), key)    # the carried Stone to Mud wand, slot f
         self.assertTrue(key.endswith("t5\x1b"), key)
 
+    @ORDINARY_ONLY
     def test_the_melted_door_takes_the_ball(self):
         raw = with_wand_list(board((13, 20)), FIRE_BALL)
         for run in raw["grid_map"]["runs"]:
@@ -993,6 +998,7 @@ class Q25EscapeTest(unittest.TestCase):
         choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "stragglers")
 
+    @ORDINARY_ONLY
     def test_ten_unanswered_pen_shots_count_the_rest_escaped(self):
         policy, raw = self.pen()
         for _ in range(VALUES.pen_misses_to_escaped):
@@ -1009,6 +1015,7 @@ class Q25EscapeTest(unittest.TestCase):
             choose(policy, raw)
         self.assertEqual(phase_of(policy, raw), "ipsissimus")
 
+    @ORDINARY_ONLY
     def test_pain_lines_of_the_unseen_target_count_as_hits_for_a_ball_too(self):
         # The game's forms (monster-pain-describer.cpp, the common table of a 'p'), under the unseen
         # name: deal_effect_damage_from_player prints them within MAX_PLAYER_SIGHT, seen or not.
@@ -1047,12 +1054,14 @@ class Q25DirectQuylTest(unittest.TestCase):
         at_phase(policy, raw, "quylthulgs", quyls_done=frozenset({(9, 13)}), **fields)
         return policy, raw
 
+    @ORDINARY_ONLY
     def test_with_radius_2_balls_the_9_9_quyl_is_walked_to_a_line_cell(self):
         policy, raw = self.direct((5, 2))
         choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.WALK_REASON)
         self.assertEqual(phase_of(policy, raw), "quylthulgs")
 
+    @ORDINARY_ONLY
     def test_on_a_line_cell_haste_then_the_shot(self):
         policy, raw = self.direct((7, 9))
         choose(policy, raw)
@@ -1068,6 +1077,7 @@ class Q25DirectQuylTest(unittest.TestCase):
         at_phase(policy, raw, "quylthulgs", quyls_done=frozenset({(9, 13)}))
         return policy, raw
 
+    @ORDINARY_ONLY
     def test_unseen_the_ball_at_its_grid_not_the_bolt(self):
         # Owner 2026-11-09 「Q25 の全部の段に広げる」: the quylthulg [9,9] not shown (it is invisible;
         # this board has no see-invisible): the ball burst on its grid, never the crossbow.
@@ -1076,6 +1086,7 @@ class Q25DirectQuylTest(unittest.TestCase):
         key = choose(policy, raw)
         self.assertEqual((key, policy.last_reason), ("mB" + STINKING_CLOUD_LETTER + "@9,9", DEVICE_REASON))
 
+    @ORDINARY_ONLY
     def test_seen_the_strongest_shot_the_bolt_too(self):
         # DECLARED CONSTRUCTED: the quylthulg shown on [9,9] (seen invisible).
         policy, raw = self.weak_ball()

@@ -43,6 +43,7 @@ from hengbot import quest_no_teleport, quest_plan_base
 from hengbot.model import (Position, SV_ROD_TELEPORT_AWAY, SV_WAND_STONE_TO_MUD,
                            SV_WAND_TELEPORT_AWAY, parse_snapshot)
 from tests import test_n1c_200_q25_warning_restart_1112_recorded as recorded
+from tests.support.me_powerful import ORDINARY_ONLY
 
 CASE = recorded.CASE
 TELEPORTS = (("first", 18165), ("second", 5), ("second", 28), ("third", 6), ("third", 8))
@@ -214,6 +215,7 @@ class SealedRoomTest(unittest.TestCase):
             self.assertEqual(reason, battle.MELT_REASON, name)
             self.assertTrue(key.endswith(door), (name, key))
 
+    @ORDINARY_ONLY
     def test_left_and_centre_ball_the_quylthulg_from_a_summon_safe_cell(self):
         for name, cell, centre in (("left", (12, 6), "@8,7"), ("centre", (13, 11), "@7,10")):
             key, reason, room = self._room(name, cell, 100, door_open=True)
@@ -224,6 +226,7 @@ class SealedRoomTest(unittest.TestCase):
         key, reason, room = self._room("right", (13, 16), 100, hp_full=False)
         self.assertEqual((key, reason, room[2]), ("R&\r", battle.FULL_HP_REASON, "prepare"))
 
+    @ORDINARY_ONLY
     def test_right_walks_to_the_cell_with_a_line_to_the_pen_and_shoots(self):
         key, reason, room = self._room("right", (13, 16), 100, door_open=True)
         self.assertEqual((key, reason, room[2]), ("4", battle.WALK_REASON, "ipsissimus"))

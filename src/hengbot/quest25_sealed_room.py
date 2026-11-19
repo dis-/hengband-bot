@@ -236,7 +236,7 @@ def _clear(ctx, state, door) -> str | None:
         return battle_mod._walk(ctx, {stand})
     if race == geo.QUYL:
         ctx.battle.aimed_quyl = cell
-    shot = battle_mod._fire_at(ctx, centre, race, area_only=True)
+    shot = battle_mod._fire_at(ctx, centre, race, area_only=True, covers=cell)
     if shot is not None:
         state = _state(ctx)
         state["shots"] += 1
