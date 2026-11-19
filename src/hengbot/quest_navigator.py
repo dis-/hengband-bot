@@ -141,6 +141,10 @@ class QuestFloorNavigator:
     # The (kills, spent waits) of the last full pass of the stops that found nothing to walk or hold
     # (quest_room_sweep ``NOTHING_COMES_REASON``); None otherwise.  Same rule.
     wait_idle = None
+    # The lure-then-approach phase (quest_lure_approach): holds on the current cell, and the cells
+    # spent (held to the bound with nothing come), a frozenset replaced whole.  Same rule.
+    lure_hold = 0
+    lure_spent = frozenset()
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -210,6 +214,8 @@ class QuestFloorNavigator:
         self.wait_goal = None
         self.wait_spent = ()
         self.wait_idle = None
+        self.lure_hold = 0
+        self.lure_spent = frozenset()
         self.summon_chase = None
         self.phase_battle = None
 

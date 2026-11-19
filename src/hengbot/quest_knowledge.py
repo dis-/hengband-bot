@@ -52,6 +52,11 @@ class QuestBattlefield:
     # one, a trap one time in four and the object otherwise.
     trap_cells: tuple[tuple[int, int], ...] = ()
     maybe_trap_cells: tuple[tuple[int, int], ...] = ()
+    # The walls Stone to Mud melts: a GRANITE, MAGMA or QUARTZ feature (TerrainDefinitions.jsonc: the
+    # STONE flag, which effect-feature.cpp KILL_WALL requires), never a PERMANENT one
+    # (dungeon-definition.cpp convert_terrain_id keeps it).  QUEST_33's inner '%' is GRANITE
+    # (QuestPreferences.jsonc), its border 'X' PERMANENT.
+    stone_walls: frozenset = frozenset()
 
 
 @dataclass(frozen=True)
@@ -131,6 +136,11 @@ def _legend_race(entry: dict[str, Any]) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _stone(feature: str) -> bool:
+    upper = feature.upper()
+    return "PERMANENT" not in upper and any(word in upper for word in ("GRANITE", "MAGMA", "QUARTZ"))
 
 
 def _terrain_class(feature: str) -> str:
@@ -368,6 +378,8 @@ def _json_battlefield(
                          for x, glyph in enumerate(row) if glyph in trap_glyphs),
         maybe_trap_cells=tuple((y, x) for y, row in enumerate(rows)
                                for x, glyph in enumerate(row) if glyph in maybe_trap_glyphs),
+        stone_walls=frozenset((y, x) for y, row in enumerate(rows) for x, glyph in enumerate(row)
+                              if _stone(features.get(glyph, ""))),
     )
 
 

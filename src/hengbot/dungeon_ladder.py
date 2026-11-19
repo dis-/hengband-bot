@@ -490,7 +490,10 @@ FLOOR_PLANS = (
             ("summon_response.key", SUMMONS),
             ("resist_potion.key", OWN), ("_light_key", OWN),
             # QUEST_33, owner 2026-11-19 「召還持ちを優先して周辺のモンスターを倒す」.
-            ("quest_summon_answer.after_key", OWN), ("_fight", OWN))),
+            ("quest_summon_answer.after_key", OWN),
+            # QUEST_33 段2, owner 2026-11-19 「ガチャピンを先に女王アリの範囲外まで誘導して処理」: a
+            # Gachapin seen in the Queens' range, the step back before the fight.
+            ("quest_lure_approach.key", OWN), ("_fight", OWN))),
     )),
 )
 

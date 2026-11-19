@@ -21823,5 +21823,159 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Where a KILL_ALL room sweep holds its wait (quest_wait_placement): a step to the waiting cell or the hold; no independent progress."
+  },
+  "quest_alignment_split.py:contact_cells": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_alignment_split.py:refused_cells": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:_approach": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:_back": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:_hold": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:_lure": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:_lure_start": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:_path_to": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:_taken": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:config": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_lure_approach.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_wait_placement.py:_Reader.comes": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "quest_wait_placement.py:comes": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
+  },
+  "sealed_pocket.py:can_melt": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
   }
 }
