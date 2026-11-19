@@ -18,7 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot import quest_find_exit, quest_force_rows, quest_room_light, quest_room_sweep, summon_response, threat_tiers
+from hengbot import attack_expectation, quest_find_exit, quest_room_light, quest_room_sweep, summon_response, threat_tiers
 from hengbot import quest_no_teleport
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_ENLIGHTENMENT, SV_POTION_RESISTANCE, TVAL_POTION, _parse_items, parse_snapshot
 from hengbot.policy import ConservativePolicy
@@ -432,14 +432,14 @@ class HasteReadTest(unittest.TestCase):
         raw["player"]["speed_display"] = {"color": "yellow", "riding": False, "text": "", "value": 13}
         q25.choose(policy, raw)
         snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
-        self.assertEqual(quest_force_rows._unhasted_speed(policy, snapshot), 113)
+        self.assertEqual(attack_expectation.permanent_speed(snapshot), 113)
         raw["player"]["speed"] = 113
         raw["player"]["speed_display"] = {"color": "light_green", "riding": False, "text": "", "value": 3}
         raw["messages"] = ["体の動きが遅くなってしまった！"]
         q25.choose(policy, raw)
         snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
         self.assertTrue(policy._player_hasted(snapshot))
-        self.assertEqual(quest_force_rows._unhasted_speed(policy, snapshot), 113)
+        self.assertEqual(attack_expectation.permanent_speed(snapshot), 113)
 
 
 class RuleThreeOnAPlanFloorTest(unittest.TestCase):

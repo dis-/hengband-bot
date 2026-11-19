@@ -11,7 +11,7 @@ override the last with ``ranged_turn_average``.
 ``turn_average`` is damage per 10 game turns (owner 2026-11-19 「攻撃力の判定を1行動あたりでは
 なく、10ゲームターンあたりのダメージで評価して」, ``timed_turn``): the best per-action figure below
 times the actions 10 game turns hold at the permanent speed, or at the hasted speed for an
-``always_hasted`` row (attack_expectation.force_speed).  ``shot_average`` stays per shot (a use's
+``always_hasted`` row (attack_expectation.row_speed).  ``shot_average`` stays per shot (a use's
 damage, not a rate).
 
 The launcher: the game's own figures on the ammunition's name, "(68/shot 121/turn)"
@@ -208,7 +208,7 @@ def _turn_floor(force, row) -> float:
 def timed_turn(policy, snapshot, force, row, turn: float) -> float:
     """A per-action ``turn`` figure per 10 game turns at the speed ``row`` fights at (owner
     2026-11-19 「10ゲームターンあたりのダメージで評価して」; quest_force_rows.row_damage's speed)."""
-    speed = attack_expectation.force_speed(snapshot, attack_expectation.row_always_hasted(force, row))
+    speed = attack_expectation.row_speed(snapshot, force, row)
     return attack_expectation.per_10_game_turns(policy, snapshot, turn, speed=speed)
 
 

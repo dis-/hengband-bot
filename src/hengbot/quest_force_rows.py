@@ -9,7 +9,8 @@ and ``speed_potions``, and may name
    (the permanent speed the character shows unhasted) and ``absorbed_charges`` (the
    charges an absorbed Speed power at the reliable success rate must hold);
  * ``always_hasted``: the row's fight stays hasted (the arithmetic of its floors
-   assumes it), so a scene doses whenever the haste is off.
+   assumes it), so a scene doses whenever the haste is off, whatever the permanent speed
+   (owner 2026-11-19 「+10 以上でも飲んで読む」).
 
 ``teleport_scrolls_without_absorbed`` (QUEST_33, owner 2026-11-19 「Q33では離脱に取り込んだテレポート
 の杖の使用を許可する。ない場合はテレポートの巻物を40巻用意すること。」): a character with no absorbed
@@ -25,7 +26,8 @@ measured damage and (where the force names one) ranged damage per turn meet its 
 
 The damage floors are per 10 game turns (owner 2026-11-19 「攻撃力の判定を1行動あたりではなく、
 10ゲームターンあたりのダメージで評価して」, ``row_damage``): the measured per-action figure at the
-permanent speed, or at the hasted speed for an ``always_hasted`` row.  A floor derived per action
+permanent speed, or at the permanent speed + 10 for an ``always_hasted`` row (the permanent speed
+when its ``gear_speed_bonus`` waives the doses: attack_expectation.row_speed).  A floor derived per action
 at +0 keeps its number; the always-hasted rows whose floor was halved per action for the haste
 (QUEST_18 row 2: 75, QUEST_25 row 2: 100 and ranged 120) read twice that per 10 game turns, the
 same per-action line at a +0 permanent speed.  With no such row the floors of the first row refuse the quest and no potion
@@ -34,7 +36,7 @@ is asked for: a character that cannot take the quest yet spends nothing on it.
 
 from __future__ import annotations
 
-from hengbot import attack_expectation, haste_read, me_capability, quest_one_turn_kill, quest_ranged_force
+from hengbot import attack_expectation, me_capability, quest_one_turn_kill, quest_ranged_force
 from hengbot.model import SV_POTION_SPEED, SV_STAFF_TELEPORTATION
 
 ALTERNATIVES = "force_alternatives"
@@ -44,21 +46,14 @@ ROW_FIELDS = ("min_hp", "min_expected_dps", "heal_potions", "speed_potions")
 ABSORBED_SHORT = "absorbed_speed_short"
 _WAITING_FOR_CHARGES = 1 << 16
 _SPEED_POTION = me_capability.FORCE_KINDS["speed_potions"]
-_NORMAL_SPEED = 110
-_POTION_SPEED_BONUS = 10
 # A character no row serves buys nothing for the quest (only QUEST_25 names these).
 _NO_KIT = {"throwing_items": {}, "required_potions": {}}
-
-
-def _unhasted_speed(policy, snapshot) -> int:
-    return snapshot.player.speed - (_POTION_SPEED_BONUS if haste_read.adds_speed(snapshot) else 0)
 
 
 def _speed_cost(policy, snapshot, row: dict) -> int:
     """The Speed potions this row asks of this character."""
     alternatives = row.get("speed_alternatives", {})
-    gear = alternatives.get("gear_speed_bonus")
-    if gear is not None and _unhasted_speed(policy, snapshot) >= _NORMAL_SPEED + int(gear):
+    if attack_expectation.gear_waives(snapshot, row):
         return 0
     if me_capability.replaced_by_absorbed(policy, snapshot, _SPEED_POTION):
         needed = int(alternatives.get("absorbed_charges", 0))
@@ -113,6 +108,11 @@ def _resolve_row(policy, snapshot, force: dict) -> dict:
             force[ABSORBED_SHORT] = True
         else:
             force["speed_potions"] = cost
+    if one_turn == "hasted" and force.get("always_hasted"):
+        # QUEST_33 (owner 2026-11-19 「+10 以上でも飲んで読む」): its line is met only at the
+        # permanent speed + 10, so the row must carry the doses: gear speed no longer stands
+        # for them (an absorbed Speed power still does).
+        force = _without_gear_waiver(force)
     alternatives = force.get(ALTERNATIVES)
     if not alternatives:
         # The launcher and rounds the device charges leave (quest_ranged_force: Q2, Q22, Q31).
@@ -137,13 +137,29 @@ def _resolve_row(policy, snapshot, force: dict) -> dict:
     return resolved
 
 
+def _without_gear_waiver(force: dict) -> dict:
+    """``force`` with ``gear_speed_bonus`` taken out of every row's ``speed_alternatives``."""
+    def strip(row: dict) -> dict:
+        alternatives = row.get("speed_alternatives")
+        if not isinstance(alternatives, dict) or "gear_speed_bonus" not in alternatives:
+            return row
+        return {**row, "speed_alternatives": {name: value for name, value in alternatives.items()
+                                              if name != "gear_speed_bonus"}}
+
+    stripped = strip(force)
+    if stripped.get(ALTERNATIVES):
+        stripped = {**stripped, ALTERNATIVES: [strip(row) for row in stripped[ALTERNATIVES]]}
+    return stripped
+
+
 def row_damage(policy, snapshot, force, row, per_action: float) -> float:
     """``per_action`` (the measured melee) per 10 game turns at the speed ``row`` fights at.
 
     Owner 2026-11-19 「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで評価して」:
     ``min_expected_dps`` is damage per 10 game turns, read at the permanent speed, or for an
-    ``always_hasted`` row at the speed its haste assures (attack_expectation.force_speed)."""
-    speed = attack_expectation.force_speed(snapshot, attack_expectation.row_always_hasted(force, row))
+    ``always_hasted`` row at the speed its haste assures (attack_expectation.row_speed: the
+    permanent speed + 10, unless its gear waives the doses)."""
+    speed = attack_expectation.row_speed(snapshot, force, row)
     return attack_expectation.per_10_game_turns(policy, snapshot, per_action, speed=speed)
 
 

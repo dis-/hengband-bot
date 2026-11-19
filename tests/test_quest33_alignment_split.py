@@ -87,6 +87,16 @@ def on_floor(policy, board, cell, monsters=(), messages=(), turn=1):
                    visible_monsters=list(monsters), detected_monsters=[], messages=list(messages), turn=turn)
 
 
+def hasted(board):
+    """DECLARED CONSTRUCTED: the board with the haste on (the yellow field, +10 on the speed).  On the
+    Q33 floor the always-hasted plan doses whenever the haste is off, whatever the permanent speed
+    (owner 2026-11-19 「+10 以上でも飲んで読む」, quest_plan_base ``_speed``): a floor test of another
+    rule starts from a hasted board, as the fight keeps it."""
+    value, text, _, riding = board.player.speed_display
+    return replace(board, player=replace(board.player, speed=board.player.speed + 10,
+                                         speed_display=(value + 10, text, "yellow", riding)))
+
+
 def killed(policy, race, times):
     name = policy._monrace_knowledge[race].names[0]
     return f"{name}を葬り去った。" + (f" <x{times}>" if times > 1 else "")
@@ -195,12 +205,12 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
             force = policy.approved_quest_strategy(QUEST).required_force
             found = quest_one_turn_kill.details(policy, weaker, force)
             self.assertEqual((found["melee"], found["per_10_game_turns"], found["tier"]),
-                             (330.5, {"permanent": 462.7, "hasted": 793.2}, "full"))
+                             (330.5, {"permanent": 462.7, "hasted": 793.2}, "hasted"))
             # The force's own ten Speed doses carry the haste: no QUEST_32 haste row is merged.
             resolved = policy._strategy_force_for_snapshot(weaker, policy.approved_quest_strategy(QUEST))
             self.assertEqual((resolved["speed_potions"], resolved["speed_required_to_depart"]), (10, True))
-            # One line, no hasted tier: the always-hasted plan keeps the haste, no extra dose rule.
-            self.assertFalse(quest_one_turn_kill.haste_first(policy, weaker, force))
+            # The hasted tier (owner 2026-11-19 「+10 以上でも飲んで読む」): unhasted, it doses first.
+            self.assertTrue(quest_one_turn_kill.haste_first(policy, weaker, force))
             # Three blows (247.9 an action, 594.9 at +14) are short of it.
             weakest = replace(board, player=replace(board.player, main_hand_blows=3))
             self.assertIsNone(quest_one_turn_kill.tier(policy, weakest, force))
@@ -210,9 +220,10 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
         with scratch:
             force = policy.approved_quest_strategy(QUEST).required_force
             found = quest_one_turn_kill.details(policy, board, force)
-            # +25 (energy 35): no dose at +10 or more, so the hasted speed is the permanent one.
+            # +25 (energy 35), hasted +35 (energy 40: owner 2026-11-19 「+10 以上でも飲んで読む」);
+            # the permanent speed already meets the line.
             self.assertEqual((found["melee"], found["device"], found["per_10_game_turns"], found["tier"]),
-                             (415.0, 280.0, {"permanent": 1452.4, "hasted": 1452.4}, "full"))
+                             (415.0, 280.0, {"permanent": 1452.4, "hasted": 1659.8}, "full"))
             verdict, telemetry, _ = readiness(policy, board)
             self.assertEqual((verdict, telemetry["reason"]), (False, "not-full-hp"))
             full = replace(board, player=replace(board.player, hp=board.player.max_hp))

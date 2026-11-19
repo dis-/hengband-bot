@@ -542,8 +542,11 @@ class HomeMixin:
         signature = self._item_signature(item)
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
         preferred_store = self._home_disposal_store(signature)
+        # The Black Market last: it buys every kind (store/service-checker.cpp), the
+        # outlet left when the stores of the kind are full this visit.
         store_type = next((store for store in (preferred_store, STORE_WEAPON, STORE_ARMOURY,
-                           STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST)
+                           STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST,
+                           STORE_BLACK)
                            if store != STORE_HOME
                            and self._store_accepts_sale(store, item)
                            and store not in self._store_sale_refused), None)
@@ -1168,7 +1171,21 @@ class HomeMixin:
                     probe = replace(snapshot, inventory=tuple(
                         carried for carried in snapshot.inventory
                         if self._sale_item_identity(carried) != sale_identity))
-                    if self._home_full_discard_candidate(probe, target) is not None:
+                    other = (None if signature in self._unsellable_items
+                             else self._home_full_sale_candidate(probe, target))
+                    if other is not None and other[1] not in self._store_sale_refused:
+                        # A full store (store/sell-order.cpp, 「店にはもう置く場所が
+                        # ありません」) refused it: another store that buys the ware takes
+                        # it, the Black Market last (it buys every kind, service-checker.cpp).
+                        relief.sale = (signature, other[1], before_count)
+                        self.last_reason = "home:full-sale-other-store"
+                        return self._town_producer_entry("_home_full_relief_key",
+                            lambda: self._home_full_relief_key(snapshot))
+                    if (self._home_full_discard_candidate(probe, target) is not None
+                            # The cap tidy destroys only what its fate destroys: a
+                            # ware no store takes is kept (owner 2026-11-19).
+                            and (not relief.cap or item_fate.fate(
+                                self, snapshot, target, item_fate.PACK) == item_fate.DESTROY)):
                         relief.mode = "destroy"
                         return self._town_producer_entry("_home_full_relief_key",
                             lambda: self._home_full_relief_key(snapshot))

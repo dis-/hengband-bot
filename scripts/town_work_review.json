@@ -21342,7 +21342,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
-    "evidence": "The speed an always_hasted quest row fights at (permanent + 10 below +10); a number, no command."
+    "evidence": "The speed an always_hasted quest row fights at (the permanent speed + 10 at any speed); a number, no command."
   },
   "quest_one_turn_kill.py:best": {
     "classification": "data",
@@ -21450,6 +21450,22 @@
     ],
     "delegation": "selected child; no independent success",
     "evidence": "The force row that serves this character (resolve before the teleport scroll count); emits no key."
+  },
+  "quest_force_rows.py:_without_gear_waiver": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-19 「+10 以上でも飲んで読む」: the force with gear_speed_bonus taken out of its rows on the always_hasted hasted tier; emits no key."
+  },
+  "quest_force_rows.py:_without_gear_waiver.strip": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "One row without gear_speed_bonus in its speed_alternatives; emits no key."
   },
   "quest_force_rows.py:_teleport_scrolls": {
     "classification": "data",

@@ -13851,6 +13851,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_force_rows.py:_without_gear_waiver": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_force_rows.py:_without_gear_waiver.strip": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_force_rows.py:resolve": {
     "classification": "data",
     "rows": [
