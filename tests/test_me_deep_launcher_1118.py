@@ -61,11 +61,6 @@ def _decide(policy, rows):
                 policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
 
 
-def at_normal_speed(board):
-    """``board`` with the player at +0 and no timed haste or slowness."""
-    return replace(board, player=replace(board.player, speed=110, speed_display=None))
-
-
 class RecordedBoard:
     """The arrival policy and the last kept board, after the earlier rows are decided."""
 
@@ -172,13 +167,7 @@ class RecordedAmmoTest(unittest.TestCase):
         policy = recorded.policy
         sling = next(owned.item for owned in policy._equipment_catalog.items
                      if owned.item.name.startswith(BUCKLAND))
-        worn = recorded.wearing(sling)
-        # Owner 2026-11-19 「10ゲームターンあたりのダメージで評価して」: at the board's +19 (energy
-        # 29) the 42.5 a turn is 123.25 per 10 game turns, over the floor: the rounds stay.
-        self.assertEqual(me_deep_launcher.shot_power_per_10_game_turns(policy, worn), 123.25)
-        self.assertFalse(me_deep_launcher.ammo_unneeded(policy, worn))
-        # DECLARED CONSTRUCTED: the same at +0 (42.5 per 10 game turns) carries none.
-        board = at_normal_speed(worn)
+        board = recorded.wearing(sling)
         self.assertEqual(me_deep_launcher.shot_power_per_turn(policy, board), 42.5)
         self.assertTrue(me_deep_launcher.ammo_unneeded(policy, board))
         # Before: 99 shots to buy (and the Weapon Smith reopened for them).
@@ -199,13 +188,8 @@ class RecordedAmmoTest(unittest.TestCase):
         policy = recorded.policy
         plain = [item for item in recorded.board.inventory
                  if not (item.is_ammo and item.to_d > 0)]
-        plain_board = replace(recorded.board, inventory=plain)
+        board = replace(recorded.board, inventory=plain)
         policy._equipment_catalog._home_ammunition = ()
-        # Per 10 game turns at its +14 (energy 24): 180, over the floor (owner 2026-11-19).
-        self.assertEqual(me_deep_launcher.shot_power_per_10_game_turns(policy, plain_board), 180.0)
-        self.assertFalse(me_deep_launcher.ammo_unneeded(policy, plain_board))
-        # DECLARED CONSTRUCTED: the same at +0 (75 per 10 game turns) keeps none.
-        board = at_normal_speed(plain_board)
         self.assertEqual(me_deep_launcher.shot_power_per_turn(policy, board), 75.0)
         self.assertTrue(me_deep_launcher.ammo_unneeded(policy, board))
         self.assertEqual(policy._ammo_procurement_target(board), 0)
@@ -291,9 +275,7 @@ class JudgementTest(unittest.TestCase):
                 _carry_procurement_strategy=lambda _board: quest,
                 _quest_strategy_for_errand_or_floor=lambda _board: quest)
 
-        # +0 (energy 10): the figure per 10 game turns is the per-turn one.
-        board = SimpleNamespace(player=SimpleNamespace(class_id=PLAYER_CLASS_MAGIC_EATER, speed=110,
-                                                       speed_display=None))
+        board = SimpleNamespace(player=SimpleNamespace(class_id=PLAYER_CLASS_MAGIC_EATER))
         self.assertTrue(me_deep_launcher.ammo_unneeded(policy(99), board))
         self.assertFalse(me_deep_launcher.ammo_unneeded(policy(100), board))
         # Owner 2026-11-18 「装備優先度の例外にはしない」: a pending ranged quest changes nothing.

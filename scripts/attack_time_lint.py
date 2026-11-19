@@ -37,11 +37,17 @@ POLICY_METHODS = frozenset({"_strategy_measured_dps", "_main_hand_dps", "_sub_ha
 # The per-10-game-turn readers and their callers' thin wrappers.
 READERS = frozenset({"per_10_game_turns", "per_10_game_turns_at", "per_game_time", "time_melee",
                      "time_ranged", "time_device", "_timed", "row_damage", "timed_turn",
-                     "shot_power_per_10_game_turns"})
+                     })
 SKIPPED = frozenset({"attack_expectation.py", "speed_valuation.py"})
 
 
+# Per-action readers called by bare name inside their own module.
+LOCAL_PER_ACTION = frozenset({"shot_power_per_turn"})
+
+
 def _is_producer(node: ast.AST) -> bool:
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        return node.func.id in LOCAL_PER_ACTION
     if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
         return False
     attr, owner = node.func.attr, node.func.value
