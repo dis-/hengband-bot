@@ -10,7 +10,9 @@ from math import isfinite
 from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
-from hengbot.equipment_encounters import normal_encounters, representative_encounters
+from hengbot.equipment_encounters import (
+    normal_encounters, ordinary_encounters, representative_encounters,
+)
 from hengbot.speed_valuation import permanent_player_speed
 from hengbot.equipment_optimizer import (
     ABILITY_FLAG,
@@ -35,7 +37,7 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_utility import with_destruction_means
-from hengbot import me_deep_launcher
+from hengbot import angband_cap, me_deep_launcher
 from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
 from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -166,6 +168,30 @@ def optimize_single_slot_closure(
                 seeds.append(entry.loadout)
         if not seeds:
             return result
+
+
+def destination_encounter_depth(snapshot, knowledge) -> int:
+    """The floor whose monsters an unconstrained search scores against.
+
+    Owner 2026-11-20 (「吸血も評価に入れて直す」, with the population by depth):
+    the destination, not the deepest known monster.  n1-b life-411 searched
+    against every race up to level 127 although it explores Angband 95F, and
+    the 64-race sample held 26% dragons (13% on 95F, 3% of what it met), so
+    ★アイシングデス's dragon slaying outscored ★スレイヤー.  The destination is
+    the recall dungeon's deepest floor (where Word of Recall lands), within
+    that dungeon's cap (angband_cap, 95F) and the deepest known monster; the
+    deepest known monster when the board names no recall depth.
+    """
+    deepest_known = max((monster.level for monster in knowledge.values()), default=1)
+    dungeon_id = getattr(snapshot, "recall_dungeon_id", 0)
+    landing = getattr(snapshot, "dungeon_recall_depths", {}).get(dungeon_id) or getattr(
+        snapshot, "recall_depth", 0)
+    if not landing:
+        return deepest_known
+    cap = angband_cap.cap(dungeon_id)
+    if cap is not None:
+        landing = min(landing, cap)
+    return max(1, min(landing, deepest_known))
 
 
 def blocker_leaves_no_target(blocker: str) -> bool:
@@ -682,16 +708,18 @@ class WarriorEvaluatorCache:
         self,
         inputs: WarriorLoadoutInputs,
         encounters: tuple,
+        offense_encounters: tuple | None = None,
     ) -> CachedWarriorLoadoutEvaluator:
         normalized_inputs = (
             replace(inputs, current_hp=0)
             if inputs.base_hp is not None
             else inputs
         )
-        context = (normalized_inputs, encounters)
+        context = (normalized_inputs, encounters, offense_encounters)
         if self.context != context or self.evaluator is None:
             self.context = context
-            self.evaluator = CachedWarriorLoadoutEvaluator(inputs, encounters)
+            self.evaluator = CachedWarriorLoadoutEvaluator(
+                inputs, encounters, offense_encounters)
         return self.evaluator
 
 def weapon_expected_dps(
@@ -859,9 +887,7 @@ def prepare_warrior_optimization(
         return WarriorOptimizationPreparation(current, None, None, tuple(blockers))
 
     encounter_depth = (
-        depth
-        if depth is not None
-        else max((monster.level for monster in knowledge.values()), default=1)
+        depth if depth is not None else destination_encounter_depth(snapshot, knowledge)
     )
     all_encounters = normal_encounters(knowledge, encounter_depth)
     if not all_encounters:
@@ -872,6 +898,10 @@ def prepare_warrior_optimization(
         all_encounters,
         catalog_size=len(items),
     )
+    # The melee side reads the whole ordinary pool when the defense reads a
+    # sample (CachedWarriorLoadoutEvaluator.offense_encounters).
+    offense_encounters = (
+        None if encounters is all_encounters else ordinary_encounters(all_encounters))
 
     # P1: every character constant comes from the unequipped calibration
     # observation, never from de-gearing the currently worn snapshot.  The
@@ -953,9 +983,9 @@ def prepare_warrior_optimization(
         intrinsic_wis=adjustments[2],
     )
     evaluator = (
-        evaluator_cache.get(inputs, encounters)
+        evaluator_cache.get(inputs, encounters, offense_encounters)
         if evaluator_cache is not None
-        else CachedWarriorLoadoutEvaluator(inputs, encounters)
+        else CachedWarriorLoadoutEvaluator(inputs, encounters, offense_encounters)
     )
     pinned = {
         item.equipped_slot: item

@@ -293,6 +293,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "angband_cap.py:cap": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_hold.py:pick": {
     "classification": "data",
     "rows": [
@@ -1954,6 +1961,13 @@
     "delegation": "selected child; no independent success"
   },
   "equipment_capacity.py:plan_equipment_transactions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_encounters.py:draw_weights": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17641,6 +17655,13 @@
     "delegation": "selected child; no independent success"
   },
   "warrior_optimization.py:_loadout_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_optimization.py:destination_encounter_depth": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

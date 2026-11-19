@@ -4,9 +4,9 @@ Owner: 「呪力耐性が生存にどれくらい寄与しているか確認」.
 scored with the board's saving throw (119, ★運命のオーブ worn: resist curse +30
 and +3 WIS), so the ★飛行石 set kept the Orb's +30.  calc_saving_throw
 (src/player/player-status.cpp) gives that set 88: -30 for the resist curse and
--1 for adj_wis_sav of the lower WIS index.  Its survival falls from 134.3 to
-133.4 turns, its ratio from 130.66 to 129.71; the 飛行石 set is still chosen
-(the Orb set is under the 95% melee line).
+-1 for adj_wis_sav of the lower WIS index.  Its survival fell from 134.3 to
+133.4 turns, its ratio from 130.66 to 129.71 (on the population of the time);
+the 飛行石 set is still chosen (the Orb set is under the 95% melee line).
 
 Recorded: the town-arrival checkpoint of the 06:01 visit and journal rows 0-1
 (tests/extract_n1b_411_loadout_search_1120_fixture.py); row 1 runs the
@@ -17,6 +17,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from dataclasses import replace
 from unittest import mock
 
 from hengbot import warrior_loadout_evaluator, warrior_optimization
@@ -67,9 +68,15 @@ class N1b411SavingThrow1120RecordedTest(unittest.TestCase):
         self.assertEqual(evaluator.inputs.defense.saving_skill, 119)
         self.assertEqual(saving(worn, evaluator.inputs).saving_skill, 119)
         self.assertEqual(saving(hikouseki_set, evaluator.inputs).saving_skill, 88)
-        self.assertAlmostEqual(evaluator(worn).metrics.survival_turns, 137.3, places=1)
-        # Was 134.3 with the board's 119.
-        self.assertAlmostEqual(evaluator(hikouseki_set).metrics.survival_turns, 133.4, places=1)
+        # The board's 119 for every set (saving_base None) is the recorded scoring.
+        board_scored = warrior_loadout_evaluator.CachedWarriorLoadoutEvaluator(
+            replace(evaluator.inputs, saving_base=None), evaluator.encounters,
+            evaluator.offense_encounters)
+        self.assertEqual(evaluator(worn).metrics, board_scored(worn).metrics)
+        own, board = (scored(hikouseki_set).metrics.survival_turns
+                      for scored in (evaluator, board_scored))
+        # 133.4 against 134.3 turns on the population of commit b57dadd263.
+        self.assertLess(own, board * 0.995)
         best = preparation.result.best.loadout
         self.assertTrue(best.item_at("light").item.name.startswith(HIKOUSEKI))
 

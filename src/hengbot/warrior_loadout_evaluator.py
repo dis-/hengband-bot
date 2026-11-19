@@ -239,9 +239,15 @@ class CachedWarriorLoadoutEvaluator:
         self,
         inputs: WarriorLoadoutInputs,
         encounters: tuple[EncounterTarget, ...],
+        offense_encounters: tuple[EncounterTarget, ...] | None = None,
     ) -> None:
         self.inputs = inputs
         self.encounters = encounters
+        # The whole ordinary pool the melee slays and kill turns are read
+        # against when ``encounters`` is a sample (owner 2026-11-20): the
+        # weapon's multipliers are per weapon and cheap, and a 64-race sample
+        # tilted them (n1-b life-411: 26-30% dragons against 12.5%).
+        self.offense_encounters = offense_encounters or encounters
         self._melee: dict[tuple[object, ...], WarriorMeleeResult] = {}
         self._defense: dict[tuple[object, ...], WarriorDefenseResult] = {}
         self._ranged: dict[
@@ -251,7 +257,7 @@ class CachedWarriorLoadoutEvaluator:
         self._device: dict[tuple[int, frozenset[int]], tuple[float, float]] = {}
         self._average_target_hp = sum(
             encounter.weight * encounter.knowledge.average_hp
-            for encounter in encounters
+            for encounter in self.offense_encounters
         )
 
     @property
@@ -267,7 +273,7 @@ class CachedWarriorLoadoutEvaluator:
                 if weapon is None or weapon.id in self._weapon_multipliers:
                     continue
                 multiplier_weights: dict[int, float] = {}
-                for encounter in self.encounters:
+                for encounter in self.offense_encounters:
                     multiplier = melee_multiplier(
                         weapon.flags, encounter.knowledge
                     )
@@ -281,7 +287,7 @@ class CachedWarriorLoadoutEvaluator:
             melee = evaluate_warrior_melee(
                 loadout,
                 self.inputs.combat,
-                self.encounters,
+                self.offense_encounters,
                 multiplier_weights_by_item=self._weapon_multipliers,
                 average_target_hp=self._average_target_hp,
             )
