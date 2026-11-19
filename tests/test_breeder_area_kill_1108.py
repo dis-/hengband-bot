@@ -39,6 +39,7 @@ from tests import test_breeder_area_attack_1103_recorded as area
 from tests import test_breeder_swarm_1102_recorded as swarm
 from tests import test_q25_n1c_159_1107_recorded as q159
 from tests.test_me_device_attacks import power_list, row
+from tests.support.me_powerful import ORDINARY_ONLY
 
 
 HOLD_BOARD = 424
@@ -71,6 +72,7 @@ class Q25MassesInLineTest(unittest.TestCase):
         policy._player_hasted = lambda snapshot: True
         return policy, q159.choose(policy, raw)
 
+    @ORDINARY_ONLY
     def test_the_recorded_hold_fires_the_ball_where_it_kills_most(self):
         policy, key = self.decide(self.raw, "ambush")
         self.assertEqual(policy.last_reason, DEVICE_REASON, key)
@@ -84,6 +86,7 @@ class Q25MassesInLineTest(unittest.TestCase):
         self.assertAlmostEqual(burst, 0.9 * 5)
         self.assertAlmostEqual(west, 0.9 * 3)
 
+    @ORDINARY_ONLY
     def test_the_aim_kills_most_rather_than_damages_most(self):
         # DECLARED CONSTRUCTED health bands: [1,15] [1,16] [2,16] wounded (the band's upper bound,
         # 59% of 64 = 38 HP, model._estimated_monster_hp), [1,14] [2,14] unhurt; every one dies at

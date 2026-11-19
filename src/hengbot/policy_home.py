@@ -4,7 +4,7 @@ from hengbot.item_identity import (
     MemorySignatures, display_signature,
     remembered_stack, same_memory,
 )
-from hengbot import bm_destruction_fund, destruction_means, home_cash_sale, item_fate, mining_oil_sale, spare_gear, torch_release
+from hengbot import bm_destruction_fund, destruction_means, home_cap, home_cash_sale, item_fate, mining_oil_sale, spare_gear, torch_release
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -372,6 +372,10 @@ class HomeMixin:
         return bool(fact and fact[1] > 0 and fact[0] >= fact[1]
                     and fact[2] == self._effective_town_id(snapshot))
 
+    def _begin_home_cap_tidy(self, snapshot: Snapshot) -> bool:
+        """Begin the cap tidy over a Home past its cap (home_cap.begin); True when it began."""
+        return home_cap.begin(self, snapshot)
+
     def _begin_home_full_relief(
         self, snapshot: Snapshot, entries: tuple, *, refused: bool = False,
     ) -> None:
@@ -679,6 +683,18 @@ class HomeMixin:
             return None
         return item
 
+    def _home_cap_identify_first(self, snapshot: Snapshot, stock, probes) -> list:
+        """The unidentified Home stacks the cap tidy identifies before it sells (owner 2026-11-19
+        「12件を超えたら先に鑑定」): past ``home_cap.IDENTIFY_FIRST`` unidentified stacks on the
+        shelf, those a carried means identifies now, as the relief's identify list holds them."""
+        if sum(1 for item in self._home_knowledge_items
+               if not item.known or not getattr(item, "aware", True)) <= home_cap.IDENTIFY_FIRST:
+            return []
+        return [(candidate, item) for item in stock
+                if (candidate := self._home_full_discard_candidate(
+                    probes[id(item)], item, identify=True))
+                and item_fate.can_identify_now(self, snapshot, candidate)]
+
     def _home_full_discard_rank(self, snapshot: Snapshot, item: InventoryItem) -> tuple:
         # At this seam no eligible stock is sellable. A kind no shop buys,
         # or an observed refused sale, has zero realizable store buy value.
@@ -985,6 +1001,9 @@ class HomeMixin:
                 entries = ()
             if entries or self._inventory_overweight(snapshot):
                 self._begin_home_full_relief(snapshot, entries)
+        if self._home_full_relief is None:
+            # Owner 2026-11-19 「200件（空き40）」: a Home past its cap is tidied first.
+            self._begin_home_cap_tidy(snapshot)
         if self._release_home_full_relief_for_weight(
                 snapshot, self._weight_relief_selection(snapshot)
                 if self._home_full_relief is not None
@@ -1035,6 +1054,15 @@ class HomeMixin:
                     self._home_pending_slot = None
                     self._home_pending_quantity = None
                     self._home_pending_take_confirmed = None
+                if (relief.cap and relief.mode == "sale" and not relief.pack_only
+                        and snapshot.store is None
+                        and home_cap.batch_grows(self, snapshot, relief)):
+                    # Owner 2026-11-19 「一気に片づける」: the taken ware waits in the pack
+                    # while the next one is taken; the batch is sold in one trip.
+                    home_cap.take_done(self, relief, signature, store_type)
+                    self.last_reason = "home:cap-tidy-batch-take"
+                    return self._town_producer_entry("_home_full_relief_key",
+                        lambda: self._home_full_relief_key(snapshot))
                 if relief.mode in {"destroy", "identify"}:
                     if snapshot.store is not None:
                         return self._home_full_leave_key("home:full-leave-with-surplus")
@@ -1214,7 +1242,16 @@ class HomeMixin:
                 relief.end_sale(*SALE_DESTROY_FIELDS)
                 self._home_errand.finish()
                 self._invalidate_home_observation()
-                if relief.remaining == 0 and relief.sweep:
+                if relief.cap:
+                    # The cap tidy frees no deposit: it ends at the cap, its batch sold.
+                    if relief.remaining <= 0 and not relief.carried:
+                        home_cap.end(self)
+                        self.last_reason = "home:cap-tidy-done"
+                    elif relief.carried:
+                        # The next carried ware's store, without a census between sales.
+                        return self._town_producer_entry("_home_full_relief_key",
+                        lambda: self._home_full_relief_key(snapshot))
+                elif relief.remaining == 0 and relief.sweep:
                     # The sweep freed no deposit: no retry batch, no release
                     # of the visit bound.
                     self._home_full_relief = None
@@ -1322,6 +1359,7 @@ class HomeMixin:
                 self._home_pending_quantity = observed.count
                 return (self._home_full_leave_key(
                     "home:junk-sweep-withdraw" if relief.sweep
+                    else "home:cap-tidy-withdraw" if relief.cap
                     else "home:full-queue-surplus-withdraw")
                     if errand_was_active else None)
             elif self._home_errand.state.value in {"failed", "stopped"}:
@@ -1333,6 +1371,23 @@ class HomeMixin:
                     lambda: self._home_full_skip_key("surplus-withdraw-failed"))
         if self._home_full_relief_yields_to_store_operation(snapshot):
             return None
+        if sale is None and relief.cap:
+            if not relief.carried:
+                # The batch is sold: the next one is taken from a fresh census.
+                relief.draining = False
+            if relief.carried and (relief.draining
+                                   or not home_cap.batch_grows(self, snapshot, relief)):
+                # The batch is sold store by store before the next take.
+                if home_cap.drain(self, snapshot, relief):
+                    self.last_reason = "home:cap-tidy-sell-batch"
+                    return self._town_producer_entry("_home_full_relief_key",
+                        lambda: self._home_full_relief_key(snapshot))
+            if not relief.carried and not home_cap.batch_grows(self, snapshot, relief):
+                # At the cap, or the pack keeps its reserve: the tidy ends this visit.
+                home_cap.end(self)
+                self.last_reason = ("home:cap-tidy-done" if relief.remaining <= 0
+                                    else "home:cap-tidy-pack-bound")
+                return None
         if sale is None:
             if not self._home_knowledge_current:
                 return self._town_producer_entry(
@@ -1451,11 +1506,21 @@ class HomeMixin:
                     if junk:
                         break
             del self._junk_board
-            candidates = [] if junk or relief.sweep else [
+            # Owner 2026-11-19 「12件を超えたら先に鑑定」: past CAP_IDENTIFY_FIRST unidentified
+            # Home stacks, the cap tidy identifies one a carried means identifies now first.
+            cap_identify = [] if junk or not relief.cap else self._home_cap_identify_first(
+                snapshot, stock, probes)
+            candidates = [] if junk or relief.sweep or cap_identify else [
                 (result, item) for item in sale_stock
-                if (result := self._home_full_sale_candidate(probes[id(item)], item))]
+                # The cap tidy sells only what the fate moves (home_cap.sheds: never the
+                # supplies' spares, owner 2026-11-19 「上限を置かない」), a ware the pack can carry.
+                if (not relief.cap or (home_cap.sheds(self, snapshot, item)
+                                       and self._can_add_item_without_overweight(snapshot, item)))
+                and (result := self._home_full_sale_candidate(probes[id(item)], item))]
             if junk:
                 discard, unidentified = junk, []
+            elif relief.cap:
+                discard, unidentified = [], cap_identify
             elif not candidates:
                 discard = [(candidate, item) for item in stock
                            if (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
@@ -1522,7 +1587,7 @@ class HomeMixin:
                             relief.fund = signature
             carried_sale = []
             if not candidates:
-                if not pack_bound:
+                if not pack_bound and not relief.cap:
                     # Free a shelf, not more pack space, whenever a Home
                     # auto-destroy candidate exists. If every shelf target
                     # is protected, a genuinely unneeded carried stack can
@@ -1583,11 +1648,22 @@ class HomeMixin:
                     relief.mode = "destroy"
                 elif unidentified:
                     item, source = min(unidentified, key=lambda entry: self._item_signature(entry[0]))
-                    if (not self._home_full_has_normal_identification_source(snapshot)
+                    if (not relief.cap
+                            and not self._home_full_has_normal_identification_source(snapshot)
                             and not self._identify_staff_ready(snapshot)):
                         relief.awaiting_identification_source = True
                         return None
                     relief.mode = "identify"
+                elif relief.cap:
+                    # Nothing more to shed: sell the batch, then the tidy ends this visit
+                    # (a Home of kept stock stays over the cap, owner 2026-11-19).
+                    if home_cap.drain(self, snapshot, relief):
+                        self.last_reason = "home:cap-tidy-sell-batch"
+                        return self._town_producer_entry("_home_full_relief_key",
+                        lambda: self._home_full_relief_key(snapshot))
+                    home_cap.end(self)
+                    self.last_reason = "home:cap-tidy-nothing-to-shed"
+                    return None
                 else:
                     self._town_producer_entry(
                         "_defer_home_full_deposit",
@@ -1600,6 +1676,20 @@ class HomeMixin:
                     return None
                 if not carried_sale:
                     store_type = STORE_HOME
+            elif relief.cap:
+                # The wares the cap sheds are the first ``remaining`` by fate (sold before
+                # ranks 11-20, home_cap.shed_rank), then in the relief's order, cheapest first
+                # (owner 2026-11-19 「安い順に売ってよい」); of them the last on the shelf is
+                # taken first, so a take leaves the batch's other addresses valid and the
+                # batch needs no census between its takes (_confirm_home_withdrawal_address).
+                shelf_index = {id(stock_item): index for index, stock_item
+                               in enumerate(self._home_knowledge_items)}
+                planned = sorted(candidates, key=lambda entry: (
+                    home_cap.shed_rank(self, snapshot, entry[1]),
+                    item_fate.relief_order(self, snapshot, entry[0][0])))[:max(1, relief.remaining)]
+                (item, store_type, _value), source = max(
+                    planned, key=lambda entry: shelf_index.get(id(entry[1]), -1))
+                relief.mode = "sale"
             else:
                 (item, store_type, _value), source = min(
                     candidates, key=lambda entry: item_fate.relief_order(
@@ -1652,12 +1742,19 @@ class HomeMixin:
             # The sweep's leave never says "full": the Home is not full.
             return self._home_full_leave_key(
                 "home:junk-sweep-withdraw" if relief.sweep
+                else "home:cap-tidy-withdraw" if relief.cap
                 else "home:full-queue-surplus-withdraw")
         self._rearm_town_store_for_new_work(store_type)
         step = self._shopping_approach_step(snapshot, store_type, requester="home-visit")
         if step is None and relief.sweep:
             # The sweep never routes back to Home: no take now ends it.
             self._end_home_junk_sweep()
+            return None
+        if step is None and relief.cap:
+            # The cap tidy is not the visit's need: an unreachable store ends it
+            # this visit (a batch ware left carried is shelved or sold as any pack stack).
+            home_cap.end(self)
+            self.last_reason = "home:cap-tidy-store-unreachable"
             return None
         if step is None:
             self._town_blocked_reason = "home-full-surplus-store-unreachable"
@@ -3545,7 +3642,9 @@ class HomeMixin:
         relief = self._home_full_relief
         if (weight_relief is None or weight_relief.route != "deposit"
                 or relief is None or relief.sale is not None
-                or relief.withdrawn):
+                or relief.withdrawn
+                # The cap tidy's batch is sold before anything is shelved again.
+                or (relief.cap and relief.carried)):
             return False
         self._home_full_relief = None
         self._home_full_retry_deposits = None

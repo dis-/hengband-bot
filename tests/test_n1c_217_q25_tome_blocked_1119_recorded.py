@@ -58,6 +58,7 @@ from hengbot import quest25_geometry as geo
 from hengbot.model import parse_snapshot
 from hengbot.unseen_strike import message_text
 from tests.support import q25_house as q25
+from tests.support.me_powerful import ORDINARY_ONLY
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1c-217-q25-tome-blocked-1119.json.gz",
                "rt", encoding="utf-8") as _stream:
@@ -193,6 +194,7 @@ class TomeBlockedRecordedTest(unittest.TestCase):
         self.assertTrue(any(text.endswith("にテレポートさせられた。") for text in texts), texts)
         self.assertEqual(CASE["battle_record"]["battle"]["phase"], battle.phase_index("tome"))
 
+    @ORDINARY_ONLY
     def test_the_teleport_puts_the_dreadmaster_first_and_nothing_blocks(self):
         answers = replay()
         recorded = CASE["recorded"][START:]

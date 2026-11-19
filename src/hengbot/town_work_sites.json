@@ -2800,6 +2800,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "home_ledger.py:_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "home_ledger.py:kind": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "home_pass_charge.py:charged": {
     "classification": "data",
     "rows": [
@@ -3389,6 +3403,13 @@
     "delegation": "selected child; no independent success"
   },
   "item_fate.py:clearly_useless": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "item_fate.py:fate": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
