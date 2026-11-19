@@ -178,19 +178,21 @@ def destination_encounter_depth(snapshot, knowledge) -> int:
     against every race up to level 127 although it explores Angband 95F, and
     the 64-race sample held 26% dragons (13% on 95F, 3% of what it met), so
     ★アイシングデス's dragon slaying outscored ★スレイヤー.  The destination is
-    the recall dungeon's deepest floor (where Word of Recall lands), within
-    that dungeon's cap (angband_cap, 95F) and the deepest known monster; the
-    deepest known monster when the board names no recall depth.
+    the deepest floor reached in any dungeon (each within its cap: angband_cap,
+    95F) and the deepest known monster; the deepest known monster when the
+    board names no depth.  Not the recall dungeon's own depth: that is often a
+    shallow side dungeon (n1-c life-205 recalled to 23F with 80F reached in
+    Angband, n1-a life-525 to 13F with 50F reached).
     """
     deepest_known = max((monster.level for monster in knowledge.values()), default=1)
-    dungeon_id = getattr(snapshot, "recall_dungeon_id", 0)
-    landing = getattr(snapshot, "dungeon_recall_depths", {}).get(dungeon_id) or getattr(
-        snapshot, "recall_depth", 0)
+    reached = [
+        depth if (cap := angband_cap.cap(dungeon_id)) is None else min(depth, cap)
+        for dungeon_id, depth in getattr(snapshot, "dungeon_recall_depths", {}).items()
+        if depth
+    ]
+    landing = max(reached, default=getattr(snapshot, "recall_depth", 0))
     if not landing:
         return deepest_known
-    cap = angband_cap.cap(dungeon_id)
-    if cap is not None:
-        landing = min(landing, cap)
     return max(1, min(landing, deepest_known))
 
 
