@@ -22021,5 +22021,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The lure's way opened (quest_lure_approach): a step, a burn of a tree or a Stone to Mud on a wall; no independent progress."
+  },
+  "quest_detect_remaining.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A quest plan's detection of its remaining enemies (quest_detect_remaining): an absorbed or carried detection; no independent progress."
   }
 }

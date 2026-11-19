@@ -152,6 +152,11 @@ class QuestFloorNavigator:
     # cell: (cell, count) pairs.  Replaced whole.  Same rule.
     opened_cells = frozenset()
     open_tries = ()
+    # The tracked monsters' last cells and game turns the boards showed (quest_detect_remaining):
+    # index -> (race, cell, turn), replaced whole; and the plan's detections, ((cell, turn), ...).
+    # Same rule.
+    remain_seen = {}
+    remain_detections = ()
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -226,6 +231,8 @@ class QuestFloorNavigator:
         self.lure_spent = frozenset()
         self.opened_cells = frozenset()
         self.open_tries = ()
+        self.remain_seen = {}
+        self.remain_detections = ()
         self.summon_chase = None
         self.phase_battle = None
 

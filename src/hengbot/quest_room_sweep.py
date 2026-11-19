@@ -105,6 +105,7 @@ from hengbot import (
     left_cells,
     once_quest_recall,
     quest_alignment_split,
+    quest_detect_remaining,
     quest_exposure,
     quest_lure_approach,
     quest_plan_base,
@@ -423,6 +424,10 @@ def _hold_key(policy, snapshot, navigator, plan, stop) -> str | None:
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
+    # Owner 2026-11-20 「残りの敵を探す時は感知を使うこと」: a tracked race's members not known, the
+    # detection before the plan chooses where to wait or where to go (quest_detect_remaining).
+    if (detected := quest_detect_remaining.key(policy, snapshot, navigator, plan)) is not None:
+        return detected
     # QUEST_33 段2 (owner 2026-11-19 「ガチャピンを先に女王アリの範囲外まで誘導して処理。終わったら森側から
     # なるべく射線を通さないように女王アリに近づいて処理。」): the lure, then the approach, ahead of the stops
     # and of the walk out of the cells where both sides act (the lure starts on one, 「射線の外なら許す」).
@@ -513,6 +518,7 @@ def walk_key(policy, snapshot) -> str | None:
         return None
     navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
+    quest_detect_remaining.observe(policy, snapshot, navigator, plan)
     _note_gone(policy, snapshot, navigator, plan)
     return _advance(policy, snapshot, navigator, plan)
 
@@ -673,6 +679,7 @@ def key(policy, snapshot) -> str | None:
     profile = policy.approved_quest_strategy(quest_id)
     navigator = _navigator(policy, snapshot, quest_id)
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
+    quest_detect_remaining.observe(policy, snapshot, navigator, plan)
     _note_gone(policy, snapshot, navigator, plan)
     _note_last_seen(snapshot, navigator, plan)
     quest_room_light.note_floor_potion(policy, snapshot, navigator, plan)

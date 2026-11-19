@@ -136,6 +136,9 @@ TRAP_CELL = "trap-cell"  # asked by quest25_battle for a map trap cell not yet s
 THREAT = "threat"        # asked with each visible hostile (threat_key)
 QUEST_OPENING = "quest-opening"  # asked with a quest plan's opening target (quest_opening_away)
 FIGHT = "fight"          # asked in place of a decided attack (fight_key)
+# Asked by a quest plan missing the cells of remaining enemies (quest_detect_remaining, owner
+# 2026-11-20 「残りの敵を探す時は感知を使うこと」).
+QUEST_REMAINING = "quest-remaining"
 SEALED = "sealed"        # asked by area_mapping in a sealed pocket
 LOOT_ENCLOSURE = "loot-enclosure"  # asked by area_mapping for loot in unmapped surroundings
 MAP_AREA = "map-area"    # the effect whose area mapped_area reads
@@ -228,10 +231,11 @@ POWERS = (
     # searches for any hunted race; the Detect Evil row's only for an EVIL one.
     Power("staff", SV_STAFF_DETECT_EVIL, POWER_NAMES[SV_STAFF_DETECT_EVIL],
           "detect-evil", DETECT_RAD, 10,
-          ("new-floor", "before-rest", "hunt-target-unseen", "deep-explore-redetect"),
+          ("new-floor", "before-rest", "hunt-target-unseen", "deep-explore-redetect",
+           "quest-remaining-unseen"),
           preferred=(("rod", SV_ROD_DETECTION),)),
     Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
-          "detect-all", DETECT_RAD, 10, ("hunt-target-unseen",), powerful="when-safe"),
+          "detect-all", DETECT_RAD, 10, ("hunt-target-unseen", "quest-remaining-unseen"), powerful="when-safe"),
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled")),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
@@ -555,6 +559,14 @@ def _hunt_target_unseen(ctx, power):
     return redetect_due(ctx.snapshot, ctx.snapshot.player.position, _revealing_uses(ctx, flags))
 
 
+def _quest_remaining_unseen(ctx, power):
+    """A quest plan misses the cells of a remaining race this row's effect reveals (owner 2026-11-20
+    「残りの敵を探す時は感知を使うこと」, quest_detect_remaining)."""
+    from hengbot import quest_detect_remaining
+
+    return quest_detect_remaining.trigger_due(ctx, power)
+
+
 def _revealing_uses(ctx, flags) -> list:
     """(position, radius, turn) of every landed use that would have shown such a race."""
     return [(use.position, _cast_radius(ctx, use), use.turn) for use in ctx.memory.uses
@@ -765,6 +777,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
+    Trigger("quest-remaining-unseen", frozenset({QUEST_REMAINING}), _quest_remaining_unseen),
     Trigger("deep-explore-redetect", frozenset({FLOOR}), _deep_explore_redetect),
     Trigger("fight-unhasted", frozenset({FIGHT}), _fight_unhasted),
     Trigger("deep-arrival-unhasted", frozenset({FLOOR}), _deep_arrival_unhasted),

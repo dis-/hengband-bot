@@ -28,8 +28,16 @@ import json
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
-from hengbot import cli, quest_alignment_split, quest_lure_approach, quest_room_sweep, quest_sweep_record
+from hengbot import (
+    cli,
+    quest_alignment_split,
+    quest_detect_remaining,
+    quest_lure_approach,
+    quest_room_sweep,
+    quest_sweep_record,
+)
 from hengbot.model import parse_snapshot
 from hengbot.quest_plan_base import _navigator
 from tests.test_quest33_alignment_split import BOKRUG, DAGON, IT, QUEST, quest_dir, recorded
@@ -66,8 +74,11 @@ class N1c217Q33ResumeTest(unittest.TestCase):
         return navigator
 
     def decide(self, policy, board):
-        """The restarted process's first quest decision on the recorded board."""
-        key = policy.choose_key(board)
+        """The restarted process's first quest decision on the recorded board, the detection of the
+        remaining enemies left out (owner 2026-11-20 「残りの敵を探す時は感知を使うこと」 casts it first
+        on this board: tests/test_n1c_217_q33_detect_remaining_1120_recorded)."""
+        with patch.object(quest_detect_remaining, "key", lambda *args: None):
+            key = policy.choose_key(board)
         return [(key, policy.last_reason)]
 
     def test_the_restarted_run_never_began_the_lure(self):

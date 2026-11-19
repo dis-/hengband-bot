@@ -85,7 +85,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
-from hengbot import quest_alignment_split, quest_exposure
+from hengbot import quest_alignment_split, quest_detect_remaining, quest_exposure
 from hengbot.item_reservation import decision_memo
 from hengbot.model import Position
 
@@ -154,14 +154,19 @@ def awaited(policy, snapshot, navigator, plan, left_alone=frozenset()) -> tuple[
                     continue
                 shown = not ({"EMPTY_MIND", "WEIRD_MIND"} & set(knowledge.flags))
                 on_board = sum(1 for monster in known if monster.race_id == race)
-                left = quest_alignment_split.living(policy, snapshot, navigator, plan, race) - on_board
+                # The cells kept from earlier boards (a detection's, quest_detect_remaining), fresh.
+                kept = [(index, entry) for index, entry in quest_detect_remaining.kept_rows(
+                    policy, snapshot, navigator, plan).items() if entry[0] == race]
+                rows.extend(Awaited(("seen", index), race, entry[1], knowledge) for index, entry in kept)
+                left = quest_alignment_split.living(policy, snapshot, navigator, plan, race) - on_board - len(kept)
                 cells = [cell for cell, placed in navigator.battlefield.monster_placements if placed == race
                          and not (shown and quest_exposure.game_distance(here, cell) <= reach)]
                 rows.extend(Awaited(("placed", race, cell), race, cell, knowledge) for cell in cells[:max(0, left)])
         return tuple(rows)
 
     return decision_memo(policy, "quest_wait_placement.awaited", snapshot,
-                         (navigator.quest_id, tuple(sorted(navigator.split_kills.items())), left_alone), compute)
+                         (navigator.quest_id, tuple(sorted(navigator.split_kills.items())), left_alone,
+                          tuple(sorted(navigator.remain_seen.items()))), compute)
 
 
 # -- the game's movement ------------------------------------------------------------------
