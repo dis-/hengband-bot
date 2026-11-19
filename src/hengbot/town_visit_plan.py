@@ -241,6 +241,11 @@ def work_state(snapshot: Any) -> tuple:
     return (snapshot.player.gold, items(snapshot.inventory), items(snapshot.equipment))
 
 
+# The stages the Home cap tidy's decisions belong to (home_cap): its census and takes (home),
+# its walks and store leaves (store-router, shop-buy: buy) and its sales (sell).
+CAP_TIDY_STAGES: tuple[str, ...] = ("home", "buy", "sell")
+
+
 def note_observed_progress(policy: Any, snapshot: Any) -> None:
     """Restart the deadline count of the stage whose decision this board shows
     completed: a town board with a work state the visit has not seen.  Runs
@@ -255,6 +260,17 @@ def note_observed_progress(policy: Any, snapshot: Any) -> None:
     visit.observed_work_states.add(state)
     if visit.previous_decision_stage in visit.stage_decisions:
         visit.stage_decisions[visit.previous_decision_stage] = 0
+    relief = getattr(policy, "_home_full_relief", None)
+    if relief is not None and relief.cap:
+        # The Home cap tidy's unit of work (a take, a sale) spans the Home, the store
+        # router and the sale: each one observed restarts all of their counts, so a tidy
+        # that keeps moving wares never spends a deadline, while one going round in a circle
+        # (no new work state) still does (owner 2026-11-19 「一気に片づける」; n1-c life-217
+        # 2026-11-19 16:16, town:blocked:stage-deadline:buy after 18 wares sold, each sale's
+        # leave-and-re-enter counted to the buy stage and never restarted).
+        for stage in CAP_TIDY_STAGES:
+            if stage in visit.stage_decisions:
+                visit.stage_decisions[stage] = 0
 
 
 # A visit's trace keeps its newest segments only.
