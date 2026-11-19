@@ -20,6 +20,9 @@ The reader (quest_wait_placement), owner 2026-11-19 「地形と敵の位置、�
   (段3 waits for the Queens' death) and the sweep stops by name, ``quest:blocked:sweep-nothing-comes``,
   instead of walking the round again.
 
+The plan now lures the Gachapins and closes on the Queens in 段2 (owner 2026-11-19, quest_lure_approach);
+these tests read the wait reader alone, the plan without ``lure_approach``.
+
 DECLARED CONSTRUCTED: the policy is n1-c life-217's town arrival of the same day
 (tests/fixtures/quest32-one-turn-kill-1119/n1c-217, tests/test_quest33_alignment_split ``recorded``);
 the board is the recorded last one on [14,47] (the player moved on it for the later boards); the kill
@@ -53,7 +56,11 @@ class N1c217Q33QueenWaitTest(unittest.TestCase):
         self.scratch, self.policy, _town = recorded("n1c-217")
         self.addCleanup(self.scratch.cleanup)
         self.board = self.at(QUEEN_STAND)
-        self.plan = self.policy.approved_quest_strategy(QUEST).engagement_plan["room_sweep"]
+        # The reader alone: the 段2 lure and approach the owner decided afterwards
+        # (quest_lure_approach, tests/test_n1c_217_q33_queen_approach_1119_recorded) taken off the plan.
+        self.plan = {key: value for key, value in
+                     self.policy.approved_quest_strategy(QUEST).engagement_plan["room_sweep"].items()
+                     if key != "lure_approach"}
         self.navigator = _navigator(self.policy, self.board, QUEST)
         self.navigator.split_kills = {IT: 3, DAGON: 3, BOKRUG: 3}
         self.stops = quest_room_sweep._stops(self.plan)
@@ -81,7 +88,7 @@ class N1c217Q33QueenWaitTest(unittest.TestCase):
         self.assertFalse(any(m.race_id == QUEEN for m in (*self.board.visible_monsters, *self.board.detected_monsters)))
         comers = quest_wait_placement.comers_at(self.policy, self.board, self.navigator, self.plan, QUEEN_STAND)
         self.assertEqual(len(self.queens(comers)), 3)
-        self.assertEqual(quest_room_sweep.walk_key(self.policy, self.board), WAIT_KEY)
+        self.assertEqual(quest_room_sweep._advance(self.policy, self.board, self.navigator, self.plan), WAIT_KEY)
         self.assertEqual(self.policy.last_reason, quest_room_sweep.HOLD_REASON)
         self.assertEqual(self.navigator.wait_goal[2].cell, QUEEN_STAND)
 

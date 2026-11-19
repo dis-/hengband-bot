@@ -13438,6 +13438,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_alignment_split.py:contact_cells": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_alignment_split.py:contact_cells.compute": {
     "classification": "data",
     "rows": [
@@ -13458,6 +13465,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest_alignment_split.py:refused_cells": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_alignment_split.py:side": {
     "classification": "data",
@@ -13887,6 +13901,104 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_light_areas.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_approach": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_approach_walk": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_lure_approach.py:_back": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_lure_approach.py:_hold": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_line_of_fire": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_lure_approach.py:_lure": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_lure_start": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_path_to": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_rows": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_lure_approach.py:_taken": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:_walk_from": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_lure_approach.py:config": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_lure_approach.py:key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -14871,6 +14983,20 @@
     ],
     "delegation": "no emission; observational data for the quest search's lap"
   },
+  "quest_wait_placement.py:_Reader.acts": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_wait_placement.py:_Reader.comes": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_wait_placement.py:_Reader.open_terrain": {
     "classification": "producer",
     "rows": [
@@ -14914,6 +15040,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_wait_placement.py:choose.compute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_wait_placement.py:comes": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15339,6 +15472,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "sealed_pocket.py:can_melt": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "sealed_pocket.py:destroyed_leave_key": {
     "classification": "action",

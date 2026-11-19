@@ -27,6 +27,10 @@ The data (QUEST_25 gives the reasons of its cells):
    both act, a stop on one waits, and a stop's ``after_races_dead`` waits for those races
    (quest_alignment_split); a plan naming ``facing_casts_to_abort`` gives the quest up once the
    sides summon at each other that often (QUEST_33 does not);
+ * ``lure_approach`` (QUEST_33 段2, owner 2026-11-19 「ガチャピンを先に女王アリの範囲外まで誘導して処理。
+   終わったら森側からなるべく射線を通さないように女王アリに近づいて処理。壁を溶かすことも考慮に入れること。」):
+   the lure of one side's summoners out of the other's range, then the approach, ahead of the stops
+   (quest_lure_approach);
  * ``summon_answer`` (QUEST_33, owner 2026-11-19 「召喚を何度受けても放棄しない」): each summon received
    is answered ahead of the plan's 即死 rung -- teleport on 即死, else the action that kills the
    summoner, else disengage -- and the floor is never left for summons (quest_summon_answer).  After
@@ -102,6 +106,7 @@ from hengbot import (
     once_quest_recall,
     quest_alignment_split,
     quest_exposure,
+    quest_lure_approach,
     quest_plan_base,
     quest_room_light,
     quest_summon_answer,
@@ -418,6 +423,13 @@ def _hold_key(policy, snapshot, navigator, plan, stop) -> str | None:
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
+    # QUEST_33 段2 (owner 2026-11-19 「ガチャピンを先に女王アリの範囲外まで誘導して処理。終わったら森側から
+    # なるべく射線を通さないように女王アリに近づいて処理。」): the lure, then the approach, ahead of the stops
+    # and of the walk out of the cells where both sides act (the lure starts on one, 「射線の外なら許す」).
+    if (phase := quest_lure_approach.key(policy, snapshot, navigator, plan,
+                                         _Board(policy, snapshot, policy.approved_quest_strategy(
+                                             navigator.quest_id), navigator, plan))) is not None:
+        return phase
     # Standing where both sides' summoners act (a teleport's landing): out of it first.
     if (out := quest_alignment_split.leave_goals(policy, snapshot, navigator, plan)):
         stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, out, blocked), WALK_REASON)
@@ -716,5 +728,7 @@ def key(policy, snapshot) -> str | None:
         # QUEST_33 (owner 2026-11-19 「召還持ちを優先して周辺のモンスターを倒す」): after a disengage,
         # what acts on the player, summoners first, then the rest and the lure.
         or quest_summon_answer.after_key(policy, snapshot, navigator, plan, board)
+        # QUEST_33 段2 (owner 2026-11-19): a Gachapin seen in the Queens' range, the step back first.
+        or quest_lure_approach.key(policy, snapshot, navigator, plan, board)
         or _fight(policy, snapshot, profile, navigator, plan, board)
     )
