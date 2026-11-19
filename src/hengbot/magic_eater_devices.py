@@ -109,7 +109,17 @@ def drained_staple_food(policy, snapshot: Snapshot, item) -> bool:
     departure food, these devices are kept up to the charges it lacks (n1-c
     life-205 2026-11-13 00:11: the identified サンダー・ボールの魔法棒 (10) and
     光の杖 (15) were sold at the Magic shop as surplus a moment later).
+
+    A shelf ware (``StoreItem``) is no carried device: the rule keeps what the
+    pack already holds and buys nothing.  The purchase side agrees: once a
+    staple is carried only the staple is food to buy (``is_mana_food_ware``).
+    n1-b life-411 2026-11-19 22:14 (Lv50, staple at 0 charges) crashed here on
+    the Magic shop's 岩石溶解の魔法棒 (12): the shop selector asked
+    ``item_use_route.surplus`` of the ware and ``food`` read ``is_wand_staff``,
+    which a ``StoreItem`` lacks.
     """
+    if isinstance(item, StoreItem):
+        return False
     staple = staple_food(snapshot)
     if staple is None or staple_charges(snapshot) >= MANA_FOOD_CHARGE_TARGET:
         return False
