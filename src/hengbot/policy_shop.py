@@ -4489,10 +4489,18 @@ class ShopMixin(InStoreMixin):
             return LEAVE_STORE_KEY
         return key
 
+    def store_full(self, store_type: int) -> bool:
+        """The store refused a sale this visit (full: store/sell-order.cpp store_check_num, or
+        the sale latch's own refusals): no seller offers it a sale again this visit."""
+        return store_type in self._store_sale_refused
+
     def _current_store_sale_candidates(self, snapshot: Snapshot) -> list[InventoryItem]:
         """Enumerate sale finders in normal shop priority, without mutating policy."""
         store = snapshot.store
-        if store is None:
+        if store is None or self.store_full(store.store_type):
+            # A store full this visit is offered no sale again: the in-store selection,
+            # the batch seller and the page's sales read this list (_store_sell_key
+            # refuses the single sale, _town_organization_sale_store the route).
             return []
         relief = self._home_full_relief
         if relief is not None and relief.sale is not None:

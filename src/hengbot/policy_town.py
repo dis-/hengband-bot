@@ -148,6 +148,13 @@ class _TownNeedLookup:
         return not self.produces(snapshot)
 
 
+# The town needs that are sales: a store full this visit is never their stop again.
+SALE_NEED_CATEGORIES = frozenset({
+    "book-sale", "overweight-surplus", "organization-sale", "low-level-sale",
+    "mana-food-sale", "device-sale", "weapon-sale", "light-sale",
+})
+
+
 class TownMixin:
     def _refresh_town_facts(self, snapshot: Snapshot) -> None:
         """Incrementally retain store/building facts for this floor visit."""
@@ -3283,6 +3290,10 @@ class TownMixin:
             # this stop fruitless (Phase 0 records the would-be skip only).
             if self._in_store_best_effort("_shelf_evidence_skips_need", snapshot, store_type, category):
                 return
+            if category in SALE_NEED_CATEGORIES and self.store_full(store_type):
+                # A store full this visit is never a sale stop again (n1-c life-217
+                # 2026-11-19 17:16: the full Magic shop was walked to again for a device).
+                return
             needs.append(TownNeed(store_type, category, ordering_class))
 
         def add_identify_staff_suppliers() -> None:
@@ -5546,6 +5557,17 @@ class TownMixin:
                 )
             ):
                 return store_type
+        # Every store of the ware's kind is full this visit (store/sell-order.cpp): the
+        # Black Market buys every kind (store/service-checker.cpp), the last outlet.
+        kind_stores = [store_type for store_type in (
+            STORE_WEAPON, STORE_ARMOURY, STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE)
+            if self._store_accepts_sale(store_type, item)]
+        if (kind_stores and all(self.store_full(store_type) for store_type in kind_stores)
+                and self._store_accepts_sale(STORE_BLACK, item)
+                and not self.store_full(STORE_BLACK)
+                and self._town_need_supplier_reachable(
+                    snapshot, TownNeed(STORE_BLACK, "organization-sale", ""))):
+            return STORE_BLACK
         return None
 
     def _native_travel_sightless(self, snapshot: Snapshot) -> bool:
