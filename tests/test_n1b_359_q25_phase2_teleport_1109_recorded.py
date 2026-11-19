@@ -39,6 +39,7 @@ from hengbot import me_powers_refresh, quest25_battle as battle, quest25_geometr
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.policy_constants import SKILL_KNOWLEDGE_MACRO
 from tests.support import q25_house as q25
+from tests.support.me_powerful import ORDINARY_ONLY
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1b-359-q25-phase2-teleport-1109.json.gz",
@@ -195,12 +196,14 @@ class StragglersNoTeleportTest(unittest.TestCase):
         self.assertTrue(key.startswith("mB") and key.endswith("@7,17"), (sequence, key))
         self.assertEqual(reason, "ranged:magic-eater-device", sequence)
 
+    @ORDINARY_ONLY
     def test_833_keeps_the_ball_on_the_pen(self):
         answers = replay(recorded_wait=True, through=FIRST_TELEPORT)
         self.assert_pen_shot(answers[FIRST_TELEPORT], FIRST_TELEPORT)
         self.assertEqual([sequence for sequence, (_, reason) in answers.items()
                           if reason == battle.TELEPORT_REASON], [])
 
+    @ORDINARY_ONLY
     def test_927_keeps_the_ball_on_the_pen(self):
         # DECLARED WALL: from the first shot at the pen (816) to 926 the boards are the recorded
         # process's (its fire, its teleport and walk back), which the fixed policy's keys did not
@@ -209,6 +212,7 @@ class StragglersNoTeleportTest(unittest.TestCase):
         answers = replay(recorded_wait=True, observed=range(816, SECOND_TELEPORT))
         self.assert_pen_shot(answers[SECOND_TELEPORT], SECOND_TELEPORT)
 
+    @ORDINARY_ONLY
     def test_a_summons_with_a_low_threat_keeps_the_ball_on_the_pen(self):
         # Decision 815: 「何かが魔法でアンデッドの強敵を召喚した！」 brought the skeleton kobold (91);
         # on 816 at full HP the ball goes to [7,17] as recorded.
@@ -257,6 +261,7 @@ class UnseenPenNoArrowTest(unittest.TestCase):
     balls there (decisions 816-832).  With the wand list read spent on 816 and the rod list on 817
     (the real reads, ``_magic_eater_power_list``), the crossbow and its bolts are left."""
 
+    @ORDINARY_ONLY
     def test_spent_balls_walk_to_a_cell_that_sees_the_pen_not_the_bolt(self):
         def edit(sequence, raw):
             if sequence in (816, 817):

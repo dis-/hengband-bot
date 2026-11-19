@@ -42,6 +42,7 @@ from tests import test_me_nokey_1031_recorded as nokey
 from tests import test_me_staff_loops_1031_recorded as loops
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_list, power_screen, row
+from tests.support.me_powerful import ORDINARY_ONLY
 
 
 CASE = swarm.CASE
@@ -84,6 +85,7 @@ class BreederAreaAttackRecordedTest(nokey.PostedKey):
         self.assertEqual(len(bugs_in_view(raw)), 22)
         self.assertIn("MULTIPLY", CASE["monraces"][str(swarm.SOFTWARE_BUG)]["flags"])
 
+    @ORDINARY_ONLY
     def test_absorbed_lightning_ball_bursts_on_the_swarm_centre(self):
         raw = with_rods(recorded_board())
         policy, key = self.decide(raw)

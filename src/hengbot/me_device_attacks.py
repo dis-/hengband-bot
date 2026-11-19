@@ -435,19 +435,35 @@ def powerful_ready(policy, snapshot) -> bool:
     return me_powerful_activation.pays_safely(policy, snapshot)
 
 
+def attack_uses(policy, snapshot, *, powerful: bool = True):
+    """(power, success) of every usable absorbed attack power (``usable_powers``) and, while
+    ``powerful_ready`` holds, each one again cast through Powerful Activation (``powered``: the
+    same success, one fail chance) right after it.
+
+    Owner 2026-11-19 「魔道具術師の遠距離攻撃の選択肢に協力発動も入れたい」 and, for the Q25 battle,
+    the breeder area attack and the threat/supply estimates, 「3つとも広げる」: every chooser of an
+    absorbed attack reads this one list.  The ordinary use comes first, so a chooser that keeps
+    the first of equal scores keeps it (it costs no hit points)."""
+    ready = None
+    for held, success in usable_powers(policy, snapshot):
+        yield held, success
+        if ready is None:
+            ready = powerful and powerful_ready(policy, snapshot)
+        if ready:
+            yield powered(held), success
+
+
 def _candidates(policy, snapshot, target, direction, powerful):
     flags = race_flags(policy, target)
     level = snapshot.player.level
     bystander = sight_hits_bystander(snapshot)
-    powerful = powerful and powerful_ready(policy, snapshot)
-    for held, success in usable_powers(policy, snapshot):
-        if held.group_only or (held.shape == "sight" and bystander):
+    for power, success in attack_uses(policy, snapshot, powerful=powerful):
+        if power.group_only or (power.shape == "sight" and bystander):
             continue
-        for power in (held, powered(held)) if powerful else (held,):
-            if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
-                continue
-            damage = min(expected_damage(power, level, flags), max(target.hp, 0))
-            yield success * damage, power
+        if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
+            continue
+        damage = min(expected_damage(power, level, flags), max(target.hp, 0))
+        yield success * damage, power
 
 
 def optimistic_score(policy, snapshot, power, target):

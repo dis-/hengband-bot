@@ -626,11 +626,15 @@ def launcher_against(policy, snapshot, race_id, distance: int) -> float:
 
 
 def devices_against(policy, snapshot, race_id, *, area_only: bool = False) -> float:
-    """The best absorbed attack power or carried attack wand/rod against ``race_id``."""
+    """The best absorbed attack power or carried attack wand/rod against ``race_id``.
+
+    An absorbed power counts cast through Powerful Activation too while
+    me_powerful_activation.pays_safely holds (me_device_attacks.attack_uses; owner 2026-11-19
+    「3つとも広げる」, accepted as making the quest acceptance a little more lenient)."""
     flags = me_device_attacks.race_id_flags(policy, race_id)
     level, best = snapshot.player.level, 0.0
     if me_device_attacks.can_use_powers(snapshot):
-        for power, success in me_device_attacks.usable_powers(policy, snapshot):
+        for power, success in me_device_attacks.attack_uses(policy, snapshot):
             if power.group_only or power.shape == "sight" or (
                     area_only and power.shape not in me_device_attacks.TARGETABLE_SHAPES):
                 continue

@@ -46,6 +46,7 @@ from tests.support import recorded as harness
 from tests.support.recorded import EDIT, FaithfulHookGame, _policy, command_screen
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
+from tests.support.me_powerful import ORDINARY_ONLY
 
 FIXTURE = Path(__file__).with_name("fixtures") / "anaguma-detect-stuck-20261110.json.gz"
 DETECT_TURN = 2722672
@@ -213,6 +214,7 @@ class AnagumaDetectStuckRecordedTest(harness.ProductionHarness):
             prompt(TYPE_PROMPT), power_screen("staff", [("w", "スピード", 0, 8, 10)])])
         self.assertEqual(accepted, ["m", "A", "\x1b"])
 
+    @ORDINARY_ONLY
     def test_the_absorbed_area_attack_keeps_the_device_owner(self):
         """The close's area attack into the mouth (anaguma._area_into_mouth) with an absorbed ball."""
         ball = rod_row("アシッド・ボール", 0, fail=10)
@@ -234,3 +236,22 @@ class AnagumaDetectStuckRecordedTest(harness.ProductionHarness):
             prompt(TYPE_PROMPT), power_screen("rod", [(key[2], "アシッド・ボール", 0, 1, 10)]),
             prompt(DIRECTION_PROMPT, "direction", can_choose_target=True)])
         self.assertEqual(accepted, ["m", "C", key[2], key[3]])
+
+    def test_a_powered_area_attack_keeps_its_own_owner(self):
+        """Owner 2026-11-19 「3つとも広げる」: with HP to pay, the same close casts the Acid Ball
+        through Powerful Activation (me_device_attacks.attack_uses), and its ``U`` key keeps the
+        owner device_key set (me_powerful_activation_input answers it), not the close's own."""
+        ball = rod_row("アシッド・ボール", 0, fail=10)
+        policy, raw, _ = self.replay(rods=(rod_row(DETECTION, 0), ball))
+        plan = anaguma.plan(policy)
+        here = Position(raw["player"]["y"], raw["player"]["x"])
+        dy, dx = plan.mouth.y - here.y, plan.mouth.x - here.x
+        troll = copy.deepcopy(next(m for m in raw["detected_monsters"] if m["race_id"] == FOREST_TROLL))
+        troll.update(y=here.y + 2 * dy, x=here.x + 2 * dx, asleep=False)
+        raw = dict(copy.deepcopy(raw), visible_monsters=[troll])
+        board = parse_snapshot(copy.deepcopy(raw), self.monrace)
+        self.assertTrue(me_device_attacks.powerful_ready(policy, board))
+        key = anaguma._area_into_mouth(policy, board, plan, board.visible_monsters[0])
+        self.assertIsNotNone(key)
+        self.assertTrue(key.startswith("UC"), key)
+        self.assertEqual(policy.last_reason, me_device_attacks.POWERFUL_REASON)

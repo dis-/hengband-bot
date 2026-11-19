@@ -25,6 +25,13 @@ an unlit grid refuse it, cmd-read.cpp:37, action-limited.cpp:88-98).  Mana
 Storm, Starlight, Wonder, Earthquakes, *Destruction* and the self-damaging
 Scrolls of Fire, Ice and Logrus are not candidates.
 
+Powerful Activation (owner 2026-11-19 「3つとも広げる」): while
+me_powerful_activation.pays_safely holds, each absorbed power is a candidate a
+second time cast through it (me_device_attacks.attack_uses / ``powered``: the
+same success, the doubled level, a ball's radius 3, ``Power.area_radius``), so
+the blast and the burst grids are read at that radius; of equal scores the
+ordinary use (no hit points) is taken.
+
 Shapes, from the source (a direction key aims at the player's position plus
 99 steps, spells-launcher.cpp ``get_target_position(..., 99)``; the range is
 18, AngbandSystem::get_max_range):
@@ -225,7 +232,7 @@ def _hits(snapshot, power, aim, blocks) -> dict:
         ray = _ray(snapshot, offset, blocks, stop=True)
     if power.shape == "bolt":
         return {ray[-1]: 0} if ray and ray[-1] in cells else {}
-    radius = me_device_attacks.AREA_RADIUS[power.shape]
+    radius = power.area_radius
     if power.shape == "breath" and ray:
         return _breath_cells(origin, ray, radius, blocks, cells)
     return _ball_cells(ray[-1] if ray else origin, radius, blocks, cells)
@@ -293,9 +300,11 @@ def _means(policy, snapshot) -> list[Means]:
     means = []
     if me_device_attacks.can_use_powers(snapshot):
         means += [Means(power, success,
-                        lambda direction, power=power: me_device_attacks.device_key(policy, power, direction),
-                        lambda grid, power=power: me_device_attacks.device_target_key(policy, power, grid))
-                  for power, success in me_device_attacks.usable_powers(policy, snapshot)]
+                        lambda direction, power=power: me_device_attacks.device_key(
+                            policy, power, direction, snapshot),
+                        lambda grid, power=power: me_device_attacks.device_target_key(
+                            policy, power, grid, snapshot))
+                  for power, success in me_device_attacks.attack_uses(policy, snapshot)]
     means += _carried(policy, snapshot)
     if me_device_attacks.sight_hits_bystander(snapshot):
         means = [each for each in means if each.power.shape != "sight"]
@@ -357,7 +366,7 @@ def _options(policy, snapshot, means):
                        offset)
         if each.send_target is None or each.power.shape not in me_device_attacks.TARGETABLE_SHAPES:
             continue
-        radius = me_device_attacks.AREA_RADIUS[each.power.shape]
+        radius = each.power.area_radius
         for grid in _burst_grids(snapshot, radius, blocks):
             score = _group_score(policy, snapshot, each, grid, blocks)
             if score:
@@ -455,8 +464,9 @@ def _mass_key(policy, snapshot, means) -> str | None:
             continue
         kills, caught = _tally(policy, snapshot, each, aim, blocks)
         if caught >= 2:
-            ranked.append((-kills, -score, prompts, each.power.kind != "rod", each.power.level, send))
-    for *_order, send in sorted(ranked, key=lambda row: tuple(row[:5])):
+            ranked.append((-kills, -score, each.power.powerful, prompts, each.power.kind != "rod",
+                           each.power.level, send))
+    for *_order, send in sorted(ranked, key=lambda row: tuple(row[:6])):
         if (sent := send()) is not None:
             return sent
     return None
@@ -495,10 +505,11 @@ def key(policy, snapshot, engaged_hostiles) -> str | None:
         return mass
     hostiles = [monster for monster in snapshot.visible_monsters if monster.hostile]
     baseline = _one_target_best(policy, snapshot, means, hostiles)
-    # Ties: fewer prompts (a direction before a cursor walk), a rod, the lower level.
+    # Ties: the ordinary use before a Powerful Activation (no hit points), fewer prompts (a
+    # direction before a cursor walk), a rod, the lower level.
     ranked = sorted(_options(policy, snapshot, means),
-                    key=lambda option: (-option[0], option[1], option[2].power.kind != "rod",
-                                        option[2].power.level))
+                    key=lambda option: (-option[0], option[2].power.powerful, option[1],
+                                        option[2].power.kind != "rod", option[2].power.level))
     for score, _prompts, _each, send, _aim in ranked:
         if score <= baseline:
             return None

@@ -36,6 +36,7 @@ from hengbot.model import SV_ROD_HEALING
 from hengbot.policy_constants import REST_MACRO
 from hengbot.model import _parse_items, parse_snapshot
 from tests.support import q25_house as q25
+from tests.support.me_powerful import ORDINARY_ONLY
 
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1c-178-q25-death-1109.json.gz",
@@ -136,6 +137,7 @@ class ResumeReadsTheListsTest(unittest.TestCase):
                          [("bA", me_powers_refresh.REFRESH_REASON), ("bB", me_powers_refresh.REFRESH_REASON),
                           ("bC", me_powers_refresh.REFRESH_REASON)])
 
+    @ORDINARY_ONLY
     def test_with_the_lists_read_the_tome_takes_the_breath_not_the_bow(self):
         answers = replay(answer_lists=lists(), through=5191)
         fired = {sequence: key for sequence, (key, _) in answers.items() if sequence > FIRST + 2}
@@ -175,6 +177,7 @@ class UnseenTomeTest(unittest.TestCase):
         # At full HP: to [5,6], the nearest cell that sees the tome (los).
         self.assertEqual(answers[5186], ("6", battle.SIGHT_REASON))
 
+    @ORDINARY_ONLY
     def test_with_the_breath_the_damaged_player_keeps_firing_within_the_horizon(self):
         answers = replay(answer_lists=lists())
         self.assertEqual(recorded(5187)[1]["hp"], 387)
