@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isfinite, isinf
 
 from hengbot.equipment_encounters import EncounterTarget
@@ -22,6 +22,7 @@ from hengbot.monster_ranged_evaluator import (
     evaluate_warrior_ranged_defense,
 )
 from hengbot.policy_constants import speed_energy
+from hengbot.saving_throw import loadout_saving
 from hengbot.warrior_defense_evaluator import (
     TR_SPEED,
     WarriorDefenseInputs,
@@ -128,6 +129,12 @@ class WarriorLoadoutInputs:
     # Class 16 only (me_loadout_offense, owner 2026-11-08): the held absorbed
     # attack powers whose INT-dependent fail rate scores ``device_dps``.
     magic_eater: MagicEaterOffenseInputs | None = None
+    # The board's saving throw without the worn gear's terms (saving_throw):
+    # each loadout adds its own resist / vulnerability to curse, WIS index and
+    # anti-magic floor.  None scores every loadout at defense.saving_skill.
+    saving_base: int | None = None
+    natural_wis: int = 3
+    intrinsic_wis: int = 0
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,21 @@ def _pval_total(loadout: Loadout, flag: int) -> int:
 
 def constitution_hp_bonus(constitution: int, level: int) -> int:
     return trunc_div(ADJ_CON_HP[stat_index(constitution)] * level, 4)
+
+
+def loadout_defense_inputs(
+    loadout: Loadout, inputs: WarriorLoadoutInputs,
+) -> WarriorDefenseInputs:
+    """``inputs.defense`` with ``loadout``'s own saving throw (saving_throw)."""
+    if inputs.saving_base is None:
+        return inputs.defense
+    saving = loadout_saving(
+        inputs.saving_base, loadout, level=inputs.combat.level,
+        natural_wis=inputs.natural_wis, intrinsic_wis=inputs.intrinsic_wis,
+        intrinsic_flags=inputs.defense.intrinsic_flags)
+    if saving == inputs.defense.saving_skill:
+        return inputs.defense
+    return replace(inputs.defense, saving_skill=saving)
 
 
 def loadout_max_hp(loadout: Loadout, inputs: WarriorLoadoutInputs) -> int:
@@ -265,22 +287,24 @@ class CachedWarriorLoadoutEvaluator:
             )
             self._melee[melee_key] = melee
 
-        defense_key = warrior_defense_signature(loadout, self.inputs.defense)
+        defense_inputs = loadout_defense_inputs(loadout, self.inputs)
+        defense_key = (warrior_defense_signature(loadout, defense_inputs),
+                       defense_inputs.saving_skill)
         defense = self._defense.get(defense_key)
         if defense is None:
             defense = evaluate_warrior_defense(
-                loadout, self.inputs.defense, self.encounters
+                loadout, defense_inputs, self.encounters
             )
             self._defense[defense_key] = defense
 
         flags = loadout.flags | self.inputs.defense.intrinsic_flags
         player_hp = loadout_max_hp(loadout, self.inputs)
-        ranged_key = (flags, player_hp)
+        ranged_key = (flags, player_hp, defense_inputs.saving_skill)
         ranged = self._ranged.get(ranged_key)
         if ranged is None:
             ranged = evaluate_warrior_ranged_defense(
                 flags,
-                saving_skill=self.inputs.defense.saving_skill,
+                saving_skill=defense_inputs.saving_skill,
                 player_hp=player_hp,
                 encounters=self.encounters,
                 selection_context=self.inputs.spell_selection,
@@ -342,12 +366,13 @@ def evaluate_warrior_loadout(
 ) -> WarriorLoadoutResult:
     """Combine offense and incoming damage without enabling incomplete data."""
     melee = evaluate_warrior_melee(loadout, inputs.combat, encounters)
-    defense = evaluate_warrior_defense(loadout, inputs.defense, encounters)
+    defense_inputs = loadout_defense_inputs(loadout, inputs)
+    defense = evaluate_warrior_defense(loadout, defense_inputs, encounters)
     flags = loadout.flags | inputs.defense.intrinsic_flags
     player_hp = loadout_max_hp(loadout, inputs)
     ranged = evaluate_warrior_ranged_defense(
         flags,
-        saving_skill=inputs.defense.saving_skill,
+        saving_skill=defense_inputs.saving_skill,
         player_hp=player_hp,
         encounters=encounters,
         selection_context=inputs.spell_selection,

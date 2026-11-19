@@ -41,6 +41,7 @@ from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
 from hengbot.protocol import skill_exp_known
+from hengbot.saving_throw import saving_base
 from hengbot.warrior_defense_evaluator import (
     TR_SPEED,
     WarriorDefenseInputs,
@@ -942,6 +943,14 @@ def prepare_warrior_optimization(
         magic_eater=magic_eater_offense_inputs(
             player.class_id, player.level, stats[1], adjustments[1],
             calibration.personality_id, magic_eater_powers),
+        # The saving throw per loadout (saving_throw): the board's value is the
+        # worn loadout's, so its gear terms are taken out once here.
+        saving_base=saving_base(
+            player.saving_skill, current, level=player.level,
+            natural_wis=stats[2], intrinsic_wis=adjustments[2],
+            intrinsic_flags=intrinsic_flags),
+        natural_wis=stats[2],
+        intrinsic_wis=adjustments[2],
     )
     evaluator = (
         evaluator_cache.get(inputs, encounters)
