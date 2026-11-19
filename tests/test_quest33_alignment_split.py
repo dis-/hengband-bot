@@ -112,7 +112,7 @@ class Quest33StrategyTest(unittest.TestCase):
         self.assertEqual(force["one_turn_kill"], {"race": QUEEN, "hit_points": 1500, "turns": 2,
                                                   "device_classes": [16]})
         self.assertTrue(force["non_urgent"])
-        self.assertEqual(force["min_hp"], 1000)
+        self.assertEqual(force["min_hp"], 350)
         self.assertEqual(set(force["resists"]), {
             "see_invisible", "telepathy", "free_action", "confusion", "blindness", "chaos",
             "poison", "fear", "acid", "hold_exp"})
