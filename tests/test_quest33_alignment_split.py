@@ -296,7 +296,7 @@ class Quest33SplitTest(unittest.TestCase):
         snapshot = on_floor(self.policy, self.board, (14, 47), messages=(killed(self.policy, QUEEN, 3),))
         navigator, contact = self.contact(snapshot)
         self.assertEqual(contact, frozenset())
-        later = self.plan["stands"][10]
+        later = self.plan["stands"][9]
         self.assertEqual(later["after_races_dead"], [QUEEN])
         self.assertFalse(quest_alignment_split.stop_waits(self.policy, snapshot, navigator, self.plan, later))
 
@@ -312,7 +312,7 @@ class Quest33SplitTest(unittest.TestCase):
 
     def test_every_stop_waiting_is_a_named_wait(self):
         # Only the Queen stand and a later-phase stand, the Dagons alive: both wait, no round spent.
-        plan = {**self.plan, "stands": [self.plan["stands"][9], self.plan["stands"][10]], "last_targets": []}
+        plan = {**self.plan, "stands": [self.plan["stands"][8], self.plan["stands"][9]], "last_targets": []}
         snapshot = on_floor(self.policy, self.board, (15, 38))
         navigator = self.navigator(snapshot)
         quest_alignment_split.observe(self.policy, snapshot, navigator, plan)
@@ -322,7 +322,7 @@ class Quest33SplitTest(unittest.TestCase):
 
     def test_a_refused_stand_is_passed_for_the_next(self):
         # The Queen stand refused (Dagons alive), a stand of the first phase after it: walked to.
-        plan = {**self.plan, "stands": [self.plan["stands"][9], self.plan["stands"][7]], "last_targets": []}
+        plan = {**self.plan, "stands": [self.plan["stands"][8], self.plan["stands"][7]], "last_targets": []}
         snapshot = on_floor(self.policy, self.board, (11, 39))
         navigator = self.navigator(snapshot)
         key = quest_room_sweep._advance(self.policy, snapshot, navigator, plan)

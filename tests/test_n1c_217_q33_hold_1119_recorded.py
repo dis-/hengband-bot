@@ -14,7 +14,9 @@ the disengage (owner 2026-11-19 「まず離脱後の周辺状況を確認。召
 up to the plan's ``enemy_wait_turns`` (200), but the count of holds was set back to 0 on every board
 (``_note_group`` dropped the lured member's count while no member was lured), so the wait never ended.
 Past the wait, a monster no walk reaches is left to the plan: the rest when hurt, then the plan's
-own sweep.
+own sweep.  Owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: the reader
+(quest_wait_placement) sees that the two walk on no way over the pits to [2,56], so the wait for them
+is not held at all.
 
 DECLARED CONSTRUCTED: the policy is n1-c life-217's town arrival of the same day
 (tests/fixtures/quest32-one-turn-kill-1119/n1c-217, with the shipped strategies and this tree's quest
@@ -31,7 +33,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot import quest_room_sweep, quest_summon_answer as answer
+from hengbot import quest_room_sweep, quest_summon_answer as answer, quest_wait_placement
 from hengbot.model import Position, parse_snapshot
 from hengbot.quest_plan_base import HOLD_REASON, _navigator
 from tests.test_quest33_alignment_split import QUEST, quest_dir, recorded
@@ -76,23 +78,33 @@ class N1c217Q33HoldTest(unittest.TestCase):
         self.assertEqual(sorted((m.race_id, m.position.y, m.position.x) for m in acting),
                          [(BOSHIN, 18, 50), (BOSHIN, 18, 55)])
 
-    def test_hurt_it_rests_after_the_wait(self):
-        # HP 632/948 on the board: the wait for what acts, then the owner's rest, not a hold more.
-        navigator, made = self.decide(self.board, self.wait + 5)
-        self.assertEqual(made[:self.wait], [("5", HOLD_REASON)] * self.wait)
-        self.assertEqual(made[self.wait:], [("R&\r", answer.REST_REASON)] * 5)
+    def test_the_boshin_act_but_do_not_come(self):
+        # Owner 2026-11-19 「有効な場所で待つ」: walkers beyond the pits (DARK_PIT has no MOVE, only a
+        # flyer crosses it, monster-info.cpp monster_can_cross_terrain) never reach [2,56].
+        navigator = _navigator(self.policy, self.board, QUEST)
+        plan = self.policy.approved_quest_strategy(QUEST).engagement_plan["room_sweep"]
+        acting = answer.acting_around(self.policy, self.board, navigator)
+        self.assertEqual(len(acting), 2)
+        self.assertFalse(any(quest_wait_placement.comes(self.policy, self.board, navigator, plan, monster)
+                             for monster in acting))
+
+    def test_hurt_it_rests_at_once(self):
+        # HP 632/948 on the board: no hold for what will not come (it was 200 before the reader),
+        # the owner's rest at once.
+        navigator, made = self.decide(self.board, 5)
+        self.assertEqual(made, [("R&\r", answer.REST_REASON)] * 5)
         self.assertEqual(set(navigator.summon_unreached), {15, 21})
 
     def test_at_full_hp_the_plan_walks_on(self):
         full = replace(self.board, player=replace(self.board.player, hp=self.board.player.max_hp))
-        navigator, made = self.decide(full, self.wait + 3)
-        self.assertEqual(made[:self.wait], [("5", HOLD_REASON)] * self.wait)
-        self.assertEqual({reason for _key, reason in made[self.wait:]}, {quest_room_sweep.WALK_REASON})
+        navigator, made = self.decide(full, 3)
+        self.assertNotIn(HOLD_REASON, {reason for _key, reason in made})
+        self.assertEqual({reason for _key, reason in made}, {quest_room_sweep.WALK_REASON})
         self.assertEqual(navigator.summon_state, answer.LURING)
 
     def test_a_summoner_killed_reopens_them(self):
         full = replace(self.board, player=replace(self.board.player, hp=self.board.player.max_hp))
-        navigator, _made = self.decide(full, self.wait + 1)
+        navigator, _made = self.decide(full, 1)
         self.assertEqual(set(navigator.summon_unreached), {15, 21})
         navigator.split_kills = {**navigator.split_kills, 441: navigator.split_kills.get(441, 0) + 1}
         board = quest_room_sweep._Board(self.policy, full, self.policy.approved_quest_strategy(QUEST),
