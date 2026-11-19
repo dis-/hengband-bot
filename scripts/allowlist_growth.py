@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Files that are allow-lists or recorded baselines as a whole.
 ALLOWLIST_FILES = (
+    'scripts/attack_time_lint_baseline.json',
     'scripts/cross_rule_baseline.json',
     'scripts/item_intent_baseline.json',
     'scripts/item_sink_adapters.json',

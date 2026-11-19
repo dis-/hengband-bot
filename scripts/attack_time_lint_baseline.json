@@ -1,0 +1,18 @@
+{
+  "_comment": "Known findings recorded 2026-11-17 (maintainability review Q9). Keys are <file>:<function>: <message> with counts, never line numbers. Regenerate only to shrink: python scripts/attack_time_lint.py --write-baseline",
+  "findings": {
+    "arena.py:_attack_key: per-action attack figure compared outside attack_expectation.per_10_game_turns: shot >= melee": 1,
+    "policy.py:HengbotPolicy._escape_blocker_is_easy_kill: per-action attack figure compared outside attack_expectation.per_10_game_turns: incoming < snapshot.player.hp": 1,
+    "policy.py:HengbotPolicy._material_melee_damage: per-action attack figure compared outside attack_expectation.per_10_game_turns: monster.max_melee_damage * actions >= snapshot.player.hp * ENGAGEMENT_AVOID_DAMAGE_RATIO": 1,
+    "policy_combat.py:CombatMixin._engagement_is_winnable: per-action attack figure compared outside attack_expectation.per_10_game_turns: incoming < snapshot.player.hp": 1,
+    "policy_combat.py:CombatMixin._esp_threat_kill_feasibility: per-action attack figure compared outside attack_expectation.per_10_game_turns: shots < melee_turns": 1,
+    "policy_combat.py:CombatMixin._esp_threat_kill_feasibility: per-action attack figure compared outside attack_expectation.per_10_game_turns: shots <= shots_left": 1,
+    "policy_combat.py:CombatMixin._fruitless_fight_is_winnable: per-action attack figure compared outside attack_expectation.per_10_game_turns: incoming < snapshot.player.hp": 1,
+    "policy_quest.py:QuestMixin._unique_fight_projection: per-action attack figure compared outside attack_expectation.per_10_game_turns: attacks > UNIQUE_COMBAT_MAX_ATTACKS": 1,
+    "policy_quest.py:QuestMixin._unique_fight_projection: per-action attack figure compared outside attack_expectation.per_10_game_turns: operational <= capacity - reserve": 1,
+    "quest25_battle.py:_tome: per-action attack figure compared outside attack_expectation.per_10_game_turns: near >= far": 1,
+    "quest25_battle.py:melee_is_fewer: per-action attack figure compared outside attack_expectation.per_10_game_turns: melee < ranged": 1,
+    "supply_fight.py:ranged_plan: per-action attack figure compared outside attack_expectation.per_10_game_turns: free > attack_expectation.melee(policy, snapshot, target)": 1,
+    "threat_projection.py:free_attack: per-action attack figure compared outside attack_expectation.per_10_game_turns: melee > best": 1
+  }
+}
