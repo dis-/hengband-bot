@@ -4,7 +4,7 @@ from hengbot import safety_watch
 from hengbot import spare_gear
 from hengbot import random_quest_hold
 from hengbot import angband_hold, dive_floor, fallback_depth_floor
-from hengbot import me_capped_pickup
+from hengbot import me_capped_pickup, sellable_artifacts
 from hengbot import destruction_means
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 
@@ -435,6 +435,9 @@ class PolicyHelpersMixin:
         any stack of that tval, whatever its unseen quality.
         """
         if self._floor_pile_is_worthless(grid):
+            return True
+        # Owner 2026-11-20 「捨てて帰還すること」: an artifact dropped on purpose is not picked up.
+        if sellable_artifacts.dropped_here(self, snapshot, grid.position):
             return True
         # Owner 2026-11-13: the Magic-Eater leaves copies of a power at its cap; 2026-11-16:
         # the one it destroys where it lies is walked to (me_capped_pickup.destroys).

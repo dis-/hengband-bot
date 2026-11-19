@@ -1859,7 +1859,8 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_heavy_curse_inscription_key": TerminalDecl(item_command_intended_terminal, ENFORCE),
     **{name: TerminalDecl(item_command_intended_terminal, ENFORCE) for name in (
         "_overweight_surplus_sale_key", "_town_overflow_destroy_key", "_worthless_junk_destroy_key",
-        "_full_pack_destroy_key", "_town_destroy_key", "verified-disposal")},
+        "_full_pack_destroy_key", "_town_destroy_key", "verified-disposal",
+        "sellable_artifacts.town_drop_key")},
     **{name: TerminalDecl(equipment_transaction_intended_terminal, ENFORCE) for name in (
         "_equipment_transaction_home_key", "_equipment_transaction_town_key",
         "_equipment_transaction_town_key#1", "_equipment_transaction_town_key#2",
@@ -1903,7 +1904,8 @@ TERMINALS: dict[str, TerminalDecl] = {
     "_town_special_key": TerminalDecl(departure_intended_terminal, ENFORCE),
     "_read_dungeon_recall_scroll_key": TerminalDecl(recall_read_intended_terminal, ENFORCE),
     **{name: TerminalDecl(dungeon_board_intended_terminal, ENFORCE) for name in (
-        "junk_destroy_now.destroy_now_key", "consumable_policy.use_now_key",
+        "junk_destroy_now.destroy_now_key", "sellable_artifacts.drop_key",
+        "consumable_policy.use_now_key",
         "full_pack_exchange.key")},
 }
 

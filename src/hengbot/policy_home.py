@@ -2707,6 +2707,11 @@ class HomeMixin:
         if me_device_policy.absorbed_in_town(self, snapshot, item):
             # Owner 2026-11-19: a Home copy the table absorbs is absorbed in town, not shelved.
             return item.count, "me-device:absorb-in-town"
+        from hengbot import sellable_artifacts
+        if sellable_artifacts.carried_for_drop(self, snapshot, item):
+            # Owner 2026-11-20 「アーティファクトは壊せないので捨てて帰還すること」: dropped on the
+            # town floor before the departure (sellable_artifacts.town_drop_key), never shelved again.
+            return item.count, sellable_artifacts.RETENTION_BRANCH
         from hengbot import zul_trip
         if zul_trip.retains(self, snapshot, item):
             return 1, "zul-trip:levitation"
@@ -4931,6 +4936,38 @@ class HomeMixin:
         self._rearm_town_store_for_new_work(STORE_HOME)
         self._home_pending_item = self._item_signature(device)
         self._home_pending_quantity = device.count
+        self._home_withdrawal_queued = True
+
+    def _bind_home_artifact_drop_withdrawal(self, snapshot: Snapshot) -> None:
+        """Owner 2026-11-20 「アーティファクトは壊せないので捨てて帰還すること」: take a named
+        artifact no store buys (item_fate DROP) out of the Home to drop it on the town floor.
+
+        sellable_artifacts.next_home_take names them one take after another while the pack takes
+        them; the same addressed Home take as the absorb devices
+        (``_bind_home_absorb_device_withdrawal``).  Carried, the retention keeps them out of the
+        Home (sellable_artifacts.carried_for_drop) until the town drop (owner 「街の床に捨てて
+        ダンジョンに帰還すれば消える」).
+        """
+        from hengbot import sellable_artifacts
+        plan = self._town_errand_plan
+        if plan is not None and plan.index < len(plan.stops) and plan.stops[plan.index] != STORE_HOME:
+            return
+        here = snapshot.grid_at(snapshot.player.position)
+        if ((snapshot.store is None and self._last_snapshot_was_store
+             and here is not None and here.is_store)
+                or self._home_pending_item is not None or self._home_pending_batch
+                or self._home_errand.active
+                or snapshot.store is not None or self._home_full_relief is not None
+                or self._home_atomic_deposit_pending is not None
+                or self._home_is_full(snapshot)
+                or self._inventory_overweight(snapshot)):
+            return
+        artifact = sellable_artifacts.next_home_take(self, snapshot)
+        if artifact is None:
+            return
+        self._rearm_town_store_for_new_work(STORE_HOME)
+        self._home_pending_item = self._item_signature(artifact)
+        self._home_pending_quantity = artifact.count
         self._home_withdrawal_queued = True
 
     def _home_takes_let_drink(self, signature: tuple[str, int, int]) -> bool:

@@ -1842,6 +1842,10 @@ REGISTRY = (
       "(floor_key, loot grids an enclosure was mapped for) of this floor visit (owner 2026-11-18)"),
     S("_sealed_loot_trap_device_uses", "sealed_loot", LIFE,
       "sealed_loot: sealed loot trap device uses (no comment at its definition)"),
+    # sellable_artifacts
+    S("_artifact_drop_memory", "sellable_artifacts", FLOOR,
+      "{cells a named artifact was dropped on this floor visit (the town's included), the posted "
+      "drop awaiting its board} (owner 2026-11-20 「捨てて帰還すること」)"),
     # sealed_pocket
     S("_destroyed_circle_teleport", "sealed_pocket", FLOOR,
       "((floor, circles), turn) of the last read"),
