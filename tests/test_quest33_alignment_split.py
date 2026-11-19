@@ -17,9 +17,10 @@ at the speed the always-hasted force fights at (owner 2026-11-19 「攻撃力の
 
 Recorded: the town arrivals of 2026-11-19 shared with QUEST_32's tests
 (tests/fixtures/quest32-one-turn-kill-1119): n1-a life-531 (warrior Lv42, +4: 578.3 an action on
-the Queen, 809.7 per 10 game turns) and n1-b life-411 (Magic-Eater Lv50, +25: 415.0 melee, 280.0
-devices, 1452.4) meet it -- n1-a is refused for its Light scrolls and resists, n1-b only for its HP and is accepted at
-full HP; n1-c life-217 (Magic-Eater Lv36, +6: 180.6, 288.9, 469.5 at the hasted +16) is refused for
+the Queen, 809.7 per 10 game turns) and n1-b life-411 (Magic-Eater Lv50, +25: 415.0 melee, 385.0
+devices by Powerful Activation, 1452.4) meet it -- n1-a is refused for its Light scrolls and resists, n1-b only for its HP and is accepted at
+full HP; n1-c life-217 (Magic-Eater Lv36, +6: melee 180.6, devices 210.6 by Powerful Activation;
+337.0, 547.6 at the hasted +16) is refused for
 the figure, and the non-urgent quest is passed over.  Per action all three were refused.
 
 DECLARED CONSTRUCTED: n1-a's board with 4 blows a turn instead of 7 (330.5: 462.7 at +4, 793.2
@@ -223,7 +224,7 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
             # +25 (energy 35), hasted +35 (energy 40: owner 2026-11-19 「+10 以上でも飲んで読む」);
             # the permanent speed already meets the line.
             self.assertEqual((found["melee"], found["device"], found["per_10_game_turns"], found["tier"]),
-                             (415.0, 280.0, {"permanent": 1452.4, "hasted": 1659.8}, "full"))
+                             (415.0, 385.0, {"permanent": 1452.4, "hasted": 1659.8}, "full"))
             verdict, telemetry, _ = readiness(policy, board)
             self.assertEqual((verdict, telemetry["reason"]), (False, "not-full-hp"))
             full = replace(board, player=replace(board.player, hp=board.player.max_hp))
@@ -235,12 +236,14 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
             self.assertEqual((resolved["speed_potions"], resolved["heal_potions"]), (0, 10))
 
     def test_n1c_magic_eater_is_refused(self):
-        self.assert_refused_for_the_queen("n1c-217", 180.6, 140.4, ["resists"])
+        # The devices by Powerful Activation (me-powerful-attack-1119): 210.6 an action, above the
+        # melee's 180.6, and 547.6 at the hasted +16, still short of 750.
+        self.assert_refused_for_the_queen("n1c-217", 180.6, 210.6, ["resists"])
         scratch, policy, board = recorded("n1c-217")
         with scratch:
             found = quest_one_turn_kill.details(
                 policy, board, policy.approved_quest_strategy(QUEST).required_force)
-            self.assertEqual(found["per_10_game_turns"], {"permanent": 288.9, "hasted": 469.5})
+            self.assertEqual(found["per_10_game_turns"], {"permanent": 337.0, "hasted": 547.6})
 
 
 class Quest33SplitTest(unittest.TestCase):
