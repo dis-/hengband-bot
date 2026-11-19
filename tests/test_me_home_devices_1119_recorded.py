@@ -104,17 +104,26 @@ class MeHomeDevices1119RecordedTest(unittest.TestCase):
         # The last shelf stack first, whole.
         self.assertEqual(policy._home_pending_item, policy._item_signature(takes[-1]))
         self.assertEqual(policy._home_pending_quantity, takes[-1].count)
-        # DECLARED CONSTRUCTED: the game's take, the stack at the next pack letter.
+        # DECLARED CONSTRUCTED: the game's take, the stack at the next pack letter and off the
+        # shelf.
         letter = chr(ord("a") + len(board.inventory))
         taken = replace(takes[-1], slot=letter)
         carried = replace(board, inventory=(*board.inventory, taken),
                           player=replace(board.player, hp=board.player.max_hp))
         self.restore(policy, saved)
         self.assertEqual(policy._retention_reservation(carried, taken), taken.count)
+        before = policy._home_knowledge_items
+        self.addCleanup(setattr, policy, "_home_knowledge_items", before)
+        policy._home_knowledge_items = [item for item in before if item is not takes[-1]]
+        # The takes come first (tests/test_n1c_217_absorb_deadline_1119_recorded): the next
+        # shelf stack is taken before the carried one is absorbed.
+        self.assertEqual(me_device_policy.next_home_absorb_take(policy, carried), takes[-2])
+        self.assertIsNone(magic_eater.absorb_key(policy, carried, []))
+        # DECLARED CONSTRUCTED: the Home without the other copies (all taken): it is absorbed.
+        policy._home_knowledge_items = [item for item in before
+                                        if not any(item is take for take in takes)]
         self.assertEqual(magic_eater.absorb_key(policy, carried, []), "G" + letter)
         self.assertEqual(policy.last_reason, magic_eater.ABSORB_REASON)
-        # Nothing more is taken while it waits for its absorption.
-        self.assertEqual(me_device_policy.home_absorb_takes(policy, carried), [])
 
     @staticmethod
     def restore(policy, saved):

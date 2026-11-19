@@ -314,22 +314,54 @@ def absorbed_in_town(policy, snapshot, item) -> bool:
 
 
 def town_absorb_candidate(policy, snapshot):
-    """The first carried copy ``absorbed_in_town``, or None."""
+    """The first carried copy ``absorbed_in_town``, or None while the Home still gives a copy
+    to take (``next_home_absorb_take``): the takes come first, then the absorptions."""
+    if (getattr(policy, "_home_knowledge_current", False)
+            and next_home_absorb_take(policy, snapshot) is not None):
+        return None
     return next((item for item in snapshot.inventory
                  if absorbed_in_town(policy, snapshot, item)), None)
 
 
 def home_absorb_takes(policy, snapshot) -> list:
-    """The known Home copies whose fate is ``ABSORB``, catalogue order (taken one at a time).
+    """The known Home copies whose fate is ``ABSORB``, catalogue order (``next_home_absorb_take`` takes them).
 
-    In town, with the Home listing current and no hostile in view; none while a carried copy waits
-    for its absorption in town (it is absorbed first).
+    In town, with the Home listing current and no hostile in view.
     """
     if not snapshot.in_town or not policy._home_knowledge_current or not _magic_eater(snapshot):
         return []
-    if policy._physical_hostiles(snapshot) or town_absorb_candidate(policy, snapshot) is not None:
+    if policy._physical_hostiles(snapshot):
         return []
     deferred = getattr(policy, "_deferred_home_items", ())
     return [item for item in policy._home_knowledge_items[:policy._home_knowledge_valid_before]
             if item.count > 0 and home_fate(policy, snapshot, item) == ABSORB
             and policy._item_signature(item) not in deferred]
+
+
+def next_home_absorb_take(policy, snapshot):
+    """The next Home copy to take for the absorption, or None: the last shelf slot first (a take
+    shifts only the later slots, so the next stack keeps its address and no census is needed
+    between takes), when its whole stack the pack's budget (town_pack_budget.home_take_fits) and
+    weight limit admit.  The copies taken wait carried (``absorbed_in_town``) until no more
+    is taken, then the town absorbs them (``town_absorb_candidate``)."""
+    from hengbot.town_pack_budget import home_take_fits
+
+    takes = home_absorb_takes(policy, snapshot)
+    item = takes[-1] if takes else None
+    # Only the last: an earlier one taken first would move its address (a census before it).
+    if (item is None or not home_take_fits(snapshot, item, item.count, policy=policy)
+            or not policy._can_add_item_without_overweight(snapshot, item)):
+        return None
+    return item
+
+
+def absorb_errand_open(policy, snapshot) -> bool:
+    """The town still absorbs: a carried copy waits (``town_absorb_candidate``) or a Home stack's
+    fate is ``ABSORB``.  Its observed progress restarts its stages' deadline counts
+    (town_visit_plan.ABSORB_STAGES)."""
+    if not snapshot.in_town or not _magic_eater(snapshot):
+        return False
+    if any(absorbed_in_town(policy, snapshot, item) for item in snapshot.inventory):
+        return True
+    return any(item.tval in KINDS and home_fate(policy, snapshot, item) == ABSORB
+               for item in getattr(policy, "_home_knowledge_items", ()) or ())
