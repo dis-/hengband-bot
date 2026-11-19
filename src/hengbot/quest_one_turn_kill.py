@@ -63,11 +63,14 @@ next quest is taken.
 
 ``turns`` (QUEST_33, owner 2026-11-19 「戦力は過剰に要求して良い」): the race's ``hit_points`` within
 that many turns, so the figure per 10 game turns must reach ``hit_points / turns``.  1 when absent.
-Q33 (クイーン・アント 1500 HP in 2 turns, ``always_hasted``): 750 per 10 game turns at the
-always-hasted speed; recorded n1-a (+4) 578.3 x 1.4 = 809.7 already at its permanent speed
-("full"; 1388.0 hasted), n1-b (+25, no dose at +10 or more) 415.0 x 3.5 = 1452.4 ("full"), n1-c
-(+6, hasted +16) 180.6 x 2.6 = 469.5 does not (288.9 unhasted).  Its haste is the
-force's own (``always_hasted`` with ten Speed doses), so no ``haste_doses``.
+An ``always_hasted`` force has one line, no tiers: owner 2026-11-19 (verbatim) 「Q33の受注条件は
+10ゲームターンあたり750のダメージを与える能力にする。女王アリを20ゲームターンで処理できる能力である。」,
+read at the speed the fight keeps (attack_expectation.always_hasted_speed; the owner's earlier
+「加速を考慮して」).  Met is "full", else None; its haste is the force's own (ten Speed doses), so no
+``haste_doses`` and no separate dose before the race.  Q33 (クイーン・アント 1500 HP in 20 game
+turns, ``turns`` 2): 750 per 10 game turns.  Recorded: n1-a (+4, fights at +14) 578.3 x 2.4 =
+1388.0 met; n1-b (+25, no dose at +10 or more) 415.0 x 3.5 = 1452.4 met; n1-c (+6, fights at +16)
+180.6 x 2.6 = 469.5 not met.
 
 ``means`` is the attack the fight uses on the race (quest executor): the one with the larger
 figure, melee on a tie.
@@ -157,8 +160,12 @@ def needed(force) -> float:
 def tier(policy, snapshot, force) -> str | None:
     """"full" (the figure per 10 game turns reaches ``needed`` at the permanent speed), "hasted"
     (only at the speed the force's haste assures: the doses are asked by
-    ``quest_force_rows.resolve``) or None."""
+    ``quest_force_rows.resolve``) or None.  An ``always_hasted`` force reads its one line at the
+    speed its fight keeps: "full" or None."""
     found, line = per_10_game_turns(policy, snapshot, force), needed(force)
+    if force.get("always_hasted"):
+        # One line at the speed the fight keeps (QUEST_33, owner 2026-11-19).
+        return "full" if found["hasted"] >= line else None
     if found["permanent"] >= line:
         return "full"
     if found["hasted"] is not None and found["hasted"] >= line:

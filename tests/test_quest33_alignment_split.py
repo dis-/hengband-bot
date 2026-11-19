@@ -9,7 +9,9 @@ refuses every cell from which a living GOOD summoner (クイーン・アント 5
 (イット 393, ガチャピン 441, ボクルグ 489, ダゴン 595) would both act: the game processes a monster
 only while the player is within its vision (monster-processor.cpp decide_process_continue), and two
 monsters fight only GOOD against EVIL (monster-entity.cpp check_sub_alignments).  Acceptance asks
-750 per 10 game turns against the Queen (1500 HP in two turns, quest_one_turn_kill ``turns``), read
+750 per 10 game turns against the Queen as its one damage line (owner 2026-11-19 「Q33の受注条件は
+10ゲームターンあたり750のダメージを与える能力にする。女王アリを20ゲームターンで処理できる能力である。」;
+1500 HP in 20 game turns, quest_one_turn_kill ``turns``), read
 at the speed the always-hasted force fights at (owner 2026-11-19 「攻撃力の判定を1行動あたりでは
 なく、10ゲームターンあたりのダメージで評価して」).
 
@@ -21,7 +23,7 @@ full HP; n1-c life-217 (Magic-Eater Lv36, +6: 180.6, 288.9, 469.5 at the hasted 
 the figure, and the non-urgent quest is passed over.  Per action all three were refused.
 
 DECLARED CONSTRUCTED: n1-a's board with 4 blows a turn instead of 7 (330.5: 462.7 at +4, 793.2
-at the hasted +14) is on the hasted tier and doses before the Queen; n1-b's board at full HP;
+at the hasted +14) meets the one line, with three blows (594.9 hasted) it does not; n1-b's board at full HP;
 the floor boards below put the recorded n1-b policy on the Q33 floor (floor key, the quest TAKEN,
 the player's cell, the monsters and messages of the board) to drive the split's own functions.
 """
@@ -172,7 +174,7 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
         with scratch:
             force = policy.approved_quest_strategy(QUEST).required_force
             found = quest_one_turn_kill.details(policy, board, force)
-            # Per action 578.3 < 750; per 10 game turns at +4 (energy 14) 809.7.
+            # Per action 578.3 < 750; per 10 game turns at the +14 it fights at (energy 24) 1388.0.
             self.assertEqual((found["melee"], found["per_10_game_turns"], found["tier"]),
                              (578.3, {"permanent": 809.7, "hasted": 1388.0}, "full"))
             self.assertFalse(quest_one_turn_kill.holds_back(policy, board, QUEST))
@@ -181,18 +183,22 @@ class Quest33RecordedAcceptanceTest(unittest.TestCase):
             self.assertEqual((verdict, telemetry["reason"], strategy["failed"]),
                              (False, "strategy-force", ["required_scrolls.light", "resists"]))
 
-    def test_n1a_with_four_blows_is_on_the_hasted_tier(self):
+    def test_n1a_with_four_blows_meets_the_one_line_hasted(self):
         scratch, policy, board = recorded("n1a-531")
         with scratch:
             weaker = replace(board, player=replace(board.player, main_hand_blows=4))
             force = policy.approved_quest_strategy(QUEST).required_force
             found = quest_one_turn_kill.details(policy, weaker, force)
             self.assertEqual((found["melee"], found["per_10_game_turns"], found["tier"]),
-                             (330.5, {"permanent": 462.7, "hasted": 793.2}, "hasted"))
+                             (330.5, {"permanent": 462.7, "hasted": 793.2}, "full"))
             # The force's own ten Speed doses carry the haste: no QUEST_32 haste row is merged.
             resolved = policy._strategy_force_for_snapshot(weaker, policy.approved_quest_strategy(QUEST))
             self.assertEqual((resolved["speed_potions"], resolved["speed_required_to_depart"]), (10, True))
-            self.assertTrue(quest_one_turn_kill.haste_first(policy, weaker, force))
+            # One line, no hasted tier: the always-hasted plan keeps the haste, no extra dose rule.
+            self.assertFalse(quest_one_turn_kill.haste_first(policy, weaker, force))
+            # Three blows (247.9 an action, 594.9 at +14) are short of it.
+            weakest = replace(board, player=replace(board.player, main_hand_blows=3))
+            self.assertIsNone(quest_one_turn_kill.tier(policy, weakest, force))
 
     def test_n1b_magic_eater_meets_it_and_is_accepted_at_full_hp(self):
         scratch, policy, board = recorded("n1b-411")
