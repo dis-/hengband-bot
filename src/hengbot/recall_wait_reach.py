@@ -27,6 +27,7 @@ from hengbot.policy_constants import speed_energy
 
 # spell-kind/spells-world.cpp recall_player: randint0(21) + 15 ticks.
 DELAY_MIN_TICKS = 15
+DELAY_MAX_TICKS = 35
 # world/world-turn-processor.cpp: the world ticks on game turns that are multiples of 10.
 TURNS_PER_TICK = 10
 # Energy one player action costs (core/speed-table.h).
@@ -60,6 +61,22 @@ def remaining_actions(policy, snapshot) -> int:
     elapsed_ticks = snapshot.turn // TURNS_PER_TICK - read[1] // TURNS_PER_TICK
     ticks = max(0, DELAY_MIN_TICKS - elapsed_ticks)
     return ticks * speed_energy(snapshot.player.speed) * TURNS_PER_TICK // ACTION_ENERGY
+
+
+def countdown_running(policy, snapshot) -> bool:
+    """A countdown whose read was seen on this floor has not yet run its longest delay
+    (``DELAY_MAX_TICKS``, counted from the board the read was decided on, plus that board's own
+    tick): the recall will end the floor by itself.  The driver's loop stop waits for it
+    (cli ``_loop_stop_due``), as the livelock leave already stands down for it
+    (policy_navigation ``_navigation_livelock_key``).  n1-c life-217 (Angband 80F, 2026-11-19
+    12:40): livelock:recall-escape read the Recall at turn 4546103, the countdown ran, and the
+    loop detector stopped the bot 86 game turns later (8 of up to 35 ticks).  A countdown past
+    its longest delay, or one whose read was not seen, holds nothing."""
+    read = (getattr(policy, STATE, None) or {}).get("read")
+    if not snapshot.player.recalling or read is None or read[1] is None or read[0] != snapshot.floor_key:
+        return False
+    elapsed_ticks = snapshot.turn // TURNS_PER_TICK - read[1] // TURNS_PER_TICK
+    return elapsed_ticks <= DELAY_MAX_TICKS + 1
 
 
 def max_path_distance(policy, snapshot) -> int:

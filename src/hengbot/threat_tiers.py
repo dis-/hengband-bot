@@ -834,7 +834,11 @@ def approach_key(policy, snapshot, strong) -> str | None:
     step = destruction_use.walk_step(policy, snapshot, approach_subject(policy, snapshot, targets))
     if step is None:
         return None
+    # A begun loot walk is walked to its end before the approach steps (loot_walk
+    # ``approach_yield_key``, owner 2026-11-18 Q3 「命の危険が無ければ取り終える」; n1-c life-217).
     setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
+    if (held := _loot_walk_first(policy, snapshot)) is not None:
+        return held
     policy.last_reason = APPROACH_REASON
     return policy._step_toward(snapshot, step)
 
@@ -855,6 +859,16 @@ APPROACH_MEMORY = "_sensed_approach_memory"
 
 def forget_approach(policy) -> None:
     setattr(policy, APPROACH_MEMORY, None)
+
+
+def _loot_walk_first(policy, snapshot) -> str | None:
+    """The begun loot walk's answer in place of the approach's step (loot_walk
+    ``approach_yield_key``), asked only where the approach has a step: a board it leaves to the
+    rungs below is not counted in destruction_loot's bound.  The approach's memory is noted
+    first, as for its own step: it goes on once the loot walk ends."""
+    from hengbot import loot_walk  # import cycle
+
+    return loot_walk.approach_yield_key(policy, snapshot)
 
 
 def remembered_approach_key(policy, snapshot) -> str | None:
@@ -894,6 +908,8 @@ def remembered_approach_key(policy, snapshot) -> str | None:
         forget_approach(policy)
         return None
     setattr(policy, APPROACH_MEMORY, (floor, snapshot.turn if seen else turn, current))
+    if (held := _loot_walk_first(policy, snapshot)) is not None:
+        return held
     policy.last_reason = APPROACH_REASON
     return policy._step_toward(snapshot, step)
 

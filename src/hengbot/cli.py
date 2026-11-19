@@ -45,6 +45,7 @@ from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, pingpong_guard, safety_watch
+from hengbot import recall_wait_reach
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
@@ -5659,9 +5660,12 @@ def _game_process_alive(pid) -> bool:
 def _loop_stop_due(recent_cells, window: int, policy, snapshot) -> bool:
     """The confined-walk stop (``_is_looping``), except inside a ping-pong guard's window: the
     guard owns that alternation and escalates the same pair again to the livelock leave
-    (pingpong_guard ``holds_loop_stop``)."""
+    (pingpong_guard ``holds_loop_stop``); and except while a Word of Recall read on this floor
+    is still within its longest delay (recall_wait_reach ``countdown_running``): the escalation's
+    own leave is that Recall, and the floor ends with it."""
     return (_is_looping(recent_cells, window=window)
-            and not pingpong_guard.holds_loop_stop(policy, snapshot))
+            and not pingpong_guard.holds_loop_stop(policy, snapshot)
+            and not recall_wait_reach.countdown_running(policy, snapshot))
 
 
 def _is_looping(recent_cells, *, window: int = LOOP_WINDOW) -> bool:
