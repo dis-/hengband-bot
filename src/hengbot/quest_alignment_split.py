@@ -122,9 +122,13 @@ def _known(snapshot) -> list:
 
 def observe(policy, snapshot, navigator, plan) -> None:
     """Every board of the floor: the tracked races' kill lines (each board once)."""
+    from hengbot import quest_sweep_record
+
     split = split_of(plan)
     if split is None:
         return
+    # The kills a previous process read on this floor (a bot restart, quest_sweep_record).
+    quest_sweep_record.take(policy, snapshot, navigator)
     board = (snapshot.turn, tuple(snapshot.messages))
     if navigator.split_board == board:
         return
@@ -136,11 +140,14 @@ def observe(policy, snapshot, navigator, plan) -> None:
         if name
     }
     kills = Counter(navigator.split_kills)
+    turns = list(navigator.split_kill_turns)
     for message in snapshot.messages:
         killed = kill_line(message)
         if killed is not None and killed[0] in names:
             kills[names[killed[0]]] += killed[1]
+            turns.extend([(names[killed[0]], int(snapshot.turn))] * killed[1])
     navigator.split_kills = dict(kills)
+    navigator.split_kill_turns = tuple(turns)
 
 
 # -- where each side's summoners are ----------------------------------------------------

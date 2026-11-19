@@ -774,6 +774,8 @@ def _policy_final_stop_banner(reason: str) -> str:
         "quest:blocked:q2-breach-tool": "the Q2 breach corridor still has walls and no Stone to Mud charge or qualifying digger is carried",
         "quest:blocked:q2-tower-recharge": "the Q2 Stone to Mud recharge trip to Morivant's Tower cannot continue; inspect _q2_tower_recharge.failure in the policy checkpoint",
         "quest:blocked:me-staff": "the Magic-Eater staff sequence cannot continue; inspect _me_staff_sequence.failure in the policy checkpoint",
+        "quest:blocked:sweep-nothing-comes": "a room-sweep plan's every stop waits for its phase or has nothing that will come (quest_room_sweep NOTHING_COMES_REASON); inspect the plan's phases and the floor's remaining monsters",
+        "quest:blocked:sweep-nothing-left": "a room-sweep plan walked its max_rounds with the quest still open; inspect the floor's remaining monsters",
         "quest:blocked:quest-patrol-rounds": "a KILL_ALL quest floor stayed unwon after the patrol's rounds (kill_all_patrol.ROUNDS); inspect the floor's remaining monsters",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
@@ -3978,6 +3980,11 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     # This Q25 floor visit's phase battle, for a restart on the same visit.
     policy._q25_battle_record_path = args.decision_log.with_name(
         "q25-battle.json"
+    )
+    # The room sweep's kills on this floor visit, for a restart on the same visit
+    # (quest_sweep_record, n1-c life-217 2026-11-19).
+    policy._sweep_kill_record_path = args.decision_log.with_name(
+        "sweep-kills.json"
     )
     # A restarted process reads the absorbed-power lists it lacks first
     # (me_powers_refresh.resume_read_key, n1-c life-178 2026-11-09).
