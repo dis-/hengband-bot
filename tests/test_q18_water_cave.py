@@ -13,6 +13,7 @@ shows only what the light and memory show; the navigator's route reads the quest
 on every approved quest.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+from support.quest_supply_admitted import admit_all
 
 import copy
 import gzip
@@ -1112,6 +1113,8 @@ class Q18TownTest(unittest.TestCase):
     """Giver, carries and report on the recorded Outpost board of
     tests/fixtures/q14-lv8-1102.json.gz.  DECLARED CONSTRUCTED: its quest rows (every
     earlier quest finished), the giver cell's special 14 -> 18, and the readiness verdict."""
+    def setUp(self):
+        admit_all(self)
 
     @staticmethod
     def town_board(status):
