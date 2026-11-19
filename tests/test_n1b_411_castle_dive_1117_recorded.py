@@ -39,8 +39,10 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 
-from hengbot import alternate_lease, destruction_use, dive_floor, fallback_depth_floor
+from hengbot import (alternate_lease, angband_hold, destruction_use, dive_floor,
+                     fallback_depth_floor)
 from hengbot.model import DUNGEON_ANGBAND
 from hengbot.policy import staged_prompt_chain_matches
 from support.angband_hold import hold_lifted
@@ -147,20 +149,32 @@ class N1b411CastleDiveRecordedTest(unittest.TestCase):
         self.assertEqual(policy._alternate_dungeon_reason, "safe_fallback")
         self.assertIsNone(getattr(policy, dive_floor.STATE))  # an ordinary landing, no dive
 
-    def test_e_held_at_angband_51_no_castle_dive(self):
-        # Owner 2026-11-19 「鉄獄50F以降は浅い階層へのフォールバックをやめる」 (angband_hold) supersedes
-        # the Castle dive of b-d: the stop board takes no fallback and the recorded stop's
-        # departure gate decides again (the gate is not relaxed).
+    def test_e_held_at_angband_51_the_castle_band_again(self):
+        # Owner 2026-11-19 「この場合だけ城40F付近を許す」: angband_hold keeps every other fallback off,
+        # but Angband refused for its missing survival means takes the Castle band of b-c again.
         policy, board = self.stop_policy(), self.board
-        self.assertIsNone(copy.deepcopy(policy)._activate_safe_recall_fallback(board, 51))
+        self.assertTrue(angband_hold.held(policy, board))
         key, reason = decide(policy, board)
-        self.assertNotEqual(reason, "town:unsafe-recall-fallback")
+        # Without the exception: fundraising:no-safe-destination:depth-gate:destination-51:...
+        self.assertEqual(reason, "town:unsafe-recall-fallback")
         self.assertEqual((policy._target_dungeon_id, policy._alternate_dungeon,
-                          policy._alternate_dungeon_reason),
-                         (DUNGEON_ANGBAND, DUNGEON_ANGBAND, alternate_lease.DEEPEST_REASON))
-        # The recorded visit's answer to a refused landing with no fallback (11-17 13:08).
-        self.assertTrue(reason.startswith(
-            "fundraising:no-safe-destination:depth-gate:destination-51:missing-destruction"), reason)
+                          policy._alternate_dungeon_reason), (CASTLE, CASTLE, "safe_fallback"))
+        self.assertEqual(getattr(policy, dive_floor.STATE), (CASTLE, 38))
+        post(policy, key)
+        key, reason = decide(policy, board)
+        self.assertEqual(reason, "town:recall-to-alt-dungeon")
+        # The town board keeps the band while Angband 51 still lacks the means.
+        self.assertFalse(angband_hold.settle(policy, board))
+        self.assertEqual(policy._alternate_dungeon, CASTLE)
+
+    def test_f_held_the_means_in_hand_angband_again(self):
+        # DECLARED CONSTRUCTED: the *Destruction* means held (destruction_use.holds_means).
+        policy, board = copy.deepcopy(self.policy), self.board
+        self.assertEqual(policy._activate_safe_recall_fallback(board, 51), CASTLE)
+        with mock.patch("hengbot.destruction_use.holds_means", lambda *_: True):
+            self.assertTrue(alternate_lease.angband_qualifies(policy, board))
+            self.assertTrue(angband_hold.settle(policy, board))
+        self.assertIsNone(policy._alternate_dungeon)
 
 
 if __name__ == "__main__":

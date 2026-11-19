@@ -16,14 +16,17 @@ its Angband recall landing -- the save's max level, never lowered by the bot exc
   over-extension and no-depth-progress valves switch to nothing (the Castle/Mountain dive of
   dive_floor.pick is never reached); the guardian valve and the unsafe-recall fallback of a dungeon
   other than Angband (a lord-kill trip refused or bounced) go back to Angband; with Angband itself
-  refused nothing is picked, so the existing next rule decides (the no-safe-destination fundraising,
-  the named stops) -- the depth gates themselves are not relaxed.
-- ``_activate_safe_recall_fallback`` (policy) does not take the Castle/Mountain band dive
-  (dive_floor.pick_refused, owner 2026-11-17).
+  refused no landing is picked -- the depth gates themselves are not relaxed.
+- The one exception, owner 2026-11-19 (verbatim) 「この場合だけ城40F付近を許す」: Angband's landing
+  refused because survival items or abilities are missing (the *Destruction* means, telepathy, the
+  resists: the depth gates of ``_activate_safe_recall_fallback``), the 11-17 Castle band (else the
+  Mountain) is explored as before (dive_floor.pick_refused, 38-42) to gather the items and the money,
+  and Angband is taken again once its landing qualifies (``settle`` below, alternate_lease.challenge).
 - ``alternate_lease.deepest_destination`` takes Angband only.
 - ``settle``: on every town board a held switch other than Angband (one made before this rule, or
   restored from the alternate-dungeon record), or a leased Angband switch, is dropped; the ordinary
-  selection then takes Angband, or the conquest target.
+  selection then takes Angband, or the conquest target.  The Castle band of the exception is kept
+  while Angband's landing does not qualify (``alternate_lease.angband_qualifies``).
 
 Not changed: the conquest target (``_conquest_target``, the dungeon lord's kill: the owner's one
 reason to change the destination), the Angband 95F cap and its climb (angband_cap), the taken kill
@@ -65,6 +68,11 @@ def settle(policy, snapshot) -> bool:
     reason = getattr(policy, "_alternate_dungeon_reason", None)
     if (not snapshot.in_town or alternate is None or not held(policy, snapshot)
             or (alternate == DUNGEON_ANGBAND and reason not in alternate_lease.LEASED_REASONS)):
+        return False
+    # Owner 2026-11-19 「この場合だけ城40F付近を許す」: the refused landing's Castle band stays
+    # until Angband's landing qualifies again.
+    if (dive_floor.refused_dive_held(policy, snapshot)
+            and not alternate_lease.angband_qualifies(policy, snapshot)):
         return False
     policy._alternate_dungeon = None
     policy._alternate_dungeon_reason = None
