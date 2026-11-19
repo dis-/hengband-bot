@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.item_reservation import reserved_item_command
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
 from hengbot import return_start
@@ -1731,10 +1732,15 @@ class CombatMixin:
         if player.confused or player.blind:
             return None
         chosen = self._ranged_projectile(snapshot)
-        if chosen is None:
+        # The Magic-Eater's absorbed attack powers need no rounds (owner 2026-11-12
+        # 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する」): with nothing to
+        # fire or throw it still weighs them (me_ranged_first.stronger_than_launcher_key).
+        devices = player.class_id == PLAYER_CLASS_MAGIC_EATER
+        if chosen is None and not devices:
             return None
-        kind, projectile, reason = chosen
+        kind, projectile, reason = chosen if chosen is not None else (None, None, None)
         ammo = projectile if kind == "fire" else None
+        thrown = projectile if kind == "throw" else None
         # A sleeper not to wake is no target, and while one is within the range the game's
         # nearest-target cursor (`*t` below) is not used: it could pick that sleeper.
         unwoken = [monster for monster in hostiles if monster.asleep
@@ -1767,10 +1773,12 @@ class CombatMixin:
             self._ranged_target_macro_signature = None
 
         target = self._ranged_target(snapshot, hostiles)
+        if projectile is None:
+            target = None  # nothing to fire or throw: the victim's device answer below
         if target is not None:
             # Owner 2026-11-12: the Magic-Eater's absorbed power or carried wand when its
             # expected damage per action beats the shot (me_ranged_first).
-            device = me_ranged_first.stronger_than_launcher_key(self, snapshot, target, ammo)
+            device = me_ranged_first.stronger_than_launcher_key(self, snapshot, target, ammo, thrown)
             if device is not None:
                 return device
             self._ranged_target_macro_failures = 0
@@ -1787,14 +1795,14 @@ class CombatMixin:
             and not self._sleeper_beyond_ranged_reach(
                 monster, player.position.distance_to(monster.position))
         ]
-        if not eligible or ammo is None:
+        if not eligible or (ammo is None and not devices):
             return None
         victim = min(
             eligible,
             key=lambda monster: self._target_cursor_sort_key(player.position, monster),
         )
-        device = me_ranged_first.stronger_than_launcher_key(self, snapshot, victim, ammo)
-        if device is not None:
+        device = me_ranged_first.stronger_than_launcher_key(self, snapshot, victim, ammo, thrown)
+        if device is not None or ammo is None:
             return device
 
         if self._ranged_target_guard_position != player.position:

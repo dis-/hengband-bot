@@ -20822,6 +20822,50 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Pure estimate of a thrown lit torch's damage per action against a monster; no command."
   },
+  "attack_expectation.py:_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure read: the target's race knowledge from the policy's monrace table (or None). No command of its own."
+  },
+  "attack_expectation.py:_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure read: the target race's flags (empty when unknown), for the expected-damage estimates. No command of its own."
+  },
+  "attack_expectation.py:_torch_multiplier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure arithmetic: a thrown lit torch's slay/brand multiplier from the target's flags (throw-execution.cpp torch_flags). No command of its own."
+  },
+  "attack_expectation.py:_thrown": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure estimate shared by torch_throw and plain_throw: a thrown item's hit chance at the target's armour and distance times its damage on a hit, capped by the target's HP; the rival me_ranged_first._device_over weighs a Magic-Eater's absorbed power against when it has no rounds. No command of its own."
+  },
   "threat_projection.py:_device_paced": {
     "classification": "data",
     "rows": [

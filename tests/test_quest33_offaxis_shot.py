@@ -22,7 +22,7 @@ town tile) with the quest map as known grids (tests/test_quest33_summon_answer),
 monsters where the replay's probes saw them: turn 8483240 (the player at [12,42], the awake Rock
 troll 'Tom' ロック・トロル (495) at [5,46], four sleepers), turn 8485000 ([11,39], Toms at [7,44],
 [10,46], [9,46]) and the aligned control 8483601 ([12,42], a Jart (517) at [14,42], where main
-already fired 'mB32').
+already fired 'mB32'; with Powerful Activation (me-powerful-attack-1119) the same aim may come as 'U').
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -37,7 +37,8 @@ from tests.test_quest33_alignment_split import QUEST, monster, on_floor, quest_d
 from tests import test_quest33_summon_answer as summon_tests
 
 TOM, JART, SLEEPER_451 = 495, 517, 451
-AIMED = re.compile(r"^mB.@(\d+),(\d+)$")
+DEVICE_REASONS = {me_device_attacks.DEVICE_REASON, me_device_attacks.POWERFUL_REASON}
+AIMED = re.compile(r"^[mU]B.@(\d+),(\d+)$")  # U: Powerful Activation (me-powerful-attack-1119)
 
 
 class Quest33OffAxisShotTest(unittest.TestCase):
@@ -66,8 +67,8 @@ class Quest33OffAxisShotTest(unittest.TestCase):
 
         key = quest_room_sweep.key(self.policy, snapshot)
 
-        self.assertEqual(key, "mB3@5,46")
-        self.assertEqual(self.policy.last_reason, me_device_attacks.DEVICE_REASON)
+        self.assertEqual(AIMED.match(key).groups(), ("5", "46"))
+        self.assertIn(self.policy.last_reason, DEVICE_REASONS)
 
     def test_the_recorded_8483240_layout_is_not_held(self):
         snapshot = self.board_at((12, 42), [
@@ -78,7 +79,7 @@ class Quest33OffAxisShotTest(unittest.TestCase):
 
         self.assertNotEqual(key, WAIT_KEY)
         self.assertRegex(key, AIMED)
-        self.assertEqual(self.policy.last_reason, me_device_attacks.DEVICE_REASON)
+        self.assertIn(self.policy.last_reason, DEVICE_REASONS)
 
     def test_the_recorded_8485000_layout_shoots_a_tom(self):
         # Live held '5' at [11,39] with three Toms off the rays.
@@ -89,13 +90,13 @@ class Quest33OffAxisShotTest(unittest.TestCase):
 
         cell = tuple(int(part) for part in AIMED.match(key or "").groups())
         self.assertIn(cell, {(7, 44), (10, 46), (9, 46)})
-        self.assertEqual(self.policy.last_reason, me_device_attacks.DEVICE_REASON)
+        self.assertIn(self.policy.last_reason, DEVICE_REASONS)
 
     def test_on_a_ray_the_shot_still_aims_by_direction(self):
         # Turn 8483601, the control: main fired 'mB32' at the Jart two cells south.
         snapshot = self.board_at((12, 42), [(JART, (14, 42), False)])
 
-        self.assertEqual(quest_room_sweep.key(self.policy, snapshot), "mB32")
+        self.assertIn(quest_room_sweep.key(self.policy, snapshot), {"mB32", "UB32"})
 
     def test_the_direction_would_fly_past_an_off_ray_target(self):
         # Why the direction is not used off the rays: attack_key's '9' from [12,42] is the

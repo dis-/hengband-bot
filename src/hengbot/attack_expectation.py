@@ -357,9 +357,30 @@ def torch_throw(policy, snapshot, target, torch) -> float:
         max(0, roll * multiplier // 10 * (3 + THROW_MULTIPLIER) + TO_D_M_FLOOR)
         for roll in range(1, TORCH_DICE_SIDES + 1)
     ) / TORCH_DICE_SIDES
+    return _thrown(policy, snapshot, target, torch, flags, on_hit)
+
+
+def plain_throw(policy, snapshot, target, item) -> float:
+    """A thrown item with no TR_THROW and no brand (a flask of oil: 2d6), capped by the HP.
+
+    throw-execution.cpp calc_racial_damage: the item's own dice (Dice(1, 6) only for an
+    active torch), times the plain throw command's mult and no to_d_m without TR_THROW."""
+    number, sides = max(item.damage_dice_num, 0), max(item.damage_dice_sides, 0)
+    on_hit = number * (sides + 1) / 2 * THROW_MULTIPLIER if number and sides else 0.0
+    return _thrown(policy, snapshot, target, item, _flags(policy, target), on_hit)
+
+
+def thrown_item(policy, snapshot, target, item) -> float:
+    """The ranged rung's throw of ``item``: torch_throw for a torch, else plain_throw."""
+    if item.is_torch:
+        return torch_throw(policy, snapshot, target, item)
+    return plain_throw(policy, snapshot, target, item)
+
+
+def _thrown(policy, snapshot, target, item, flags, on_hit: float) -> float:
     distance = snapshot.player.position.distance_to(target.position)
     chance = (snapshot.player.shooting_skill
-              + (TO_H_B_FLOOR + torch.to_h) * BTH_PLUS_ADJ - distance)
+              + (TO_H_B_FLOOR + item.to_h) * BTH_PLUS_ADJ - distance)
     expected, landed = physical_hits(
         flags, on_hit * _throw_hit_chance(chance, _armour(policy, target)), on_hit)
     return kill_paced(expected, landed, target.hp)

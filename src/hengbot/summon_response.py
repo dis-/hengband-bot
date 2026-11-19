@@ -304,7 +304,8 @@ def _shot_at(policy, snapshot, target) -> str | None:
 
     A device needs the ray ``_ranged_target`` proves clear (me_ranged_first aims by
     direction); the bow names the cell and refuses a blocked bolt path
-    (``_ranged_attack_key``).  Blindness and confusion refuse both there, fear neither.
+    (``_ranged_attack_key``), where off the rays the Magic-Eater's absorbed power is aimed at the
+    cell too, rounds or none (me_ranged_first.stronger_than_launcher_key).  Blindness and confusion refuse both there, fear neither.
     """
     player = snapshot.player
     if (not (player.blind or player.confused)
