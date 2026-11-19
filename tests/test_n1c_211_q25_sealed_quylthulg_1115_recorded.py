@@ -44,6 +44,7 @@ from tests.test_me_device_attacks import power_screen
 from tests import test_n1c_208_q25_patrol_1115_recorded as life208
 from tests import test_n1c_211_q25_absent_wait_1115_recorded as wait
 from tests import test_n1c_211_q25_sweep_hold_1115_recorded as hold
+from tests.support.me_powerful import ORDINARY_ONLY
 
 geo = battle.geo
 SEALED, GRANITE, STAND = (7, 4), (9, 3), (10, 2)
@@ -170,6 +171,7 @@ class TheMeltAndShotTest(_Post):
             key = decide(policy, raw)
             self.assertEqual((key, policy.last_reason), ("a" + wand["slot"] + "*p9t5\x1b", battle.SHOT_REASON))
 
+    @ORDINARY_ONLY
     def test_melted_the_quylthulgs_cell_is_shot_and_a_kill_is_counted(self):
         """The cell shot through the executor (the rod list, the cursor walk [10,2] -> [7,4]); the kill
         line counts the second quylthulg, the cell is done and the sweep's detection looks again."""

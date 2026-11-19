@@ -35,6 +35,7 @@ from tests import test_n1c_181_q2_breeder_1109_recorded as q2
 from tests import test_q25_n1c_164_1108_recorded as q164
 from tests import test_breeder_swarm_1102_recorded as swarm
 from tests.test_me_device_attacks import power_list, row
+from tests.support.me_powerful import ORDINARY_ONLY
 
 
 CLOUD, FIRE_BALL = "悪臭雲", "ファイア・ボール"
@@ -92,6 +93,7 @@ class Q2BlueSlimeTest(swarm.PostedSwarmKey):
         self.assertEqual((key, policy.last_reason), ("2", "quest-strategy:melee"))  # the one beside
         self.post(policy, raw, key)
 
+    @ORDINARY_ONLY
     def test_a_ball_that_beats_the_single_is_burst(self):
         policy, raw, key = q2_decide(FIRE_BALL)
         group, single = group_and_single(policy, raw)
@@ -108,6 +110,7 @@ class Q25MassTest(unittest.TestCase):
         self.assertNotEqual(policy.last_reason, DEVICE_REASON)
         self.assertNotEqual(policy.last_reason, MELEE_REASON)
 
+    @ORDINARY_ONLY
     def test_a_ball_that_beats_the_shot_is_burst_where_it_kills_most(self):
         policy, raw, key = q25_decide(FIRE_BALL)
         group, single = group_and_single(policy, raw)

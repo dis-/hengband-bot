@@ -649,6 +649,10 @@ def _detect_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
     return None
 
 
+# The owners whose executor answers an absorbed power's prompts (me_device_attacks.device_key).
+_ABSORBED_REASONS = frozenset({me_device_attacks.DEVICE_REASON, me_device_attacks.POWERFUL_REASON})
+
+
 def _area_into_mouth(policy, snapshot: Snapshot, current: Plan, target) -> str | None:
     """「範囲」: the area attack aimed at the mouth whose blast reaches ``target``."""
     here = snapshot.player.position
@@ -671,10 +675,11 @@ def _area_into_mouth(policy, snapshot: Snapshot, current: Plan, target) -> str |
     if best is None:
         return None
     sent = best[1].send(direction)
-    if sent is not None and policy.last_reason != me_device_attacks.DEVICE_REASON:
+    if sent is not None and policy.last_reason not in _ABSORBED_REASONS:
         # A carried device (an item command).  An absorbed power keeps the owner its
         # ``send`` set (me_device_attacks.device_key): me_device_attacks_input answers
-        # that owner's kind, power and aim prompts and closes a charging power's.
+        # that owner's kind, power and aim prompts and closes a charging power's, and
+        # me_powerful_activation_input a Powerful Activation's (owner 2026-11-19 「3つとも広げる」).
         policy.last_reason = REASON_CLOSE_AREA
     return sent
 

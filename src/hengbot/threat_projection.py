@@ -306,12 +306,16 @@ def _missile_ready(policy, snapshot) -> bool:
 
 
 def _free_devices(policy, snapshot, target) -> float:
-    """Absorbed powers' normal use and rods (OQ-6: free attacks)."""
+    """Absorbed powers' normal use and rods (OQ-6: free attacks).
+
+    An absorbed power counts cast through Powerful Activation too while
+    me_powerful_activation.pays_safely holds (me_device_attacks.attack_uses: no charge more than
+    the normal use, its cost in hit points; owner 2026-11-19 「3つとも広げる」)."""
     flags, level, best = _race_flags(policy, target), snapshot.player.level, 0.0
     if me_device_attacks.can_use_powers(snapshot):
         seen_missile = False
-        for power, success in me_device_attacks.usable_powers(policy, snapshot):
-            seen_missile = seen_missile or (power.kind, power.sval) == me_device_attacks.MISSILE
+        for power, success in me_device_attacks.attack_uses(policy, snapshot):
+            seen_missile = seen_missile or power.is_missile
             if power.group_only or power.shape == "sight":
                 continue
             best = max(best, _device_paced(success, me_device_attacks.expected_damage(

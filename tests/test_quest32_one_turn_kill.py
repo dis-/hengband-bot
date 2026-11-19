@@ -45,6 +45,7 @@ from unittest.mock import patch
 from hengbot import quest_one_turn_kill
 from hengbot.quest_strategies import load_quest_strategies
 from support.town_arrival_fixture import load
+from tests.support.me_powerful import ORDINARY_ONLY
 
 FIXTURES = Path(__file__).with_name("fixtures") / "quest32-one-turn-kill-1119"
 STRATEGIES = Path(__file__).parents[1] / "strategy" / "quests"
@@ -111,6 +112,7 @@ def quest_one_turn_kill_text() -> str:
 
 
 class Quest32RecordedAcceptanceTest(unittest.TestCase):
+    @ORDINARY_ONLY
     def test_n1c_on_the_full_tier_heads_the_offers(self):
         scratch, policy, board = recorded("n1c-217")
         with scratch:
@@ -138,6 +140,7 @@ class Quest32RecordedAcceptanceTest(unittest.TestCase):
             verdict, telemetry, strategy = readiness(policy, replace(board, player=player))
             self.assertEqual((verdict, telemetry["reason"], strategy["failed"]), (True, "ready", []))
 
+    @ORDINARY_ONLY
     def test_n1c_with_three_blows_is_on_the_hasted_tier(self):
         scratch, policy, board = recorded("n1c-217")
         with scratch:
@@ -166,6 +169,7 @@ class Quest32RecordedAcceptanceTest(unittest.TestCase):
             self.assertFalse(verdict)
             self.assertEqual(strategy["failed"], ["speed_potions"])
 
+    @ORDINARY_ONLY
     def test_n1c_short_of_both_tiers_is_passed_over_for_q18(self):
         scratch, policy, board = recorded("n1c-217")
         with scratch:
@@ -196,6 +200,7 @@ class Quest32RecordedAcceptanceTest(unittest.TestCase):
             self.assertEqual(strategy["failed"], ["required_scrolls.light"])
             self.assertEqual(policy._fixed_quest_head(board).id, 32)
 
+    @ORDINARY_ONLY
     def test_n1b_at_full_hp_is_accepted(self):
         scratch, policy, board = recorded("n1b-411")
         with scratch:

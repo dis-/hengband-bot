@@ -1051,18 +1051,23 @@ def _settle_beam(ctx: _Ctx) -> None:
 def _ball_powers(ctx: _Ctx, race: int):
     """(expected damage, radius, shape, key maker) of each ball or breath the character can aim
     at a grid: absorbed powers and carried wands and rods, strongest first; none that ``race``'s
-    known flags cancel (``attack_expectation.effective``)."""
+    known flags cancel (``attack_expectation.effective``).
+
+    Owner 2026-11-19 「3つとも広げる」 (Powerful Activation in the Q25 battle too): an absorbed
+    power is offered a second time cast powerfully while me_powerful_activation.pays_safely holds
+    (me_device_attacks.attack_uses: the same success, the doubled level, a ball's radius 3); of
+    equal damage the ordinary use, listed first, stays first (the sort is stable)."""
     snapshot, policy = ctx.snapshot, ctx.policy
     flags = me_device_attacks.race_id_flags(policy, race)
     level = snapshot.player.level
     found = []
     if me_device_attacks.can_use_powers(snapshot):
-        for power, success in me_device_attacks.usable_powers(policy, snapshot):
+        for power, success in me_device_attacks.attack_uses(policy, snapshot):
             if power.shape in me_device_attacks.TARGETABLE_SHAPES and not power.group_only:
                 found.append((success * me_device_attacks.expected_damage(power, level, flags),
-                              me_device_attacks.AREA_RADIUS[power.shape], power.shape,
+                              power.area_radius, power.shape,
                               lambda grid, power=power: me_device_attacks.device_target_key(
-                                  policy, power, Position(*grid))))
+                                  policy, power, Position(*grid), snapshot)))
     if not (snapshot.player.blind or snapshot.player.confused):
         for item in snapshot.inventory:
             kind = {TVAL_WAND: "wand", TVAL_ROD: "rod"}.get(item.tval)
@@ -1109,13 +1114,14 @@ def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
         return None
     flags = me_device_attacks.race_id_flags(ctx.policy, race)
     best = None
-    for power, success in me_device_attacks.usable_powers(ctx.policy, snapshot):
+    for power, success in me_device_attacks.attack_uses(ctx.policy, snapshot):
         share = _beam_share(power)
         if share <= 0 or power.group_only:
             continue
         damage = success * share * me_device_attacks.expected_damage(power, snapshot.player.level, flags)
-        if damage > 0 and (best is None or damage > best[0]):
-            best = (damage, lambda power=power: me_device_attacks.device_key(ctx.policy, power, direction))
+        if damage > 0 and (best is None or damage > best[0]):   # a tie keeps the ordinary use
+            best = (damage, lambda power=power: me_device_attacks.device_key(
+                ctx.policy, power, direction, snapshot))
     return best
 
 
@@ -1132,13 +1138,16 @@ def _reaches_grid(power) -> bool:
 
 
 def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
-                  missiles: bool = True) -> list:
+                  missiles: bool = True, covers=None) -> list:
     """(expected damage, key maker) of every attack aimed at ``grid``; ``piercing``: only one that
     passes the bodies on the way (a beam, a ball or a breath aimed at the grid); ``missiles``:
-    the launcher too."""
+    the launcher too; ``covers``: only a ball or breath whose radius reaches that cell from
+    ``grid`` (a burst planned off the target with a Powerful Activation's radius 3, which a
+    radius-2 ball aimed there would miss)."""
+    reach = None if covers is None else quest_exposure.game_distance(tuple(grid), tuple(covers))
     options = [(damage, lambda make=make: make(grid))
                for damage, radius, shape, make in _ball_powers(ctx, race)
-               if not area_only or shape == "ball"]
+               if (not area_only or shape == "ball") and (reach is None or radius >= reach)]
     if not area_only:
         if (beam := _beam_key(ctx, race, grid)) is not None:
             options.append(beam)
@@ -1151,9 +1160,10 @@ def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_on
 
 
 def _fire_at(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
-             missiles: bool = True) -> str | None:
+             missiles: bool = True, covers=None) -> str | None:
     """The strongest attack aimed at ``grid`` (「一番ダメージの出る攻撃」), of ``_fire_options``."""
-    options = _fire_options(ctx, grid, race, piercing=piercing, area_only=area_only, missiles=missiles)
+    options = _fire_options(ctx, grid, race, piercing=piercing, area_only=area_only, missiles=missiles,
+                            covers=covers)
     for _damage, make in sorted(options, key=lambda row: -row[0]):
         key = make()
         if key is not None:
@@ -1828,7 +1838,7 @@ def _quyls(ctx: _Ctx, plan=None) -> str | None:
         return _haste(ctx) or _unseen_fire(ctx, cell, geo.QUYL, seen=seen)
     if ctx.here != stand:
         return _walk(ctx, {stand})
-    return _fire_at(ctx, centre, geo.QUYL, area_only=True)
+    return _fire_at(ctx, centre, geo.QUYL, area_only=True, covers=cell)
 
 
 def _tome_done(ctx: _Ctx) -> bool:
@@ -1883,7 +1893,7 @@ def _tome(ctx: _Ctx) -> str | None:
                 continue
             if ctx.here != stand:
                 return _walk(ctx, {stand})
-            return _haste(ctx) or _fire_at(ctx, found[1], geo.TOME, area_only=True)
+            return _haste(ctx) or _fire_at(ctx, found[1], geo.TOME, area_only=True, covers=tome)
     # Owner 2026-11-09 Q1 「見えない時は矢を撃たない。マスを狙う範囲の攻撃（取り込んだボール・ブレス
     # など）で削り、無ければ相手が見えるマスへ移って撃つ。」 and 「1に加え、倒しきれなければ下がる。
     # 生存を優先させたはず」 (「数行動で倒しきる見込みが無ければ、射線の外へ下がって休み、やり直す。」).
