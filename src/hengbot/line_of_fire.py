@@ -183,6 +183,10 @@ READERS = {
     ("quest_exposure", "projectable", "own_stop"):
         "projectable() over a fixed quest's map read from its file (its terrain kinds, "
         "PROJECTING_KINDS), not over the board: there is no policy or board to read",
+    ("quest_summon_answer", "_sight_line", "own_stop"):
+        "quest_exposure.projectable over QUEST_33's map (quest_alignment_split's sight map, the "
+        "doors as the board shows them) with the open cells computed once for the many cells the "
+        "lure weighs; the map's own reading, as quest_exposure's row",
     # fire_reaches: the survival gate's "under fire".
     ("policy_combat", "_forbid_wait_while_damaged", "fire_reaches"):
         "the survival gate: a visible hostile can shoot the player",

@@ -11,6 +11,12 @@ and ``speed_potions``, and may name
  * ``always_hasted``: the row's fight stays hasted (the arithmetic of its floors
    assumes it), so a scene doses whenever the haste is off.
 
+``teleport_scrolls_without_absorbed`` (QUEST_33, owner 2026-11-19 「Q33では離脱に取り込んだテレポート
+の杖の使用を許可する。ない場合はテレポートの巻物を40巻用意すること。」): a character with no absorbed
+Teleportation (me_capability ``has``) is asked that many Scrolls of Teleportation in
+``required_scrolls.teleport``'s place; one that has absorbed it keeps the row's count.  The resolved
+force carries it to acceptance, purchase, the Home withdrawal and departure alike.
+
 ``resolve`` answers with one force for this character, so acceptance, purchase, the
 town route and the fight all read the same counts through
 ``_strategy_force_for_snapshot``.  A row counts when the character's maximum HP,
@@ -29,7 +35,7 @@ is asked for: a character that cannot take the quest yet spends nothing on it.
 from __future__ import annotations
 
 from hengbot import attack_expectation, haste_read, me_capability, quest_one_turn_kill, quest_ranged_force
-from hengbot.model import SV_POTION_SPEED
+from hengbot.model import SV_POTION_SPEED, SV_STAFF_TELEPORTATION
 
 ALTERNATIVES = "force_alternatives"
 ROW_FIELDS = ("min_hp", "min_expected_dps", "heal_potions", "speed_potions")
@@ -62,8 +68,32 @@ def _speed_cost(policy, snapshot, row: dict) -> int:
     return int(row.get("speed_potions", 0))
 
 
+TELEPORT_SCROLLS_WITHOUT_ABSORBED = "teleport_scrolls_without_absorbed"
+
+
+def valid_teleport_scrolls(force: dict) -> bool:
+    """The schema (quest_strategies reads it at load)."""
+    value = force.get(TELEPORT_SCROLLS_WITHOUT_ABSORBED, 0)
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _teleport_scrolls(policy, snapshot, force: dict) -> dict:
+    """``required_scrolls.teleport`` raised to ``teleport_scrolls_without_absorbed`` for a character
+    with no absorbed Teleportation (module docstring)."""
+    floor = int(force.get(TELEPORT_SCROLLS_WITHOUT_ABSORBED, 0))
+    scrolls = force.get("required_scrolls")
+    if (not floor or not isinstance(scrolls, dict) or "teleport" not in scrolls
+            or me_capability.has(policy, snapshot, "staff", SV_STAFF_TELEPORTATION)):
+        return force
+    return {**force, "required_scrolls": {**scrolls, "teleport": max(int(scrolls["teleport"]), floor)}}
+
+
 def resolve(policy, snapshot, force: dict) -> dict:
     """``force`` with the row that serves this character merged in."""
+    return _teleport_scrolls(policy, snapshot, _resolve_row(policy, snapshot, force))
+
+
+def _resolve_row(policy, snapshot, force: dict) -> dict:
     one_turn = quest_one_turn_kill.tier(policy, snapshot, force) if quest_one_turn_kill.requirement(
         force) is not None else "full"
     if one_turn is None:

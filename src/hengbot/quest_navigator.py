@@ -119,9 +119,15 @@ class QuestFloorNavigator:
     split_board = None
     # The answer to a summon received (quest_summon_answer, QUEST_33 owner 2026-11-19): None,
     # "disengaging" (walking out of the summoner's and its summons' lines) or "disengaged"; the
-    # steps of that walk.  Same rule.
+    # steps of that walk.  After the disengage ("disengaged", then "luring", owner 2026-11-19
+    # 「まず離脱後の周辺状況を確認…少しずつ釣りだして数を減らす」): the group to reduce, monster index ->
+    # (race, last cell, can summon), replaced whole; the member being lured; the holds spent on it.
+    # Same rule.
     summon_state = None
     summon_walk = 0
+    summon_group = {}
+    summon_target = None
+    summon_hold = 0
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -184,6 +190,9 @@ class QuestFloorNavigator:
         self.split_board = None
         self.summon_state = None
         self.summon_walk = 0
+        self.summon_group = {}
+        self.summon_target = None
+        self.summon_hold = 0
         self.phase_battle = None
 
     def _q34_inscription_key(self, owner: Any, snapshot: Snapshot, adjacent: list[Any]) -> str | None:

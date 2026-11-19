@@ -29,7 +29,10 @@ The data (QUEST_25 gives the reasons of its cells):
    sides summon at each other that often (QUEST_33 does not);
  * ``summon_answer`` (QUEST_33, owner 2026-11-19 「召喚を何度受けても放棄しない」): each summon received
    is answered ahead of the plan's 即死 rung -- teleport on 即死, else the action that kills the
-   summoner, else disengage -- and the floor is never left for summons (quest_summon_answer).
+   summoner, else disengage -- and the floor is never left for summons (quest_summon_answer).  After
+   the disengage the plan's fight and walk give way to its steps (``after_key``): what acts on the
+   player is fought, summoners first; when safe, a rest; then the summoner and its summons are lured
+   out a few at a time until they are gone.
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
 door and the shot; teleported away, the same stand is walked back to with no limit on
@@ -569,7 +572,7 @@ def key(policy, snapshot) -> str | None:
     quest_room_light.note_floor_potion(policy, snapshot, navigator, plan)
     board = _Board(policy, snapshot, profile, navigator, plan)
     _note_ambush(policy, snapshot, navigator, plan, board)
-    quest_summon_answer.observe(snapshot, navigator, plan)
+    quest_summon_answer.observe(policy, snapshot, navigator, plan)
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
@@ -581,6 +584,9 @@ def key(policy, snapshot) -> str | None:
             or resist_potion.key(policy, snapshot)
             or quest_plan_base._restore(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
+            # QUEST_33 (owner 2026-11-19 「安全になったら休息してから…少しずつ釣りだして数を減らす」):
+            # after a disengage, the rest and the lure in the plan's walk's place.
+            or quest_summon_answer.after_key(policy, snapshot, navigator, plan, board)
             or quest_plan_base._rest(policy, snapshot, plan, board)
             or _ambush_key(policy, snapshot, navigator)
             # The shared ladders below would fight what is seen: the walk answers it here.
@@ -610,5 +616,8 @@ def key(policy, snapshot) -> str | None:
         or summon_response.key(policy, snapshot)
         or resist_potion.key(policy, snapshot)
         or _light_key(policy, snapshot, navigator, plan)
+        # QUEST_33 (owner 2026-11-19 「召還持ちを優先して周辺のモンスターを倒す」): after a disengage,
+        # what acts on the player, summoners first, then the rest and the lure.
+        or quest_summon_answer.after_key(policy, snapshot, navigator, plan, board)
         or _fight(policy, snapshot, profile, navigator, plan, board)
     )

@@ -468,6 +468,8 @@ FLOOR_PLANS = (
             ("quest_alignment_split.abort_key", FIRST),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
             ("quest_plan_base._restore", OWN), ("_out_of_line", OWN),
+            # QUEST_33, owner 2026-11-19 「安全になったら休息してから…少しずつ釣りだして数を減らす」.
+            ("quest_summon_answer.after_key", OWN),
             ("quest_plan_base._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
         Branch("an enemy", (
             # QUEST_33, owner 2026-11-19 「即死はテレポートで離脱。即死でなく、次の一行動で召喚主を
@@ -482,7 +484,9 @@ FLOOR_PLANS = (
             # The disengage walk held under the survival rungs.
             ("quest_summon_answer.walk_key", FIRST),
             ("summon_response.key", SUMMONS),
-            ("resist_potion.key", OWN), ("_light_key", OWN), ("_fight", OWN))),
+            ("resist_potion.key", OWN), ("_light_key", OWN),
+            # QUEST_33, owner 2026-11-19 「召還持ちを優先して周辺のモンスターを倒す」.
+            ("quest_summon_answer.after_key", OWN), ("_fight", OWN))),
     )),
 )
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from hengbot import quest25_plan, quest_alignment_split, quest_one_turn_kill, quest_summon_answer
+from hengbot import quest25_plan, quest_alignment_split, quest_force_rows, quest_one_turn_kill, quest_summon_answer
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, TVAL_POTION
 from hengbot.monrace_knowledge import _strip_jsonc
 
@@ -185,6 +185,8 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
     if not valid_force_alternatives(force):
         raise ValueError("force_alternatives rows must give min_hp, min_expected_dps, "
                          "heal_potions and speed_potions as non-negative numbers")
+    if not quest_force_rows.valid_teleport_scrolls(force):
+        raise ValueError("teleport_scrolls_without_absorbed must be a non-negative integer (quest_force_rows)")
     if quest_one_turn_kill.FIELD in force and not quest_one_turn_kill.valid(force[quest_one_turn_kill.FIELD]):
         raise ValueError("one_turn_kill must give race and hit_points as positive integers "
                          "and device_classes as an integer list (quest_one_turn_kill)")
