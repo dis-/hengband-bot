@@ -30,17 +30,31 @@ The game's side (C:/hengband/src):
 The figure is expected damage (hit chance and success rate in it) against the largest roll:
 the conservative reading of 「1ターンで倒せれば良い」.
 
-The hasted tier, owner 2026-11-19 「加速手段が十分なら135以上で良いとする」: a figure of at least
-``hasted_hit_points`` (135, the 30d8 average) is enough with ``haste_doses`` haste means carried.
-Hasted (+10) the player takes two actions to the monster's one (energy 20 against 10 at speed +0),
-so 2 x 135 = 270 lands before its next action, the summons it gets as at the 240 line.  The doses
-are counted by the existing reader of haste supplies: ``quest_force_rows.resolve`` asks the
-hasted row's ``speed_potions`` (an absorbed Speed power with that many charges at the reliable
-rate stands for them, ``_speed_cost``) and sets ``speed_required_to_depart``, so they are bought,
-checked at acceptance and carried in.  The fight doses before it engages the race (policy_quest,
-``haste_first``).
+Per 10 game turns (owner 2026-11-19 「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりの
+ダメージで評価して」, scope 「攻撃力の判定すべて」): 「1ターン」 is one turn at normal speed, 10 game
+turns, and the figure is the per-action one times the actions the character takes in them
+(attack_expectation.per_10_game_turns: speed_energy / 10).  It must reach ``hit_points / turns``
+at the speed the character will fight at:
 
-``tier`` is "full" (the 240 line), "hasted" (the 135 line) or None.  ``met`` (a tier) is the
+* "full": at the permanent speed (attack_expectation.permanent_speed: a timed haste in town
+  ends before the quest), so no haste is asked;
+* "hasted": only at the hasted speed, where the force assures a haste -- ``haste_doses`` (Q32:
+  the permanent speed + 10, ``quest_force_rows.resolve`` asks the doses, an absorbed Speed power
+  with that many charges at the reliable rate stands for them, and ``speed_required_to_depart``
+  carries them in; the fight doses before it engages the race, ``haste_first``) or an
+  ``always_hasted`` force (Q33: attack_expectation.always_hasted_speed, its own Speed supplies
+  already asked by the force);
+* None otherwise.
+
+The per-10-game-turn reading counts the haste itself, so the earlier hasted line
+(``hasted_hit_points`` 135 with two doses: 「加速手段が十分なら135以上で良いとする」, 2 x 135 = 270
+before the monster's next action at +10 against its +0) is the same 240 line read hasted: at a
++0 permanent speed one action of 120 is 240 per 10 game turns hasted.  The field is gone from
+the schema.  Recorded 2026-11-19 (permanent speed): n1-a life-531 +4 (energy 14) melee 496.9 ->
+695.6, n1-b life-411 +25 (35) 504.6 -> 1766.2, n1-c life-217 +6 (16) 231.8 -> 370.8: all three
+"full" (n1-c was "hasted" per action, with two doses asked).
+
+``tier`` is "full", "hasted" or None.  ``met`` (a tier) is the
 power condition: acceptance adds the hasted row's doses; ``quest_force_rows.resolve`` asks no
 kit of a character with no tier (a character that cannot take the quest spends nothing on it).
 ``non_urgent`` (owner 2026-11-19 「条件を満たした時だけ割り込む」): the quest keeps its place in
@@ -48,7 +62,15 @@ the fixed-quest order, but while ``met`` is false it is passed over (``holds_bac
 next quest is taken.
 
 ``turns`` (QUEST_33, owner 2026-11-19 「戦力は過剰に要求して良い」): the race's ``hit_points`` within
-that many player turns, so the one-turn figure must reach ``hit_points / turns``.  1 when absent.
+that many turns, so the figure per 10 game turns must reach ``hit_points / turns``.  1 when absent.
+An ``always_hasted`` force has one line, no tiers: owner 2026-11-19 (verbatim) 「Q33の受注条件は
+10ゲームターンあたり750のダメージを与える能力にする。女王アリを20ゲームターンで処理できる能力である。」,
+read at the speed the fight keeps (attack_expectation.always_hasted_speed; the owner's earlier
+「加速を考慮して」).  Met is "full", else None; its haste is the force's own (ten Speed doses), so no
+``haste_doses`` and no separate dose before the race.  Q33 (クイーン・アント 1500 HP in 20 game
+turns, ``turns`` 2): 750 per 10 game turns.  Recorded: n1-a (+4, fights at +14) 578.3 x 2.4 =
+1388.0 met; n1-b (+25, no dose at +10 or more) 415.0 x 3.5 = 1452.4 met; n1-c (+6, fights at +16)
+180.6 x 2.6 = 469.5 not met.
 
 ``means`` is the attack the fight uses on the race (quest executor): the one with the larger
 figure, melee on a tie.
@@ -81,8 +103,9 @@ def valid(value) -> bool:
             and isinstance(value.get("device_classes", []), list)
             and all(integer(item) for item in value.get("device_classes", []))
             and all(integer(value[name]) and 0 < value[name]
-                    for name in ("hasted_hit_points", "haste_doses", "turns") if name in value)
-            and ("hasted_hit_points" in value) == ("haste_doses" in value))
+                    for name in ("haste_doses", "turns") if name in value)
+            # The per-action hasted line is read per 10 game turns now (the module's docstring).
+            and "hasted_hit_points" not in value)
 
 
 def figures(policy, snapshot, force) -> dict[str, float]:
@@ -104,18 +127,48 @@ def figures(policy, snapshot, force) -> dict[str, float]:
 
 
 def best(policy, snapshot, force) -> float:
+    """The larger figure per player action."""
     return max(figures(policy, snapshot, force).values(), default=0.0)
 
 
-def tier(policy, snapshot, force) -> str | None:
-    """"full" (the figure reaches ``hit_points``), "hasted" (it reaches ``hasted_hit_points``:
-    the haste doses are asked by ``quest_force_rows.resolve``) or None."""
+def speeds(snapshot, force) -> dict[str, int | None]:
+    """{"permanent": ..., "hasted": ...}: the speeds the tiers read; "hasted" is None when the
+    force assures no haste."""
     required = requirement(force)
-    # ``turns`` (QUEST_33): the race's hit points within that many player turns.
-    figure = best(policy, snapshot, force) * int(required.get("turns", 1))
-    if figure >= int(required["hit_points"]):
+    hasted = None
+    if force.get("always_hasted"):
+        hasted = attack_expectation.always_hasted_speed(snapshot)
+    elif required is not None and "haste_doses" in required:
+        hasted = attack_expectation.hasted_speed(snapshot)
+    return {"permanent": attack_expectation.permanent_speed(snapshot), "hasted": hasted}
+
+
+def per_10_game_turns(policy, snapshot, force) -> dict[str, float | None]:
+    """``best`` per 10 game turns at each of ``speeds``."""
+    figure = best(policy, snapshot, force)
+    return {name: (None if speed is None else
+                   attack_expectation.per_10_game_turns(policy, snapshot, figure, speed=speed))
+            for name, speed in speeds(snapshot, force).items()}
+
+
+def needed(force) -> float:
+    """The damage per 10 game turns asked: ``hit_points`` over ``turns``."""
+    required = requirement(force)
+    return int(required["hit_points"]) / int(required.get("turns", 1))
+
+
+def tier(policy, snapshot, force) -> str | None:
+    """"full" (the figure per 10 game turns reaches ``needed`` at the permanent speed), "hasted"
+    (only at the speed the force's haste assures: the doses are asked by
+    ``quest_force_rows.resolve``) or None.  An ``always_hasted`` force reads its one line at the
+    speed its fight keeps: "full" or None."""
+    found, line = per_10_game_turns(policy, snapshot, force), needed(force)
+    if force.get("always_hasted"):
+        # One line at the speed the fight keeps (QUEST_33, owner 2026-11-19).
+        return "full" if found["hasted"] >= line else None
+    if found["permanent"] >= line:
         return "full"
-    if "hasted_hit_points" in required and figure >= int(required["hasted_hit_points"]):
+    if found["hasted"] is not None and found["hasted"] >= line:
         return "hasted"
     return None
 
@@ -159,9 +212,14 @@ def race(force) -> int | None:
 
 
 def details(policy, snapshot, force) -> dict:
-    """The readiness telemetry's entry."""
+    """The readiness telemetry's entry: the per-action figures, and the best of them per 10 game
+    turns at the tiers' speeds against ``required`` (hit points over turns)."""
     required = requirement(force)
-    return {"race": int(required["race"]), "required": int(required["hit_points"]),
-            "turns": int(required.get("turns", 1)),
+    timed = per_10_game_turns(policy, snapshot, force)
+    return {"race": int(required["race"]), "hit_points": int(required["hit_points"]),
+            "turns": int(required.get("turns", 1)), "required": round(needed(force), 1),
             **{name: round(value, 1) for name, value in figures(policy, snapshot, force).items()},
+            "per_10_game_turns": {name: (None if value is None else round(value, 1))
+                                  for name, value in timed.items()},
+            "speed": speeds(snapshot, force),
             "means": means(policy, snapshot, force), "tier": tier(policy, snapshot, force)}

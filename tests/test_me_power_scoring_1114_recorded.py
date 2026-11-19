@@ -181,7 +181,8 @@ class MePowerScoring1114RecordedTest(unittest.TestCase):
         self.policy._evaluate_fixed_quest_readiness(self.board, 25, require_target_town=False)
         force = self.policy._fixed_quest_readiness["strategy_force"]
         self.assertEqual(force["hp"]["required"], 850)  # condition 1's row
-        self.assertEqual(force["ranged"]["turn"], {"measured": 190.0, "required": 180.0})
+        # 190 an action; per 10 game turns (owner 2026-11-19) at the permanent speed (energy 19).
+        self.assertEqual(force["ranged"]["turn"], {"measured": 361.0, "per_action": 190.0, "required": 180.0})
         self.assertNotIn("ranged", force["failed"])
         # What remains are carries the shops sell.
         self.assertEqual(force["failed"], ["required_potions.restore_exp", "required_potions.restore_str"])

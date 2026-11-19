@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import return_start
-from hengbot import angband_cap, quest_optional_carry
+from hengbot import angband_cap, attack_expectation, quest_optional_carry
 from hengbot import spare_gear
 from hengbot.stair_destination import down_destination
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
@@ -5628,16 +5628,17 @@ class QuestMixin(OpeningRouteMixin):
             if sub_weapon is not None and snapshot.player.sub_hand_blows > 0
             else 0.0
         )
+        # Both hand-DPS values are damage per player action.  Owner 2026-11-19
+        # 「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで評価して」: the
+        # kill time reads them per 10 game turns at the modeled speed (a carried
+        # Speed dose counted, as the projection above), so FIXED_QUEST_TOUGHEST_KILL_TURNS
+        # is normal-speed turns.  Before, the output was per player turn at the
+        # board's speed (the dose's ratio only): a +0 character reads the same.
+        main_hand_output = attack_expectation.per_10_game_turns(
+            self, snapshot, main_hand_output, speed=modeled_speed)
+        sub_hand_output = attack_expectation.per_10_game_turns(
+            self, snapshot, sub_hand_output, speed=modeled_speed)
         melee_output = main_hand_output + sub_hand_output
-        # Both hand-DPS values are damage per player action. Convert their sum
-        # to output over baseline player turns so a carried Speed dose affects
-        # both sides of the same readiness projection.
-        speed_ratio = self._speed_energy(modeled_speed) / self._speed_energy(
-            snapshot.player.speed
-        )
-        main_hand_output *= speed_ratio
-        sub_hand_output *= speed_ratio
-        melee_output *= speed_ratio
         telemetry["toughest_hp"] = toughest.max_hp
         telemetry["main_hand_melee_output"] = main_hand_output
         telemetry["sub_hand_melee_output"] = sub_hand_output

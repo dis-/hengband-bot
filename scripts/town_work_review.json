@@ -20218,17 +20218,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "speed_valuation.py:loadout_energy": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: Total light radius of ``loadout`` (worn_light_radius of its slots).",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "speed_valuation.py:loadout_speed": {
     "classification": "data",
     "rows": [
@@ -21233,6 +21222,83 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "QUEST_33 owner 2026-11-19: the GOOD and EVIL summoners began summoning at each other (facing_casts_to_abort casts at a monster of the other side); Word of Recall through once_quest_recall.read_key (deliberate), the quest fails."
+  },
+  "attack_expectation.py:per_10_game_turns": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Scales a per-action damage figure to damage per 10 game turns at a speed (speed_valuation arithmetic); a number, no command."
+  },
+  "attack_expectation.py:permanent_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Reads the player's speed without a timed haste or slowness; a number, no command."
+  },
+  "attack_expectation.py:hasted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The permanent speed with one haste (+10); a number, no command."
+  },
+  "attack_expectation.py:always_hasted_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The speed an always_hasted quest row fights at (permanent + 10 below +10); a number, no command."
+  },
+  "quest_one_turn_kill.py:best": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The larger one-turn figure per action against the force's race; a number, no command."
+  },
+  "quest_one_turn_kill.py:per_10_game_turns": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The one-turn figure per 10 game turns at the permanent and the assured hasted speed; numbers, no command."
+  },
+  "speed_valuation.py:permanent_player_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Reads the board's player speed without a timed haste or slowness; a number, no command."
   },
   "quest_summon_answer.py:key": {
     "classification": "producer",

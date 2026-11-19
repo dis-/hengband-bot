@@ -67,6 +67,13 @@ def planned_unscored(policy: Any, snapshot: Any) -> bool:
 
 
 def ammo_unneeded(policy: Any, snapshot: Any) -> bool:
-    """Whether the character carries no ammunition (the second half of the decision)."""
+    """Whether the character carries no ammunition (the second half of the decision).
+
+    Read per player action, the one attack-power reading left out of the 2026-11-19 rule
+    「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで評価して」: the owner, asked
+    whether a fast Magic-Eater should then carry its arrows at 50F+, answered (verbatim)
+    「矢の件だけ違う。魔法道具が充実してくるタイミングなので単に弱い矢はいらない」.  So the shot is
+    weighed per action against the floor, and speed does not bring weak rounds back
+    (scripts/attack_time_lint_baseline.json records this comparison)."""
     return (planned_unscored(policy, snapshot)
             and shot_power_per_turn(policy, snapshot) < SHOT_POWER_FLOOR)
