@@ -43,6 +43,29 @@ _KEY = re.compile(r"m(?P<kind>[ABC])(?P<letter>[a-z0-9])"
                   r"(?:(?P<direction>[1-9])|@(?P<y>\d+),(?P<x>\d+))?")
 
 
+def aim_or_target(menu, step, seen, operation, walk_stage):
+    """get_aim_dir: the direction, or ``*`` to walk the target cursor (``walk_stage``) to the
+    step's ``goal`` (the shared answer of an ordinary use and a Powerful Activation's)."""
+    answer = menu.aim_stage(step, seen, operation)
+    return answer if step.goal is None else ("*", walk_stage)
+
+
+def walk_to_goal(step, seen, walk_stage):
+    """One key of the cursor walk to the burst grid ``step.goal``, from the published cursor."""
+    details = seen.reading.details
+    if seen.reading.kind != "target" or details.get("look") is not False:
+        raise ValueError("unowned Magic-Eater target prompt")
+    if details.get("free") is not True:
+        return "p", walk_stage
+    cursor = (details.get("y"), details.get("x"))
+    if not all(isinstance(value, int) for value in cursor):
+        raise ValueError("target cursor not published")
+    if cursor == step.goal:
+        return "t", "done"
+    dy, dx = (step.goal[0] - cursor[0], step.goal[1] - cursor[1])
+    return DIRECTION_KEYS[((dy > 0) - (dy < 0), (dx > 0) - (dx < 0))], walk_stage
+
+
 def _owns_utility_reason(owner):
     return isinstance(owner, str) and owner.startswith(me_powers.REASON + ":")
 
@@ -92,23 +115,10 @@ class DeviceMenu(MagicEaterMenu):
     unasked_stages = frozenset({"aim", "target"})
 
     def _aim_or_target_stage(self, step, seen, operation):
-        answer = self.aim_stage(step, seen, operation)
-        return answer if step.goal is None else ("*", "target")
+        return aim_or_target(self, step, seen, operation, "target")
 
     def _target_stage(self, step, seen, operation):
-        """One key of the cursor walk to the burst grid, from the published cursor."""
-        details = seen.reading.details
-        if seen.reading.kind != "target" or details.get("look") is not False:
-            raise ValueError("unowned Magic-Eater target prompt")
-        if details.get("free") is not True:
-            return "p", "target"
-        cursor = (details.get("y"), details.get("x"))
-        if not all(isinstance(value, int) for value in cursor):
-            raise ValueError("target cursor not published")
-        if cursor == step.goal:
-            return "t", "done"
-        dy, dx = (step.goal[0] - cursor[0], step.goal[1] - cursor[1])
-        return DIRECTION_KEYS[((dy > 0) - (dy < 0), (dx > 0) - (dx < 0))], "target"
+        return walk_to_goal(step, seen, "target")
 
     stages = {"kind": MagicEaterMenu.kind_stage,
               "power": MagicEaterMenu.power_stage,

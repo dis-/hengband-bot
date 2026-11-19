@@ -11,12 +11,21 @@ shows screen_object (spell-kind/spells-perception.cpp).  Every answer is gated
 on its own observed prompt; the racial letter and the power letter are read
 from the displayed lists.  A power the list shows empty is cancelled with ESC
 (``do_cmd_magic_eater`` returns false, so no hit points are paid).
+
+An absorbed attack power cast through Powerful Activation (me_device_attacks.powered, owner
+``POWERFUL_REASON``: ``U`` + kind + power + a direction or ``@y,x``) walks the same racial, kind
+and power answers, then get_aim_dir exactly as an ordinary use (cmd-magiceat.cpp:513-516 for an
+aimed rod, :533-536 for a wand: the direction, or ``*`` and the target cursor's walk to the grid,
+me_device_attacks_input ``aim_or_target`` / ``walk_to_goal``).  The device's failure is drawn
+before get_aim_dir (cmd-magiceat.cpp:492-504), so the command screen at the aim is a failed use.
 """
 
 from dataclasses import dataclass
 import re
 
 from hengbot.input_executor import Continuation, ScreenKind
+from hengbot.me_device_attacks import POWERFUL_REASON, POWERS
+from hengbot.me_device_attacks_input import aim_or_target, walk_to_goal
 from hengbot.me_menu import ESC, LIST_CHOICE_KINDS, MagicEaterMenu, label_in_view, owned_item_prompt
 from hengbot import me_powerful_activation as powerful
 from hengbot import me_powers
@@ -31,6 +40,8 @@ _RACIAL_ROW = re.compile(
     + r")\s+\d+\s+\d+\s+\d+%")
 FULL_IDENTIFY_PROMPTS = ("どのアイテムを*鑑定*しますか?", "*Identify* which item?")
 _KEY = re.compile(r"U(?P<kind>[ABC])(?P<letter>[a-z0-9])(?P<target>(?:/?[a-w])?)")
+_ATTACK_KEY = re.compile(r"U(?P<kind>[ABC])(?P<letter>[a-z0-9])"
+                         r"(?:(?P<direction>[1-9])|@(?P<y>\d+),(?P<x>\d+))?")
 
 
 @dataclass(frozen=True)
@@ -40,9 +51,26 @@ class PowerfulStep(Continuation):
     target: str = ""
     stage: str = "racial"
     attempts: int = 0
+    attack: bool = False                  # an absorbed attack power (me_device_attacks.POWERS)
+    goal: tuple[int, int] | None = None   # its burst grid (y, x), as DeviceStep's
+
+
+def _compile_attack(key):
+    match = _ATTACK_KEY.fullmatch(key)
+    if match is None:
+        raise ValueError("invalid Magic-Eater powerful attack")
+    kind, sval = me_powers.kind_of(match["kind"]), me_powers.decode_letter(match["letter"])
+    power = POWERS.get((kind, sval))
+    goal = (int(match["y"]), int(match["x"])) if match["y"] is not None else None
+    if power is None or power.aimed != bool(match["direction"] or goal):
+        raise ValueError("invalid Magic-Eater powerful attack")
+    return powerful.RACIAL_KEY, [PowerfulStep(frozenset(), match["direction"] or "", sval=sval,
+                                              kind=kind, attack=True, goal=goal)]
 
 
 def compile_powerful(key, owner):
+    if owner == POWERFUL_REASON:
+        return _compile_attack(key)
     match = _KEY.fullmatch(key)
     if match is None:
         return None
@@ -84,6 +112,8 @@ class PowerfulMenu(MagicEaterMenu):
     stall_text = "Powerful Activation menu made no progress"
     unexpected_text = "unexpected prompt after Powerful Activation answer"
     ended_stages = frozenset({"done", "viewer"})
+    # An attack's aim is asked only after the device's own roll succeeded (cmd-magiceat.cpp:492).
+    unasked_stages = frozenset({"aim", "cell"})
 
     def _racial_stage(self, step, seen, operation):
         answer = _racial_answer(seen.reading, seen.lines)
@@ -112,11 +142,19 @@ class PowerfulMenu(MagicEaterMenu):
             return ESC, "done"
         raise ValueError(self.unexpected_text)
 
+    def _aim_stage(self, step, seen, operation):
+        return aim_or_target(self, step, seen, operation, "cell")
+
+    def _cell_stage(self, step, seen, operation):
+        return walk_to_goal(step, seen, "cell")
+
     stages = {"racial": _racial_stage,
               "kind": MagicEaterMenu.kind_stage,
               "power": MagicEaterMenu.power_stage,
               "target": _target_stage,
-              "viewer": _viewer_stage}
+              "viewer": _viewer_stage,
+              "aim": _aim_stage,
+              "cell": _cell_stage}
 
     def nothing_absorbed(self, step, operation):
         """Only the failure itself: the board keeps its list."""
@@ -128,9 +166,13 @@ class PowerfulMenu(MagicEaterMenu):
                 or _owns_racial_prompt(seen.reading))
 
     def power_of(self, step):
+        if step.attack:
+            return POWERS[(step.kind, step.sval)]
         return powerful.activatable(step.kind, step.sval)
 
     def after_power(self, step):
+        if step.attack:
+            return "aim" if self.power_of(step).aimed else "done"
         return "target" if self.power_of(step).targeted else "done"
 
 

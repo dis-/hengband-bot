@@ -382,8 +382,8 @@ def _power_attack_key(policy, snapshot, target) -> str | None:
         return None
     power = ranked[0][1]
     if not power.aimed or _aligned(here, target.position):
-        return me_device_attacks.device_key(policy, power, direction)
-    return me_device_attacks.device_target_key(policy, power, target.position)
+        return me_device_attacks.device_key(policy, power, direction, snapshot)
+    return me_device_attacks.device_target_key(policy, power, target.position, snapshot)
 
 
 def _shot_key(policy, snapshot, target) -> str | None:

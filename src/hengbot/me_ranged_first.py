@@ -186,7 +186,7 @@ def _fixed_options(policy, snapshot, target, direction, *, torch=True, quest_flo
         choice = me_device_attacks.attack_choice(policy, snapshot, target, direction)
         if choice is not None:
             options.append((choice[0], lambda power=choice[1]: me_device_attacks.device_key(
-                policy, power, direction)))
+                policy, power, direction, snapshot)))
     if not applies(snapshot, quest_floor=quest_floor):
         return options
     if _missile_ready(policy, snapshot):
@@ -257,8 +257,8 @@ def _grid_options(policy, snapshot, target, *, quest_floor=False) -> list:
 
     def send(power):
         if not power.aimed:
-            return me_device_attacks.device_key(policy, power, direction)
-        return me_device_attacks.device_target_key(policy, power, target.position)
+            return me_device_attacks.device_key(policy, power, direction, snapshot)
+        return me_device_attacks.device_target_key(policy, power, target.position, snapshot)
 
     if snapshot.floor_key[2] != 1:
         choice = me_device_attacks.attack_choice(policy, snapshot, target, direction)
@@ -338,7 +338,7 @@ def _adjacent_options(policy, snapshot, target, direction) -> list:
     if snapshot.floor_key[2] != 1:
         best = me_device_attacks.strongest(policy, snapshot, target, direction)
         if best is not None:
-            options.append((best[0], lambda: me_device_attacks.device_key(policy, best[1], direction)))
+            options.append((best[0], lambda: me_device_attacks.device_key(policy, best[1], direction, snapshot)))
     if applies(snapshot):
         if _missile_ready(policy, snapshot):
             options.append(_missile_option(policy, snapshot, target, direction,

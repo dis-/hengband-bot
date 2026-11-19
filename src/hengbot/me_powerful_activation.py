@@ -36,6 +36,13 @@ Rules: once a power is absorbed (``me_capability.has``) its scroll is never
 bought or required (the ``me_capability.REPLACES`` rows of the *Identify* and
 *Remove Curse* scrolls), and the town work it serves is this module's
 ``town_key``.  Only these two powers.
+
+Absorbed attack powers (owner 2026-11-19 「魔道具術師の遠距離攻撃の選択肢に協力発動も入れたい」):
+me_device_attacks offers each one a second time cast through this power (``powered``) while
+``pays_safely`` holds, and its key ``U`` + kind + power + direction or ``@y,x`` notes the cost
+(``note_attack``).  The cost is paid on a failed device use too: do_cmd_magic_eater returns true
+after its failure message, so racial_power_reduce_mana still runs (cmd-magiceat.cpp:492-504,
+cmd-racial.cpp:493-498); a power the list shows empty is closed with ESC and pays nothing.
 """
 
 from __future__ import annotations
@@ -380,6 +387,18 @@ def _use(policy, snapshot, effect, target, signature, reason: str | None = None)
                     else None)
     policy.last_reason = reason or effect.reason
     return effect.key + (_address(target) if effect.targeted else "")
+
+
+def note_attack(policy, snapshot, kind: str, sval: int, reason: str) -> None:
+    """An absorbed attack power cast through Powerful Activation (me_device_attacks.powered):
+    its HP cost is noted as ``_use`` notes a town use's, so ``own_cost`` reads the drop it pays
+    on the next board as no hit.  No target and no attempt count: the attack's charge is the
+    power list's, read again under every use."""
+    memory = _memory(policy)
+    memory.pending = (Effect(f"attack:{kind}:{sval}", sval, False, kind), None, snapshot.turn)
+    memory.__dict__["pending_reason"] = reason
+    memory.__dict__["paid_from"] = (snapshot.turn, snapshot.player.hp)
+    memory.rekey = None
 
 
 def spare_identify_key(policy, snapshot) -> str | None:
