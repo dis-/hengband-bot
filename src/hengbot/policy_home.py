@@ -3545,7 +3545,7 @@ class HomeMixin:
                 STORE_HOME, need="weight-overload")
             and (home_visit is None
                  or home_visit.attempts_used < home_visit.attempt_limit)
-            and ((ledger.unsatisfied_passes[STORE_HOME] < self._town_store_visit_limit(STORE_HOME)
+            and ((self._home_unsatisfied_passes() < self._town_store_visit_limit(STORE_HOME)
                   and ledger.approach_fails[STORE_HOME] < self._town_store_visit_limit(STORE_HOME))
                  or (home_visit is not None and home_visit.active))
         )

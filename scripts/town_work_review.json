@@ -20822,6 +20822,50 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Pure estimate of a thrown lit torch's damage per action against a monster; no command."
   },
+  "attack_expectation.py:_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure read: the target's race knowledge from the policy's monrace table (or None). No command of its own."
+  },
+  "attack_expectation.py:_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure read: the target race's flags (empty when unknown), for the expected-damage estimates. No command of its own."
+  },
+  "attack_expectation.py:_torch_multiplier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure arithmetic: a thrown lit torch's slay/brand multiplier from the target's flags (throw-execution.cpp torch_flags). No command of its own."
+  },
+  "attack_expectation.py:_thrown": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure estimate shared by torch_throw and plain_throw: a thrown item's hit chance at the target's armour and distance times its damage on a hit, capped by the target's HP; the rival me_ranged_first._device_over weighs a Magic-Eater's absorbed power against when it has no rounds. No command of its own."
+  },
   "threat_projection.py:_device_paced": {
     "classification": "data",
     "rows": [
@@ -20898,6 +20942,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-18 「魔道具術師は魔法道具の力で読む」: called by policy_quest._q2_ranged_core_key (Q2, Q22, Q31's ranged plan) before it fires; the Magic-Eater's device answer to the distant quest target when it out-damages the launcher's shot, or any damaging answer when no quest rounds are carried (the devices covered them). Its key comes from the reviewed senders through _device_over; no independent progress.",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:off_ray_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する。」: called by quest_plan_base._shot (the quest plans' shot: quest_room_sweep, quest25_battle, kill_all_patrol, quest_summon_answer) at a distant target off the eight rays; the Magic-Eater's absorbed power aimed at the target's cell when it out-damages the worn launcher's shot (none without rounds), or the breeder group's area attack. Its key comes from the reviewed breeder_area_attack.key and the senders through _device_over; never in town (_device_over); no independent progress.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:_launcher_ammo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure read: the ammunition policy._ranged_projectile would fire from the worn launcher, else None (a throw or nothing); the launcher's figure the device answers are weighed against. No command of its own."
   },
   "me_ranged_first.py:_device_over": {
     "classification": "producer",

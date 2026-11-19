@@ -274,7 +274,7 @@ def _grid_options(policy, snapshot, target, *, quest_floor=False) -> list:
     return options
 
 
-def stronger_than_launcher_key(policy, snapshot, target, ammo) -> str | None:
+def stronger_than_launcher_key(policy, snapshot, target, ammo, thrown=None) -> str | None:
     """The Magic-Eater's answer to a distant ``target`` the launcher is about to shoot,
     when it is stronger; None fires the launcher.
 
@@ -288,10 +288,15 @@ def stronger_than_launcher_key(policy, snapshot, target, ammo) -> str | None:
     the target: along a clear ray by direction (``_ranged_target``), else off the rays
     an absorbed power aimed at the cell over a clear projection path, never in town
     (the town's area rule reads the blast along a ray, catches_unbeatable_friendly).
-    The thrown torch is no device and stays out."""
-    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER or ammo is None:
+    The thrown torch is no device and stays out.
+
+    Without rounds (``ammo`` None) the rival is the rung's throw of ``thrown`` (a torch or a
+    flask of oil, attack_expectation.thrown_item), else nothing, and any damaging answer is
+    used: until 2026-11-19 a Magic-Eater with no rounds never cast its absorbed attack powers
+    at a distant enemy on an ordinary floor (the ranged rung returned before asking here)."""
+    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
         return None
-    return _device_over(policy, snapshot, target, ammo)
+    return _device_over(policy, snapshot, target, ammo, thrown=thrown)
 
 
 def quest_device_key(policy, snapshot, target, ammo) -> str | None:
@@ -306,9 +311,33 @@ def quest_device_key(policy, snapshot, target, ammo) -> str | None:
     return _device_over(policy, snapshot, target, ammo, quest_floor=True)
 
 
-def _device_over(policy, snapshot, target, ammo, *, quest_floor=False) -> str | None:
-    """The first answer that reaches ``target`` and out-damages the launcher's shot of ``ammo``
-    (none: 0)."""
+def off_ray_key(policy, snapshot, target) -> str | None:
+    """The Magic-Eater's answer to a distant ``target`` off the eight rays (a quest plan's shot,
+    quest_plan_base._shot), else None (the launcher's rung).
+
+    ``attack_key`` aims by direction, and a direction off the eight rays flies past the
+    target: Direction::get_target_position (floor/geometry.h) is the player's grid plus the
+    direction's vector times 99 unless the aim is a target (``5``/``*``), whose grid it is.
+    So off the rays the absorbed power is aimed at the cell (``@y,x``, _grid_options) over a
+    clear projection path (``_clear_projection``), and only when it out-damages the worn
+    launcher's shot (owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を
+    使用する」; ``_device_over``); with no launcher or rounds any damaging power answers.
+    n1-b life-411, Quest 33 (2026-11-19): 1,679 boards held ('5') with a Rock troll in a
+    clear line of fire off the rays and absorbed bolts and balls charged.  Confusion turns
+    get_aim_dir's aim at random and blindness hides the cell: neither aims here.  A breeder
+    beside the target or the player keeps the group's area attack first, as ``attack_key``."""
+    player = snapshot.player
+    if player.class_id != PLAYER_CLASS_MAGIC_EATER or player.confused or player.blind:
+        return None
+    beside = [monster for monster in snapshot.visible_monsters if monster.distance <= 1]
+    if (group := breeder_area_attack.key(policy, snapshot, [target, *beside])) is not None:
+        return group
+    return _device_over(policy, snapshot, target, _launcher_ammo(policy, snapshot))
+
+
+def _device_over(policy, snapshot, target, ammo, *, quest_floor=False, thrown=None) -> str | None:
+    """The first answer that reaches ``target`` and out-damages the launcher's shot of ``ammo``,
+    without rounds the throw of ``thrown`` (neither: 0)."""
     if policy._ranged_target(snapshot, [target]) is target:
         options = _fixed_options(policy, snapshot, target, _aim(snapshot, target), torch=False,
                                  quest_floor=quest_floor)
@@ -316,8 +345,13 @@ def _device_over(policy, snapshot, target, ammo, *, quest_floor=False) -> str | 
         options = _grid_options(policy, snapshot, target, quest_floor=quest_floor)
     else:
         return None
-    launcher = 0.0 if ammo is None else _timed(
-        policy, snapshot, attack_expectation.launcher_shot(policy, snapshot, target, ammo))
+    if ammo is not None:
+        rival = attack_expectation.launcher_shot(policy, snapshot, target, ammo)
+    elif thrown is not None:
+        rival = attack_expectation.thrown_item(policy, snapshot, target, thrown)
+    else:
+        rival = 0.0
+    launcher = _timed(policy, snapshot, rival)
     for score, send in options:
         if _timed(policy, snapshot, score) <= launcher:
             return None

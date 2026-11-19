@@ -716,6 +716,34 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "attack_expectation.py:_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:_race": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:_thrown": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "attack_expectation.py:_torch_multiplier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "attack_expectation.py:always_hasted_speed": {
     "classification": "data",
     "rows": [
@@ -5123,6 +5151,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "me_ranged_first.py:_launcher_ammo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_ranged_first.py:_strongest_adjacent_key": {
     "classification": "producer",
     "rows": [
@@ -5159,6 +5194,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_ranged_first.py:melee_refused_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "me_ranged_first.py:off_ray_key": {
     "classification": "producer",
     "rows": [
       "survival"
