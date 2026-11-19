@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from support.quest_supply_admitted import admit_all
 import gzip
 import hashlib
 import json
@@ -42,6 +43,7 @@ class QuestCarryDepartureRecordedTest(unittest.TestCase):
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
     def setUp(self):
+        admit_all(self)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
 

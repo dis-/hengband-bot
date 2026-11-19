@@ -12,6 +12,7 @@ cells of that map.  Monster data is the real MonraceDefinitions.  The owner appr
 file on 2026-11-05, withdrew it the same day (「直るまで受けない」) and restored it (「Q25の承認を戻す」).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+from support.quest_supply_admitted import admit_all
 
 import copy
 import gzip
@@ -1070,6 +1071,8 @@ class Q25WarningRefusedStepTest(unittest.TestCase):
 
 class Q25LightCountTest(unittest.TestCase):
     """Owner 2026-11-05 「半端にせず必要数用意すること」: rooms of the real map + what fire burned."""
+    def setUp(self):
+        admit_all(self)
 
     BURNED_ON_THE_RECORD = 2  # 4 -> 2, n1-b life-312 turn 11652737 (test_plan_floor_summons_1105_recorded)
 
@@ -1090,6 +1093,8 @@ class Q25LightCountTest(unittest.TestCase):
 class Q25LightShelfTest(unittest.TestCase):
     """An unbuyable requirement does not stop the town.  DECLARED CONSTRUCTED on Q25TownTest's recorded
     Outpost board; the Alchemist's shelf is built, Light being in its random table (articles-on-sale.cpp)."""
+    def setUp(self):
+        admit_all(self)
 
     @staticmethod
     def ware(count, price=20):
@@ -1135,6 +1140,8 @@ class Q25LightShelfTest(unittest.TestCase):
 class Q25TownTest(unittest.TestCase):
     """Giver and carries on the recorded Outpost board of tests/fixtures/q14-lv8-1102.json.gz.
     DECLARED CONSTRUCTED: its quest rows (every earlier quest finished) and the giver cell."""
+    def setUp(self):
+        admit_all(self)
 
     @staticmethod
     def town_board():
@@ -1207,6 +1214,7 @@ class Q25OptionalCarryTest(unittest.TestCase):
     WITHDRAW = "home-errand:atomic-withdraw:quest-optional-carry"
 
     def setUp(self):
+        admit_all(self)
         for name in ("_fixed_quest_ready", "_fixed_quest_ready_for_travel"):
             patcher = patch.object(ConservativePolicy, name, return_value=True)
             patcher.start()

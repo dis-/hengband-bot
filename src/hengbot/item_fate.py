@@ -113,9 +113,14 @@ def empty_identify_staff(item: Any) -> bool:
 
 
 def stock_reserved(policy: Any, snapshot: Any, probe: Any, item: Any) -> bool:
-    """Retention, ownership and the purchase ladder claim this stock."""
+    """Retention, ownership and the purchase ladder claim this stock.
+
+    A Home stack of a kind the untaken quest waiting for its other conditions carries stays
+    in the Home (quest_supply_gate.home_keeps, owner 2026-11-19 「条件がそろってから買い自宅に置く」)."""
+    from hengbot import quest_supply_gate
     return bool(
         policy._retention_reservation(probe, item) > 0
+        or quest_supply_gate.home_keeps(policy, snapshot, item)
         or policy._home_full_equipment_reserved(snapshot, item)
         or (policy._item_matches_purchase_rung(probe, item) and not empty_identify_staff(item)))
 
