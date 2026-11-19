@@ -5945,6 +5945,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "never_dispose.py:never_disposed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "once_quest_recall.py:read_key": {
     "classification": "producer",
     "rows": [

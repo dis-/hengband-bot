@@ -16,7 +16,7 @@ for is the supply leaves' (here already met) or the next visit's.
 
 Recorded: the stop's town-arrival checkpoint and all 106 journal rows
 (tests/extract_n1b_411_home_closed_pending_1120_fixture.py).  Rows 0-95 are decided through the
-public choose_key and compared with the record; rows 96-104 post the recorded keys (the replay
+public choose_key and compared with the record up to row 17 (see MATCHED); rows 17-104 post the recorded keys (the replay
 leaves the record at row 96, on main b77b2b7c68 alike: the live Home census answer was still in
 flight).
 
@@ -41,7 +41,11 @@ from support.town_arrival_fixture import load
 from test_n1a_531_overweight_1119_recorded import post
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-411-home-closed-pending-1120"
-MATCHED, STOP_ROW = 96, 105
+MATCHED, STOP_ROW = 17, 105
+# Rows 17-23 sold the carried Potion of Restore Life Levels, a kind the consumable table keeps at
+# Home: since owner 2026-11-20 (item_fate.supply_kept, tests/test_n1b_411_restore_mana_keep_
+# 1120_recorded) no relief sells it, and the replay leaves the record there (it matched up to
+# row 96 before); the later rows post the recorded keys.
 POTION = ("耐性の薬 {@2}", 75, 60)
 
 
@@ -101,6 +105,9 @@ class N1b411HomeClosedPending1120RecordedTest(unittest.TestCase):
         self.assertTrue(policy._town_store_blocked_under_applicable_bound(STORE_HOME))
         key = policy.choose_key(board)
         self.assertNotEqual(policy.last_reason, "town:blocked:unmet:home_pending_item_clear")
+        # The release runs on every town decision that routes the next store
+        # (_next_required_store_type); this board's decision may be another owner's first.
+        policy._release_unservable_home_latches()
         self.assertIsNone(policy._home_pending_item)
         self.assertIn(POTION, policy._deferred_home_items)
         self.assertTrue(policy._town_departure_ready(board))

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from hengbot.model import TVAL_STAFF, TVAL_WAND
+from hengbot.never_dispose import DISPOSAL_SINKS, never_disposed
 from hengbot.town_pack_budget import home_take_fits, incoming_slots, permits
 
 from contextvars import ContextVar
@@ -76,6 +77,10 @@ ITEM_RESERVATION_SOURCES = {
     '_town_visit_purchases': ('retention', 'Observed purchased signatures protect existing retention, without an exclusive owner'),
     '_town_visit_purchase_record': ('retention', 'The written copy of the observed visit purchases, restored after a restart, without an exclusive owner'),
 }
+
+# The owner a never-disposed item's disposal is refused to (never_dispose).
+NEVER_DISPOSED_OWNER = "never-disposed"
+
 
 @dataclass(frozen=True)
 class ReservationVerdict:
@@ -356,6 +361,9 @@ def _view(policy, snapshot):
 def item_reserved_by_other(policy, snapshot, item, work) -> ReservationVerdict | None:
     """Pure ownership predicate. work is (owner, sink); None means unreserved."""
     owner, sink = work
+    if sink in DISPOSAL_SINKS and not isinstance(item, str) and never_disposed(snapshot, item):
+        # Owner 2026-11-20 「絶対に売ってはならない」: no owner sells, destroys or drops it.
+        return ReservationVerdict(sink, NEVER_DISPOSED_OWNER)
     if sink == 'buy':
         # Merchant stock is external to the bot's reservations. Home stock
         # is selected with the withdraw sink and retains the ownership check.
