@@ -336,6 +336,10 @@ def _next_stop(navigator, plan) -> None:
     if navigator.sweep_stage >= len(_stops(plan)):
         navigator.sweep_stage = 0
         navigator.sweep_round += 1
+        # A round walked with no hostile on any board: the stops find nothing more (n1-c life-217,
+        # Quest 33, 2026-11-20 00:45-01:22: [20,39] and the two last targets walked round 12 times).
+        navigator.sweep_found_nothing = not navigator.sweep_round_contact
+        navigator.sweep_round_contact = False
 
 
 def _light_key(policy, snapshot, navigator, plan) -> str | None:
@@ -359,6 +363,12 @@ def _last_target_key(policy, snapshot, navigator, plan, stop) -> str | None:
         return policy._step_toward(snapshot, Position(*door))
     _next_stop(navigator, plan)
     return None
+
+
+def _tracked_living(policy, snapshot, navigator, plan) -> bool:
+    split = quest_alignment_split.split_of(plan)
+    return bool(split) and any(quest_alignment_split.living(policy, snapshot, navigator, plan, race) > 0
+                               for race in split["tracked_races"])
 
 
 def _light_due(policy, snapshot, navigator, plan, stop) -> bool:
@@ -424,6 +434,19 @@ def _hold_key(policy, snapshot, navigator, plan, stop) -> str | None:
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
+    # Owner 2026-11-13 「全滅クエストで作戦を終えても終わらない時は周回して探す・感知があれば感知して探す」
+    # and 2026-11-20 「残りの敵を探す時は感知を使うこと」: a round of the stops met no hostile, the quest
+    # is open and no tracked summoner lives (the split no longer refuses a cell): the plan's walk is
+    # over and kill_all_patrol detects, hunts what it shows and patrols (its own rounds, then its
+    # named stop).  Asked here: a None from this plan would fall to the fixed quest's hold.
+    if navigator.sweep_found_nothing and not _tracked_living(policy, snapshot, navigator, plan):
+        from hengbot import kill_all_patrol   # it reads the navigator, which imports this module
+
+        patrolled = kill_all_patrol.key(policy, snapshot)
+        if patrolled is not None:
+            return patrolled
+        policy.last_reason = NOTHING_LEFT_REASON
+        return WAIT_KEY
     # Owner 2026-11-20 「残りの敵を探す時は感知を使うこと」: a tracked race's members not known, the
     # detection before the plan chooses where to wait or where to go (quest_detect_remaining).
     if (detected := quest_detect_remaining.key(policy, snapshot, navigator, plan)) is not None:
@@ -519,6 +542,8 @@ def walk_key(policy, snapshot) -> str | None:
     navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
     quest_detect_remaining.observe(policy, snapshot, navigator, plan)
+    if any(monster.hostile for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)):
+        navigator.sweep_round_contact = True
     _note_gone(policy, snapshot, navigator, plan)
     return _advance(policy, snapshot, navigator, plan)
 
@@ -680,6 +705,8 @@ def key(policy, snapshot) -> str | None:
     navigator = _navigator(policy, snapshot, quest_id)
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
     quest_detect_remaining.observe(policy, snapshot, navigator, plan)
+    if any(monster.hostile for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)):
+        navigator.sweep_round_contact = True
     _note_gone(policy, snapshot, navigator, plan)
     _note_last_seen(snapshot, navigator, plan)
     quest_room_light.note_floor_potion(policy, snapshot, navigator, plan)

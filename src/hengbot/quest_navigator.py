@@ -157,6 +157,10 @@ class QuestFloorNavigator:
     # Same rule.
     remain_seen = {}
     remain_detections = ()
+    # A hostile on a board of the current round of the sweep's stops; the last round met none
+    # (quest_room_sweep: the walk hands the floor to kill_all_patrol).  Same rule.
+    sweep_round_contact = False
+    sweep_found_nothing = False
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -233,6 +237,8 @@ class QuestFloorNavigator:
         self.open_tries = ()
         self.remain_seen = {}
         self.remain_detections = ()
+        self.sweep_round_contact = False
+        self.sweep_found_nothing = False
         self.summon_chase = None
         self.phase_battle = None
 
