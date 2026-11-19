@@ -605,6 +605,26 @@ class OptimizationResult:
     chosen_depth: int | None = None
     band_decisions: tuple[BandDecision, ...] = ()
     chosen_decision: BandDecision | None = None
+    # Every valid set of the chosen band (the whole field without a band when
+    # ``depth`` is given); empty after a timeout.  The single-slot closure
+    # expands around its strongest-melee sets (melee_leaders).
+    chosen_band_entries: tuple[EvaluatedLoadout, ...] = ()
+
+
+def melee_leaders(
+    entries: Iterable[EvaluatedLoadout], count: int,
+) -> tuple[EvaluatedLoadout, ...]:
+    """The ``count`` sets with the most melee per game time among ``entries``
+    that clear SUFFICIENT_SURVIVAL_TURNS (the sets that can anchor the 95% cut
+    of _stable_operational_best), best first; ties by item ids."""
+    eligible = [
+        entry for entry in entries
+        if entry.metrics.survival_turns >= SUFFICIENT_SURVIVAL_TURNS
+    ]
+    eligible.sort(key=lambda entry: (
+        -time_melee(entry.metrics), tuple(sorted(entry.loadout.item_ids)),
+        entry.loadout.hand_mode))
+    return tuple(eligible[:count])
 
 
 LoadoutEvaluator = Callable[[Loadout], LoadoutMetrics]
@@ -2068,4 +2088,5 @@ def optimize_loadout(
         chosen_depth=chosen_depth,
         band_decisions=tuple(band_decisions),
         chosen_decision=chosen_decision,
+        chosen_band_entries=() if timed_out else tuple(evaluated),
     )

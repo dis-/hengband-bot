@@ -27,6 +27,7 @@ from hengbot.equipment_optimizer import (
     slot_for,
     owned_armor_fill_slots,
     lighting_light_candidate,
+    melee_leaders,
 )
 from hengbot.equipment_transaction_planner import (
     EquipmentTransactionPlan,
@@ -99,6 +100,9 @@ REPRESENTATIVE_EVALUATION_WORKLOAD_THRESHOLD = 12_000
 INCREMENTAL_SEARCH_CATALOG_THRESHOLD = 44
 FREE_ACTION_PRESERVE_DEPTH = 10
 TR_FREE_ACT = 46
+# The strongest-melee sets of the chosen band whose neighbourhoods the
+# single-slot closure also expands (owner 2026-11-20, n1-b life-411).
+CLOSURE_MELEE_LEADERS = 3
 
 
 def _loadout_key(loadout: Loadout) -> tuple[frozenset[str], str]:
@@ -127,19 +131,40 @@ def optimize_single_slot_closure(
     because every pass expands a loadout not expanded before, from a finite
     catalog.  Each pass is one optimization under the search's own time
     budget; the evaluator cache keeps the loadouts already scored.
+
+    The field also holds the neighbourhoods of the CLOSURE_MELEE_LEADERS sets
+    with the most melee per game time among the chosen band's sets that clear
+    the 30-turn survival floor (owner 2026-11-20 「案A：打撃の上位3つの周りも
+    探す」).  The best of them anchors the 95% melee cut, so a set the chosen
+    one never neighbours can still decide the choice.  n1-b life-411
+    (2026-11-20 06:01, 81F band): with ★運命のオーブ worn the one-swap field
+    chose the worn set (1926.7 melee per time, ratio 133.55); its neighbour
+    ★飛行石 (1980.2, 130.66) lost inside the 1% ratio band.  The 飛行石 set's
+    own neighbour ★炎の鉄ゲタ (2067.4; the boots alone fall to +23 speed,
+    under the 81F +25 gate) lifts the cut to 1964 and the 飛行石 set wins -
+    and from the 飛行石 set the closure stays.  Both were fixed points of the
+    winner-only closure, so the worn one stayed.
     """
     candidates: dict[tuple[frozenset[str], str], Loadout] = {}
     expanded: set[tuple[frozenset[str], str]] = set()
-    seed = current
+    seeds = [current]
     while True:
-        expanded.add(_loadout_key(seed))
-        for loadout in neighbours(seed):
-            candidates.setdefault(_loadout_key(loadout), loadout)
+        for seed in seeds:
+            expanded.add(_loadout_key(seed))
+            for loadout in neighbours(seed):
+                candidates.setdefault(_loadout_key(loadout), loadout)
         result = optimize(tuple(candidates.values()))
         best = result.best
-        if best is None or result.timed_out or _loadout_key(best.loadout) in expanded:
+        if best is None or result.timed_out:
             return result
-        seed = best.loadout
+        seeds = []
+        for entry in (best, *melee_leaders(
+                result.chosen_band_entries, CLOSURE_MELEE_LEADERS)):
+            key = _loadout_key(entry.loadout)
+            if key not in expanded and all(_loadout_key(seed) != key for seed in seeds):
+                seeds.append(entry.loadout)
+        if not seeds:
+            return result
 
 
 def blocker_leaves_no_target(blocker: str) -> bool:
