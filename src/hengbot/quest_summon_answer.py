@@ -210,6 +210,17 @@ def _out_of_lines(snapshot, navigator, watchers) -> bool:
 # forbids the absorbed one, quest_no_teleport).
 ABSORBED_FIRST_QUESTS = frozenset({33})
 
+# Owner 2026-11-19 「階段へ逃げず戦い続ける」 (on Q33 with the absorbed Teleportation, the scrolls and the
+# potions gone on a 即死 board): the quests on whose floors no escape leaves the level by a staircase
+# -- the emergency's walk to the up stair (policy_combat), its '<' (the exit lock's panic release,
+# policy_quest._quest_floor_exit_locked) -- and the player fights on.
+FIGHT_ON_QUESTS = frozenset({33})
+
+
+def fights_on(policy, snapshot) -> bool:
+    """On a ``FIGHT_ON_QUESTS`` floor: no stair escape, the fight goes on."""
+    return policy._active_fixed_quest_id(snapshot) in FIGHT_ON_QUESTS
+
 
 def absorbed_teleport_key(policy, snapshot, reason) -> str | None:
     """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation with a charge, cast as
