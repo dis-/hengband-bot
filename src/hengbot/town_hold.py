@@ -843,6 +843,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("home:full-destroy-", O, EFFECT),
         ("home:junk-sweep:", O, EFFECT),
         ("home:junk-sweep-withdraw", T, EFFECT),
+        ("home:cap-tidy-", T, EFFECT),
         ("home-visit:", T, EFFECT),
         ("home-disposal:", O, STORE_OPERATION),
         ("home-disposal:destroy-refused", T, EFFECT),
@@ -1799,7 +1800,7 @@ _RUNGS: tuple[Rung, ...] = (
             "home-errand:leave-for-knowledge:"),
     _decide("_overweight_surplus_sale_key", "shop-sell", "town:overweight-surplus-"),
     _decide("_home_full_relief_key", "home-visit", "home:full-",
-            "home:junk-sweep:", "home:junk-sweep-withdraw"),
+            "home:junk-sweep:", "home:junk-sweep-withdraw", "home:cap-tidy-"),
     _decide("_equipment_transaction_town_key", "equipment-txn",
             owns_transaction=True),                                    # 5765
     _decide("_equipment_transaction_town_owner_key", "equipment-txn",
