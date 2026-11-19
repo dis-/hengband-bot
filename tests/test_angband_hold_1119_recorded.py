@@ -119,7 +119,6 @@ class N1c217AngbandHoldTest(unittest.TestCase):
         # Unfixed: the Castle (its 64 is the deepest under 80 at the floor 60).
         self.assertIsNone(policy._pick_alternate_dungeon(
             board, max_entry_depth=79, prefer_deepest=True))
-        self.assertIsNone(policy._activate_safe_recall_fallback(board, 80))
         # A lord-kill trip's bounce or refusal goes back to Angband.
         self.assertEqual(policy._pick_alternate_dungeon(board, guardian_bounced_dungeon=CASTLE),
                          DUNGEON_ANGBAND)
@@ -144,7 +143,7 @@ class N1c217AngbandHoldTest(unittest.TestCase):
 
 
 class N1a530UnsafeAngbandTest(unittest.TestCase):
-    """Angband 50 refused (no *Destruction* means, no telepathy): no Castle band any more."""
+    """Angband 50 refused (no *Destruction* means, no telepathy): the Castle band (the exception)."""
 
     @classmethod
     def setUpClass(cls):
@@ -158,15 +157,17 @@ class N1a530UnsafeAngbandTest(unittest.TestCase):
         cls.arrival._home_disposal.history_path.unlink(missing_ok=True)
         cls.scratch.cleanup()
 
-    def test_the_unsafe_recall_fallback_takes_nothing(self):
+    def test_the_unsafe_recall_fallback_takes_the_castle_band(self):
         policy, board = copy.deepcopy(self.arrival), self.town
         self.assertEqual(policy._dungeon_entry_depth(board, DUNGEON_ANGBAND, via_recall=True), 50)
         self.assertEqual(policy._missing_required_abilities(board, 50),
                          {"destruction", "telepathy"})
         self.assertTrue(angband_hold.held(policy, board))
-        # Unfixed: the Castle band (owner 2026-11-17, test_n1a_530_castle_climb_1117_recorded).
-        self.assertIsNone(policy._activate_safe_recall_fallback(board, 50))
-        self.assertIsNone(policy._alternate_dungeon)
+        # Owner 2026-11-19 「この場合だけ城40F付近を許す」: the one exception to the hold.
+        self.assertEqual(policy._activate_safe_recall_fallback(board, 50), CASTLE)
+        self.assertEqual(policy._alternate_dungeon_reason, "safe_fallback")
+        self.assertTrue(dive_floor.refused_dive_held(policy, board))
+        self.assertFalse(angband_hold.settle(policy, board))
 
     def test_the_deepest_destination_is_angband_or_nothing(self):
         policy, board = copy.deepcopy(self.arrival), self.town
