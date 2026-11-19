@@ -18,7 +18,8 @@ out of its rows (the doses are carried, or an absorbed Speed power holds them).
 Recorded: n1-c life-217's town arrival of 2026-11-19 16:15 (tests/fixtures/quest33-haste-above-ten-1119,
 Magic-Eater, permanent +12 shown +22 yellow, max HP 948): melee 244.9 a turn against
 クイーン・アント, 538.9 per 10 game turns at +12 (it was read there, no dose at +10 or more) and
-783.8 at +22: the 750 line is met hasted; it is refused for blindness and fear and its HP.
+783.8 at +22: the 750 line is met hasted; it is refused for blindness and fear (its max HP 948
+meets QUEST_33's min_hp 350, tests/test_quest33_min_hp_p95).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -56,7 +57,7 @@ def readiness(policy, board):
 
 def at_speed(board, permanent):
     """DECLARED CONSTRUCTED: the board with that permanent speed (still hasted, yellow +10) and
-    the max HP Q33 asks, at full HP."""
+    a max HP of 1000 (over the 350 Q33 asks), at full HP."""
     return replace(board, player=replace(board.player, speed=permanent + 10, max_hp=1000, hp=1000))
 
 
@@ -71,10 +72,10 @@ class RecordedN1c1615Test(unittest.TestCase):
             self.assertEqual(found["per_10_game_turns"], {"permanent": 538.9, "hasted": 783.8})
             self.assertEqual(found["tier"], "hasted")
             verdict, telemetry, strategy = readiness(policy, board)
-            # Still refused: blindness and fear are missing (and max HP 948 is below 1000).
+            # Still refused: blindness and fear are missing (max HP 948 meets the 350).
             self.assertEqual((verdict, telemetry["reason"], strategy["failed"]),
                              (False, "strategy-force", ["resists"]))
-            self.assertEqual(strategy["hp"], {"measured": 948, "required": 1000})
+            self.assertEqual(strategy["hp"], {"measured": 948, "required": 350})
 
 
 class HastedTierAsksTheDosesTest(unittest.TestCase):

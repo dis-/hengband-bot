@@ -14,8 +14,8 @@ ready; the one Heroism short of 15 is the carry ``heroism_potions``; Q33's one_t
 failed (its always_hasted speed reading is another branch).
 
 DECLARED CONSTRUCTED: the same board with 15 Potions of Heroism and full HP (the recorded 553/948
-reads ``not-full-hp`` past the force: Q32 ready; Q33 then fails on its max HP 948 < 1000, which
-the carry shortage hid, and one_turn_kill); as a warrior (class 0) with the same telepathy (resist_blind is required again);
+reads ``not-full-hp`` past the force: Q32 ready; Q33 then fails on one_turn_kill only -- its max HP
+948 meets QUEST_33's min_hp 350 (owner 2026-11-19 「95%の値で計算し直す」, tests/test_quest33_min_hp_p95)); as a warrior (class 0) with the same telepathy (resist_blind is required again);
 without telepathy (likewise); with a lasting (equipment) fear resistance (no Heroism carry is
 asked); with a hero state only (temporary: the carry is still asked).
 """
@@ -95,9 +95,9 @@ class RecordedN1cTest(unittest.TestCase):
             verdict, strategy = readiness(policy, full, 32)
             self.assertEqual((verdict, strategy["failed"]), (True, []))
             verdict, strategy = readiness(policy, full, 33)
-            # Past the carries the force's own floors are read: max HP 948 < QUEST_33's 1000.
-            self.assertEqual((verdict, strategy["failed"]), (False, ["hp", "one_turn_kill"]))
-            self.assertEqual(strategy["hp"], {"measured": 948, "required": 1000})
+            # Past the carries the force's own floors are read: max HP 948 meets QUEST_33's 350.
+            self.assertEqual((verdict, strategy["failed"]), (False, ["one_turn_kill"]))
+            self.assertEqual(strategy["hp"], {"measured": 948, "required": 350})
 
     def test_a_warrior_with_telepathy_still_needs_resist_blind(self):
         scratch, policy, board = recorded()
