@@ -18,7 +18,7 @@ from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, hero
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import resist_alternatives, summoner_wait
-from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
+from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_sweep_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 from hengbot import amberite_curse, curse_cure, home_cap, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
 
 from collections import Counter, deque
@@ -2126,6 +2126,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # CLI points the path beside the decision log.  Read with getattr
         # defaults, so restored checkpoints without them record nothing.
         self._q25_battle_record_path = None
+        # The room sweep's kills' restart record (quest_sweep_record); the CLI points the path
+        # beside the decision log.
+        self._sweep_kill_record_path = None
         # The turn-free first read of each absorbed-power list a process lacks
         # (me_powers_refresh.resume_read_key); the CLI turns it on, a policy
         # built by a test asks for it as the CLI does.
@@ -2729,6 +2732,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         pingpong_guard.observe(self, snapshot)
         # The Q25 phase battle the previous process left on this floor visit.
         quest25_battle_record.observe(self, snapshot)
+        # The room sweep's kills the previous process read on this floor (quest_sweep_record).
+        quest_sweep_record.observe(self, snapshot)
         # A decision board is emitted only after the posted C macro returned
         # to the main loop, so its dump file is complete: read it once now.
         self._calibration_observed_equipment = tuple(snapshot.equipment)
@@ -3270,6 +3275,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         town_visit_plan.note_decision(self, snapshot, key)
         self._town_progress_note_command(key)
         quest25_battle_record.record(self, snapshot)
+        quest_sweep_record.record(self, snapshot)
         warning_cell_record.record(self, snapshot)
         # The walk the next board's pingpong guard reads is the one emitted (owner 2026-11-13 part 2).
         pingpong_guard.note_emitted(self, snapshot, key)

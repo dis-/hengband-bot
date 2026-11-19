@@ -375,6 +375,8 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'quest:blocked:q2-tower-recharge',
         'quest:blocked:me-staff',
         'quest:blocked:quest-patrol-rounds',
+        'quest:blocked:sweep-nothing-comes',
+        'quest:blocked:sweep-nothing-left',
         'town:blocked:departure-unsatisfiable',
         'town:blocked:destruction-means-spent-loop',
         'town:blocked:guardian-bounce-no-alternate',

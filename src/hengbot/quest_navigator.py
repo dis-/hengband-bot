@@ -117,6 +117,8 @@ class QuestFloorNavigator:
     # whole; and the board they were last read from.  Same rule.
     split_kills = {}
     split_board = None
+    # Each of those kills as (race, game turn), for the restart record (quest_sweep_record).  Same rule.
+    split_kill_turns = ()
     # The answer to a summon received (quest_summon_answer, QUEST_33 owner 2026-11-19): None,
     # "disengaging" (walking out of the summoner's and its summons' lines) or "disengaged"; the
     # steps of that walk.  After the disengage ("disengaged", then "luring", owner 2026-11-19
@@ -204,6 +206,7 @@ class QuestFloorNavigator:
         self.sweep_potion_carried = 0
         self.sweep_potion_due = False
         self.split_kills = {}
+        self.split_kill_turns = ()
         self.split_board = None
         self.summon_state = None
         self.summon_walk = 0
