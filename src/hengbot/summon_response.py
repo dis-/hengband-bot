@@ -373,16 +373,23 @@ def leave_key(policy, snapshot) -> str | None:
     if used is not None:
         memory.leave_turn = snapshot.turn
         return used
-    scroll = policy._escape_scroll(snapshot, teleport_only=True)
-    if scroll is None:
-        return None
+    from hengbot import quest_summon_answer
+
+    # Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: on its floors the
+    # absorbed Teleportation before the scroll (quest_summon_answer.ABSORBED_FIRST_QUESTS).
+    key = quest_summon_answer.absorbed_teleport_key(policy, snapshot, LEAVE_REASON)
+    if key is None:
+        scroll = policy._escape_scroll(snapshot, teleport_only=True)
+        if scroll is None:
+            return None
+        policy.last_reason = LEAVE_REASON
+        key = policy._read_key(snapshot, scroll)
     here = snapshot.player.position
     policy._claim_engagement_avoid_cells((here,), owner=LEAVE_REASON)
     if here in policy._explore_path:
         policy._clear_explore_path(ExplorationPathOutcome.INVALIDATE)
     memory.leave_turn = snapshot.turn
-    policy.last_reason = LEAVE_REASON
-    return policy._read_key(snapshot, scroll)
+    return key
 
 
 # -- 3. too many on one floor ---------------------------------------------------

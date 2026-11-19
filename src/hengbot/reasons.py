@@ -142,6 +142,11 @@ _rows(RELOCATING, "anaguma", _RULE_ALL, "anaguma:escape-scroll")
 _rows(RELOCATING, "summoner_wait", _RULE_ALL, "summoner:hold-teleport")
 # the answer to the summons (summon_response) and the no-chance Resistance leave (resist_potion)
 _rows(RELOCATING, "summon_response", _RULE_ALL, "summons:leave-teleport")
+# Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the same leave cast from the
+# absorbed Teleportation on Quest 33 (quest_summon_answer.absorbed_teleport_key); its "-staff" form is
+# teleport_follower.device_teleport_key's carried-staff reason, never sent here.
+_rows(RELOCATING, "summon_response", _RULE_ALL, "summons:leave-teleport:absorbed-power",
+      "summons:leave-teleport-staff")
 _rows(RELOCATING, ("summon_response", "once_quest_recall"), _RULE_ALL, "summons:recall")
 _rows(RELOCATING, "resist_potion", _RULE_ALL, "resist-potion:no-chance-teleport")
 # the item-destroying breeders' leave (policy_combat._item_destroying_breeder_leave_key)
@@ -228,6 +233,9 @@ _rows(WALK, "quest_summon_answer", "a walk out of the summoner's lines (owner 20
 # the walk to the pulling cell of a member of the group, and the rest before it.
 _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's lure after a disengage: a step toward the monsters",
       "quest-strategy:summoned-lure-walk", "quest-strategy:summoned-rest")
+# Owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」: the step toward the summoner gone after.
+_rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's chase of a summoner: a step toward it",
+      "quest-strategy:summoned-approach")
 _rows(EXCLUDED, "quest25_battle", _RULE_PLAN, "quest25:teleport")
 _rows(EXCLUDED, "breeder_quest", _RULE_PLAN + " (Q2's breeder breakthrough)", "breeder-breakthrough:teleport")
 _rows(NOT_ESCAPE, "policy_quest",

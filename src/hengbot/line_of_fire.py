@@ -86,8 +86,10 @@ from hengbot.projection_path import projection_path
 # Owner 2026-11-14 「数える」: these two keep counting as escapes.  The summons or the damage
 # reaching the player is taken as proof that a line of fire existed: summons:leave-teleport
 # leaves an unseen summoner that summoned twice (summon_response), no-wait:escape-scroll leaves
-# damage received from an unseen enemy (policy_combat's no-wait rung).
-PROOF_REASONS = frozenset({"summons:leave-teleport", "no-wait:escape-scroll"})
+# damage received from an unseen enemy (policy_combat's no-wait rung).  The leave's cast of the
+# absorbed Teleportation on Quest 33 (owner 2026-11-19) is the same leave.
+PROOF_REASONS = frozenset({"summons:leave-teleport", "summons:leave-teleport:absorbed-power",
+                           "no-wait:escape-scroll"})
 
 RECORD = "_escape_line_of_fire"
 BOARD = "_escape_line_of_fire_board"
