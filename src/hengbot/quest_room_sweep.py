@@ -24,8 +24,12 @@ The data (QUEST_25 gives the reasons of its cells):
  * ``light_dark_room``, ``opening_quaff``: quest_room_light;
  * ``exit_when_out_of_healing``: see below;
  * ``alignment_split`` (QUEST_33): no walk enters a cell where a GOOD and an EVIL summoner would
-   both act, a stop on one waits, a stop's ``after_races_dead`` waits for those races, and the
-   sides summoning at each other give the quest up (quest_alignment_split).
+   both act, a stop on one waits, and a stop's ``after_races_dead`` waits for those races
+   (quest_alignment_split); a plan naming ``facing_casts_to_abort`` gives the quest up once the
+   sides summon at each other that often (QUEST_33 does not);
+ * ``summon_answer`` (QUEST_33, owner 2026-11-19 「召喚を何度受けても放棄しない」): each summon received
+   is answered ahead of the plan's 即死 rung -- teleport on 即死, else the action that kills the
+   summoner, else disengage -- and the floor is never left for summons (quest_summon_answer).
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
 door and the shot; teleported away, the same stand is walked back to with no limit on
@@ -95,6 +99,7 @@ from hengbot import (
     quest_exposure,
     quest_plan_base,
     quest_room_light,
+    quest_summon_answer,
     resist_potion,
     summon_response,
     threat_tiers,
@@ -564,6 +569,7 @@ def key(policy, snapshot) -> str | None:
     quest_room_light.note_floor_potion(policy, snapshot, navigator, plan)
     board = _Board(policy, snapshot, profile, navigator, plan)
     _note_ambush(policy, snapshot, navigator, plan, board)
+    quest_summon_answer.observe(snapshot, navigator, plan)
     if not board.enemy:
         navigator.sweep_enemy_turns = 0
         return (
@@ -581,8 +587,11 @@ def key(policy, snapshot) -> str | None:
             or (_advance(policy, snapshot, navigator, plan, board.occupied) if board.left_alone else None)
         )
     return (
+        # QUEST_33 (owner 2026-11-19): a summon received is answered first -- teleport on 即死,
+        # else the killing action, else disengage.
+        quest_summon_answer.key(policy, snapshot, navigator, plan, board)
         # Owner 2026-11-07 「作戦が先・即死だけ例外」: only the 1-turn 即死 pre-empts the plan.
-        threat_tiers.instant_death_key(policy, snapshot, lambda: quest_plan_base._below_line(
+        or threat_tiers.instant_death_key(policy, snapshot, lambda: quest_plan_base._below_line(
             policy, snapshot, profile, navigator, line=False))
         or quest_plan_base._cure(policy, snapshot)
         or _leave_by_exit(policy, snapshot, navigator, plan, board)
@@ -595,6 +604,8 @@ def key(policy, snapshot) -> str | None:
         or _unseen_light(policy, snapshot, navigator, plan, board)
         # QUEST_33 (owner 2026-11-19): the sides have begun summoning at each other.
         or quest_alignment_split.abort_key(policy, snapshot, plan)
+        # QUEST_33 (owner 2026-11-19): the walk out of the summoner's lines, under the survival rungs.
+        or quest_summon_answer.walk_key(policy, snapshot, navigator, plan, board)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)
         or resist_potion.key(policy, snapshot)

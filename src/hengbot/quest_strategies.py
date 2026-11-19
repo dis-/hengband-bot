@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from hengbot import quest25_plan, quest_alignment_split, quest_one_turn_kill
+from hengbot import quest25_plan, quest_alignment_split, quest_one_turn_kill, quest_summon_answer
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, TVAL_POTION
 from hengbot.monrace_knowledge import _strip_jsonc
 
@@ -197,9 +197,13 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
     if isinstance(sweep, dict) and "alignment_split" in sweep and not (
             quest_alignment_split.valid(sweep["alignment_split"]) and quest_alignment_split.valid_stops(sweep)):
         raise ValueError("room_sweep.alignment_split must give tracked_races as positive integers, "
-                         "facing_casts_to_abort as a positive integer, good_summons_symbols as "
+                         "facing_casts_to_abort (if given) as a positive integer, good_summons_symbols as "
                          "one-character strings and each stop's after_races_dead among the tracked "
                          "races (quest_alignment_split)")
+    if isinstance(sweep, dict) and quest_summon_answer.FIELD in sweep and not quest_summon_answer.valid(
+            sweep[quest_summon_answer.FIELD]):
+        raise ValueError(f"room_sweep.summon_answer must be {quest_summon_answer.KILL_OR_DISENGAGE!r} "
+                         "(quest_summon_answer)")
     carry_names = {
         "throwing_items": {
             "lit_torch", "shot", "arrow", "bolt", "launcher_ammo",

@@ -470,12 +470,17 @@ FLOOR_PLANS = (
             ("quest_plan_base._restore", OWN), ("_out_of_line", OWN),
             ("quest_plan_base._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
         Branch("an enemy", (
+            # QUEST_33, owner 2026-11-19 「即死はテレポートで離脱。即死でなく、次の一行動で召喚主を
+            # 倒す見込みがあるなら戦闘。無理なら離脱。」: the summon received is answered first.
+            ("quest_summon_answer.key", FIRST),
             (INSTANT_DEATH, SURVIVAL),
             ("quest_plan_base._cure", SURVIVAL), ("_leave_by_exit", SURVIVAL),
             ("quest_plan_base._give_up", SURVIVAL), ("quest_plan_base._below_line", SURVIVAL),
             ("quest_plan_base._heal", SURVIVAL),
             ("quest_plan_base._speed", SURVIVAL), ("quest_room_light.floor_potion_key", FIRST),
             ("_unseen_light", FIRST), ("quest_alignment_split.abort_key", FIRST),
+            # The disengage walk held under the survival rungs.
+            ("quest_summon_answer.walk_key", FIRST),
             ("summon_response.key", SUMMONS),
             ("resist_potion.key", OWN), ("_light_key", OWN), ("_fight", OWN))),
     )),
