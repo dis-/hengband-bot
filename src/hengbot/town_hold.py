@@ -839,6 +839,7 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("home:full-leave-with-surplus", T, EFFECT),
         ("home:full-leave-for-identification-effect", T, EFFECT),
         ("home:full-queue-surplus-withdraw", T, EFFECT),
+        ("home:full-sale-other-store", T, EFFECT),
         ("home:full-deposit-deferred-no-legal-relief", T, EFFECT),
         ("home:full-destroy-", O, EFFECT),
         ("home:junk-sweep:", O, EFFECT),

@@ -13,7 +13,7 @@ import uuid
 from collections import deque
 
 from hengbot.control_client import KeyPostOutcome, KeyPostStatus, raw_keys_to_macro_notation
-from hengbot.model import TVAL_STAFF
+from hengbot.model import STORE_FULL_SALE_MESSAGES, TVAL_STAFF
 
 
 class ScreenKind(str, Enum):
@@ -1767,6 +1767,19 @@ class OperationExecutor:
                 self.active, "store-state",
                 "missing or mismatching current store page", match, outcome)
         if (
+            self.active.owner in _IN_STORE_OPERATION_OWNERS
+            and match.kind is ScreenKind.STORE
+            and any(
+                message in STORE_FULL_SALE_MESSAGES
+                for message in _operation_messages(screen_value, board)
+            )
+        ):
+            # A full store refused the sale (store_check_num): the tail's 'y'
+            # reached the command loop as a stray command, but the transport is
+            # sound.  The store is full for this visit, not the in-store path
+            # broken (n1-c life-217 2026-11-19 16:15:43 tripped the breaker on it).
+            self.active.business_outcome = "refused:store-full"
+        elif (
             self.active.owner in _IN_STORE_OPERATION_OWNERS
             and match.kind is ScreenKind.STORE
             and any(

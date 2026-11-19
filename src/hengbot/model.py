@@ -435,6 +435,13 @@ STORE_TEMPLE = 3
 STORE_ALCHEMIST = 4
 STORE_MAGIC = 5
 STORE_BLACK = 6
+# store/sell-order.cpp store_sell: store_check_num found no free slot (the store's stock limit,
+# store.cpp check_free_space): the sale did not happen, and its tail keys reach the store's
+# command loop (「そのコマンドは店の中では使えません。」).
+STORE_FULL_SALE_MESSAGES = frozenset({
+    "すいませんが、店にはもう置く場所がありません。",
+    "I have not the room in my store to keep it.",
+})
 STORE_HOME = 7
 
 DUNGEON_ANGBAND = 1
