@@ -535,6 +535,7 @@ from hengbot.warrior_loadout_search import (
     disposable_dominated_item_ids,
 )
 from hengbot.warrior_equipment_evaluator import melee_hit_chance
+from hengbot.model import STORE_FULL_SALE_MESSAGES
 from hengbot.model import (
     DUNGEON_ANGBAND,
     DUNGEON_CHAMELEON_CAVE,
@@ -5530,7 +5531,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 if survivor is None or survivor.count <= expected:
                     confirmed = True
             wait_count = int(pending.get("wait_count", 0))
-            if confirmed or (not in_store_board and wait_count + 1 >= STORE_STUCK_LIMIT):
+            if not confirmed and any(message in STORE_FULL_SALE_MESSAGES
+                                     for message in snapshot.messages):
+                # The store had no room (store/sell-order.cpp): no sale is coming.  Left
+                # waiting, the re-entered page found the posted sale still owning it and
+                # sent no key (n1-c life-217 2026-11-19 16:44, no-key-exhausted).
+                full_store = int(pending["store_type"])
+                self._close_store_visit("one-shot-sale-store-full")
+                self.note_store_full(full_store)
+            elif confirmed or (not in_store_board and wait_count + 1 >= STORE_STUCK_LIMIT):
                 pending_store = int(pending["store_type"])
                 self._batch_sell_key(
                     replace(snapshot, store=StoreState(pending_store, []))

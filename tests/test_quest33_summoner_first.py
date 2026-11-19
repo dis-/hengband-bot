@@ -39,7 +39,7 @@ from hengbot import (
 )
 from hengbot.model import Position
 from hengbot.quest_plan_base import _navigator
-from tests.test_quest33_alignment_split import QUEST, monster, on_floor, quest_dir, recorded
+from tests.test_quest33_alignment_split import QUEST, hasted, monster, on_floor, quest_dir, recorded
 from tests import test_quest33_summon_answer as summon_answer_tests
 
 MAX_HP = 1128
@@ -70,6 +70,7 @@ class Quest33SummonerFirstTest(unittest.TestCase):
         if quest_dir() is None:
             self.skipTest("the Hengband quest data is not available")
         self.scratch, self.policy, self.board = recorded("n1b-411")
+        self.board = hasted(self.board)  # the always-hasted fight keeps the haste (alignment_split.hasted)
         self.addCleanup(self.scratch.cleanup)
         self.grids = self._grids()
         for door in ((16, 39), (16, 40)):

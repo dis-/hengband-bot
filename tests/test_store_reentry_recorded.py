@@ -1207,6 +1207,18 @@ class InStoreExecutorTest(unittest.TestCase):
         ), deadline=9999999999)
         self.assertEqual(result.operation.business_outcome, "refused:store-command")
 
+    def test_a_full_store_refusal_is_reported_apart(self):
+        # n1-c life-217 2026-11-19 16:15:43 (decision 573): the full Magic shop's refusal
+        # and the sale's 'y' at the command loop, the two messages of that board.
+        messages = ["すいませんが、店にはもう置く場所がありません。",
+                    "そのコマンドは店の中では使えません。"]
+        game, executor = self._executor(
+            [store_screen()], [_store_record(2, 9000, messages)])
+        result = executor.submit(Operation(
+            8, "shop:in-store-sell", "d0y", executor.ready_board,
+        ), deadline=9999999999)
+        self.assertEqual(result.operation.business_outcome, "refused:store-full")
+
     def test_unowned_prompt_cancels_and_continues_at_a_fresh_barrier(self):
         game, executor = self._executor(
             [prompt_screen("(商品:a-b, ESCで中断) どれ? "),

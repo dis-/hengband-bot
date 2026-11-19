@@ -24,6 +24,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.item_identity import shelf_identity, without_any_block
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_visit import town_visit
+from hengbot import sale_progress
 
 from collections import Counter
 from contextlib import contextmanager
@@ -805,6 +806,12 @@ class InStoreMixin:
             self._in_store_entry_ledger = None
             self._close_store_visit("in-store-buy-refused")
             return
+        if business_outcome == "refused:store-full":
+            # The store has no room (store/sell-order.cpp): no sale happened, the
+            # in-store path is sound.  The store is full for this visit; the ware
+            # goes to another buyer (``note_store_full``), the breaker stays clear.
+            self.note_store_full(None)
+            return
         cause = {
             "failed:price-mismatch": "price-mismatch",
             "refused:store-command": "store-command-refused",
@@ -827,6 +834,33 @@ class InStoreMixin:
             visit.operation_key = None
             visit.claim_operation_identity = None
         self.trip_in_store_breaker(cause)
+
+    def note_store_full(self, store_type: int | None) -> None:
+        """A sale refused by a full store: the store takes no more sales this visit.
+
+        The sale's watches end with the operation that did not happen, the store visit
+        stops holding it, and the store joins the visit's refused stores
+        (``_store_sale_refused``), so every sale path picks another buyer.
+        """
+        pending = self._batch_sell_pending
+        visit = self._store_visit
+        if store_type is None:
+            store_type = (int(pending["store_type"]) if pending is not None
+                          else visit.store_type if visit is not None else None)
+        if store_type is not None:
+            self._store_sale_refused.add(store_type)
+        self._batch_sell_pending = None
+        sale_progress.end(self, batch=True, stuck=True)
+        ledger = getattr(self, "_in_store_entry_ledger", None)
+        if ledger is not None:
+            ledger["pending"] = None
+        if visit is not None and visit.operation_posted:
+            visit.operation_posted = False
+            visit.operation_released = False
+            visit.operation_key = None
+            visit.claim_operation_identity = None
+        self._in_store_note("store-full", {"store": store_type,
+                                           "decision_sequence": self._decision_sequence})
 
     def _in_store_cached_shop(self, observation) -> tuple[bool, str | None]:
         """The in-store ``_shop`` result of this observed page, if IST ran it."""

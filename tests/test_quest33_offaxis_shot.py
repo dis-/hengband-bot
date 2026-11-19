@@ -33,7 +33,7 @@ from dataclasses import replace
 from hengbot import line_of_fire, me_device_attacks, me_ranged_first, quest_plan_base, quest_room_sweep
 from hengbot.model import Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, WAIT_KEY
-from tests.test_quest33_alignment_split import QUEST, monster, on_floor, quest_dir, recorded
+from tests.test_quest33_alignment_split import QUEST, hasted, monster, on_floor, quest_dir, recorded
 from tests import test_quest33_summon_answer as summon_tests
 
 TOM, JART, SLEEPER_451 = 495, 517, 451
@@ -46,6 +46,7 @@ class Quest33OffAxisShotTest(unittest.TestCase):
         if quest_dir() is None:
             self.skipTest("the Hengband quest data is not available")
         self.scratch, self.policy, self.board = recorded("n1b-411")
+        self.board = hasted(self.board)  # the always-hasted fight keeps the haste (alignment_split.hasted)
         self.addCleanup(self.scratch.cleanup)
         self.grids = summon_tests.Quest33SummonAnswerTest._grids(self)
         self.assertIsNone(self.policy._ranged_projectile(self.board))  # no rounds to fire

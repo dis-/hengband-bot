@@ -47,7 +47,7 @@ class ReaderTest(unittest.TestCase):
     def test_the_speeds_of_the_recorded_boards(self):
         for name, current, permanent, hasted, always in (
                 ("n1a-531", 114, 114, 124, 124),
-                ("n1b-411", 135, 135, 145, 135),   # +10 or more: no dose (quest_plan_base._speed)
+                ("n1b-411", 135, 135, 145, 145),   # +10 or more doses too (owner 2026-11-19 「+10 以上でも飲んで読む」)
                 ("n1c-217", 126, 116, 126, 126)):  # the yellow +16 is a timed haste
             scratch, policy, board = recorded(name)
             with scratch:
