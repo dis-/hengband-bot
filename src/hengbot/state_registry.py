@@ -1159,6 +1159,12 @@ REGISTRY = (
       "policy_home: bm fund sweep ended (no comment at its definition)"),
     S("_claim_home_knowledge_observed", "policy_home", LIFE,
       "policy_home: claim home knowledge observed (no comment at its definition)"),
+    S("_home_cap_tidy", "home_cap", LIFE,
+      "the Home cap tidy's memory: the visit it ended in (no second begin that visit), the "
+      "Home's last seen stack count, the visit a census was asked in (Home root fix stage 2)"),
+    S("_home_ledger", "home_ledger", LIFE,
+      "the Home ledger's record of this town visit: {epoch, note: (decision sequence, summary)}, "
+      "record only (Home root fix stage 1, owner 2026-11-19)"),
     S("_home_capacity_observation", "policy_home", LIFE,
       "policy_home: home capacity observation (no comment at its definition)"),
     S("_home_deposit_abandoned", "policy_home", VISIT,
@@ -1862,6 +1868,9 @@ REGISTRY = (
     # summoner_wait
     S("_immobile_summoner_memory", "summoner_wait", FLOOR,
       "summoner_wait: immobile summoner memory (no comment at its definition)", destruction=True),
+    S("_detected_hold_outwaited", "summoner_wait", FLOOR,
+      "The detected hostiles an expired choke hold waited out on this floor visit: they arm no later detected-pack wait.",
+      destruction=True),
     S("_summoner_wait", "summoner_wait", FLOOR,
       "summoner_wait: summoner wait (no comment at its definition)"),
     # survival_preemption

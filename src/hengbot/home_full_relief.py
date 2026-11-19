@@ -49,6 +49,10 @@ class HomeFullRelief:
     # The Home junk sweep (one junk ware per visit, ``_begin_home_junk_sweep``), not a
     # full Home: frees no deposit and never routes back to Home.
     sweep: bool = False
+    # The Home cap's tidy (owner 2026-11-19 「200件（空き40）」「一気に片づける」): frees
+    # ``remaining`` stacks down to home_ledger.HOME_KEEP_CAP in one visit, no deposits
+    # (policy_home ``_begin_home_cap_tidy``).
+    cap: bool = False
 
     # --- The current ware (``end_sale`` forgets these) -----------------------------------------
     # The ware handled now: (signature, store type it is sold to, carried count before the take).
@@ -101,6 +105,11 @@ class HomeFullRelief:
     cash: Any = None
     # The sweep's ware is the Black Market *Destruction* fund's (bm_destruction_fund).
     fund: Any = None
+    # The cap tidy's batch: wares taken out on this trip, not yet sold, each
+    # (signature, store type, clearly useless); sold one after another before the next take.
+    carried: tuple = ()
+    # The batch is being sold: no take until every carried ware is sold or gone.
+    draining: bool = False
 
     # --- Resetting ------------------------------------------------------------------------------
     def reset(self, *names: str) -> None:

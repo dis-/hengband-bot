@@ -27,6 +27,7 @@ ATTRIBUTE = re.compile(r"^(SV_STAFF_DESTRUCTION|_is_destruction_(scroll|staff|it
 # (module, function) -> (count, why the site reads the kind and not the means).
 ALLOWED = {
     ("bm_destruction_fund", "<lambda>"): (1, "the Black market's staff shelf row (a purchase)"),
+    ("item_fate", "_protected"): (1, "a Home row's kind: the staff is never sold (the ledger's fate)"),
     ("item_use_route", "<module>"): (2, "the route and retention tables key the staff kind"),
     ("me_capability", "<module>"): (2, "the REPLACES row of the absorbed staff (the power's kind)"),
     ("me_inn_refill", "destruction_short"): (1, "the absorbed power's list row against its count "

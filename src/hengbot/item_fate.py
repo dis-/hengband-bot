@@ -75,9 +75,11 @@ def gear_tier(policy: Any, snapshot: Any, item: Any) -> str:
         # too, pay for the Black Market's Staff of *Destruction*.
         return ANY
     if not policy._home_knowledge_current:
+        # The relief's chosen ware, and the cap tidy's batch taken out on this trip.
         relief = policy._home_full_relief
-        released = relief.rank_released if relief is not None else None
-        return ROOM if released == policy._item_signature(item) else KEEP
+        released = ({relief.rank_released, *(entry[0] for entry in relief.carried)}
+                    if relief is not None else ())
+        return ROOM if policy._item_signature(item) in released else KEEP
     rank = gear_rank(policy, snapshot, item)
     if rank is None:
         return KEEP
@@ -341,7 +343,8 @@ def _surplus_ammo(policy: Any, snapshot: Any, item: Any) -> bool:
     return outside.get(policy._item_signature(item), 0) >= item.count
 
 
-def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = False) -> str | None:
+def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = False,
+                    always: bool = False) -> str | None:
     """The class of a stack that only takes a slot, or None (owner 2026-11-17).
 
     Owner, verbatim: 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」 -- n1-a life-530's
@@ -365,6 +368,8 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
 
     They judge what the Home hoards: ``carried`` (a pack stack the relief probes with the Home
     slot, ``_home_full_sale_candidate``) keeps its own rules.
+
+    ``always`` asks the 11-17 classes with no relief running (the Home ledger, ``fate``).
     """
     if _home_stock(item) and not carried and not item.is_artifact:
         if _unused_book(policy, item):
@@ -376,7 +381,7 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
         if _dominated(policy, snapshot, item):
             return "dominated"
     relief = getattr(policy, "_home_full_relief", None)
-    if relief is None or relief.sweep:
+    if not always and (relief is None or relief.sweep):
         # Only a full Home's relief (a deposit refused or met by a full Home) makes room.
         return None
     if item.is_ammo and policy._junk_class(snapshot, item) == "unused-ammo":
@@ -487,6 +492,12 @@ def can_identify_now(policy: Any, snapshot: Any, item: Any) -> bool:
             or policy._carried_identification_source(snapshot, full=full) is not None)
 
 
+def home_at_cap(policy: Any, snapshot: Any) -> bool:
+    """The Home holds its cap of stacks, short of full (home_cap.at_cap)."""
+    from hengbot import home_cap
+    return home_cap.at_cap(policy, snapshot)
+
+
 def ranked_gear_saleable(policy: Any, snapshot: Any, item: Any) -> bool:
     """The owner's ranking applied to a store sale of ranked gear.
 
@@ -503,14 +514,21 @@ def ranked_gear_saleable(policy: Any, snapshot: Any, item: Any) -> bool:
         return True
     tier = gear_tier(policy, snapshot, item)
     if tier == ROOM:
-        return policy._town_pack_space_shortage(snapshot) or policy._home_is_full(snapshot)
+        # Owner 2026-11-19 「200件（空き40）」: a Home at its cap needs room too.
+        return (policy._town_pack_space_shortage(snapshot) or policy._home_is_full(snapshot)
+                or home_at_cap(policy, snapshot))
     return tier == ANY
 
 
 def sold_not_shelved(policy: Any, snapshot: Any, item: Any) -> bool:
-    """Rank 21+ in the pack goes to its buyer, not to Home and out again."""
+    """Rank 21+ in the pack goes to its buyer, not to Home and out again.
+
+    So do ranks 11-20 while the Home stands at its cap (owner 2026-11-19 「200件（空き40）」
+    「安い順に売ってよい」): the cap tidy would take them out again (Home root fix stage 2).
+    """
+    tier = gear_tier(policy, snapshot, item) if item.is_equipment and not item.is_ammo else KEEP
     return bool(item.is_equipment and not item.is_ammo
-                and gear_tier(policy, snapshot, item) == ANY
+                and (tier == ANY or (tier == ROOM and home_at_cap(policy, snapshot)))
                 and gear_surplus(policy, snapshot, item)
                 and not held(policy, snapshot, item, "shop-sell", "sell")
                 and policy._town_organization_sale_store(snapshot, item) is not None)
@@ -568,3 +586,63 @@ def sweep_identify_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
                 and policy._unaware_consumable_identifiable_now(snapshot, candidate)):
             return candidate, item
     return None
+
+
+# --- The one answer per item (Home root fix, PROPOSAL 3-1; owner 2026-11-19) -------------------
+#
+# Owner 2026-11-19 「自宅の満杯問題で問題を起こしすぎなので根本解決すること」: each item of the
+# equipment, the pack and the Home has one fate, read by every path that sells, destroys,
+# deposits or takes (stage 1 records it beside the deciders it will replace: home_ledger).
+CARRY = "carry"            # worn, or a pack stack a retention keeps carried
+HOME = "home"              # kept at Home: top 10 gear, artifacts, *Destruction*, supplies, quest
+ROOM_SALE = "room-sale"    # ranks 11-20: sold when the Home needs room (over its cap)
+SELL = "sell"              # rank 21+, clearly useless, a kind no consumer uses
+DESTROY = "destroy"        # junk (policy_helpers ``_junk_class``)
+USE_NOW = "use-now"        # a Home potion drunk at once (consumable_policy.drunk_now)
+IDENTIFY = "identify"      # unidentified: known only after a means identifies it
+FATES = (CARRY, HOME, ROOM_SALE, SELL, DESTROY, USE_NOW, IDENTIFY)
+# Where the item is: worn, carried, or a Home stack.
+WORN, PACK, SHELF = "worn", "pack", "home"
+
+
+def _protected(policy: Any, snapshot: Any, item: Any) -> bool:
+    """Never sold or destroyed: an artifact, a bounty, a *Destruction* means, a named keep."""
+    from hengbot.model import SV_STAFF_DESTRUCTION
+    return bool(item.is_artifact or item.is_bounty
+                or (item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION)
+                or policy._home_disposal.decision(policy._item_signature(item)) == "keep")
+
+
+def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
+    """The item's one fate (``FATES``); ``where`` is ``WORN``, ``PACK`` or ``SHELF``.
+
+    The rows are the owner's standing rules, in this order: what is worn or carried by a
+    retention stays carried; an unidentified piece waits for a means; a Home potion drunk at
+    once is taken out; the protected never go; junk is destroyed; clearly useless stock
+    (``clearly_useless``, every class) and kinds no consumer uses (item_use_route) are sold;
+    ranked gear by its tier (``gear_tier``: rank 21+ sold, 11-20 sold for room, top 10 kept);
+    everything else (supplies' spares included, owner 2026-11-19 「上限を置かない」) is kept
+    at Home.
+    """
+    from hengbot import consumable_policy
+    if where == WORN:
+        return CARRY
+    probe = replace(item, slot=HOME_STOCK_SLOT) if where == SHELF else item
+    if where == PACK and policy._retention_reservation(snapshot, item) > 0:
+        return CARRY
+    if (not item.known or not getattr(item, "aware", True)
+            or policy._disposal_protected_by_identification(item)):
+        return IDENTIFY
+    if where == SHELF and consumable_policy.drunk_now(snapshot, item):
+        return USE_NOW
+    if _protected(policy, snapshot, item):
+        return HOME
+    if policy._junk_class(snapshot, probe) is not None:
+        return DESTROY
+    if (clearly_useless(policy, snapshot, probe, always=True) is not None
+            or item_use_route.surplus(policy, snapshot, item)):
+        return SELL
+    if SLOT_BY_TVAL.get(item.tval) is not None and item.is_equipment and not item.is_ammo:
+        tier = gear_tier(policy, snapshot, item)
+        return SELL if tier == ANY else ROOM_SALE if tier == ROOM else HOME
+    return HOME

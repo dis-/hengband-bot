@@ -19,7 +19,7 @@ from hengbot import combat_answer, destruction_use, disenchant_avoid, immobile_t
 from functools import partial
 from hengbot.dungeon_ladder import PASS
 from hengbot.policy_constants import DETECTED_THREAT_HOLD_MAX_GAME_TURNS, ExplorationPathOutcome, SUMMONER_CHOKE_NEIGHBORS, SUMMONER_EXPOSED_NEIGHBORS, SUMMONER_RANGED_KILL_SHOTS, UP_STAIRS_KEY, WAIT_KEY
-from hengbot.summoner_wait import hold_key
+from hengbot.summoner_wait import hold_key, record_outwaited
 from hengbot.town_hold import MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS
 
 # The status-threat rung's answers beside a teleport follower (owner 2026-11-09 order).
@@ -402,6 +402,7 @@ def key(
                 # timer and adopts the current choke cell.
                 policy._detected_threat_hold_position = player.position
             if snapshot.turn - hold[1] > DETECTED_THREAT_HOLD_MAX_GAME_TURNS:
+                record_outwaited(policy, snapshot, hold[1])
                 return None
         hold = hold_key(policy, snapshot, summoners)
         if hold is not None:
