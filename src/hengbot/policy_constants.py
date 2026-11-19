@@ -701,6 +701,21 @@ FIXED_QUEST_REWARD_POSITIONS = {
     # The Cloning Pits: the same `@` square, the boots (artifact 63) at $QUEST33 3.
     33: (0, frozenset({Position(36, 119)})),
 }
+# The tval of the object each reward cell's ``[EQU $QUESTn 3]`` rule places (lib/edit/towns
+# 01_Outpost_Full.jsonc, 02_Telmora.jsonc, 04_Angwil.jsonc; the kinds from
+# BaseitemDefinitions.jsonc, the artifacts' bases from ArtifactDefinitions.jsonc).  Quest 1's
+# reward depends on the class (several rules), so it has no row: any object there is its reward.
+FIXED_QUEST_REWARD_TVALS = {
+    2: 39,    # object 582, the Feanorian lamp
+    14: 19,   # object 75, a Light Crossbow
+    18: 75,   # object 244, a Potion of Experience
+    22: 35,   # object 90, an Elven Cloak
+    25: 40,   # object 587, an Amulet of Telepathy
+    31: 45,   # object 430, a Ring of Resist Confusion
+    32: 39,   # artifact 1, the Phial of Galadriel
+    33: 30,   # artifact 63, the boots of Shiva's Avatar (シヴァの化身のソフトレザーブーツ)
+    34: 45,   # object 618, a Ring of Warning
+}
 
 REST_MACRO = "R&\r"
 # Rest interrupted by each poison or cut tick on a held ONCE quest floor

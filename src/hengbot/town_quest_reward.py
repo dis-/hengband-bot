@@ -38,8 +38,8 @@ FIXED_QUEST_REWARD_POSITIONS).
 from __future__ import annotations
 
 from hengbot.policy_constants import (
-    FIXED_QUEST_REWARD_POSITIONS, PACK_CAPACITY, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED,
-    WAIT_KEY,
+    FIXED_QUEST_REWARD_POSITIONS, FIXED_QUEST_REWARD_TVALS, PACK_CAPACITY, QUEST_STATUS_FINISHED,
+    QUEST_STATUS_REWARDED, WAIT_KEY,
 )
 from hengbot.town_pack_budget import explicit_pickup_cells
 from hengbot.town_pack_headroom import PACK_FULL_NO_ROOM, room_can_be_made
@@ -51,10 +51,27 @@ REPORT_PACK_FULL_REASON = "fixedquest:claim-pack-full"
 _HANDED_OVER = frozenset({QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED})
 
 
+def reward_pile(policy, snapshot, quest_id: int, grid) -> bool:
+    """The pile on this reward cell may be the quest's reward.
+
+    Not a pile the bot dropped there itself this visit (sellable_artifacts.dropped_here; n1-b
+    life-411 2026-11-20 06:35: the ★エクスカリパー dropped on Q34's long-finished reward cell
+    (36,119) rebuilt the reward latch, and ``fixedquest:reward-pickup`` took it back twelve
+    times), and, where the quest's reward kind is known (FIXED_QUEST_REWARD_TVALS), a pile that
+    shows that kind (a board without the classes is not judged by them)."""
+    from hengbot import sellable_artifacts
+    if grid is None or grid.object_count <= 0:
+        return False
+    if sellable_artifacts.dropped_here(policy, snapshot, grid.position):
+        return False
+    tval = FIXED_QUEST_REWARD_TVALS.get(quest_id)
+    return tval is None or not grid.object_tvals or tval in grid.object_tvals
+
+
 def _reward_on_floor(policy, snapshot, quest_id: int) -> bool:
-    """An object lies on one of this quest's allowlisted reward cells."""
+    """The quest's reward may lie on one of its allowlisted reward cells (``reward_pile``)."""
     return any(
-        (grid := snapshot.grid_at(position)) is not None and grid.object_count > 0
+        reward_pile(policy, snapshot, quest_id, snapshot.grid_at(position))
         for position in policy._fixed_quest_reward_positions(snapshot, quest_id))
 
 

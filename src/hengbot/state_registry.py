@@ -1845,7 +1845,7 @@ REGISTRY = (
     # sellable_artifacts
     S("_artifact_drop_memory", "sellable_artifacts", FLOOR,
       "{cells a named artifact was dropped on this floor visit (the town's included), the posted "
-      "drop awaiting its board} (owner 2026-11-20 「捨てて帰還すること」)"),
+      "drop awaiting its board, the town walk's steps to a drop cell} (owner 2026-11-20 「捨てて帰還すること」)"),
     # sealed_pocket
     S("_destroyed_circle_teleport", "sealed_pocket", FLOOR,
       "((floor, circles), turn) of the last read"),

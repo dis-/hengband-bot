@@ -20,7 +20,8 @@ tests/test_n1b_411_home_closed_pending_1120_recorded.py); n1-b life-411's 99F ar
 DECLARED CONSTRUCTED:
 * row 105's board with Home closed for the visit (as the closed-pending test) and two of the Home's
   DROP artifacts carried (the Home take's result), each drop's board with the dropped stack gone
-  from the pack (the rest re-lettered) and one more object on the player's cell;
+  from the pack (the rest re-lettered) and one more object on the player's cell, each walk step's
+  board with the player one cell on;
 * the arrival board with a pack of 15 stacks (room for the Home take), the identification
   catalogue's composable Home take on it withdrawn;
 * the depth gate: the deepest floor reached set below 50 (no saved landing, watermark 49); the
@@ -55,6 +56,9 @@ DUNGEON_FIXTURE = FIXTURES / "n1b-411-angband-cap-1119"
 STOP_ROW = 105
 SELL, DROP = "sell", "floor-drop"
 TOWN_REASON, DUNGEON_REASON = "artifact:drop-unsellable-town", "artifact:drop-unsellable"
+WALK_REASON = "artifact:drop-walk-town"
+MOVES = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1),
+         "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 
 # The md's numbers -> the recorded Home's names (the display name before its {...} block).
 SOLD = {
@@ -213,27 +217,41 @@ class N1b411SellableArtifactsTownTest(unittest.TestCase):
         for ware in wares:
             pack.append(replace(ware, slot=chr(ord("a") + len(pack))))
         board = replace(board, inventory=tuple(pack))
-        here = board.player.position
         decided = []
-        for _ in range(4):
+        for _ in range(24):
             before = copy.copy(policy._store_visit)
+            here = board.player.position
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 key = policy.choose_key(board)
-            decided.append((key, policy.last_reason))
+            decided.append((key, policy.last_reason, here))
             post(policy, board, key, before)
-            board = (dropped_board(policy, board, key) if policy.last_reason == TOWN_REASON
-                     else replace(board, turn=board.turn + 10))
+            if policy.last_reason == TOWN_REASON:
+                board = dropped_board(policy, board, key)
+            elif policy.last_reason == WALK_REASON:
+                dy, dx = MOVES[key]
+                board = replace(board, turn=board.turn + 10, player=replace(
+                    board.player, position=Position(here.y + dy, here.x + dx)))
+            else:
+                board = replace(board, turn=board.turn + 10)
+                break
         letter = chr(ord("a") + len(self.stop.inventory))
-        self.assertEqual(decided[:2], [("d" + letter, TOWN_REASON)] * 2)
+        drops = [(key, cell) for key, reason, cell in decided if reason == TOWN_REASON]
+        # One drop per empty cell (the next one walks to another: owner 2026-11-20 n1-b life-411
+        # 06:35, a second drop on the same cell lands beside it, drop_near).
+        self.assertEqual([key for key, _cell in drops], ["d" + letter] * 2)
+        self.assertNotEqual(drops[0][1], drops[1][1])
+        self.assertTrue(all(reason in (TOWN_REASON, WALK_REASON)
+                            for _key, reason, _cell in decided[:-1]), decided)
         # Then the departure's Recall: the town floor is not saved, so the drops are gone.
-        self.assertTrue(decided[2][1].startswith("town:") and decided[2][0].startswith("r"),
-                        decided[2])
+        self.assertTrue(decided[-1][1].startswith("town:") and decided[-1][0].startswith("r"),
+                        decided[-1])
         self.assertFalse(any(item.is_artifact and named(item) in DROPPED
                              for item in board.inventory))
-        # The pile is not loot: no walk or pickup takes it back this visit.
-        self.assertTrue(policy._floor_pile_is_junk(board, board.grid_at(here)))
-        self.assertNotIn(here, policy._known_loot)
-        self.assertIn(here, policy._deferred_loot)
+        # The piles are not loot: no walk or pickup takes them back this visit.
+        for _key, cell in drops:
+            self.assertTrue(policy._floor_pile_is_junk(board, board.grid_at(cell)))
+            self.assertNotIn(cell, policy._known_loot)
+            self.assertIn(cell, policy._deferred_loot)
 
 
 class N1b411SellableArtifactsDungeonFallbackTest(unittest.TestCase):
@@ -296,8 +314,10 @@ class N1b411SellableArtifactsDungeonFallbackTest(unittest.TestCase):
         reasons = [reason for _key, reason in decided]
         first = reasons.index(DUNGEON_REASON)
         letter = chr(ord("a") + len(board.inventory))
-        self.assertEqual(decided[first:first + 2], [("d" + letter, DUNGEON_REASON)] * 2)
-        self.assertEqual(reasons[first + 2], "return:recall")
+        # One drop per empty cell: the second waits for another cell (the dungeon has no walk).
+        self.assertEqual(decided[first], ("d" + chr(ord(letter) - 1), DUNGEON_REASON))
+        self.assertEqual(reasons.count(DUNGEON_REASON), 1)
+        self.assertEqual(reasons[first + 1], "return:recall")
         self.assertTrue(policy._floor_pile_is_junk(board, board.grid_at(here)))
         self.assertNotIn(here, policy._known_loot)
 

@@ -6008,10 +6008,12 @@ class QuestMixin(OpeningRouteMixin):
             self._fixed_quest_reward_pending = None
             return None
         positions = self._fixed_quest_reward_positions(snapshot, quest_id)
+        from hengbot.town_quest_reward import reward_pile
+        # The bot's own drop and an object of another kind are not the reward (reward_pile).
         visible_reward = [
             pos
             for pos in positions
-            if (grid := snapshot.grid_at(pos)) is not None and grid.object_count > 0
+            if reward_pile(self, snapshot, quest_id, snapshot.grid_at(pos))
         ]
         # Standing on the emptied reward cell completes the pickup, also
         # when the reward took the last free slot (the pack is full now).
@@ -6028,8 +6030,7 @@ class QuestMixin(OpeningRouteMixin):
         here = snapshot.grid_at(snapshot.player.position)
         if (
             snapshot.player.position in positions
-            and here is not None
-            and here.object_count > 0
+            and reward_pile(self, snapshot, quest_id, here)
         ):
             # Fixed-quest rewards are mandatory and their coordinates are
             # allowlisted. Do not defer them or route them through the generic

@@ -22083,7 +22083,7 @@
       "data/no-independent-credit"
     ],
     "context": "Read by town_drop_key and drop_key.",
-    "evidence": "Data predicate: the first carried drop_target while no drop is pending and the player's grid takes the drop; no command or independent credit.",
+    "evidence": "Data predicate: the carried drop_target (_carried_target) when the player stands on a drop cell (_sites); no command or independent credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -22095,6 +22095,17 @@
     ],
     "context": "Called by town_drop_key and drop_key with the key their admission composed.",
     "evidence": "Records the posted drop (cell, turn, signature, the object counts around it) for observe; returns the given key unchanged; composes no command and takes no independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "sellable_artifacts.py:_carried_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by town_drop_key and _target.",
+    "evidence": "Data predicate: the first carried drop_target while no drop is pending; no command or independent credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
