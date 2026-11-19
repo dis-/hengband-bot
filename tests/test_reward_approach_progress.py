@@ -14,12 +14,30 @@ from tests.test_quest_travel_progress import QuestTravelFixtureMixin
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "reward-approach-town0.jsonl.gz"
+TVAL_RING = 45
 
 
 class RewardApproachProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
     def _boards(self):
+        """The recorded boards, the reward cell's pile shown as Q34's reward kind.
+
+        DECLARED CONSTRUCTED: the recorded pile at (36,119) shows tval 55 (a staff); quest 34's
+        reward there is a Ring of Warning (lib/edit/towns/01_Outpost_Full.jsonc ``[EQU $QUEST34 3]``
+        object 618, tval 45), and a pile of another kind is not the reward
+        (town_quest_reward.reward_pile, n1-b life-411 2026-11-20).  The pile is shown as a ring so
+        these pins keep reading the reward's locomotion.
+        """
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:
-            return [json.loads(line) for line in stream]
+            boards = [json.loads(line) for line in stream]
+        for raw in boards:
+            grid_map = raw["grid_map"]
+            for cell in grid_map["cells"]:
+                if (cell.get("y"), cell.get("x")) == (36, 119) and "t" in cell:
+                    cell["t"] = [TVAL_RING for _ in cell["t"]]
+            grid_map["found_items"] = [
+                [*row[:3], *([TVAL_RING] * (len(row) - 3))] if tuple(row[:2]) == (36, 119) else row
+                for row in grid_map.get("found_items", [])]
+        return boards
 
     @staticmethod
     def _advance(raw, key, turn):

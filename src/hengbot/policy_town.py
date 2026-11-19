@@ -1308,10 +1308,10 @@ class TownMixin:
         }:
             return None
         positions = self._fixed_quest_reward_positions(snapshot, quest_id)
+        from hengbot.town_quest_reward import reward_pile
         visible = tuple(
             position for position in positions
-            if (grid := snapshot.grid_at(position)) is not None
-            and grid.object_count > 0
+            if reward_pile(self, snapshot, quest_id, snapshot.grid_at(position))
         )
         targets = visible or tuple(positions)
         route = min(

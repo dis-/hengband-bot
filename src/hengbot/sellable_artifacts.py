@@ -33,7 +33,12 @@ item without a prompt (src/cmd-item/cmd-item.cpp ``do_cmd_drop``: the quantity i
 stack, and only an equipped cursed item is refused).  The cells it lands on (``drop_near`` puts it
 on the player's empty floor grid or the best grid within d^2 <= 10, src/floor/floor-object.cpp)
 are not loot for the rest of the floor visit (``dropped_here``, read by policy
-``_floor_pile_is_junk`` and kept in ``_deferred_loot``), so nothing picks it up again.
+``_floor_pile_is_junk`` and kept in ``_deferred_loot``, and by the fixed quest's reward pickup,
+town_quest_reward ``reward_pile``), so nothing picks it up again.  A drop is made only on a plain
+empty floor whose whole drop_near reach holds no cell another rule walks to or picks up from
+(``_sites``: n1-b life-411 2026-11-20 06:35, drops beside Q34's reward cell (36,119) landed on it
+and ``fixedquest:reward-pickup`` took the artifact back twelve times); in town the drop walks a
+bounded way (``WALK_LIMIT``) to the nearest such cell.
 """
 from __future__ import annotations
 
@@ -46,11 +51,15 @@ from hengbot.item_identity import without_trailing_block, without_trailing_block
 
 DATA = Path(__file__).with_name("sellable_artifacts.json")
 # The policy attribute (floor_visit_memory.VISIT_MEMORIES): {"cells": frozenset of the cells the
-# drops landed on, "pending": the posted drop awaiting its board, or None}.
+# drops landed on, "pending": the posted drop awaiting its board, or None, "walk": the steps the
+# town walk to a drop cell took}.
 MEMORY = "_artifact_drop_memory"
 OWNER = "artifact-drop"
 REASON = "artifact:drop-unsellable"
 TOWN_REASON = "artifact:drop-unsellable-town"
+WALK_REASON = "artifact:drop-walk-town"
+# The steps the town walk to a drop cell takes per floor visit.
+WALK_LIMIT = 40
 RETENTION_BRANCH = "sellable-artifact:drop-on-floor"
 # drop_near's search: d = dy^2 + dx^2 <= 10 around the player (src/floor/floor-object.cpp).
 DROP_SPREAD = 3
@@ -165,17 +174,60 @@ def dropped_here(policy: Any, snapshot: Any, position: Any) -> bool:
 
 
 def _plain_floor(policy: Any, snapshot: Any, grid: Any) -> bool:
-    """The player's grid takes the drop: a plain floor holding nothing, or only what was dropped
-    on it (the next drop then lands beside it, drop_near); never a stair, a door, a dungeon or
-    quest entrance, a store's or a building's entrance."""
+    """A plain floor grid holding nothing: never a stair, a door, a trap, a dungeon or quest
+    entrance, a store's or a building's entrance, nor a pile the loot memory watches."""
     return bool(grid is not None and grid.known and grid.passable and not grid.wall
-                and (grid.object_count == 0 or dropped_here(policy, snapshot, grid.position))
-                and not grid.trap
+                and grid.object_count == 0 and not grid.trap
                 and not grid.has_down_stairs and not grid.has_up_stairs
                 and not grid.is_door and not grid.has_entrance
                 and not grid.has_quest_enter and not grid.has_quest_exit
                 and grid.store_number < 0 and grid.building_type < 0
-                and grid.building_special < 0)
+                and grid.building_special < 0
+                and grid.position not in getattr(policy, "_known_loot", ()))
+
+
+def _watched(policy: Any, snapshot: Any, grid: Any) -> bool:
+    """A cell some rule walks to or picks up from: a stair, a door, an entrance (dungeon, quest,
+    store, building), a fixed quest's reward cell (FIXED_QUEST_REWARD_POSITIONS: n1-b life-411
+    2026-11-20 06:35, a drop beside Q33's reward cell (36,119) landed on it and
+    ``fixedquest:reward-pickup`` took it back twelve times), a pile not dropped here."""
+    return bool(grid.has_down_stairs or grid.has_up_stairs or grid.is_door
+                or grid.has_entrance or grid.has_quest_enter or grid.has_quest_exit
+                or grid.store_number >= 0 or grid.building_type >= 0
+                or grid.building_special >= 0
+                or grid.position in _reward_cells(snapshot)
+                or (grid.object_count > 0 and not dropped_here(policy, snapshot, grid.position)))
+
+
+def _reward_cells(snapshot: Any) -> frozenset:
+    from hengbot.policy_constants import FIXED_QUEST_REWARD_POSITIONS
+    if not snapshot.in_town:
+        return frozenset()
+    return frozenset(position for town_id, positions in FIXED_QUEST_REWARD_POSITIONS.values()
+                     if snapshot.town_id in {-1, town_id} for position in positions)
+
+
+def _near(position: Any, other: Any) -> bool:
+    return (position.y - other.y) ** 2 + (position.x - other.x) ** 2 <= DROP_SPREAD ** 2 + 1
+
+
+def _sites(policy: Any, snapshot: Any) -> frozenset:
+    """The cells a drop may be made on: a plain empty floor whose whole drop_near reach
+    (d^2 <= 10, src/floor/floor-object.cpp) holds no watched cell, so wherever the game puts
+    the artifact no pickup rule looks for an item there."""
+    watched = [grid.position for grid in snapshot.grids.values()
+               if _watched(policy, snapshot, grid)]
+    watched += [position for position in _reward_cells(snapshot)
+                if position not in snapshot.grids]
+    blocked = set()
+    for position in watched:
+        for dy in range(-DROP_SPREAD, DROP_SPREAD + 1):
+            for dx in range(-DROP_SPREAD, DROP_SPREAD + 1):
+                if dy * dy + dx * dx <= DROP_SPREAD ** 2 + 1:
+                    blocked.add((position.y + dy, position.x + dx))
+    return frozenset(grid.position for grid in snapshot.grids.values()
+                     if (grid.position.y, grid.position.x) not in blocked
+                     and _plain_floor(policy, snapshot, grid))
 
 
 def _counts_around(snapshot: Any, position: Any) -> dict:
@@ -192,16 +244,18 @@ def _town_quiet(policy: Any, snapshot: Any) -> bool:
     return safety_facts.strict_quiet(facts._replace(in_town=False))
 
 
-def _target(policy: Any, snapshot: Any) -> Any:
-    memory = _memory(policy)
-    if memory["pending"] is not None:
+def _carried_target(policy: Any, snapshot: Any) -> Any:
+    if _memory(policy)["pending"] is not None:
         return None
-    item = next((each for each in snapshot.inventory
+    return next((each for each in snapshot.inventory
                  if drop_target(policy, snapshot, each)), None)
-    if item is None:
+
+
+def _target(policy: Any, snapshot: Any) -> Any:
+    item = _carried_target(policy, snapshot)
+    if item is None or snapshot.player.position not in _sites(policy, snapshot):
         return None
-    here = snapshot.grid_at(snapshot.player.position)
-    return item if _plain_floor(policy, snapshot, here) else None
+    return item
 
 
 def _posted(policy: Any, snapshot: Any, item: Any, key: str | None, reason: str) -> str | None:
@@ -229,11 +283,29 @@ def town_drop_key(policy: Any, snapshot: Any) -> str | None:
     Asked before the departure (ladder_objectives, above ``_town_special_key``)."""
     if not snapshot.in_town or snapshot.store is not None or not _town_quiet(policy, snapshot):
         return None
-    item = _target(policy, snapshot)
+    item = _carried_target(policy, snapshot)
     if item is None:
         return None
-    return _posted(policy, snapshot, item,
-                   policy._town_item_command_entry_key(snapshot, "drop", item, OWNER), TOWN_REASON)
+    sites = _sites(policy, snapshot)
+    if snapshot.player.position in sites:
+        return _posted(policy, snapshot, item, policy._town_item_command_entry_key(
+            snapshot, "drop", item, OWNER), TOWN_REASON)
+    # Not here: a bounded walk to the nearest cell the drop may be made on (the departure, below
+    # this rung, carries the artifact out when no cell is reached; the dungeon drop then takes it).
+    memory = _memory(policy)
+    if memory.get("walk", 0) >= WALK_LIMIT:
+        return None
+    policy._claim_target_capture = []
+    try:
+        step = policy._nearest_goal_step(snapshot, lambda grid: grid.position in sites)
+    finally:
+        target = policy._take_claim_target()
+    if step is None:
+        return None
+    memory["walk"] = memory.get("walk", 0) + 1
+    policy.last_reason = WALK_REASON
+    policy._declare_reach(target)
+    return policy._step_toward(snapshot, step)
 
 
 def drop_key(policy: Any, snapshot: Any) -> str | None:

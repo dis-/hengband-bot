@@ -1058,8 +1058,8 @@ def fixed_quest_intended_terminal(policy: Any, board: Any) -> TerminalRef | None
             if quest is None or quest.status not in {
                     QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}:
                 continue
-            if any((grid := board.grid_at(position)) is not None
-                   and grid.object_count > 0
+            from hengbot.town_quest_reward import reward_pile
+            if any(reward_pile(policy, board, quest_id, board.grid_at(position))
                    for position in policy._fixed_quest_reward_positions(
                        board, quest_id)):
                 pending = quest_id
