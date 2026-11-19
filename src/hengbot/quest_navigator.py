@@ -129,6 +129,9 @@ class QuestFloorNavigator:
     summon_group = {}
     summon_target = None
     summon_hold = 0
+    # The group's members no walk reaches (quest_summon_answer._unreached): index -> the tracked
+    # summoners' kills when found so, replaced whole.  Same rule.
+    summon_unreached = {}
     summon_chase = None
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
@@ -195,6 +198,7 @@ class QuestFloorNavigator:
         self.summon_group = {}
         self.summon_target = None
         self.summon_hold = 0
+        self.summon_unreached = {}
         self.summon_chase = None
         self.phase_battle = None
 

@@ -72,7 +72,10 @@ After the disengage, owner 2026-11-19 (verbatim): 「まず離脱後の周辺状
      group.  Steps 2-4 repeat until the group is empty; the plan then goes on.
      While no member has a pulling cell a walk of the plan reaches (the walks never cross the cells
      where both sides act, so the lower rooms are shut while the Queens and the EVIL summoners both
-     live), the plan's own fight and walk answer the board and the luring is asked again on the next.
+     live), the plan's own fight and walk answer the board.  A member found so (no pulling cell,
+     or past the wait no cell it would be seen from) is left out (``summon_unreached``) of the
+     waits and the luring until a tracked summoner dies or it comes into view: one acting on the
+     player from beyond the pits no longer holds him for ever (n1-c life-217, 2026-11-19).
 
 QUEST_33's sides (quest_alignment_split): every walk here goes round the cells where both sides act,
 and a member of one side is pulled only to a cell no living summoner of the other side acts on (by its
@@ -544,7 +547,9 @@ def _note_group(policy, snapshot, navigator) -> None:
     navigator.summon_group = {
         index: entry for index, entry in navigator.summon_group.items()
         if index in known or not (entry[0] in killed or _looked_at(navigator, snapshot, entry[1]))}
-    if navigator.summon_target not in navigator.summon_group:
+    if navigator.summon_target is not None and navigator.summon_target not in navigator.summon_group:
+        # The member lured is gone: the next one starts its own wait.  (With no member lured the
+        # holds for what acts on the player keep counting: n1-c life-217, see ``after_key``.)
         navigator.summon_target = None
         navigator.summon_hold = 0
 
@@ -638,14 +643,40 @@ def _lure_path(policy, snapshot, navigator, plan, board, index, *, close):
     return None
 
 
+def _kills(navigator) -> int:
+    """The tracked summoners' kill lines read on this floor (quest_alignment_split)."""
+    return sum(int(count) for count in navigator.split_kills.values())
+
+
+def _unreached(navigator, board) -> frozenset:
+    """The members no walk of the plan reaches a pulling or seeing cell of, as last found: kept
+    until a tracked summoner dies (the cells both sides act on, which the walks go round, change
+    only then) or the monster comes into view (then it is struck or shot).  Pruned in place."""
+    in_view = {monster.index for monster in board.in_view}
+    kills = _kills(navigator)
+    navigator.summon_unreached = {index: at for index, at in navigator.summon_unreached.items()
+                                  if at == kills and index not in in_view}
+    return frozenset(navigator.summon_unreached)
+
+
+def _mark_unreached(navigator, index) -> None:
+    navigator.summon_unreached = {**navigator.summon_unreached, index: _kills(navigator)}
+
+
 def _lure(policy, snapshot, navigator, plan, board) -> str | None:
-    """Step 4: walk to the pulling cell of the member to pull, or hold there for it."""
+    """Step 4: walk to the pulling cell of the member to pull, or hold there for it.  A member no
+    walk reaches is left to the plan (``_unreached``); with none reachable the plan goes on."""
     close = False
+    unreached = _unreached(navigator, board)
     if navigator.summon_target is None:
         choices = []
         for index, (_race, _cell_, summons) in navigator.summon_group.items():
+            if index in unreached:
+                continue
             found = _lure_path(policy, snapshot, navigator, plan, board, index, close=False)
-            if found is not None:
+            if found is None:
+                _mark_unreached(navigator, index)
+            else:
                 choices.append((found[0], not summons, len(found[1]), index))
         if not choices:
             return None
@@ -655,6 +686,7 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
         close = navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
     found = _lure_path(policy, snapshot, navigator, plan, board, navigator.summon_target, close=close)
     if found is None:
+        _mark_unreached(navigator, navigator.summon_target)
         navigator.summon_target = None
         navigator.summon_hold = 0
         return None
@@ -671,18 +703,33 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
             or snapshot.player.blind or snapshot.player.confused):
         return None
     acting = acting_around(policy, snapshot, navigator)
+    if (struck := _strike_around(policy, snapshot, board, acting)) is not None:
+        navigator.summon_hold = 0
+        return struck
+    # n1-c life-217 (2026-11-19 18:32-19:05, 15,900 holds at [2,56]): two ボーシン awake beyond the
+    # pits acted on the player (within their vision) and no walk reaches them.  Past the wait they
+    # are left to the plan like any member no walk reaches (``_unreached``): the rest, the lure of
+    # the others and the plan's own sweep go on.
+    unreached = _unreached(navigator, board)
+    acting = [monster for monster in acting if monster.index not in unreached]
+    if acting and navigator.summon_hold < int(plan.get("enemy_wait_turns", 0)):
+        return _hold_for(policy, navigator)
     if acting:
-        if (struck := _strike_around(policy, snapshot, board, acting)) is not None:
-            navigator.summon_hold = 0
-            return struck
-        if navigator.summon_hold < int(plan.get("enemy_wait_turns", 0)):
-            return _hold_for(policy, navigator)
-        # Past the plan's wait it has not come: it is closed on as a lure (step 4).
+        # Past the plan's wait they have not come: each is closed on as a lure (step 4), those no
+        # walk reaches a cell they would be seen from are left to the plan.
+        for monster in acting:
+            if _lure_path(policy, snapshot, navigator, plan, board, monster.index, close=True) is None:
+                _mark_unreached(navigator, monster.index)
+        acting = [monster for monster in acting if monster.index not in navigator.summon_unreached]
+    if acting:
         if navigator.summon_target not in {monster.index for monster in acting}:
             navigator.summon_target = min(acting, key=lambda monster: (
                 not monster.can_summon, snapshot.player.position.distance_to(monster.position))).index
         navigator.summon_state = LURING
         return _lure(policy, snapshot, navigator, plan, board)
+    if navigator.summon_target is None:
+        # Nothing acts on the player and nothing is lured: the next one to act starts its own wait.
+        navigator.summon_hold = 0
     if (rested := _rest_key(policy, snapshot)) is not None:
         return rested
     if not navigator.summon_group:
