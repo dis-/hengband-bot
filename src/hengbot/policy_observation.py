@@ -14,7 +14,7 @@ from hengbot.town_hold import (
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
 from hengbot.speed_valuation import meets_speed_gate, permanent_player_speed
 from hengbot import bm_destruction_fund, bm_tour, home_cap, home_cash_sale, home_ledger, deep_teleport, detected_loot, launcher_upgrade, me_powerful_activation, random_quest_hold, recall_wait_reach, sealed_loot, torch_release
-from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
+from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_FULL_SALE_MESSAGES, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
 from hengbot.policy_types import TownVisitLedger
@@ -116,6 +116,13 @@ class ObservationMixin:
             self._scavenge_run_start_turn = snapshot.turn
         if snapshot.store is not None and snapshot.store.store_type == STORE_HOME:
             self._record_observed_home_addresses(snapshot)
+        elif (snapshot.store is not None and snapshot.store.store_type not in self._store_sale_refused
+                and any(message in STORE_FULL_SALE_MESSAGES for message in snapshot.messages)):
+            # The open store's own refusal (store/sell-order.cpp 「店にはもう置く場所が
+            # ありません」) is learnt from the page, whatever the transport reported and
+            # whichever seller asked: n1-c life-217 2026-11-19 17:16 sent 'd2y' to the full
+            # Magic shop three times in one entry, and again after a Home trip.
+            self.note_store_full(snapshot.store.store_type)
         # The threat memo exists only for repeat lookups within ONE decision
         # (gates + telemetry); a new decision must never see the old entries.
         self._threat_prediction_memo.clear()
