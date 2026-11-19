@@ -3,7 +3,7 @@ from __future__ import annotations
 from hengbot import safety_watch
 from hengbot import spare_gear
 from hengbot import random_quest_hold
-from hengbot import dive_floor, fallback_depth_floor
+from hengbot import angband_hold, dive_floor, fallback_depth_floor
 from hengbot import me_capped_pickup
 from hengbot import destruction_means
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -600,7 +600,18 @@ class PolicyHelpersMixin:
         (``_guardian_valve_angband_acceptable``), and only otherwise chooses
         among the other entered dungeons.  The other alternate paths
         (over-extension, no depth progress, safe fallback) are unchanged.
+
+        Owner 2026-11-19 「鉄獄50F以降は浅い階層へのフォールバックをやめる。行き先を変えるのは
+        ダンジョンの主討伐のみとする。」: for a character held at Angband 50F+ (angband_hold) the
+        pick is Angband or nothing.
         """
+        if depth_floor and angband_hold.held(self, snapshot):
+            return angband_hold.pick(
+                left=(refused_dungeon if refused_dungeon is not None
+                      else guardian_bounced_dungeon),
+                valve=(require_shallower and refused_dungeon is None
+                       and guardian_bounced_dungeon is None),
+            )
         if (
             guardian_bounced_dungeon is not None
             and self._guardian_valve_angband_acceptable(

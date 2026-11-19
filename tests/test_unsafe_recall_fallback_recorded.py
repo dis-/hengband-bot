@@ -66,6 +66,7 @@ from hengbot.policy_constants import (
 
 from hengbot import fallback_depth_floor
 from tests.support.fallback_floor import floor_lifted
+from tests.support.angband_hold import hold_lifted
 from tests.support.recorded import EDIT, _policy
 
 
@@ -173,6 +174,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
     # every landing below (test_f5); this subject predates the floor.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 50 is held
     @floor_lifted()
     def test_f1_the_refused_depth_bounds_the_fallback(self):
         policy = self._independent()
@@ -199,6 +201,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
     # every landing below (test_f5); this subject predates the floor.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 50 is held
     @floor_lifted()
     def test_f2_the_town_terminal_takes_the_fallback_instead_of_blocking(self):
         policy = self._independent()
@@ -215,6 +218,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
     # every landing below (test_f5); this subject predates the floor.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 50 is held
     @floor_lifted()
     def test_f2b_the_fallback_is_the_deepest_landing_that_fits(self):
         # Owner 2026-11-10 (n1-b life-362): 「収まる中で一番深い所へ」 -- 「切り替え
@@ -262,6 +266,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
 
     # DECLARED WALL (tests/support/fallback_floor.py): Angband 50 reached, the floor 30 refuses
     # every landing below (test_f5); this subject predates the floor.
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 50 is held
     @floor_lifted()
     def test_f4_a_safe_destination_is_not_diverted(self):
         """CHANGED 2026-09-23 by user decision
@@ -300,6 +305,7 @@ class UnsafeRecallFallbackRecordedTest(unittest.TestCase):
             self.assertEqual(restored._target_dungeon_id, DUNGEON_ANGBAND)
             self.assertIsNone(restored._alternate_dungeon)
 
+    @hold_lifted()  # DECLARED WALL (tests/support/angband_hold.py): Angband 50 is held
     def test_f5_the_floor_refuses_every_landing_below_thirty(self):
         """Owner 2026-11-13 「フォールバックは最新到達-20Fまでにする。」: Angband 50 is the deepest
         reached, so the floor is 30.  The Castle 22 and the Mountain 25 the fallback took before

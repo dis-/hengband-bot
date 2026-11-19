@@ -3,7 +3,7 @@ from __future__ import annotations
 from hengbot import approach_answer, return_start
 from hengbot import guardian_rumor, heal_offset, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, angband_cap, alternate_lease, destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, angband_cap, angband_hold, alternate_lease,destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -592,6 +592,10 @@ class ObservationMixin:
             # conquest target, owner 2026-11-18) gives way to Angband when its landing qualifies
             # (alternate_lease.challenge); no over-extension evidence.
             alternate_lease.challenge(self, snapshot)
+        # Owner 2026-11-19 「鉄獄50F以降は浅い階層へのフォールバックをやめる。行き先を変えるのは
+        # ダンジョンの主討伐のみとする。」: a held fallback switch of a character held at Angband
+        # 50F+ is dropped on every town board (angband_hold); the valves below pick nothing for it.
+        angband_hold.settle(self, snapshot)
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
             # User decision 2026-09-25 (guardian-recall-pingpong-r2,
             # 「倒せない階でなければ深くても可」): when every dive of the streak
