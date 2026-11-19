@@ -21398,7 +21398,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "The walk to a member's reachable pulling cells where the fewest others act; emits no key."
   },
-  "quest_summon_answer.py:_absorbed_teleport": {
+  "quest_summon_answer.py:absorbed_teleport_key": {
     "classification": "producer",
     "rows": [
       "survival"
