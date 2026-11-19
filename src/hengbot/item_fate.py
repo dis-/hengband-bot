@@ -75,9 +75,11 @@ def gear_tier(policy: Any, snapshot: Any, item: Any) -> str:
         # too, pay for the Black Market's Staff of *Destruction*.
         return ANY
     if not policy._home_knowledge_current:
+        # The relief's chosen ware, and the cap tidy's batch taken out on this trip.
         relief = policy._home_full_relief
-        released = relief.rank_released if relief is not None else None
-        return ROOM if released == policy._item_signature(item) else KEEP
+        released = ({relief.rank_released, *(entry[0] for entry in relief.carried)}
+                    if relief is not None else ())
+        return ROOM if policy._item_signature(item) in released else KEEP
     rank = gear_rank(policy, snapshot, item)
     if rank is None:
         return KEEP
@@ -485,6 +487,12 @@ def can_identify_now(policy: Any, snapshot: Any, item: Any) -> bool:
             or policy._carried_identification_source(snapshot, full=full) is not None)
 
 
+def home_at_cap(policy: Any, snapshot: Any) -> bool:
+    """The Home holds its cap of stacks, short of full (home_cap.at_cap)."""
+    from hengbot import home_cap
+    return home_cap.at_cap(policy, snapshot)
+
+
 def ranked_gear_saleable(policy: Any, snapshot: Any, item: Any) -> bool:
     """The owner's ranking applied to a store sale of ranked gear.
 
@@ -501,14 +509,21 @@ def ranked_gear_saleable(policy: Any, snapshot: Any, item: Any) -> bool:
         return True
     tier = gear_tier(policy, snapshot, item)
     if tier == ROOM:
-        return policy._town_pack_space_shortage(snapshot) or policy._home_is_full(snapshot)
+        # Owner 2026-11-19 「200件（空き40）」: a Home at its cap needs room too.
+        return (policy._town_pack_space_shortage(snapshot) or policy._home_is_full(snapshot)
+                or home_at_cap(policy, snapshot))
     return tier == ANY
 
 
 def sold_not_shelved(policy: Any, snapshot: Any, item: Any) -> bool:
-    """Rank 21+ in the pack goes to its buyer, not to Home and out again."""
+    """Rank 21+ in the pack goes to its buyer, not to Home and out again.
+
+    So do ranks 11-20 while the Home stands at its cap (owner 2026-11-19 「200件（空き40）」
+    「安い順に売ってよい」): the cap tidy would take them out again (Home root fix stage 2).
+    """
+    tier = gear_tier(policy, snapshot, item) if item.is_equipment and not item.is_ammo else KEEP
     return bool(item.is_equipment and not item.is_ammo
-                and gear_tier(policy, snapshot, item) == ANY
+                and (tier == ANY or (tier == ROOM and home_at_cap(policy, snapshot)))
                 and gear_surplus(policy, snapshot, item)
                 and not held(policy, snapshot, item, "shop-sell", "sell")
                 and policy._town_organization_sale_store(snapshot, item) is not None)
