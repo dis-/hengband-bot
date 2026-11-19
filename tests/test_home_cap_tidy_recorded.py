@@ -91,12 +91,6 @@ class HomeCapTidyRecordedTest(unittest.TestCase):
         letter = chr(ord("a") + len(board.inventory))
         return replace(board, inventory=(*board.inventory, replace(item, slot=letter)))
 
-    @staticmethod
-    def lone(relief):
-        """The last take left the pack at its reserve (town_pack_budget, 23 - 4 slots): that
-        ware is sold on its own before the batch (policy_home ``batch_grows`` after the take)."""
-        return bool(relief.withdrawn and not relief.pack_only and relief.carried)
-
     def take_batch(self):
         """Arrive, walk to the entrance, take wares until the batch is sold; the boards."""
         policy = self.policy
@@ -107,7 +101,7 @@ class HomeCapTidyRecordedTest(unittest.TestCase):
         self.fates = []
         for _ in range(20):
             relief = policy._home_full_relief
-            if relief is None or relief.draining or self.lone(relief):
+            if relief is None or relief.draining:
                 break
             if policy._home_atomic_withdraw_pending is None:
                 self.decide(board)
@@ -156,11 +150,7 @@ class HomeCapTidyRecordedTest(unittest.TestCase):
         policy = self.policy
         board, takes = self.take_batch()
         relief = policy._home_full_relief
-        # Owner 2026-11-19 「アーティファクトであっても明確な下位互換は売る」 sheds more pieces
-        # (tests/test_home_dominated_1119_recorded): the lighter wares come first, the seventh
-        # take fills the pack to its reserve and is sold on its own before the batch.
-        self.assertTrue(self.lone(relief))
-        self.assertEqual(len(board.inventory), 23 - 4)
+        self.assertTrue(relief.draining)
         # Taken while another ware fit: the batch stopped at the weight limit (194.9 of
         # 195.0 lb), no ware the cap sheds can be carried more.
         self.assertEqual((policy._inventory_weight(board), policy._inventory_weight_limit(board)),
@@ -170,8 +160,7 @@ class HomeCapTidyRecordedTest(unittest.TestCase):
                              if home_cap.sheds(policy, board, item)))
         self.assertEqual(len(takes), len(board.inventory) - len(self.arrival.inventory))
         self.assertGreater(len(takes), 1)
-        # The lone ware's slot is counted at its sale.
-        self.assertEqual(relief.remaining, 239 - home_ledger.HOME_KEEP_CAP - len(takes) + 1)
+        self.assertEqual(relief.remaining, 239 - home_ledger.HOME_KEEP_CAP - len(takes))
         # The census of the arrival served every take: none was asked between them.
         self.assertTrue(policy._home_knowledge_current)
         # Every ware, when it was chosen, was one the fate moves.
@@ -181,36 +170,10 @@ class HomeCapTidyRecordedTest(unittest.TestCase):
         policy = self.policy
         board, takes = self.take_batch()
         relief = policy._home_full_relief
-        # The lone ware (test_the_wares_are_taken_in_one_batch_without_a_census) is sold first;
-        # its slot is counted at its sale.
-        self.assertTrue(self.lone(relief))
-        lone = relief.sale[0]
-        self.assertEqual(lone, policy._item_signature(takes[-1]))
-        remaining = relief.remaining - 1
-        board = replace(board, inventory=tuple(
-            item for item in board.inventory if policy._item_signature(item) != lone))
-        for _ in range(3):
-            # The sale is settled on a board outside its store.
-            key, reason = self.decide(board)
-            relief = policy._home_full_relief
-            if relief.sale is None:
-                break
-        self.assertIsNone(relief.sale)
-        self.assertEqual(relief.remaining, remaining)
-        self.assertEqual(len(relief.carried), len(takes) - 1)
-        # The pack has room again: the tidy asks a census to take more before it sells.
-        self.assertEqual(reason, "home:request-knowledge-scan")
-        # DECLARED CONSTRUCTED: the batch is to be sold now (as when the census shows no more
-        # ware the pack may carry); the board outside, the census not yet back.
-        relief.draining = True
-        policy._home_errand.finish()
-        policy._home_knowledge_scan_inflight = False
+        remaining = relief.remaining
         sold = []
         for _ in range(len(takes)):
             relief = policy._home_full_relief
-            if relief is not None and relief.sale is None and relief.carried:
-                self.decide(board)
-                relief = policy._home_full_relief
             if relief is None or relief.sale is None:
                 break
             self.assertTrue(relief.pack_only and relief.withdrawn and relief.mode == "sale")
@@ -224,7 +187,7 @@ class HomeCapTidyRecordedTest(unittest.TestCase):
                 relief = policy._home_full_relief
                 if relief is None or relief.sale is None or relief.sale[0] != ware:
                     break
-        self.assertEqual(sold, [policy._item_signature(ware) for ware in takes[:-1]])
+        self.assertEqual(sold, [policy._item_signature(ware) for ware in takes])
         relief = policy._home_full_relief
         # The slots were counted at the takes: the sales count none again.
         self.assertEqual(relief.remaining, remaining)

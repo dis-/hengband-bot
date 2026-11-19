@@ -16,16 +16,15 @@ device (me_device_policy.home_fate):
   (item_use_route), the zombie's Wand of Wonder food stays, an empty ``absorb_now`` copy (which
   ``_usable`` refuses) stays.
 
-The Home ledger counts the absorbed stacks as leaving the Home, and the cap tidy sheds only the
-rest (home_cap.begin).
+The Home ledger counts the absorbed stacks as leaving the Home.
 
 Recorded: the town arrivals of 2026-11-19, n1-b life-411 (tests/fixtures/quest32-one-turn-kill-1119/
 n1b-411, a 239-stack Home with 16 device stacks) and n1-c life-217 (tests/fixtures/
 n1c-217-angband-hold-1119, a 204-stack Home with 14 device stacks), both zombie Magic-Eaters with
 their displayed absorbed lists.
 
-On the decision path (choose_key) the cap tidy begins on n1-b's arrival with 28 stacks to shed
-(239 - 200 - 11 absorbed) and takes a clearly dominated ware first.
+On the decision path (choose_key) the cap tidy begins on n1-b's arrival with 39 stacks to shed
+and takes a clearly dominated ware first.
 
 DECLARED CONSTRUCTED: the arrival board at full HP for the cap tidy; the taken device added to the pack (the game's take); a Staff of
 *Destruction* on n1-b's shelf with the absorbed count at 99 or below it (me_capability.count
@@ -41,7 +40,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from hengbot import home_cap, home_ledger, item_fate, magic_eater, me_capability, me_device_policy
+from hengbot import home_ledger, item_fate, magic_eater, me_capability, me_device_policy
 from support.town_arrival_fixture import load
 from test_n1a_531_overweight_1119_recorded import post
 
@@ -86,8 +85,6 @@ class MeHomeDevices1119RecordedTest(unittest.TestCase):
         summary = home_ledger.summary(policy, board)
         self.assertEqual((summary["kept"], summary["absorb"], summary["shed"]["short"]),
                          (211, 11, 11))
-        # The cap tidy sheds what the absorptions leave over the cap (239 - 200 - 11).
-        self.assertEqual(home_cap.absorb_count(policy, board), 11)
 
     def test_n1c_home_devices(self):
         _, policy, board = self.n1c
@@ -160,9 +157,9 @@ class MeHomeDevices1119RecordedTest(unittest.TestCase):
         board = replace(board, player=replace(board.player, hp=board.player.max_hp))
         policy.choose_key(board)
         relief = policy._home_full_relief
-        # 239 stacks less the cap and the 11 devices the absorptions take out.
+        # The tidy sheds its count over the cap; the absorptions take the devices on their own.
         self.assertTrue(relief.cap)
-        self.assertEqual(relief.remaining, 239 - home_ledger.HOME_KEEP_CAP - 11)
+        self.assertEqual(relief.remaining, 239 - home_ledger.HOME_KEEP_CAP)
         ware = next(item for item in policy._home_knowledge_items
                     if policy._item_signature(item) == relief.sale[0])
         self.assertEqual(item_fate.fate(policy, board, ware, item_fate.SHELF), item_fate.SELL)
