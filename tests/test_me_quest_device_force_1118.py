@@ -36,7 +36,7 @@ from hengbot import me_deep_launcher, quest_ranged_force
 from hengbot.model import parse_snapshot
 from hengbot.quest_strategies import load_quest_strategies
 from support.town_arrival_fixture import load
-from tests.test_me_deep_launcher_1118 import BUCKLAND, RecordedBoard
+from tests.test_me_deep_launcher_1118 import BUCKLAND, RecordedBoard, at_normal_speed
 from tests import test_n1b_398_q22_hold_1115_recorded as n1b398
 
 STRATEGIES = Path(__file__).resolve().parents[1] / "strategy" / "quests"
@@ -125,14 +125,16 @@ class DeepMagicEaterTest(unittest.TestCase):
         carries no shots, and Q2 asks none either, so no purchase or Home trip opposes the
         deposit (owner 2026-11-18 「射撃威力が100ダメージ/ターンを下回る場合は矢も持たない」).
 
-        DECLARED CONSTRUCTED: the arrival board with the chosen sling worn."""
+        DECLARED CONSTRUCTED: the arrival board with the chosen sling worn, at +0 (owner 2026-11-19
+        「10ゲームターンあたりのダメージで評価して」: at the board's +19 the sling's 42.5 a turn is
+        123.25 per 10 game turns and the rounds stay, test_me_deep_launcher_1118)."""
         recorded = RecordedBoard("n1-c")
         self.addCleanup(recorded.close)
         policy = recorded.policy
         _strategies(policy)
         sling = next(owned.item for owned in policy._equipment_catalog.items
                      if owned.item.name.startswith(BUCKLAND))
-        board = recorded.wearing(sling)
+        board = at_normal_speed(recorded.wearing(sling))
         self.assertTrue(me_deep_launcher.ammo_unneeded(policy, board))
         self.assertEqual(policy._ammo_procurement_target(board), 0)
         for quest_id in (2, 22, 31):

@@ -19,6 +19,11 @@ Two rules, each with its one reader here:
   ammunition reads) is 0, so the existing Home and sale rules treat the rounds as any unneeded
   stack.  The depth is the one the town plans the departure for (``_planned_depth``).
 
+Since 2026-11-19 (owner 「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで評価して」)
+``SHOT_POWER_FLOOR`` is damage per 10 game turns: the figure below times the actions 10 game turns
+hold at the permanent speed (``shot_power_per_10_game_turns``; at +0 unchanged).  Recorded
+2026-11-19: n1-c life-217 (+6) 97.0 an action -> 155.2, so at 50F+ it would keep its rounds.
+
 The shooting power is the game's own figure per player turn on the ammunition's name, "(135/shot
 101/turn)" (flavor-describer.cpp describe_ammo_detail; attack_expectation._shot_per_turn), the
 best of the worn launcher's obtainable stacks (carried, Home and the supplier offers the
@@ -66,7 +71,16 @@ def planned_unscored(policy: Any, snapshot: Any) -> bool:
     return launcher_power_unscored(snapshot.player.class_id, policy._planned_depth())
 
 
+def shot_power_per_10_game_turns(policy: Any, snapshot: Any) -> float:
+    """``shot_power_per_turn`` per 10 game turns at the permanent speed (owner 2026-11-19
+    「攻撃力の判定を1行動あたりではなく、10ゲームターンあたりのダメージで評価して」; a town decision,
+    so a timed haste is not counted)."""
+    return attack_expectation.per_10_game_turns(
+        policy, snapshot, shot_power_per_turn(policy, snapshot),
+        speed=attack_expectation.permanent_speed(snapshot))
+
+
 def ammo_unneeded(policy: Any, snapshot: Any) -> bool:
     """Whether the character carries no ammunition (the second half of the decision)."""
     return (planned_unscored(policy, snapshot)
-            and shot_power_per_turn(policy, snapshot) < SHOT_POWER_FLOOR)
+            and shot_power_per_10_game_turns(policy, snapshot) < SHOT_POWER_FLOOR)
