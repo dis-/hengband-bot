@@ -40,7 +40,9 @@ attempts (a stand ends only when reached).  「テレポートで立て直すだ
 (``abort_conditions.hp_ratio``) Recall is not read: Teleportation, then a potion after a
 teleport that still left an enemy on the player.  ``abort_conditions.recall_below_teleports``:
 below that many scrolls, with an enemy about, Recall is read and the fight goes on
-(once_quest_recall.below_scroll_floor, which keeps every other recall rung held too).  Cure
+(once_quest_recall.below_scroll_floor, which keeps every other recall rung held too).  QUEST_33
+names 0 (owner 2026-11-19 「Q33内ではテレポートの巻物の不足による帰還は却下する」): no recall for the
+scrolls; with none left, a potion below the line, else the fight goes on.  Cure
 Critical Wounds is no HP recovery (owner 2026-11-03).  A quiet floor is rested on at any HP
 (owner 2026-11-03).
 
