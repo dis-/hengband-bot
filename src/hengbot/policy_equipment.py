@@ -3992,7 +3992,7 @@ class EquipmentMixin:
         return (
             self._outstanding_equipment_work()
             and not self._town_store_blocked_under_applicable_bound(STORE_HOME)
-            and self._town_visit_ledger.unsatisfied_passes[STORE_HOME] < limit
+            and self._home_unsatisfied_passes() < limit
             and self._town_visit_ledger.approach_fails[STORE_HOME]
             < limit
         )

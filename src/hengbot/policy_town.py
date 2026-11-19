@@ -4814,6 +4814,7 @@ class TownMixin:
         """
         ledger = self._town_visit_ledger
         ledger.unsatisfied_passes[STORE_HOME] = 0
+        ledger.allowance_passes[STORE_HOME] = 0
         ledger.approach_fails.pop(STORE_HOME, None)
         # ``blocked_store_limits`` names a block the pass count installed; a
         # block with another origin (the equipment route-repeat terminal)
@@ -4841,6 +4842,7 @@ class TownMixin:
             # observed.  It therefore satisfies the meaning of this ledger:
             # prior unsuccessful passes no longer describe the current work.
             self._town_visit_ledger.unsatisfied_passes[store_type] = 0
+            self._town_visit_ledger.allowance_passes[store_type] = 0
             if 0 < self._town_store_visit_limit(store_type):
                 self._rearm_town_store_for_new_work(
                     store_type, release_visit_bound=True
@@ -4935,11 +4937,10 @@ class TownMixin:
             return
         plan.current_stop_passes += 1
         self._town_visit_ledger.unsatisfied_passes[store_type] += 1
+        if limit != TOWN_STOP_PASS_LIMIT:
+            self._town_visit_ledger.allowance_passes[store_type] += 1
         self._observe_withdrawal_unsatisfied_pass(snapshot)
-        if (
-            self._town_visit_ledger.unsatisfied_passes[store_type]
-            < limit
-        ):
+        if self._home_unsatisfied_passes() < limit:
             if operation_completed:
                 plan.current_stop_passes = 0
             return
@@ -4986,6 +4987,27 @@ class TownMixin:
             return CALIBRATION_HOME_VISIT_LIMIT
         return TOWN_STOP_PASS_LIMIT
 
+    def _home_unsatisfied_passes(self) -> int:
+        """Home's unsuccessful passes counted against the bound that applies now.
+
+        The equipment allowance (CALIBRATION_HOME_VISIT_LIMIT, user-authorised
+        for outstanding equipment work) counts every pass.  The ordinary
+        TOWN_STOP_PASS_LIMIT of the Home work after it counts only the passes
+        charged under it: the passes the equipment work spent under its own
+        allowance are not the later work's failures.  n1-a life-531
+        2026-11-19 14:17: an equipment transaction charged two approaches and
+        its own deferred leave, ended, and the overweight deposit -- never
+        tried since the full-Home relief made room -- stopped as
+        overweight-home-unreachable (owner 2026-09-03: only a deposit that
+        really fails is a stop; owner 2026-11-15: the overweight character
+        deposits what it need not carry and departs).
+        """
+        ledger = self._town_visit_ledger
+        passes = ledger.unsatisfied_passes[STORE_HOME]
+        if self._town_store_visit_limit(STORE_HOME) == TOWN_STOP_PASS_LIMIT:
+            passes -= min(passes, ledger.allowance_passes[STORE_HOME])
+        return passes
+
     def _overweight_home_bound_exhausted(self) -> bool:
         """Home's existing pass/approach/visit bounds, as the router applies them."""
         ledger = self._town_visit_ledger
@@ -4994,7 +5016,7 @@ class TownMixin:
         return bool(
             self._town_store_blocked_under_applicable_bound(STORE_HOME, need="weight-overload")
             or ledger.approach_fails[STORE_HOME] >= limit
-            or ledger.unsatisfied_passes[STORE_HOME] >= limit
+            or self._home_unsatisfied_passes() >= limit
             or (home_visit is not None
                 and home_visit.attempts_used >= home_visit.attempt_limit)
         )
