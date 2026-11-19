@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from support.quest_supply_admitted import admit_all
 from dataclasses import replace
 import gzip
 import json
@@ -33,6 +34,7 @@ class QuestCarryTownBlockPins(unittest.TestCase):
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
     def setUp(self):
+        admit_all(self)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         with gzip.open(FIXTURE, "rt", encoding="utf-8") as stream:

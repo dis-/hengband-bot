@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import return_start
-from hengbot import angband_cap, attack_expectation, quest_optional_carry
+from hengbot import angband_cap, attack_expectation, quest_optional_carry, quest_supply_gate
 from hengbot import spare_gear
 from hengbot.stair_destination import down_destination
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
@@ -4574,7 +4574,16 @@ class QuestMixin(OpeningRouteMixin):
         if not candidates:
             return None
         quest = min(candidates, key=self._fixed_quest_order)
-        return self.approved_quest_strategy(quest.id)
+        profile = self.approved_quest_strategy(quest.id)
+        if quest.status == QUEST_STATUS_UNTAKEN and not self._opening_q34_active(snapshot):
+            # Owner 2026-11-19 「条件がそろってから買い自宅に置く」 (quest_supply_gate): an untaken
+            # quest short of its other conditions has no carry here either (n1-a life-531 kept
+            # ten of Q33's scrolls in Telmora by this row); admitted, it carries the resolved
+            # force its head row asks (40 Teleportation scrolls, not the profile's 10).
+            if not quest_supply_gate.admitted(self, snapshot, profile):
+                return None
+            return replace(profile, required_force=self._strategy_force_for_snapshot(snapshot, profile))
+        return profile
 
     @staticmethod
     def _in_flight_fixed_quests(known_quests) -> list[QuestState]:

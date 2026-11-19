@@ -1055,10 +1055,14 @@ class HomeMixin:
                     self._home_pending_quantity = None
                     self._home_pending_take_confirmed = None
                 if (relief.cap and relief.mode == "sale" and not relief.pack_only
-                        and snapshot.store is None
-                        and home_cap.batch_grows(self, snapshot, relief)):
+                        and snapshot.store is None):
                     # Owner 2026-11-19 「一気に片づける」: the taken ware waits in the pack
-                    # while the next one is taken; the batch is sold in one trip.
+                    # while the next one is taken; the batch is sold in one trip.  The take
+                    # that fills the pack (its reserve or its weight) joins the batch too and
+                    # ends it: the selection then sells the whole batch (home_cap.drain).
+                    # Sold alone, it left the batch carried and each later trip moved one
+                    # light ware (n1-c life-217 2026-11-19 16:15, six weapons held the pack
+                    # at 164.6 of 165.0 lb).
                     home_cap.take_done(self, relief, signature, store_type)
                     self.last_reason = "home:cap-tidy-batch-take"
                     return self._town_producer_entry("_home_full_relief_key",

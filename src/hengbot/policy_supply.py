@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
-from hengbot import heroism_potion, quest_force_rows, torch_release, town_pack_headroom
+from hengbot import heroism_potion, quest_force_rows, quest_supply_gate, torch_release, town_pack_headroom
 from hengbot import deep_teleport, destruction_means, me_deep_launcher, teleport_away_carry
 from hengbot.threat_projection import _with_adjusted_speed
 from hengbot.monster_memory import UNSEEN_GAME_TURNS
@@ -1437,6 +1437,14 @@ class SupplyMixin:
                 if quest is not None and quest.status == QUEST_STATUS_UNTAKEN
                 else self._quest_strategy_for_errand_or_floor(snapshot)
             )
+        if (isinstance(profile, StrategyProfile) and quest is not None
+                and quest.status == QUEST_STATUS_UNTAKEN and profile.quest_id == quest.id
+                and not self._opening_q34_active(snapshot)
+                and not quest_supply_gate.admitted(self, snapshot, profile)):
+            # Owner 2026-11-19 「条件がそろってから買い自宅に置く」: an untaken quest's carry is
+            # bought, kept and asked only once its other conditions are met (quest_supply_gate;
+            # n1-a life-531 withdrew Q33's 40 Teleportation scrolls short of a resistance).
+            profile = None
         selected = (
             replace(
                 profile,
