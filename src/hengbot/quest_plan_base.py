@@ -212,12 +212,19 @@ def _heal(policy, snapshot, profile) -> str | None:
 
 
 def _speed(policy, snapshot, profile, board) -> str | None:
-    """Haste while it is off, for a row that lives by it, else when the fight is heavy."""
-    if (not board.coming_in_view or policy._player_hasted(snapshot)
-            or snapshot.player.speed >= PERMANENT_HASTE_SPEED):
+    """Haste while it is off, for a row that lives by it, else when the fight is heavy.
+
+    An ``always_hasted`` row doses whatever the permanent speed (owner 2026-11-19, verbatim
+    「+10 以上でも飲んで読む」: the haste's +10 adds to any speed, player-speed.cpp
+    time_effect_bonus, and its floors are read at the permanent speed + 10,
+    attack_expectation.always_hasted_speed).  The heavy-fight dose of the other rows still
+    stops at PERMANENT_HASTE_SPEED."""
+    if not board.coming_in_view or policy._player_hasted(snapshot):
         return None
     force = policy._strategy_force_for_snapshot(snapshot, profile)
     if not force.get("always_hasted"):
+        if snapshot.player.speed >= PERMANENT_HASTE_SPEED:
+            return None
         ratio = float(profile.consumable_plan.get("speed_potion_use_when", {}).get(
             "expected_damage_hp_ratio_min", DEFAULT_SPEED_RATIO))
         projected = policy.threat_prediction(snapshot, board.coming_in_view, turns=3)

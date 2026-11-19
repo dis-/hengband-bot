@@ -28,7 +28,7 @@ from hengbot import quest_summon_answer as answer
 from hengbot.model import SV_STAFF_TELEPORTATION, Position
 from hengbot.policy_constants import REST_MACRO, WAIT_KEY
 from hengbot.quest_plan_base import _navigator
-from tests.test_quest33_alignment_split import DAGON, QUEEN, QUEST, monster, on_floor, quest_dir, recorded
+from tests.test_quest33_alignment_split import DAGON, QUEEN, QUEST, hasted, monster, on_floor, quest_dir, recorded
 from tests import test_quest33_summon_answer as summon_tests
 
 JART = 517  # ジャート: no summons, vision 20
@@ -41,6 +41,7 @@ class _FloorBoards:
         if quest_dir() is None:
             self.skipTest("the Hengband quest data is not available")
         self.scratch, self.policy, self.board = recorded("n1b-411")
+        self.board = hasted(self.board)  # the always-hasted fight keeps the haste (alignment_split.hasted)
         self.addCleanup(self.scratch.cleanup)
         self.plan = self.policy.approved_quest_strategy(QUEST).engagement_plan["room_sweep"]
         self.turn = 500
