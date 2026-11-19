@@ -4720,6 +4720,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_device_policy.py:_below_cap": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_device_policy.py:_black_market_reserve_kept": {
     "classification": "data",
     "rows": [

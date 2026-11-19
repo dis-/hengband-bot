@@ -78,16 +78,16 @@ class HomeDominated1119RecordedTest(unittest.TestCase):
 
     def test_the_ledger_counts_what_the_dominance_frees(self):
         # 236 kept before: 14 more pieces are clearly dominated (none of them an artifact: no
-        # Home artifact of n1-b's is outdone on every axis), and 11 devices leave to be absorbed
-        # (tests/test_me_home_devices_1119_recorded), so 211 stay and the Home is 11 stacks over
+        # Home artifact of n1-b's is outdone on every axis), and 15 devices leave to be absorbed
+        # (tests/test_me_home_devices_1119_recorded), so 207 stay and the Home is 7 stacks over
         # the cap with only kept stock left.
         summary = self.summary
         self.assertEqual(summary["fates"]["sell"], 17)
-        self.assertEqual(summary["kept"], 211)
+        self.assertEqual(summary["kept"], 207)
         self.assertEqual(summary["artifacts"], 89)
         self.assertFalse(summary["fits"])
         self.assertEqual(summary["shed"]["count"], 17)
-        self.assertEqual(summary["shed"]["short"], 11)
+        self.assertEqual(summary["shed"]["short"], 7)
 
     def constructed(self, **changes):
         """DECLARED CONSTRUCTED (module docstring): a Home artifact from the worn body armour."""
