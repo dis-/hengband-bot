@@ -18,16 +18,24 @@ The game (C:/hengband/src):
   grid in the player's view, or while it holds a target.  The sleep counter falls by the same two
   conditions only (monster/monster-status.cpp:122-131), so a sleeper out of them never wakes.
   (quest_summon_answer._acts is this test; the target branch is not read: the board shows none.)
-* It moves toward the player (monster-floor/monster-sweep-grid.cpp ``create_deciders``,
-  :455-505): a monster neither PASS_WALL nor KILL_WALL (those go straight, ``should_go_straight``)
-  that the player cannot see follows the flow (``NoiseTrackingMoveGridDecider``), which
-  ``update_flow`` (grid/grid.cpp:806-913) stamps by a breadth-first walk from the player over the
-  grids with MOVE (CAN_FLY too for a flyer, ``get_grid_flow_type``, monrace-definition.cpp:398)
-  and over closed doors, and stops at ``monster_flow_depth`` = 32 steps.  Beyond that a monster
-  out of the player's line has no flow (cost 0), and the scent (``grid.when``) is only laid around
-  the player: no decider applies and it heads straight at him (``evalute_deciders``' default), into
-  the first wall.  So it comes when the flow reaches it, or it has a line to the player, or it goes
-  through walls (``_Reader.comes``).
+* It moves toward the player one step at a time, and ``walks`` follows those steps as the game makes
+  them (n1-c life-217, 2026-11-19 23:13: the acting Gachapin went (23,57) <-> (23,56) for 200 holds
+  of the player on [20,48], with the flow reaching it 15 steps away; the old reading of "a way and the
+  flow" said it came).  ``create_deciders`` (monster-floor/monster-sweep-grid.cpp:452-505):
+  ``RangedAttackMoveGridDecider`` (:298-357) first for a monster with ranged attacks within 19 of
+  the player: with a line to him it stays and casts (that counts as come), else the neighbour no
+  farther by the flow from which it has one; then, for one not going straight (PASS_WALL,
+  KILL_WALL) that the player cannot see, ``NoiseTrackingMoveGridDecider`` (:363-404): the
+  neighbour of the least flow (distance for a door-opener, cost else), looked at in
+  ``directions_8_reverse`` order, NOT as the cell to step to but as the point 16 grids past the
+  player in that direction (``p_pos + d.vec() * 16``); else the player's own cell (``evalute_deciders``'
+  default).  ``get_moves_val`` (monster/monster-processor-util.cpp:83-160) turns the way to that
+  point into five directions, and ``process_monster_movement`` takes the first it can step to.  The
+  flow is ``update_flow``'s (grid/grid.cpp:806-913): a breadth-first walk from the player over the
+  grids with MOVE (CAN_FLY too for a flyer, monrace-definition.cpp:398) and closed doors (3 more to
+  the cost), up to ``monster_flow_depth`` 32.  Far from the player the point past him is not where
+  the flow leads, and a monster can go back and forth between two cells for ever: a walk that comes
+  back to a cell, or finds all five directions refused, does not come.
 * Its own steps (monster-floor/monster-move.cpp ``process_monster_movement``:377-440, monster/
   monster-info.cpp ``monster_can_cross_terrain``:42-118): pits only flying (DARK_PIT has no MOVE),
   deep water flying, swimming or AQUATIC, lava flying or IM_FIRE, a closed or locked door with
@@ -36,9 +44,10 @@ The game (C:/hengband/src):
   monster in the way is passed only by KILL_BODY with a greater ``mexp * level`` or MOVE_BODY with
   a greater ``mexp`` (monster-attack/monster-attack-processor.cpp:120-150); one that does not act
   where the player waits never steps aside, so it blocks (the Dagons, 2026-11-19).
-* It does not come when it runs (``mon_will_run``, monster-sweep-grid.cpp:35-72): afraid, or, from
-  6 to 25 grids away, of a level that with 25 (+8 by its index) plus 4 is no more than the
-  player's (the reading here takes only that sure case, +8 counted), and a pack animal (FRIENDS,
+* It does not come when it runs (``mon_will_run``, monster-sweep-grid.cpp:35-72, ``_runs``): afraid,
+  or from 6 to 25 grids away by its level + 25 + (its index & 8) against the player's level and
+  both HP (the ボーシン, level 10, run from n1-c at Lv44: they went away along the tree band), and a
+  pack animal (FRIENDS,
   ANIMAL, not through walls) that sees the player or is within 10 by the flow hides
   (``HidingMoveGridDecider``, :186-226) while the walkable cells around the player are fewer than
   8 x (HP + SP) / (max HP + max SP), less 2 for a race with no spells (the ROOM flag's other 2 is
@@ -210,16 +219,65 @@ def _flow_from(terrain, start, fly: bool) -> dict:
     return dist
 
 
-def _steps_from(snapshot, terrain, flags, start, blocked) -> frozenset:
-    seen, pending = {start}, deque([start])
+# monster-processor-util.cpp get_moves_val / floor/geometry.h: direction numbers, their vectors and
+# their order round the circle (cdir, south first, counter-clockwise).
+_DIR_VEC = {1: (1, -1), 2: (1, 0), 3: (1, 1), 4: (0, -1), 6: (0, 1), 7: (-1, -1), 8: (-1, 0), 9: (-1, 1)}
+_CDIR = (2, 3, 6, 9, 8, 7, 4, 1)
+# Direction::directions_8_reverse(): the order NoiseTrackingMoveGridDecider and
+# RangedAttackMoveGridDecider look round a monster.
+_REVERSE_8 = (7, 9, 1, 3, 4, 6, 8, 2)
+STEP_LIMIT = 64  # the steps a monster's walk is followed (a longer one is no wait's)
+
+
+def _rotated(direction: int, delta: int) -> int:
+    return _CDIR[(_CDIR.index(direction) + delta) & 7]
+
+
+def _moves_val(vec) -> list:
+    """get_moves_val (monster/monster-processor-util.cpp:83-160): the five directions a monster tries,
+    for ``vec`` = its cell less the cell it heads for."""
+    vy, vx = vec
+    if (vy, vx) == (0, 0):
+        return []
+    ay, ax = abs(vy), abs(vx)
+    move_val = (8 if vy < 0 else 0) + (4 if vx > 0 else 0)
+    if ay > (ax << 1):
+        move_val += 2
+    elif ax > (ay << 1):
+        move_val += 1
+    table = {0: (9, ay > ax), 1: (6, vy >= 0), 9: (6, vy >= 0), 2: (8, vx >= 0), 6: (8, vx >= 0),
+             4: (7, ay <= ax), 5: (4, vy < 0), 13: (4, vy < 0), 8: (3, ay <= ax),
+             10: (2, vx < 0), 14: (2, vx < 0), 12: (1, ay > ax)}
+    if move_val not in table:
+        return []
+    direction, left = table[move_val]
+    sign = 1 if left else -1
+    return [direction, _rotated(direction, sign), _rotated(direction, -sign),
+            _rotated(direction, 2 * sign), _rotated(direction, -2 * sign)]
+
+
+def _flow_maps(snapshot, terrain, spot, fly: bool) -> tuple[dict, dict]:
+    """update_flow (grid/grid.cpp:806-913) from a player on ``spot``: (distance, cost) per cell, a closed
+    door costing 3 more; absent where the walk of 32 does not reach (the game's 0)."""
+    kinds = _FLOW_KINDS | ({"pit"} if fly else frozenset())
+    dist, cost = {spot: 0}, {spot: 0}
+    pending = deque([spot])
     while pending:
         cell = pending.popleft()
         for dy, dx in _NEIGHBOURS:
             nxt = (cell[0] + dy, cell[1] + dx)
-            if nxt not in seen and nxt not in blocked and _crosses(snapshot, terrain, flags, nxt):
-                seen.add(nxt)
+            if nxt == spot or terrain.get(nxt) not in kinds:
+                continue
+            step = cost[cell] + 1 + (3 if terrain.get(nxt) == "door" and _closed(snapshot, nxt) else 0)
+            if nxt in dist and dist[nxt] <= dist[cell] + 1 and cost[nxt] <= step:
+                continue
+            dist[nxt] = min(dist.get(nxt, 10 ** 6), dist[cell] + 1)
+            cost[nxt] = min(cost.get(nxt, 10 ** 6), step)
+            if dist[nxt] < FLOW_DEPTH:
                 pending.append(nxt)
-    return frozenset(seen)
+    dist.pop(spot)
+    cost.pop(spot)
+    return dist, cost
 
 
 def _passes(mover: Awaited, other) -> bool:
@@ -268,12 +326,30 @@ class _Reader:
         return self.flows[(spot, fly, "to")]
 
     def _runs(self, row: Awaited, spot) -> bool:
+        """mon_will_run (monster-sweep-grid.cpp:35-72) for a player on ``spot``: afraid; else from 6 to
+        25 grids away, its level + 25 + (its index & 8) against the player's: more than 4 above, it
+        stays; 4 or more below, it runs; between, it runs when the player's level x max HP + 4 x HP,
+        against its own, weighs more (both over their max HP).  A placement not on the board has no
+        index: only the sure case (+8) is read for it."""
         monster = row.monster
         if monster is not None and monster.fearful:
             return True
         distance = quest_exposure.game_distance(row.cell, spot)
+        if not 5 < distance <= MAX_PLAYER_SIGHT + 5:
+            return False
         level = int(getattr(row.knowledge, "level", 0) or 0)
-        return 5 < distance <= MAX_PLAYER_SIGHT + 5 and level + 25 + 8 + 4 <= self.level
+        if monster is None:
+            return level + 25 + 8 + 4 <= self.level
+        m_lev = level + (int(monster.index) & 0x08) + 25
+        if m_lev > self.level + 4:
+            return False
+        if m_lev + 4 <= self.level:
+            return True
+        player = self.snapshot.player
+        m_mhp, m_chp = max(1, int(monster.max_hp)), max(0, int(monster.hp))
+        p_val = self.level * int(player.max_hp) + (int(player.hp) << 2)
+        m_val = m_lev * m_mhp + (m_chp << 2)
+        return p_val * m_mhp > m_val * int(player.max_hp)
 
     def _hides(self, row: Awaited, spot, flow_distance) -> bool:
         flags = _flags(row)
@@ -322,18 +398,106 @@ class _Reader:
             return False
         if self._runs(row, spot):
             return False
-        flow_distance = self._flow(row).get(spot)
-        straight = bool({"PASS_WALL", "KILL_WALL"} & flags)
-        if not straight and flow_distance is None and not quest_exposure.projectable(self.open_terrain(), spot, row.cell):
-            return False
-        if self._hides(row, spot, flow_distance):
+        if self._hides(row, spot, self._flow(row).get(spot)):
             return False
         blocked = self._blocked(row, spot) - {spot}
-        key = (row.key, blocked)
+        key = (row.key, spot, blocked)
         if key not in self.steps:
-            self.steps[key] = _steps_from(self.snapshot, self.terrain, flags, row.cell, blocked)
-        reached = self.steps[key]
-        return any((spot[0] + dy, spot[1] + dx) in reached for dy, dx in _NEIGHBOURS)
+            self.steps[key] = self.walks(row, spot, blocked)
+        return self.steps[key]
+
+    def flow_maps(self, spot, fly: bool) -> tuple[dict, dict]:
+        if (spot, fly, "maps") not in self.flows:
+            self.flows[(spot, fly, "maps")] = _flow_maps(self.snapshot, self.terrain, spot, fly)
+        return self.flows[(spot, fly, "maps")]
+
+    def _projects(self, source, target) -> bool:
+        return quest_exposure.projectable(self.open_terrain(), source, target)
+
+    def _ranged_step(self, cell, spot, gauge, flags, doors):
+        """RangedAttackMoveGridDecider (monster-sweep-grid.cpp:298-357): with a line to the player it
+        stays and casts (True); else the neighbour no farther by the flow from which it has one, or None."""
+        if self._projects(cell, spot):
+            return True
+        passes = bool({"PASS_WALL", "KILL_WALL"} & flags)
+        now = gauge.get(cell, 0) or 999
+        best, pick = 999, None
+        for direction in _REVERSE_8:
+            dy, dx = _DIR_VEC[direction]
+            nxt = (cell[0] + dy, cell[1] + dx)
+            if nxt == spot:
+                return None
+            here = gauge.get(nxt, 0)
+            if not passes:
+                if here == 0:
+                    continue
+                if not doors and self.terrain.get(nxt) == "door" and _closed(self.snapshot, nxt):
+                    continue
+            here = here or 998
+            if now < here or best < here or not self._projects(nxt, spot):
+                continue
+            best, pick = here, nxt
+        return pick
+
+    def _heading(self, row, cell, spot, gauge, flags, doors):
+        """The cell the monster heads for on this move (create_deciders, monster-sweep-grid.cpp:452-505;
+        ``evalute_deciders`` falls back on the player's cell), or True when it casts from where it is."""
+        knowledge = row.knowledge
+        if (int(getattr(knowledge, "max_ranged_damage", 0) or 0) > 0
+                and quest_exposure.game_distance(cell, spot) <= quest_exposure.MAX_SPELL_RANGE + 1):
+            ranged = self._ranged_step(cell, spot, gauge, flags, doors)
+            if ranged is not None:
+                return ranged
+        straight = bool({"PASS_WALL", "KILL_WALL"} & flags)
+        visible = self._projects(spot, cell)
+        circumventing = (quest_exposure.game_distance(cell, spot) > 1
+                         and int(getattr(knowledge, "spell_frequency", 0) or 0) == 0
+                         and gauge.get(cell, 0) <= 5)
+        if not straight and (not visible or circumventing) and gauge.get(cell, 0) > 0:
+            # NoiseTrackingMoveGridDecider (:363-404): the neighbour of the least flow, as a point 16
+            # grids past the player in that direction (``p_pos + d.vec() * 16``).
+            best, chosen = 999, None
+            for direction in _REVERSE_8:
+                dy, dx = _DIR_VEC[direction]
+                here = gauge.get((cell[0] + dy, cell[1] + dx), 0)
+                if here == 0 or best < here:
+                    continue
+                best, chosen = here, (dy, dx)
+            if chosen is not None:
+                return (spot[0] + 16 * chosen[0], spot[1] + 16 * chosen[1])
+        return spot
+
+    def walks(self, row: Awaited, spot, blocked) -> bool:
+        """The monster's moves toward a player on ``spot`` as the game makes them, one by one
+        (MonsterSweepGrid::get_movable_grid, get_moves_val, process_monster_movement): True when it
+        comes beside him or casts at him from where it is; False when it stops (each of its five
+        directions refused: a wall, a door it cannot open, a monster it cannot pass) or goes round."""
+        flags = _flags(row)
+        doors = bool({"OPEN_DOOR", "BASH_DOOR"} & flags)
+        distances, costs = self.flow_maps(spot, "CAN_FLY" in flags)
+        gauge = distances if doors else costs
+        cell, seen = row.cell, set()
+        for _ in range(STEP_LIMIT):
+            if max(abs(cell[0] - spot[0]), abs(cell[1] - spot[1])) <= 1:
+                return True
+            if cell in seen:
+                return False
+            seen.add(cell)
+            target = self._heading(row, cell, spot, gauge, flags, doors)
+            if target is True:
+                return True
+            for direction in _moves_val((cell[0] - target[0], cell[1] - target[1])):
+                dy, dx = _DIR_VEC[direction]
+                nxt = (cell[0] + dy, cell[1] + dx)
+                if nxt == spot:
+                    return True
+                if nxt in blocked or not _crosses(self.snapshot, self.terrain, flags, nxt):
+                    continue
+                cell = nxt
+                break
+            else:
+                return False
+        return False
 
     def comers(self, spot) -> frozenset:
         return frozenset(row.key for row in self.rows if self.comes(row, spot))
