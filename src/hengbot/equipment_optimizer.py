@@ -609,6 +609,9 @@ class OptimizationResult:
     # ``depth`` is given); empty after a timeout.  The single-slot closure
     # expands around its strongest-melee sets (melee_leaders).
     chosen_band_entries: tuple[EvaluatedLoadout, ...] = ()
+    # The single-slot closure stopped at its whole-search time cap and this is
+    # the last completed pass's result (warrior_optimization.CLOSURE_TIME_CAP_SECONDS).
+    search_capped: bool = False
 
 
 def melee_leaders(

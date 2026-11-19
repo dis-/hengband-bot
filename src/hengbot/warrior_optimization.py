@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 import hashlib
 import json
+from time import monotonic
 from math import isfinite
 from pathlib import Path
 from typing import Callable, Iterable, Mapping
@@ -106,6 +107,15 @@ TR_FREE_ACT = 46
 # The strongest-melee sets of the chosen band whose neighbourhoods the
 # single-slot closure also expands (owner 2026-11-20, n1-b life-411).
 CLOSURE_MELEE_LEADERS = 3
+# The whole single-slot closure, every pass and every flag set of one search
+# (owner 2026-11-20).  Each pass has the search's 25 s budget, but n1-c
+# life-214 needed nine passes and 41.7 s in all; the town decision watchdog is
+# 90 s and the same decision also builds the catalog, plans the transaction
+# and decides the town step (n1-c 214: about 3 s besides the search on this
+# PC, the viewing server is slower).  30 s keeps a third of the watchdog for
+# that and for a slower host; a capped search returns its last completed
+# pass (``OptimizationResult.search_capped``).
+CLOSURE_TIME_CAP_SECONDS = 30.0
 
 
 def _loadout_key(loadout: Loadout) -> tuple[frozenset[str], str]:
@@ -133,7 +143,9 @@ def optimize_single_slot_closure(
     boards above choose over the same union and keep one glove.  The loop ends
     because every pass expands a loadout not expanded before, from a finite
     catalog.  Each pass is one optimization under the search's own time
-    budget; the evaluator cache keeps the loadouts already scored.
+    budget; the evaluator cache keeps the loadouts already scored.  ``optimize``
+    gives each pass what is left of CLOSURE_TIME_CAP_SECONDS; a pass that runs
+    out returns the previous pass's result marked ``search_capped``.
 
     The field also holds the neighbourhoods of the CLOSURE_MELEE_LEADERS sets
     with the most melee per game time among the chosen band's sets that clear
@@ -151,15 +163,21 @@ def optimize_single_slot_closure(
     candidates: dict[tuple[frozenset[str], str], Loadout] = {}
     expanded: set[tuple[frozenset[str], str]] = set()
     seeds = [current]
+    previous: OptimizationResult | None = None
     while True:
         for seed in seeds:
             expanded.add(_loadout_key(seed))
             for loadout in neighbours(seed):
                 candidates.setdefault(_loadout_key(loadout), loadout)
         result = optimize(tuple(candidates.values()))
+        if result.timed_out and previous is not None:
+            # The whole-search cap (CLOSURE_TIME_CAP_SECONDS) ran out in this
+            # pass: the last completed pass's choice stands.
+            return replace(previous, search_capped=True)
         best = result.best
         if best is None or result.timed_out:
             return result
+        previous = result
         seeds = []
         for entry in (best, *melee_leaders(
                 result.chosen_band_entries, CLOSURE_MELEE_LEADERS)):
@@ -1042,8 +1060,12 @@ def prepare_warrior_optimization(
         # Free Action first; when no complete loadout can wear it (a cursed
         # piece pinned in its slot, say), the search without it stands.
         flag_sets.insert(0, required_flags | {TR_FREE_ACT})
+    closure_deadline = monotonic() + CLOSURE_TIME_CAP_SECONDS
     for flags in flag_sets:
         def optimize(candidates):
+            budget = timeout_seconds
+            if search_factory is enumerate_single_slot_variants:
+                budget = max(0.0, min(timeout_seconds, closure_deadline - monotonic()))
             return optimize_loadout(
                 items,
                 # Owner 2026-11-15 「深さに関係なく持っていく」: a set that makes an owned
@@ -1054,7 +1076,7 @@ def prepare_warrior_optimization(
                 intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
                 has_destruction=has_destruction,
                 current_item_ids=current.item_ids,
-                timeout_seconds=timeout_seconds,
+                timeout_seconds=budget,
                 candidate_loadouts=candidates,
                 require_light=require_light,
                 require_body=require_body,
@@ -1199,6 +1221,7 @@ def _append_loadout_report(
         "combat_inputs": asdict(evaluator.inputs.combat),
         "timed_out": result.timed_out,
         "search_truncated": result.search_truncated,
+        "search_capped": getattr(result, "search_capped", False),
         "considered": result.combinations_considered,
         "evaluated": result.combinations_evaluated,
         "band_descent": [asdict(decision) for decision in result.band_decisions],
