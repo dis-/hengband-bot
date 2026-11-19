@@ -1,4 +1,5 @@
 import tests  # noqa: F401  -- live runtime-file isolation, also for bare module runs
+from support.quest_supply_admitted import admit_all
 from unittest import mock
 from hengbot import torch_release
 
@@ -4414,6 +4415,9 @@ class SupplyLedgerInvariantTest(unittest.TestCase):
         self.assertNotIn(STORE_ALCHEMIST, policy._town_store_attempted)
 
 class QuestCarryVisitAbandonmentTest(unittest.TestCase):
+    def setUp(self):
+        admit_all(self)
+
     FORCE = {
         "launcher": {"ammo": "equipped", "equipped": True},
         "throwing_items": {"launcher_ammo": 45},

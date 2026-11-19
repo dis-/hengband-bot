@@ -1801,6 +1801,10 @@ REGISTRY = (
       "quest25_battle_record: q25 battle record read (no comment at its definition)"),
     S("_q25_battle_restored", "quest25_battle_record", LIFE,
       "quest25_battle_record: q25 battle restored (no comment at its definition)"),
+    # quest_supply_gate
+    S("_quest_supply_admitted", "quest_supply_gate", VISIT,
+      "untaken quests whose other conditions were met this town visit (keyed by the visit "
+      "epoch): their supplies are bought and carried (owner 2026-11-19 条件がそろってから買う)"),
     # quest_sweep_target
     S("_quest_sweep_engage_commit", "quest_sweep_target", FLOOR,
       "quest_sweep_target.COMMIT_ATTRIBUTE"),
