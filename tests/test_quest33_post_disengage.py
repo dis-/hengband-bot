@@ -17,7 +17,13 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import unittest
 from dataclasses import replace
 
-from hengbot import me_capability, quest_alignment_split, quest_plan_base, quest_room_sweep
+from hengbot import (
+    me_absorbed_substitutes,
+    me_capability,
+    quest_alignment_split,
+    quest_plan_base,
+    quest_room_sweep,
+)
 from hengbot import quest_summon_answer as answer
 from hengbot.model import SV_STAFF_TELEPORTATION, Position
 from hengbot.policy_constants import REST_MACRO, WAIT_KEY
@@ -28,7 +34,9 @@ from tests import test_quest33_summon_answer as summon_tests
 JART = 517  # ジャート: no summons, vision 20
 
 
-class Quest33AfterDisengageTest(unittest.TestCase):
+class _FloorBoards:
+    """The Q33 floor boards of this module (module docstring)."""
+
     def setUp(self):
         if quest_dir() is None:
             self.skipTest("the Hengband quest data is not available")
@@ -56,6 +64,8 @@ class Quest33AfterDisengageTest(unittest.TestCase):
         profile = self.policy.approved_quest_strategy(QUEST)
         return quest_room_sweep._Board(self.policy, snapshot, profile, navigator, self.plan)
 
+
+class Quest33AfterDisengageTest(_FloorBoards, unittest.TestCase):
     # -- 1-2: what acts on the player, summoners first ------------------------------------
 
     def test_the_summoner_is_shot_before_the_monster_beside(self):
@@ -192,6 +202,39 @@ class Quest33AfterDisengageTest(unittest.TestCase):
         key = quest_room_sweep.key(self.policy, received)
         self.assertEqual((key, self.policy.last_reason), ("6", answer.STRIKE_REASON))
         self.assertEqual(navigator.summon_state, answer.LURING)
+
+
+class Quest33PlanTeleportTest(_FloorBoards, unittest.TestCase):
+    """Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the plan's own escape too
+    (quest_plan_base._below_line: the HP 40% line and the 即死 step of a board with no summon)."""
+
+    def below_the_line(self):
+        # 30% HP, an unhurt Dagon in line to the west and no summon on the board.
+        dagon = monster(self.policy, 1, DAGON, (15, 33))
+        snapshot = self.board_at((15, 38), seen=(dagon,), hp=int(self.board.player.max_hp * 0.3))
+        _navigator(self.policy, snapshot, QUEST)
+        return snapshot
+
+    def test_below_the_line_the_absorbed_teleportation_is_cast(self):
+        snapshot = self.below_the_line()
+        key = quest_room_sweep.key(self.policy, snapshot)
+        power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
+        self.assertEqual((key, self.policy.last_reason),
+                         (power.key, quest_plan_base.TELEPORT_REASON + me_absorbed_substitutes.CAST_SUFFIX))
+
+    def test_below_the_line_without_the_power_the_scroll_is_read(self):
+        summon_tests.Quest33SummonAnswerTest.without_absorbed_teleportation(self)
+        snapshot = self.below_the_line()
+        key = quest_room_sweep.key(self.policy, snapshot)
+        self.assertEqual((key, self.policy.last_reason), ("re", quest_plan_base.TELEPORT_REASON))
+
+    def test_another_quest_keeps_the_scroll_first(self):
+        snapshot = self.below_the_line()
+        other = replace(snapshot, floor_key=(0, 45, 32), quests={
+            **snapshot.quests, 32: replace(snapshot.quests[QUEST], id=32)})
+        self.assertEqual(self.policy._active_fixed_quest_id(other), 32)
+        self.assertIsNone(answer.absorbed_teleport_key(self.policy, other, quest_plan_base.TELEPORT_REASON))
+        self.assertIsNotNone(answer.absorbed_teleport_key(self.policy, snapshot, quest_plan_base.TELEPORT_REASON))
 
 
 class Quest33TeleportScrollsTest(unittest.TestCase):

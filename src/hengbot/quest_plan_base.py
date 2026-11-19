@@ -250,13 +250,22 @@ def _below_line(policy, snapshot, profile, navigator, *, line=True) -> str | Non
             return away
         navigator.sweep_heal_next = False
         return _quaff_recovery(policy, snapshot)
-    scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
-    if navigator.sweep_heal_next or scroll is None:
+    from hengbot import quest_summon_answer  # it reads this module's walks
+
+    quaffed = False
+    if navigator.sweep_heal_next:
         navigator.sweep_heal_next = False
+        quaffed = True
         if (key := _quaff_recovery(policy, snapshot)) is not None:
             return key
+    # QUEST_33 (owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」): the absorbed
+    # Teleportation in the scroll's place while it has a charge (quest_summon_answer.ABSORBED_FIRST_QUESTS).
+    if (absorbed := quest_summon_answer.absorbed_teleport_key(policy, snapshot, TELEPORT_REASON)) is not None:
+        navigator.sweep_heal_next = True
+        return absorbed
+    scroll = policy._find_teleport_scroll(snapshot) if policy._can_read_scrolls(snapshot) else None
     if scroll is None:
-        return None
+        return None if quaffed else _quaff_recovery(policy, snapshot)
     navigator.sweep_heal_next = True
     policy.last_reason = TELEPORT_REASON
     return policy._read_key(snapshot, scroll)
