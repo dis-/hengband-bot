@@ -44,7 +44,7 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
-from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, pingpong_guard, safety_watch
+from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, home_ledger, pingpong_guard, safety_watch
 from hengbot import recall_wait_reach
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy import (
@@ -2296,6 +2296,8 @@ def _write_decision(
                 record["approach_yielded"] = yielded  # record only (approach_answer, review 11-18 S2)
             if policy is not None and (crossing := cross_rules.report(policy)) is not None:
                 record["cross_rule"] = crossing  # record only (cross_rules)
+            if policy is not None and (ledger := home_ledger.report(policy)) is not None:
+                record["home_ledger"] = ledger  # record only (home_ledger, owner 2026-11-19)
             if policy is not None and (gates := safety_watch.report()):
                 # Record only (safety_watch): each safe-now gate's answer beside the strict one.
                 record["safety_gates"] = [

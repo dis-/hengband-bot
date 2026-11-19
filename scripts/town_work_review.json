@@ -21576,5 +21576,38 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit: the monsters in view that summoned at the player on this board, nearest first."
+  },
+  "item_fate.py:fate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by home_ledger (record only, stage 1) in town once per visit, and by the Home cap's deciders.",
+    "evidence": "The one fate of an item (carry, home, room-sale, sell, destroy, use-now, identify; owner 2026-11-19 「自宅の満杯問題で問題を起こしすぎなので根本解決すること」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "home_ledger.py:kind": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by home_ledger.summary (record only) in town once per visit.",
+    "evidence": "A short kind name of an item for the ledger's record; no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "home_ledger.py:_name": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by home_ledger.summary (record only) in town once per visit.",
+    "evidence": "An item's display name for the ledger's record; no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

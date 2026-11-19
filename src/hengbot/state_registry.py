@@ -1159,6 +1159,9 @@ REGISTRY = (
       "policy_home: bm fund sweep ended (no comment at its definition)"),
     S("_claim_home_knowledge_observed", "policy_home", LIFE,
       "policy_home: claim home knowledge observed (no comment at its definition)"),
+    S("_home_ledger", "home_ledger", LIFE,
+      "the Home ledger's record of this town visit: {epoch, note: (decision sequence, summary)}, "
+      "record only (Home root fix stage 1, owner 2026-11-19)"),
     S("_home_capacity_observation", "policy_home", LIFE,
       "policy_home: home capacity observation (no comment at its definition)"),
     S("_home_deposit_abandoned", "policy_home", VISIT,
