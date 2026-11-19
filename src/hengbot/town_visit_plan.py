@@ -244,6 +244,9 @@ def work_state(snapshot: Any) -> tuple:
 # The stages the Home cap tidy's decisions belong to (home_cap): its census and takes (home),
 # its walks and store leaves (store-router, shop-buy: buy) and its sales (sell).
 CAP_TIDY_STAGES: tuple[str, ...] = ("home", "buy", "sell")
+# The stages of the Magic-Eater's Home absorption (me_device_policy.absorb_errand_open): its
+# census and takes (home) and the absorption itself (magic_eater.absorb_key, quest-request).
+ABSORB_STAGES: tuple[str, ...] = ("home", "quest")
 
 
 def note_observed_progress(policy: Any, snapshot: Any) -> None:
@@ -269,6 +272,16 @@ def note_observed_progress(policy: Any, snapshot: Any) -> None:
         # 2026-11-19 16:16, town:blocked:stage-deadline:buy after 18 wares sold, each sale's
         # leave-and-re-enter counted to the buy stage and never restarted).
         for stage in CAP_TIDY_STAGES:
+            if stage in visit.stage_decisions:
+                visit.stage_decisions[stage] = 0
+    from hengbot import me_device_policy
+    if me_device_policy.absorb_errand_open(policy, snapshot):
+        # The same for the Home absorption (owner 2026-11-19 「魔法道具を自宅にため込んでいる。
+        # 魔道具術師の処理ルールに従って処分」): a device taken or absorbed is new work, so an
+        # absorption that keeps going never spends a deadline; one making none still does (n1-c
+        # life-217 2026-11-19 17:53, town:blocked:stage-deadline:quest after twelve absorptions:
+        # each absorption's board was seen after the next wait, an interrupt).
+        for stage in ABSORB_STAGES:
             if stage in visit.stage_decisions:
                 visit.stage_decisions[stage] = 0
 

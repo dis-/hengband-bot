@@ -4903,8 +4903,8 @@ class HomeMixin:
         """Owner 2026-11-19 「魔法道具を自宅にため込んでいる。魔道具術師の処理ルールに従って処分」:
         take a Home device the Magic-Eater's table absorbs out to absorb it.
 
-        me_device_policy.home_absorb_takes lists them (item_fate ABSORB).  The same addressed
-        Home take as the "drink at once" potions (_bind_home_drink_potion_withdrawal); an
+        me_device_policy.next_home_absorb_take names them (item_fate ABSORB) one take after another
+        while the pack takes them; the same addressed Home take as the "drink at once" potions; an
         ``absorb_now`` copy is absorbed in town (magic_eater.absorb_key), a ``charge_first`` one
         is carried to the Tower by the staff sequence (me_staff_sequence.retains).
         """
@@ -4922,10 +4922,11 @@ class HomeMixin:
                 or self._home_is_full(snapshot)
                 or self._inventory_overweight(snapshot)):
             return
-        devices = me_device_policy.home_absorb_takes(self, snapshot)
-        # The last shelf slot first (as the potions): the next stack keeps its address.
-        device = devices[-1] if devices else None
-        if device is None or not home_take_fits(snapshot, device, device.count, policy=self):
+        # One Home visit takes every stack the pack and its weight limit admit, one take after
+        # another, before the town absorbs them (n1-c life-217 2026-11-19 17:53: one stack per
+        # Home trip with a census between, twelve trips, then town:blocked:stage-deadline:quest).
+        device = me_device_policy.next_home_absorb_take(self, snapshot)
+        if device is None:
             return
         self._rearm_town_store_for_new_work(STORE_HOME)
         self._home_pending_item = self._item_signature(device)

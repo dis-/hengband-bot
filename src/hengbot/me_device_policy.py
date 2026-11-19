@@ -134,11 +134,37 @@ def charge_first(policy, snapshot, row: Device | None) -> bool:
     return _first_stage_copy(policy, snapshot, row)
 
 
-def _usable(item) -> bool:
-    """import_magic_device refuses a charging rod (and an empty device absorbs nothing)."""
+def _usable(policy, snapshot, row: Device, item) -> bool:
+    """Absorbing the copy raises the power's count (mind-magic-eater.cpp import_magic_device).
+
+    A charging device is refused.  A rod adds its number whatever its charge (:52); a charged
+    wand or staff adds its charges.  An empty wand or staff (pval 0) adds 1 to a kind already
+    absorbed (count > 0: ``gain_num`` is raised to 1, :59-64) and nothing to a kind not yet
+    absorbed: owner 2026-11-19 「取り込む」 for the first, ``empty_unabsorbed`` sells the second.
+    The count never passes 99 (``POWER_COUNT_CAP``), so an empty copy at the cap adds nothing.
+    """
     if item.charging or (item.timeout or 0):
         return False
-    return item.tval == TVAL_ROD or item.charges > 0
+    if item.tval == TVAL_ROD or item.charges > 0:
+        return True
+    return _absorbed_count(policy, snapshot, row) > 0 and _below_cap(policy, snapshot, row)
+
+
+def _absorbed_count(policy, snapshot, row: Device) -> int:
+    from hengbot import me_capability
+
+    return me_capability.count(policy, snapshot, row.kind, row.sval)
+
+
+def empty_unabsorbed(policy, snapshot, item) -> bool:
+    """An identified empty wand or staff of an ``absorb_now`` kind the Magic-Eater has not yet
+    absorbed: absorbing it adds nothing (``_usable``) and no rule recharges it first
+    (``charge_first``), so it is sold (owner 2026-11-19)."""
+    row = device(item)
+    return bool(row is not None and _magic_eater(snapshot) and row.absorb_now
+                and item.tval != TVAL_ROD and item.aware and item.known and item.charges <= 0
+                and not charge_first(policy, snapshot, row)
+                and _absorbed_count(policy, snapshot, row) <= 0)
 
 
 def absorb_candidate(policy, snapshot, *, only=None):
@@ -151,7 +177,8 @@ def absorb_candidate(policy, snapshot, *, only=None):
         if only is not None and (item.tval, item.sval) not in only:
             continue
         if (row is not None and row.absorb_now and item.aware and item.known
-                and _usable(item) and not _first_stage_copy(policy, snapshot, row)):
+                and _usable(policy, snapshot, row, item)
+                and not _first_stage_copy(policy, snapshot, row)):
             return item
     return None
 
@@ -232,8 +259,9 @@ def _purchase_count_allows(policy, snapshot, row: Device) -> bool:
 #   拾わず壊す」, me_capped_pickup.DESTROY_ON_FLOOR).
 # * None: the table's other answers stand: a ``never`` kind, a capped kind (owner 2026-11-13
 #   「99回なら必ず拾わない」) and a kind no rule uses go by item_use_route (sold, or destroyed when
-#   no store buys it); the zombie's food (magic_eater_devices) stays; an empty ``absorb_now`` copy
-#   has no rule that absorbs it (``_usable``) and stays where it is.
+#   no store buys it); the zombie's food (magic_eater_devices) stays.  An empty ``absorb_now``
+#   copy is absorbed when its kind is already absorbed (``_usable``) and sold when it is not
+#   (``empty_unabsorbed``, through item_use_route: owner 2026-11-19 「取り込む」).
 ABSORB = "absorb"
 DESTROY = "destroy"
 
@@ -260,7 +288,7 @@ def absorbs(policy, snapshot, item) -> bool:
         return False
     if charge_first(policy, snapshot, row):
         return True
-    return row.absorb_now and _usable(item)
+    return row.absorb_now and _usable(policy, snapshot, row, item)
 
 
 def home_fate(policy, snapshot, item) -> str | None:
@@ -286,22 +314,54 @@ def absorbed_in_town(policy, snapshot, item) -> bool:
 
 
 def town_absorb_candidate(policy, snapshot):
-    """The first carried copy ``absorbed_in_town``, or None."""
+    """The first carried copy ``absorbed_in_town``, or None while the Home still gives a copy
+    to take (``next_home_absorb_take``): the takes come first, then the absorptions."""
+    if (getattr(policy, "_home_knowledge_current", False)
+            and next_home_absorb_take(policy, snapshot) is not None):
+        return None
     return next((item for item in snapshot.inventory
                  if absorbed_in_town(policy, snapshot, item)), None)
 
 
 def home_absorb_takes(policy, snapshot) -> list:
-    """The known Home copies whose fate is ``ABSORB``, catalogue order (taken one at a time).
+    """The known Home copies whose fate is ``ABSORB``, catalogue order (``next_home_absorb_take`` takes them).
 
-    In town, with the Home listing current and no hostile in view; none while a carried copy waits
-    for its absorption in town (it is absorbed first).
+    In town, with the Home listing current and no hostile in view.
     """
     if not snapshot.in_town or not policy._home_knowledge_current or not _magic_eater(snapshot):
         return []
-    if policy._physical_hostiles(snapshot) or town_absorb_candidate(policy, snapshot) is not None:
+    if policy._physical_hostiles(snapshot):
         return []
     deferred = getattr(policy, "_deferred_home_items", ())
     return [item for item in policy._home_knowledge_items[:policy._home_knowledge_valid_before]
             if item.count > 0 and home_fate(policy, snapshot, item) == ABSORB
             and policy._item_signature(item) not in deferred]
+
+
+def next_home_absorb_take(policy, snapshot):
+    """The next Home copy to take for the absorption, or None: the last shelf slot first (a take
+    shifts only the later slots, so the next stack keeps its address and no census is needed
+    between takes), when its whole stack the pack's budget (town_pack_budget.home_take_fits) and
+    weight limit admit.  The copies taken wait carried (``absorbed_in_town``) until no more
+    is taken, then the town absorbs them (``town_absorb_candidate``)."""
+    from hengbot.town_pack_budget import home_take_fits
+
+    takes = home_absorb_takes(policy, snapshot)
+    item = takes[-1] if takes else None
+    # Only the last: an earlier one taken first would move its address (a census before it).
+    if (item is None or not home_take_fits(snapshot, item, item.count, policy=policy)
+            or not policy._can_add_item_without_overweight(snapshot, item)):
+        return None
+    return item
+
+
+def absorb_errand_open(policy, snapshot) -> bool:
+    """The town still absorbs: a carried copy waits (``town_absorb_candidate``) or a Home stack's
+    fate is ``ABSORB``.  Its observed progress restarts its stages' deadline counts
+    (town_visit_plan.ABSORB_STAGES)."""
+    if not snapshot.in_town or not _magic_eater(snapshot):
+        return False
+    if any(absorbed_in_town(policy, snapshot, item) for item in snapshot.inventory):
+        return True
+    return any(item.tval in KINDS and home_fate(policy, snapshot, item) == ABSORB
+               for item in getattr(policy, "_home_knowledge_items", ()) or ())

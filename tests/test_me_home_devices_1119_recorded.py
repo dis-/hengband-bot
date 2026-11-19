@@ -13,8 +13,8 @@ device (me_device_policy.home_fate):
 * ``destroy``: the Staff of *Destruction* at the cap (owner 2026-11-16 「取り込み回数99なら杖を
   拾わず壊す」);
 * otherwise the table's other answers stand: a ``never`` kind no rule uses is sold
-  (item_use_route), the zombie's Wand of Wonder food stays, an empty ``absorb_now`` copy (which
-  ``_usable`` refuses) stays.
+  (item_use_route), the zombie's Wand of Wonder food stays; an empty ``absorb_now`` copy is
+  absorbed when its kind is already absorbed (tests/test_me_empty_absorb_1119_recorded).
 
 The Home ledger counts the absorbed stacks as leaving the Home.
 
@@ -74,33 +74,29 @@ class MeHomeDevices1119RecordedTest(unittest.TestCase):
         _, policy, board = self.n1b
         fates = self.device_fates(policy, board)
         self.assertEqual(Counter(fate for _, fate in fates),
-                         Counter({item_fate.ABSORB: 11, item_fate.HOME: 5}))
+                         Counter({item_fate.ABSORB: 15, item_fate.HOME: 1}))
         kept = sorted(name for name, fate in fates if fate == item_fate.HOME)
-        self.assertEqual(kept, sorted([
-            # The empty absorb_now copies: no rule absorbs them (me_device_policy._usable).
-            "アシッド・ボルトの魔法棒 (0回分)", "ファイア・ボルトの魔法棒 (0回分)",
-            "軽傷の治癒の杖 (0回分)", "邪悪存在退散の杖 (0回分)",
-            # The zombie's food (the Wand of Wonder staple, never absorbed).
-            "謎の魔法棒 (23回分) {@3}"]))
+        # The zombie's food (the Wand of Wonder staple, never absorbed).
+        self.assertEqual(kept, ["謎の魔法棒 (23回分) {@3}"])
         summary = home_ledger.summary(policy, board)
         self.assertEqual((summary["kept"], summary["absorb"], summary["shed"]["short"]),
-                         (211, 11, 11))
+                         (207, 15, 7))
 
     def test_n1c_home_devices(self):
         _, policy, board = self.n1c
         fates = dict(self.device_fates(policy, board))
         self.assertEqual(Counter(fates.values()),
-                         Counter({item_fate.ABSORB: 12, item_fate.SELL: 1, item_fate.HOME: 1}))
+                         Counter({item_fate.ABSORB: 13, item_fate.SELL: 1}))
         self.assertEqual(fates["懐柔の魔法棒 (8回分)"], item_fate.SELL)          # 「取り込まない」
-        self.assertEqual(fates["アイス・ボルトの魔法棒 (0回分)"], item_fate.HOME)  # empty
+        self.assertEqual(fates["アイス・ボルトの魔法棒 (0回分)"], item_fate.ABSORB)  # empty, absorbed kind
         self.assertEqual(fates["トラップ感知のロッド"], item_fate.ABSORB)
         summary = home_ledger.summary(policy, board)
-        self.assertEqual((summary["absorb"], summary["fits"]), (12, True))
+        self.assertEqual((summary["absorb"], summary["fits"]), (13, True))
 
     def test_the_home_take_and_the_town_absorption(self):
         _, policy, board = self.n1b
         takes = me_device_policy.home_absorb_takes(policy, board)
-        self.assertEqual(len(takes), 11)
+        self.assertEqual(len(takes), 15)
         saved = (policy._home_pending_item, policy._home_pending_quantity,
                  policy._home_withdrawal_queued)
         self.addCleanup(self.restore, policy, saved)
@@ -108,17 +104,26 @@ class MeHomeDevices1119RecordedTest(unittest.TestCase):
         # The last shelf stack first, whole.
         self.assertEqual(policy._home_pending_item, policy._item_signature(takes[-1]))
         self.assertEqual(policy._home_pending_quantity, takes[-1].count)
-        # DECLARED CONSTRUCTED: the game's take, the stack at the next pack letter.
+        # DECLARED CONSTRUCTED: the game's take, the stack at the next pack letter and off the
+        # shelf.
         letter = chr(ord("a") + len(board.inventory))
         taken = replace(takes[-1], slot=letter)
         carried = replace(board, inventory=(*board.inventory, taken),
                           player=replace(board.player, hp=board.player.max_hp))
         self.restore(policy, saved)
         self.assertEqual(policy._retention_reservation(carried, taken), taken.count)
+        before = policy._home_knowledge_items
+        self.addCleanup(setattr, policy, "_home_knowledge_items", before)
+        policy._home_knowledge_items = [item for item in before if item is not takes[-1]]
+        # The takes come first (tests/test_n1c_217_absorb_deadline_1119_recorded): the next
+        # shelf stack is taken before the carried one is absorbed.
+        self.assertEqual(me_device_policy.next_home_absorb_take(policy, carried), takes[-2])
+        self.assertIsNone(magic_eater.absorb_key(policy, carried, []))
+        # DECLARED CONSTRUCTED: the Home without the other copies (all taken): it is absorbed.
+        policy._home_knowledge_items = [item for item in before
+                                        if not any(item is take for take in takes)]
         self.assertEqual(magic_eater.absorb_key(policy, carried, []), "G" + letter)
         self.assertEqual(policy.last_reason, magic_eater.ABSORB_REASON)
-        # Nothing more is taken while it waits for its absorption.
-        self.assertEqual(me_device_policy.home_absorb_takes(policy, carried), [])
 
     @staticmethod
     def restore(policy, saved):
