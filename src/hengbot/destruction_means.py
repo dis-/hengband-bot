@@ -238,8 +238,26 @@ class Means:
 
     def optimizer_without_gear(self) -> bool:
         """policy_equipment._optimizer_destruction_means' first test: the absorbed power is a
-        means in every loadout (a scroll is none)."""
-        return self.absorbed_charges > 0
+        means in every loadout without a NO_MAGIC (equipment_optimizer.destruction_means; a
+        scroll is none).  Asked of the board with the worn NO_MAGIC taken off: a worn one
+        refuses the power on this board, not in the loadouts the search weighs (n1-b
+        life-411 2026-11-21 04:55: worn, every loadout read as without the means)."""
+        return self.unrefused_absorbed_charges > 0
+
+    @cached_property
+    def unrefused_absorbed_charges(self) -> int:
+        """``absorbed_charges`` on this board with no worn NO_MAGIC."""
+        from dataclasses import replace
+
+        from hengbot import me_capability, me_power_success
+
+        if not me_power_success.worn_anti_magic(self.snapshot):
+            return self.absorbed_charges
+        flag = me_power_success.TR_NO_MAGIC
+        board = replace(self.snapshot, equipment=tuple(
+            replace(item, known_flags=item.known_flags - {flag}) if flag in item.known_flags
+            else item for item in self.snapshot.equipment))
+        return me_capability.replacing_charges(self.policy, board, STAFF)
 
     def optimizer_staff_owned(self) -> bool:
         """The optimizer's second test: an owned charged staff, no Berserker's; its StaffGate
