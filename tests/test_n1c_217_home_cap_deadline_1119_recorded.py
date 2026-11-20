@@ -67,6 +67,20 @@ def accounting(fixture_rows, policy, *, stall_from=None):
         town_visit_plan.note_decision(policy, board, key)
     return None, None, None
 
+# Recorded under the 11-19 top-ten keep (item_fate.KEPT_RANKS 10).  The owner's 2026-11-21 top
+# five (「部位ごとに残す数を5位までに減らす」) changes which wares go, not the mechanics pinned here;
+# tests/test_n1b_411_home_keep_top5_1121_recorded.py pins the top five.
+_TOP_TEN = patch.object(item_fate, "KEPT_RANKS", 10)
+
+
+def setUpModule():
+    _TOP_TEN.start()
+
+
+def tearDownModule():
+    _TOP_TEN.stop()
+
+
 
 class N1c217HomeCapDeadline1119RecordedTest(unittest.TestCase):
     def setUp(self):

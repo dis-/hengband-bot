@@ -1,8 +1,9 @@
 """What may leave the character's hands: the one disposal answer (owner 2026-11-04).
 
 Owner, on the ranking: per slot, by sale value, rank 21+ may be sold any time,
-ranks 11-20 when room is needed, the top 10 are kept, artifacts are not sold.
-When only the top 10 are left: 「消耗品や不用品などを整理。装備は売らない。」
+ranks 11-20 when room is needed, the top 10 are kept, artifacts are not sold
+(owner 2026-11-21 「部位ごとに残す数を5位までに減らす」: the top five, ranks 6-20 for room;
+``KEPT_RANKS``).  When only the kept ranks are left: 「消耗品や不用品などを整理。装備は売らない。」
 When selling cannot get under the weight limit: 「基本的には上限を超えない設定なので、
 停止して調査」, so the named weight stop stays.
 
@@ -23,7 +24,9 @@ from hengbot.model import SV_STAFF_IDENTIFY, TVAL_ROD, TVAL_STAFF, TVAL_WAND
 from hengbot.store_sale import known_sale_value
 
 KEEP, ROOM, ANY = "keep", "room", "any"
-KEPT_RANKS = 10
+# Owner 2026-11-21 「部位ごとに残す数を5位までに減らす」 (was 10): the ordinary gear each slot
+# keeps; ranks KEPT_RANKS+1..ROOM_RANKS go for room, cheapest first.  Artifacts stay protected.
+KEPT_RANKS = 5
 ROOM_RANKS = 20
 # Home wares one town stay takes out and sells with no pressure on the Home.
 SWEEP_LIMIT_PER_STAY = 3
@@ -62,7 +65,7 @@ def gear_rank(policy: Any, snapshot: Any, item: Any) -> int | None:
 
 
 def gear_tier(policy: Any, snapshot: Any, item: Any, ranks: dict | None = None) -> str:
-    """KEEP, ROOM (11-20) or ANY (21+); anything unranked is kept.
+    """KEEP (top ``KEPT_RANKS``), ROOM (to ``ROOM_RANKS``) or ANY (21+); anything unranked is kept.
 
     Without a current Home census the rank is unknown, so nothing is released,
     except the ware the relief already chose from a census and has taken out.
@@ -337,7 +340,7 @@ def _dominated(policy: Any, snapshot: Any, item: Any) -> bool:
     good as on every axis (``_at_most``; between equals the lesser signature is the other) is
     dominated, and it goes when at least the kind's worn slots (``DOMINANCE_SLOTS``) of kept
     pieces dominate it.  Kept pieces are the worn ones and the carried or Home pieces the
-    owner's ranking keeps (``gear_tier`` KEEP: the top ten, artifacts) and nothing dominates
+    owner's ranking keeps (``gear_tier`` KEEP: the top ``KEPT_RANKS``, artifacts) and nothing dominates
     away.  A piece whose abilities are not all shown is never sold on this ground, nor counted
     as kept; neither is a piece the equipment transaction owns (the optimizer's chosen
     loadout), a bounty or a quest's tagged piece (Q34).  A worn piece is never dominated.
@@ -540,7 +543,7 @@ def relief_round_trip(policy: Any, item: Any) -> bool:
 
 
 def relief_order(policy: Any, snapshot: Any, item: Any, *, carried: bool = False) -> tuple:
-    """Clearly useless stock (the 11-17 classes before the 11-19 ones), rank 21+, then 11-20,
+    """Clearly useless stock (the 11-17 classes before the 11-19 ones), rank 21+, then the room ranks (6-20),
     then surplus consumables; cheapest first."""
     useless = clearly_useless(policy, snapshot, item, carried=carried)
     if useless is not None:
@@ -589,7 +592,7 @@ def home_at_cap(policy: Any, snapshot: Any) -> bool:
 def ranked_gear_saleable(policy: Any, snapshot: Any, item: Any) -> bool:
     """The owner's ranking applied to a store sale of ranked gear.
 
-    Rank 21+ goes any time, 11-20 only when room is needed, the top 10 and
+    Rank 21+ goes any time, the room ranks (6-20) only when room is needed, the kept ranks and
     anything unranked (an artifact, an unidentified piece) stay.  n1-b life-322
     2026-11-06: an unidentified Light Crossbow from Q14 went to the Weapon Smith
     for $57 as "spare" because the optimizer cannot choose what it cannot judge.
@@ -611,7 +614,7 @@ def ranked_gear_saleable(policy: Any, snapshot: Any, item: Any) -> bool:
 def sold_not_shelved(policy: Any, snapshot: Any, item: Any) -> bool:
     """Rank 21+ in the pack goes to its buyer, not to Home and out again.
 
-    So do ranks 11-20 while the Home stands at its cap (owner 2026-11-19 「200件（空き40）」
+    So do the room ranks (6-20) while the Home stands at its cap (owner 2026-11-19 「200件（空き40）」
     「安い順に売ってよい」): the cap tidy would take them out again (Home root fix stage 2).
     """
     tier = gear_tier(policy, snapshot, item) if item.is_equipment and not item.is_ammo else KEEP
@@ -682,8 +685,8 @@ def sweep_identify_ware(policy: Any, snapshot: Any, stock: Any) -> Any:
 # equipment, the pack and the Home has one fate, read by every path that sells, destroys,
 # deposits or takes (stage 1 records it beside the deciders it will replace: home_ledger).
 CARRY = "carry"            # worn, or a pack stack a retention keeps carried
-HOME = "home"              # kept at Home: top 10 gear, artifacts, *Destruction*, supplies, quest
-ROOM_SALE = "room-sale"    # ranks 11-20: sold when the Home needs room (over its cap)
+HOME = "home"              # kept at Home: top KEPT_RANKS gear, artifacts, *Destruction*, supplies, quest
+ROOM_SALE = "room-sale"    # ranks KEPT_RANKS+1..20: sold when the Home needs room (over its cap)
 SELL = "sell"              # rank 21+, clearly useless, a kind no consumer uses
 DESTROY = "destroy"        # junk (policy_helpers ``_junk_class``)
 USE_NOW = "use-now"        # a Home potion drunk at once (consumable_policy.drunk_now)
@@ -720,7 +723,8 @@ def fate(policy: Any, snapshot: Any, item: Any, where: str) -> str:
     (``clearly_useless``, every class) and kinds no consumer uses (item_use_route) are sold;
     the owner's named artifacts (sellable_artifacts) are sold, or dropped on the town floor
     (``DROP``) when no store buys them;
-    ranked gear by its tier (``gear_tier``: rank 21+ sold, 11-20 sold for room, top 10 kept);
+    ranked gear by its tier (``gear_tier``: rank 21+ sold, the ranks after ``KEPT_RANKS`` to 20 sold for room, the top
+    ``KEPT_RANKS`` kept);
     everything else (supplies' spares included, owner 2026-11-19 「上限を置かない」) is kept
     at Home.
     """

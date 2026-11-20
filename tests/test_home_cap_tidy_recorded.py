@@ -24,6 +24,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import unittest
+from unittest.mock import patch
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -38,6 +39,20 @@ FIXTURE = Path(__file__).with_name("fixtures") / "n1a-531-home-cap-1119"
 CAP_ROW = 2
 ENTRANCE_ROW = 3
 TVAL_POTION, TVAL_SCROLL = 75, 70
+
+# Recorded under the 11-19 top-ten keep (item_fate.KEPT_RANKS 10).  The owner's 2026-11-21 top
+# five (「部位ごとに残す数を5位までに減らす」) changes which wares go, not the mechanics pinned here;
+# tests/test_n1b_411_home_keep_top5_1121_recorded.py pins the top five.
+_TOP_TEN = patch.object(item_fate, "KEPT_RANKS", 10)
+
+
+def setUpModule():
+    _TOP_TEN.start()
+
+
+def tearDownModule():
+    _TOP_TEN.stop()
+
 
 
 class HomeCapTidyRecordedTest(unittest.TestCase):

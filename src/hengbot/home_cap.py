@@ -5,8 +5,9 @@ PROPOSAL (C:\\hengband-backups\\pdca\\home-full-root-1119, 3-2 and 3-6 stage 2):
 
 1. 「200件（空き40）」: the Home keeps at most ``home_ledger.HOME_KEEP_CAP`` stacks; the 40
    above it (powerup_home's 240, store.cpp store_get_stock_capacity) stay free for deposits.
-2. 「安い順に売ってよい」: past the sellable stock, ranks 11-20 go, cheapest first; the top ten
-   always stay.
+2. 「安い順に売ってよい」: past the sellable stock, the room ranks go, cheapest first; each slot's
+   top ``item_fate.KEPT_RANKS`` always stay (owner 2026-11-21 「部位ごとに残す数を5位までに減らす」:
+   five, ranks 6-20 for room; it was ten, ranks 11-20).
 3. 「一気に片づける」: one town visit clears the Home down to the cap (no per-visit bound).
 4. 「上限を置かない」: supplies' spares are not sold to meet the cap.
 
@@ -68,7 +69,7 @@ def stock_count(policy: Any, snapshot: Any) -> int | None:
 def at_cap(policy: Any, snapshot: Any) -> bool:
     """The Home holds the cap or more, short of full: a deposit would leave it over the cap.
 
-    A full Home (``HOME_CAPACITY``) is the full-Home relief's, which sells ranks 11-20 for room
+    A full Home (``HOME_CAPACITY``) is the full-Home relief's, which sells the room ranks (6-20) for room
     on its own order (item_fate.relief_order); the cap reads the stacks below it.
     """
     count = stock_count(policy, snapshot)
@@ -81,8 +82,8 @@ def sheds(policy: Any, snapshot: Any, item: Any) -> bool:
 
 
 def shed_rank(policy: Any, snapshot: Any, item: Any) -> int:
-    """The cap's order of fates: destroy, sell, then ranks 11-20 (owner 2026-11-19 「安い順に
-    売ってよい」: ranks 11-20 only once the sellable stock is gone)."""
+    """The cap's order of fates: destroy, sell, then the room ranks (6-20) (owner 2026-11-19 「安い順に
+    売ってよい」: the room ranks (6-20) only once the sellable stock is gone)."""
     fate = item_fate.fate(policy, snapshot, item, item_fate.SHELF)
     return SHED_ORDER.index(fate) if fate in SHED_ORDER else len(SHED_ORDER)
 
