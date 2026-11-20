@@ -252,6 +252,10 @@ class EmissionState:
     store_type: int | None
     inventory: tuple[tuple[object, ...], ...]
     equipment: tuple[tuple[object, ...], ...]
+    # A restore potion bought and drunk leaves the pack as it was and the stat restored
+    # (n1-b life-411 2026-11-21 04:56: the Black Market's Restore Intelligence, then its
+    # door again, refused as a cycle).
+    drained_stats: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
