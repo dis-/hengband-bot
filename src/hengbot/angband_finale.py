@@ -344,7 +344,7 @@ def observe(policy, snapshot) -> None:
     held.in_town = False
     held.teleport_tour_done = False
     from hengbot import finale_teleport_tour  # import cycle
-    setattr(policy, finale_teleport_tour.STATE, False)
+    finale_teleport_tour.forget_trip(policy)
     now = carried(snapshot, RESTORE_MANA)
     if (held.restore_mana_seen is not None and now < held.restore_mana_seen
             and on_finale_floor(snapshot)):

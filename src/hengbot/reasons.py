@@ -234,6 +234,10 @@ _rows(WALK, "quest_summon_answer", "a walk out of the summoner's lines (owner 20
 _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's lure after a disengage: a step toward the monsters",
       "quest-strategy:summoned-lure-walk", "quest-strategy:summoned-rest")
 # Owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」: the step toward the summoner gone after.
+_rows(NOT_ESCAPE, ("finale_teleport_tour", "me_inn_refill"),
+      "the inn's night between two loops of the 99F/100F Teleportation circuit, a town walk and a "
+      "stay (owner 2026-11-20 「一周する毎に宿屋で一泊する」); \"teleport\" names the scrolls bought",
+      "depart:inn-refill:finale-teleport:approach", "depart:inn-refill:finale-teleport:rest")
 _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's chase of a summoner: a step toward it",
       "quest-strategy:summoned-approach")
 _rows(EXCLUDED, "quest25_battle", _RULE_PLAN, "quest25:teleport")

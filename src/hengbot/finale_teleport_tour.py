@@ -22,14 +22,25 @@ its own rules changed:
   ordinary circuit holds a town while its suppliers are not yet seen empty and travels on once
   they are (policy_town ``_cross_town_shopping_hold`` / ``_cross_town_quest_hold``); the town's
   own purchase rung (``tail:angband-finale``) buys there;
-* the character departs from the town where the plan's 40 are owned, or from the last town tried.
+* the character departs from the town where the plan's 40 are owned.
+
+Owner 2026-11-20 (verbatim) 「一周する毎に宿屋で一泊する」: a loop that tried every town with the
+scrolls still short is followed by a night at the inn of the town it ended in (``night_key``,
+me_inn_refill's walk and stay: cmd-inn.cpp stay_inn, world.cpp pass_game_turn_by_stay moves the
+game to the next half day, and each store restocks by the time passed when it is next entered,
+store.cpp store_maintenance); then this town's suppliers are shopped again and the next loop
+starts, until the 40 are owned.  Only the funds stop it (the expedition's rule), or an inn the
+walk cannot reach.
 """
 from __future__ import annotations
 
 from math import ceil
 from typing import Any
 
+from dataclasses import dataclass, field
+
 from hengbot import angband_finale
+from hengbot.me_inn_refill import InnRefillStay
 from hengbot.model import STORE_ALCHEMIST, STORE_GENERAL
 from hengbot.policy_constants import CROSS_TOWN_SHOPPING_RESERVE
 from hengbot.policy_types import CrossTownShoppingExpedition
@@ -39,6 +50,29 @@ CATEGORY = "teleport"  # the expedition's category (policy_town _cross_town_shor
 STATE = "_finale_teleport_tour"  # True while the expedition is this circuit's
 FALLBACK = "depart"
 SUPPLIERS = (STORE_ALCHEMIST, STORE_GENERAL)  # angband_finale's errand stores
+NIGHT = "_finale_teleport_tour_night"
+
+
+@dataclass
+class Night:
+    """The night between two loops (owner 2026-11-20 「一周する毎に宿屋で一泊する」)."""
+    due: bool = False
+    stay: InnRefillStay = field(default_factory=InnRefillStay)
+    nights: int = 0
+
+
+def night(policy: Any) -> Night:
+    held = getattr(policy, NIGHT, None)
+    if held is None:
+        held = Night()
+        setattr(policy, NIGHT, held)
+    return held
+
+
+def forget_trip(policy: Any) -> None:
+    """A dungeon board: the next town starts afresh."""
+    setattr(policy, STATE, False)
+    setattr(policy, NIGHT, Night())
 
 
 def circuit(policy: Any) -> CrossTownShoppingExpedition | None:
@@ -122,10 +156,43 @@ def start(policy: Any, snapshot: Any) -> bool:
     if not expedition.candidate_order:
         return _end(policy, record, "no-candidate-town")
     if not remaining:
-        return _end(policy, record, "all-towns-tried")
+        # Owner 2026-11-20 「一周する毎に宿屋で一泊する」: the loop is done, the night comes
+        # before the next one (``night_key``).
+        policy._cross_town_shopping = None
+        setattr(policy, STATE, False)
+        held = night(policy)
+        held.due, held.stay = True, InnRefillStay()
+        policy._cross_town_shopping_funds = {**record, "fallback": "inn-night", "why": "all-towns-tried"}
+        return False
     if snapshot.player.gold < expedition.required_gold + fare(remaining[0]):
         return _end(policy, record, "funds")
     policy._cross_town_shopping = expedition
     setattr(policy, STATE, True)
     policy._cross_town_shopping_funds = record
     return True
+
+
+def night_key(policy: Any, snapshot: Any) -> str | None:
+    """The walk to this town's inn and its night after a loop, else None.  The board after the
+    night clears this town's suppliers' visited marks, so they are shopped again (restocked) and
+    the next loop can start; an inn the walk cannot reach ends the trip's tour."""
+    from hengbot import me_inn_refill
+    held = night(policy)
+    if not held.due:
+        return None
+    if held.stay.posted_turn is not None:
+        if snapshot.turn == held.stay.posted_turn:
+            return None
+        held.due, held.nights = False, held.nights + 1
+        attempted = getattr(policy, "_town_store_attempted", {})
+        for store in SUPPLIERS:
+            attempted.pop(store, None)
+        return None
+    key = me_inn_refill._stay_key(
+        policy, snapshot, me_inn_refill.DESTRUCTION_PRODUCER,
+        me_inn_refill.FINALE_TELEPORT_APPROACH_REASON, me_inn_refill.FINALE_TELEPORT_REST_REASON,
+        record=held.stay)
+    if key is None:
+        held.due = False
+        angband_finale.memory(policy).teleport_tour_done = True
+    return key

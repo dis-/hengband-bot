@@ -51,8 +51,13 @@ DESTRUCTION_PRODUCER = "departure"
 DESTRUCTION_REASON = "depart:inn-refill:destruction:"
 DESTRUCTION_APPROACH_REASON = DESTRUCTION_REASON + "approach"
 DESTRUCTION_REST_REASON = DESTRUCTION_REASON + "rest"
+# The night between two loops of the 99F/100F Teleportation circuit (finale_teleport_tour,
+# owner 2026-11-20 「一周する毎に宿屋で一泊する」): a step of the departure too.
+FINALE_TELEPORT_REASON = "depart:inn-refill:finale-teleport:"
+FINALE_TELEPORT_APPROACH_REASON = FINALE_TELEPORT_REASON + "approach"
+FINALE_TELEPORT_REST_REASON = FINALE_TELEPORT_REASON + "rest"
 # Every reason that posts the stay (observed_input answers its building menu).
-REST_REASONS = (REST_REASON, DESTRUCTION_REST_REASON)
+REST_REASONS = (REST_REASON, DESTRUCTION_REST_REASON, FINALE_TELEPORT_REST_REASON)
 
 
 @dataclass
@@ -164,9 +169,11 @@ def destruction_key(policy, snapshot) -> str | None:
                      DESTRUCTION_REST_REASON)
 
 
-def _stay_key(policy, snapshot, family: str, approach_reason: str, rest_reason: str) -> str | None:
-    """The walk to this town's inn and the night there; None (the walk closed) to go on."""
-    record = state(policy)
+def _stay_key(policy, snapshot, family: str, approach_reason: str, rest_reason: str,
+              record: InnRefillStay | None = None) -> str | None:
+    """The walk to this town's inn and the night there; None (the walk closed) to go on.
+    ``record``: the stay's own facts (this stay in town's, ``state``, by default)."""
+    record = state(policy) if record is None else record
     if armor_smith.no_progress(record, snapshot):
         return _close(record)
     building = TOWN_TELEPORT_BUILDING_TYPES[policy._effective_town_id(snapshot)]
