@@ -5,9 +5,10 @@ angband_finale's docstring): the 95F cap lifts when a town board finds the Resto
 Healing 30, *Healing* 15, Resistance 20, Teleportation 40 and the absorbed Stone to Mud
 (「取り込んだ岩石溶解を条件に入れる」) and the equipment conditions (speed, the resistances,
 telepathy, 「呪力耐性も要求する」, 「耐盲目か耐閃光を条件に入れる」).  「準備がそろってから」: the
-dedicated loadout once the supplies are owned (pack and Home), the carry and the weight allowance
-once the supplies and the equipment are owned (the owned gear judged, not only the worn), the lift
-once the counts are in the pack and the conditions on the board.  (The small-floor option:
+readiness judges whether the owned gear (worn, carried, at Home) CAN meet the conditions, and
+「上限を外す時に初めて着け替える」: the dedicated loadout, the carry and the weight allowance hold only
+on the visit that switches to 99F/100F (the supplies owned and the conditions met by the owned
+gear), the lift once the counts are in the pack and the conditions worn.  (The small-floor option:
 tests/test_angband_finale_battle_1120_recorded.py.)
 
 Recorded: n1-b life-411's town arrival of 2026-11-20 03:32:34 (tests/fixtures/
@@ -25,10 +26,14 @@ DECLARED CONSTRUCTED:
   (the recorded Healing, Resistance and Teleportation stacks raised, a *Healing* and a Restore Mana
   stack added by copying the Healing stack's row);
 * ``without``: a board without the abilities a test names (abilities and their sources);
-* ``chosen``: the optimizer's chosen set replaced by the worn set without the ring a test names;
+* ``chosen``: the read-only search's result (``_angband_finale_feasibility``): the worn
+  loadout's preparation with its chosen set replaced by the worn set without the items that carry
+  the flag a test names (or none of them removed);
 * the Stone to Mud row of the displayed wand list with the absorbed count a test names;
 * ``dungeon``: the recorded 99F board at the level asked;
 * the Black Market wares (the page's first, changed to *Healing*, Teleportation, Stone to Mud);
+* ``latch``: the board observed as an arrival (the latch's ``in_town`` set as after a dungeon
+  board) unless a test says it is a later board of the visit;
 * the speed of the weight test (140 unslowed, less the slowdown of the weight asked) and its pack
   weights (one stack's weight changed); the latch's stages where a test says so.
 """
@@ -105,15 +110,16 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         return replace(board, player=replace(player, abilities=player.abilities - set(names),
                                              ability_sources=AbilitySources(sources)))
 
-    def chosen_without(self, flag):
-        """The optimizer's chosen set: the worn set without its items that carry ``flag``."""
-        preparation = self.policy._equipment_optimization_preparation
+    def chosen_without(self, flag, *, name="_angband_finale_feasibility"):
+        """A search's chosen set: the worn set without its items that carry ``flag`` (the
+        read-only search's, ``_angband_finale_feasibility``, by default)."""
+        preparation = self.arrival._equipment_optimization_preparation  # the recorded search
         current = preparation.current
-        slots = tuple((slot, item) for slot, item in current.slots if flag not in item.flags)
+        slots = tuple((slot, item) for slot, item in current.slots if flag is None or flag not in item.flags)
         best = preparation.result.best
-        self.policy._equipment_optimization_preparation = replace(
+        setattr(self.policy, name, replace(
             preparation, result=replace(preparation.result,
-                                        best=EvaluatedLoadout(Loadout(slots, current.hand_mode), best.metrics)))
+                                        best=EvaluatedLoadout(Loadout(slots, current.hand_mode), best.metrics))))
 
     def stone_to_mud_count(self, count):
         from hengbot import me_capability
@@ -133,10 +139,13 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         raw["floor"] = {**raw["floor"], "level": level}
         return parse_snapshot(raw, self.policy._monrace_knowledge)
 
-    def latch(self, board):
+    def latch(self, board, *, arrival=True):
+        """The board observed as the visit's first town board (``arrival``, after a dungeon
+        board), else as a later board of the same visit."""
+        angband_finale.memory(self.policy).in_town = not arrival
         angband_finale.observe(self.policy, board)
         held = angband_finale.memory(self.policy)
-        return held.supplied, held.stocked, held.ready
+        return held.supplied, held.switching, held.ready
 
     # -- (a) the readiness gate and the cap's lift --------------------------------------
 
@@ -154,7 +163,8 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertTrue(angband_cap.capped_at(DUNGEON_ANGBAND, 96, policy))
 
     def test_a_the_stages(self):
-        """Owned at Home: the carry, the loadout and the weight; carried: the lift."""
+        """Owned at Home with the gear worn: the switching visit (loadout, carry, weight);
+        carried: the lift.  Short of the supplies: no switch (the 95F rules as ever)."""
         self.home_stocked()
         self.assertEqual(self.latch(self.town), (True, True, False))
         self.assertEqual(angband_cap.cap(DUNGEON_ANGBAND, self.policy), 95)
@@ -169,6 +179,20 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertTrue(angband_finale.lifted(self.policy))
         self.policy._home_knowledge_items = self.arrival._home_knowledge_items
         self.assertEqual(self.latch(self.town), (False, False, False))
+
+    def test_a_the_switch_is_decided_on_arrival(self):
+        """「上限を外す時に初めて着け替える」, decided as the visit begins: supplies completed in the
+        middle of a visit switch nothing until the next arrival; a resumed process (no board
+        seen yet) switches nothing either."""
+        self.assertEqual(self.latch(self.town), (False, False, False))
+        self.home_stocked()
+        self.assertEqual(self.latch(self.town, arrival=False), (True, False, False))
+        self.assertFalse(angband_finale.switching(self.policy))
+        self.assertEqual(self.latch(self.town), (True, True, False))
+        fresh = copy.deepcopy(self.policy)
+        fresh._angband_finale = angband_finale.Memory()
+        angband_finale.observe(fresh, self.town)
+        self.assertFalse(angband_finale.switching(fresh))
 
     def test_a_resist_curse_and_blindness_or_light(self):
         """「呪力耐性も要求する」 and 「耐盲目か耐閃光を条件に入れる」 on the board worn."""
@@ -185,14 +209,46 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertTrue(self.latch(self.without(stocked, ("resist_lite",)))[2])
 
     def test_a_the_owned_gear_is_judged(self):
-        """「現在の装備と自宅の品で満たせるか」: a board without resist curse still has the owned set
-        the optimizer chose (stocked, not ready); a chosen set without it is no stock."""
+        """「現在の装備と自宅の品で満たせるか」, judged by the read-only search before the switch
+        (「上限を外す時に初めて着け替える」): a board without resist curse switches when that search's
+        set has it, not when only the worn loadout's search would."""
         self.home_stocked()
         board = self.without(self.pack_stocked(), ("resist_curse",))
+        self.assertIsNone(getattr(self.policy, "_angband_finale_feasibility", None))
+        self.assertEqual(self.latch(board), (True, False, False))  # no search yet: the board's
+        self.assertTrue(angband_finale.feasibility_due(self.policy, board))
+        self.chosen_without(None)
         self.assertEqual(self.latch(board), (True, True, False))
+        self.assertFalse(angband_finale.feasibility_due(self.policy, board))
+        self.policy._angband_finale_feasibility = None
+        angband_finale.memory(self.policy).switching = False
         self.chosen_without(TR_RES_CURSE)
         self.assertEqual(self.latch(board), (True, False, False))
         self.assertIn("resist_curse", angband_finale.memory(self.policy).report["equipment_owned"]["missing"])
+        # The worn loadout's own search does not stand in for it before the switch.
+        self.policy._angband_finale_feasibility = None
+        self.assertEqual(self.latch(board), (True, False, False))
+
+    def test_a_the_worn_loadout_switches_only_on_the_switch(self):
+        """「上限を外す時に初めて着け替える」: before the switch the worn loadout's search has the
+        ordinary inputs (the same key as with no supplies owned) and the read-only search in the
+        finale's rank runs beside it; on the switching visit the worn loadout's own search is the
+        finale's and no second search runs."""
+        board = self.without(self.town, ("resist_curse",))  # the supplies at Home only
+        plain = copy.deepcopy(self.arrival)
+        angband_finale.observe(plain, board)
+        plain._prepare_equipment_optimization(board)
+        self.home_stocked()
+        self.assertEqual(self.latch(board), (True, False, False))
+        self.policy._prepare_equipment_optimization(board)
+        self.assertEqual(self.policy._equipment_optimizer_input_key, plain._equipment_optimizer_input_key)
+        self.assertIsNotNone(self.policy._angband_finale_feasibility)
+        self.assertIsNone(getattr(plain, "_angband_finale_feasibility", None))
+        self.chosen_without(None)
+        self.assertEqual(self.latch(board), (True, True, False))
+        self.policy._prepare_equipment_optimization(board)
+        self.assertNotEqual(self.policy._equipment_optimizer_input_key, plain._equipment_optimizer_input_key)
+        self.assertIsNone(self.policy._angband_finale_feasibility)
 
     def test_a_stone_to_mud_absorbed(self):
         """「取り込んだ岩石溶解を条件に入れる」: ten absorbed, bought and absorbed below it."""
@@ -211,7 +267,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
 
     # -- (b) the supplies -------------------------------------------------------------
 
-    def test_b_carry_only_once_stocked(self):
+    def test_b_carry_only_on_the_switch(self):
         policy, board = self.policy, self.town
         pack = {(item.tval, item.sval): item for item in board.inventory}
         healing = replace(pack[HEALING], count=35)
@@ -219,7 +275,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertIsNone(angband_finale.carry_target(policy, board, star))  # 「準備がそろってから」
         self.home_stocked()
         self.latch(board)
-        self.assertTrue(angband_finale.stocked(policy))
+        self.assertTrue(angband_finale.switching(policy))
         big = replace(board, inventory=[healing if item is pack[HEALING] else item
                                         for item in board.inventory])
         # Kept: 30 of a stack of 35 (the retention authority every sale and deposit asks).
@@ -267,7 +323,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
 
     # -- the weight (answer 3, 「準備がそろってから」) -------------------------------------------
 
-    def test_b_overweight_only_above_plus_25_once_stocked(self):
+    def test_b_overweight_only_above_plus_25_on_the_switch(self):
         policy, board = self.policy, self.town
         limit = policy._inventory_weight_limit(board)
         self.assertEqual((limit, policy._inventory_weight(board), board.player.speed), (1950, 2136, 135))

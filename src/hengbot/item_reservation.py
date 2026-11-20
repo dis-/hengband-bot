@@ -26,6 +26,7 @@ ITEM_RESERVATION_SOURCES = {
     '_overweight_surplus_disposal': ('selection', 'F3 shop-sell surplus transaction selection/observation; retained units acquire no new exclusive owner'),
     '_batch_sell_pending': ('selection', 'batch sell pending; selection/observation intent, no additional exclusive owner'),
     '_destroy_watch': ('selection', 'destroy watch; selection/observation intent, no additional exclusive owner'),
+    '_angband_finale_feasibility': ('selection', 'the read-only optimizer search in the 99F/100F rank before the switch (angband_finale); its chosen set is only read by the readiness, no transaction and no exclusive owner'),
     '_device_identification_candidate': ('selection', 'device identification candidate; selection/observation intent, no additional exclusive owner'),
     '_device_identify_watch': ('selection', 'device identify watch; selection/observation intent, no additional exclusive owner'),
     '_emergency_consumable_issue_watch': ('selection', 'emergency consumable issue watch; selection/observation intent, no additional exclusive owner'),
