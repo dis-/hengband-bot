@@ -138,6 +138,9 @@ class Memory:
     # The visit's switch is decided (on the arrival with ``home_counts``, else on the visit's
     # first board with a current census).  A class default: restored checkpoints predate it.
     decided: bool = True
+    # The other towns' Teleportation circuit (finale_teleport_tour) ended on this trip: no new
+    # one until a dungeon board.  A class default: restored checkpoints predate it.
+    teleport_tour_done: bool = False
 
 
 def memory(policy) -> Memory:
@@ -339,6 +342,9 @@ def observe(policy, snapshot) -> None:
                       and rows["equipment_worn"]["ready"])
         return
     held.in_town = False
+    held.teleport_tour_done = False
+    from hengbot import finale_teleport_tour  # import cycle
+    setattr(policy, finale_teleport_tour.STATE, False)
     now = carried(snapshot, RESTORE_MANA)
     if (held.restore_mana_seen is not None and now < held.restore_mana_seen
             and on_finale_floor(snapshot)):

@@ -2726,6 +2726,41 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "finale_teleport_tour.py:_end": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_teleport_tour.py:_shortage_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_teleport_tour.py:circuit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_teleport_tour.py:shortage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_teleport_tour.py:start": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "flight_recorder.py:_position": {
     "classification": "data",
     "rows": [
