@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
 
+from hengbot import angband_finale
 from hengbot import __version__ as HENGBOT_VERSION
 from hengbot import dive_floor, means_spent_loop, spare_gear, torch_release
 
@@ -2959,6 +2960,13 @@ def _home_modal_continuation(snapshot, key: str, owner: str):
             Continuation(frozenset({ScreenKind.FILE_VIEWER}), "\x1b",
                          "skill-proficiency", exact_feature=True),
             Continuation(frozenset({ScreenKind.KNOWLEDGE}), "\x1b"),
+        ]
+    if key == angband_finale.SMALL_FLOOR_MACRO:
+        # Owner 2026-11-20 「99F/100Fに降りる前に常に小さめのフロアを選択するオプションを有効にする」:
+        # cmd-dump.cpp do_cmd_pref asks one pref line; interpret-pref-file.cpp's ``Y:`` sets the
+        # GAMEPLAY option (no game time) and the command screen follows.
+        return '"', [
+            Continuation(frozenset({ScreenKind.PREF_COMMAND}), angband_finale.SMALL_FLOOR_PREF + "\r"),
         ]
     if key == HOME_KNOWLEDGE_MACRO:
         return "~9", [

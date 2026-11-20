@@ -82,6 +82,14 @@ REGISTRY = (
       "finished dives of the leased switch so far"),
     S("_alternate_lease", "alternate_lease", LIFE,
       "dives the over-extension switch lasts (alternate_lease)"),
+    # angband_finale
+    S("_angband_finale", "angband_finale", LIFE,
+      "angband_finale: the 99F/100F readiness latched on the last town board (the 95F cap's lift, "
+      "owner 2026-11-20), the small-floor option's state and the expedition's Restore Mana uses"),
+    # angband_finale_battle
+    S("_angband_finale_battle", "angband_finale_battle", LIFE,
+      "angband_finale_battle: the 99F/100F battle of the floor it names (phase, last-seen target "
+      "cell, the stand of the Stone to Mud line); a new floor starts a new one"),
     # amberite_curse
     S("_amberite_curse_note", "amberite_curse", LIFE,
       "(decision sequence, record);"),

@@ -198,7 +198,7 @@ def climb_key(policy, snapshot, here):
             or policy._floor_navigation_exit_locked(snapshot)
             or policy._breeder_walkout_active(snapshot)):
         return None
-    capped = angband_cap.climbing(snapshot)
+    capped = angband_cap.climbing(snapshot, policy)
     family = "angband-cap-95" if capped else "castle-climb"
     if here is not None and policy._is_upstairs_target(here):
         if snapshot.player.hp_ratio < DESCEND_MIN_HP_RATIO:

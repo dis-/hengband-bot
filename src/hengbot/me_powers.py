@@ -913,9 +913,11 @@ def _serving(ctx, power, trigger):
     return fallback if fallback is not None and _usable(ctx, fallback, trigger) else None
 
 
-def power_key(policy, snapshot, occasion: str, target: Position | None = None) -> str | None:
+def power_key(policy, snapshot, occasion: str, target: Position | None = None, *,
+              only: str | None = None) -> str | None:
     """``m`` + kind + power (+ direction) of the first due power for
-    ``occasion``, else None; ``target`` is what an aimed power is aimed at."""
+    ``occasion``, else None; ``target`` is what an aimed power is aimed at.  ``only``: that
+    trigger alone (the 99F/100F battle's map after its *Destruction*, angband_finale_battle)."""
     if not _gate(policy, snapshot):
         return None
     memory = getattr(policy, MEMORY, None)
@@ -927,7 +929,7 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None) -
             continue
         for name in power.triggers:
             trigger = TRIGGERS[name]
-            if occasion not in trigger.occasions:
+            if occasion not in trigger.occasions or (only is not None and name != only):
                 continue
             # The charge check is cheap; a trigger may weigh a fight.
             used = _serving(ctx, power, name)

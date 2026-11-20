@@ -10,7 +10,7 @@ the layers below.  scripts/dungeon_ladder_lint.py reads the rows here
 """
 from __future__ import annotations
 
-from hengbot import quest25_battle, quest_find_exit, quest_room_sweep
+from hengbot import angband_finale_battle, quest25_battle, quest_find_exit, quest_room_sweep
 from hengbot.dungeon_ladder import PASS
 
 
@@ -32,4 +32,11 @@ def key(policy, snapshot):
         "quest_room_sweep.key", lambda: quest_room_sweep.key(policy, snapshot), family="quest-request")
     if room_sweep is not None:
         return room_sweep
+    # Owner 2026-11-20: the 99F/100F battle (it answers survival and the summons itself), and
+    # the small-floor option before the descent to them.
+    finale = policy._town_producer_entry(
+        "angband_finale_battle.key", lambda: angband_finale_battle.key(policy, snapshot),
+        family="quest-request")
+    if finale is not None:
+        return finale
     return PASS

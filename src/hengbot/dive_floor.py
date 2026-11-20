@@ -169,7 +169,7 @@ def climb_dungeon(policy) -> int | None:
 def climbing_floor(policy, snapshot, floor_key) -> bool:
     """``floor_key`` is a floor of the held climb switch's dungeon deeper than its band, or an
     Angband floor deeper than the cap (angband_cap, owner 2026-11-19)."""
-    if angband_cap.climbing_floor(floor_key):
+    if angband_cap.climbing_floor(floor_key, policy):
         return True
     dungeon = climb_dungeon(policy)
     return (dungeon is not None and floor_key is not None and floor_key[1] > 0
@@ -245,7 +245,7 @@ def target(policy) -> int | None:
 def capped(policy, snapshot, destination: int) -> bool:
     """A descent to ``destination`` would pass the target of the dungeon being dived, or the
     Angband cap (angband_cap, owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」)."""
-    if angband_cap.capped(snapshot, destination):
+    if angband_cap.capped(snapshot, destination, policy):
         return True
     depth = target(policy)
     if depth is None and climb_dungeon(policy) is not None:

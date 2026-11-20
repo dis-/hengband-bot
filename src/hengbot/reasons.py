@@ -238,6 +238,11 @@ _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's chase of a summoner: a step
       "quest-strategy:summoned-approach")
 _rows(EXCLUDED, "quest25_battle", _RULE_PLAN, "quest25:teleport")
 _rows(EXCLUDED, "breeder_quest", _RULE_PLAN + " (Q2's breeder breakthrough)", "breeder-breakthrough:teleport")
+_RULE_FINALE = ("the 99F/100F battle's own leaves (owner 2026-11-20, verbatim: 「召喚または攻撃を受けてHPが800を"
+                "下回ったとき、または対象が距離2より近づいたときテレポートの巻物で離脱する」 and 「帰還による離脱は"
+                "成功時と魔力復活の薬を予定の倍以上使ったときのみ」): a plan's step, never a town return by "
+                "the escape count (angband_finale_battle)")
+_rows(EXCLUDED, "angband_finale_battle", _RULE_FINALE, "angband-finale:teleport", "angband-finale:recall")
 _rows(NOT_ESCAPE, "policy_quest",
       "the Q2 plan's phases (q2-phase-<race>: a step of the sweep; q2-light-phase-<race>: the Light "
       "scroll read): \"phase\" is the plan's stage, not Phase Door",

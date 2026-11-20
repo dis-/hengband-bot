@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import angband_finale
 from hengbot import quest_optional_carry
 from hengbot.item_identity import (
     MemorySignatures, display_signature,
@@ -2700,6 +2701,11 @@ class HomeMixin:
         if consumable_policy.drunk_now(snapshot, item):
             # Owner 2026-11-13: the "drink at once" potions are drunk, never stored.
             return item.count, "consumable:drink-not-store"
+        # Owner 2026-11-20 「体力回復の薬、*体力回復*の薬、耐性の薬、魔力復活の薬、テレポートの巻物を
+        # 大量に持つ」: the finale's carry while the character prepares (angband_finale).
+        finale = angband_finale.retention(self, snapshot, item)
+        if finale is not None:
+            return finale, angband_finale.RETENTION_BRANCH
         from hengbot.me_staff_sequence import retains as staff_sequence_retains
         if staff_sequence_retains(self, snapshot, item):
             return item.count, "me-staff:absorb"
@@ -3239,7 +3245,8 @@ class HomeMixin:
         return limit
 
     def _inventory_overweight(self, snapshot: Snapshot) -> bool:
-        limit = self._inventory_weight_limit(snapshot)
+        # Owner 2026-11-20 「減速後加速+25を超えていれば重量過多を許可する」 (angband_finale).
+        limit = angband_finale.weight_limit(self, snapshot, self._inventory_weight_limit(snapshot))
         return limit is not None and self._inventory_weight(snapshot) > limit
 
     def _ammo_procurement_target(

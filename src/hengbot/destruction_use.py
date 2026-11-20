@@ -87,6 +87,11 @@ from hengbot.policy_constants import (
 REASON = "emergency:destruction"
 GUARANTEED_RADIUS = 13       # cmd-usestaff.cpp:282 13 + randint0(5)
 WORST_RADIUS = 17
+# cmd-usestaff.cpp:282 with ``powerful``: 18 + randint0(5) (the absorbed power through Powerful
+# Activation, me_powerful_activation; only the 99F/100F battle casts it, angband_finale_battle).
+POWERED_RADIUS = 18
+POWERED_WORST_RADIUS = 22
+POWERED_SUFFIX = ":powered"
 FLASH = ("燃えるような閃光が発生した！", "There is a searing blast of light!")
 MEMORY = "_destruction_use_memory"
 # The races used on at first sight: (the reason's suffix, the test of a monster).
@@ -138,6 +143,9 @@ class Memory:
     # 2026-11-17 Q4).  A class default: restored checkpoints predate it.
     fell_back: tuple | None = None
     entitled_floor: tuple | None = None  # the 50F+ floor where the means was last held
+    # The last use was the Powerful Activation's (angband_finale_battle): its circle is
+    # POWERED_RADIUS / POWERED_WORST_RADIUS.  A class default: restored checkpoints predate it.
+    powerful: bool = False
 
 
 def _memory(policy) -> Memory:
@@ -615,7 +623,19 @@ def _falls_back(memory, snapshot) -> bool:
     return False
 
 
-def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None) -> str | None:
+def _powered_key(policy, snapshot) -> str | None:
+    """The absorbed power cast through Powerful Activation (``U`` + staff + power): a charge, a
+    reliable success and the HP rule of every Powerful Activation (me_powerful_activation
+    ``pays_safely``)."""
+    from hengbot import me_powerful_activation  # import cycle
+    if _absorbed_key(policy, snapshot) is None or not me_powerful_activation.pays_safely(policy, snapshot):
+        return None
+    me_powerful_activation.note_attack(policy, snapshot, *POWER, REASON + POWERED_SUFFIX)
+    return me_powerful_activation.racial_key(*POWER)
+
+
+def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None,
+        powerful=False) -> str | None:
     """The use before the rung's read, setting ``last_reason``; else None.
 
     ``leaving``: the hostiles a rung leaves on a board that is not 即死 (``_threat_in_reach``,
@@ -631,12 +651,21 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None)
         return None
     if not _scene_holds(policy, snapshot, in_range):
         return None
-    cast = _absorbed_key(policy, snapshot)
-    used = cast or _carried_key(policy, snapshot)
-    if used is None:
-        return None
-    policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
+    if powerful:
+        # ``powerful``: the 99F/100F battle's wider circle (owner 2026-11-20 「必要なら強力発動で
+        # 範囲を広げる」), the absorbed power only.
+        used = _powered_key(policy, snapshot)
+        if used is None:
+            return None
+        policy.last_reason = REASON + suffix + POWERED_SUFFIX
+    else:
+        cast = _absorbed_key(policy, snapshot)
+        used = cast or _carried_key(policy, snapshot)
+        if used is None:
+            return None
+        policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
     memory = _memory(policy)
+    memory.powerful = bool(powerful)
     memory.pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
     memory.pending_monsters = tuple(
         (monster.index, monster.race_id, monster.position.y, monster.position.x, monster.name)
@@ -756,14 +785,16 @@ def observe(policy, snapshot) -> None:
         memory.pending = None
     elif any(message in FLASH for message in snapshot.messages):
         memory.pending = None
-        escape_count.destroyed(policy, snapshot, position, GUARANTEED_RADIUS)
+        sure, worst = ((POWERED_RADIUS, POWERED_WORST_RADIUS) if getattr(memory, "powerful", False)
+                       else (GUARANTEED_RADIUS, WORST_RADIUS))
+        escape_count.destroyed(policy, snapshot, position, sure)
         _end_emergency(policy, snapshot)
-        forget_circle(policy, position)
-        keys, names = _deleted(policy, snapshot, memory, position)
-        monster_memory.forget_destroyed(policy, snapshot, position, GUARANTEED_RADIUS,
+        forget_circle(policy, position, worst)
+        keys, names = _deleted(policy, snapshot, memory, position, sure)
+        monster_memory.forget_destroyed(policy, snapshot, position, sure,
                                         lambda monster: _survives(policy, snapshot, monster),
                                         keys, names)
-        area_mapping.note_destruction(policy, snapshot, position, WORST_RADIUS, GUARANTEED_RADIUS)
+        area_mapping.note_destruction(policy, snapshot, position, worst, sure)
         # Record only (cross_rules): what the flash forgot, and the memories it does not.
         cross_rules.destruction_flash(policy, ("monster_memory.DESTRUCTION_FORGETS",))
     elif snapshot.turn != turn:
@@ -771,7 +802,7 @@ def observe(policy, snapshot) -> None:
         memory.fallback = floor
 
 
-def _deleted(policy, snapshot, memory, centre) -> tuple[frozenset, frozenset]:
+def _deleted(policy, snapshot, memory, centre, sure=GUARANTEED_RADIUS) -> tuple[frozenset, frozenset]:
     """The hostiles known on the board of the use that the circle deleted: within the radius it
     always destroys, not spared (``_survives``: the quest's target, a QUESTOR), and not shown
     on the flash board.  (keys (index, race), names)."""
@@ -779,7 +810,7 @@ def _deleted(policy, snapshot, memory, centre) -> tuple[frozenset, frozenset]:
     keys, names = set(), set()
     for index, race, y, x, name in getattr(memory, "pending_monsters", ()):
         known = SimpleNamespace(index=index, race_id=race, position=Position(y, x), name=name)
-        if (game_distance(centre, known.position) <= GUARANTEED_RADIUS and index not in shown
+        if (game_distance(centre, known.position) <= sure and index not in shown
                 and not _survives(policy, snapshot, known)):
             keys.add((index, race))
             names.add(name)
@@ -823,11 +854,11 @@ def _discard(collection, stale) -> None:
             del collection[each]
 
 
-def forget_circle(policy, centre: Position) -> None:
+def forget_circle(policy, centre: Position, worst: int = WORST_RADIUS) -> None:
     """Drop what the bot remembers of the destroyed circle (the worst radius); a
     cell that survived at 14-17 is shown by the next board again."""
     def in_circle(position) -> bool:
-        return game_distance(centre, position) <= WORST_RADIUS
+        return game_distance(centre, position) <= worst
 
     for name in POSITION_SETS + POSITION_DICTS:
         _discard(getattr(policy, name, ()), in_circle)

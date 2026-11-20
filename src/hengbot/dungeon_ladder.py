@@ -82,7 +82,8 @@ LADDER = (
     )),
     Layer("plan-above-survival", "the emergency ladder and everything below; each answers "
           "survival and the summons inside itself (FLOOR_PLANS)", (
-        *E("quest_find_exit.key", "quest25_battle.key", "quest_room_sweep.key"),
+        *E("quest_find_exit.key", "quest25_battle.key", "quest_room_sweep.key",
+           "angband_finale_battle.key"),
     )),
     Layer("above-emergency", "the emergency ladder and everything below", (
         # Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた
@@ -368,7 +369,9 @@ AFTER_DECIDE = (
     # Owner 2026-11-17 「魔法防御上昇の装備がないときは破壊で消す。倒すときは…加速して耐性の薬を使用
     # して倒す。」: the one gate of a strike that can kill an Amberite (amberite_curse).
     "amberite_curse.after_ladder",
-    "_periodic_game_save_key", "_periodic_character_dump_key", "periodic_magic_eater_powers_key",
+    "_periodic_game_save_key", "_periodic_character_dump_key",
+    # Owner 2026-11-20 Q8: the small-floor option before the town's recall toward 99F/100F.
+    "_angband_finale_small_floor_key", "periodic_magic_eater_powers_key",
     # The ping-pong guard's escalation (owner 2026-11-13 「1と2だけ」): the existing livelock leave
     # in place of a key that is not a survival rung's, on the escalation board only.
     "pingpong_guard.after_ladder",
@@ -527,6 +530,15 @@ _ABOVE_EMERGENCY = {
     "quest_find_exit.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "quest25_battle.key": "a plan answers survival inside itself (FLOOR_PLANS)",
     "quest_room_sweep.key": "a plan answers survival inside itself (FLOOR_PLANS)",
+    # Not a FLOOR_PLANS row: the owner's 99F/100F directive names its own survival and summons
+    # rules in place of the shared ones (and of the 1-turn instant-death rung FLOOR_PLANS heads
+    # each enemy board with); its order is angband_finale_battle's docstring.
+    "angband_finale_battle.key": "owner 2026-11-20, the 99F/100F battle: its own survival (*Healing* "
+                                 "below 400 after a hit, Teleportation below 800 after a hit or a "
+                                 "summon or with the target closer than 2) and summons (every other "
+                                 "monster destroyed while the target is outside the circle) rules, "
+                                 "asked inside it; on any other floor it answers nothing but the "
+                                 "small-floor option before the descent",
 }
 
 OWNER_RULES = (

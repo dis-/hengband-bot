@@ -444,5 +444,8 @@
   ],
   "need:quest-optional-carry-home:home-first:0": [
     "home-withdraw"
+  ],
+  "purchase:tail:angband-finale": [
+    "optional-buy"
   ]
 }

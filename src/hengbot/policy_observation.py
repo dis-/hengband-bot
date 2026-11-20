@@ -555,7 +555,7 @@ class ObservationMixin:
                 # (angband_cap, owner 2026-11-19).
                 can_descend_further = (
                     self._dive_dungeon != dive_floor.climb_dungeon(self)
-                    and not angband_cap.capped_at(self._dive_dungeon, start_depth + 1)
+                    and not angband_cap.capped_at(self._dive_dungeon, start_depth + 1, self)
                     and dungeon_info is not None
                     and dungeon_info.max_depth > 0
                     and start_depth < dungeon_info.max_depth

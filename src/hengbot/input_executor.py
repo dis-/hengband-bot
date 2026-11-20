@@ -37,8 +37,12 @@ class ScreenKind(str, Enum):
     FILE_NAME = "file-name"
     LEVEL_UP_STAT = "level-up-stat"
     DUNGEON_CHOICE = "dungeon-choice"
+    PREF_COMMAND = "pref-command"
     DEATH = "death"
     UNKNOWN = "unknown"
+
+
+PREF_COMMAND_PROMPTS = ("設定変更コマンド: ", "Pref: ")
 
 
 class ExecutorState(str, Enum):
@@ -306,6 +310,11 @@ def classify_screen(screen: Mapping[str, object], state: Mapping[str, object] | 
     # which core/asking-player.cpp:182-188 renders with the default on row zero.
     if row0.startswith(("ファイル名: ", "File name: ")):
         return ScreenMatch(ScreenKind.FILE_NAME, row0, 0, 0)
+    # cmd-io/cmd-dump.cpp do_cmd_pref: input_string("設定変更コマンド: ", "Pref: ", 80), rendered
+    # on row zero with its empty default (core/asking-player.cpp:182-188).
+    if row0.startswith(PREF_COMMAND_PROMPTS) or row0.rstrip() in (
+            prompt.rstrip() for prompt in PREF_COMMAND_PROMPTS):
+        return ScreenMatch(ScreenKind.PREF_COMMAND, row0, 0, 0)
     # core/asking-player.cpp:343-351. The editable default follows the colon.
     if re.search(r"(?:Quantity \(1-|いくつですか \(1-)\d+\):(?: .*)?$", row0) or \
             re.search(r"^(?:Rest|休憩) \(0-9999, .+\):(?: .*)?$", row0):

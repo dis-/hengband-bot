@@ -2,6 +2,7 @@ from __future__ import annotations
 from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
 from hengbot.item_identity import same_memory
+from hengbot import angband_finale
 from hengbot import sale_progress
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
@@ -2921,6 +2922,9 @@ class ShopMixin(InStoreMixin):
                     and consumable_policy.discretionary_buy((item.tval, item.sval))
                     # Owner 2026-11-20: up to the 99F/100F rocket target (restore_mana_target).
                     and restore_mana_target.wanted(self, snapshot))
+                # Owner 2026-11-20 「*体力回復*の薬…を大量に持つ」: up to the finale's carry
+                # (angband_finale; the consumable table buys none otherwise).
+                or angband_finale.black_market_wanted(self, snapshot, item)
                 or (
                     (
                         (
@@ -2967,7 +2971,9 @@ class ShopMixin(InStoreMixin):
         def after_the_old_kinds(item: StoreItem) -> bool:
             # Owner 2026-11-05 「資金に余裕があるとき闇市で購入する」: from what the kinds
             # that save a life leave on this shelf.
-            return item.tval == TVAL_POTION and item.sval == SV_POTION_RESISTANCE
+            # The finale's *Healing* (angband_finale, owner 2026-11-20) after them too.
+            return item.tval == TVAL_POTION and item.sval in {
+                SV_POTION_RESISTANCE, angband_finale.STAR_HEALING[1]}
 
         return min(optional, key=lambda item: (
             not self._is_destruction_staff(item), after_the_old_kinds(item), held(item), kind_rank(item)))
@@ -3134,6 +3140,9 @@ class ShopMixin(InStoreMixin):
         # supply, from the gold above the full departure resupply (owner 2026-10-08), at the
         # Temple's shelf (never the Black Market's).
         add(rung("tail:heroism", "heroism", lambda: heroism_potion.carry_shortage(snapshot) > 0, lambda i: heroism_potion.is_heroism(i) and self._heroism_purchase_units(snapshot, i) > 0, current=lambda: heroism_potion.carried(snapshot), target=lambda: heroism_potion.carry_target(snapshot)))
+        # Owner 2026-11-20 「テレポートの巻物を大量に持つ」 (40): below every departure supply,
+        # from the gold above the full departure resupply, like the Heroism stock.
+        add(rung("tail:angband-finale", angband_finale.CATEGORY, lambda: angband_finale.shortage(self, snapshot, angband_finale.TELEPORT) > 0, lambda i: i.is_teleport_scroll and self._angband_finale_purchase_units(snapshot, i) > 0, current=lambda: angband_finale.owned(self, snapshot, angband_finale.TELEPORT), target=lambda: angband_finale.CARRY[angband_finale.TELEPORT]))
         launcher = self._equipped_launcher(snapshot)
         add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot), lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: self._ammo_procurement_target(snapshot)))
         add(rung(
@@ -4178,6 +4187,8 @@ class ShopMixin(InStoreMixin):
             needed = ledger["oil"].required_departure - ledger["oil"].count
         elif item.is_teleport_scroll:
             needed = ledger["teleport"].required_departure - ledger["teleport"].count
+            # Owner 2026-11-20: the finale's 40, from the gold above the full resupply.
+            needed = max(needed, self._angband_finale_purchase_units(snapshot, item))
         elif item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
             needed = ledger["cure"].required_departure - ledger["cure"].count
         elif item.is_treasure_detection_scroll:
@@ -4237,6 +4248,8 @@ class ShopMixin(InStoreMixin):
             needed = item.count
         elif heroism_potion.is_heroism(item):
             needed = heroism_potion.carry_shortage(snapshot)
+        elif angband_finale.black_market_wanted(self, snapshot, item):
+            needed = angband_finale.shortage(self, snapshot, angband_finale.STAR_HEALING)
         else:
             needed = 1
         needed = max(needed, quest_needed)
@@ -4283,6 +4296,31 @@ class ShopMixin(InStoreMixin):
         price = min(prices) if prices else (self._baseitem_costs.get(heroism_potion.POTION)
                                                or heroism_potion.BASE_COST)
         return price > 0 and snapshot.player.gold - reserve >= price
+
+    def _angband_finale_purchase_units(self, snapshot: Snapshot, item: StoreItem) -> int:
+        """Teleportation scrolls this shelf sells toward the finale's 40 (angband_finale): the
+        shortage, bounded by the gold above the full departure resupply (owner 2026-10-08), so
+        no departure supply is short for it; 0 when the reserve's price is unknown."""
+        shortage = angband_finale.shortage(self, snapshot, angband_finale.TELEPORT)
+        if shortage <= 0 or item.price <= 0:
+            return 0
+        reserve = self._full_departure_resupply_reserve(snapshot)
+        if reserve is None:
+            return 0
+        return min(shortage, item.count, max(0, (snapshot.player.gold - reserve) // item.price))
+
+    def _angband_finale_errand_store(self, snapshot: Snapshot) -> int | None:
+        """The store visited for the finale's Teleportation scrolls (the Alchemist, then the
+        General Store: store/articles-on-sale.cpp), when short and the gold above the full
+        departure resupply buys one at the base price; else None."""
+        if angband_finale.shortage(self, snapshot, angband_finale.TELEPORT) <= 0:
+            return None
+        reserve = self._full_departure_resupply_reserve(snapshot)
+        price = self._baseitem_costs.get(angband_finale.TELEPORT) or 40
+        if reserve is None or snapshot.player.gold - reserve < price:
+            return None
+        return next((store for store in (STORE_ALCHEMIST, STORE_GENERAL)
+                     if store not in self._town_store_attempted), None)
 
     def _heroism_purchase_units(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Potions of Heroism this shelf sells toward the carry (owner 2026-11-11).
@@ -5947,6 +5985,7 @@ class ShopMixin(InStoreMixin):
             "cure-critical", "oil", "food", "quest-throwing-items",
             "quest-ranged-kit", "quest-scrolls", "quest-carry", "quest-speed",
             "quest-healing", "light", "identify-staff", "ammo", heroism_potion.CATEGORY,
+            angband_finale.CATEGORY,
             "throwing-torches", "remove-curse", "home-star-remove-curse-stock",
             "star-remove-curse", "launcher-enchant", "black-market",
             "ability-gear", launcher_upgrade.CATEGORY,

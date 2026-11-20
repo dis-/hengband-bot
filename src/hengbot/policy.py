@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import angband_finale
 from hengbot import approach_answer, return_start
 from hengbot import safety_watch
 from hengbot import angband_cap, item_identity
@@ -2727,6 +2728,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The landing of the last 50F+ Teleportation (owner 2026-11-14 「前の着地が射線内なら次は *破壊*」).
         deep_teleport.observe(self, snapshot)
         summon_response.observe(self, snapshot)
+        # Owner 2026-11-20 (the 99F/100F directive): the town's readiness latch (the 95F cap's
+        # lift) and the expedition's Restore Mana uses.
+        angband_finale.observe(self, snapshot)
         tunnel_feasibility.observe(self, snapshot)
         # Two owners stepping opposite ways in turn (owner 2026-11-13 「1と2だけ」, part 2).
         pingpong_guard.observe(self, snapshot)
@@ -6498,6 +6502,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         selected = key
         key = self._periodic_game_save_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
+        # Owner 2026-11-20 Q8 「町で、99F・100Fへ帰還する前に入れる」: the small-floor option in
+        # place of the town's Word of Recall toward the finale (angband_finale).
+        key = self._angband_finale_small_floor_key(snapshot, key)
         from hengbot.me_powers_refresh import periodic_magic_eater_powers_key
         key = periodic_magic_eater_powers_key(self, snapshot, key)
         if key is not selected:
@@ -6956,6 +6963,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             expected_effect="character-dump-confirmed",
         )
         return CHARACTER_DUMP_MACRO
+
+    @claims(ClaimOwner.BOOKKEEPING)
+    def _angband_finale_small_floor_key(self, snapshot: Snapshot, key: str) -> str:
+        """The pref command '"Y:always_small_floor' in place of the town's Word of Recall read
+        toward Angband once the 99F/100F readiness is latched and the option is not yet set
+        (angband_finale ``town_recall_key``); the recall is decided again on the next board."""
+        instead = angband_finale.town_recall_key(self, snapshot, key)
+        if instead is None:
+            return key
+        self._offer_execution(
+            instead, producer="bookkeeping", work_id="angband-finale-small-floor",
+            next_step="pref.send", expected_effect="small-floor-option",
+        )
+        return instead
 
     def prime(self, snapshot: Snapshot) -> None:
         """Remember a dangerous landing before follow mode begins tailing.
@@ -15726,7 +15747,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self, snapshot, snapshot.floor_key[0], snapshot.dungeon_level, destination)
                 or self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination)
                 # Owner 2026-11-19: never past the Angband cap, an escape neither (angband_cap).
-                or angband_cap.capped(snapshot, destination)
+                or angband_cap.capped(snapshot, destination, self)
                 or self._missing_required_abilities(snapshot, destination)):
             return None
         self.last_reason = reason
@@ -15791,7 +15812,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         # Owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」: no stair past the Angband cap,
         # before any quest-depth steering (angband_cap).
-        if angband_cap.capped(snapshot, destination):
+        if angband_cap.capped(snapshot, destination, self):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.

@@ -5,7 +5,11 @@ Owner 2026-11-19 (verbatim): 「99F 100Fの戦い方をまだ作っていない�
 guardian bounce valve's Angband) recalled to 99F and straight back to town, dive after dive.  The rule
 is every character's: the tactics are missing for all of them.
 
-- The cap: ``ANGBAND_DEPTH_CAP`` (95).  ``None`` lifts it (the owner's 「準備ができるまで」).
+- The cap: ``ANGBAND_DEPTH_CAP`` (95).  ``None`` lifts it for every character.
+- The lift (owner 2026-11-20, the 99F/100F directive's answer 1): the cap holds until the town
+  board finds the character ready (angband_finale ``lifted``: the Restore Mana target, the five
+  supplies, the equipment conditions and resist curse); every reader that has the policy passes
+  it (``policy=``), so a ready dive goes on below 95F to Oberon's 99F and the Serpent's 100F.
 - No stair down past the cap (``capped``): read by ``dive_floor.capped`` (the descent targets, the
   remembered downstairs, explored_floor's dead end) and by the descent-target and the underfoot
   escape stairs' refusals in policy, the no-depth-progress judgement (a dive at the cap is at its
@@ -32,32 +36,39 @@ from hengbot.model import DUNGEON_ANGBAND
 ANGBAND_DEPTH_CAP: int | None = 95
 
 
-def cap(dungeon_id: int) -> int | None:
-    """The deepest floor of ``dungeon_id`` the character may stand on, or None (no cap)."""
-    return ANGBAND_DEPTH_CAP if dungeon_id == DUNGEON_ANGBAND else None
+def cap(dungeon_id: int, policy=None) -> int | None:
+    """The deepest floor of ``dungeon_id`` the character may stand on, or None (no cap, or the
+    cap lifted for ``policy``'s character: angband_finale ``lifted``)."""
+    if dungeon_id != DUNGEON_ANGBAND:
+        return None
+    if policy is not None:
+        from hengbot import angband_finale  # import cycle (restore_mana_target)
+        if angband_finale.lifted(policy):
+            return None
+    return ANGBAND_DEPTH_CAP
 
 
-def capped_at(dungeon_id: int, destination: int) -> bool:
+def capped_at(dungeon_id: int, destination: int, policy=None) -> bool:
     """A floor ``destination`` of ``dungeon_id`` lies past the cap."""
-    deepest = cap(dungeon_id)
+    deepest = cap(dungeon_id, policy)
     return deepest is not None and destination > deepest
 
 
-def capped(snapshot, destination: int) -> bool:
+def capped(snapshot, destination: int, policy=None) -> bool:
     """A stair down from this dungeon floor to ``destination`` would pass the cap."""
     return (not snapshot.in_town and snapshot.dungeon_level > 0
-            and capped_at(snapshot.floor_key[0], destination))
+            and capped_at(snapshot.floor_key[0], destination, policy))
 
 
-def climbing_floor(floor_key) -> bool:
+def climbing_floor(floor_key, policy=None) -> bool:
     """``floor_key`` is a dungeon floor (no quest floor) deeper than the cap."""
     return (floor_key is not None and floor_key[1] > 0 and not floor_key[2]
-            and capped_at(floor_key[0], floor_key[1]))
+            and capped_at(floor_key[0], floor_key[1], policy))
 
 
-def climbing(snapshot) -> bool:
+def climbing(snapshot, policy=None) -> bool:
     """On a floor deeper than the cap: the up stairs are the way on."""
-    return not snapshot.in_town and climbing_floor(snapshot.floor_key)
+    return not snapshot.in_town and climbing_floor(snapshot.floor_key, policy)
 
 
 def reset_recall_depth(observation) -> bool:
