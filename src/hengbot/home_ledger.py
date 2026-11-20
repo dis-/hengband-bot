@@ -16,7 +16,7 @@ decision log's ``home_ledger`` field on the decision that took it (``report``):
   ``kept_kinds``, of which ``top10`` the ranked gear the owner's ranking keeps and
   ``artifacts``; ``fits`` whether they stay within the cap;
 * ``shed``: the stacks the first visit would move out to reach the cap, in the cap's order
-  (destroy, sell, ranks 11-20 cheapest first), counted by fate and by kind, and ``short`` the
+  (destroy, sell, the room ranks (6-20) cheapest first), counted by fate and by kind, and ``short`` the
   stacks still over the cap when only kept stock is left, after the Magic-Eater's devices taken out
   to absorb (fate ``absorb``, owner 2026-11-19, counted in ``absorb``; the tidy sheds its own
   count over the cap regardless, home_cap.begin);

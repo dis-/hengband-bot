@@ -37,6 +37,7 @@ import io
 import json
 import lzma
 import unittest
+from unittest.mock import patch
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -98,6 +99,20 @@ def dropped_board(policy, board, key):
     rest = [item for item in board.inventory if item.slot != slot]
     return replace(board, grids=grids, turn=board.turn + 10, inventory=tuple(
         replace(item, slot=chr(ord("a") + index)) for index, item in enumerate(rest)))
+
+# Recorded under the 11-19 top-ten keep (item_fate.KEPT_RANKS 10).  The owner's 2026-11-21 top
+# five (「部位ごとに残す数を5位までに減らす」) changes which wares go, not the mechanics pinned here;
+# tests/test_n1b_411_home_keep_top5_1121_recorded.py pins the top five.
+_TOP_TEN = patch.object(item_fate, "KEPT_RANKS", 10)
+
+
+def setUpModule():
+    _TOP_TEN.start()
+
+
+def tearDownModule():
+    _TOP_TEN.stop()
+
 
 
 class N1b411SellableArtifactsTownTest(unittest.TestCase):

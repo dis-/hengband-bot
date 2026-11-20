@@ -11,7 +11,7 @@ The cash wares (``ware``), Home stock only:
 * a high-value realm book (``_is_high_value_book``, the third and fourth books, the policy's own
   "valuable town-sale loot");
 * clearly unneeded jewelry (``unneeded_jewelry``): a known non-artifact ring or amulet the owner's
-  ranking does not keep (item_fate.gear_tier: outside its slot's top ten), carrying none of the
+  ranking does not keep (item_fate.gear_tier: outside its slot's kept ranks), carrying none of the
   abilities a loadout may need (``KEPT_FLAGS``).  Anything in doubt stays on the shelf.
 
 Each ware still passes every gate of the Home sale (``_home_full_sale_candidate``: retention,
