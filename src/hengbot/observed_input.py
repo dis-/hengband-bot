@@ -12,6 +12,7 @@ import re
 from dataclasses import replace
 from collections.abc import Mapping
 
+from hengbot.angband_finale import SMALL_FLOOR_MACRO
 from hengbot.arena import ENTER_KEY, ENTER_KEY_PATTERN, ENTER_REASON, POSTER_KEY, POSTER_KEY_PATTERN, POSTER_REASON
 from hengbot.armor_smith import RAISE_KEY_PATTERN, RAISE_REASON
 from hengbot.me_inn_refill import REST_KEY, REST_KEY_PATTERN, REST_REASONS
@@ -214,7 +215,8 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
     # The once-mode sender also enters this common port. Reuse the same
     # established plans as the ordinary decision router instead of bypassing
     # their gates when the original composed macro arrives directly here.
-    if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO} \
+    if key in {CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO,
+               SMALL_FLOOR_MACRO} \
             or re.fullmatch(r"ga{2,}", key):
         from hengbot.cli import (
             _home_modal_continuation, _dungeon_entrance_continuation,

@@ -51,7 +51,7 @@ from dataclasses import dataclass, field, replace
 
 from hengbot import safety_watch
 from hengbot.item_identity import MemorySignatures
-from hengbot import me_capability, me_powers
+from hengbot import destruction_means, me_capability, me_powers
 from hengbot.equipment_optimizer import (
     AMMUNITION_TVALS, average_hides_modifiers, equipment_identity, equipment_move_identity,
 )
@@ -96,7 +96,11 @@ IDENTIFY = Effect("identify", SV_STAFF_IDENTIFY, True)
 UNCURSE = Effect("uncurse", SV_STAFF_REMOVE_CURSE, False)
 EFFECTS = (UNCURSE, IDENTIFY)
 BY_SVAL = {effect.sval: effect for effect in EFFECTS}
-BY_KEY = {(effect.kind, effect.sval): effect for effect in EFFECTS}
+# The absorbed *Destruction* through Powerful Activation: radius 18 + randint0(5)
+# (cmd-usestaff.cpp:282), cast only by the 99F/100F battle (destruction_use ``powerful``,
+# owner 2026-11-20 「必要なら強力発動で範囲を広げる」); no item prompt.  Not a town effect.
+DESTRUCTION = Effect("destruction", destruction_means.POWER[1], False, destruction_means.POWER[0])
+BY_KEY = {(effect.kind, effect.sval): effect for effect in (*EFFECTS, DESTRUCTION)}
 
 
 def racial_key(kind: str, sval: int) -> str:

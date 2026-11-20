@@ -168,6 +168,12 @@ def _due(policy, snapshot: Snapshot) -> bool:
             and not me_powers.mapped_since(policy, snapshot, memory.destroyed_turn))
 
 
+def mapping_due(policy, snapshot: Snapshot) -> bool:
+    """The player's *Destruction* on this floor is not yet mapped (the 99F/100F battle's
+    「破壊を使用した後は周辺感知で地形把握する」, angband_finale_battle)."""
+    return _due(policy, snapshot)
+
+
 def device_ready(item, kind: str) -> bool:
     """An identified staff with a charge, or a rod of the stack not charging."""
     if not item.known or not item.aware:

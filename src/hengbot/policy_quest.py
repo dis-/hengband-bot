@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import angband_finale_battle
 from hengbot import return_start
 from hengbot import angband_cap, attack_expectation, quest_optional_carry, quest_supply_gate
 from hengbot import spare_gear
@@ -5053,6 +5054,10 @@ class QuestMixin(OpeningRouteMixin):
         # Owner 2026-11-19 「99F 100Fの戦い方をまだ作っていない」: no kill attempt past the
         # Angband cap (Oberon's 99F); the up stairs are the way on (angband_cap).
         if angband_cap.climbing(snapshot, self):
+            return False
+        # Owner 2026-11-20 「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」:
+        # the 99F/100F battle's own recall cases (angband_finale_battle).
+        if angband_finale_battle.recall_permitted(self, snapshot):
             return False
         quest_id = self._active_kill_quest_id(snapshot)
         if quest_id is None:

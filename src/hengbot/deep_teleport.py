@@ -134,9 +134,13 @@ def _memory(policy) -> Landing:
 
 
 def applies(policy, snapshot) -> bool:
-    from hengbot import destruction_use, threat_tiers  # noqa: F401 -- import cycle
+    """A 50F+ floor where the tiers act, but the 99F/100F battle's (angband_finale_battle): the
+    owner's 2026-11-20 directive names its own Teleportation there (「召喚または攻撃を受けてHPが
+    800を下回ったとき、または対象が距離2より近づいたときテレポートの巻物で離脱する」)."""
+    from hengbot import angband_finale_battle, destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
-    return snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and threat_tiers.acts_here(policy, snapshot)
+    return (snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and threat_tiers.acts_here(policy, snapshot)
+            and not angband_finale_battle.applies(policy, snapshot))
 
 
 def fire_p95(policy, snapshot) -> int:

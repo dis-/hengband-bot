@@ -22198,6 +22198,248 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "angband_finale.py:small_floor_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "Owner 2026-11-20 「99F/100Fに降りる前に常に小さめのフロアを選択するオプションを有効にする」: the pref command '\"Y:always_small_floor' (cmd-dump.cpp do_cmd_pref, no game time) once the readiness is latched, before the descent; called only by angband_finale_battle._small_floor, which refuses the town and floors outside Angband 95F-98F.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_approach_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The walk to the target's last-seen cell (owner 2026-11-20 「最後に対象をみた座標に向かって移動」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_carried": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The carried aware stack of a kind; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:_choose_stand": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The reachable stand on one of the eight rays of the target, farthest first; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:_clear_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "*Destruction* (powered when only it reaches) on the other monsters while the target is outside the circle (owner 2026-11-20).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_destroy": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "destruction_use.key on the given monsters (its gates), optionally powered.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_fight_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "Haste, the Resistance potion, the powered Rocket with HP - cost >= 800, else the Stone to Mud stand (owner 2026-11-20).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_map_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The map after the player's *Destruction* (owner 2026-11-20 「破壊を使用した後は周辺感知で地形把握する」): me_powers' FLOOR occasion, else a carried device.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_quaff": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The quaff of a carried potion through reserved_item_command, setting last_reason.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_recall": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "Word of Recall only on success or with twice the Restore Mana target used (owner 2026-11-20), through return_start and once_quest_recall.read_key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_recover_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "After a teleport, with no awake hostile in view: Restore Mana when the Rocket takes a whole refill, then the rest to full HP (owner 2026-11-20).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_restore_mana": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The Restore Mana quaff when a refill lands whole.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_rocket": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The powered Rocket at the target's grid (me_device_attacks.device_target_key).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_rocket_power": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The absorbed Rocket of the displayed lists; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:_small_floor": {
+    "classification": "dungeon-only",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "angband_finale.small_floor_key on an Angband floor of 95F or deeper (never in town).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_stand_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The walk to the stand, the Stone to Mud melt of its line, the hold of its last wall while the target is on the ray (owner 2026-11-20 「可能なら相手の移動後に射線が通るようにして、先手を取ること」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_sweep_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The arrival sweep: *Destruction* on the other monsters, the target allowed, and the walk to the next one (owner 2026-11-20).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_teleport": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The Teleportation scroll read under the directive's three cases.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:battle": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The floor's battle memory; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The 99F/100F battle of the owner's 2026-11-20 directive (angband_finale_battle's docstring), and the small-floor option before the descent; None elsewhere.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:others": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The known hostiles but the target; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:target_monster": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The known target monster; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "bm_destruction_fund.py:_plan": {
     "classification": "data",
     "rows": [
@@ -22216,6 +22458,17 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "The *Destruction* staff fund's figures, memoised; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:_powered_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The absorbed *Destruction* through Powerful Activation (U + staff + power), noting its HP cost; refused in town by key's _floor_destroyed before it is asked; no independent credit.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

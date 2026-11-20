@@ -159,6 +159,9 @@ READERS = {
     # player_projectable: the player's own bolt (glass stops it).
     ("immobile_ranged_kill", "_shooting_cell", "player_projectable"):
         "a grid the player's shot reaches an immobile summoner from",
+    ("angband_finale_battle", "_fight_key", "player_projectable"):
+        "the 99F/100F powered Rocket at the target's grid: a ball aimed at a grid flies the bolt "
+        "path to it (owner 2026-11-20 「岩石溶解を使って射線を通す」)",
     ("line_of_fire", "player_projectable", "player_path"):
         "the player's bolt path ends on the target",
     # player_path: the grids the player's own bolt passes (glass stops it).
