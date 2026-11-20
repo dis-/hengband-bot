@@ -328,6 +328,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "angband_finale.py:home_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_finale.py:lifted": {
     "classification": "data",
     "rows": [
