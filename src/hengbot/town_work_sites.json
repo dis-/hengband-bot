@@ -2383,6 +2383,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "explored_floor.py:unreachable_loot_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; returns sealed_loot.key's own step or use, or None."
+  },
   "fallback_depth_floor.py:deepest_reached": {
     "classification": "data",
     "rows": [

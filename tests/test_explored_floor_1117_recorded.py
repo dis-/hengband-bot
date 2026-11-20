@@ -16,7 +16,7 @@ explore decisions before it seeded at the board's own known-map size (no growth)
 smaller (growth past the threshold; the window counts the cells the map has shown since 1118,
 explored_floor ``note_explore``); for the cut itself, the last board's found items dropped (the
 board shows detected items on unmapped ground, which the loot memory keeps since detected_loot and
-which hold the cut).
+which held the cut until n1-c life-217, 1120: no walk reaches them).
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -27,7 +27,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import explored_floor, me_capability
+from hengbot import explored_floor, me_capability, sealed_loot
 from hengbot.model import SV_STAFF_DESTRUCTION, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
@@ -84,12 +84,20 @@ class ExploredFloorRecordedTest(unittest.TestCase):
         self.assertEqual(reason, "explore")
         self.assertFalse(explored_floor.stalled(policy, board))
 
-    def test_remembered_loot_holds_a_stalled_window(self):
-        """Owner 2026-11-13 「その品の方へ探索を寄せる」 first: the board's detected items (detected_loot)
-        are loot the explore still steers toward."""
+    def test_unreachable_remembered_loot_no_longer_holds_a_stalled_window(self):
+        """The board's detected items (detected_loot) lie on unmapped ground no walk reaches.  They
+        held the stalled window (owner 2026-11-13 「その品の方へ探索を寄せる」) until n1-c life-217
+        (Angband 95F, 2026-11-20) explored a cave for half an hour toward such a helm with the map
+        no longer growing.  Owner 2026-11-18 on loot whose surroundings the map does not know:
+        「周辺感知があれば使用して入口を探す。なければ諦める。」 -- sealed_loot is asked first (no
+        mapping means carried here), then Word of Recall is read."""
         policy, rows = self.replay(seed_growth=0.0)
-        self.assertTrue(policy._loot_candidates(rows[LAST][3]))
-        self.assertEqual(rows[LAST][1], "explore", rows[LAST][:3])
+        board = rows[LAST][3]
+        candidates = policy._loot_candidates(board)
+        self.assertTrue(candidates)
+        self.assertFalse(candidates & sealed_loot.reach(policy, board))
+        self.assertEqual(rows[LAST][1], explored_floor.REASON, rows[LAST][:3])
+        self.assertEqual(rows[LAST][2], explored_floor.TRIGGER)
 
     def test_a_stalled_window_reads_word_of_recall(self):
         policy, rows = self.replay(seed_growth=0.0, no_loot=True)

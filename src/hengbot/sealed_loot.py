@@ -107,6 +107,11 @@ def _reach(policy, snapshot) -> set[Position]:
     return reached
 
 
+def reach(policy, snapshot) -> set[Position]:
+    """The known floor the walk joins to the player (``_reach``)."""
+    return _reach(policy, snapshot)
+
+
 def _neighbours(position: Position):
     return (Position(position.y + dy, position.x + dx) for dy, dx in NEIGHBOR_OFFSETS)
 
