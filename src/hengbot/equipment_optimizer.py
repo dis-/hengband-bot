@@ -18,7 +18,7 @@ from math import isfinite
 from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
-from hengbot import torch_release
+from hengbot import me_power_success, torch_release
 from hengbot.item_identity import without_player_inscription
 from hengbot.model import (
     ARMOUR_TVALS,
@@ -318,7 +318,11 @@ def destruction_means(loadout: "Loadout", has_destruction: bool, staff_gate) -> 
     equipment (``has_destruction``), or an owned staff this loadout's device
     skill makes reliable (owner 2026-11-15 「装備で魔法道具使用能力を向上させて杖の
     成功率を上げることで先に進むことができる」, device_skill.StaffGate)."""
-    return has_destruction or (staff_gate is not None and staff_gate.opens(loadout))
+    # The absorbed power is refused in a loadout with a worn NO_MAGIC (反魔法): the ``m`` command
+    # itself (me_power_success.REFUSED_FAILURE; n1-b life-411 2026-11-21 04:55 arrived wearing
+    # one, its 99 absorbed *Destruction* no means).
+    absorbed = has_destruction and me_power_success.TR_NO_MAGIC not in loadout.flags
+    return absorbed or (staff_gate is not None and staff_gate.opens(loadout))
 
 
 def divable_depth(
