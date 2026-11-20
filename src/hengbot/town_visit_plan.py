@@ -204,6 +204,20 @@ STAGE_DEADLINE_STOP_PREFIX = "town:blocked:stage-deadline:"
 WALKING_REASON_MARKERS: tuple[str, ...] = ("approach", "travel", "seek-", "step-off", "walk")
 
 
+# A read Word of Recall's countdown is the game's, not a stage's work: it runs
+# randint0(21) + 15 ticks of 10 game turns, and a fast character waits through
+# many more decisions than a slow one (n1-b life-411 2026-11-21 05:51:37, 130
+# town:wait-recall decisions in 318 game turns stopped the visit under
+# town:blocked:stage-deadline:departure before the recall fired).  The wait is
+# bounded by the countdown itself; no stage deadline counts it or stops it.
+RECALL_WAIT_REASONS: frozenset[str] = frozenset({"town:wait-recall"})
+
+
+def is_recall_wait(snapshot: Any, reason: str | None) -> bool:
+    """Whether a town decision waits for a Word of Recall already counting down."""
+    return reason in RECALL_WAIT_REASONS and bool(snapshot.player.recalling)
+
+
 def is_walking(key: Any, reason: str | None) -> bool:
     """Whether a town decision is a walk, which no stage deadline counts."""
     from hengbot.policy_constants import DIRECTION_KEYS
@@ -317,7 +331,8 @@ def note_decision(policy: Any, snapshot: Any, key: Any = None) -> None:
         else:
             segments.append([INTERRUPT, sequence, sequence, 0, 1])
         return
-    if not is_walking(key, policy.last_reason):
+    if not (is_walking(key, policy.last_reason)
+            or is_recall_wait(snapshot, policy.last_reason)):
         visit.stage_decisions[stage] = visit.stage_decisions.get(stage, 0) + 1
     if segments and segments[-1][0] in {stage, INTERRUPT} and segments[-1][3] == 0:
         # The visit opened on interrupts: they belong to its first stage.
@@ -336,11 +351,12 @@ def stage_deadline_stop(policy: Any, snapshot: Any, key: Any = None) -> str | No
     The decision about to be made belongs to the stage of its reason; when
     the visit already made that stage's deadline of decisions, this one is the
     stage's stop instead (STAGE_DEADLINE_STOP_PREFIX + stage).  An interrupt,
-    the rewrite stage, a walk and a dungeon board have no deadline.
+    the rewrite stage, a walk, a recall countdown's wait and a dungeon board have no
+    deadline.
     """
     if not (snapshot.in_town or snapshot.store is not None):
         return None
-    if is_walking(key, policy.last_reason):
+    if is_walking(key, policy.last_reason) or is_recall_wait(snapshot, policy.last_reason):
         return None
     from hengbot.town_hold import claim_family_of
     from hengbot.town_visit import town_visit
