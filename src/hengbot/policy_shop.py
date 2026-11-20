@@ -4076,6 +4076,16 @@ class ShopMixin(InStoreMixin):
                         and self._heroism_purchase_units(snapshot, it) > 0), None)
         if heroism is not None:
             return heroism
+        # Owner 2026-11-20 「テレポートの巻物を大量に持つ」 (rung tail:angband-finale): the finale's
+        # 40 above the ledger's own Teleportation, like the Heroism (never the Black Market's).
+        # Only the quantity of a ledger buy counted them: with the ledger's count met, every
+        # Alchemist was left with 99 on its shelf (n1-c life-217 2026-11-21 03:49-03:50, 23 of 40).
+        finale = next((it for it in items if it.is_teleport_scroll
+                       and store.store_type != STORE_BLACK
+                       and (it.tval, it.sval) not in excluded_classes
+                       and self._angband_finale_purchase_units(snapshot, it) > 0), None)
+        if finale is not None:
+            return finale
         black_market_optional = self._black_market_optional_purchase(snapshot)
         if (black_market_optional is not None
                 and ((black_market_optional.tval, black_market_optional.sval)
