@@ -22681,5 +22681,60 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "The pack's and the Home's count of a finale kind (home_count); no command."
+  },
+  "finale_teleport_tour.py:start": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す処理をつけて」: where the town's Word of Recall would be read, installs or continues the cross-town circuit (_cross_town_shopping, teleport its category) and returns whether a town is left to try; False ends it (the trip tries no more); no key, the leg is _cross_town_shopping_key's."
+  },
+  "finale_teleport_tour.py:_end": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Ends the circuit: clears the expedition, the circuit's flag, marks the trip tried and records why; no key."
+  },
+  "finale_teleport_tour.py:_shortage_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The scrolls short at the remembered price (the expedition's funds rule); no command."
+  },
+  "finale_teleport_tour.py:circuit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The expedition when it is the 99F/100F Teleportation circuit; no command."
+  },
+  "finale_teleport_tour.py:shortage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The plan's Teleportation still to buy (angband_finale.shortage); no command."
   }
 }

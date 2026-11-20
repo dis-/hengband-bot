@@ -82,6 +82,11 @@ REGISTRY = (
       "finished dives of the leased switch so far"),
     S("_alternate_lease", "alternate_lease", LIFE,
       "dives the over-extension switch lasts (alternate_lease)"),
+    # finale_teleport_tour
+    S("_finale_teleport_tour", "finale_teleport_tour", LIFE,
+      "finale_teleport_tour: the cross-town expedition under way is the 99F/100F Teleportation "
+      "circuit (owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す処理をつけて」); "
+      "cleared on a dungeon board"),
     # angband_finale
     S("_angband_finale_feasibility", "policy_equipment", LIFE,
       "angband_finale: the read-only optimizer search in the finale's rank before the switch "

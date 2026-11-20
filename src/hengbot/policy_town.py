@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.item_identity import same_memory
+from hengbot import finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
@@ -5195,6 +5196,14 @@ class TownMixin:
             # the fallback once every town is tried.
             if missing:
                 shortages.append((category[status.kind], missing))
+        # Owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す処理をつけて」: while the
+        # 99F/100F circuit travels, its Teleportation shortage is the plan's (finale_teleport_tour).
+        if finale_teleport_tour.circuit(self) is not None:
+            finale = finale_teleport_tour.shortage(self, snapshot)
+            ordinary = next((quantity for name, quantity in shortages if name == "teleport"), 0)
+            if finale > ordinary:
+                shortages = [entry for entry in shortages if entry[0] != "teleport"]
+                shortages.append(("teleport", finale))
         if self._identification_need is not None:
             shortages.append(
                 (
@@ -5264,6 +5273,7 @@ class TownMixin:
         on every leg (2026-11-17 17:28, loop-detected).
         """
         return (recall_stockout_travel.circuit(self) is not None
+                or finale_teleport_tour.circuit(self) is not None
                 or bm_tour.holds_town(self, snapshot))
 
     def _cross_town_candidate_order(self, snapshot: Snapshot) -> tuple[int, ...]:
@@ -7685,6 +7695,16 @@ class TownMixin:
                             expected_effect="entry-kit-ready",
                         )
                         return WAIT_KEY
+                    # Owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す処理をつけて」:
+                    # short of the 99F/100F Teleportation after this town's suppliers, the
+                    # other towns' shops before the read (finale_teleport_tour).
+                    if (finale_teleport_tour.due(self, snapshot)
+                            and finale_teleport_tour.start(self, snapshot)):
+                        travel = self._town_producer_entry(
+                            "_cross_town_shopping_key",
+                            lambda: self._cross_town_shopping_key(snapshot), family="cross-town")
+                        if travel is not None:
+                            return travel
                     selection = self._recall_selection_key(
                         snapshot, recall_dungeon_id
                     )
