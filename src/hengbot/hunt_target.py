@@ -180,7 +180,7 @@ def target_race(policy, snapshot) -> int | None:
     """The race hunted on this floor, else None.  None past the Angband cap: the 99F/100F
     tactics do not exist yet and the up stairs are the way on there (angband_cap, owner
     2026-11-19 「99F 100Fの戦い方をまだ作っていない」)."""
-    if snapshot.in_town or snapshot.dungeon_level <= 0 or angband_cap.climbing(snapshot):
+    if snapshot.in_town or snapshot.dungeon_level <= 0 or angband_cap.climbing(snapshot, policy):
         return None
     quest_race = _quest_race(policy, snapshot)
     if quest_race is not None:

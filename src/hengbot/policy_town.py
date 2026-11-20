@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot.item_identity import same_memory
+from hengbot import angband_finale
 from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
@@ -4031,6 +4032,11 @@ class TownMixin:
             and self._heroism_errand_wanted(snapshot)
         ):
             add(STORE_TEMPLE, heroism_potion.CATEGORY)
+        # Owner 2026-11-20 「テレポートの巻物を大量に持つ」: the finale's 40, optional like the
+        # Heroism stock (never blocks the departure).
+        finale_store = self._angband_finale_errand_store(snapshot)
+        if finale_store is not None:
+            add(finale_store, angband_finale.CATEGORY)
         # Throwing torches for the early floors (user directive). Routed only
         # for fundraising trips (the shallow 1-10F fighting happens there);
         # ordinary visits still buy torches opportunistically when the General
@@ -4221,6 +4227,7 @@ class TownMixin:
             "ammo-home-first",
             "ammo",
             heroism_potion.CATEGORY,
+            angband_finale.CATEGORY,
             "throwing-torches",
             "launcher-enchant",
             "black-market",
@@ -4656,6 +4663,7 @@ class TownMixin:
             "ammo-home-first",
             "ammo",
             heroism_potion.CATEGORY,
+            angband_finale.CATEGORY,
             "throwing-torches",
             "launcher-enchant",
         }:

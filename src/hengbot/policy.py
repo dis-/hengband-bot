@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import angband_finale
 from hengbot import approach_answer, return_start
 from hengbot import safety_watch
 from hengbot import angband_cap, item_identity
@@ -2727,6 +2728,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The landing of the last 50F+ Teleportation (owner 2026-11-14 「前の着地が射線内なら次は *破壊*」).
         deep_teleport.observe(self, snapshot)
         summon_response.observe(self, snapshot)
+        # Owner 2026-11-20 (the 99F/100F directive): the town's readiness latch (the 95F cap's
+        # lift) and the expedition's Restore Mana uses.
+        angband_finale.observe(self, snapshot)
         tunnel_feasibility.observe(self, snapshot)
         # Two owners stepping opposite ways in turn (owner 2026-11-13 「1と2だけ」, part 2).
         pingpong_guard.observe(self, snapshot)
@@ -15726,7 +15730,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     self, snapshot, snapshot.floor_key[0], snapshot.dungeon_level, destination)
                 or self._guardian_floor_blocked(snapshot, snapshot.floor_key[0], destination)
                 # Owner 2026-11-19: never past the Angband cap, an escape neither (angband_cap).
-                or angband_cap.capped(snapshot, destination)
+                or angband_cap.capped(snapshot, destination, self)
                 or self._missing_required_abilities(snapshot, destination)):
             return None
         self.last_reason = reason
@@ -15791,7 +15795,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         # Owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」: no stair past the Angband cap,
         # before any quest-depth steering (angband_cap).
-        if angband_cap.capped(snapshot, destination):
+        if angband_cap.capped(snapshot, destination, self):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import angband_finale
 from hengbot import approach_answer, home_pass_charge, launcher_upgrade, spare_gear
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
@@ -1466,6 +1467,8 @@ class EquipmentMixin:
                 curse_pinned_item_ids=curse_pinned,
                 magic_eater_powers=me_powers,
                 staff_gate=staff_gate,
+                finale=angband_finale.preparing(snapshot),
+                cap_lifted=angband_finale.lifted(self),
             )
             self._offer_optimizer_result(
                 self._equipment_optimization_preparation,
@@ -1505,6 +1508,8 @@ class EquipmentMixin:
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
             staff_gate=staff_gate,
+            finale=angband_finale.preparing(snapshot),
+            cap_lifted=angband_finale.lifted(self),
         )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
@@ -1589,6 +1594,9 @@ class EquipmentMixin:
             obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
+            # Owner 2026-11-20 (the 99F/100F directive): the finale's loadout order.
+            finale=angband_finale.preparing(snapshot),
+            cap_lifted=angband_finale.lifted(self),
         )
         result = getattr(preparation, "result", None)
         if result is not None:

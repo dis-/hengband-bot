@@ -5052,7 +5052,7 @@ class QuestMixin(OpeningRouteMixin):
             return False
         # Owner 2026-11-19 「99F 100Fの戦い方をまだ作っていない」: no kill attempt past the
         # Angband cap (Oberon's 99F); the up stairs are the way on (angband_cap).
-        if angband_cap.climbing(snapshot):
+        if angband_cap.climbing(snapshot, self):
             return False
         quest_id = self._active_kill_quest_id(snapshot)
         if quest_id is None:

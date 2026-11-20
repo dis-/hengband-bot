@@ -188,7 +188,7 @@ def optimize_single_slot_closure(
             return result
 
 
-def destination_encounter_depth(snapshot, knowledge) -> int:
+def destination_encounter_depth(snapshot, knowledge, *, cap_lifted: bool = False) -> int:
     """The floor whose monsters an unconstrained search scores against.
 
     Owner 2026-11-20 (「吸血も評価に入れて直す」, with the population by depth):
@@ -201,10 +201,13 @@ def destination_encounter_depth(snapshot, knowledge) -> int:
     board names no depth.  Not the recall dungeon's own depth: that is often a
     shallow side dungeon (n1-c life-205 recalled to 23F with 80F reached in
     Angband, n1-a life-525 to 13F with 50F reached).
+
+    ``cap_lifted`` (angband_finale ``lifted``, owner 2026-11-20): the 95F cap no longer holds
+    for this character, so Angband's depth is read as reached.
     """
     deepest_known = max((monster.level for monster in knowledge.values()), default=1)
     reached = [
-        depth if (cap := angband_cap.cap(dungeon_id)) is None else min(depth, cap)
+        depth if cap_lifted or (cap := angband_cap.cap(dungeon_id)) is None else min(depth, cap)
         for dungeon_id, depth in getattr(snapshot, "dungeon_recall_depths", {}).items()
         if depth
     ]
@@ -464,6 +467,8 @@ def warrior_optimizer_input_key(
     curse_pinned_item_ids: frozenset[str] = frozenset(),
     magic_eater_powers: tuple[tuple[str, int], ...] = (),
     staff_gate=None,
+    finale: bool = False,
+    cap_lifted: bool = False,
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
@@ -513,6 +518,9 @@ def warrior_optimizer_input_key(
         # Only present with an owned *Destruction* staff, so every other key
         # stays as it was.
         inputs["staff_gate"] = staff_gate.key()
+    if finale or cap_lifted:
+        # The 99F/100F loadout (angband_finale): only present then.
+        inputs["angband_finale"] = (finale, cap_lifted)
     encoded = json.dumps(
         _canonical_optimizer_input(inputs),
         ensure_ascii=False,
@@ -850,6 +858,8 @@ def prepare_warrior_optimization(
     curse_pinned_item_ids: frozenset[str] = frozenset(),
     magic_eater_powers: tuple[tuple[str, int], ...] = (),
     staff_gate=None,
+    finale: bool = False,
+    cap_lifted: bool = False,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command.
 
@@ -867,6 +877,10 @@ def prepare_warrior_optimization(
     the board does not say ``is_cursed`` (an unidentified item: a cursed
     pseudo feeling, or the game refused its takeoff); they stay in their slot
     like a known cursed item.
+
+    ``finale`` (angband_finale ``preparing``, owner 2026-11-20): the 99F/100F loadout's order
+    (equipment_optimizer ``finale_rank``) decides; ``cap_lifted``: the 95F cap is lifted, so
+    the destination's monsters are read past it.
     """
     current = current_loadout(items)
     blockers: list[str] = []
@@ -907,7 +921,8 @@ def prepare_warrior_optimization(
         return WarriorOptimizationPreparation(current, None, None, tuple(blockers))
 
     encounter_depth = (
-        depth if depth is not None else destination_encounter_depth(snapshot, knowledge)
+        depth if depth is not None
+        else destination_encounter_depth(snapshot, knowledge, cap_lifted=cap_lifted)
     )
     all_encounters = normal_encounters(knowledge, encounter_depth)
     if not all_encounters:
@@ -1084,6 +1099,7 @@ def prepare_warrior_optimization(
                     items, search_excluded_item_ids
                 ),
                 identification_exempt_item_ids=identification_exempt_item_ids,
+                finale=finale,
                 obtainable_ammunition=(
                     tuple(snapshot.inventory)
                     if obtainable_ammunition is None

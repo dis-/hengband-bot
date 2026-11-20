@@ -1392,13 +1392,46 @@ def yields_to_light_crossbow(
     )
 
 
+# The finale loadout (owner 2026-11-20, the 99F/100F directive): 「装備は加速耐性テレパシーー知力耐久力を
+# 優先。ACや近接攻撃力は求めない。」 and 「呪力耐性も要求する。これはオベロンの血の呪い、サーペントの破滅の手が
+# 致死的であるためである。」  TR flag numbers: src/object-enchant/tr-types.h.
+TR_INT = 1
+TR_CON = 4
+TR_RES_CURSE = 148
+# The resistances counted one per element: TR_RES_ACID..TR_RES_DISEN, TR_RES_TIME, TR_RES_WATER;
+# an immunity (TR_IM_ACID..TR_IM_COLD, TR_IM_DARK, TR_IM_LITE) counts as its element's resistance.
+FINALE_RESISTANCES = frozenset(range(48, 64)) | {143, 144}
+FINALE_IMMUNITY_ELEMENT = {40: 48, 41: 49, 42: 50, 43: 51, 157: 55, 163: 54}
+
+
+def _stat_bonus(loadout: Loadout, flag: int) -> int:
+    return sum(item.item.pval for _, item in loadout.slots if flag in item.flags)
+
+
+def finale_rank(entry: EvaluatedLoadout) -> tuple:
+    """The 99F/100F loadout's order, compared before everything else: resist curse, the permanent
+    speed, the number of resisted elements, telepathy, INT, CON.  Nothing of AC or melee: those
+    decide only between loadouts this rank holds equal (the ordinary comparison)."""
+    flags = entry.loadout.flags
+    elements = (flags & FINALE_RESISTANCES) | {
+        element for immunity, element in FINALE_IMMUNITY_ELEMENT.items() if immunity in flags}
+    return (TR_RES_CURSE in flags, loadout_speed(entry.metrics), len(elements),
+            TR_TELEPATHY in flags, _stat_bonus(entry.loadout, TR_INT),
+            _stat_bonus(entry.loadout, TR_CON))
+
+
 def _prefer(
     candidate: EvaluatedLoadout,
     incumbent: EvaluatedLoadout,
     current_item_ids: frozenset[str],
     launcher_damage: Mapping[str, float] | None = None,
     usable_launcher_ids: frozenset[str] = frozenset(),
+    finale: bool = False,
 ) -> bool:
+    if finale:
+        candidate_rank, incumbent_rank = finale_rank(candidate), finale_rank(incumbent)
+        if candidate_rank != incumbent_rank:
+            return candidate_rank > incumbent_rank
     cm = candidate.metrics
     im = incumbent.metrics
     candidate_bow = candidate.loadout.item_at(SLOT_BOW)
@@ -1806,6 +1839,7 @@ def optimize_loadout(
     require_armor_slots: frozenset[str] | None = None,
     staff_gate=None,
     launcher_power_unscored: Callable[[int | None], bool] | None = None,
+    finale: bool = False,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out.
 
@@ -1814,7 +1848,10 @@ def optimize_loadout(
 
     ``launcher_power_unscored(depth)`` (me_deep_launcher, owner 2026-11-18): whether the
     loadout chosen for ``depth`` (the given depth, or the descent's band) is chosen
-    without the launcher's shooting power."""
+    without the launcher's shooting power.
+
+    ``finale`` (angband_finale ``preparing``, owner 2026-11-20): every comparison asks
+    ``finale_rank`` first (resist curse, speed, resistances, telepathy, INT, CON)."""
     catalog = tuple(items)
     ammunition = tuple(obtainable_ammunition)
     launcher_damage = {
@@ -1851,6 +1888,11 @@ def optimize_loadout(
     )
 
     def select(entries, band):
+        if finale and entries:
+            # The finale's order first (``finale_rank``); the ordinary selection only among
+            # the loadouts it holds equal.
+            top = max(finale_rank(entry) for entry in entries)
+            entries = [entry for entry in entries if finale_rank(entry) == top]
         unscored = launcher_power_unscored is not None and launcher_power_unscored(band)
         return _stable_operational_best(
             entries, current_item_ids, launcher_damage, usable_launcher_ids,
@@ -1900,7 +1942,7 @@ def optimize_loadout(
         incumbent = evaluated_by_metrics.get(equivalence_key)
         if incumbent is None or _prefer(
             entry, incumbent, current_item_ids, launcher_damage,
-            usable_launcher_ids,
+            usable_launcher_ids, finale,
         ):
             evaluated_by_metrics[equivalence_key] = entry
 
@@ -1988,7 +2030,9 @@ def optimize_loadout(
                     band, False, None, melee_free, "no-set", None,
                 ))
                 continue
-            within_melee_limit = _within_half_melee(satisfying, melee_free)
+            # The finale asks nothing of melee (owner 2026-11-20 「ACや近接攻撃力は求めない」).
+            within_melee_limit = (list(satisfying) if finale
+                                  else _within_half_melee(satisfying, melee_free))
             if not within_melee_limit:
                 melee = max(time_melee(entry.metrics) for entry in satisfying)
                 band_decisions.append(BandDecision(
@@ -2059,11 +2103,11 @@ def optimize_loadout(
             lambda left, right: (
                 -1 if _prefer(
                     left, right, current_item_ids, launcher_damage,
-                    usable_launcher_ids,
+                    usable_launcher_ids, finale,
                 )
                 else 1 if _prefer(
                     right, left, current_item_ids, launcher_damage,
-                    usable_launcher_ids,
+                    usable_launcher_ids, finale,
                 )
                 else 0
             )

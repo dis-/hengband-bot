@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import angband_finale
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, quest_supply_gate, torch_release, town_pack_headroom
 from hengbot import deep_teleport, destruction_means, me_deep_launcher, teleport_away_carry
@@ -625,6 +626,10 @@ class SupplyMixin:
                     required_departure,
                     random_quest_reserve.departure_requirement(self, snapshot),
                 )
+                if angband_finale.lifted(self) and angband_finale.preparing(snapshot):
+                    # Owner 2026-11-20: the dive the readiness opened takes its 40.
+                    required_departure = max(
+                        required_departure, angband_finale.CARRY[angband_finale.TELEPORT])
             if kind == "oil" and self._owns_usable_permanent_light(snapshot):
                 # Permanent lights consume no fuel. Oil therefore stops being
                 # expedition stock as soon as a usable permanent light is in
@@ -1271,6 +1276,10 @@ class SupplyMixin:
         self, snapshot: Snapshot, item: StoreItem
     ) -> int:
         """Return the unmet amount from the same ledgers that drive procurement."""
+        # Owner 2026-11-20: the finale's 40 Teleportation scrolls (angband_finale).
+        finale = angband_finale.missing(self, snapshot, item)
+        if finale:
+            return finale
         item_class = self._procurement_class(item)
         curse_kind = self._required_remove_curse_kind(snapshot)
         if curse_kind is not None and self._store_item_is_supply(item, curse_kind):
@@ -1379,6 +1388,10 @@ class SupplyMixin:
         """Return the shared retention/procurement target for capped potions."""
         if item.tval != TVAL_POTION:
             return None
+        # Owner 2026-11-20 (the 99F/100F directive): the finale's carry first (angband_finale).
+        finale = angband_finale.potion_target(self, snapshot, item)
+        if finale is not None:
+            return finale
         if heroism_potion.is_heroism(item):
             # Owner 2026-11-11 「持ち歩く数は仮に15服」: without a lasting fear resistance the
             # carried stock is procured (a stored one taken out first) and kept up to 15; with

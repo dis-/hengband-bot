@@ -17,7 +17,10 @@ DECLARED CONSTRUCTED:
   none) and a down staircase 3 cells west;
 * each following board of a floor advances the game turn by 10 and carries the decided reason as
   the completed operation (the Magic-Eater arrival powers settle, me_powers.observe);
-* the executor's raw boards: the recorded 99F board with its floor and saved Angband depth changed.
+* the executor's raw boards: the recorded 99F board with its floor and saved Angband depth changed;
+* before the floor's decisions, the town's equipment work the replay left half done is dropped (a
+  stopped Home errand and the equipment transaction): the recorded keys predate the 99F/100F
+  loadout order (angband_finale, owner 2026-11-20), whose swap the replay never finishes.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -104,6 +107,9 @@ class N1b411AngbandCapRecordedTest(unittest.TestCase):
     def play(self, level, stair, decisions=7):
         """The decisions on the floor, the arrival powers settled (the module docstring)."""
         policy = copy.deepcopy(self.policy)
+        # The town's equipment work the replay left half done: dropped (the module docstring).
+        policy._home_errand.release_stopped()
+        policy._set_equipment_transaction_session(None)
         board = self.floor_board(policy, level, stair)
         decided = []
         for _ in range(decisions):
