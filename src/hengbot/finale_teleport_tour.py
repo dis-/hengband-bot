@@ -71,6 +71,11 @@ def night(policy: Any) -> Night:
 
 def forget_trip(policy: Any) -> None:
     """A dungeon board: the next town starts afresh."""
+    # The circuit's expedition goes with it: left behind, it was an ordinary Teleportation
+    # expedition the next visit, under way, so the circuit was never due again (n1-c
+    # life-217 2026-11-21 03:49, a circuit started at 03:3x's recall read).
+    if circuit(policy) is not None:
+        policy._cross_town_shopping = None
     setattr(policy, STATE, False)
     setattr(policy, NIGHT, Night())
 
