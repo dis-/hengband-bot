@@ -1192,6 +1192,7 @@ class TownArbiterMixin:
                 (self._emission_item_state(item) for item in snapshot.equipment),
                 key=repr,
             )),
+            drained_stats=tuple(sorted(snapshot.player.drained_stats)),
         )
 
     def _owner_progress_core(self, snapshot: Snapshot) -> OwnerProgressCore:
