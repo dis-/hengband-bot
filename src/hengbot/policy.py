@@ -89,6 +89,7 @@ from hengbot.equipment_transaction_session import (
     EquipmentTransactionObservation,
     EquipmentTransactionSession,
     observe_equipment_transactions,
+    planned_item,
 )
 from hengbot.equipment_transaction_planner import (
     PHASE_EQUIP,
@@ -10457,15 +10458,57 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         action: EquipmentTransaction,
         observed_identity: str | None,
     ) -> None:
-        """Re-derive a plan when its current letter no longer names its item."""
+        """Re-derive a plan when its current letter no longer names its item.
+
+        The item is out of every plan for the rest of the visit, so this is
+        the visit's Home route attempt for it, as an abandonment on its own
+        failed action is (_equipment_failure_unexecutable_this_visit).
+        Without it no producer routed to Home for the failed target and the
+        departure gate still waited on Home: n1-b life-411 2026-11-20 22:32,
+        town:blocked:unmet:equipment_departure_ready after a takeoff went
+        stale mid-swap.
+        """
         self._equipment_transaction_failed_items.update(
             self._equipment_action_memory_keys(action)
         )
+        self._equipment_transaction_abandoned_epoch = self._town_visit_epoch
         self._replan_equipment_transaction(snapshot)
         self.last_reason = (
             "equipment-transaction:stale-identity-invalidated:"
             f"{action.kind}:{observed_identity or 'missing'}"
         )
+
+    def _pass_takeoff_already_off(
+        self, snapshot: Snapshot, action: EquipmentTransaction,
+        observed_identity: str | None,
+    ) -> bool:
+        """Pass an unposted takeoff the game already performed.
+
+        The planned slot is empty and its item is in the pack, worn nowhere:
+        the takeoff's postcondition holds (the game moved the item, e.g.
+        verify_equip_slot pulling a sub-hand weapon into an emptied main
+        hand, then a wield replacing it into the pack).  The item is recorded
+        as taken off, as a confirmed takeoff records it, and the plan goes on
+        with its next action instead of failing the item.
+        """
+        session = self._equipment_transaction_session
+        if (
+            observed_identity is not None
+            or action.kind != "takeoff"
+            or action.target_slot is None
+            or session is None
+            or session.pending_action is not None
+            or session.current_action != action
+            or planned_item(action, snapshot.inventory) is None
+            or planned_item(action, snapshot.equipment) is not None
+        ):
+            return False
+        self._discard_unposted_equipment_transaction_command()
+        self._equipment_transaction_owned_items.append(
+            (action.move_identity or action.item_identity, action.target_slot)
+        )
+        session.drop_current_action()
+        return True
 
     def _replan_equipment_transaction(self, snapshot: Snapshot) -> None:
         """Drop the open plan and derive it again from the live board.
