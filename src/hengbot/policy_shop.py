@@ -4319,8 +4319,10 @@ class ShopMixin(InStoreMixin):
         price = self._baseitem_costs.get(angband_finale.TELEPORT) or 40
         if reserve is None or snapshot.player.gold - reserve < price:
             return None
+        # A shelf seen without them since the last restock is tried too (_shelf_stop_tried, the
+        # need registry's own skip): waiting on that Alchemist kept the General Store unrouted.
         return next((store for store in (STORE_ALCHEMIST, STORE_GENERAL)
-                     if store not in self._town_store_attempted), None)
+                     if not self._shelf_stop_tried(snapshot, store, angband_finale.CATEGORY)), None)
 
     def _heroism_purchase_units(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Potions of Heroism this shelf sells toward the carry (owner 2026-11-11).

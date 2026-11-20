@@ -97,8 +97,10 @@ def due(policy: Any, snapshot: Any) -> bool:
         return False
     if getattr(policy, "_cross_town_shopping", None) is not None and circuit(policy) is None:
         return False
-    attempted = getattr(policy, "_town_store_attempted", {})
-    return all(store in attempted for store in SUPPLIERS)
+    # Tried: entered, or its shelf seen without them since the last restock (the need
+    # registry skips that stop, so it is never entered: policy_instore._shelf_stop_tried).
+    return all(policy._shelf_stop_tried(snapshot, store, angband_finale.CATEGORY)
+               for store in SUPPLIERS)
 
 
 def _shortage_cost(policy: Any, snapshot: Any) -> int:
