@@ -448,6 +448,16 @@ def small_floor_key(policy, snapshot) -> str | None:
     return SMALL_FLOOR_MACRO
 
 
+def town_recall_key(policy, snapshot, key) -> str | None:
+    """Owner 2026-11-20 Q8: in town, the option before the Word of Recall read toward Angband
+    (``town:recall-to-angband`` with Angband's recall depth at the 95F exploration or deeper), else
+    None."""
+    if (not snapshot.in_town or not key or policy.last_reason != "town:recall-to-angband"
+            or angband_depth(snapshot) < PREPARE_DEPTH):
+        return None
+    return small_floor_key(policy, snapshot)
+
+
 def describe(policy) -> dict | None:
     held = getattr(policy, MEMORY, None)
     if held is None:

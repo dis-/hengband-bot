@@ -22604,5 +22604,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "angband_finale.py:town_recall_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by policy._angband_finale_small_floor_key in town.",
+    "evidence": "Owner 2026-11-20 Q8: the small-floor macro when the decided key is the town's recall to Angband (town:recall-to-angband) with the readiness latched and the option unset; no command or credit by itself.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:_heal": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: called from angband_finale_battle's recovery and fight, which answer only on Angband 99F/100F with the readiness latched (applies).",
+    "evidence": "Owner 2026-11-20 Q3: the absorbed Healing (me_absorbed_substitutes.item_cast_key), else a carried Potion of Healing.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy.py:HengbotPolicy._angband_finale_small_floor_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Town: an after-decide filter of _choose_key (dungeon_ladder.AFTER_DECIDE), beside the periodic save and dump.",
+    "evidence": "Owner 2026-11-20 Q8 「町で、99F・100Fへ帰還する前に入れる」: the pref command '\"Y:always_small_floor' (no game time) in place of the town's recall to Angband once the readiness is latched and the option unset; the recall is decided again on the next board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

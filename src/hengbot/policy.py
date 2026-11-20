@@ -6502,6 +6502,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         selected = key
         key = self._periodic_game_save_key(snapshot, key)
         key = self._periodic_character_dump_key(snapshot, key)
+        # Owner 2026-11-20 Q8 「町で、99F・100Fへ帰還する前に入れる」: the small-floor option in
+        # place of the town's Word of Recall toward the finale (angband_finale).
+        key = self._angband_finale_small_floor_key(snapshot, key)
         from hengbot.me_powers_refresh import periodic_magic_eater_powers_key
         key = periodic_magic_eater_powers_key(self, snapshot, key)
         if key is not selected:
@@ -6960,6 +6963,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             expected_effect="character-dump-confirmed",
         )
         return CHARACTER_DUMP_MACRO
+
+    @claims(ClaimOwner.BOOKKEEPING)
+    def _angband_finale_small_floor_key(self, snapshot: Snapshot, key: str) -> str:
+        """The pref command '"Y:always_small_floor' in place of the town's Word of Recall read
+        toward Angband once the 99F/100F readiness is latched and the option is not yet set
+        (angband_finale ``town_recall_key``); the recall is decided again on the next board."""
+        instead = angband_finale.town_recall_key(self, snapshot, key)
+        if instead is None:
+            return key
+        self._offer_execution(
+            instead, producer="bookkeeping", work_id="angband-finale-small-floor",
+            next_step="pref.send", expected_effect="small-floor-option",
+        )
+        return instead
 
     def prime(self, snapshot: Snapshot) -> None:
         """Remember a dangerous landing before follow mode begins tailing.

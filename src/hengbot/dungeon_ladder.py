@@ -368,7 +368,9 @@ AFTER_DECIDE = (
     # Owner 2026-11-17 「魔法防御上昇の装備がないときは破壊で消す。倒すときは…加速して耐性の薬を使用
     # して倒す。」: the one gate of a strike that can kill an Amberite (amberite_curse).
     "amberite_curse.after_ladder",
-    "_periodic_game_save_key", "_periodic_character_dump_key", "periodic_magic_eater_powers_key",
+    "_periodic_game_save_key", "_periodic_character_dump_key",
+    # Owner 2026-11-20 Q8: the small-floor option before the town's recall toward 99F/100F.
+    "_angband_finale_small_floor_key", "periodic_magic_eater_powers_key",
     # The ping-pong guard's escalation (owner 2026-11-13 「1と2だけ」): the existing livelock leave
     # in place of a key that is not a survival rung's, on the escalation board only.
     "pingpong_guard.after_ladder",

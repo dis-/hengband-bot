@@ -1,6 +1,9 @@
 """The 99F/100F battle (angband_finale_battle, owner 2026-11-20).
 
-Owner, verbatim (the lines each test pins are quoted at the test): the arrival sweep with
+Owner, verbatim (the lines each test pins are quoted at the test, with the answers to the
+report's questions of 2026-11-20: Q1 「召喚されたら HP に関係なく離れる」, Q2 「距離2以下」, Q3
+「テレポート後の回復に使う。ただし取り込んだ体力回復の方が優先度は上。」, Q4 「99F・100Fでは指示の
+条件だけで撃つ」, Q8 「町で、99F・100Fへ帰還する前に入れる」, Q10 「フロア全体を回る」): the arrival sweep with
 *Destruction*, the target allowed in it; haste and the Resistance potion; the Stone to Mud line from
 as far as possible, its last wall kept for the target's own move; the powered Rocket only with 800 HP
 left after its cost; *Healing* below 400 after a hit; Teleportation below 800 after a hit or a summon
@@ -20,7 +23,12 @@ DECLARED CONSTRUCTED:
   (the previous board's HP for a hit), the haste shown (the speed field yellow) and the Resistance
   shown (the five opposition keys on the status bar) unless a test says not;
 * the pack: a *Healing* stack, and a Wand of Stone to Mud (5 charges) for the stand test;
-* the quest's status changed for the success test;
+* the quest's status changed for the success test; a summon line (mspell-summon.cpp's
+  「がアンバーの王族を召喚した！」) on the summon test's board;
+* the sweep's circles: area_mapping's record of a flash at the cells a test names, and their map
+  taken as cast;
+* the town recall test: the recorded board as a town board, Angband's recall depth 95 and the
+  decided recall's reason;
 * the small-floor tests: the recorded board at the level asked (98F, 99F), and as a town board
   (floor key, depth and the town flag changed).
 """
@@ -42,7 +50,7 @@ from hengbot.cli import _home_modal_continuation
 from hengbot.input_executor import ScreenKind, classify_screen
 from hengbot.me_device_attacks import POWERFUL_REASON
 from hengbot.model import (
-    AbilitySources, GridState, Position, SV_POTION_STAR_HEALING, SV_WAND_STONE_TO_MUD, TVAL_POTION, TVAL_WAND,
+    AbilitySources, GridState, Position, game_distance, SV_POTION_STAR_HEALING, SV_WAND_STONE_TO_MUD, TVAL_POTION, TVAL_WAND,
     parse_snapshot,
 )
 from support.town_arrival_fixture import load
@@ -151,12 +159,41 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         self.assertTrue(reason.startswith(destruction_use.REASON + battle.SWEEP_SUFFIX), reason)
 
     def test_sweep_takes_the_target_in(self):
-        board = self.board(recorded_monsters=True, oberon=self.at(0, 4))
+        # Oberon within the circle behind rock (out of the line of fire: no leave for the crowd).
+        rock = [self.at(dy, -8) for dy in (-1, 0, 1)] + [self.at(dy, -7) for dy in (-1, 0, 1)]
+        board = self.board(recorded_monsters=True, oberon=self.at(0, -9), walls=rock, box=10)
         key, reason = decide(self.policy, board)
         self.assertTrue(reason.startswith(destruction_use.REASON + battle.SWEEP_SUFFIX), reason)
 
-    def test_sweep_ends_without_others(self):
-        board = self.board(oberon=self.at(0, 30))
+    def test_sweep_covers_the_whole_floor(self):
+        """「フロア全体を回る」: no monster known, the arrival still destroys; then the next circle
+        at least SWEEP_SPACING away, walked to; then the gaps; covered, the battle."""
+        from hengbot import area_mapping
+        board = self.board()
+        key, reason = decide(self.policy, board)
+        self.assertTrue(reason.startswith(destruction_use.REASON + battle.SWEEP_SUFFIX), reason)
+        self.setUp()
+        board = self.board(box=16)
+        decide(self.policy, board)  # the floor's area-mapping record starts on this board
+
+        def mapped():
+            """DECLARED CONSTRUCTED: the circles' map already cast (周辺感知 after them)."""
+            area_mapping._floor_memory(self.policy, board).destroyed_turn = None
+        area_mapping.note_destruction(self.policy, board, self.here, 17, 13)
+        mapped()
+        key, reason = decide(self.policy, board)
+        self.assertEqual(reason, battle.SWEEP_WALK_REASON)
+        left = battle.uncovered(self.policy, board)
+        self.assertTrue(left)
+        self.assertTrue(all(game_distance(cell, self.here) > 13 for cell in left))
+        # The next circle goes at least SWEEP_SPACING from this one while such a cell is left.
+        goals = battle.sweep_goals(self.policy, board)
+        self.assertTrue(goals)
+        self.assertTrue(all(game_distance(cell, self.here) >= battle.SWEEP_SPACING for cell in goals))
+        for cell in sorted(left, key=lambda cell: (cell.y, cell.x)):
+            area_mapping.note_destruction(self.policy, board, cell, 17, 13)
+        mapped()
+        self.assertFalse(battle.uncovered(self.policy, board))
         decide(self.policy, board)
         self.assertEqual(battle.battle(self.policy, board).phase, battle.BATTLE)
 
@@ -194,12 +231,24 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         self.assertEqual(reason, POWERFUL_REASON)
         self.assertEqual(key, me_powerful_activation.racial_key("wand", 29) + f"@{oberon.y},{oberon.x}")
 
+    def test_the_rocket_with_another_awake(self):
+        """Q4 「99F・100Fでは指示の条件だけで撃つ」: the Amberite gate's 「他に起きた敵がいない」 is not
+        asked (another awake monster inside the circle, so no *Destruction* first, and behind rock,
+        out of the line of fire, so no leave)."""
+        self.in_battle()
+        oberon = self.at(0, 4)
+        hidden = self.at(0, -9)
+        rock = [self.at(dy, -8) for dy in (-1, 0, 1)] + [self.at(dy, -7) for dy in (-1, 0, 1)]
+        board = self.board(oberon=oberon, others=[hidden], walls=rock, box=10)
+        key, reason = decide(self.policy, board)
+        self.assertEqual(reason, POWERFUL_REASON)
+
     def test_no_rocket_below_800_after_the_cost(self):
         self.in_battle()
         oberon = self.at(0, 4)
         # Lv50: the cost is 10 + 40 / 2 = 30 at worst; 829 - 30 < 800.
         key, reason = decide(self.policy, self.board(oberon=oberon, hp=829))
-        self.assertEqual(reason, battle.HEAL_REASON)
+        self.assertIn(reason, {battle.ABSORBED_HEAL_REASON, battle.HEAL_REASON})
         key, reason = decide(self.policy, self.board(oberon=oberon, hp=830))
         self.assertEqual(reason, POWERFUL_REASON)
 
@@ -214,6 +263,38 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         self.setUp()
         self.in_battle()
         key, reason = decide(self.policy, self.board(oberon=self.at(0, 2)))
+        self.assertEqual(reason, battle.TELEPORT_REASON)  # Q2 「距離2以下」
+        self.setUp()
+        self.in_battle()
+        key, reason = decide(self.policy, self.board(oberon=self.at(0, 3)))
+        self.assertNotEqual(reason, battle.TELEPORT_REASON)
+
+    def test_a_summon_teleports_at_any_hp(self):
+        """Q1 「召喚されたら HP に関係なく離れる」 (a hit only below 800)."""
+        self.in_battle()
+        oberon = self.at(0, 6)
+        summoned = replace(self.board(oberon=oberon), messages=("オベロンがアンバーの王族を召喚した！",))
+        key, reason = decide(self.policy, summoned)
+        self.assertEqual(reason, battle.TELEPORT_REASON)
+        self.setUp()
+        self.in_battle()
+        decide(self.policy, self.board(oberon=oberon))
+        key, reason = decide(self.policy, self.board(oberon=oberon, hp=801))
+        self.assertNotEqual(reason, battle.TELEPORT_REASON)
+
+    def test_target_and_another_in_the_line_of_fire(self):
+        """「ターゲットとターゲット以外が同時に射線に入っているときは召喚直後でなくとも離脱する。」"""
+        self.in_battle()
+        oberon = self.at(0, 4)
+        key, reason = decide(self.policy, self.board(oberon=oberon, others=[self.at(3, 3)]))
+        self.assertEqual(reason, battle.TELEPORT_REASON)
+        # Behind rock the other is out of the line: the fight goes on.
+        self.setUp()
+        self.in_battle()
+        hidden = self.at(0, -9)
+        rock = [self.at(dy, -8) for dy in (-1, 0, 1)] + [self.at(dy, -7) for dy in (-1, 0, 1)]
+        board = self.board(oberon=oberon, others=[hidden], walls=rock, box=10)
+        key, reason = decide(self.policy, board)
         self.assertNotEqual(reason, battle.TELEPORT_REASON)
 
     def test_hit_below_800_teleports_and_below_400_heals(self):
@@ -241,6 +322,12 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         self.assertEqual((held.phase, held.last_seen), (battle.RECOVER, (self.here.y, self.here.x + 1)))
         key, reason = decide(self.policy, self.board(hp=900))
         self.assertIn(reason, {battle.REST_REASON, battle.RESTORE_MANA_REASON})
+        # Q3: a deficit of a potion's 300 or more is healed (the absorbed Healing first); the
+        # drop to 600 is a hit below 800 (a teleport), the next board at 600 is no hit.
+        key, reason = decide(self.policy, self.board(hp=600))
+        self.assertEqual(reason, battle.TELEPORT_REASON)
+        key, reason = decide(self.policy, self.board(hp=600))
+        self.assertIn(reason, {battle.ABSORBED_HEAL_REASON, battle.HEAL_REASON})
         key, reason = decide(self.policy, self.board())
         self.assertNotEqual(held.phase, battle.RECOVER)
         held.last_seen = (self.here.y, self.here.x + 3)
@@ -334,6 +421,21 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         angband_finale.observe(policy, later)
         self.assertTrue(angband_finale.memory(policy).small_floor_set)
         self.assertNotEqual(battle.key(policy, later), angband_finale.SMALL_FLOOR_MACRO)
+
+    def test_small_floor_in_town_before_the_recall(self):
+        """Q8 「町で、99F・100Fへ帰還する前に入れる」: in place of the town's recall to Angband."""
+        policy = self.policy
+        town = replace(self.floor(98), floor_key=(0, 0, 0), town_flag=True,
+                       dungeon_recall_depths={**self.recorded.dungeon_recall_depths, 1: 95})
+        policy.last_reason = "town:recall-to-angband"
+        with contextlib.redirect_stdout(io.StringIO()):
+            key = policy._angband_finale_small_floor_key(town, "rfa")
+        self.assertEqual((key, policy.last_reason),
+                         (angband_finale.SMALL_FLOOR_MACRO, angband_finale.SMALL_FLOOR_REASON))
+        policy.last_reason = "town:recall-to-yeek-cave"
+        angband_finale.memory(policy).small_floor_pending = None
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(policy._angband_finale_small_floor_key(town, "rfy"), "rfy")
 
     def test_the_executor_answers_the_pref_prompt(self):
         first, steps = _home_modal_continuation(self.floor(98), angband_finale.SMALL_FLOOR_MACRO,

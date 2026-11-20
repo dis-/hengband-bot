@@ -26,16 +26,29 @@ The game (C:/hengband/src):
   Magic-Eater has no mana: me_powerful_activation ``cost``), paid on a failure too.
 * *Healing* (quaff-effects.cpp) heals 1000; Teleportation (read-execution) moves 100 grids.
 
+The owner's answers to the report's questions (2026-11-20, verbatim): Q1 「召喚されたら HP に
+関係なく離れる」 (an attack still only below 800); Q2 「距離2以下（2マス先に来たら離れる）」; Q3
+「テレポート後の回復に使う。ただし取り込んだ体力回復の方が優先度は上。」 (the Potions of Healing);
+Q4 「99F・100Fでは指示の条件だけで撃つ」 (amberite_curse's gate is not asked here); Q10
+「フロア全体を回る」 (the arrival sweep covers the whole floor with circles that overlap little).
+And (2026-11-20, verbatim) 「ターゲットとターゲット以外が同時に射線に入っているときは召喚直後でなくとも
+離脱する。」 (``crowded``).
+
 The per-board order (``key``), the first that answers wins:
  1. the recall: on success (the floor's quest no longer TAKEN) or with twice the Restore Mana
     target used (angband_finale ``restore_mana_overspent``), and nowhere else;
  2. *Healing* below 400 HP after a hit;
- 3. the Teleportation scroll: below 800 HP after a hit or a summon, or the target closer than
-    distance 2; the next boards recover (``RECOVER``);
- 4. the arrival sweep (``SWEEP``): *Destruction* on every other monster within its circle, the
-    target allowed, walking to the next one; the map after each use (周辺感知);
+ 3. the Teleportation scroll: on a summon, below 800 HP after a hit, the target within
+    distance 2, or the target and another monster both in the line of fire (``crowded``); the
+    next boards recover (``RECOVER``);
+ 4. the arrival sweep (``SWEEP``): *Destruction* over the whole floor, the target allowed: cast on
+    a known floor cell no circle covers yet, at least ``SWEEP_SPACING`` from every earlier circle
+    while one is left (then on the gaps), walking to the nearest such cell; the map after each use
+    (周辺感知) shows the floor further;
  5. the recovery after a teleport: once no awake hostile is in view, Restore Mana while the
-    rocket can take a potion's refill, then rest to full HP; then on to the last-seen cell;
+    rocket can take a potion's refill, then the heal (``_heal``: the absorbed Healing, else a
+    Potion of Healing) for a deficit of a potion's 300 or more, else the rest to full HP; then on
+    to the last-seen cell;
  6. the battle: *Destruction* (powered when only it reaches) on the other monsters while the
     target is outside its worst circle; haste and the Resistance potion; the powered Rocket when
     a line projects and HP - cost >= 800; else the stand on one of the eight rays of the target,
@@ -44,7 +57,7 @@ The per-board order (``key``), the first that answers wins:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from hengbot import angband_finale, destruction_use, me_capability, me_device_attacks
 from hengbot.model import Position, game_distance
@@ -53,6 +66,7 @@ REASON = "angband-finale"
 RECALL_REASON = f"{REASON}:recall"
 STAR_HEAL_REASON = f"{REASON}:star-healing"
 HEAL_REASON = f"{REASON}:healing"
+ABSORBED_HEAL_REASON = f"{REASON}:absorbed-healing"
 TELEPORT_REASON = f"{REASON}:teleport"
 SWEEP_SUFFIX = f":{REASON}-sweep"
 CLEAR_SUFFIX = f":{REASON}-clear"
@@ -73,11 +87,19 @@ AFTER_DESTRUCTION = "after-destruction"  # me_powers' trigger of the map after a
 FIRE_HP_AFTER_COST = 800
 STAR_HEAL_BELOW = 400
 TELEPORT_BELOW = 800
-TELEPORT_CLOSER_THAN = 2
+TELEPORT_WITHIN = 2
 # The Rocket's reach: get_max_range() 18 (angband-system.cpp:45-48); the stand is at least
-# TELEPORT_CLOSER_THAN + 1 away so that standing there is no teleport.
+# TELEPORT_WITHIN + 1 away so that standing there is no teleport.
 ROCKET_RANGE = 18
-STAND_MIN_DISTANCE = TELEPORT_CLOSER_THAN + 1
+STAND_MIN_DISTANCE = TELEPORT_WITHIN + 1
+# Q10: the sweep's circles (sure radius 13) at least this far apart overlap at most six cells
+# deep; the gaps between them are swept last.
+SWEEP_SPACING = 20
+# The sweep ends after this many refused uses in a row (a damaged target in the circle, a
+# failed cast's fallback).
+SWEEP_REFUSALS = 3
+# A Potion of Healing's 300 (quaff-effects.cpp hp_player(300)): a smaller deficit is rested off.
+HEAL_DEFICIT = 300
 ROCKET = ("wand", 29)
 POWERED_SURE = 18
 POWERED_WORST = 22
@@ -111,7 +133,7 @@ class Battle:
     attacked: bool = False
     summoned: bool = False
     stand: Stand | None = None
-    swept_out: set = field(default_factory=set)  # monsters the sweep's walk could not reach
+    sweep_refusals: int = 0           # the sweep's refused uses in a row
 
 
 def battle(policy, snapshot) -> Battle:
@@ -143,6 +165,18 @@ def target_monster(snapshot):
 def others(snapshot) -> list:
     race = angband_finale.target_race(snapshot)
     return [monster for monster in _known_hostiles(snapshot) if monster.race_id != race]
+
+
+def crowded(policy, snapshot, target) -> bool:
+    """「ターゲットとターゲット以外が同時に射線に入っているとき」: a line projects from the player to
+    the target and to another known monster on this board."""
+    from hengbot import line_of_fire
+    if target is None:
+        return False
+    here = snapshot.player.position
+    return (line_of_fire.player_projectable(policy, snapshot, here, target.position)
+            and any(line_of_fire.player_projectable(policy, snapshot, here, monster.position)
+                    for monster in others(snapshot)))
 
 
 def _observe(policy, snapshot, held: Battle) -> None:
@@ -238,6 +272,17 @@ def _refill_worth(policy, snapshot) -> bool:
     return rocket_charges(policy, snapshot) <= count - restore_mana_target.uses_per_potion(count)
 
 
+def _heal(policy, snapshot) -> str | None:
+    """Owner 2026-11-20 Q3 「取り込んだ体力回復の方が優先度は上」: the absorbed Healing (a reliable
+    staff or rod, me_absorbed_substitutes), else a carried Potion of Healing."""
+    from hengbot.me_absorbed_substitutes import item_cast_key
+    key = item_cast_key(policy, snapshot, angband_finale.HEALING)
+    if key is not None:
+        policy.last_reason = ABSORBED_HEAL_REASON
+        return key
+    return _quaff(policy, snapshot, angband_finale.HEALING, HEAL_REASON)
+
+
 def _restore_mana(policy, snapshot) -> str | None:
     if not _refill_worth(policy, snapshot):
         return None
@@ -273,30 +318,60 @@ def _destroy(policy, snapshot, subjects, suffix, *, powerful=False) -> str | Non
                                powerful=powerful)
 
 
+def uncovered(policy, snapshot) -> set:
+    """The known floor cells no circle of the player's *Destruction* on this floor covers
+    (area_mapping's record of the flashes, the sure radius)."""
+    from hengbot import area_mapping
+    centres = [centre for centre, _worst, _sure in area_mapping.circles(policy, snapshot)]
+    return {position for position, grid in snapshot.grids.items()
+            if grid.known and grid.passable
+            and not any(destruction_use.in_sure_radius(snapshot, position, centre=centre)
+                        for centre in centres)}
+
+
+def sweep_goals(policy, snapshot, left=None) -> set:
+    """The cells the next circle of the sweep goes to: the uncovered ones at least
+    ``SWEEP_SPACING`` from every circle (Q10 「範囲をなるべく重ねない」), else every uncovered one
+    (the gaps between the circles)."""
+    from hengbot import area_mapping
+    left = uncovered(policy, snapshot) if left is None else left
+    centres = [centre for centre, _worst, _sure in area_mapping.circles(policy, snapshot)]
+    spaced = {position for position in left
+              if all(game_distance(position, centre) >= SWEEP_SPACING for centre in centres)}
+    return spaced or set(left)
+
+
 def _sweep_key(policy, snapshot, held: Battle) -> str | None:
-    """The arrival sweep: the other monsters destroyed, the target allowed in the circle."""
+    """The arrival sweep over the whole floor (owner 2026-11-20 Q10 「フロア全体を回る」), the
+    target allowed in the circles."""
     mapped = _map_key(policy, snapshot)
     if mapped is not None:
         return mapped
-    rest = [monster for monster in others(snapshot) if monster.index not in held.swept_out]
-    if not rest or not destruction_use.means_in_hand(policy, snapshot):
+    left = uncovered(policy, snapshot)
+    if not left or not destruction_use.means_in_hand(policy, snapshot):
         held.phase = BATTLE
         return None
-    near = _within(snapshot, rest, destruction_use.GUARANTEED_RADIUS)
-    if near:
-        used = _destroy(policy, snapshot, near, SWEEP_SUFFIX)
-        if used is not None:
-            return used
+    goals = sweep_goals(policy, snapshot, left)
+
+    def goal(position) -> bool:
+        return position in goals
     here = snapshot.player.position
-    for monster in sorted(rest, key=lambda each: game_distance(here, each.position)):
-        step = destruction_use.walk_step(policy, snapshot, monster)
-        if step is not None:
-            key = policy._step_toward(snapshot, step)
-            policy.last_reason = SWEEP_WALK_REASON
-            return key
-        held.swept_out.add(monster.index)
-    held.phase = BATTLE
-    return None
+    if goal(here):
+        used = _destroy(policy, snapshot, [here], SWEEP_SUFFIX)
+        if used is not None:
+            held.sweep_refusals = 0
+            return used
+        held.sweep_refusals += 1
+        if held.sweep_refusals >= SWEEP_REFUSALS:
+            held.phase = BATTLE
+        return None
+    step = policy._nearest_goal_step(snapshot, lambda grid: goal(grid.position))
+    if step is None:
+        held.phase = BATTLE
+        return None
+    key = policy._step_toward(snapshot, step)
+    policy.last_reason = SWEEP_WALK_REASON
+    return key
 
 
 def _clear_key(policy, snapshot, held: Battle) -> str | None:
@@ -442,7 +517,12 @@ def _recover_key(policy, snapshot, held: Battle) -> str | None:
     restored = _restore_mana(policy, snapshot)
     if restored is not None:
         return restored
-    if snapshot.player.hp < snapshot.player.max_hp:
+    player = snapshot.player
+    if player.max_hp - player.hp >= HEAL_DEFICIT:
+        healed = _heal(policy, snapshot)
+        if healed is not None:
+            return healed
+    if player.hp < player.max_hp:
         policy.last_reason = REST_REASON
         return REST_MACRO
     held.phase = BATTLE
@@ -480,9 +560,9 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
         if rocket_charges(policy, snapshot) <= 0:
             return _quaff(policy, snapshot, angband_finale.RESTORE_MANA, RESTORE_MANA_REASON)
         if not fire_hp_holds(snapshot):
-            # Not named by the directive: the Potion of Healing it carries raises the HP to the
-            # shot's 800 + cost (reported to the owner as a question).
-            return _quaff(policy, snapshot, angband_finale.HEALING, HEAL_REASON)
+            # Owner 2026-11-20 Q3: the heal outside the *Healing* rule (absorbed first) raises the
+            # HP to the shot's 800 + cost.
+            return _heal(policy, snapshot)
         held.stand = None
         return _rocket(policy, snapshot, target)
     return _stand_key(policy, snapshot, held, target)
@@ -508,8 +588,9 @@ def key(policy, snapshot) -> str | None:
         healed = _quaff(policy, snapshot, angband_finale.STAR_HEALING, STAR_HEAL_REASON)
         if healed is not None:
             return healed
-    if ((player.hp < TELEPORT_BELOW and (held.attacked or held.summoned))
-            or (distance is not None and distance < TELEPORT_CLOSER_THAN)):
+    if (held.summoned or (player.hp < TELEPORT_BELOW and held.attacked)
+            or (distance is not None and distance <= TELEPORT_WITHIN)
+            or crowded(policy, snapshot, target)):
         away = _teleport(policy, snapshot)
         if away is not None:
             held.phase, held.stand = RECOVER, None

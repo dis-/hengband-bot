@@ -177,7 +177,13 @@ def refusal(policy, snapshot, amberites) -> str | None:
 
 
 def after_ladder(policy, snapshot, key):
-    """The decided ``key``, or what goes in its place when it can kill an Amberite."""
+    """The decided ``key``, or what goes in its place when it can kill an Amberite.
+
+    Not on the 99F/100F battle's floors (owner 2026-11-20 Q4 「99F・100Fでは指示の条件だけで撃つ」,
+    angband_finale_battle): the directive's own conditions decide the strike there."""
+    from hengbot import angband_finale_battle  # import cycle
+    if angband_finale_battle.applies(policy, snapshot):
+        return key
     amberites = struck(policy, snapshot, key)
     if not amberites:
         return key

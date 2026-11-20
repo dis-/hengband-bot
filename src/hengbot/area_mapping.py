@@ -168,6 +168,13 @@ def _due(policy, snapshot: Snapshot) -> bool:
             and not me_powers.mapped_since(policy, snapshot, memory.destroyed_turn))
 
 
+def circles(policy, snapshot: Snapshot) -> list:
+    """The player's *Destruction* circles on this floor, (centre, worst, sure) each (the 99F/100F
+    sweep's coverage, angband_finale_battle)."""
+    memory = _floor_memory(policy, snapshot)
+    return list(memory.circles) if memory is not None else []
+
+
 def mapping_due(policy, snapshot: Snapshot) -> bool:
     """The player's *Destruction* on this floor is not yet mapped (the 99F/100F battle's
     「破壊を使用した後は周辺感知で地形把握する」, angband_finale_battle)."""
