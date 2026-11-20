@@ -2065,6 +2065,19 @@ class EquipmentMixin:
                 self._equipment_transaction_abandoned_epoch = self._town_visit_epoch
         restore_refusals = self._equipment_restore_refusals(action, failed_before)
         self._discard_unposted_equipment_transaction_command()
+        if self._equipment_transaction_posted_catalog_update is not None:
+            # The posted update is fenced to this session's id and action index:
+            # once the session is gone nothing applies or clears it, and
+            # equipment_transfer_clear stayed false for the rest of the visit
+            # (n1-b life-411 2026-11-21 01:09, a deposit refused by a full Home,
+            # town:blocked:survival:equipment_transfer_clear).  A refused,
+            # cancelled or failed operation moved nothing; any other unconfirmed
+            # one leaves the Home catalog to be read again.
+            self._equipment_transaction_posted_catalog_update = None
+            if not (session is not None and any(
+                    blocker.endswith(("-refused", "-cancelled", "-failed"))
+                    for blocker in session.blockers)):
+                self._equipment_catalog.invalidate_home()
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
         self._town_blocked_reason = None

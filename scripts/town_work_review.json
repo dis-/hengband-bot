@@ -22758,5 +22758,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_terminal.py:queued_home_take_key": {
+    "classification": "producer",
+    "rows": [
+      "home-withdraw"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Answers inside town_end_key before the entrance step-off: on the outside Home entrance with a queued Home take (_home_pending_item or _home_pending_batch) and no atomic withdrawal in flight, it targets Home and returns the existing atomic Home take (_atomic_home_withdraw_key, the one board a Home take is composed on), or None so the step-off and the end's verdict stand (n1-b life-411 2026-11-21 01:09, a queued Potion of Resistance stepped off four times and the visit stopped on home_pending_item_clear).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

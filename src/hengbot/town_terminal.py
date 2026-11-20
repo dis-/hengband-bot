@@ -2415,6 +2415,33 @@ def purchase_gaps(policy: Any, board: Any, unmet: tuple[str, ...]) -> tuple[str,
     return tuple(name for name in unmet if unbuyable(name))
 
 
+def queued_home_take_key(policy: Any, board: Any) -> str | None:
+    """Compose a queued Home take on the Home entrance before the end's step-off.
+
+    The outside Home entrance is the one board a Home take is composed on
+    (policy_home ``_atomic_home_withdraw_dispatch_key``); the Home page hands a
+    queued take there (home:leave-for-pending-withdraw), but the shopping visit
+    that walked in closes as the page is left, so the next board reached the
+    town end, whose step-off took the bot off the entrance every time.  n1-b
+    life-411 2026-11-21 01:08-01:09: one Potion of Resistance queued from a
+    Home of 240 stacks, four entries and step-offs, then
+    town:blocked:unmet:home_pending_item_clear.
+    """
+    from hengbot.model import STORE_HOME
+    here = board.grid_at(board.player.position)
+    if (board.store is not None or here is None or here.store_number != STORE_HOME
+            or (policy._home_pending_item is None and not policy._home_pending_batch)
+            or policy._home_atomic_withdraw_pending is not None
+            or not policy._home_available(board)):
+        return None
+    previous = policy._shopping_approach_store_type
+    policy._shopping_approach_store_type = STORE_HOME
+    key = policy._atomic_home_withdraw_key(board, board.player.position)
+    if key is None:
+        policy._shopping_approach_store_type = previous
+    return key
+
+
 def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
     minimum, _destination, _depth = policy._visit_departure_minimum(board)
     # Spare gear no owner shelved is kept for the next visit, never a stop;
@@ -2556,6 +2583,9 @@ def town_end_key(policy: Any, board: Any) -> str:
         # Home hands a filed take to its outside entrance, the one board its
         # withdrawal is composed on (n1-a life-522 2026-11-14 06:31, the
         # step-off and the route back alternated around the Home entrance).
+        return take
+    take = queued_home_take_key(policy, board)
+    if take is not None:
         return take
     here = board.grid_at(board.player.position)
     if board.store is None and here is not None and here.is_store:

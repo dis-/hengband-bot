@@ -17663,6 +17663,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "town_terminal.py:queued_home_take_key": {
+    "classification": "producer",
+    "rows": [
+      "home-withdraw"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "town_terminal.py:refused": {
     "classification": "data",
     "rows": [
