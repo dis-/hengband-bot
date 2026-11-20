@@ -130,6 +130,14 @@ class Memory:
     # an arrival).  None until a board says: a new process, or a checkpoint from before this
     # field, resumed inside a visit is no arrival and switches nothing.
     in_town: bool | None = None
+    # The last current Home census's counts of the finale's kinds ({(tval, sval): count}), kept
+    # across the trip: the Home does not change while the character is away, and the arrival
+    # board often has no census (n1-c life-217 2026-11-20 23:30:21: none until the visit's
+    # second board, so the Home's 120 Restore Mana were not counted).  None: none seen yet.
+    home_counts: dict | None = None
+    # The visit's switch is decided (on the arrival with ``home_counts``, else on the visit's
+    # first board with a current census).  A class default: restored checkpoints predate it.
+    decided: bool = True
 
 
 def memory(policy) -> Memory:
@@ -154,11 +162,32 @@ def carried(snapshot, kind) -> int:
                if _kind(item) == kind and getattr(item, "aware", True))
 
 
+def _census_current(policy) -> bool:
+    return bool(getattr(policy, "_home_knowledge_current", False)
+                and getattr(policy, "_home_knowledge_items", ()))
+
+
+def home_count(policy, kind) -> int | None:
+    """The Home's ``kind``: the current census, else the last one kept across the trip
+    (``Memory.home_counts``), else None (no census seen)."""
+    if _census_current(policy):
+        return sum(item.count for item in policy._home_knowledge_items
+                   if _kind(item) == kind and getattr(item, "aware", True))
+    held = getattr(policy, MEMORY, None)
+    counts = getattr(held, "home_counts", None)
+    return None if counts is None else counts.get(kind, 0)
+
+
 def owned(policy, snapshot, kind) -> int:
-    """The pack's and the last Home census's ``kind``."""
-    home = getattr(policy, "_home_knowledge_items", ()) or ()
-    return carried(snapshot, kind) + sum(item.count for item in home
-                                         if _kind(item) == kind and getattr(item, "aware", True))
+    """The pack's and the Home's ``kind`` (``home_count``; nothing counted without a census)."""
+    return carried(snapshot, kind) + (home_count(policy, kind) or 0)
+
+
+def _keep_home_counts(policy) -> None:
+    """Remember the current census's counts of the finale's kinds for the next arrival."""
+    if _census_current(policy):
+        memory(policy).home_counts = {kind: home_count(policy, kind)
+                                      for kind in (*CARRY, RESTORE_MANA)}
 
 
 def angband_depth(snapshot) -> int:
@@ -290,6 +319,15 @@ def observe(policy, snapshot) -> None:
             return
         held.report = rows = readiness(policy, snapshot)
         held.supplied = ready(rows["owned"])
+        census = _census_current(policy)
+        if arrival:
+            held.decided = census or getattr(held, "home_counts", None) is not None
+        elif not getattr(held, "decided", True) and census:
+            # No census kept yet (a first visit after a restart or this change): the visit's
+            # first board with a current census decides.  The equipment work waits for that
+            # census (the catalogue's Home scan), so no swap has begun before it.
+            arrival, held.decided = True, True
+        _keep_home_counts(policy)
         if arrival:
             # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the switch is decided as the
             # visit begins, never in its middle (n1-b life-411 2026-11-20 22:29-22:32: the
