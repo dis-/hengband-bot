@@ -51,7 +51,8 @@ visit) and the time it gives up yields per decision 0.38 of the visits' map, 0.6
 experience and 0.77 of their pickups, while a new floor's first tenth yields the most (REPORT
 2.1); 200 cuts in the middle of the visit (half its experience per decision lost), 500 rarely
 fires.  A return costs about 250 decisions (two recall waits and a town visit): 34 x 250 = 8,500
-of the 39,349 saved.  The loot condition delays the cut while an item is left to fetch.
+of the 39,349 saved.  The loot condition delays the cut while an item the walk reaches is left
+to fetch; loot no walk reaches is entered by sealed_loot's ways first, if it can be (n1-c life-217).
 
 The return is the floor's normal end, not an escape: ``return:recall`` is no relocation the
 escape count reads (reasons ``return:*``), so the over-extension streak does not move
@@ -61,7 +62,7 @@ trigger is no survival one, so the recall wait collects what it reaches (recall_
 
 from __future__ import annotations
 
-from hengbot import dive_floor, return_start
+from hengbot import dive_floor, return_start, sealed_loot
 from hengbot.policy_constants import DEEP_FLOOR_DEPTH
 
 TRIGGER = "explored-dead-end-floor"
@@ -140,6 +141,31 @@ def explored(policy, snapshot, *, exhausted: bool) -> bool:
     return exhausted or stalled(policy, snapshot)
 
 
+def _reachable_loot(policy, snapshot) -> bool:
+    """A loot candidate the walk reaches (sealed_loot's reach: the known floor joined to the
+    player)."""
+    candidates = policy._loot_candidates(snapshot)
+    return bool(candidates) and bool(candidates & sealed_loot.reach(policy, snapshot))
+
+
+def unreachable_loot_key(policy, snapshot) -> str | None:
+    """On an explored dead-end floor (the window stalled) whose remembered loot no walk reaches,
+    the owner's way into it (sealed_loot ``key``: the melt into a walled pocket, 11-13; the one
+    mapping of an enclosure the map does not know, 11-18), else None.
+
+    n1-c life-217 (Angband 95F, 2026-11-20 19:04-19:34): a helm sensed inside a block of grids the
+    map did not know held the floor's Recall while the explore, steered to the frontiers nearest
+    it (loot_frontier), crossed the cave for half an hour and grew the map by 2 cells in its last
+    213 decisions; sealed_loot was asked only once the explore found nothing at all, which that
+    floor's 253 open frontiers never gave, until the floor-dwell watcher stopped the bot."""
+    if not explored(policy, snapshot, exhausted=False) or not dead_end(policy, snapshot):
+        return None
+    candidates = policy._loot_candidates(snapshot)
+    if not candidates or candidates & sealed_loot.reach(policy, snapshot):
+        return None
+    return sealed_loot.key(policy, snapshot)
+
+
 def recall_key(policy, snapshot, *, exhausted: bool) -> str | None:
     """Start the return and read Word of Recall on an explored dead-end floor, else None.  The
     countdown that follows is the return's own wait (policy ``_return_to_town_key``).
@@ -153,10 +179,13 @@ def recall_key(policy, snapshot, *, exhausted: bool) -> str | None:
         return None
     if policy._floor_navigation_exit_locked(snapshot):
         return None
-    # While the explore still walks, a remembered item it may yet open a way to holds the floor
-    # (owner 2026-11-13 「その品の方へ探索を寄せる」, loot_frontier).  With nothing left to explore
-    # the loot owner above has found no way to any of them this decision.
-    if not exhausted and policy._loot_candidates(snapshot):
+    # While the explore still walks, a remembered item the walk reaches holds the floor (the loot
+    # owner above takes it once its blocker lifts).  An item no walk reaches holds it no longer:
+    # the stalled window is the explore opening no way to it (owner 2026-11-13 「その品の方へ探索
+    # を寄せる」, loot_frontier), and the owner's ways into such loot (sealed_loot, 11-13 and 11-18)
+    # have been asked just before (``unreachable_loot_key``).  With nothing left to explore the
+    # loot owner above has found no way to any of them this decision.
+    if not exhausted and _reachable_loot(policy, snapshot):
         return None
     recall = policy._find_recall_scroll(snapshot)
     if recall is None or not policy._can_read_scrolls(snapshot):

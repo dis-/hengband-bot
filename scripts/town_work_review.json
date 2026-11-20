@@ -20365,6 +20365,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-17 (50F+ efficiency study 1st) 「適当な閾値を決めて、探索が済んだら帰還する」: the map grew less than 0.5% over the last 300 explore decisions with no remembered item to fetch, or nothing is left to explore: the return starts (explored-dead-end-floor) and _return_to_town_key reads Word of Recall (return:recall)."
   },
+  "explored_floor.py:unreachable_loot_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon idle layer only, 50F+ on a floor the dive goes no deeper from, asked by ladder_idle's explore rung right before explored_floor.recall_key; never reached in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; returns sealed_loot.key's own step or use, or None.",
+    "evidence": "n1-c life-217 (Angband 95F, 2026-11-20 19:34 stall:floor-dwell:explore): with the explore window stalled and the remembered loot beyond every walk, the owner's ways into it (sealed_loot.key: 11-13 「価値に関係なく溶かす」, 11-18 「周辺感知があれば使用して入口を探す。なければ諦める。」) are asked before the explored floor's Word of Recall; returns that key or None."
+  },
   "floor_identify.py:key": {
     "classification": "producer",
     "rows": [

@@ -167,6 +167,12 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         # A floor the dive goes no deeper from is left by Word of Recall once its map has
         # stopped growing (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」).
         explored_floor.note_explore(policy, snapshot)
+        # Its remembered loot beyond every walk: the owner's way in first (sealed_loot, as on the
+        # "nothing left" end below), then the read.
+        if snapshot.floor_key[2] == 0 and not forgetting_maze:
+            unreachable = explored_floor.unreachable_loot_key(policy, snapshot)
+            if unreachable is not None:
+                return unreachable
         explored = explored_floor.recall_key(policy, snapshot, exhausted=False)
         if explored is not None:
             return explored

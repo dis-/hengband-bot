@@ -289,8 +289,9 @@ LADDER = (
         *I("search"),
         *P("_immobile_breeder_giveup_key", "_explore_step#2"),
         # Owner 2026-11-17 「探索が済んだら帰還する」: a floor the dive goes no deeper from,
-        # its map no longer growing (explored_floor).
-        *D("explored_floor.recall_key"),
+        # its map no longer growing (explored_floor); remembered loot no walk reaches is
+        # entered first by sealed_loot's ways.
+        *D("explored_floor.unreachable_loot_key", "explored_floor.recall_key"),
         *I("explore"),
         *E("_immobile_summoner_exit_key"),
         *D("retreat_enclosure.route_veto_sealed_key"),
