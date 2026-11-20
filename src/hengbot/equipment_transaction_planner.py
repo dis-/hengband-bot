@@ -69,6 +69,39 @@ def _slots(loadout: Loadout) -> dict[str, OwnedEquipment]:
     return dict(loadout.slots)
 
 
+# BaseitemKey::is_melee_weapon: TV_DIGGING, TV_HAFTED, TV_POLEARM, TV_SWORD.
+_MELEE_WEAPON_TVALS = frozenset({20, 21, 22, 23})
+
+
+def _main_takeoff_shifts_sub_hand(
+    current_slots: dict[str, OwnedEquipment],
+    target_slots: dict[str, OwnedEquipment],
+    curse_pinned_item_ids: frozenset[str],
+) -> bool:
+    """Whether taking off the main hand would pull the sub-hand weapon into it.
+
+    do_cmd_takeoff ends with verify_equip_slot(INVEN_MAIN_HAND): an uncursed
+    melee weapon in the sub hand is moved into the emptied main hand
+    (action/weapon-shield.cpp).  A plan that takes the main hand off first
+    then finds the sub hand empty: n1-b life-411 2026-11-20 22:31, the
+    bastard sword moved to the main hand, the war hammer's wield replaced it
+    into the pack, and its planned sub-hand takeoff read the slot empty
+    (stale-identity-invalidated:takeoff:missing).  The sub hand is taken off
+    first, and re-wielded when the target keeps it.
+    """
+    main = current_slots.get(SLOT_MAIN_HAND)
+    sub = current_slots.get(SLOT_SUB_HAND)
+    target_main = target_slots.get(SLOT_MAIN_HAND)
+    return bool(
+        main is not None
+        and (target_main is None or target_main.id != main.id)
+        and sub is not None
+        and sub.item.tval in _MELEE_WEAPON_TVALS
+        and not sub.item.is_cursed
+        and sub.id not in curse_pinned_item_ids
+    )
+
+
 def _one_for_one_home_swap(group: list[EquipmentTransaction]) -> bool:
     """Take off, shelve, take and wear, in that order: the pack ends where it began."""
     return [action.kind for action in group] == ["takeoff", "deposit", "withdraw", "equip"]
@@ -182,12 +215,30 @@ def plan_equipment_transactions(
     )
 
     current_positions = {item.id: slot for slot, item in current_slots.items()}
+    hand_shift = _main_takeoff_shifts_sub_hand(
+        current_slots, target_slots, curse_pinned_item_ids
+    )
+    # The kept sub-hand weapon is taken off before the main hand and worn again.
+    rewield_sub = bool(
+        hand_shift
+        and target_slots.get(SLOT_SUB_HAND) is not None
+        and target_slots[SLOT_SUB_HAND].id == current_slots[SLOT_SUB_HAND].id
+    )
+
+    changed_slots = frozenset(
+        slot for slot in set(current_slots) | set(target_slots)
+        if current_slots.get(slot) is None
+        or target_slots.get(slot) is None
+        or current_slots[slot].id != target_slots[slot].id
+        or (slot == SLOT_SUB_HAND and hand_shift)
+    )
+
+    # Sorted in reverse: the sub hand (120) comes off before the main hand (110).
     takeoffs = sorted(
         (
             (slot, item)
             for slot, item in current_slots.items()
-            if target_slots.get(slot) is None
-            or target_slots[slot].id != item.id
+            if slot in changed_slots
         ),
         key=lambda entry: (_EQUIP_ORDER.get(entry[0], 1_000), entry[1].id),
         reverse=True,
@@ -216,8 +267,7 @@ def plan_equipment_transactions(
         (
             (slot, item)
             for slot, item in target_slots.items()
-            if current_slots.get(slot) is None
-            or current_slots[slot].id != item.id
+            if slot in changed_slots
         ),
         key=lambda entry: (_EQUIP_ORDER.get(entry[0], 1_000), entry[1].id),
     )
@@ -272,12 +322,7 @@ def plan_equipment_transactions(
         }
         emitted = set(staged)
         changed = sorted(
-            (
-                slot for slot in set(current_slots) | set(target_slots)
-                if current_slots.get(slot) is None
-                or target_slots.get(slot) is None
-                or current_slots[slot].id != target_slots[slot].id
-            ),
+            changed_slots,
             key=lambda slot: (_EQUIP_ORDER.get(slot, 1_000), slot),
         )
         completed_slots = set()
@@ -304,8 +349,13 @@ def plan_equipment_transactions(
             takeoff_items = []
             if source_slot is not None and source_slot != slot:
                 takeoff_items.append((source_slot, current_slots[source_slot]))
-            if old is not None and (target is None or old.id != target.id):
+            if old is not None and (target is None or old.id != target.id
+                                    or (slot == SLOT_SUB_HAND and hand_shift)):
                 takeoff_items.append((slot, old))
+            if (slot == SLOT_MAIN_HAND and hand_shift
+                    and all(entry[0] != SLOT_SUB_HAND for entry in takeoff_items)):
+                # The main hand's batch takes the sub-hand weapon off first.
+                takeoff_items.append((SLOT_SUB_HAND, current_slots[SLOT_SUB_HAND]))
             takeoff_items.sort(
                 key=lambda entry: (_EQUIP_ORDER.get(entry[0], 1_000), entry[1].id),
                 reverse=True,
@@ -316,7 +366,8 @@ def plan_equipment_transactions(
                 if candidate is not None and candidate not in emitted:
                     takeoff_actions.append((item, candidate))
             equip_action = None
-            if target is not None and (old is None or old.id != target.id):
+            if target is not None and (old is None or old.id != target.id
+                                       or (slot == SLOT_SUB_HAND and rewield_sub)):
                 kind = "reposition" if target.id in current_positions else "equip"
                 candidate = original.get((kind, slot))
                 if candidate is not None and candidate not in emitted:

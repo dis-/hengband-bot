@@ -365,5 +365,70 @@ class EquipmentTransactionPlannerTest(unittest.TestCase):
         self.assertIn("pack-space-required:1", plan.blockers)
 
 
+    # do_cmd_takeoff's verify_equip_slot moves an uncursed sub-hand melee weapon
+    # into an emptied main hand (n1-b life-411 2026-11-20, takeoff:missing).
+    def _hand_actions(self, plan):
+        return [(action.kind, action.item_id, action.target_slot)
+                for action in plan.actions if action.phase == PHASE_EQUIP]
+
+    def test_dual_wield_staged_swap_takes_the_sub_hand_off_first(self):
+        main = gear("main", "equipped", tval=21)
+        sub = gear("sub", "equipped", tval=23)
+        hammer = gear("hammer", "home", tval=21)
+        plan = plan_equipment_transactions(
+            (main, sub, hammer),
+            Loadout((("main_hand", main), ("sub_hand", sub)), "dual_wield"),
+            Loadout((("main_hand", hammer),), "two_handed"),
+            current_pack_items=21, home_scan_complete=True,  # peak 24 > 23: slot-staged
+        )
+        self.assertTrue(plan.executable)
+        self.assertEqual(self._hand_actions(plan), [
+            ("takeoff", "sub", "sub_hand"),
+            ("takeoff", "main", "main_hand"),
+            ("equip", "hammer", "main_hand"),
+        ])
+
+    def test_kept_sub_hand_weapon_is_taken_off_and_worn_again(self):
+        main = gear("main", "equipped", tval=21)
+        sub = gear("sub", "equipped", tval=23)
+        new = gear("new", "home", tval=22)
+        for capacity in (23, 2):  # all at once, and slot-staged (peak 3 > 2)
+            with self.subTest(capacity=capacity):
+                plan = plan_equipment_transactions(
+                    (main, sub, new),
+                    Loadout((("main_hand", main), ("sub_hand", sub)), "dual_wield"),
+                    Loadout((("main_hand", new), ("sub_hand", sub)), "dual_wield"),
+                    current_pack_items=0, home_scan_complete=True,
+                    pack_capacity=capacity,
+                )
+                self.assertTrue(plan.executable)
+                self.assertEqual(self._hand_actions(plan), [
+                    ("takeoff", "sub", "sub_hand"),
+                    ("takeoff", "main", "main_hand"),
+                    ("equip", "new", "main_hand"),
+                    ("reposition", "sub", "sub_hand"),
+                ])
+                self.assertNotIn("sub", [action.item_id for action in plan.phase(PHASE_HOME_FINALIZE)])
+
+    def test_shield_or_cursed_sub_hand_is_left_in_place(self):
+        main = gear("main", "equipped", tval=21)
+        new = gear("new", "home", tval=21)
+        for sub, pinned in ((gear("shield", "equipped", tval=34), frozenset()),
+                            (gear("cursed", "equipped", tval=23, cursed=True), frozenset()),
+                            (gear("pinned", "equipped", tval=23), frozenset({"pinned"}))):
+            with self.subTest(sub=sub.id):
+                plan = plan_equipment_transactions(
+                    (main, sub, new),
+                    Loadout((("main_hand", main), ("sub_hand", sub)), "weapon_shield"),
+                    Loadout((("main_hand", new), ("sub_hand", sub)), "weapon_shield"),
+                    current_pack_items=0, home_scan_complete=True,
+                    curse_pinned_item_ids=pinned,
+                )
+                self.assertEqual(self._hand_actions(plan), [
+                    ("takeoff", "main", "main_hand"),
+                    ("equip", "new", "main_hand"),
+                ])
+
+
 if __name__ == "__main__":
     unittest.main()

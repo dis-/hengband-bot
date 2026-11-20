@@ -2561,6 +2561,13 @@ class EquipmentMixin:
             )
         self._observe_equipment_home_pages(snapshot, session)
         observation = observe_equipment_transactions(snapshot)
+        while action.kind == "takeoff" and self._pass_takeoff_already_off(
+                snapshot, action, observation.equipped_identity(action.target_slot)):
+            action = session.current_action
+            if action is None:
+                return self._equipment_home_outcome(
+                    None, label="session-action-complete",
+                )
         if action.kind == "takeoff":
             slot_key = EQUIPMENT_SLOT_KEY.get(action.target_slot or "")
             if slot_key is None:
@@ -2655,12 +2662,15 @@ class EquipmentMixin:
                     and equipment_identity(item) == action.item_identity
                 ), None)
                 if worn is not None:
+                    abandoned_epoch = self._equipment_transaction_abandoned_epoch
                     self._invalidate_stale_equipment_transaction(
                         snapshot, action, equipment_identity(worn)
                     )
+                    # The re-worn item is not failed, so no Home attempt is spent.
                     self._equipment_transaction_failed_items.difference_update(
                         self._equipment_action_memory_keys(action)
                     )
+                    self._equipment_transaction_abandoned_epoch = abandoned_epoch
                     return self._equipment_home_outcome(
                         WAIT_KEY, label="deposit-stale-worn",
                         effect="transaction-replanned",
@@ -3108,6 +3118,13 @@ class EquipmentMixin:
                 None, label="session-action-complete",
             )
         observation = observe_equipment_transactions(snapshot)
+        while action.kind == "takeoff" and self._pass_takeoff_already_off(
+                snapshot, action, observation.equipped_identity(action.target_slot)):
+            action = session.current_action
+            if action is None:
+                return self._equipment_town_outcome(
+                    None, label="session-action-complete",
+                )
         if action.kind == "takeoff":
             slot_key = EQUIPMENT_SLOT_KEY.get(action.target_slot or "")
             if slot_key is None:
