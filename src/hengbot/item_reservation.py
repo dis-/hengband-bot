@@ -79,6 +79,18 @@ ITEM_RESERVATION_SOURCES = {
     '_town_visit_purchase_record': ('retention', 'The written copy of the observed visit purchases, restored after a restart, without an exclusive owner'),
 }
 
+# The sinks that use an item up where the player stands (item_command's quaff, read,
+# eat, use, aim, zap, fire, throw and refill).  A deposit parked beyond the town visit
+# (``home-full-retry``, policy_home._defer_home_full_deposit) owns the stack's transfer
+# to the Home, never its use: n1-b life-411 (2026-11-21 03:21, Angband 95F) carried a
+# one-potion Healing deposit parked by a full Home into the dungeon, and the low-HP heal
+# composed at 695/1153 HP was refused as reserved, so the decision posted no key and
+# the bot stopped (no-key-exhausted).  The retry re-derives its deposit from the pack
+# at the next Home (_find_home_deposit), so a unit used meanwhile is no lost transfer.
+CONSUMPTION_SINKS = frozenset({
+    "quaff", "read", "eat", "staff", "wand", "rod", "fire", "throw", "refill",
+})
+
 # The owner a never-disposed item's disposal is refused to (never_dispose).
 NEVER_DISPOSED_OWNER = "never-disposed"
 
@@ -396,6 +408,8 @@ def item_reserved_by_other(policy, snapshot, item, work) -> ReservationVerdict |
             continue
         if sink in {"deposit", "weight-deposit", "overweight-surplus"} and reserved_owner in {"home-full-retry", "home-reserve"}:
             continue
+        if sink in CONSUMPTION_SINKS and reserved_owner == "home-full-retry":
+            continue  # the parked deposit owns the transfer, not the use (CONSUMPTION_SINKS)
         matches = sum(policy._item_signature(candidate) == policy._item_signature(item)
                       for candidate in snapshot.inventory)
         return ReservationVerdict(sink, reserved_owner, ambiguous=matches > 1)
