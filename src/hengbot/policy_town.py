@@ -4182,6 +4182,10 @@ class TownMixin:
             ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
             ("heroism", "normal", 1, False),  # The Heroism stock (owner 2026-11-11) is optional.
+            # The 99F/100F Teleportation (owner 2026-11-20), optional like the Heroism: without
+            # this entry the Alchemist/General errand was never a live claim (n1-c life-217
+            # 2026-11-21 02:59: four towns walked, 26 of 40 carried, the circuit never due).
+            ("angband-finale", "normal", 1, False),
             ("launcher-ammo", "normal", 1, False),  # launcher_upgrade.CATEGORY: seen through when ready to leave; never blocks.
             ("throwing-torches", "normal", 1, False),  # Non-quest throwing torches are optional.
             ("remove-curse", "normal", 4, True),  # Required worn-curse suppliers.

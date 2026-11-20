@@ -346,6 +346,9 @@
   "need:heroism:normal:0": [
     "optional-buy"
   ],
+  "need:angband-finale:normal:0": [
+    "optional-buy"
+  ],
   "need:launcher-ammo:normal:0": [
     "optional-buy"
   ],
