@@ -1120,6 +1120,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         # Owner 2026-11-15: the inn's night before a 50F+ recall (me_inn_refill.destruction_key).
         ("depart:inn-refill:destruction:approach", R, ENTRANCE),
         ("depart:inn-refill:destruction:rest", T, EFFECT),
+        # Owner 2026-11-20 「一周する毎に宿屋で一泊する」 (finale_teleport_tour.night_key).
+        ("depart:inn-refill:finale-teleport:approach", R, ENTRANCE),
+        ("depart:inn-refill:finale-teleport:rest", T, EFFECT),
         ("town:cancel-", T, EFFECT),
         ("town:unsafe-recall-fallback", T, EFFECT),
         ("wilderness:no-safe-route", T, EFFECT),

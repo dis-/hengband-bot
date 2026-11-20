@@ -67,18 +67,21 @@ class N1c217TeleportTourRecordedTest(unittest.TestCase):
         self.assertTrue(policy._cross_town_trip_holds_town(board))
         # The expedition's Teleportation shortage is the plan's 16 (the ledger asks none).
         self.assertIn(("teleport", 16), policy._cross_town_shortages(board))
-        # Each other town tried, the last one ends the circuit: the town departs as before and
-        # this trip tries no more.
+        # Each other town tried, the last one ends the loop.
         expedition.tried_towns.extend([1, 2])
         last = replace(board, town_id=3)  # DECLARED: the arrival in town 3
         self.assertFalse(finale_teleport_tour.start(policy, last))
         self.assertIsNone(policy._cross_town_shopping)
         self.assertEqual(policy._cross_town_shopping_funds["why"], "all-towns-tried")
-        self.assertFalse(finale_teleport_tour.due(policy, last))
+        # The loop's end: the inn's night comes first (owner 2026-11-20 「一周する毎に宿屋で一泊
+        # する」, tests/test_n1c_217_teleport_inn_night_1120_recorded.py).
+        self.assertTrue(finale_teleport_tour.night(policy).due)
         self.assertNotIn(("teleport", 16), policy._cross_town_shortages(last))
-        # A dungeon board ends the trip: the next town may try again.
+        # A dungeon board ends the trip: the next town starts afresh.
+        angband_finale.memory(policy).teleport_tour_done = True
         angband_finale.observe(policy, replace(board, floor_key=(DUNGEON_ANGBAND, 95, 0), town_flag=False))
         self.assertFalse(angband_finale.memory(policy).teleport_tour_done)
+        self.assertFalse(finale_teleport_tour.night(policy).due)
 
     def test_funds_short_ends_it(self):
         policy = self.policy

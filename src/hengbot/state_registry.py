@@ -83,6 +83,10 @@ REGISTRY = (
     S("_alternate_lease", "alternate_lease", LIFE,
       "dives the over-extension switch lasts (alternate_lease)"),
     # finale_teleport_tour
+    S("_finale_teleport_tour_night", "finale_teleport_tour", LIFE,
+      "finale_teleport_tour: the inn night between two loops of the 99F/100F Teleportation "
+      "circuit (owner 2026-11-20 「一周する毎に宿屋で一泊する」): due, the stay's walk, the "
+      "nights taken; cleared on a dungeon board"),
     S("_finale_teleport_tour", "finale_teleport_tour", LIFE,
       "finale_teleport_tour: the cross-town expedition under way is the 99F/100F Teleportation "
       "circuit (owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す処理をつけて」); "

@@ -7698,6 +7698,11 @@ class TownMixin:
                     # Owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す処理をつけて」:
                     # short of the 99F/100F Teleportation after this town's suppliers, the
                     # other towns' shops before the read (finale_teleport_tour).
+                    # A loop done with the scrolls still short: one night at the inn
+                    # first (owner 2026-11-20 「一周する毎に宿屋で一泊する」).
+                    night = finale_teleport_tour.night_key(self, snapshot)
+                    if night is not None:
+                        return night
                     if (finale_teleport_tour.due(self, snapshot)
                             and finale_teleport_tour.start(self, snapshot)):
                         travel = self._town_producer_entry(
@@ -7705,6 +7710,9 @@ class TownMixin:
                             lambda: self._cross_town_shopping_key(snapshot), family="cross-town")
                         if travel is not None:
                             return travel
+                    night = finale_teleport_tour.night_key(self, snapshot)
+                    if night is not None:
+                        return night
                     selection = self._recall_selection_key(
                         snapshot, recall_dungeon_id
                     )
