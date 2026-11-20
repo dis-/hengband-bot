@@ -32,6 +32,17 @@
     "delegation": "selected child; no independent success",
     "evidence": "The least exposed walk off the board's left cells while one leads on (owner 2026-11-15 Q2); returns positions, emits no key."
   },
+  "quest_firing_cells.py:widest": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Quest floors only (Q2 residual breeders); never reached in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the firing cells from which the shot reaches the most breeders (n1-c life-181); dungeon only"
+  },
   "quest_navigator.py:QuestFloorNavigator.bind_left_cells": {
     "classification": "data",
     "rows": [
