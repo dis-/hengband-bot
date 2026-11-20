@@ -1398,6 +1398,10 @@ def yields_to_light_crossbow(
 TR_INT = 1
 TR_CON = 4
 TR_RES_CURSE = 148
+# Owner 2026-11-20 Q6 「耐盲目か耐閃光を条件に入れる」: either keeps *Destruction*'s flash from
+# blinding (spells-floor.cpp:416).
+TR_RES_BLIND = 56
+TR_RES_LITE = 54
 # The resistances counted one per element: TR_RES_ACID..TR_RES_DISEN, TR_RES_TIME, TR_RES_WATER;
 # an immunity (TR_IM_ACID..TR_IM_COLD, TR_IM_DARK, TR_IM_LITE) counts as its element's resistance.
 FINALE_RESISTANCES = frozenset(range(48, 64)) | {143, 144}
@@ -1409,13 +1413,14 @@ def _stat_bonus(loadout: Loadout, flag: int) -> int:
 
 
 def finale_rank(entry: EvaluatedLoadout) -> tuple:
-    """The 99F/100F loadout's order, compared before everything else: resist curse, the permanent
-    speed, the number of resisted elements, telepathy, INT, CON.  Nothing of AC or melee: those
+    """The 99F/100F loadout's order, compared before everything else: resist curse, resist
+    blindness or light, the permanent speed, the number of resisted elements, telepathy, INT, CON.  Nothing of AC or melee: those
     decide only between loadouts this rank holds equal (the ordinary comparison)."""
     flags = entry.loadout.flags
     elements = (flags & FINALE_RESISTANCES) | {
         element for immunity, element in FINALE_IMMUNITY_ELEMENT.items() if immunity in flags}
-    return (TR_RES_CURSE in flags, loadout_speed(entry.metrics), len(elements),
+    return (TR_RES_CURSE in flags, bool(flags & {TR_RES_BLIND, TR_RES_LITE}),
+            loadout_speed(entry.metrics), len(elements),
             TR_TELEPATHY in flags, _stat_bonus(entry.loadout, TR_INT),
             _stat_bonus(entry.loadout, TR_CON))
 

@@ -211,7 +211,11 @@ def purchase_wanted(policy, snapshot, item) -> bool:
         return False
     if not _purchase_count_allows(policy, snapshot, row):
         return False
-    wanted = row.buy_more if _absorbed(policy, snapshot, row) else row.buy_first
+    # Owner 2026-11-20 「取り込んだ岩石溶解を条件に入れる」: Stone to Mud up to the finale's
+    # absorbed count while the 95F exploration lasts (angband_finale).
+    from hengbot import angband_finale  # import cycle
+    wanted = ((row.buy_more or angband_finale.stone_to_mud_wanted(policy, snapshot, row))
+              if _absorbed(policy, snapshot, row) else row.buy_first)
     return (wanted and me_staff_sequence.spare_gold(policy, snapshot) >= item.price
             and _black_market_reserve_kept(policy, snapshot, item))
 

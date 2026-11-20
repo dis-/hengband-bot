@@ -1467,7 +1467,7 @@ class EquipmentMixin:
                 curse_pinned_item_ids=curse_pinned,
                 magic_eater_powers=me_powers,
                 staff_gate=staff_gate,
-                finale=angband_finale.preparing(snapshot),
+                finale=angband_finale.supplied(self),
                 cap_lifted=angband_finale.lifted(self),
             )
             self._offer_optimizer_result(
@@ -1508,7 +1508,7 @@ class EquipmentMixin:
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
             staff_gate=staff_gate,
-            finale=angband_finale.preparing(snapshot),
+            finale=angband_finale.supplied(self),
             cap_lifted=angband_finale.lifted(self),
         )
         preserve_reasons: dict[str, list[str]] = {}
@@ -1595,7 +1595,7 @@ class EquipmentMixin:
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
             # Owner 2026-11-20 (the 99F/100F directive): the finale's loadout order.
-            finale=angband_finale.preparing(snapshot),
+            finale=angband_finale.supplied(self),
             cap_lifted=angband_finale.lifted(self),
         )
         result = getattr(preparation, "result", None)

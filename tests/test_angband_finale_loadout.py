@@ -1,8 +1,9 @@
 """The dedicated 99F/100F loadout order (equipment_optimizer ``finale``, owner 2026-11-20).
 
-Owner, verbatim: 「装備は加速耐性テレパシーー知力耐久力を優先。ACや近接攻撃力は求めない。」 and
-「呪力耐性も要求する。これはオベロンの血の呪い、サーペントの破滅の手が致死的であるためである。」
-``finale_rank``: resist curse, then the permanent speed, the resisted elements, telepathy, INT,
+Owner, verbatim: 「装備は加速耐性テレパシーー知力耐久力を優先。ACや近接攻撃力は求めない。」,
+「呪力耐性も要求する。これはオベロンの血の呪い、サーペントの破滅の手が致死的であるためである。」 and
+「耐盲目か耐閃光を条件に入れる」.
+``finale_rank``: resist curse, resist blindness or light, then the permanent speed, the resisted elements, telepathy, INT,
 CON; AC and melee only between loadouts it holds equal; the band descent's half-melee limit is
 not asked.
 
@@ -20,6 +21,7 @@ from hengbot.equipment_optimizer import (
 from hengbot.model import InventoryItem
 
 TR_INT, TR_CON, TR_TELEPATHY, TR_RES_CURSE = 1, 4, 79, 148
+TR_RES_BLIND, TR_RES_LITE = 56, 54
 TR_RES_FIRE, TR_RES_COLD, TR_IM_FIRE, TR_RES_NETHER = 50, 51, 42, 60
 
 
@@ -58,6 +60,11 @@ class FinaleLoadoutTest(unittest.TestCase):
 
     def test_the_order(self):
         cases = (
+            # resist blindness or light (owner 2026-11-20 Q6) over speed, either one
+            ((gear("blind", 45, (TR_RES_BLIND,)), metrics(10, speed=140)),
+             (gear("fast", 45), metrics(10, speed=150)), "blind"),
+            ((gear("lite", 45, (TR_RES_LITE,)), metrics(10, speed=140)),
+             (gear("fast", 45), metrics(10, speed=150)), "lite"),
             # speed over the resistances
             ((gear("fast", 45), metrics(10, speed=150)),
              (gear("resists", 45, (TR_RES_FIRE, TR_RES_COLD)), metrics(10, speed=140)), "fast"),

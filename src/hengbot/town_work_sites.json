@@ -342,6 +342,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "angband_finale.py:owned": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_finale.py:potion_target": {
     "classification": "data",
     "rows": [
@@ -383,6 +390,20 @@
       "bookkeeping"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale.py:stone_to_mud_wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale.py:supplied": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "angband_finale_battle.py:_approach_key": {
     "classification": "dungeon-only",

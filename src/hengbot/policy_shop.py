@@ -3142,7 +3142,7 @@ class ShopMixin(InStoreMixin):
         add(rung("tail:heroism", "heroism", lambda: heroism_potion.carry_shortage(snapshot) > 0, lambda i: heroism_potion.is_heroism(i) and self._heroism_purchase_units(snapshot, i) > 0, current=lambda: heroism_potion.carried(snapshot), target=lambda: heroism_potion.carry_target(snapshot)))
         # Owner 2026-11-20 「テレポートの巻物を大量に持つ」 (40): below every departure supply,
         # from the gold above the full departure resupply, like the Heroism stock.
-        add(rung("tail:angband-finale", angband_finale.CATEGORY, lambda: angband_finale.shortage(self, snapshot, angband_finale.TELEPORT) > 0, lambda i: i.is_teleport_scroll and self._angband_finale_purchase_units(snapshot, i) > 0, current=lambda: angband_finale.carried(snapshot, angband_finale.TELEPORT), target=lambda: angband_finale.CARRY[angband_finale.TELEPORT]))
+        add(rung("tail:angband-finale", angband_finale.CATEGORY, lambda: angband_finale.shortage(self, snapshot, angband_finale.TELEPORT) > 0, lambda i: i.is_teleport_scroll and self._angband_finale_purchase_units(snapshot, i) > 0, current=lambda: angband_finale.owned(self, snapshot, angband_finale.TELEPORT), target=lambda: angband_finale.CARRY[angband_finale.TELEPORT]))
         launcher = self._equipped_launcher(snapshot)
         add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot), lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: self._ammo_procurement_target(snapshot)))
         add(rung(
