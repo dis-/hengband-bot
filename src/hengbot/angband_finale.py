@@ -26,16 +26,20 @@ The answers to the report's questions (2026-11-20, verbatim):
   absorbed (bought and absorbed while the 95F exploration lasts, me_device_policy).
 * Q9 「準備がそろってから」: the dedicated loadout, the carry and the weight allowance hold only
   once the character is ready; the readiness asks whether the gear owned (worn, carried, at Home)
-  makes the equipment conditions, not only what is worn.
+  makes the equipment conditions, not only what is worn.  And (verbatim) 「上限を外す時に初めて
+  着け替える」: the 95F exploration keeps the ordinary loadout and weight rules the whole time;
+  the switch is the town visit that heads to 99F/100F, and the cap lifts after it.
 
-The readiness has two stages, both measured on every town board:
+The stages, measured on every town board:
 * ``supplied``: the supplies in the pack and at Home (the last Home census) and the absorbed
-  Stone to Mud.  From here the optimizer orders the loadouts by the finale's rank (the owned set
-  it chooses is the equipment the next stage judges).
-* ``equipped`` (``Memory.stocked``): ``supplied`` and the equipment conditions met by the board's
-  own abilities or by that chosen set.  From here the supplies are carried (kept, taken from
-  Home), the pack may be overweight, and the optimizer's swap to the set is the town's work.
-* ``ready`` (``Memory.ready``, the cap's lift): ``equipped`` with the counts in the pack and the
+  Stone to Mud.  From here the policy also searches the owned gear in the finale's rank
+  (policy_equipment's ``_angband_finale_feasibility``: a second search, read only; the loadout
+  worn is still the ordinary one).
+* ``switching`` (``Memory.switching``, the visit that heads to 99F/100F): ``supplied`` and the
+  equipment conditions met by the board's own abilities or by the set that search chose.  From
+  here the optimizer orders the loadouts by the finale's rank (the swap is the town's work), the
+  supplies are carried (kept, taken from Home) and the pack may be overweight.
+* ``ready`` (``Memory.ready``, the cap's lift): ``switching`` with the counts in the pack and the
   conditions on the board itself (the set worn).
 
 Who reads what here:
@@ -116,12 +120,16 @@ DONE_STATUSES = frozenset({2, 3, 4})
 class Memory:
     ready: bool = False               # the last town board's readiness (the cap's lift)
     supplied: bool = False            # the supplies owned (pack + Home) and the Stone to Mud
-    stocked: bool = False             # supplied and the equipment owned: carry, weight, loadout
+    switching: bool = False           # the visit that heads to 99F/100F: loadout, carry, weight
     report: dict = field(default_factory=dict)  # that board's rows, for the record
     small_floor_set: bool = False     # the pref command was answered by the game
     small_floor_pending: int | None = None  # the turn of the posted command
     restore_mana_used: int = 0        # this expedition's Restore Mana spent on 99F/100F
     restore_mana_seen: int | None = None    # the carried count on the last dungeon board
+    # Whether the last board was a town board (False: a dungeon board, so the next town board is
+    # an arrival).  None until a board says: a new process, or a checkpoint from before this
+    # field, resumed inside a visit is no arrival and switches nothing.
+    in_town: bool | None = None
 
 
 def memory(policy) -> Memory:
@@ -231,7 +239,10 @@ def owned_missing(policy, snapshot) -> list | None:
     (owner 2026-11-20 Q9 「現在の装備と自宅の品で満たせるか」), else None (no chosen set yet)."""
     from hengbot.equipment_optimizer import ABILITY_FLAG
     from hengbot.speed_valuation import loadout_speed, meets_speed_gate
-    preparation = getattr(policy, "_equipment_optimization_preparation", None)
+    # Before the switch the second, read-only search's set; on the switching visit the worn
+    # loadout's own search is already the finale's (policy_equipment).
+    preparation = (getattr(policy, "_equipment_optimization_preparation", None)
+                   if switching(policy) else getattr(policy, "_angband_finale_feasibility", None))
     best = getattr(getattr(preparation, "result", None), "best", None)
     if best is None:
         return None
@@ -270,18 +281,26 @@ def observe(policy, snapshot) -> None:
         held.small_floor_set = True
         held.small_floor_pending = None
     if snapshot.in_town:
+        arrival, held.in_town = getattr(held, "in_town", None) is False, True
         held.restore_mana_used = 0
         held.restore_mana_seen = None
         if not preparing(snapshot):
-            held.ready = held.supplied = held.stocked = False
+            held.ready = held.supplied = held.switching = False
             held.report = {}
             return
         held.report = rows = readiness(policy, snapshot)
         held.supplied = ready(rows["owned"])
-        held.stocked = held.supplied and rows["equipment_owned"]["ready"]
-        held.ready = (held.stocked and ready(rows["carried"])
+        if arrival:
+            # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the switch is decided as the
+            # visit begins, never in its middle (n1-b life-411 2026-11-20 22:29-22:32: the
+            # Teleportation bought at the visit's 33rd decision completed the supplies, the loadout
+            # order changed mid-visit, a swap through Home failed half done and the departure's
+            # gear check stopped the town).
+            held.switching = held.supplied and rows["equipment_owned"]["ready"]
+        held.ready = (held.switching and ready(rows["carried"])
                       and rows["equipment_worn"]["ready"])
         return
+    held.in_town = False
     now = carried(snapshot, RESTORE_MANA)
     if (held.restore_mana_seen is not None and now < held.restore_mana_seen
             and on_finale_floor(snapshot)):
@@ -290,15 +309,22 @@ def observe(policy, snapshot) -> None:
 
 
 def supplied(policy) -> bool:
-    """The supplies are owned: the dedicated loadout's order holds (equipment_optimizer)."""
+    """The supplies are owned."""
     held = getattr(policy, MEMORY, None)
     return bool(held is not None and held.supplied)
 
 
-def stocked(policy) -> bool:
-    """The supplies and the equipment are owned: the carry and the weight allowance hold."""
+def switching(policy) -> bool:
+    """The visit that heads to 99F/100F (owner 2026-11-20 「上限を外す時に初めて着け替える」): the
+    dedicated loadout, the carry and the weight allowance hold."""
     held = getattr(policy, MEMORY, None)
-    return bool(held is not None and held.stocked)
+    return bool(held is not None and held.switching)
+
+
+def feasibility_due(policy, snapshot) -> bool:
+    """policy_equipment's read-only search in the finale's rank: the supplies owned, the switch
+    not yet made (the worn loadout's search is the ordinary one)."""
+    return preparing(snapshot) and supplied(policy) and not switching(policy)
 
 
 def lifted(policy) -> bool:
@@ -339,7 +365,7 @@ def restore_mana_overspent(policy, snapshot) -> bool:
 def carry_target(policy, snapshot, item) -> int | None:
     """The finale's carry of ``item``'s kind once the supplies and the equipment are owned
     (owner 2026-11-20 Q9 「準備がそろってから」), else None."""
-    if not preparing(snapshot) or not stocked(policy) or not getattr(item, "aware", True):
+    if not preparing(snapshot) or not switching(policy) or not getattr(item, "aware", True):
         return None
     kind = _kind(item)
     if kind == RESTORE_MANA:
@@ -382,7 +408,7 @@ def potion_target(policy, snapshot, item) -> tuple[int, str] | None:
 def missing(policy, snapshot, item) -> int | None:
     """policy_supply ``_procurement_missing_amount``'s answer for a Teleportation scroll (the
     potions answer through ``potion_target``), else None."""
-    if _kind(item) != TELEPORT or not preparing(snapshot) or not stocked(policy):
+    if _kind(item) != TELEPORT or not preparing(snapshot) or not switching(policy):
         return None
     return max(0, CARRY[TELEPORT] - carried(snapshot, TELEPORT))
 
@@ -415,7 +441,7 @@ def weight_limit(policy, snapshot, limit: int | None) -> int | None:
     """The heaviest pack answer 3 allows once the supplies and the equipment are owned (owner
     2026-11-20 Q9): the weight whose slowdown keeps the permanent speed above +25 (``limit``
     itself when none does)."""
-    if limit is None or not preparing(snapshot) or not stocked(policy):
+    if limit is None or not preparing(snapshot) or not switching(policy):
         return limit
     from hengbot.speed_valuation import permanent_player_speed
     unslowed = permanent_player_speed(snapshot) + slowdown(policy._inventory_weight(snapshot), limit)
@@ -462,6 +488,6 @@ def describe(policy) -> dict | None:
     held = getattr(policy, MEMORY, None)
     if held is None:
         return None
-    return {"ready": held.ready, "supplied": held.supplied, "stocked": held.stocked,
+    return {"ready": held.ready, "supplied": held.supplied, "switching": held.switching,
             "report": held.report, "small_floor_set": held.small_floor_set,
             "restore_mana_used": held.restore_mana_used}

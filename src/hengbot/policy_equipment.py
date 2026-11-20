@@ -921,6 +921,11 @@ class EquipmentMixin:
             else target.hand_mode,
         )
 
+    def _angband_finale_order(self) -> bool:
+        """The worn loadout's search is in the finale's rank: the switching visit only (owner
+        2026-11-20 「上限を外す時に初めて着け替える」); its input key and its search read this one."""
+        return angband_finale.switching(self)
+
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
@@ -1340,7 +1345,13 @@ class EquipmentMixin:
             # '.' was inscribed (n1-b life-356 2026-11-09 04:41,
             # town:blocked:unmet:equipment_departure_ready).
             ("random-teleport-suppressed", tuple(sorted(
-                item.id for item in catalog if item.random_teleport_suppressed))),)
+                item.id for item in catalog if item.random_teleport_suppressed))),) + (
+            # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's order of the worn
+            # loadout's search (the switch) and the read-only search beside it (supplied, not yet
+            # switched) are inputs too: a hit kept the ordinary result across the switch.
+            (("angband-finale", angband_finale.switching(self), angband_finale.lifted(self),
+              angband_finale.feasibility_due(self, snapshot)),)
+            if angband_finale.preparing(snapshot) else ())
         if (
             signature == self._equipment_optimization_signature
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
@@ -1467,7 +1478,7 @@ class EquipmentMixin:
                 curse_pinned_item_ids=curse_pinned,
                 magic_eater_powers=me_powers,
                 staff_gate=staff_gate,
-                finale=angband_finale.supplied(self),
+                finale=self._angband_finale_order(),
                 cap_lifted=angband_finale.lifted(self),
             )
             self._offer_optimizer_result(
@@ -1508,7 +1519,7 @@ class EquipmentMixin:
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
             staff_gate=staff_gate,
-            finale=angband_finale.supplied(self),
+            finale=self._angband_finale_order(),
             cap_lifted=angband_finale.lifted(self),
         )
         preserve_reasons: dict[str, list[str]] = {}
@@ -1573,10 +1584,7 @@ class EquipmentMixin:
         # Score safe partial-ID candidates as they will exist after `{.}` is
         # applied. If one wins, the pending blocker below prevents transaction
         # creation until the town suppression step has changed the real item.
-        preparation = prepare_warrior_optimization(
-            snapshot,
-            search_catalog,
-            self._monrace_knowledge,
+        optimizer_inputs = dict(
             depth=optimization_depth,
             home_scan_complete=self._equipment_catalog.home_scan_complete,
             # The 50F+ gate (_optimizer_destruction_means): the absorbed power,
@@ -1594,9 +1602,22 @@ class EquipmentMixin:
             obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
-            # Owner 2026-11-20 (the 99F/100F directive): the finale's loadout order.
-            finale=angband_finale.supplied(self),
+        )
+        # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's loadout order only on
+        # the visit that switches to 99F/100F (angband_finale ``switching``).
+        preparation = prepare_warrior_optimization(
+            snapshot, search_catalog, self._monrace_knowledge, **optimizer_inputs,
+            finale=self._angband_finale_order(),
             cap_lifted=angband_finale.lifted(self),
+        )
+        # Before that visit, whether the owned gear CAN meet the finale's conditions: the same
+        # search in the finale's order, its result only read (no report, no transaction).
+        self._angband_finale_feasibility = (
+            prepare_warrior_optimization(
+                snapshot, search_catalog, self._monrace_knowledge,
+                **{**optimizer_inputs, "loadout_report_path": None},
+                finale=True, cap_lifted=True)
+            if angband_finale.feasibility_due(self, snapshot) else None
         )
         result = getattr(preparation, "result", None)
         if result is not None:

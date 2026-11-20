@@ -83,6 +83,10 @@ REGISTRY = (
     S("_alternate_lease", "alternate_lease", LIFE,
       "dives the over-extension switch lasts (alternate_lease)"),
     # angband_finale
+    S("_angband_finale_feasibility", "policy_equipment", LIFE,
+      "angband_finale: the read-only optimizer search in the finale's rank before the switch "
+      "to 99F/100F (owner 2026-11-20 「上限を外す時に初めて着け替える」), whose chosen set the "
+      "readiness judges; None when not due"),
     S("_angband_finale", "angband_finale", LIFE,
       "angband_finale: the 99F/100F readiness latched on the last town board (the 95F cap's lift, "
       "owner 2026-11-20), the small-floor option's state and the expedition's Restore Mana uses"),
