@@ -40,7 +40,8 @@ Phases of the plan (``Plan``):
 - ``walk``  to the start cell ``S`` (an open cell beside the rock);
 - ``dig``   from the cell reached, melt the next tunnel cell (one use, ``sealed_pocket.melt_at_key``)
             and step into it; past the base length, go on while the next cell, the charges and the
-            pack's arrival time allow, up to 8;
+            pack's arrival time allow, up to 8.  Before every melt and every step the cells dug so
+            far and the next one are checked again against the board (``BROKE_THROUGH``);
 - ``hold``  on the pocket: strike the monster on the mouth, else wait (``anaguma:hold``).  After
             50 game turns with no pack member beside the player, a detection is used when one is
             at hand; an animal pack still known then gets the close-in, any other plan ends;
@@ -450,6 +451,11 @@ def _dig_time(walk: int, cells: int, success: float) -> float:
 
 # ---------------------------------------------------------------- planning
 
+def _blank(policy, snapshot: Snapshot) -> frozenset:
+    """(y, x) a mapping showed blank: open floor, never presumed rock (anaguma_geometry)."""
+    return frozenset(area_mapping.blank_floor(policy, snapshot))
+
+
 def _walk_lengths(policy, snapshot: Snapshot) -> dict:
     start = snapshot.player.position
     seen = {start: 0}
@@ -477,6 +483,7 @@ def _candidate(policy, snapshot: Snapshot, races, animal: bool) -> Plan | None:
     here_gap = min((game_distance(origin, monster.position) for monster in members), default=0)
     lengths = _approach_lengths(policy, snapshot, members, ARRIVAL_SEARCH)
     rate = _rate(snapshot, members)
+    blank = _blank(policy, snapshot)
     best = None
     for start, walk in _walk_lengths(policy, snapshot).items():
         if any(monster.position == start for monster in members):
@@ -488,7 +495,8 @@ def _candidate(policy, snapshot: Snapshot, races, animal: bool) -> Plan | None:
             continue
         for axis in geo.AXES:
             for side in geo.SIDES:
-                tunnel = geo.longest(snapshot, start, axis, side, min(MAX_LENGTH, charges))
+                tunnel = geo.longest(snapshot, start, axis, side, min(MAX_LENGTH, charges),
+                                     floor=blank)
                 if tunnel is None or len(tunnel.cells) < minimum:
                     continue
                 key = (_dig_time(walk, minimum, success), -len(tunnel.cells), walk)
@@ -522,7 +530,7 @@ def _step(policy, snapshot: Snapshot, target: Position, reason: str) -> str | No
 SITE_LOST = "site-lost"
 
 
-def _site_lost(snapshot: Snapshot, current: Plan) -> bool:
+def _site_lost(policy, snapshot: Snapshot, current: Plan) -> bool:
     """Off the tunnel (on the walk to the start, or back to it), the plan no longer fits the
     board: the start is not open, or past the cells already open a cell to dig is open,
     permanent or off the floor (``geo.zigzag`` with the open leading cells as dug, unknown
@@ -541,7 +549,7 @@ def _site_lost(snapshot: Snapshot, current: Plan) -> bool:
     while dug < current.length and geo.open_cell(snapshot.grid_at(tunnel.cells[dug])):
         dug += 1
     return geo.zigzag(snapshot, tunnel.start, tunnel.axis, tunnel.side, current.length,
-                      dug=dug) is None
+                      dug=dug, floor=_blank(policy, snapshot)) is None
 
 
 def _index(current: Plan, position: Position) -> int:
@@ -554,11 +562,11 @@ def _index(current: Plan, position: Position) -> int:
         return None
 
 
-def _extend(policy, snapshot: Snapshot, current: Plan, standing: int) -> None:
+def _extend(policy, snapshot: Snapshot, current: Plan, standing: int, blank) -> None:
     """「地形と岩石溶解の回数が許すなら8マスまで伸ばす」: one more cell while it fits."""
     while current.length < len(current.tunnel.cells):
         longer = geo.zigzag(snapshot, current.tunnel.start, current.tunnel.axis, current.tunnel.side,
-                            current.length + 1, dug=standing + 1)
+                            current.length + 1, dug=standing + 1, floor=blank)
         if longer is None:
             return
         remaining = current.length + 1 - (standing + 1)
@@ -572,7 +580,27 @@ def _extend(policy, snapshot: Snapshot, current: Plan, standing: int) -> None:
         current.length += 1
 
 
+BROKE_THROUGH = "broke-through"
+DIG_REFUSED = "dig-refused"
+
+
 def _dig_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
+    """The next melt or step of the dig.
+
+    Every melt and every step first checks the cells dug so far and the next one against the
+    board as it is now (``geo.zigzag`` with the dug cells open): a cell the dig has opened shows
+    grids no plan could see, and a tunnel cell found open that no use was aimed at
+    (``sealed_pocket.aimed_at``) is ground the tunnel has come out on.  Either way the enclosure
+    the pocket is dug for is gone, and digging on only lengthens a passage: the player holds
+    where it stands when that is still a pocket, else the plan ends (``BROKE_THROUGH``) and the
+    existing rules plan again.
+
+    n1-b life-413 (Angband 44F, 2026-11-21 23:28, owner 2026-11-22 「掘りすぎて反対側に掘り抜く」):
+    from (31,104) the dig melted (32,105); the seventh cell (33,104) was already open, the end
+    of a corridor, and was stepped onto as if melted; standing on it with the corridor (33,103)
+    and (34,104) in view, the dig melted the eighth cell (34,105) as well.  The same night's
+    boards (n1-c life-217 and life-219, n1-b life-413) show about twenty tunnels that went on
+    melting the same way from a cell with an open neighbour off the tunnel."""
     here = snapshot.player.position
     standing = _index(current, here)
     if standing is None:
@@ -581,33 +609,42 @@ def _dig_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
         current.phase = "hold"
         current.contact_turn = snapshot.turn
         return None
+    blank = _blank(policy, snapshot)
     if standing + 1 >= current.minimum - 1:
-        _extend(policy, snapshot, current, standing)
+        _extend(policy, snapshot, current, standing, blank)
     target = current.tunnel.cells[standing + 1]
     grid = snapshot.grid_at(target)
     if geo.open_cell(grid):
+        # The first cell found open only widens the start's ground; any later one found open
+        # without a use aimed at it is ground the tunnel came out on.
         valid = geo.zigzag(snapshot, current.tunnel.start, current.tunnel.axis, current.tunnel.side,
-                           standing + 2, dug=standing + 2)
-        if valid is None:
-            return _shorten(policy, snapshot, current, standing)
+                           standing + 2, dug=standing + 2, floor=blank)
+        if valid is None or (standing >= 0 and not sealed_pocket.aimed_at(policy, snapshot, target)):
+            return _shorten(policy, snapshot, current, standing, blank, BROKE_THROUGH)
         return _step(policy, snapshot, target, REASON_STEP)
     if not geo.diggable(grid):
-        return _shorten(policy, snapshot, current, standing)
+        return _shorten(policy, snapshot, current, standing, blank, DIG_REFUSED)
+    if geo.zigzag(snapshot, current.tunnel.start, current.tunnel.axis, current.tunnel.side,
+                  standing + 2, dug=standing + 1, floor=blank) is None:
+        return _shorten(policy, snapshot, current, standing, blank, BROKE_THROUGH)
     melt = _melt(policy, snapshot, target)
     if melt is None:
-        return _shorten(policy, snapshot, current, standing)
+        return _shorten(policy, snapshot, current, standing, blank, DIG_REFUSED)
     return melt
 
 
-def _shorten(policy, snapshot: Snapshot, current: Plan, standing: int) -> str | None:
-    """The next cell cannot be dug: hold where the player stands when that is a pocket."""
+def _shorten(policy, snapshot: Snapshot, current: Plan, standing: int, blank,
+             why: str) -> str | None:
+    """The next cell cannot be dug: hold where the player stands when that is a pocket, else
+    the plan ends (``why``)."""
     if standing + 1 >= OTHER_LENGTH and geo.pocket_holds(
-            snapshot, current.tunnel.cells[standing], current.tunnel.before(standing), presume=True):
+            snapshot, current.tunnel.cells[standing], current.tunnel.before(standing), presume=True,
+            floor=blank):
         current.length = standing + 1
         current.phase = "hold"
         current.contact_turn = snapshot.turn
         return None
-    _release(policy, "dig-refused")
+    _release(policy, why)
     return None
 
 
@@ -742,7 +779,8 @@ def _close_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
 
 def _hold_key(policy, snapshot: Snapshot, current: Plan) -> str | None:
     here = snapshot.player.position
-    if here != current.pocket or not geo.pocket_holds(snapshot, current.pocket, current.mouth, presume=True):
+    if here != current.pocket or not geo.pocket_holds(snapshot, current.pocket, current.mouth, presume=True,
+                                                      floor=_blank(policy, snapshot)):
         _release(policy, "pocket-lost")
         return None
     members = _members(snapshot, current.races)
@@ -846,7 +884,7 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
         _release(policy, "unreachable")   # a pack that cannot come never comes to the mouth
         policy._anaguma_veto = "unreachable"
         return None
-    if current is not None and _site_lost(snapshot, current):
+    if current is not None and _site_lost(policy, snapshot, current):
         _release(policy, SITE_LOST)   # planned on presumed rock: plan again from this board
         current = None
     if current is None:
@@ -893,7 +931,8 @@ def _decide(policy, snapshot: Snapshot, hostiles) -> str | None:
         if adjacent:
             standing = _index(current, snapshot.player.position)
             if standing is not None and standing + 1 >= OTHER_LENGTH and geo.pocket_holds(
-                    snapshot, current.tunnel.cells[standing], current.tunnel.before(standing), presume=True):
+                    snapshot, current.tunnel.cells[standing], current.tunnel.before(standing), presume=True,
+                    floor=_blank(policy, snapshot)):
                 current.length = standing + 1
                 current.phase = "hold"
             else:
