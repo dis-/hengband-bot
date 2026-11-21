@@ -228,12 +228,19 @@ class WalledOffAt50F(WalledOffBoards):
 
     def test_a_search_walled_off_by_the_column_melts_with_no_teleportation(self):
         """The stop's board: the floor's first Teleportation is not read; the openers' Stone to
-        Mud walks toward the route's first wall."""
+        Mud walks toward the route's first wall.
+
+        DECLARED CONSTRUCTED: the recorded column claimed as the retreats left it.  The replay no
+        longer leaves it (``test_the_retreats_leave_the_recorded_column`` fails on its own), and
+        without it this pin passed only by the quest search's cut-off opener melting toward other
+        floor (its enclosure_trace asker 'cut-off', 2026-11-21), not by the column's ladder."""
         replay, *_ = self.replay(lambda board, _reason: board.turn >= VETOES_DONE_TURN)
+        replay.policy._claim_engagement_avoid_cells(COLUMN, owner="threat:avoid-engagement")
         board, key, reason = self.at_the_stop(replay, edit=shown)
         self.assertTrue(deep_teleport.movement_refused(replay.policy, board))
         self.assertEqual(reason, retreat_enclosure.MELT_REASON)
         self.assertIn(key, set("12346789"))
+        self.assertEqual(retreat_enclosure.trace(replay.policy)["asker"], "walled-off")
 
 
 if __name__ == "__main__":

@@ -138,6 +138,36 @@ def walled_off(policy, snapshot) -> WalledOff | None:
     return sides if sides is not None and sides.ground else None
 
 
+def _traced(policy, snapshot, asker: str, walled, answer):
+    """``answer(walled)`` (None while ``walled`` is None), with the asker that took the ladder or
+    an opener noted for the decision record (``trace``): which of the askers drew the sides, how
+    large they were, and the vetoes they were drawn by, so that a stop shows why the ladder dug.
+    n1-b life-413 (Angband 12F, 2026-11-21 19:02 and 20:11) dug from a corridor whose exits were
+    open, and neither capture told the cut-off floor's opener from the vetoes' ladder."""
+    if walled is None:
+        return None
+    key = answer(walled)
+    if key is not None:
+        policy._enclosure_trace = {
+            "turn": snapshot.turn, "asker": asker, "reason": policy.last_reason,
+            "reach": len(walled.reach), "ground": len(walled.ground),
+            "ground_nearest": _nearest(snapshot, walled.ground),
+            "kept_off": len(walled.kept_off),
+        }
+    return key
+
+
+def _nearest(snapshot, cells, limit: int = 8) -> list:
+    here = snapshot.player.position
+    return [[cell.y, cell.x] for cell in sorted(
+        cells, key=lambda cell: (max(abs(cell.y - here.y), abs(cell.x - here.x)), cell.y, cell.x))[:limit]]
+
+
+def trace(policy) -> dict | None:
+    """The last ladder or opener answer (``_traced``), for the decision record."""
+    return getattr(policy, "_enclosure_trace", None)
+
+
 def holds_ground(policy, snapshot) -> bool:
     """Whether a retreat veto stands between the player and known walkable ground."""
     return walled_off(policy, snapshot) is not None
@@ -149,7 +179,8 @@ def enclosed_key(policy, snapshot) -> str | None:
     弱い敵を倒す を先に試し、駄目ならテレポート、巻物が規定数以下なら帰還。」)."""
     if not encloses(policy, snapshot):
         return None
-    return _ladder(policy, snapshot, _sides(policy, snapshot), teleport_first=False)
+    return _traced(policy, snapshot, "enclosed", _sides(policy, snapshot),
+                   lambda walled: _ladder(policy, snapshot, walled, teleport_first=False))
 
 
 def sealed_in_key(policy, snapshot) -> str | None:
@@ -158,7 +189,8 @@ def sealed_in_key(policy, snapshot) -> str | None:
     wander only walked the sealed pocket: n1-c life-153 (Labyrinth 13F, 2026-11-06 20:50)
     stood between (2,35) and (2,36), one cell past the vetoes, until the loop guard."""
     walled = walled_off(policy, snapshot)
-    return None if walled is None else _ladder(policy, snapshot, walled, teleport_first=False)
+    return _traced(policy, snapshot, "sealed-in", walled,
+                   lambda walled: _ladder(policy, snapshot, walled, teleport_first=False))
 
 
 ROUTE_VETO_DESTRUCTION_SUFFIX = ":route-veto-seal"  # the reason suffix of the sealers' *Destruction*
@@ -201,10 +233,11 @@ def route_veto_sealed_key(policy, snapshot) -> str | None:
                                                    suffix=ROUTE_VETO_DESTRUCTION_SUFFIX)
             if answer.key is not None:
                 return answer.key
-        for opener in OPENERS:
-            key = opener(policy, snapshot, walled)
-            if key is not None:
-                return key
+        key = _traced(policy, snapshot, "route-veto-sealed", walled, lambda walled: next(
+            (key for opener in OPENERS if (key := opener(policy, snapshot, walled)) is not None),
+            None))
+        if key is not None:
+            return key
     return policy._stuck_escape_key(snapshot)
 
 
@@ -225,7 +258,8 @@ def walled_off_key(policy, snapshot) -> str | None:
     """While vetoes hold known ground from a hunt or search: ``_ladder`` from the floor's
     first Teleportation (owner 2026-11-04; the openers once walled off again, 2026-11-06)."""
     walled = walled_off(policy, snapshot)
-    return None if walled is None else _ladder(policy, snapshot, walled, teleport_first=True)
+    return _traced(policy, snapshot, "walled-off", walled,
+                   lambda walled: _ladder(policy, snapshot, walled, teleport_first=True))
 
 
 def open_toward_key(policy, snapshot, reach, ground) -> str | None:
@@ -234,14 +268,16 @@ def open_toward_key(policy, snapshot, reach, ground) -> str | None:
     floor (owner 2026-11-08 21:5x 「掘るか岩石溶解で通す」, quest_target_search)."""
     if snapshot.player.recalling:
         return None
-    return _dig_key(policy, snapshot, WalledOff(frozenset(reach), frozenset(ground)))
+    return _traced(policy, snapshot, "cut-off", WalledOff(frozenset(reach), frozenset(ground)),
+                   lambda walled: _dig_key(policy, snapshot, walled))
 
 
 def ring_ladder_key(policy, snapshot, walled: WalledOff) -> str | None:
     """A never-moving monster's ring that blocks the way in a maze and cannot be shot
     away (immobile_ranged_kill ``blocking_key``, owner 2026-11-06 「倒せない時だけ 11-04 の
     決まりに進む」): ``_ladder`` from the openers, as for the enclosed player."""
-    return _ladder(policy, snapshot, walled, teleport_first=False)
+    return _traced(policy, snapshot, "immobile-ring", walled,
+                   lambda walled: _ladder(policy, snapshot, walled, teleport_first=False))
 
 
 def _ladder(policy, snapshot, walled, *, teleport_first: bool) -> str | None:
@@ -293,6 +329,18 @@ def _dig_route(policy, snapshot, walled) -> Position | None:
     if player.blind or player.confused or not policy._has_digging_tool(snapshot):
         return None
     return policy._dig_route_first_step(snapshot, set(walled.ground), walkout_dig.diggable)
+
+
+def can_open_toward(policy, snapshot, ground) -> bool:
+    """Whether ``open_toward_key``'s dig would have a way toward ``ground``: the digger's route,
+    else the Stone to Mud route with a melt in hand (no key is made, nothing is counted)."""
+    if not ground:
+        return False
+    if _dig_route(policy, snapshot, WalledOff(frozenset(), frozenset(ground))) is not None:
+        return True
+    player = snapshot.player
+    return (not (player.blind or player.confused) and sealed_pocket.can_melt(policy, snapshot)
+            and melt_route(policy, snapshot, ground) is not None)
 
 
 def dig_has_route(policy, snapshot) -> bool:
@@ -459,7 +507,8 @@ def cross_toward_key(policy, snapshot, ground, avoid=frozenset()) -> str | None:
     ground past a known trap (quest_target_search, n1-a life-522)."""
     if snapshot.player.recalling:
         return None
-    return _disarm_key(policy, snapshot, WalledOff(frozenset(), frozenset(ground)), avoid)
+    return _traced(policy, snapshot, "past-traps", WalledOff(frozenset(), frozenset(ground)),
+                   lambda walled: _disarm_key(policy, snapshot, walled, avoid))
 
 
 def _disarm_key(policy, snapshot, walled, avoid=frozenset()) -> str | None:

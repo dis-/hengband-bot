@@ -374,6 +374,8 @@ REGISTRY = (
     S("_worn_launcher_ammo", "launcher_upgrade", LIFE,
       "launcher_upgrade: worn launcher ammo (no comment at its definition)"),
     # left_cells
+    S("_enclosure_trace", "retreat_enclosure", LIFE,
+      "The enclosure ladder's last asker and the sides it drew, for the decision record (retreat_enclosure._traced)."),
     S("_engagement_owned_avoid_cells", "left_cells", FLOOR,
       "left_cells: engagement owned avoid cells (no comment at its definition)"),
     S("_left_cells", "left_cells", FLOOR,

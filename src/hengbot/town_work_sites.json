@@ -15507,13 +15507,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "quest_target_search.py:_cut_off_floor": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "quest_target_search.py:_dead_ends": {
     "classification": "data",
     "rows": [
@@ -15536,6 +15529,20 @@
     "delegation": "selected child; no independent success"
   },
   "quest_target_search.py:_next_goal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_opening_toward": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_opening_toward.on": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15955,6 +15962,13 @@
       "positioning"
     ],
     "delegation": "No independent success; pure reading."
+  },
+  "retreat_enclosure.py:_traced": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "retreat_enclosure.py:cross_toward_key": {
     "classification": "action",
