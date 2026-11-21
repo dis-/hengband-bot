@@ -92,6 +92,9 @@
   "purchase:priority-ware:telepathy": [
     "optional-buy"
   ],
+  "purchase:priority-ware:speed-staff": [
+    "optional-buy"
+  ],
   "purchase:black-market:speed": [
     "optional-buy"
   ],
