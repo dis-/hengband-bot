@@ -279,9 +279,6 @@ REGISTRY = (
       "departure_rescues: departure rescue attempts (no comment at its definition)"),
     S("_overweight_purchase_release", "departure_rescues", LIFE,
       "departure_rescues: overweight purchase release (no comment at its definition)"),
-    # destination_band_floor
-    S("_destination_band_floor", "destination_band_floor", LIFE,
-      "The (dungeon, depth) whose band the depth-band descent takes without the half-melee limit (n1-c life-218, 2026-11-21);"),
     # destruction_loot
     S("_destruction_loot_memory", "destruction_loot", FLOOR,
       "the clean place or the pile walked to, the fetch withheld by a hostile in view, the scene's decisions and the piles tried before a use"),

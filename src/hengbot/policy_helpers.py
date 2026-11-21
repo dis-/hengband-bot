@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hengbot import ability_sources
+
 from hengbot import safety_watch
 from hengbot import spare_gear
 from hengbot import random_quest_hold
@@ -341,7 +343,10 @@ class PolicyHelpersMixin:
         optimizer's selected loadout (``_plain_gear_baseline``).
         """
         if (item.is_bounty or item.is_artifact or self._is_high_value_book(item)
-                or self._item_signature(item) in self._undestroyable_sigs):
+                or self._item_signature(item) in self._undestroyable_sigs
+                # Owner Q3 of the equipment review 2026-11-22: the only owned source of a
+                # depth-table ability is never discarded (ability_sources.sole_depth_source).
+                or ability_sources.sole_depth_source(self, snapshot, item)):
             return None
         # The item's class comes first; the board's retention / ownership
         # gates (the costly purchase ladder) run only for an item that has
@@ -768,7 +773,7 @@ class PolicyHelpersMixin:
         """
         return ((not depth_floor
                  or fallback_depth_floor.landing_allowed(self, snapshot, landing_depth))
-                and not self._missing_required_abilities(snapshot, landing_depth)
+                and not self._missing_required_abilities(snapshot, landing_depth, owned=True)
                 and not self._recall_landing_guardian_blocked(snapshot, dungeon_id, landing_depth))
 
     def _can_fight_in_dungeon(self, dungeon_id: int) -> bool:

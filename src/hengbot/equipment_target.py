@@ -42,8 +42,9 @@ The events (each names why the visit decided again; the visit journal's ``search
   search, the loadout step's search in the finale's rank, the swap's fixed target, the cap lift, a
   stopped phase back to the ordinary order).  Owner Q1 「99F100Fもそれでバグらず行けるか確認」 and
   2026-11-20 「上限を外す時に初めて着け替える」: the phase decides its loadout in the visit itself.
-- ``destination-band-floor``: destination_band_floor engaged a floor (owner 2026-11-21; Q4 of
-  this review 「深さの条件を満たす組があれば打撃が半分を下回っても着て行く」).
+- ``destination-band-floor``: the band of the planned departure's landing, the search's floor,
+  changed (destination_band_floor; stage E4, owner Q4 「深さの条件を満たす組があれば打撃が半分を
+  下回っても着て行く」: the search knows the destination, so a new destination band decides again).
 - ``destruction-means-gained``: the 50F+ *Destruction* means the search reads became satisfied
   during the visit -- an owned charged staff (bought, withdrawn from the Home, picked up: the
   search's staff gate) or the absorbed power (destruction_means ``optimizer_without_gear``).  Owner
@@ -221,7 +222,7 @@ def redecide_events(held: VisitTarget, candidates: tuple, context: tuple) -> tup
     held_finale, held_floor, held_rules, held_means = held.context
     if finale != held_finale:
         events.append(EVENT_FINALE_PHASE)
-    # A floor engaged now (a destination switch that leaves it unread decides nothing).
+    # The destination's band moved (stage E4); leaving the town (no floor) decides nothing.
     if floor is not None and floor != held_floor:
         events.append(EVENT_DESTINATION_FLOOR)
     if rules != held_rules:

@@ -1263,8 +1263,9 @@ class EquipmentMixin:
             )
         )
         optimization_depth = max(1, depth_override) if depth_override is not None else None
-        # The departure's floor for the free descent (destination_band_floor).
-        destination_floor = (destination_band_floor.floor(self)
+        # The town search knows the destination: its band is the free descent's floor
+        # (destination_band_floor; equipment review E4, owner Q4).
+        destination_floor = (destination_band_floor.floor(self, snapshot)
                              if optimization_depth is None else None)
         # Keep pack weapons that the ordinary town policy has already classified
         # as sale loot out of the optimizer's Home staging deposits.  Otherwise
@@ -1404,7 +1405,7 @@ class EquipmentMixin:
             # inputs too: a hit kept the ordinary result across the switch.
             (("angband-finale", *finale_key),)
             if finale_key is not None else ()) + (
-            # The descent's floor (destination_band_floor): a hit kept the band it refused.
+            # The descent's floor, the destination's band (destination_band_floor).
             (("destination-floor", destination_floor),)
             if destination_floor is not None else ())
         # The owner's equipment rules (equipment_rules.RULES_VERSION): a search memo restored from

@@ -40,7 +40,8 @@ Both are allowed in ``ability_sources`` only (``model`` builds the board).
 
 Stage E3 (2026-11-22) added the visit's fixed target (``fix_visit_target``, a target writer) and
 the Q7 take-off of a worn banned piece (``set_unsearched_loadout_target``): policy_equipment's
-``target-store-call`` 6 -> 8.
+``target-store-call`` 6 -> 8.  Stage E4 (2026-11-22) folded destination_band_floor's engage (a forced re-search) into the
+search's own destination floor: its ``search-reset-call`` 1 -> 0.
 
 ``ALLOWED`` is today's set (2026-11-22, E2 on main 23febce5a; E3 as above).  A module or a
 count above it is a new direct writer/reader and fails; a count below it fails too, so the pin
@@ -84,7 +85,6 @@ OWNED_CATEGORIES = {
 
 ALLOWED: dict[str, dict[str, int]] = {
     "ability_sources": {"ability-read": 3, "ability-table": 5},
-    "destination_band_floor": {"search-reset-call": 1},
     "equipment_capacity": {"search-reset-call": 1},
     "equipment_mutation": {"wear-command": 2},
     "equipment_target": {"search-reset": 5, "target-name": 2, "target-write": 5},
