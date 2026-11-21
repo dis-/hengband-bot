@@ -3,7 +3,7 @@ from hengbot import ability_sources
 from hengbot import equipment_target
 from hengbot import angband_finale
 from hengbot import approach_answer, return_start
-from hengbot import safety_watch
+from hengbot import me_power_success, safety_watch
 from hengbot import angband_cap, equipment_rules, item_identity
 from hengbot.item_identity import MemorySignatureList, MemorySignatures, same_memory
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
@@ -3301,6 +3301,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         warning_cell_record.record(self, snapshot)
         # The walk the next board's pingpong guard reads is the one emitted (owner 2026-11-13 part 2).
         pingpong_guard.note_emitted(self, snapshot, key)
+        # The stun a list this key shows is printed under (n1-b life-413, me_power_success).
+        me_power_success.note_decided(self, snapshot)
         cross_rules.end(self, snapshot, key)
         return key
 

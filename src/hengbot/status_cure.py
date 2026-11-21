@@ -69,15 +69,17 @@ first when not hasted, and cures with the HP recovery potion when HP is down -- 
 before the Speed dose, as for blindness (owner 2026-11-04 「低い時は体力回復が先」).
 """
 
+from math import ceil
+
 from hengbot import ability_sources
 from hengbot import blind_strike, combat_answer, me_absorbed_substitutes, me_capability, speed_dose, unseen_strike
 from hengbot.game_messages import KILL_LINE_DESTROYED, KILL_LINE_KILLED, KILL_LINE_SLAIN
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
-    SV_POTION_CURE_CRITICAL,
+    SV_POTION_CURE_CRITICAL, SV_ROD_HEALING, SV_STAFF_HEALING,
 )
-from hengbot.policy_constants import HEAL_ORDER, REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import HEAL_ORDER, REST_MACRO, REST_TARGET_HP_RATIO, WAIT_KEY
 
 
 SIGHT_RESTORED = frozenset({"やっと目が見えるようになった。", "You can see again."})
@@ -471,6 +473,45 @@ def absorbed_cure_key(policy, snapshot, reason: str) -> str | None:
         return None
     policy.last_reason = reason + me_absorbed_substitutes.CAST_SUFFIX
     return me_absorbed_substitutes.POWERS[me_absorbed_substitutes.CURE_LIGHT].key
+
+
+# Owner 2026-11-22 (verbatim) 「休息が難しいときに取り込んだ回復の力を使うことは許可する」: the absorbed
+# powers that restore HP, cheapest first, with the HP one cast restores (the game's mean):
+# Cure Light Wounds cure_light_wounds(Dice::roll(2, 8)) (cmd-usestaff.cpp:194-196), the staff's
+# Healing cure_critical_wounds(300) (:207-210), the rod's cure_critical_wounds(500)
+# (cmd-zaprod.cpp:129-132); the Powerful Activation's larger rolls are never cast here.
+ABSORBED_HEALS = (
+    (me_absorbed_substitutes.CURE_LIGHT, 9),
+    (("staff", SV_STAFF_HEALING), 300),
+    (("rod", SV_ROD_HEALING), 500),
+)
+
+
+def absorbed_heal_key(policy, snapshot, reason: str) -> str | None:
+    """Where the rest the HP wants cannot be taken: the cast of an absorbed power that restores
+    HP, when the reliable ones (me_capability ``reliable``, the owner's 80% for an absorbed power)
+    with their charges left restore it up to the rest's target (``REST_TARGET_HP_RATIO``), else
+    None (the caller's leave answers, as before).  The cheapest power whose charges alone cover
+    the shortfall, else the largest; ``last_reason`` is ``reason`` with the cast suffix.
+
+    n1-b life-413 and n1-c life-219 (Angband 80F, 2026-11-22): 11 of 61 visits ended in the
+    esp-threat Recall at 60-85% HP (policy_combat ``_esp_threat_rest_key``: awake strong monsters
+    known only by telepathy interrupt every rest), each with 17-19 charges of the absorbed Cure
+    Light Wounds at 95%."""
+    player = snapshot.player
+    shortfall = ceil(REST_TARGET_HP_RATIO * player.max_hp) - player.hp
+    if shortfall <= 0:
+        return None
+    held = [(ident, heal, me_capability.charges(policy, snapshot, *ident))
+            for ident, heal in ABSORBED_HEALS
+            if me_capability.has(policy, snapshot, *ident)
+            and me_capability.reliable(policy, snapshot, ident)]
+    held = [(ident, heal, charges) for ident, heal, charges in held if charges > 0]
+    if sum(heal * charges for _, heal, charges in held) < shortfall:
+        return None
+    ident = next((ident for ident, heal, charges in held if heal * charges >= shortfall),
+                 held[-1][0])
+    return me_absorbed_substitutes.cast(policy, snapshot, ident, reason)
 
 
 def blind_missile_supply_key(policy, snapshot, hostiles) -> str | None:

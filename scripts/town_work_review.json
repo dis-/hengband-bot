@@ -23249,5 +23249,38 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "An absorbed power's usable charges (the displayed row, else the record); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:recorded_charges": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "An absorbed power's recorded count, 0 on a board whose displayed list shows it empty; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:absorbed_heal_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-22 「休息が難しいときに取り込んだ回復の力を使うことは許可する」: where the ESP-threat rest is refused (policy_combat._esp_threat_rest_key, the strong tier's leave or a sensed T1 the approach owns), a Magic-Eater's reliable absorbed Cure Light Wounds / Healing (staff, rod) whose charges restore the HP up to REST_TARGET_HP_RATIO: the cast key under esp-threat:heal plus the absorbed-power suffix, else None and the leave answers; dungeon only; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

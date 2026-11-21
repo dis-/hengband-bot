@@ -742,6 +742,10 @@ RETURN_STATIONARY_REASONS = frozenset({
 # The ESP-threat leave runs the return above and relabels its reason
 # return:X -> esp-threat:leave-X (policy_combat._esp_threat_leave_key).
 ESP_THREAT_LEAVE_PREFIX = "esp-threat:leave-"
+# The absorbed heal in place of the rest the ESP threat interrupts (owner 2026-11-22
+# 「休息が難しいときに取り込んだ回復の力を使うことは許可する」; status_cure.absorbed_heal_key adds the
+# cast suffix).
+ESP_THREAT_HEAL_REASON = "esp-threat:heal"
 
 AIM_WAND_KEY = "a"
 

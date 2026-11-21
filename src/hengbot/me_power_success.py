@@ -175,10 +175,36 @@ def _inputs(snapshot) -> tuple:
             tuple(sorted((item.slot, item.name) for item in snapshot.equipment)))
 
 
+# The board the last key was decided on (``note_decided``): (turn, stun rank, inputs).
+DECIDED = "_me_list_decided_board"
+
+
+def note_decided(policy, snapshot) -> None:
+    """Every decision's last seam (policy ``choose_key``): the stun and the inputs the game shows
+    a list under when this decision's key casts or browses a power."""
+    setattr(policy, DECIDED, (snapshot.turn, stun_rank(snapshot.player), _inputs(snapshot)))
+
+
 def observe_list_board(policy, kind: str, snapshot) -> None:
-    """Remember the stun and the inputs of the board a list of ``kind`` was displayed on."""
+    """Remember the stun and the inputs of the board a list of ``kind`` was displayed on.
+
+    The list arrives on the board after the operation that showed it (input_executor attaches
+    the operation's ``_magic_eater_power_list`` to the board its barrier read), but the game
+    printed it on the board the operation was decided on, before the use took effect: the
+    decided board's stun and inputs (``note_decided``), else (a list on a board no decision of
+    this policy preceded) this board's.  n1-b life-413 (Angband 80F, 2026-11-22 04:02:29,
+    turn 2932985): stunned SLIGHT and blind after its own *Destruction*, the absorbed Cure
+    Light Wounds was cast from the staff list, which showed *破壊* at 77% (87% less the stun's
+    10); the cure ended the stun, the list was read as shown unstunned on turn 2933001, the
+    power fell below 80% (me_capability.reliable) and the means-spent Recall was read with 19
+    charges left."""
+    decided = getattr(policy, DECIDED, None)  # restored checkpoints predate it
+    if decided is not None and decided[0] <= snapshot.turn:
+        shown = (decided[1], decided[2])
+    else:
+        shown = (stun_rank(snapshot.player), _inputs(snapshot))
     record = dict(getattr(policy, "_me_device_list_boards", None) or {})
-    record[kind] = (stun_rank(snapshot.player), _inputs(snapshot))
+    record[kind] = shown
     policy._me_device_list_boards = record
 
 

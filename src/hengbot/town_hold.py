@@ -1279,6 +1279,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("esp-threat:hunt-", R, WALK_TARGET),
         ("esp-threat:hunt-heal", T, EFFECT),
         ("esp-threat:hunt-speed", T, EFFECT),
+        # Owner 2026-11-22: the absorbed heal in the refused rest's place (status_cure).
+        ("esp-threat:heal", T, EFFECT),
         ("melee:esp-threat-hunt", T, EFFECT),
     ),
     *_rows(
@@ -1932,7 +1934,8 @@ _RUNGS: tuple[Rung, ...] = (
     # ``esp-threat:hunt-strong`` is emitted at both sites and keeps the
     # ordinary rung (see ``rung_of``).
     _decide("_esp_threat_rest_key", "esp-threat",
-            "esp-threat:hunt-weak", "esp-threat:hunt-medium"),         # 7015
+            "esp-threat:hunt-weak", "esp-threat:hunt-medium",
+            "esp-threat:heal"),                                         # 7015
     _decide("_flee_step", "positioning",
             "threat:avoid-engagement"),                                # 7114
     _decide("_descent_step", "departure",
