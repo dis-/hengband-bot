@@ -42,6 +42,12 @@ from hengbot import line_of_fire, threat_projection
 from hengbot.item_reservation import decision_memo
 
 FEW_SCROLLS = 3  # the owner's 「残り少なければ」 (Teleportation scrolls carried)
+# Owner 2026-11-21 (verbatim, LOCKED) 「破壊が使えるなら破壊を優先。なければテレポート。」, the answer to
+# acting while Recall counts down when one unseen attacker's observed hit takes a third of the
+# maximum HP or more (n1-c life-218, Castle 48F: unseen mana breaths of 246-266 at max HP 674).
+BIG_HIT_SHARE = 3
+BIG_HIT_SUFFIX = ":recall-wait-unseen"
+BIG_HIT_TELEPORT_REASON = "emergency:teleport"
 BRANCH = "recall-wait-teleport:withheld"
 HOLD_REASON = "recall-wait-teleport:hold"
 NOTE = "_recall_wait_teleport_withheld"   # the turn the finders held the teleport back on
@@ -84,6 +90,8 @@ def withheld(policy, snapshot) -> bool:
             # breath killed it while its Recall counted down.
             if not hostiles and threat_projection.unseen_loss(policy, snapshot) >= snapshot.player.hp:
                 return False
+            if big_unseen_hit(policy, snapshot):
+                return False
             if policy._count_teleport_scrolls(snapshot) <= FEW_SCROLLS:
                 return True
             return not _t1_in_fire(policy, snapshot, hostiles)
@@ -95,6 +103,38 @@ def withheld(policy, snapshot) -> bool:
     if held:
         setattr(policy, NOTE, snapshot.turn)
     return held
+
+
+def big_unseen_hit(policy, snapshot) -> bool:
+    """While Recall counts down (``applies``), an unseen attacker's observed hit
+    (threat_projection ``unseen_loss``) took a BIG_HIT_SHARE-th of the maximum HP or more, or
+    reaches the HP (the 即死 reading of ``withheld``)."""
+    if not applies(policy, snapshot):
+        return False
+    loss = threat_projection.unseen_loss(policy, snapshot)
+    player = snapshot.player
+    return loss > 0 and (loss * BIG_HIT_SHARE >= player.max_hp or loss >= player.hp)
+
+
+def big_hit_key(policy, snapshot) -> str | None:
+    """Owner 2026-11-21 「破壊が使えるなら破壊を優先。なければテレポート。」: on a ``big_unseen_hit``
+    board, *Destruction* around the player (destruction_use ``key``, its means and success rules;
+    the unseen attacker is in no known cell, so any cell of the circle is the threat's), else a
+    Teleportation scroll; the Recall keeps counting down after either."""
+    from hengbot import destruction_use  # import cycle
+    if not big_unseen_hit(policy, snapshot):
+        return None
+    used = destruction_use.key(policy, snapshot, in_range=lambda *_args: True,
+                               suffix=BIG_HIT_SUFFIX)
+    if used is not None:
+        return used
+    # Owner 2026-11-14 (line_of_fire): the unseen hit that reached the player stands for the line
+    # of fire of the escape's cause.
+    line_of_fire.note(policy, snapshot, line_of_fire.known_causes(snapshot), proof=True)
+    scroll = policy._escape_scroll(snapshot, teleport_only=True)
+    if scroll is None:
+        return None
+    return policy._issue_emergency_consumable(snapshot, scroll, BIG_HIT_TELEPORT_REASON)
 
 
 def observe(policy) -> None:
