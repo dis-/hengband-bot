@@ -246,7 +246,8 @@ _RULE_FINALE = ("the 99F/100F battle's own leaves (owner 2026-11-20, verbatim: �
                 "下回ったとき、または対象が距離2より近づいたときテレポートの巻物で離脱する」 and 「帰還による離脱は"
                 "成功時と魔力復活の薬を予定の倍以上使ったときのみ」): a plan's step, never a town return by "
                 "the escape count (angband_finale_battle)")
-_rows(EXCLUDED, "angband_finale_battle", _RULE_FINALE, "angband-finale:teleport", "angband-finale:recall")
+_rows(EXCLUDED, "angband_finale_battle", _RULE_FINALE, "angband-finale:teleport",
+      "angband-finale:teleport:absorbed-power", "angband-finale:recall")
 _RULE_NO_AC = ("a worn NO_AC piece (宵闇のローブ, AC 0): owner 2026-11-21 「AC0では打撃を受けると即死抽選が"
                "ある。優先対処。」「着たまま帰還を読み、打撃の届く敵を寄せない」 -- the leave of that rule, "
                "never the escape count's (no_ac_recall)")
