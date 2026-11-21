@@ -216,6 +216,8 @@ REGISTRY = (
       "cli: latch capture path (no comment at its definition)", saved=False),
     S("_latch_capture_rotate_bytes", "cli", LIFE,
       "cli: latch capture rotate bytes (no comment at its definition)", saved=False),
+    S("_equipment_journal_path", "cli", LIFE,
+      "The equipment visit journal's jsonl beside the decision log (equipment_visit_journal.FILE_NAME)."),
     S("_loadout_report_path", "cli", LIFE,
       "cli: loadout report path (no comment at its definition)"),
     S("_me_power_resume_reads", "cli", LIFE,
@@ -305,6 +307,9 @@ REGISTRY = (
       "dive_haul: carried units by kind on the board before"),
     S("_dive_start_units", "dive_haul", LIFE,
       "dive_haul: carried units by kind at the dive's start"),
+    # equipment_visit_journal
+    S("_equipment_visit_journal", "equipment_visit_journal", LIFE,
+      "The town visit's loadout searches, wears/take-offs and slot trails; a slot worn A, B, A is a named stop (review 2026-11-22 E0). Renewed by the module itself on a new town visit epoch."),
     # equipment_pack_loss
     S("_equipment_pack_view", "equipment_pack_loss", LIFE,
       "equipment_pack_loss: the previous board's carried equipment, the transaction gear the game took out of the pack, and its record."),
