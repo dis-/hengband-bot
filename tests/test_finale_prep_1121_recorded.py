@@ -13,7 +13,8 @@ from there the recorded keys are delivered row by row as the game received them 
 
 DECLARED CONSTRUCTED:
 * ``stocked``: n1-c's recorded board with the pack's finale stacks set to their counts (a missing
-  kind copies the Healing stack's row), as after the supplies step's withdrawals;
+  kind copies the Healing stack's row), as after the supplies step's withdrawals, and the food step's
+  three Wands of Wonder under three inscriptions;
 * the swap's done-check board: the phase's fixed target set to the worn set's pieces (as after the
   equipment transaction), the transaction left none;
 * the next visit's arrival: the expedition's board as Angband 99F, then the town board again with
@@ -31,7 +32,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot import angband_cap, angband_finale, finale_prep
-from hengbot.model import DUNGEON_ANGBAND
+from hengbot.magic_eater_devices import SV_WAND_WONDER
+from hengbot.model import DUNGEON_ANGBAND, TVAL_WAND
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
 
@@ -101,6 +103,13 @@ class FinalePrepRecordedTest(unittest.TestCase):
             policy._home_knowledge_items = tuple(
                 item for item in policy._home_knowledge_items
                 if (item.tval, item.sval) != angband_finale.RESTORING)
+        # DECLARED: the food step's three Wands of Wonder, each under its own inscription
+        # (finale_prep FOOD; n1-c is a Zombie, its food the charges).
+        pack = [item for item in pack if not finale_prep.food_stacks(replace(board, inventory=(item,)))]
+        for label in finale_prep.FOOD_LABELS[:finale_prep.FOOD_WANDS]:
+            pack.append(replace(template, tval=TVAL_WAND, sval=SV_WAND_WONDER, count=1, charges=20,
+                                known=True, inscription=label, name="謎の魔法棒",
+                                slot=chr(ord("a") + len(pack))))
         return replace(board, inventory=tuple(pack))
 
     # -- n1-c ------------------------------------------------------------------------------

@@ -22846,5 +22846,55 @@
     "delegation": "selected child; no independent success",
     "context": "Dungeon only: the 99F/100F battle's eat when hungry (angband_finale_battle key); None in town (the battle applies only on the finale floors).",
     "evidence": "Returns reserved_item_command's eat of policy._find_edible under the battle's reason angband-finale:eat; no town command (n1-b life-411 2026-11-21 15:38-15:40, 100F: hungry at turn 11463702, the survival gate's eat only at weak)."
+  },
+  "finale_prep.py:_food_key": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "classification": "adapter",
+    "rows": [
+      "equipment-inscription",
+      "home-withdraw",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Town only: the 99F/100F preparation phase's food step (finale_prep, owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って食料とする」); None outside its step.",
+    "evidence": "Emits the food step's keys with _offer_execution (producer finale-prep): the store exit, the inscription ({ + letter + label + Return), the drop of one wand (d + letter + 1 + Return), the pick-up (g); files a Home withdrawal of one Wand of Wonder (_file_home_errand, purpose finale-prep-supplies) or reads the Home (_read_home_key); stops the phase by name otherwise."
+  },
+  "finale_prep.py:_food_offer": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "classification": "adapter",
+    "rows": [
+      "equipment-inscription",
+      "home-withdraw",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Town only: the 99F/100F preparation phase's food step (finale_prep, owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って食料とする」); None outside its step.",
+    "evidence": "Registers the food step's key with _offer_execution; no key of its own."
+  },
+  "finale_prep.py:_free_label": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Town only: the 99F/100F preparation phase's food step (finale_prep, owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って食料とする」); None outside its step.",
+    "evidence": "Pure: the first food inscription label not taken."
+  },
+  "finale_prep.py:_inscribe": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "classification": "adapter",
+    "rows": [
+      "equipment-inscription",
+      "home-withdraw",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success",
+    "context": "Town only: the 99F/100F preparation phase's food step (finale_prep, owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って食料とする」); None outside its step.",
+    "evidence": "Composes the food step's inscription key (reserved_item_command inscribe + label + Return) for _food_key; stops the phase when refused."
   }
 }
