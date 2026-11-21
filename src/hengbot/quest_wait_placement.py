@@ -555,6 +555,30 @@ def comers_at(policy, snapshot, navigator, plan, spot, left_alone=frozenset()) -
     return reader(policy, snapshot, navigator, plan, left_alone).comers(spot)
 
 
+def come_cells(policy, snapshot, navigator, race: int, cell, spots, monster=None, *, first: bool = False) -> tuple:
+    """Of ``spots`` (in their order), those a player on which the one monster of ``race`` on
+    ``cell`` acts on and comes to (``_Reader.comes``): the board's monster when ``monster`` is
+    given, else the map's placement.  Its own sleep is not read (a sleeper within reach wakes,
+    and the board's mark of a sensed one is not its state: n1-b life-413's spectral tyrannosaur
+    went back and forth marked asleep).  ``first``: only the first such spot.  A plan with fixed
+    waiting cells weighs its own candidates with this (quest25_battle's dreadmaster, owner
+    2026-11-22 「敵の行動アルゴリズムを確認して待つ場所を精査する」)."""
+    knowledge = policy._monrace_knowledge.get(race)
+    if knowledge is None:
+        return ()
+    cell = tuple(cell)
+    key = ("seen", monster.index) if monster is not None else ("placed", race, cell)
+    row = Awaited(key, race, cell, knowledge, monster)
+    read = _Reader(policy, snapshot, navigator, {}, (row,))
+    found = []
+    for spot in spots:
+        if read.comes(row, tuple(spot)):
+            found.append(tuple(spot))
+            if first:
+                break
+    return tuple(found)
+
+
 def comes(policy, snapshot, navigator, plan, monster, spot=None) -> bool:
     """A board monster acts on a player on ``spot`` (where he stands by default) and comes."""
     knowledge = policy._monrace_knowledge.get(monster.race_id)

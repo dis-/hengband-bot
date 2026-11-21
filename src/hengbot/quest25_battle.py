@@ -8,8 +8,9 @@ quoted there with its date); this module is their executor.  The phases, in orde
  1. ``ambush`` (phase1): the hound, the skeletal and spectral tyrannosaurs and the vampire
     lord are met in the start region.  「DPSで比較…行動回数で計測」: the actions to kill the
     spectral tyrannosaur by ranged attacks and by melee (attack_expectation, slays and hit
-    chance in, the torch out) decide the stand: ranged waits on [13,1] with the door [9,1]
-    open, melee waits on [10,1] with it closed and closes in the turn it is opened.
+    chance in, the torch out) decide the stand: ranged waits on [10,1] with the door [9,1]
+    open (owner 2026-11-22; it was [13,1], beyond the game's flow of 32 steps from the spectral
+    tyrannosaur), melee waits on [10,1] with it closed and closes in the turn it is opened.
     「どちらにせよ加速を使用する」: hasted while a target is in view.  With no hostile in view, a carried
     Potion of Enlightenment is drunk first, once (owner 2026-11-07, ``_ambush_enlightenment``).
  2. ``wall-passers`` (phase1_wall_passers): full HP, then [7,1]; what comes is fought; 100
@@ -36,7 +37,8 @@ quoted there with its date); this module is their executor.  The phases, in orde
     [1,7] opened, the corridor lit when dark (the 11-05 rule), and every mass in view shot --
     from the cell that reaches the most of them (owner 2026-11-09 「一番多く届く位置へ」,
     ``_walk_to_widest``), back to [1,6] when none is left to shoot.
- 8. ``dreadmaster`` (phase5): ranged waits on the edge of its vision ([1,9]), melee on [1,17];
+ 8. ``dreadmaster`` (phase5): both styles wait in the east big room, on the cell nearest its door
+    [1,18] the dreadmaster's own movement brings it to (owner 2026-11-22, ``_dread_wait_cell``);
     hasted while it is in view.
  9. ``sweep`` (phase6_sweep): detection when the character has it, else the kill count
     against the roster and, when short, the old room-sweep stands walked as the patrol.
@@ -112,6 +114,7 @@ from hengbot import (
     quest_plan_base,
     quest_room_light,
     quest_room_sweep,
+    quest_wait_placement,
     resist_potion,
     speed_dose,
     summon_response,
@@ -2320,16 +2323,46 @@ def _dreadmaster(ctx: _Ctx) -> str | None:
     if (key := _engage(ctx, targets) if (battle.style == "ranged" or any(
             monster.distance <= 1 for monster in targets)) else None) is not None:
         return key
-    if battle.style == "melee":
-        stand = geo.DREADMASTER_MELEE_STAND
-    else:
-        dreadmaster = next(cell for cell, race in ctx.navigator.battlefield.monster_placements
-                           if race == geo.DREADMASTER)
-        edge = geo.vision_cells(ctx.terrain, dreadmaster, geo.DREADMASTER_VISION, edge=True)
-        stand = min((cell for cell in edge if cell in geo.NORTH_CORRIDOR), default=None)
+    stand = _dread_wait_cell(ctx)
     if stand is None:
         return None
     return (_walk(ctx, {stand}) if ctx.here != stand else None) or _hold(ctx)
+
+
+def _dread_wait_cell(ctx: _Ctx):
+    """Where phase 5 waits for the dreadmaster, both styles.
+
+    Owner 2026-11-22 (it replaces 2026-11-06 「感知範囲ギリギリで待つ。近接なら17,1で待機」): 「敵の行動
+    アルゴリズムを確認して待つ場所を精査する必要がある。立ち位置が悪いと幾ら待っても来ない」, and for phase 5
+    the east big room, on the cells its deterministic movement brings it to ([1,19]-[1,22],
+    [2,19]-[2,22], [7,21]-[8,25] ...), chosen by the existing rules.  The movement is
+    quest_wait_placement's (``come_cells``: the flow, get_moves_val, PASS_WALL through doors but not
+    the permanent inner walls); from [1,17], [1,9] and [2,9] it goes back and forth and only its
+    random moves (RAND_25) bring it (n1-b life-413: about 9,650 game turns on [1,17]).
+
+    The room's cells out of the plan's refusals (an uncleared or possible trap, the never-moving
+    casters' fire, the Ipsissimus' summon cells while they live, a refused or occupied cell), the
+    nearest to the room's door [1,18] first (the walk in from the north corridor); the first the
+    dreadmaster comes to, else the first of them (the map says it comes there)."""
+    bf = ctx.navigator.battlefield
+    traps = {cell for cell in (*bf.trap_cells, *bf.maybe_trap_cells) if cell not in ctx.battle.cleared}
+    unsafe = (traps | set(_fire(ctx)) | set(_refused(ctx)) | set(left_cells.refused_yx(ctx.policy, ctx.snapshot))
+              | {(monster.position.y, monster.position.x) for monster in ctx.hostiles()})
+    if _ipsissimus_alive(ctx):
+        unsafe |= geo.summon_cells(ctx.terrain)
+    cells = sorted((quest_exposure.game_distance(cell, geo.EAST_ROOM_DOOR), cell)
+                   for cell in geo.east_room_cells(ctx.terrain)
+                   if ctx.terrain.get(cell) == "floor" and cell not in unsafe)
+    if not cells:
+        return None
+    ordered = [cell for _distance, cell in cells]
+    seen = next((monster for monster in ctx.hostiles() if monster.race_id == geo.DREADMASTER), None)
+    origin = ((seen.position.y, seen.position.x) if seen is not None else _placed(ctx, geo.DREADMASTER))
+    if origin is None:
+        return ordered[0]
+    come = quest_wait_placement.come_cells(ctx.policy, ctx.snapshot, ctx.navigator, geo.DREADMASTER,
+                                           origin, ordered, seen, first=True)
+    return come[0] if come else ordered[0]
 
 
 # -- phase 6: the sweep -----------------------------------------------------------------
