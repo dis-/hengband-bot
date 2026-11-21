@@ -242,6 +242,13 @@ def fix_target(policy, snapshot, preparation) -> None:
     if held is None or held.step != LOADOUT:
         return
     best = _best(preparation)
+    if best is None and "home-scan-incomplete" in (getattr(preparation, "blockers", ()) or ()):
+        # The search did not run over the whole Home: another Home take or deposit of this visit
+        # left its scan incomplete (n1-b life-411 2026-11-21 14:26:13, the swap's deposits just
+        # before; the step stopped as loadout:no-set and the supplies were deposited again).  The
+        # supplies step reads the Home and comes back here.
+        _go(policy, held, SUPPLIES, "home-scan-incomplete")
+        return
     if best is None:
         _stop(policy, held, "loadout:no-set")
         return
@@ -334,7 +341,8 @@ def observe(policy, snapshot, rows: dict | None) -> None:
             return
         if (angband_finale.ready(rows["carried"]) and not routed(policy)
                 and not _restoring_at_home(policy)
-                and policy._equipment_transaction_session is None):
+                and policy._equipment_transaction_session is None
+                and policy._equipment_catalog.home_scan_complete):
             _go(policy, held, LOADOUT)
         return
     if held.step == SWAP:
@@ -428,6 +436,10 @@ def town_key(policy, snapshot) -> str | None:
     from hengbot.home_errand import HomeErrandRequest
     short = _short_stack(policy, snapshot)
     if short is None:
+        # Every count carried: the loadout step's search runs over the whole Home, so a scan
+        # another Home operation left incomplete is read first (``fix_target``).
+        if not policy._equipment_catalog.home_scan_complete:
+            return _read_home_key(policy, snapshot)
         return None
     kind, stack, missing, addressable = short
     if stack is None:
