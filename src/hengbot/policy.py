@@ -19,7 +19,7 @@ from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, hero
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import resist_alternatives, summoner_wait
-from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_sweep_record, quest_find_exit, quest_force_rows, quest_no_teleport, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
+from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_sweep_record, quest_find_exit, quest_force_rows, quest_no_teleport, finale_prep, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 from hengbot import amberite_curse, curse_cure, home_cap, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
 
 from collections import Counter, deque
@@ -5748,7 +5748,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self.town_teleport_refusal = None
         self._fruitless_disengage_spent_this_decision = False
         if (self._home_errand.state == HomeErrandState.STOPPED
-                and not quest_optional_carry.release_stopped(self)):
+                and not quest_optional_carry.release_stopped(self)
+                and not finale_prep.release_stopped(self)):
             self._release_claim_goal(
                 "home-errand-stopped", owners=("home-errand",),
                 kinds=(CLAIM_GOAL_OBSERVE,),
@@ -14233,6 +14234,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _find_recall_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
+        # Owner 2026-11-20 「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」: on the
+        # 99F/100F floors of the finale's expedition no other rule finds a Word of Recall to
+        # read (finale_prep ``recall_closed``; n1-b life-411 2026-11-21 09:02:18 read one under
+        # deep-teleport:recall, 09:07:45 summoner:recall, 09:14:53 esp-threat:leave-recall).
+        if finale_prep.recall_closed(self, snapshot):
+            return None
         return self._first_item(snapshot, lambda it: it.is_recall_scroll)
 
     def _town_recall_device(self, snapshot: Snapshot) -> InventoryItem | None:

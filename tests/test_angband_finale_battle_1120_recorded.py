@@ -44,7 +44,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import angband_finale, angband_finale_battle as battle
+from hengbot import angband_finale, angband_finale_battle as battle, finale_prep
 from hengbot import area_mapping, destruction_use, me_powerful_activation
 from hengbot.cli import _home_modal_continuation
 from hengbot.input_executor import ScreenKind, classify_screen
@@ -81,7 +81,7 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
 
     def setUp(self):
         self.policy = copy.deepcopy(self.arrival)
-        angband_finale.memory(self.policy).ready = True  # DECLARED CONSTRUCTED: the latch
+        finale_prep.phase(self.policy).lifted = True  # DECLARED CONSTRUCTED: the phase's mark
         # DECLARED CONSTRUCTED: a fresh arrival (the recorded visit's *Destruction* mapped).
         self.policy.__dict__.pop(area_mapping.MEMORY, None)
         self.recorded = parse_snapshot(copy.deepcopy(self.raw), self.policy._monrace_knowledge)
@@ -390,6 +390,23 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         key, reason = decide(self.policy, board)
         self.assertEqual(reason, battle.RECALL_REASON)
 
+    def test_no_other_rule_finds_a_recall_on_the_floor(self):
+        """「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」: the expedition's 99F
+        has its Word of Recall for the battle's two cases only; every other rule (n1-b life-411
+        2026-11-21 09:02:18 deep-teleport:recall, 09:07:45 summoner:recall, 09:14:53
+        esp-threat:leave-recall) finds none (finale_prep ``recall_closed``)."""
+        self.in_battle()
+        board = self.board()
+        self.assertTrue(any(item.is_recall_scroll for item in board.inventory))
+        self.assertIsNone(self.policy._find_recall_scroll(board))
+        quests = dict(board.quests)
+        quests[8] = replace(quests[8], status=2)
+        done = replace(board, quests=quests)
+        self.assertIsNotNone(self.policy._find_recall_scroll(done))  # the battle's own case
+        # Out of the expedition (no cap lift) the floor is the climb's, and recalls as ever.
+        finale_prep.phase(self.policy).lifted = False
+        self.assertIsNotNone(self.policy._find_recall_scroll(board))
+
     def test_restore_mana_uses_are_counted_on_the_floor(self):
         mana = replace(self.recorded.inventory[0], slot="y", tval=TVAL_POTION, sval=40, count=10)
         floor = replace(self.recorded, inventory=[*self.recorded.inventory, mana])
@@ -408,9 +425,9 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
     def test_small_floor_before_the_descent(self):
         policy = self.policy
         floor = self.floor(98)
-        angband_finale.memory(policy).ready = False
+        finale_prep.phase(policy).lifted = False
         self.assertIsNone(battle.key(policy, floor))  # not lifted: nothing
-        angband_finale.memory(policy).ready = True
+        finale_prep.phase(policy).lifted = True
         town = replace(floor, floor_key=(0, 0, 0), town_flag=True)
         self.assertIsNone(battle._small_floor(policy, town))  # never in town
         self.assertIsNone(battle._small_floor(policy, self.floor(99)))  # too late

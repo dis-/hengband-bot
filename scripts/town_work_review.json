@@ -22769,5 +22769,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "finale_prep.py:town_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Town only: the 99F/100F preparation phase's home and supplies steps (finale_prep); None out of town or while a recall counts down.",
+    "evidence": "The phase's Home read delegates to _home_full_knowledge_key (home-full-knowledge, no game time); its supplies step files a Home errand (_file_home_errand) routed by the finale-prep-home need and returns None; no command of its own."
+  },
+  "finale_prep.py:_signature": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Pure: the catalogue id's item part, read by the preparation phase in town.",
+    "evidence": "String helper of the phase's fixed target (finale_prep); no command or independent credit."
   }
 }

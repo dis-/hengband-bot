@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import angband_finale
+from hengbot import angband_finale, finale_prep
 from hengbot import approach_answer, home_pass_charge, launcher_upgrade, spare_gear
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
@@ -922,9 +922,10 @@ class EquipmentMixin:
         )
 
     def _angband_finale_order(self) -> bool:
-        """The worn loadout's search is in the finale's rank: the switching visit only (owner
-        2026-11-20 「上限を外す時に初めて着け替える」); its input key and its search read this one."""
-        return angband_finale.switching(self)
+        """The worn loadout's search is in the finale's rank: from the preparation phase's loadout
+        step on (finale_prep ``dedicated_order``; owner 2026-11-20 「上限を外す時に初めて着け替える」);
+        its input key and its search read this one."""
+        return finale_prep.dedicated_order(self)
 
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
@@ -1291,6 +1292,9 @@ class EquipmentMixin:
             # quality. They may preserve an item during planning but cannot
             # remove it from target selection.
             search_excluded = frozenset()
+        # The preparation phase's swap: every owned piece but its fixed target's is out of the
+        # search, so the transaction composes the keys toward that set only (finale_prep).
+        search_excluded |= finale_prep.excluded_ids(self, catalog)
         search_catalog = tuple(
             replace(item, random_teleport_suppressed=True)
             if (
@@ -1346,11 +1350,12 @@ class EquipmentMixin:
             # town:blocked:unmet:equipment_departure_ready).
             ("random-teleport-suppressed", tuple(sorted(
                 item.id for item in catalog if item.random_teleport_suppressed))),) + (
-            # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's order of the worn
-            # loadout's search (the switch) and the read-only search beside it (supplied, not yet
-            # switched) are inputs too: a hit kept the ordinary result across the switch.
-            (("angband-finale", angband_finale.switching(self), angband_finale.lifted(self),
-              angband_finale.feasibility_due(self, snapshot)),)
+            # The preparation phase (finale_prep): the finale's order of the worn loadout's
+            # search, the read-only search of its check step and the swap's fixed target are
+            # inputs too: a hit kept the ordinary result across the switch.
+            (("angband-finale", finale_prep.dedicated_order(self), angband_finale.lifted(self),
+              angband_finale.feasibility_due(self, snapshot),
+              tuple(sorted(finale_prep.phase(self).target or ()))),)
             if angband_finale.preparing(snapshot) else ())
         if (
             signature == self._equipment_optimization_signature
@@ -1456,7 +1461,8 @@ class EquipmentMixin:
                 )
                 self._equipment_optimization_preparation = preparation
                 self._set_equipment_transaction_session(
-                    self._equipment_transaction_session_for_preparation(preparation)
+                    None if finale_prep.holds_swap(self)
+                    else self._equipment_transaction_session_for_preparation(preparation)
                 )
             self._equipment_optimization_pack_items = len(snapshot.inventory)
             if self._equipment_optimizer_knowledge_key is None:
@@ -1619,6 +1625,8 @@ class EquipmentMixin:
                 finale=True, cap_lifted=True)
             if angband_finale.feasibility_due(self, snapshot) else None
         )
+        # The phase's loadout step: this search (in the finale's rank) chooses its fixed target.
+        finale_prep.fix_target(self, snapshot, preparation)
         result = getattr(preparation, "result", None)
         if result is not None:
             # Observation-only mirror of warrior_optimization's search-factory
@@ -1775,7 +1783,9 @@ class EquipmentMixin:
         ):
             self._equipment_optimization_timed_out_this_visit = True
         self._set_equipment_transaction_session(
-            self._equipment_transaction_session_for_preparation(preparation)
+            # No swap before the preparation phase's own swap step (finale_prep).
+            None if finale_prep.holds_swap(self)
+            else self._equipment_transaction_session_for_preparation(preparation)
         )
         previous_target_ids = self._equipment_fresh_search_target_ids
         current_target_ids = frozenset(selected_ids)

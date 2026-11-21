@@ -47,7 +47,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import angband_cap, angband_finale, consumable_policy, me_device_policy
+from hengbot import angband_cap, angband_finale, consumable_policy, finale_prep, me_device_policy
 from hengbot.equipment_optimizer import EvaluatedLoadout, Loadout
 from hengbot.model import (
     DUNGEON_ANGBAND, STORE_BLACK, AbilitySources, SV_POTION_HEALING, SV_POTION_RESISTANCE,
@@ -141,11 +141,18 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
 
     def latch(self, board, *, arrival=True):
         """The board observed as the visit's first town board (``arrival``, after a dungeon
-        board), else as a later board of the same visit."""
-        angband_finale.memory(self.policy).in_town = not arrival
+        board), else as a later board of the same visit: (supplied, the finale's carry, the cap
+        lifted) -- the latter two the preparation phase's (finale_prep)."""
+        finale_prep.phase(self.policy).in_town = not arrival
         angband_finale.observe(self.policy, board)
         held = angband_finale.memory(self.policy)
-        return held.supplied, held.switching, held.ready
+        return held.supplied, finale_prep.carrying(self.policy), finale_prep.lifted(self.policy)
+
+    def at_step(self, step, *, lifted=False):
+        """DECLARED CONSTRUCTED: the preparation phase at ``step`` (finale_prep)."""
+        held = finale_prep.phase(self.policy)
+        held.in_town = True
+        held.step, held.since, held.lifted = step, self.policy._decision_sequence, lifted
 
     # -- (a) the readiness gate and the cap's lift --------------------------------------
 
@@ -163,36 +170,36 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertTrue(angband_cap.capped_at(DUNGEON_ANGBAND, 96, policy))
 
     def test_a_the_stages(self):
-        """Owned at Home with the gear worn: the switching visit (loadout, carry, weight);
-        carried: the lift.  Short of the supplies: no switch (the 95F rules as ever)."""
+        """Owned at Home: the preparation phase is entered (its home and check steps: no carry,
+        no lift); the cap lifts only at its recall step and holds through the expedition; the
+        next town short of the supplies keeps the 95F rules."""
         self.home_stocked()
-        self.assertEqual(self.latch(self.town), (True, True, False))
+        self.assertEqual(self.latch(self.town), (True, False, False))
+        self.assertIn(finale_prep.phase(self.policy).step, (finale_prep.HOME, finale_prep.CHECK))
         self.assertEqual(angband_cap.cap(DUNGEON_ANGBAND, self.policy), 95)
-        self.assertEqual(self.latch(self.pack_stocked()), (True, True, True))
+        self.at_step(finale_prep.RECALL, lifted=True)
         self.assertIsNone(angband_cap.cap(DUNGEON_ANGBAND, self.policy))
         self.assertFalse(angband_cap.capped_at(DUNGEON_ANGBAND, 99, self.policy))
         self.assertEqual(angband_cap.cap(DUNGEON_ANGBAND), 95)  # no policy: the cap as before
+        self.at_step(finale_prep.DONE, lifted=True)
         floor = self.dungeon(96)
         self.assertFalse(angband_cap.capped(floor, 97, self.policy))
         self.assertFalse(angband_cap.climbing(floor, self.policy))
-        angband_finale.observe(self.policy, floor)  # a dungeon board keeps the town's latch
+        angband_finale.observe(self.policy, floor)  # a dungeon board keeps the phase's mark
         self.assertTrue(angband_finale.lifted(self.policy))
         self.policy._home_knowledge_items = self.arrival._home_knowledge_items
         self.assertEqual(self.latch(self.town), (False, False, False))
 
-    def test_a_the_switch_is_decided_on_arrival(self):
-        """「上限を外す時に初めて着け替える」, decided as the visit begins: supplies completed in the
-        middle of a visit switch nothing until the next arrival; a resumed process (no board
-        seen yet) switches nothing either."""
-        self.assertEqual(self.latch(self.town), (False, False, False))
+    def test_a_no_entry_under_a_swap(self):
+        """The phase enters with no equipment swap under way (the order of the worn loadout's
+        search never changes under one), and on any town board of the visit once there is none."""
         self.home_stocked()
+        self.policy._equipment_transaction_session = object()  # DECLARED: a swap under way
         self.assertEqual(self.latch(self.town, arrival=False), (True, False, False))
-        self.assertFalse(angband_finale.switching(self.policy))
-        self.assertEqual(self.latch(self.town), (True, True, False))
-        fresh = copy.deepcopy(self.policy)
-        fresh._angband_finale = angband_finale.Memory()
-        angband_finale.observe(fresh, self.town)
-        self.assertFalse(angband_finale.switching(fresh))
+        self.assertEqual(finale_prep.phase(self.policy).step, finale_prep.IDLE)
+        self.policy._equipment_transaction_session = None
+        self.latch(self.town, arrival=False)
+        self.assertNotEqual(finale_prep.phase(self.policy).step, finale_prep.IDLE)
 
     def test_a_resist_curse_and_blindness_or_light(self):
         """「呪力耐性も要求する」 and 「耐盲目か耐閃光を条件に入れる」 on the board worn."""
@@ -202,50 +209,54 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
                                (("resist_blind", "resist_lite"), "resist_blind|resist_lite")):
             with self.subTest(missing=missing):
                 board = self.without(stocked, names)
-                self.assertEqual(self.latch(board)[2], False)
+                self.latch(board)
                 self.assertIn(missing, angband_finale.memory(self.policy).report["equipment_worn"]["missing"])
+                self.assertIn(missing, angband_finale.board_missing(self.policy, board))
         # Either one is enough.
-        self.assertTrue(self.latch(self.without(stocked, ("resist_blind",)))[2])
-        self.assertTrue(self.latch(self.without(stocked, ("resist_lite",)))[2])
+        self.assertEqual(angband_finale.board_missing(self.policy, self.without(stocked, ("resist_blind",))), [])
+        self.assertEqual(angband_finale.board_missing(self.policy, self.without(stocked, ("resist_lite",))), [])
 
     def test_a_the_owned_gear_is_judged(self):
-        """「現在の装備と自宅の品で満たせるか」, judged by the read-only search before the switch
-        (「上限を外す時に初めて着け替える」): a board without resist curse switches when that search's
-        set has it, not when only the worn loadout's search would."""
+        """「現在の装備と自宅の品で満たせるか」, judged in the phase's check step by the read-only
+        search over the owned gear: a board without resist curse goes on to the supplies when that
+        search's set has it, and stops by name when it has not."""
         self.home_stocked()
         board = self.without(self.pack_stocked(), ("resist_curse",))
-        self.assertIsNone(getattr(self.policy, "_angband_finale_feasibility", None))
-        self.assertEqual(self.latch(board), (True, False, False))  # no search yet: the board's
+        self.at_step(finale_prep.CHECK)
+        self.policy._angband_finale_feasibility = None
         self.assertTrue(angband_finale.feasibility_due(self.policy, board))
+        self.latch(board, arrival=False)
+        self.assertEqual(finale_prep.phase(self.policy).step, finale_prep.CHECK)  # no search yet
         self.chosen_without(None)
-        self.assertEqual(self.latch(board), (True, True, False))
+        self.latch(board, arrival=False)
+        self.assertEqual(finale_prep.phase(self.policy).step, finale_prep.SUPPLIES)
         self.assertFalse(angband_finale.feasibility_due(self.policy, board))
-        self.policy._angband_finale_feasibility = None
-        angband_finale.memory(self.policy).switching = False
+        self.at_step(finale_prep.CHECK)
         self.chosen_without(TR_RES_CURSE)
-        self.assertEqual(self.latch(board), (True, False, False))
+        self.latch(board, arrival=False)
+        held = finale_prep.phase(self.policy)
+        self.assertEqual((held.step, held.stopped), (finale_prep.STOPPED, "check:resist_curse"))
         self.assertIn("resist_curse", angband_finale.memory(self.policy).report["equipment_owned"]["missing"])
-        # The worn loadout's own search does not stand in for it before the switch.
-        self.policy._angband_finale_feasibility = None
-        self.assertEqual(self.latch(board), (True, False, False))
 
-    def test_a_the_worn_loadout_switches_only_on_the_switch(self):
-        """「上限を外す時に初めて着け替える」: before the switch the worn loadout's search has the
-        ordinary inputs (the same key as with no supplies owned) and the read-only search in the
-        finale's rank runs beside it; on the switching visit the worn loadout's own search is the
-        finale's and no second search runs."""
+    def test_a_the_worn_loadout_switches_only_from_the_loadout_step(self):
+        """「上限を外す時に初めて着け替える」: before the phase's loadout step the worn loadout's search
+        has the ordinary inputs (the same key as with no supplies owned) and the read-only search
+        in the finale's rank runs in the check step only; from the loadout step the worn
+        loadout's own search is the finale's and no second search runs."""
         board = self.without(self.town, ("resist_curse",))  # the supplies at Home only
         plain = copy.deepcopy(self.arrival)
         angband_finale.observe(plain, board)
         plain._prepare_equipment_optimization(board)
         self.home_stocked()
-        self.assertEqual(self.latch(board), (True, False, False))
+        self.at_step(finale_prep.CHECK)
         self.policy._prepare_equipment_optimization(board)
-        self.assertEqual(self.policy._equipment_optimizer_input_key, plain._equipment_optimizer_input_key)
         self.assertIsNotNone(self.policy._angband_finale_feasibility)
         self.assertIsNone(getattr(plain, "_angband_finale_feasibility", None))
-        self.chosen_without(None)
-        self.assertEqual(self.latch(board), (True, True, False))
+        self.at_step(finale_prep.SUPPLIES)
+        self.policy._prepare_equipment_optimization(board)
+        self.assertEqual(self.policy._equipment_optimizer_input_key, plain._equipment_optimizer_input_key)
+        self.assertIsNone(self.policy._angband_finale_feasibility)
+        self.at_step(finale_prep.SWAP)
         self.policy._prepare_equipment_optimization(board)
         self.assertNotEqual(self.policy._equipment_optimizer_input_key, plain._equipment_optimizer_input_key)
         self.assertIsNone(self.policy._angband_finale_feasibility)
@@ -254,7 +265,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         """「取り込んだ岩石溶解を条件に入れる」: ten absorbed, bought and absorbed below it."""
         self.home_stocked()
         self.stone_to_mud_count(9)
-        self.assertEqual(self.latch(self.pack_stocked()), (False, False, False))
+        self.assertEqual(self.latch(self.pack_stocked())[0], False)
         page = self.black_market
         ware = replace(page.store.items[0], name="岩石溶解の魔法棒", tval=TVAL_WAND,
                        sval=SV_WAND_STONE_TO_MUD, count=1, price=500, aware=True)
@@ -262,7 +273,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
                        player=replace(page.player, gold=10_000_000))
         self.assertTrue(me_device_policy.purchase_wanted(self.policy, rich, ware))
         self.stone_to_mud_count(10)
-        self.assertEqual(self.latch(self.pack_stocked()), (True, True, True))
+        self.assertEqual(self.latch(self.pack_stocked())[0], True)
         self.assertFalse(me_device_policy.purchase_wanted(self.policy, rich, ware))
 
     # -- (b) the supplies -------------------------------------------------------------
@@ -275,7 +286,9 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertIsNone(angband_finale.carry_target(policy, board, star))  # 「準備がそろってから」
         self.home_stocked()
         self.latch(board)
-        self.assertTrue(angband_finale.switching(policy))
+        self.assertFalse(angband_finale.carrying(policy))  # the phase's supplies step carries
+        self.at_step(finale_prep.SUPPLIES)
+        self.assertTrue(angband_finale.carrying(policy))
         big = replace(board, inventory=[healing if item is pack[HEALING] else item
                                         for item in board.inventory])
         # Kept: 30 of a stack of 35 (the retention authority every sale and deposit asks).
@@ -331,6 +344,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertTrue(policy._inventory_overweight(fast))  # not stocked: the limit as before
         self.home_stocked()
         self.latch(board)
+        self.at_step(finale_prep.SUPPLIES)
         # Recorded: +25 is not above +25, so 2136 > 1950 stays overweight.
         self.assertTrue(policy._inventory_overweight(board))
         # Speed 140 unslowed (2136 slows nothing: (2136-1950)//390 = 0): four steps of 390 keep

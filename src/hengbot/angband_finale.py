@@ -30,25 +30,17 @@ The answers to the report's questions (2026-11-20, verbatim):
   着け替える」: the 95F exploration keeps the ordinary loadout and weight rules the whole time;
   the switch is the town visit that heads to 99F/100F, and the cap lifts after it.
 
-The stages, measured on every town board:
-* ``supplied``: the supplies in the pack and at Home (the last Home census) and the absorbed
-  Stone to Mud.  From here the policy also searches the owned gear in the finale's rank
-  (policy_equipment's ``_angband_finale_feasibility``: a second search, read only; the loadout
-  worn is still the ordinary one).
-* ``switching`` (``Memory.switching``, the visit that heads to 99F/100F): ``supplied`` and the
-  equipment conditions met by the board's own abilities or by the set that search chose.  From
-  here the optimizer orders the loadouts by the finale's rank (the swap is the town's work), the
-  supplies are carried (kept, taken from Home) and the pack may be overweight.
-* ``ready`` (``Memory.ready``, the cap's lift): ``switching`` with the counts in the pack and the
-  conditions on the board itself (the set worn).
+The switch itself is the preparation phase (finale_prep, owner 2026-11-21 「専用の準備フェイズを作って
+準備して」): its check, supplies, loadout, swap and recall steps own the transition, and the readers
+below ask it (``carrying``, ``lifted``).
 
 Who reads what here:
 
-* ``observe`` (every decision): on a town board the readiness is measured again and latched
-  (``Memory.ready``); a dungeon board keeps the latch of the town it left, so the dive the town
-  decided is the dive taken.  The restore-mana uses of the expedition are counted on the dungeon
-  boards (a drop of the carried potions on 99F/100F) and cleared in town.
-* ``lifted``: angband_cap's lift (``cap(..., policy)``): no 95F cap while the latch holds.
+* ``observe`` (every decision): on a town board the readiness is measured (``supplied``: the
+  supplies in the pack and at Home, the last Home census, and the absorbed Stone to Mud) and
+  handed to the phase.  The restore-mana uses of the expedition are counted on the dungeon boards
+  (a drop of the carried potions on 99F/100F) and cleared in town.
+* ``lifted``: angband_cap's lift (``cap(..., policy)``): the phase's recall step and the expedition.
 * ``carry_target`` / ``retention`` / ``potion_target`` / ``missing``: the supply plan once the
   character prepares (a Magic-Eater whose Angband recall depth reached the cap): what the pack
   keeps (policy_home), takes from Home and buys (policy_supply, policy_shop).
@@ -118,26 +110,18 @@ DONE_STATUSES = frozenset({2, 3, 4})
 
 @dataclass
 class Memory:
-    ready: bool = False               # the last town board's readiness (the cap's lift)
     supplied: bool = False            # the supplies owned (pack + Home) and the Stone to Mud
-    switching: bool = False           # the visit that heads to 99F/100F: loadout, carry, weight
     report: dict = field(default_factory=dict)  # that board's rows, for the record
     small_floor_set: bool = False     # the pref command was answered by the game
     small_floor_pending: int | None = None  # the turn of the posted command
     restore_mana_used: int = 0        # this expedition's Restore Mana spent on 99F/100F
     restore_mana_seen: int | None = None    # the carried count on the last dungeon board
-    # Whether the last board was a town board (False: a dungeon board, so the next town board is
-    # an arrival).  None until a board says: a new process, or a checkpoint from before this
-    # field, resumed inside a visit is no arrival and switches nothing.
-    in_town: bool | None = None
+    in_town: bool | None = None       # the last board's side
     # The last current Home census's counts of the finale's kinds ({(tval, sval): count}), kept
     # across the trip: the Home does not change while the character is away, and the arrival
     # board often has no census (n1-c life-217 2026-11-20 23:30:21: none until the visit's
     # second board, so the Home's 120 Restore Mana were not counted).  None: none seen yet.
     home_counts: dict | None = None
-    # The visit's switch is decided (on the arrival with ``home_counts``, else on the visit's
-    # first board with a current census).  A class default: restored checkpoints predate it.
-    decided: bool = True
     # The other towns' Teleportation circuit (finale_teleport_tour) ended on this trip: no new
     # one until a dungeon board.  A class default: restored checkpoints predate it.
     teleport_tour_done: bool = False
@@ -267,26 +251,15 @@ def board_missing(policy, snapshot) -> list:
 
 
 def owned_missing(policy, snapshot) -> list | None:
-    """The equipment conditions the set the optimizer chose from the owned gear does not meet
-    (owner 2026-11-20 Q9 「現在の装備と自宅の品で満たせるか」), else None (no chosen set yet)."""
-    from hengbot.equipment_optimizer import ABILITY_FLAG
-    from hengbot.speed_valuation import loadout_speed, meets_speed_gate
-    # Before the switch the second, read-only search's set; on the switching visit the worn
-    # loadout's own search is already the finale's (policy_equipment).
-    preparation = (getattr(policy, "_equipment_optimization_preparation", None)
-                   if switching(policy) else getattr(policy, "_angband_finale_feasibility", None))
-    best = getattr(getattr(preparation, "result", None), "best", None)
+    """The equipment conditions the set the read-only search chose from the owned gear does not
+    meet (owner 2026-11-20 Q9 「現在の装備と自宅の品で満たせるか」; finale_prep's check step runs that
+    search), else None (no chosen set)."""
+    from hengbot import finale_prep
+    best = getattr(getattr(getattr(policy, "_angband_finale_feasibility", None), "result", None),
+                   "best", None)
     if best is None:
         return None
-    flags = best.loadout.flags
-    names = {**ABILITY_FLAG, RESIST_CURSE: 148, "resist_blind": 56, "resist_lite": 54}
-    abilities = {name for name, flag in names.items() if flag in flags}
-    abilities |= {name for name, sources in snapshot.player.ability_sources.items()
-                  if set(sources) & INTRINSIC_SOURCES}
-    from hengbot import destruction_use
-    return _missing(policy, snapshot, frozenset(abilities),
-                    speed_met=meets_speed_gate(loadout_speed(best.metrics)),
-                    means_held=destruction_use.holds_means(policy, snapshot))
+    return finale_prep.set_missing(policy, snapshot, best.loadout, best.metrics)
 
 
 def readiness(policy, snapshot) -> dict:
@@ -294,7 +267,7 @@ def readiness(policy, snapshot) -> dict:
     equipment owned (``owned_missing``, else the board's) and worn (``board_missing``)."""
     worn = board_missing(policy, snapshot)
     chosen = owned_missing(policy, snapshot)
-    owned_gear = worn if chosen is None or not worn else chosen
+    owned_gear = worn if chosen is None else chosen
     return {"owned": supply_rows(policy, snapshot, lambda kind: owned(policy, snapshot, kind)),
             "carried": supply_rows(policy, snapshot, lambda kind: carried(snapshot, kind)),
             "equipment_owned": {"missing": owned_gear, "ready": not owned_gear},
@@ -306,50 +279,44 @@ def ready(rows: dict) -> bool:
 
 
 def observe(policy, snapshot) -> None:
-    """Latch the readiness's stages on a town board; count the expedition's Restore Mana uses."""
+    """Measure the readiness on a town board and hand it to the preparation phase (finale_prep,
+    the one owner of the switch); count the expedition's Restore Mana uses."""
+    from hengbot import finale_prep  # import cycle
     held = memory(policy)
     if held.small_floor_pending is not None and snapshot.turn is not None:
         # The pref command spends no game time: the next board after it is its answer.
         held.small_floor_set = True
         held.small_floor_pending = None
     if snapshot.in_town:
-        arrival, held.in_town = getattr(held, "in_town", None) is False, True
+        held.in_town = True
         held.restore_mana_used = 0
         held.restore_mana_seen = None
         if not preparing(snapshot):
-            held.ready = held.supplied = held.switching = False
+            held.supplied = False
             held.report = {}
+            finale_prep.observe(policy, snapshot, None)
             return
         held.report = rows = readiness(policy, snapshot)
         held.supplied = ready(rows["owned"])
-        census = _census_current(policy)
-        if arrival:
-            held.decided = census or getattr(held, "home_counts", None) is not None
-        elif not getattr(held, "decided", True) and census:
-            # No census kept yet (a first visit after a restart or this change): the visit's
-            # first board with a current census decides.  The equipment work waits for that
-            # census (the catalogue's Home scan), so no swap has begun before it.
-            arrival, held.decided = True, True
         _keep_home_counts(policy)
-        if arrival:
-            # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the switch is decided as the
-            # visit begins, never in its middle (n1-b life-411 2026-11-20 22:29-22:32: the
-            # Teleportation bought at the visit's 33rd decision completed the supplies, the loadout
-            # order changed mid-visit, a swap through Home failed half done and the departure's
-            # gear check stopped the town).
-            held.switching = held.supplied and rows["equipment_owned"]["ready"]
-        held.ready = (held.switching and ready(rows["carried"])
-                      and rows["equipment_worn"]["ready"])
+        finale_prep.observe(policy, snapshot, rows)
         return
     held.in_town = False
     held.teleport_tour_done = False
     from hengbot import finale_teleport_tour  # import cycle
     finale_teleport_tour.forget_trip(policy)
+    finale_prep.observe(policy, snapshot, None)
     now = carried(snapshot, RESTORE_MANA)
     if (held.restore_mana_seen is not None and now < held.restore_mana_seen
             and on_finale_floor(snapshot)):
         held.restore_mana_used += held.restore_mana_seen - now
     held.restore_mana_seen = now
+
+
+def census_known(policy) -> bool:
+    """The Home's counts are known: a current census, or the one kept across the trip."""
+    held = getattr(policy, MEMORY, None)
+    return _census_current(policy) or getattr(held, "home_counts", None) is not None
 
 
 def supplied(policy) -> bool:
@@ -358,23 +325,23 @@ def supplied(policy) -> bool:
     return bool(held is not None and held.supplied)
 
 
-def switching(policy) -> bool:
-    """The visit that heads to 99F/100F (owner 2026-11-20 「上限を外す時に初めて着け替える」): the
-    dedicated loadout, the carry and the weight allowance hold."""
-    held = getattr(policy, MEMORY, None)
-    return bool(held is not None and held.switching)
+def carrying(policy) -> bool:
+    """The finale's carry, ranking and weight allowance hold (finale_prep ``carrying``)."""
+    from hengbot import finale_prep  # import cycle
+    return finale_prep.carrying(policy)
 
 
 def feasibility_due(policy, snapshot) -> bool:
-    """policy_equipment's read-only search in the finale's rank: the supplies owned, the switch
-    not yet made (the worn loadout's search is the ordinary one)."""
-    return preparing(snapshot) and supplied(policy) and not switching(policy)
+    """policy_equipment's read-only search over the owned gear in the finale's rank: the
+    preparation phase's check step (finale_prep ``owned_search_due``)."""
+    from hengbot import finale_prep  # import cycle
+    return preparing(snapshot) and finale_prep.owned_search_due(policy)
 
 
 def lifted(policy) -> bool:
-    """The 95F cap is lifted: the last town board was ready (owner 2026-11-20 answer 1)."""
-    held = getattr(policy, MEMORY, None)
-    return bool(held is not None and held.ready)
+    """The 95F cap is lifted (finale_prep ``lifted``: the phase's recall step and the expedition)."""
+    from hengbot import finale_prep  # import cycle
+    return finale_prep.lifted(policy)
 
 
 def on_finale_floor(snapshot) -> bool:
@@ -409,7 +376,7 @@ def restore_mana_overspent(policy, snapshot) -> bool:
 def carry_target(policy, snapshot, item) -> int | None:
     """The finale's carry of ``item``'s kind once the supplies and the equipment are owned
     (owner 2026-11-20 Q9 「準備がそろってから」), else None."""
-    if not preparing(snapshot) or not switching(policy) or not getattr(item, "aware", True):
+    if not preparing(snapshot) or not carrying(policy) or not getattr(item, "aware", True):
         return None
     kind = _kind(item)
     if kind == RESTORE_MANA:
@@ -452,7 +419,7 @@ def potion_target(policy, snapshot, item) -> tuple[int, str] | None:
 def missing(policy, snapshot, item) -> int | None:
     """policy_supply ``_procurement_missing_amount``'s answer for a Teleportation scroll (the
     potions answer through ``potion_target``), else None."""
-    if _kind(item) != TELEPORT or not preparing(snapshot) or not switching(policy):
+    if _kind(item) != TELEPORT or not preparing(snapshot) or not carrying(policy):
         return None
     return max(0, CARRY[TELEPORT] - carried(snapshot, TELEPORT))
 
@@ -485,7 +452,7 @@ def weight_limit(policy, snapshot, limit: int | None) -> int | None:
     """The heaviest pack answer 3 allows once the supplies and the equipment are owned (owner
     2026-11-20 Q9): the weight whose slowdown keeps the permanent speed above +25 (``limit``
     itself when none does)."""
-    if limit is None or not preparing(snapshot) or not switching(policy):
+    if limit is None or not preparing(snapshot) or not carrying(policy):
         return limit
     from hengbot.speed_valuation import permanent_player_speed
     unslowed = permanent_player_speed(snapshot) + slowdown(policy._inventory_weight(snapshot), limit)
@@ -501,8 +468,8 @@ def weight_limit(policy, snapshot, limit: int | None) -> int | None:
 
 def small_floor_due(policy, snapshot) -> bool:
     """The cap is lifted and the option was not set yet this life: before the descent."""
-    held = getattr(policy, MEMORY, None)
-    return bool(held is not None and held.ready and not held.small_floor_set
+    held = memory(policy)
+    return bool(lifted(policy) and not held.small_floor_set
                 and held.small_floor_pending is None and magic_eater(snapshot))
 
 
@@ -532,6 +499,7 @@ def describe(policy) -> dict | None:
     held = getattr(policy, MEMORY, None)
     if held is None:
         return None
-    return {"ready": held.ready, "supplied": held.supplied, "switching": held.switching,
+    from hengbot import finale_prep  # import cycle
+    return {"supplied": held.supplied, "phase": finale_prep.describe(policy),
             "report": held.report, "small_floor_set": held.small_floor_set,
             "restore_mana_used": held.restore_mana_used}

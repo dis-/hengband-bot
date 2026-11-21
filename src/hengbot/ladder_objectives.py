@@ -17,6 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
+from hengbot import finale_prep
 from hengbot import approach_answer, return_start
 from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
@@ -133,6 +134,12 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
     restore_weapon = policy._town_producer_entry("_town_restore_weapon_key", lambda: policy._town_restore_weapon_key(snapshot))
     if restore_weapon is not None:
         return restore_weapon
+
+    # The 99F/100F preparation phase's own keys (owner 2026-11-21 「専用の準備フェイズ」): its Home
+    # read, and the filing of its Home withdrawals, before the ordinary town work (finale_prep).
+    prep = finale_prep.town_key(policy, snapshot)
+    if prep is not None:
+        return prep
 
     # Rung #1 applies only while stage-2 quest travel owns the town
     # (its intended_terminal, town_terminal.fixed_quest_return_intended_terminal).

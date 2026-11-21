@@ -44,7 +44,7 @@ import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
 from hengbot import launcher_upgrade
-from hengbot import quest_optional_carry
+from hengbot import finale_prep, quest_optional_carry
 from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_answer, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
 from hengbot.never_dispose import never_disposed
@@ -6004,6 +6004,7 @@ class ShopMixin(InStoreMixin):
         }
         home_errand_categories = {
             "experience-potion-home", quest_optional_carry.CATEGORY, "identification-withdrawal",
+            finale_prep.CATEGORY,
             "fundraising-kit", "stored-detection", "stored-digger",
             "ammo-home-first", "home-star-remove-curse-use",
             "home-star-remove-curse-check",

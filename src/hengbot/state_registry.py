@@ -93,9 +93,14 @@ REGISTRY = (
       "cleared on a dungeon board"),
     # angband_finale
     S("_angband_finale_feasibility", "policy_equipment", LIFE,
-      "angband_finale: the read-only optimizer search in the finale's rank before the switch "
-      "to 99F/100F (owner 2026-11-20 「上限を外す時に初めて着け替える」), whose chosen set the "
-      "readiness judges; None when not due"),
+      "angband_finale: the read-only optimizer search over the owned gear in the finale's rank, "
+      "run in the preparation phase's check step (finale_prep), whose chosen set the check "
+      "judges; None when not due"),
+    # finale_prep
+    S("_finale_prep", "finale_prep", LIFE,
+      "finale_prep: the 99F/100F preparation phase (owner 2026-11-21 「専用の準備フェイズを作って"
+      "準備して」): its step, the swap's fixed target, the cap-lifted mark carried to the next town, "
+      "a stop's named reason and the visit's step log"),
     S("_angband_finale", "angband_finale", LIFE,
       "angband_finale: the 99F/100F readiness latched on the last town board (the 95F cap's lift, "
       "owner 2026-11-20), the small-floor option's state and the expedition's Restore Mana uses"),

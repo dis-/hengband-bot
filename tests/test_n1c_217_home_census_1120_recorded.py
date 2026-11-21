@@ -10,8 +10,9 @@ Teleportation.  The switch (owner 2026-11-20 「上限を外す時に初めて�
 visit begins, so supplies kept at Home could never switch.
 
 Now the Home counts are kept across the trip (the Home does not change while away) and counted on
-the next arrival; with no census kept yet, the visit's first board with a current census decides
-(the equipment work waits for that census, so no swap has begun before it).
+the next arrival, where the 99F/100F preparation phase (finale_prep) is entered from them and reads
+the Home first; with no census kept yet, no phase is entered until a board with a current census
+counts the supplies owned.
 
 DECLARED CONSTRUCTED:
 * ``next_arrival``: the visit's last board as a dungeon board (Angband 95F) and then again as a
@@ -28,7 +29,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import angband_finale
+from hengbot import angband_finale, finale_prep
 from hengbot.model import DUNGEON_ANGBAND, SV_SCROLL_TELEPORT, TVAL_SCROLL
 from support.town_arrival_fixture import load
 
@@ -91,39 +92,40 @@ class N1c217HomeCensusRecordedTest(unittest.TestCase):
         self.assertFalse(policy._home_knowledge_current)
         self.assertEqual(owned_counts(policy), counts)
 
-    def test_the_switch_on_the_next_arrival_from_the_kept_counts(self):
+    def test_the_phase_on_the_next_arrival_from_the_kept_counts(self):
+        """The kept counts let the preparation phase enter on the next arrival (finale_prep); its
+        home step then reads the Home before anything is counted on it."""
         policy = self.policy
         self.play(policy, range(len(self.steps)))
         self.with_teleports(policy)
         self.play_census_board(policy)
         self.assertTrue(angband_finale.supplied(policy))
         self.next_arrival(policy)
-        self.assertTrue(angband_finale.switching(policy))
+        held = finale_prep.phase(policy)
+        self.assertEqual(held.step, finale_prep.HOME)
+        self.assertFalse(finale_prep.carrying(policy))
+        policy._home_knowledge_scan_requested = False
+        policy._home_knowledge_scan_epoch = None
+        policy._home_knowledge_scan_inflight = False
+        key = finale_prep.town_key(policy, self.boards[-1])
+        self.assertEqual((key, policy.last_reason), ("~9\x1b", finale_prep.HOME_REASON))
 
-    def test_no_census_kept_the_first_census_board_decides(self):
-        """A first visit with no kept counts (a checkpoint from before this change): the arrival
-        decides nothing, the visit's first board with a current census does, once."""
+    def test_no_census_kept_no_entry_until_one(self):
+        """A first visit with no kept counts (a checkpoint from before them): the phase is not
+        entered on the arrival; the visit's first board with a current census counts the Home,
+        and the phase enters once the supplies are owned on it."""
         policy = self.policy
-        held = angband_finale.memory(policy)
-        held.in_town, held.home_counts = False, None  # DECLARED: the board before was a dungeon board
+        memory = angband_finale.memory(policy)
+        memory.home_counts = None  # DECLARED: no census kept
+        finale_prep.phase(policy).in_town = False  # DECLARED: the board before was a dungeon board
         self.play(policy, [0])
-        self.assertFalse(held.decided)
-        self.assertFalse(angband_finale.switching(policy))
-        policy_with_census = policy
-        self.play(policy_with_census, [1])
-        self.assertTrue(held.decided)
-        self.assertFalse(angband_finale.switching(policy))  # decided: the teleports are short
-        # The same first census with the supplies complete switches there (the decision taken
-        # again on that board, the Teleportation added).
+        held = finale_prep.phase(policy)
+        self.assertEqual(held.step, finale_prep.IDLE)
+        self.play(policy, [1])
+        self.assertEqual(held.step, finale_prep.IDLE)  # counted: the teleports are short
         self.with_teleports(policy)
-        held.decided, held.switching = False, False
         angband_finale.observe(policy, self.boards[1])
-        self.assertTrue(angband_finale.switching(policy))
-        # Once decided, a later board of the visit decides nothing more.
-        policy._home_knowledge_items = tuple(item for item in policy._home_knowledge_items
-                                             if item.tval != TVAL_SCROLL or item.sval != SV_SCROLL_TELEPORT)
-        self.play(policy, [2])
-        self.assertTrue(angband_finale.switching(policy))
+        self.assertNotEqual(held.step, finale_prep.IDLE)
 
     def play_census_board(self, policy):
         angband_finale.observe(policy, self.boards[-1])

@@ -7,7 +7,7 @@ Market again.  The no-progress cycle guard (``_refuse_no_progress_cycle``) compa
 the store and the pack and equipment (gold excluded): the potion bought and drunk left the pack
 as it was at the first entry, so the second entry was refused as livelock:exhausted, although
 the stat was restored in between.  (The 99F/100F switch did not happen on this visit:
-angband_finale.switching is False, the owned equipment lacking *Destruction*; the Home swaps
+the cap was not lifted, the owned equipment lacking *Destruction*; the Home swaps
 before it were the optimizer's one change per slot.)
 
 Recorded: that visit's town-arrival checkpoint and its whole journal (tests/
@@ -23,7 +23,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import angband_finale
+from hengbot import angband_finale, finale_prep
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
 
@@ -42,6 +42,10 @@ class N1b411SwitchLoopRecordedTest(unittest.TestCase):
 
     def test_the_black_market_again_after_the_restore(self):
         policy = self.policy
+        # DECLARED: the 99F/100F preparation phase stopped for this visit (the build of the record
+        # had none; this test is the no-progress guard's), so the replay keeps the recorded swaps.
+        held = finale_prep.phase(policy)
+        held.in_town, held.step, held.stopped = True, finale_prep.STOPPED, "declared"
         drained = {}
         for recorded, supply in self.steps:
             board = supply()
@@ -58,7 +62,7 @@ class N1b411SwitchLoopRecordedTest(unittest.TestCase):
                 chain = policy.peek_staged_prompt_chain()
                 if chain is not None and staged_prompt_chain_matches(chain, recorded["key"]):
                     policy.commit_staged_prompt_chain({"outcome": "released", "posted": recorded["key"]})
-        self.assertFalse(angband_finale.memory(policy).switching)
+        self.assertFalse(angband_finale.lifted(policy))
         self.assertIn("int", drained["restore:quaff-int"])
         self.assertEqual(board.player.drained_stats, ())
         self.assertEqual(recorded["key"], "5")
