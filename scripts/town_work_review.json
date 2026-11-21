@@ -22352,6 +22352,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_restore_stats": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "Owner 2026-11-21: the drained stats after a teleport in the recovery phase: the turn-free browse of a stale rod list (bC), the absorbed Restoration's cast, else the eat of a carried Mushroom of Restoring through reserved_item_command, setting last_reason.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "angband_finale_battle.py:_rocket": {
     "classification": "dungeon-only",
     "rows": [

@@ -107,7 +107,8 @@ REGISTRY = (
     # angband_finale_battle
     S("_angband_finale_battle", "angband_finale_battle", FLOOR,
       "angband_finale_battle: the 99F/100F battle of the floor it names (phase, last-seen target "
-      "cell, the stand of the Stone to Mud line); every floor change forgets it (floor_visit_memory: "
+      "cell, the stand of the Stone to Mud line, the turn the rod list was browsed for "
+      "Restoration); every floor change forgets it (floor_visit_memory: "
       "a level regenerated under the same key is a new floor)"),
     # amberite_curse
     S("_amberite_curse_note", "amberite_curse", LIFE,

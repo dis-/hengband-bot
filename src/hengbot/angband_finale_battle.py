@@ -84,6 +84,7 @@ HASTE_REASON = f"{REASON}:haste"
 RESIST_REASON = f"{REASON}:resistance"
 RESTORE_MANA_REASON = f"{REASON}:restore-mana"
 REST_REASON = f"{REASON}:rest"
+RESTORE_STATS_REASON = f"{REASON}:restore-stats"  # the drained stats after a teleport (2026-11-21)
 APPROACH_REASON = f"{REASON}:approach"
 STAND_WALK_REASON = f"{REASON}:stand-walk"
 MELT_REASON = f"{REASON}:melt"
@@ -142,6 +143,7 @@ class Battle:
     summoned: bool = False
     stand: Stand | None = None
     sweep_refusals: int = 0           # the sweep's refused uses in a row
+    restoration_read: int | None = None  # the game turn the rod list was last browsed for Restoration
 
 
 def battle(policy, snapshot) -> Battle:
@@ -302,6 +304,47 @@ def _heal(policy, snapshot) -> str | None:
         policy.last_reason = ABSORBED_HEAL_REASON
         return key
     return _quaff(policy, snapshot, angband_finale.HEALING, HEAL_REASON)
+
+
+def _rod_list_fresh(policy, snapshot) -> bool:
+    """The rod list was displayed on this game turn and no Restore Mana came after it
+    (``rocket_list_fresh``'s mark): its rows are the rods' charges now."""
+    entry = (getattr(policy, "_me_device_lists", None) or {}).get("rod")
+    return (entry is not None and entry[0] == snapshot.turn
+            and "rod" not in me_device_attacks.stale_kinds(policy))
+
+
+def _restore_stats(policy, snapshot, held: Battle) -> str | None:
+    """Owner 2026-11-21 「テレポート後の回復タイミングで能力値が減っていれば食べる。ただし取り込んだ全復活が
+    残っている場合はそちらを優先する」: the absorbed Restoration with a charge, else a carried Mushroom
+    of Restoring.
+
+    The charge is read from a rod list of this game turn: a remembered list is stale once time
+    passes (n1-b life-411's 99F board, turn 7814111, held the rod list of 7813454), charging rows
+    recharge and a cast spends one.  An older list is browsed first (``bC``, no game time:
+    me_powers_refresh), once per turn, so a browse whose list never arrives falls to the mushroom."""
+    from hengbot import me_capability, me_powers_refresh
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.me_absorbed_substitutes import RESTORATION, cast
+    if (me_capability.has(policy, snapshot, *RESTORATION) and not _rod_list_fresh(policy, snapshot)
+            and held.restoration_read != snapshot.turn and not snapshot.player.confused):
+        held.restoration_read = snapshot.turn
+        browse = "b" + me_powers_refresh.KIND_LETTER["rod"]
+        policy.last_reason = me_powers_refresh.REFRESH_REASON
+        policy._offer_execution(
+            browse, producer="bookkeeping", work_id="finale-restoration-read",
+            next_step="magic-eater.browse.send", arguments=("rod",),
+            expected_effect="magic-eater-power-list-observed")
+        return browse
+    key = cast(policy, snapshot, RESTORATION, RESTORE_STATS_REASON) if _rod_list_fresh(
+        policy, snapshot) else None
+    if key is not None:
+        return key
+    mushroom = _carried(snapshot, angband_finale.RESTORING)
+    if mushroom is None:
+        return None
+    policy.last_reason = RESTORE_STATS_REASON
+    return reserved_item_command(policy, snapshot, "eat", mushroom)
 
 
 def rocket_list_fresh(policy) -> bool:
@@ -555,6 +598,10 @@ def _recover_key(policy, snapshot, held: Battle) -> str | None:
         healed = _heal(policy, snapshot)
         if healed is not None:
             return healed
+    if player.drained_stats:
+        restored_stats = _restore_stats(policy, snapshot, held)
+        if restored_stats is not None:
+            return restored_stats
     if player.hp < player.max_hp:
         policy.last_reason = REST_REASON
         return REST_MACRO

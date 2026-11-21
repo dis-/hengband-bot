@@ -18,7 +18,8 @@ DECLARED CONSTRUCTED:
   equipment transaction), the transaction left none;
 * the next visit's arrival: the expedition's board as Angband 99F, then the town board again with
   no swap under way;
-* n1-b's 04:55 visit (tests/fixtures/n1b-411-switch-loop-1121) with the phase at its check step.
+* n1-b's 04:55 visit (tests/fixtures/n1b-411-switch-loop-1121) with the phase at its check step;
+* n1-c's Home census without its Mushroom of Restoring, as after its withdrawal.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -80,8 +81,9 @@ class FinalePrepRecordedTest(unittest.TestCase):
             self.deliver(policy, recorded["key"])
         return policy, decided
 
-    def stocked(self, policy, board):
-        """DECLARED: the pack holding the finale's counts."""
+    def stocked(self, policy, board, *, mushrooms_taken=True):
+        """DECLARED: the pack holding the finale's counts; with ``mushrooms_taken``, every Mushroom
+        of Restoring at Home taken out too (finale_prep._restoring_at_home)."""
         targets = {**angband_finale.CARRY,
                    angband_finale.RESTORE_MANA: angband_finale.restore_mana_goal(policy, board)}
         pack = [replace(item, count=targets[(item.tval, item.sval)])
@@ -93,6 +95,12 @@ class FinalePrepRecordedTest(unittest.TestCase):
             if kind not in held:
                 pack.append(replace(template, tval=kind[0], sval=kind[1], count=count,
                                     slot=chr(ord("a") + len(pack))))
+        if mushrooms_taken:
+            for _index, mushroom in finale_prep._restoring_at_home(policy):
+                pack.append(replace(mushroom, slot=chr(ord("a") + len(pack))))
+            policy._home_knowledge_items = tuple(
+                item for item in policy._home_knowledge_items
+                if (item.tval, item.sval) != angband_finale.RESTORING)
         return replace(board, inventory=tuple(pack))
 
     # -- n1-c ------------------------------------------------------------------------------
@@ -175,6 +183,35 @@ class FinalePrepRecordedTest(unittest.TestCase):
         self.assertFalse(finale_prep.lifted(policy))
         # Entered again in town (the Home census current: its home step done at once).
         self.assertEqual([step for _s, step, _n in held.log], [finale_prep.HOME, finale_prep.CHECK])
+
+    def test_n1c_every_mushroom_of_restoring_is_taken(self):
+        """Owner 2026-11-21 「99F100Fに全復活のキノコをあるだけ持っていく」: every one at Home is taken
+        out in the supplies step (no count, no condition) and kept.  Recorded: n1-c's Home holds a
+        Mushroom of Restoring."""
+        policy, decided = self.n1c_until(N1C_ENTRY + 4)
+        held = finale_prep.phase(policy)
+        self.assertEqual(held.step, finale_prep.SUPPLIES)
+        board = self.stocked(policy, decided[-1][1], mushrooms_taken=False)
+        at_home = finale_prep._restoring_at_home(policy)
+        self.assertTrue(at_home)
+        angband_finale.observe(policy, board)
+        self.assertEqual(held.step, finale_prep.SUPPLIES)  # the counts carried, the mushroom not
+        policy._home_errand.cancel_unposted()
+        finale_prep.town_key(policy, board)
+        request = policy._home_errand.request
+        _index, mushroom = at_home[0]
+        self.assertEqual((request.purpose, request.signature, request.quantity),
+                         (finale_prep.PURPOSE, policy._item_signature(mushroom), mushroom.count))
+        # Carried, it is kept whole (the expedition's carry).
+        self.assertEqual(angband_finale.carry_target(policy, board, replace(mushroom, slot="w")),
+                         angband_finale.RESTORING_CARRY)
+        # DECLARED: taken out (none left at Home): the step goes on.
+        policy._home_errand.cancel_unposted()
+        policy._home_knowledge_items = tuple(
+            item for item in policy._home_knowledge_items
+            if (item.tval, item.sval) != angband_finale.RESTORING)
+        angband_finale.observe(policy, board)
+        self.assertEqual(held.step, finale_prep.LOADOUT)
 
     def test_n1c_a_step_left_unfinished_at_the_departure_stops_by_name(self):
         policy, decided = self.n1c_until(N1C_ENTRY + 4)
