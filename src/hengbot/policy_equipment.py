@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import ability_sources, equipment_target
 from hengbot import angband_finale, finale_prep
 from hengbot import approach_answer, destination_band_floor, home_pass_charge, launcher_upgrade, spare_gear
 from hengbot import equipment_rules, equipment_visit_journal
@@ -138,7 +139,6 @@ from hengbot.policy_constants import (
     QUAFF_KEY,
     RANGED_SLEEPER_MAX_DISTANCE,
     RANGED_TARGET_FAILURE_LIMIT,
-    RESIST_FLAG_BY_ABILITY,
     SUMMONER_EXPOSED_NEIGHBORS,
     SUMMONER_RANGED_KILL_SHOTS,
     SWARM_COUNT,
@@ -991,10 +991,10 @@ class EquipmentMixin:
                 "search_telemetry_freshness"
             ] = "current-inputs"
             self._offer_optimizer_result(
-                self._equipment_optimization_preparation,
+                equipment_target.loadout_target(self),
                 source="in-flight-session",
             )
-            return self._equipment_optimization_preparation
+            return equipment_target.loadout_target(self)
         closure = getattr(self, "_equipment_transaction_visit_closure", None)
         if (
             snapshot.in_town
@@ -1003,7 +1003,7 @@ class EquipmentMixin:
             and not self._equipment_transaction_restoring
         ):
             if closure.get("reason") == "pack-space-home-full":
-                preparation = self._equipment_optimization_preparation
+                preparation = equipment_target.loadout_target(self)
                 if preparation is not None:
                     self._offer_execution_no_step(
                         producer="equipment-opt", work_id="equipment:visit-closed",
@@ -1038,8 +1038,7 @@ class EquipmentMixin:
                 None,
                 ("calibration-required",),
             )
-            self._equipment_optimization_signature = None
-            self._equipment_optimization_preparation = preparation
+            equipment_target.set_unsearched_loadout_target(self, preparation)
             self._offer_execution(
                 None, producer="equipment-opt",
                 work_id="equipment:optimizer:calibration",
@@ -1056,7 +1055,7 @@ class EquipmentMixin:
             retired_worn_item_ids
             and live_current.item_ids == retired_worn_item_ids
         ):
-            prior = self._equipment_optimization_preparation
+            prior = equipment_target.loadout_target(self)
             result = getattr(prior, "result", None)
             best = getattr(result, "best", None)
             if best is not None and isinstance(
@@ -1069,8 +1068,7 @@ class EquipmentMixin:
                     EquipmentTransactionPlan((), (), 0),
                     (),
                 )
-                self._equipment_optimization_preparation = preparation
-                self._equipment_optimization_signature = None
+                equipment_target.set_unsearched_loadout_target(self, preparation)
                 self._set_equipment_transaction_session(None)
                 self._offer_optimizer_result(
                     preparation, source="retired-worn-loadout",
@@ -1109,14 +1107,10 @@ class EquipmentMixin:
         # A release is a SECOND CHANCE: an id quarantined again after being
         # released is burned and never released again this visit, so the
         # candidate set shrinks monotonically instead of cycling.
-        required_flags = {
-            RESIST_FLAG_BY_ABILITY[ability]
-            for ability in (
-                required_depth_gates(optimization_depth)
-                if optimization_depth is not None else ()
-            )
-            if ability in RESIST_FLAG_BY_ABILITY
-        }
+        required_flags = ability_sources.ability_flags(
+            required_depth_gates(optimization_depth)
+            if optimization_depth is not None else ()
+        )
         released_failed_ids: set[str] = set()
         for required_flag in required_flags:
             if any(
@@ -1237,9 +1231,7 @@ class EquipmentMixin:
             # target can be applied; they must never choose a different target.
             catalog = operational_catalog
             self._equipment_quarantine_readmitted_ids = ()
-        cached_blockers = getattr(
-            self._equipment_optimization_preparation, "blockers", ()
-        )
+        cached_blockers = equipment_target.loadout_target_blockers(self)
         has_destruction, staff_gate = self._optimizer_destruction_means(
             snapshot, catalog, calibration)
         quest_strategy = (
@@ -1407,11 +1399,11 @@ class EquipmentMixin:
         # before a rule change is stale.
         signature += (("equipment-rules", equipment_rules.RULES_VERSION),)
         if (
-            signature == self._equipment_optimization_signature
+            signature == equipment_target.loadout_search_signature(self)
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
         ):
             cached_best = getattr(
-                getattr(self._equipment_optimization_preparation, "result", None),
+                equipment_target.loadout_target_result(self),
                 "best",
                 None,
             )
@@ -1422,7 +1414,7 @@ class EquipmentMixin:
                     int,
                 )
             ):
-                cached_result = self._equipment_optimization_preparation.result
+                cached_result = equipment_target.loadout_target(self).result
                 self._equipment_optimization_last_depth = (
                     getattr(cached_result, "chosen_depth", None)
                     if getattr(cached_result, "chosen_depth", None) is not None
@@ -1442,14 +1434,14 @@ class EquipmentMixin:
                 "search_telemetry_freshness"
             ] = "current-inputs"
             self._offer_optimizer_result(
-                self._equipment_optimization_preparation,
+                equipment_target.loadout_target(self),
                 source="signature-cache-hit",
             )
-            return self._equipment_optimization_preparation
+            return equipment_target.loadout_target(self)
         if (
             depth_override is None
             and self._equipment_optimization_timed_out_this_visit
-            and self._equipment_optimization_preparation is not None
+            and equipment_target.loadout_target(self) is not None
             and isinstance(cached_blockers, (tuple, list, set, frozenset))
             and "optimization-timeout" in cached_blockers
         ):
@@ -1464,18 +1456,18 @@ class EquipmentMixin:
                 "search_telemetry_freshness"
             ] = "stale-republished"
             self._offer_optimizer_result(
-                self._equipment_optimization_preparation,
+                equipment_target.loadout_target(self),
                 source="town-visit-timeout",
             )
-            return self._equipment_optimization_preparation
-        if signature == self._equipment_optimization_signature:
+            return equipment_target.loadout_target(self)
+        if signature == equipment_target.loadout_search_signature(self):
             self._equipment_optimization_telemetry["result_source"] = (
                 "signature-cache-hit"
             )
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
             ] = "current-inputs"
-            preparation = self._equipment_optimization_preparation
+            preparation = equipment_target.loadout_target(self)
             if (
                 preparation is not None
                 and self._equipment_optimization_pack_items != len(snapshot.inventory)
@@ -1508,7 +1500,7 @@ class EquipmentMixin:
                         if blocker == "pending-random-teleport-suppression"
                     ),
                 )
-                self._equipment_optimization_preparation = preparation
+                equipment_target.replace_loadout_target(self, preparation)
                 self._set_equipment_transaction_session(
                     None if finale_prep.holds_swap(self)
                     else self._equipment_transaction_session_for_preparation(preparation)
@@ -1538,10 +1530,10 @@ class EquipmentMixin:
                 destination_floor=destination_floor,
             )
             self._offer_optimizer_result(
-                self._equipment_optimization_preparation,
+                equipment_target.loadout_target(self),
                 source="signature-cache-replanned",
             )
-            return self._equipment_optimization_preparation
+            return equipment_target.loadout_target(self)
         if _OBSERVER_DEFERS_OPTIMIZER_SEARCH.get():
             # A pure observer: its search would be discarded on exit and redone
             # by the next observer (see _OBSERVER_DEFERS_OPTIMIZER_SEARCH).
@@ -1552,10 +1544,10 @@ class EquipmentMixin:
                 "search_telemetry_freshness"
             ] = "stale-republished"
             self._offer_optimizer_result(
-                self._equipment_optimization_preparation,
+                equipment_target.loadout_target(self),
                 source="observer-search-deferred",
             )
-            return self._equipment_optimization_preparation
+            return equipment_target.loadout_target(self)
         if self._equipment_optimizer_knowledge_key is None:
             self._equipment_optimizer_knowledge_key = warrior_optimizer_knowledge_key(
                 self._monrace_knowledge
@@ -1823,10 +1815,9 @@ class EquipmentMixin:
                 transaction=None,
                 blockers=("equipment-transaction-failed",),
             )
-        previous_signature = self._equipment_optimization_signature
-        self._equipment_optimization_signature = signature
+        previous_signature = equipment_target.loadout_search_signature(self)
         self._equipment_optimization_pack_items = len(snapshot.inventory)
-        self._equipment_optimization_preparation = preparation
+        equipment_target.record_loadout_search(self, signature, preparation)
         preparation_blockers = getattr(preparation, "blockers", ())
         if (
             depth_override is None
@@ -2145,8 +2136,7 @@ class EquipmentMixin:
                     blocker.endswith(("-refused", "-cancelled", "-failed"))
                     for blocker in session.blockers)):
                 self._equipment_catalog.invalidate_home()
-        self._equipment_optimization_signature = None
-        self._equipment_optimization_preparation = None
+        equipment_target.clear_loadout_target(self)
         self._town_blocked_reason = None
         self._retire_slots_filled_by_abandoned_session(snapshot, session)
         if self._equipment_transaction_owned_items:
@@ -2500,8 +2490,7 @@ class EquipmentMixin:
             self._equipment_home_deposit_tombstone = None
             self._equipment_retired_worn_item_ids = frozenset()
             self._equipment_optional_failure_pending = None
-            self._equipment_optimization_signature = None
-            self._equipment_optimization_preparation = None
+            equipment_target.clear_loadout_target(self)
 
     def _mark_equipment_home_full_unavailable(
         self, snapshot: Snapshot, *, block_home_route: bool = True,
@@ -2533,7 +2522,7 @@ class EquipmentMixin:
             "withdrawn_item_ids": [equipment_identity(i) for i in snapshot.inventory
                                    if equipment_identity(i) in withdrawn],
         }
-        self._equipment_optimization_signature = None
+        equipment_target.invalidate_loadout_search(self)
 
     def _close_full_home_equipment_deposit(self, snapshot, session) -> bool:
         """Close only unposted deposits; preserve observation and restoration."""
@@ -3334,7 +3323,7 @@ class EquipmentMixin:
         refused Home deposit already records (transaction None, blocker
         ``equipment-transaction-failed``): the ordinary optional-failure
         departure reads it, and no plan is generated again."""
-        prior = self._equipment_optimization_preparation
+        prior = equipment_target.loadout_target(self)
         return WarriorOptimizationPreparation(
             current_loadout(self._equipment_catalog.items),
             getattr(prior, "result", None),
@@ -3638,7 +3627,7 @@ class EquipmentMixin:
             "posted": False,
             "depth": depth,
             "item_ids": sorted(self._optional_failure_current_loadout(
-                snapshot, self._equipment_optimization_preparation)),
+                snapshot, equipment_target.loadout_target(self))),
             "failed_item_ids": sorted(self._equipment_transaction_failed_items),
         }
         self._equipment_optional_failure_pending = record
@@ -3689,7 +3678,7 @@ class EquipmentMixin:
                 or self._equipment_transaction_session is not None):
             return
         current_ids = self._optional_failure_current_loadout(
-            snapshot, self._equipment_optimization_preparation)
+            snapshot, equipment_target.loadout_target(self))
         if not current_ids or sorted(current_ids) != pending["item_ids"]:
             return
         self._record_confirmed_loadout(snapshot)
@@ -4003,8 +3992,7 @@ class EquipmentMixin:
         """
         if item.known:
             return False
-        best = getattr(getattr(
-            self._equipment_optimization_preparation, "result", None), "best", None)
+        best = getattr(equipment_target.loadout_target_result(self), "best", None)
         loadout = getattr(best, "loadout", None)
         if not isinstance(loadout, Loadout):
             return False

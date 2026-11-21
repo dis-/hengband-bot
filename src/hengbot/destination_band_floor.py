@@ -25,6 +25,7 @@ a target switch leaves it unread, and engaging another one replaces it.
 
 from __future__ import annotations
 
+from hengbot import equipment_target
 from hengbot.equipment_optimizer import DEPTH_BANDS
 
 STATE = "_destination_band_floor"
@@ -46,7 +47,7 @@ def floor(policy) -> int | None:
 
 def _melee_refused(policy, depth: int) -> bool:
     """Whether the last descent refused ``depth``'s band by the half-melee limit alone."""
-    result = getattr(getattr(policy, "_equipment_optimization_preparation", None), "result", None)
+    result = equipment_target.loadout_target_result(policy)
     target = band_of(depth)
     return any(
         decision.band == target
@@ -67,6 +68,6 @@ def engage(policy, snapshot, destination_depth: int) -> bool:
     if getattr(policy, STATE, None) == held or not _melee_refused(policy, destination_depth):
         return False
     setattr(policy, STATE, held)
-    policy._equipment_optimization_signature = None
+    equipment_target.invalidate_loadout_search(policy)
     policy._prepare_equipment_optimization(snapshot)
     return True

@@ -27,6 +27,7 @@ temporary ones show on the status bar (bot-json-output.cpp STATUS_BAR_KEYS: ``he
 """
 
 from __future__ import annotations
+from hengbot import ability_sources
 
 SV_POTION_HEROISM = 32
 FEAR_SPELL, BLIND_SPELL = "SCARE", "BLIND"
@@ -39,7 +40,7 @@ FEAR_WITHHELD, BLIND_WITHHELD = "fear-spell", "blind-spell"
 def fear_covered(policy, snapshot) -> bool:
     """The player resists a fear spell now, or carries a Potion of Heroism to drink."""
     player = snapshot.player
-    if "resist_fear" in player.abilities:
+    if ability_sources.has_ability(player, "resist_fear"):
         return True
     if player.status_bar is not None and FEAR_COVERING_BAR & set(player.status_bar):
         return True
@@ -51,7 +52,7 @@ def blind_covered(snapshot) -> bool:
     with telepathy (owner 2026-11-19 「魔道具術師でテレパシーがあるなら盲目でも戦闘に支障はない」,
     resist_alternatives)."""
     from hengbot import resist_alternatives
-    return ("resist_blind" in snapshot.player.abilities
+    return (ability_sources.has_ability(snapshot.player, "resist_blind")
             or resist_alternatives.blind_covered_by_telepathy(snapshot))
 
 

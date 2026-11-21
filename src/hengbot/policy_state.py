@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import replace
 from copy import deepcopy
+from hengbot import equipment_target
 from hengbot.policy_types import OwnerProgressCore
 from hengbot.retired_values import is_retired
 from hengbot.town_visit import adopt_legacy_attributes as adopt_town_visit_attributes
@@ -132,7 +133,7 @@ def _invalidate_foreign_calibration(state) -> None:
         return
     state["_character_calibration"] = None
     state["_character_calibration_loaded"] = False
-    state["_equipment_optimization_signature"] = None
+    equipment_target.forget_loadout_search_in_state(state)
     state["_equipment_optimizer_input_key"] = None
     state["_confirmed_loadout"] = None
     state["_confirmed_loadout_loaded"] = False

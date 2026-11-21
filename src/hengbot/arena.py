@@ -46,6 +46,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import re
 
+from hengbot import ability_sources
 from hengbot import (
     arena_fight_chain, armor_smith, arena_odds, attack_expectation, blind_strike, combat_answer,
     me_absorbed_substitutes, me_capability, me_device_attacks, me_powers, me_ranged_first,
@@ -177,7 +178,7 @@ def standing(policy) -> ArenaStanding | None:
 def _signature(policy, snapshot, race_id: int) -> tuple:
     player = snapshot.player
     lists = getattr(policy, "_me_device_lists", None) or {}
-    return (race_id, player.hp, player.speed, player.ac, frozenset(player.abilities),
+    return (race_id, player.hp, player.speed, player.ac, frozenset(ability_sources.held_abilities(player)),
             tuple(item.name for item in snapshot.equipment),
             tuple(sorted((kind, turn) for kind, (turn, _rows) in lists.items())))
 

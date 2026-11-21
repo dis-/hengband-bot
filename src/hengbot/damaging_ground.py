@@ -67,6 +67,7 @@ from __future__ import annotations
 from collections import deque
 from functools import wraps
 
+from hengbot import ability_sources
 from hengbot.policy_constants import DIRECTION_DELTAS, SEARCH_KEY, WAIT_KEY
 
 STEP_REASON = "hazard:step-off"
@@ -100,7 +101,7 @@ def hurts_at(policy, snapshot, position) -> bool:
         return False
     if INVULNERABILITY in (player.status_bar or ()):
         return False
-    if ("levitation" in player.abilities
+    if (ability_sources.has_ability(player, "levitation")
             and grid.terrain_id not in getattr(policy, "_deep_damaging_terrain_ids", ())):
         return False
     return elements[grid.terrain_id] not in player.immunities

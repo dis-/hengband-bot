@@ -1,5 +1,6 @@
 """Keep equipment plan admission consistent with the town mutation budget."""
 
+from hengbot import equipment_target
 from hengbot.equipment_transaction_planner import plan_equipment_transactions as _plan
 from hengbot import town_pack_budget as budget
 
@@ -37,4 +38,4 @@ def release_unaffordable_session(policy, snapshot):
             and policy._store_visit.owner == 'equipment-transaction'):
         policy._close_store_visit('equipment-capacity-replan')
     policy._set_equipment_transaction_session(None)
-    policy._equipment_optimization_signature = None
+    equipment_target.invalidate_loadout_search(policy)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import ability_sources
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
@@ -55,7 +56,6 @@ from hengbot.policy_constants import (
     QUAFF_KEY,
     RANGED_SLEEPER_MAX_DISTANCE,
     RANGED_TARGET_FAILURE_LIMIT,
-    RESIST_FLAG_BY_ABILITY,
     SUMMONER_EXPOSED_NEIGHBORS,
     SUMMONER_RANGED_KILL_SHOTS,
     SPEED_POTION_BONUS,
@@ -2992,7 +2992,7 @@ class CombatMixin:
 
     def _has_state_based_free_action(self, snapshot: Snapshot) -> bool:
         """Trust only an explicitly active per-source free-action grant."""
-        return bool(snapshot.player.ability_sources.get("free_action", ()))
+        return bool(ability_sources.ability_source_map(snapshot.player).get("free_action", ()))
     def _paralyzing_monsters(
         self, snapshot: Snapshot, hostiles: list[MonsterState]
     ) -> list[MonsterState]:
@@ -3249,11 +3249,7 @@ class CombatMixin:
         if snapshot.player.blind or snapshot.player.confused:
             return []
 
-        flags = frozenset(
-            flag
-            for ability, flag in RESIST_FLAG_BY_ABILITY.items()
-            if ability in snapshot.player.abilities
-        )
+        flags = ability_sources.held_ability_flags(snapshot.player)
         threats: list[tuple[MonsterState, float]] = []
         for monster in hostiles:
             if monster.asleep:
@@ -3860,11 +3856,7 @@ class CombatMixin:
             aggregate_ranged = None
             if monster.max_ranged_damage > 0 and spell_reach:
                 if knowledge is not None and knowledge.abilities:
-                    flags = frozenset(
-                        flag
-                        for ability, flag in RESIST_FLAG_BY_ABILITY.items()
-                        if ability in snapshot.player.abilities
-                    )
+                    flags = ability_sources.held_ability_flags(snapshot.player)
                     maximum_by_ability = {
                         ability: damage
                         for ability in knowledge.abilities

@@ -9,6 +9,7 @@ whether they can be restored, and the monsters that need not be fought (``need_n
 
 from __future__ import annotations
 
+from hengbot import ability_sources
 from hengbot import (
     destruction_use,
     line_of_fire,
@@ -52,8 +53,8 @@ def irreversible_kinds(policy, snapshot, monster) -> tuple:
     if knowledge is None:
         return ()
     player = snapshot.player
-    abilities = set(player.abilities)
-    sources = player.ability_sources
+    abilities = set(ability_sources.held_abilities(player))
+    sources = ability_sources.ability_source_map(player)
     effects = {blow.effect for blow in knowledge.blows}
     spells = set(knowledge.abilities)
     kinds = []

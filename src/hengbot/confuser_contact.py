@@ -25,6 +25,7 @@ ladder (the 即死 board and the tiers' rules answer there first) and above the 
 
 from __future__ import annotations
 
+from hengbot import ability_sources
 from hengbot import paralyzer_contact, teleport_follower
 from hengbot.threat_escape import STAFF_REASON_SUFFIX
 from hengbot.threat_projection import _with_adjusted_speed, adjusted_speed
@@ -37,7 +38,7 @@ CONFUSE_EFFECT = "CONFUSE"
 def confusers(policy, snapshot, hostiles) -> list:
     """The awake hostiles faster than the player whose confusing blow reaches it before its
     next action; none with resist_conf."""
-    if "resist_conf" in snapshot.player.abilities:
+    if ability_sources.has_ability(snapshot.player, "resist_conf"):
         return []
     found = []
     for monster in hostiles:

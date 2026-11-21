@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
@@ -1583,7 +1584,7 @@ class TownMixin:
             tuple(self._home_pending_batch),
             self._home_atomic_withdraw_pending,
             self._home_atomic_deposit_pending,
-            tuple(getattr(self._equipment_optimization_preparation, "blockers", ())),
+            tuple(equipment_target.loadout_target_blockers(self)),
             self._equipment_transaction_session is not None,
             tuple(sorted(self._equipment_transaction_failed_items)),
         )
@@ -1692,9 +1693,7 @@ class TownMixin:
             not self._equipment_catalog.home_scan_complete
             and self._home_available_for_probe(snapshot)
             and (
-                "home-scan-incomplete" in getattr(
-                    self._equipment_optimization_preparation, "blockers", ()
-                )
+                "home-scan-incomplete" in equipment_target.loadout_target_blockers(self)
                 or (snapshot.player.food_type == FOOD_TYPE_MANA and snapshot.player.hungry)
             )
         )
@@ -4600,7 +4599,7 @@ class TownMixin:
         equipment_exhausted = bool(retired_worn_item_ids) or (
             self._equipment_failure_unexecutable_this_visit(
                 snapshot,
-                self._equipment_optimization_preparation,
+                equipment_target.loadout_target(self),
                 require_confirmed=False,
                 include_launcher_enchant=False,
             )

@@ -53,6 +53,7 @@ import re
 
 import numpy as np
 
+from hengbot import ability_sources
 from hengbot import arena_fight_chain, attack_expectation, me_capability, me_device_attacks, resist_alternatives
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_STAFF_SPEED, MonsterState, Position
@@ -63,7 +64,7 @@ from hengbot.monster_ranged_evaluator import (
     ranged_action_distribution,
     source_selection_probabilities,
 )
-from hengbot.policy_constants import RELIABLE_MIN_SUCCESS_PERCENT, RESIST_FLAG_BY_ABILITY, speed_energy
+from hengbot.policy_constants import RELIABLE_MIN_SUCCESS_PERCENT, speed_energy
 
 WIN_CHANCE_LINE = 0.90  # owner 2026-11-05
 DAMAGE_MARGIN = 0.85  # the drains and the fleeing the race does not model
@@ -125,14 +126,14 @@ def open_to_blindness(snapshot, knowledge) -> bool:
     # Owner 2026-11-19 「魔道具術師でテレパシーがあるなら盲目でも戦闘に支障はない」 (resist_alternatives).
     if resist_alternatives.blind_covered_by_telepathy(snapshot):
         return False
-    return "resist_blind" not in snapshot.player.abilities and bool(
+    return not ability_sources.has_ability(snapshot.player, "resist_blind") and bool(
         knowledge.abilities & {"BLIND", "BRAIN_SMASH"}
         or any(blow.effect == "BLIND" for blow in knowledge.blows))
 
 
 def refusal(snapshot, knowledge, melee_plan: bool) -> str | None:
     """The mechanic the race does not model and this character is open to, else None."""
-    abilities = snapshot.player.abilities
+    abilities = ability_sources.held_abilities(snapshot.player)
     blow_effects = {blow.effect for blow in knowledge.blows}
     for name, resist, spells, effects in _NEEDS:
         if resist not in abilities and (knowledge.abilities & spells or blow_effects & effects):
@@ -224,8 +225,7 @@ def _selection(knowledge) -> tuple[object, dict[str, float]]:
 def monster_action_distribution(
         policy, snapshot, knowledge, arena_race, selection, adjacent: bool = True) -> np.ndarray:
     """Damage of one opponent action, by damage, over every spell and, adjacent, the melee round."""
-    flags = frozenset(flag for ability, flag in RESIST_FLAG_BY_ABILITY.items()
-                      if ability in snapshot.player.abilities)
+    flags = ability_sources.held_ability_flags(snapshot.player)
     ranged, _floor = ranged_action_distribution(
         arena_race, selection_probabilities=selection, flags=flags,
         player_hp=snapshot.player.hp, blind=False, saving_skill=snapshot.player.saving_skill)

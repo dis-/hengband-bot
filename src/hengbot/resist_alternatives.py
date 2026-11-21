@@ -24,6 +24,7 @@ resistance.  The depth table (DEPTH_ABILITY_REQUIREMENTS) names neither.
 
 from __future__ import annotations
 
+from hengbot import ability_sources
 from hengbot import heroism_potion
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import has_ability_or_alternative
@@ -36,7 +37,7 @@ HEROISM_CARRY = "heroism_potions"
 def blind_covered_by_telepathy(snapshot) -> bool:
     """A Magic-Eater with telepathy: blindness does not stop its fight."""
     player = snapshot.player
-    return player.class_id == PLAYER_CLASS_MAGIC_EATER and "telepathy" in player.abilities
+    return player.class_id == PLAYER_CLASS_MAGIC_EATER and ability_sources.has_ability(player, "telepathy")
 
 
 def fear_by_heroism(snapshot) -> bool:
@@ -51,7 +52,7 @@ def resist_met(force: dict, name: str, snapshot) -> bool:
     ``carry_status`` asks as a carry."""
     if name == FEAR:
         return True
-    if has_ability_or_alternative(force, name, snapshot.player.abilities, snapshot.equipment):
+    if has_ability_or_alternative(force, name, ability_sources.held_abilities(snapshot.player), snapshot.equipment):
         return True
     return name == BLIND and blind_covered_by_telepathy(snapshot)
 

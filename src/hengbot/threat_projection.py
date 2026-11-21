@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from math import ceil
 
+from hengbot import ability_sources
 from hengbot import amberite_curse
 from hengbot import (
     attack_expectation,
@@ -455,7 +456,7 @@ def scroll_damage_on(policy, scroll: AttackScroll, target) -> int:
 
 def _self_damage(snapshot, scroll: AttackScroll) -> int:
     player = snapshot.player
-    held = set(player.abilities) | {f"immune:{name}" for name in player.immunities}
+    held = set(ability_sources.held_abilities(player)) | {f"immune:{name}" for name in player.immunities}
     return 0 if held & scroll.protections else scroll.self_damage
 
 
@@ -548,9 +549,9 @@ def _resistance_after(snapshot):
         elements = frozenset(name.removeprefix("resist_") for name in added)
     else:
         return None
-    if added <= set(player.abilities) or elements <= oneshot_breath.opposed(player):
+    if added <= set(ability_sources.held_abilities(player)) or elements <= oneshot_breath.opposed(player):
         return None
-    return replace(snapshot, player=replace(player, abilities=player.abilities | added))
+    return replace(snapshot, player=replace(player, abilities=ability_sources.held_abilities(player) | added))
 
 
 class CostExceeded(Exception):

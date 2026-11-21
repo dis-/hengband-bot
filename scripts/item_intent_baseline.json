@@ -21,7 +21,6 @@
   "_equipment_mutation_result": "Completed mutation report; no outstanding operation.",
   "_equipment_optimization_last_depth": "Optimizer assessment depth; not item identities.",
   "_equipment_optimization_pack_items": "Observed pack cardinality cache; not item identities.",
-  "_equipment_optimization_preparation": "Optimizer candidate result; executed ownership is in _equipment_transaction_session.",
   "_equipment_optimization_search_surviving_ids": "Optimizer search survivors; not selected operations.",
   "_equipment_optimization_signature": "Optimizer cache invalidation signature; no selected operation.",
   "_equipment_optimization_telemetry": "Optimizer assessment telemetry; no selected operation.",

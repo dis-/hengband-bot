@@ -11,6 +11,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
+from hengbot import ability_sources
 from hengbot.equipment_encounters import (
     normal_encounters, ordinary_encounters, representative_encounters,
 )
@@ -650,7 +651,7 @@ def calibrate_character_constants(
         base_hp=base_hp,
         base_ac_bonus=base_ac_bonus,
         intrinsic_abilities=_effective_intrinsic_abilities(
-            player, frozenset(player.abilities)
+            player, frozenset(ability_sources.held_abilities(player))
         ),
         pinned_identities=pinned_identities,
         observed_turn=getattr(snapshot, "turn", 0),
@@ -861,7 +862,7 @@ def _effective_intrinsic_abilities(
     player: object, stored: frozenset[str]
 ) -> frozenset[str]:
     """Prefer permanent source flags; fall back only for flat snapshots."""
-    sources_by_ability = getattr(player, "ability_sources", {})
+    sources_by_ability = ability_sources.ability_source_map(player)
     if sources_by_ability:
         return frozenset(
             ability

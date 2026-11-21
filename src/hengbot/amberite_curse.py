@@ -74,6 +74,7 @@ could hit, the verdict and the key it replaced.
 
 from __future__ import annotations
 
+from hengbot import ability_sources
 from hengbot import attack_answer, haste_read, line_of_fire, reasons
 from hengbot.policy_constants import WAIT_KEY
 
@@ -104,7 +105,7 @@ def is_amberite(policy, monster) -> bool:
 
 
 def resists_curse(snapshot) -> bool:
-    return bool(snapshot.player.ability_sources.get(RESIST_ABILITY))
+    return bool(ability_sources.ability_source_map(snapshot.player).get(RESIST_ABILITY))
 
 
 def t1_amberites(policy, snapshot, hostiles) -> tuple:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import equipment_target
 from hengbot import angband_finale
 from hengbot import quest_optional_carry
 from hengbot.item_identity import (
@@ -2660,7 +2661,7 @@ class HomeMixin:
                 getattr(self, "_town_turn_arbiter", None), "_retired", ()
             )
         )
-        preparation = getattr(self, "_equipment_optimization_preparation", None)
+        preparation = equipment_target.loadout_target(self)
         failed_home_route = (
             tuple(getattr(preparation, "blockers", ()))
             == ("equipment-transaction-failed",)

@@ -49,6 +49,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
+from hengbot import equipment_target
 from hengbot import safety_watch
 from hengbot.item_identity import MemorySignatures
 from hengbot import destruction_means, me_capability, me_powers
@@ -611,7 +612,7 @@ def _rekey_planned_deposit(policy, snapshot, identity, tval, sval) -> None:
             for action in plan.actions))
 
     session.plan = rekeyed(session.plan)
-    preparation = policy._equipment_optimization_preparation
+    preparation = equipment_target.loadout_target(policy)
     if isinstance(getattr(preparation, "transaction", None), EquipmentTransactionPlan):
-        policy._equipment_optimization_preparation = replace(
-            preparation, transaction=rekeyed(preparation.transaction))
+        equipment_target.replace_loadout_target(policy, replace(
+            preparation, transaction=rekeyed(preparation.transaction)))

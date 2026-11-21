@@ -94,6 +94,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+from hengbot import ability_sources
 from hengbot import (
     attack_expectation,
     breeder_area_attack,
@@ -540,7 +541,7 @@ def _note_kills(ctx: _Ctx) -> None:
 
 def sees_ipsissimus_unseen(snapshot) -> bool:
     """Telepathy or evil ESP: an Ipsissimus is seen from [5,1] without a line (monster-update.cpp)."""
-    return "telepathy" in snapshot.player.abilities or any(
+    return ability_sources.has_ability(snapshot.player, "telepathy") or any(
         112 in item.known_flags for item in snapshot.equipment)   # TR_ESP_EVIL
 
 

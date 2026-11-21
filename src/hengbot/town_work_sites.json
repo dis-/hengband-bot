@@ -27,6 +27,55 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ability_sources.py:_catalog_ability_source": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:ability_source_map": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:ability_sources_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:has_ability": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:held_abilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:held_ability_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:missing_abilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "amberite_curse.py:_kept_alive_key": {
     "classification": "producer",
     "rows": [
@@ -2706,6 +2755,13 @@
     "delegation": "selected child; no independent success"
   },
   "equipment_rules.py:required_abilities_for_depth": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_target.py:loadout_target": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

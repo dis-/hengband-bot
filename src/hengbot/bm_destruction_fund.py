@@ -59,6 +59,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from hengbot import ability_sources
 from hengbot import item_fate
 from hengbot.item_reservation import decision_memo
 from hengbot.model import STORE_BLACK, STORE_HOME, SV_STAFF_SPEED, TVAL_STAFF
@@ -89,7 +90,7 @@ def _is_telepathy_ware(_policy: Any, item: Any) -> bool:
 
 def _owns_telepathy(policy: Any, snapshot: Any) -> bool:
     """Full telepathy worn or intrinsic, or a known piece carried or in the Home."""
-    if "telepathy" in snapshot.player.abilities:
+    if ability_sources.has_ability(snapshot.player, "telepathy"):
         return True
     catalog = getattr(policy, "_equipment_catalog", None)
     owned = (*snapshot.equipment, *snapshot.inventory,
