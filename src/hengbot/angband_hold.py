@@ -43,7 +43,14 @@ HOLD_DEPTH = 50
 
 
 def held(policy, snapshot) -> bool:
-    """The character's Angband recall landing is at 50F or deeper and Angband may be entered."""
+    """The character's Angband recall landing is at 50F or deeper and Angband may be entered.
+
+    Not while a recall toward Angband is refused for its depth outside the finale's expedition
+    (angband_cap ``deep_recall_refused``, owner 2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ
+    帰還しない」): Angband is then no destination, and the ordinary fallback picks another dungeon."""
+    from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
+    if angband_cap.deep_recall_refused(snapshot, DUNGEON_ANGBAND, policy):
+        return False
     return (bool(snapshot.angband_recall_unlocked)
             and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
             and policy._dungeon_entry_depth(snapshot, DUNGEON_ANGBAND, via_recall=True)

@@ -9560,6 +9560,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         floor).  ``_recall_refused_only_for_guardian`` tells that refusal
         apart.
         """
+        if angband_cap.deep_recall_refused(snapshot, dungeon_id, self):
+            return False
         depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
         if self._missing_required_abilities(snapshot, depth):
             return False
