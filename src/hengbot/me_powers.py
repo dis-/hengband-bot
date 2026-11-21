@@ -65,8 +65,10 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    decided attack on an awake hostile (attack_answer), after every survival rung.
  - 50F+ (PLAN-50F section 4, owner 2026-11-11 for C6 「2 3 5を入れる」): 4.3 the Detect Evil row
    (and its preferred rod) is cast again once the player stands DEEP_REDETECT_WALK from the
-   floor's latest landed monster detection (``deep-explore-redetect``); 4.4 a dark room is not
-   lit while a strong sleeper is in the room light's reach (``strong_sleepers_in_light_reach``);
+   floor's latest landed monster detection (``deep-explore-redetect``); 4.4 (lighting a dark
+   room only while no strong sleeper was in the light's reach) is replaced by the owner's
+   2026-11-22 「50F以降は使わない」: on 50F+ the Light row answers neither the dark room nor the
+   zero light radius (the light-sensitive neighbour, an attack, keeps it);
    4.9 the Speed row is also cast on the floor rung once per floor visit while not hasted
    (``deep-arrival-unhasted``).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
@@ -164,15 +166,6 @@ HASTE_MIN_GAME_TURNS = 160
 # 4.3 「Re-detect after walking 25 cells from the last detection (half of DETECT_RAD 30 +
 # margin)」: game distance from the latest landed monster detection of the floor visit.
 DEEP_REDETECT_WALK = 25
-# 4.4: how far the room light reaches from the player's cell.  lite_area lights radius 2 and
-# calls lite_room (spell-kind/spells-lite.cpp:332-347), which floods from the player through LOS
-# terrain (:225-251): a CAVE_ROOM grid at any distance, any other grid only within
-# get_max_range() 18 (cave_temp_room_aux :189-216, system/angband-system.cpp:45-48).  Every
-# monster on a lit grid that is asleep wakes: SMART always, STUPID 1 in 10, others 1 in 4
-# (cave_temp_room_lite :45-77).  The board carries no CAVE_ROOM, so the reach is across the
-# widest ordinary room: type 1 is 2d11+1 by up to 8 floor cells (room/rooms-normal.cpp:29-31),
-# game distance 22 + 7/2 = 25.
-LITE_ROOM_REACH = 25
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 
 # cmd-magiceat.cpp: the kind question ([A] staff, [B] wand, [C] rod) and the
@@ -445,7 +438,7 @@ def _left_detected_trap_area(ctx, power):
 
 
 def _light_radius_zero(ctx, power):
-    return ctx.policy._is_dark(ctx.snapshot)
+    return not _deep_floor(ctx) and ctx.policy._is_dark(ctx.snapshot)
 
 
 def _floor_cell(grid):
@@ -459,7 +452,18 @@ def _dark_room(ctx, power):
     The board carries no CAVE_ROOM; protocol 3 prints a glowing floor in
     view as F_LIT_STANDARD (view/display-map.cpp:169-183), so a lit room
     shows its floor beyond the player's light and a dark one does not.
+
+    Owner 2026-11-22 (n1-c life-219, Angband 80F: the dark-room light woke 『マダム・デビ』, whose
+    breaths took 180, 300 and 298 before the death; asked 「深層ではライトエリアを使わないように
+    指定したはずだが？」, answered 「50F以降は使わない」): never on a DEEP_FLOOR_DEPTH floor.  Until
+    then PLAN-50F 4.4 (owner 2026-11-11 C6 「3」) lit a deep dark room unless a strong sleeper was
+    in the light's reach, and its strength was the melee judgment alone
+    (``_material_melee_fight`` of the sleepers within the light's reach), which an insulting
+    breather passed.  The room light wakes every asleep monster on a grid it lights: SMART
+    always, STUPID 1 in 10, others 1 in 4 (spell-kind/spells-lite.cpp cave_temp_room_lite).
     """
+    if _deep_floor(ctx):
+        return False
     snapshot = ctx.snapshot
     radius = snapshot.light_radius
     if (not isinstance(radius, int) or radius < 1 or ctx.policy._is_dark(snapshot)
@@ -478,22 +482,7 @@ def _dark_room(ctx, power):
         return False
     if not any(grid is None or not grid.known for grid in grids):
         return False
-    return not (_deep_floor(ctx) and strong_sleepers_in_light_reach(ctx.policy, snapshot))
-
-
-def strong_sleepers_in_light_reach(policy, snapshot) -> list:
-    """PLAN-50F 4.4 (owner 2026-11-11 C6 「3」): the room light wakes the sleepers it reaches
-    (LITE_ROOM_REACH), so on 50F+ a dark room is not lit while the board shows -- in view, by
-    telepathy or by a detection -- a strong one asleep within that reach.  Strong is the
-    judgment the owner's 11-07 rule keeps away from even asleep (「強い敵からは離れる」): the
-    engagement retreat's own, ``_material_melee_fight`` (its melee over the engagement horizon
-    is a material share of HP, or disenchant_avoid keeps away from it), as policy_quest reads it.
-    The light the walk needs stays: the light-radius-zero and light-sensitive-adjacent triggers."""
-    here = snapshot.player.position
-    return [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
-            if monster.hostile and monster.asleep
-            and game_distance(here, monster.position) <= LITE_ROOM_REACH
-            and policy._material_melee_fight(snapshot, monster)]
+    return True
 
 
 def _aimed_once(ctx, trigger) -> bool:

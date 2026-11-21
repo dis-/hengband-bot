@@ -7,9 +7,9 @@ the C6 bundle; the owner took items 2 (4.3 detection cadence), 3 (4.4 lighting r
    absorbed power or rod」: me_powers' Detect Evil row (its preferred Rod of Detection) has the
    trigger ``deep-explore-redetect``.
  - 4.4 「me-power:dark-room:lite-area ... on 50F+: not while ESP shows strong sleepers in the
-   room」: lite_room wakes the sleepers on every grid it lights (spell-kind/spells-lite.cpp:45-77),
-   so the dark-room trigger waits while a sleeper the 11-07 strength judgment names is within
-   ``me_powers.LITE_ROOM_REACH``.
+   room」: lite_room wakes the sleepers on every grid it lights (spell-kind/spells-lite.cpp:45-77).
+   Replaced by the owner's 2026-11-22 「50F以降は使わない」 (n1-c life-219, Angband 80F: the light
+   woke 『マダム・デビ』): on 50F+ no dark room is lit, sleepers shown or not; 49F lights as recorded.
  - 4.9 「on 50F+ also haste on arrival when absorbed Speed >= 10 charges」: the Speed row's
    trigger ``deep-arrival-unhasted`` on the floor rung, once per floor visit, under the row's
    11-04 requirements (10 charges, 80% success); no potion.
@@ -216,11 +216,12 @@ class DeepFloorRoutineRecordedTest(harness.ProductionHarness):
         # The recorded seek-loot of 5329572 is the arrival haste now (4.9, below).  The later
         # boards' speed field shows no haste (the recorded life did not cast it): they stand for
         # a haste run out, and the arrival haste is once per floor visit (5329602 keeps the
-        # recorded seek-loot).
+        # recorded seek-loot).  The recorded light of 5329595 is not cast on 61F (owner
+        # 2026-11-22 「50F以降は使わない」): the board's own walk instead.
         _, decided = self.drive(self.castle(*self.ARRIVAL))
         self.assertEqual([row[:2] for row in decided],
                          [(5329565, POWERFUL_DETECTION), (5329572, HASTE), (5329578, "mAm"),
-                          (5329586, "mAj"), (5329595, "mAi"), (5329602, "9")])
+                          (5329586, "mAj"), (5329595, "9"), (5329602, "9")])
 
     def test_twenty_five_cells_from_the_arrival_detection_detects_again(self):
         _, decided = self.drive(self.castle(*self.ARRIVAL, 5329853))
@@ -290,20 +291,17 @@ class DeepFloorRoutineRecordedTest(harness.ProductionHarness):
         self.assertNotEqual(decided[-1][1], "mAi")
         self.assertNotEqual(decided[-1][2], "me-power:dark-room:lite-area")
 
-    def test_the_strong_sleepers_of_the_recorded_board(self):
-        policy, _ = self.lighting()
-        board = parse_snapshot(copy.deepcopy(self.boards("lighting")[4]), policy._monrace_knowledge)
-        self.assertEqual({m.race_id for m in me_powers.strong_sleepers_in_light_reach(policy, board)},
-                         self.STRONG)
-
     def test_control_forty_nine_floor_lights_as_recorded(self):
         _, decided = self.lighting(level=49)
         self.assertEqual(decided[-1], (self.LIGHT_TURN, "mAi", "me-power:dark-room:lite-area"))
 
-    def test_control_only_weak_sleepers_light_as_recorded(self):
-        # DECLARED CONSTRUCTED: the four strong sleepers taken off the lighting board.
+    def test_only_weak_sleepers_still_keep_the_deep_room_unlit(self):
+        # DECLARED CONSTRUCTED: the four strong sleepers taken off the lighting board.  Owner
+        # 2026-11-22 「50F以降は使わない」: the room stays dark (until then it was lit).
         _, decided = self.lighting(keep=lambda monster: monster["race_id"] not in self.STRONG)
-        self.assertEqual(decided[-1], (self.LIGHT_TURN, "mAi", "me-power:dark-room:lite-area"))
+        self.assertEqual(decided[-1][0], self.LIGHT_TURN)
+        self.assertNotEqual(decided[-1][1], "mAi")
+        self.assertNotEqual(decided[-1][2], "me-power:dark-room:lite-area")
 
     def test_the_disenchanting_summoner_alone_keeps_the_room_unlit(self):
         # DECLARED CONSTRUCTED: the Nightwing (722) is the only sleeper.  Its touch disenchants
@@ -312,10 +310,13 @@ class DeepFloorRoutineRecordedTest(harness.ProductionHarness):
         self.assertNotEqual(decided[-1][1], "mAi")
         self.assertNotEqual(decided[-1][2], "me-power:dark-room:lite-area")
 
-    def test_control_a_deep_room_with_no_sleeper_shown_is_lit_as_recorded(self):
-        # Castle 61F turn 5329595: the board shows no monster; the recorded light stands.
+    def test_a_deep_room_with_no_sleeper_shown_is_not_lit(self):
+        # Castle 61F turn 5329595: the board shows no monster; the recorded light (mAi) is not
+        # repeated (owner 2026-11-22 「50F以降は使わない」).
         _, decided = self.drive(self.castle(*self.ARRIVAL))
-        self.assertEqual(decided[4], (5329595, "mAi", "me-power:dark-room:lite-area"))
+        self.assertEqual(decided[4][0], 5329595)
+        self.assertNotEqual(decided[4][1], "mAi")
+        self.assertNotEqual(decided[4][2], "me-power:dark-room:lite-area")
 
 
     # -- 4.9: the floor starts hasted ----------------------------------------------
