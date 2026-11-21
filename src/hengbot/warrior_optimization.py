@@ -40,7 +40,7 @@ from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_utility import with_destruction_means
 from hengbot import angband_cap, equipment_rules
 from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
-from hengbot.model import InventoryItem, Snapshot, StoreItem
+from hengbot.model import STAT_NAMES, InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
 from hengbot.protocol import skill_exp_known
@@ -362,6 +362,31 @@ class CharacterCalibration:
         ):
             return "mutations"
         return None
+
+
+def loadout_natural_stats(calibration: CharacterCalibration, player) -> tuple[int, ...]:
+    """The calibration's natural stats with each drained stat at its printed maximum.
+
+    A drain lowers ``stat_cur`` below ``stat_max`` until a restore puts it back
+    (base-status.cpp res_stat: ``stat_cur = stat_max``), and the town visit drinks the
+    restore (policy_shop ``_stat_restore_quaff_key``).  The loadout is the character's,
+    so the selector reads the maximum the board prints (bot-json-output.cpp ``max``) for a
+    drained stat, never the drained value: n1-b life-413 2026-11-22 (Q25 done, STR drained
+    84 -> 74) took off 腕力の指輪 (+5) for 殺戮の指輪 (+13,+7) at the drained STR, drank
+    腕力復活の薬 in the same visit, and the search on the restored STR put the strength ring
+    back (decision 373, ``town:blocked:equipment-slot-flipflop:main_ring``).  A legacy
+    calibration without natural stats keeps its base stats (another scale).
+    """
+    if not calibration.natural_stats:
+        return calibration.base_stats
+    drained = frozenset(player.drained_stats)
+    maxima = tuple(player.stat_max)
+    return tuple(
+        max(value, maxima[index])
+        if index < len(maxima) and index < len(STAT_NAMES) and STAT_NAMES[index] in drained
+        else value
+        for index, value in enumerate(calibration.natural_stats)
+    )
 
 
 @dataclass(frozen=True)
@@ -783,11 +808,12 @@ def weapon_expected_dps(
         if item.is_equipment
     )
     current = current_loadout(equipped)
+    natural = loadout_natural_stats(calibration, snapshot.player)
     inputs = WarriorCombatInputs(
         level=snapshot.player.level,
         class_id=snapshot.player.class_id,
-        natural_str=(calibration.natural_stats or calibration.base_stats)[0],
-        natural_dex=(calibration.natural_stats or calibration.base_stats)[3],
+        natural_str=natural[0],
+        natural_dex=natural[3],
         intrinsic_str=calibration.intrinsic_adjustments[0] if calibration.natural_stats else 0,
         intrinsic_dex=calibration.intrinsic_adjustments[3] if calibration.natural_stats else 0,
         melee_skill=snapshot.player.melee_skill,
@@ -966,7 +992,8 @@ def prepare_warrior_optimization(
     intrinsic_abilities = _effective_intrinsic_abilities(
         player, calibration.intrinsic_abilities
     )
-    stats = calibration.natural_stats or calibration.base_stats
+    # A drained stat at its maximum (loadout_natural_stats): the visit restores it.
+    stats = loadout_natural_stats(calibration, player)
     adjustments = calibration.intrinsic_adjustments or (0,) * 6
     base_str = stats[0]
     base_dex = stats[3]
