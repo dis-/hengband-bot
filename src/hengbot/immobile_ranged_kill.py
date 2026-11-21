@@ -79,6 +79,7 @@ four bolts kill it, so the ordinary plan refused it and the bot wandered.
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from hengbot import (damaging_ground, disenchant_avoid, goal_route, immobile_threat_memory, line_of_fire,
@@ -108,6 +109,39 @@ def _shooting_cell(policy, snapshot, monster: MonsterState, grid) -> bool:
             and line_of_fire.player_projectable(policy, snapshot, grid.position, monster.position))
 
 
+def _reaches_shooting_cell(policy, snapshot, monster: MonsterState, reach) -> bool:
+    """A cell of ``reach`` other than the player's is a shooting cell for ``monster``."""
+    start = snapshot.player.position
+    target = monster.position
+    for cell in reach:
+        if (cell == start or abs(cell.y - target.y) > RANGED_MAX_DISTANCE
+                or abs(cell.x - target.x) > RANGED_MAX_DISTANCE):
+            continue
+        grid = snapshot.grids.get(cell)
+        if grid is not None and _shooting_cell(policy, snapshot, monster, grid):
+            return True
+    return False
+
+
+def _board_reach(policy, snapshot) -> Callable[[], frozenset[Position]]:
+    """The goal walk's reach on this board under the plan's search (the immobile summoner's
+    zone withdrawn, ``_with_zone_released``), searched once when a plan first asks for it.
+
+    n1-b life-414 (Orc cave 22F, 2026-11-22 06:51-07:26): 21 死体の塊 (race 202, NEVER_MOVE,
+    MULTIPLY, TOUCH:LOSE_CON) remembered at (47-50,181-193) had no shooting cell the walks
+    reached; every board searched the whole cave for each of them (four passes each, and the
+    shooting test over every grid), 2.0-2.7 s a decision against 40-60 ms, and the floor-dwell
+    watcher stopped the bot after 985 decisions in 35 minutes, the floor still being explored."""
+    found: list[frozenset[Position]] = []
+
+    def board_reach() -> frozenset[Position]:
+        if not found:
+            found.append(_with_zone_released(policy, snapshot,
+                                             lambda: goal_route.reach(policy, snapshot)))
+        return found[0]
+    return board_reach
+
+
 def _others_present(policy, snapshot, target: MonsterState) -> bool:
     return any(monster.position != target.position and (
                    monster.distance <= 1
@@ -116,9 +150,12 @@ def _others_present(policy, snapshot, target: MonsterState) -> bool:
 
 
 def plan(policy, snapshot, monster: MonsterState,
-         shot_limit: int | None = SUMMONER_RANGED_KILL_SHOTS) -> KillPlan | None:
+         shot_limit: int | None = SUMMONER_RANGED_KILL_SHOTS,
+         reach: Callable[[], frozenset[Position]] | None = None) -> KillPlan | None:
     """The safe ranged kill of ``monster`` (module docstring), else None.  ``shot_limit``
-    None: any number of shots (a ring that blocks the way, ``blocking_key``)."""
+    None: any number of shots (a ring that blocks the way, ``blocking_key``).  ``reach``: the
+    board's goal-walk reach (``_board_reach``), shared by the monsters one ``key`` weighs; no
+    shooting cell in it is no route, answered without the route's own search."""
     player = snapshot.player
     if (snapshot.in_town or player.blind or player.confused
             or policy._floor_navigation_exit_locked(snapshot)
@@ -137,6 +174,10 @@ def plan(policy, snapshot, monster: MonsterState,
     else:
         def shooting(grid):
             return _shooting_cell(policy, snapshot, monster, grid)
+        if reach is not None and not _reaches_shooting_cell(policy, snapshot, monster, reach()):
+            # The route's search would end as it does when it finds no goal.
+            goal_route.forget(policy, shooting)
+            return None
         route = _with_zone_released(policy, snapshot, lambda: policy._nearest_goal_route(
             snapshot, shooting))
         if route is None:
@@ -248,14 +289,15 @@ def blocks_the_way(policy, snapshot, monster: MonsterState) -> bool:
     return _in_maze(policy, snapshot) and _blocked_sides(policy, snapshot, monster) is not None
 
 
-def _key_plan(policy, snapshot, monster: MonsterState) -> KillPlan | None:
+def _key_plan(policy, snapshot, monster: MonsterState,
+              reach: Callable[[], frozenset[Position]] | None = None) -> KillPlan | None:
     """The kill ``key`` carries out for ``monster``, else None: a kept-away never-moving
     one (``key`` shoots no other), not left alone (disenchant_avoid.left_alone), with a
     safe ranged kill (``plan``).  The one rule both ``key`` and ``killable`` read."""
     if (not kept_away(policy, snapshot, monster)
             or disenchant_avoid.left_alone(policy, snapshot, monster, closes_the_way)):
         return None
-    return plan(policy, snapshot, monster)
+    return plan(policy, snapshot, monster, reach=reach)
 
 
 def killable(policy, snapshot, monster: MonsterState) -> bool:
@@ -277,10 +319,11 @@ def key(policy, snapshot) -> str | None:
     if snapshot.in_town:
         return None
     visible = {monster.position: monster for monster in snapshot.visible_monsters}
+    reach = _board_reach(policy, snapshot)
     for monster in sorted(immobile_threat_memory.remembered(policy),
                           key=lambda monster: snapshot.player.position.distance_to(
                               monster.position)):
-        found = _key_plan(policy, snapshot, monster)
+        found = _key_plan(policy, snapshot, monster, reach)
         if found is None:
             continue
         answer = _carry_out(policy, snapshot, found, visible)
