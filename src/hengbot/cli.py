@@ -788,6 +788,13 @@ def _policy_final_stop_banner(reason: str) -> str:
 assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
 
 
+# The rests a recovering board exempts from the cell window: the ordinary rest, and the 99F/100F
+# battle's rest after a Teleportation (angband_finale_battle.REST_REASON), which telepathy-sensed
+# monsters moving cut short each turn while the HP still rises (n1-b life-411 Angband 99F
+# 2026-11-21 13:59, 29 rests on two cells, HP 1041 -> 1111 of 1153, loop-detected).
+RECOVERING_REST_REASONS = frozenset({"rest", "angband-finale:rest"})
+
+
 def _melted_a_wall(snapshot) -> bool:
     """The board names a wall turned to mud (effect/effect-feature.cpp, sealed_pocket's
     MELTED_MESSAGES): the previous board's Stone to Mud use changed the map."""
@@ -822,8 +829,8 @@ def _cell_loop_guard_applies(
     blocked-state stop.  Feeding the same decisions to the generic dungeon
     cell guard can stop the bot before ``town:cycle-break`` is emitted.
 
-    A rest on the same cell that is recovering (``previous_player`` is the
-    player of the previous guarded board) is no loop: a monster moving in
+    A rest (``RECOVERING_REST_REASONS``) on the same cell that is recovering
+    (``previous_player`` is the player of the previous guarded board) is no loop: a monster moving in
     view or in the ESP range disturbs it after one turn, and n1-a life 490
     (2026-11-06, Q18) stopped after 40 rests on (1,12) with HP 550 -> 604
     of 716.  A rest that restores nothing still counts.
@@ -833,7 +840,7 @@ def _cell_loop_guard_applies(
     if previous_position is None:
         previous_position = snapshot.player.position
     if (
-        reason == "rest"
+        reason in RECOVERING_REST_REASONS
         and previous_position == snapshot.player.position
         and _rest_recovering(previous_player, snapshot.player)
     ):
