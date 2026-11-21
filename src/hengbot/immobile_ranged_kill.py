@@ -28,7 +28,13 @@ applied to the never-moving monster:
   (the lethal ring's own ``threat_prediction(..., contact=True)``, which
   over-counts a touch that cannot land) over the walk plus the shots stays
   below the current HP -- the summoner rule's ``_predicted_damage(...,
-  turns=3) >= hp`` refusal with the walk counted;
+  turns=3) >= hp`` refusal with the walk counted; the ground's damage is added (owner
+  2026-11-22 「床の被害も見積もりに入れる」, damaging_ground ``floor_damage``): one tick of each
+  hurting cell of the walk, and one per shot on a hurting shooting cell.  The route keeps its
+  passes' order (goal_route SEARCH_PASSES: a way without damaging ground first), so the ground
+  is crossed only when no such way reaches a shooting cell and the player survives it.
+  n1-b life-413 (Angband 80F, 2026-11-22 04:18:44) crossed thirteen cells of a poison swamp
+  toward a 天使・クイルスルグ, HP 718 -> 538, counting none of it;
 - no other hostile is in view or beside the player: those go to the normal
   ladder first (survival first);
 - it was not out of view from a shooting cell the player reached since it
@@ -75,7 +81,8 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
-from hengbot import disenchant_avoid, immobile_threat_memory, line_of_fire, retreat_enclosure
+from hengbot import (damaging_ground, disenchant_avoid, goal_route, immobile_threat_memory, line_of_fire,
+                     retreat_enclosure)
 from hengbot.model import MonsterState, Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, SUMMONER_RANGED_KILL_SHOTS
 
@@ -124,17 +131,24 @@ def plan(policy, snapshot, monster: MonsterState,
         return None
     here = snapshot.grid_at(player.position)
     if here is not None and _shooting_cell(policy, snapshot, monster, here):
-        step, walk = None, 0
+        step, walk, path = None, 0, ()
     elif immobile_threat_memory.walk_retired(policy, monster.position):
         return None
     else:
+        def shooting(grid):
+            return _shooting_cell(policy, snapshot, monster, grid)
         route = _with_zone_released(policy, snapshot, lambda: policy._nearest_goal_route(
-            snapshot, lambda grid: _shooting_cell(policy, snapshot, monster, grid)))
+            snapshot, shooting))
         if route is None:
             return None
         step, walk = route.first_step, route.remaining_edges + 1
+        path = tuple(goal_route.committed_path(policy, shooting) or ())
     danger = policy.threat_prediction(
         snapshot, [monster], walk + shots, contact=True)["operational_total"]
+    # Owner 2026-11-22 「床の被害も見積もりに入れる」: the walk's ground and the shots' cell.
+    shooting_from = path[-1] if path else player.position
+    danger += (damaging_ground.floor_damage(policy, snapshot, path)
+               + shots * damaging_ground.floor_damage_at(policy, snapshot, shooting_from))
     if danger >= player.hp:
         return None
     return KillPlan(monster, step)

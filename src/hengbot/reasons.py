@@ -492,6 +492,18 @@ def lookup(reason: str | None) -> Reason | None:
     return next((row for row in _PATTERNS if fnmatchcase(reason, row.pattern)), None)
 
 
+ESCAPE_KINDS = (EMERGENCY, RELOCATING, EXCLUDED)
+
+
+def escapes(reason: str | None) -> bool:
+    """The decision under ``reason`` is an escape: it relocates the player (counted or not) or
+    removes or sends away the enemy (*Destruction*, Teleport Other) -- every row of
+    ``ESCAPE_KINDS``.  Owner 2026-11-22 「逃げの手は全部床より先にする」: damaging_ground's step
+    off never replaces one (a walk, a wait or any other stop is no escape here)."""
+    row = lookup(reason)
+    return row is not None and row.kind in ESCAPE_KINDS
+
+
 def escape_shaped(reason: str) -> bool:
     """``reason`` has a word of the escape vocabulary, so it needs a row."""
     return any(word in reason for word in ESCAPE_WORDS)
