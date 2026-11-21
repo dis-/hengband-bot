@@ -22835,5 +22835,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:_eat_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon only: the 99F/100F battle's eat when hungry (angband_finale_battle key); None in town (the battle applies only on the finale floors).",
+    "evidence": "Returns reserved_item_command's eat of policy._find_edible under the battle's reason angband-finale:eat; no town command (n1-b life-411 2026-11-21 15:38-15:40, 100F: hungry at turn 11463702, the survival gate's eat only at weak)."
   }
 }

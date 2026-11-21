@@ -36,9 +36,11 @@ And (2026-11-20, verbatim) 「ターゲットとターゲット以外が同時�
 
 The per-board order (``key``), the first that answers wins:
  1. the recall: on success (the floor's quest no longer TAKEN), with twice the Restore Mana
-    target used (angband_finale ``restore_mana_overspent``), or with no Teleportation left
+    target used (angband_finale ``restore_mana_overspent``), with no Teleportation left
     (``teleports_out``: no scroll, no absorbed Staff of Teleportation charge; owner 2026-11-21),
-    and nowhere else;
+    or hungry with nothing to eat (``starving_out``, owner 2026-11-21 「空腹で死ぬ前に帰還する
+    ように修正」), and nowhere else; after the escapes below, a hungry character eats
+    (``_eat_key``);
  2. *Healing* below 400 HP after a hit;
  3. the Teleportation scroll (none left: the absorbed Staff of Teleportation): on a summon, below 800 HP after a hit, the target within
     distance 2, or the target and another monster both in the line of fire (``crowded``); the
@@ -84,6 +86,7 @@ HEAL_REASON = f"{REASON}:healing"
 # on the open prompt (stuck-prompt).
 ABSORBED_HEAL_REASON = f"{REASON}:absorbed-healing:absorbed-power"
 TELEPORT_REASON = f"{REASON}:teleport"
+EAT_REASON = f"{REASON}:eat"
 # Owner 2026-11-21 (LOCKED) 「99F100Fでテレポートの巻物が尽きた時は取り込んだテレポートの杖を使用することを
 # 許可する」: the absorbed Staff of Teleportation once no scroll is left; the absorbed-power suffix
 # makes me_device_attacks_input own its prompt (an empty staff closes it with ESC).
@@ -298,7 +301,36 @@ def recall_permitted(policy, snapshot) -> bool:
         or angband_finale.restore_mana_overspent(policy, snapshot)
         # Owner 2026-11-21 (LOCKED) 「100Fへ降りる前に巻物を補給する」 and its addition: with no
         # scroll and no absorbed staff charge left, recall and resupply (finale_prep in town).
-        or teleports_out(policy, snapshot))
+        or teleports_out(policy, snapshot)
+        # Owner 2026-11-21 (LOCKED) 「空腹で死ぬ前に帰還するように修正」: hungry with nothing to eat.
+        or starving_out(policy, snapshot))
+
+
+def starving_out(policy, snapshot) -> bool:
+    """Hungry (the game's 「お腹が空いてきた」, before weak) with nothing the race can eat carried
+    (policy ``_find_edible``: food, or for a MANA race a charged wand or staff)."""
+    return snapshot.player.hungry and policy._find_edible(snapshot) is None
+
+
+def _eat_key(policy, snapshot) -> str | None:
+    """Hungry with something edible: eat, unless a hostile is within four cells while merely
+    hungry (the starvation gate's rule, policy ``_starvation_near_hostiles``); weak or worse eats
+    at once.  The battle answers above the survival ladder, so its gate's eat waited for a board
+    the battle let pass: n1-b life-411 (Angband 100F, 2026-11-21 15:38-15:40) went hungry at turn
+    11463702 and ate only at weak, 11464571."""
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.policy_constants import STARVING_FOOD_STATES
+    player = snapshot.player
+    if not player.hungry:
+        return None
+    food = policy._find_edible(snapshot)
+    if food is None:
+        return None
+    if (player.food_state not in STARVING_FOOD_STATES
+            and policy._starvation_near_hostiles(policy._physical_hostiles(snapshot))):
+        return None
+    policy.last_reason = EAT_REASON
+    return reserved_item_command(policy, snapshot, "eat", food)
 
 
 # -- the rocket -------------------------------------------------------------------------
@@ -718,6 +750,9 @@ def key(policy, snapshot) -> str | None:
         if away is not None:
             held.phase, held.stand = RECOVER, None
             return away
+    eaten = _eat_key(policy, snapshot)
+    if eaten is not None:
+        return eaten
     if held.phase == SWEEP:
         swept = _sweep_key(policy, snapshot, held)
         if swept is not None:
