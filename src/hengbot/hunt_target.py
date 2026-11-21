@@ -211,8 +211,14 @@ def observe(policy, snapshot) -> None:
     # Re-decided every board: a killed target ends the quest, a kit change the guardian hunt.
     # The guardian's tier is judged on each board that shows it; the verdict stands while
     # it is not shown.
+    from hengbot import angband_finale_battle  # import cycle
     if (quest := _quest_race(policy, snapshot)) is not None:
-        if shown_target := _perceived(policy, snapshot, quest):
+        # Oberon and the Serpent are the 99F/100F battle's, which fights them as T1 by design:
+        # no T1 verdict gives the floor up or stops the search for them (n1-c life-217
+        # 2026-11-21 12:29:06).
+        if angband_finale_battle.applies(policy, snapshot):
+            pass
+        elif shown_target := _perceived(policy, snapshot, quest):
             _judge_quest_target(policy, snapshot, visit,
                                 min(shown_target, key=lambda monster: monster.distance))
     elif (guardian := _guardian_race(policy, snapshot, judged=False)) is not None:

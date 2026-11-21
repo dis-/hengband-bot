@@ -167,6 +167,9 @@ SEARCH_REASON = "search"  # the corridor dead-end rung's own reason
 DOOR_SEARCH_LAPS = 3  # the owner's 「何周か」: the target's healing is why the loop hurries
 SWEEP_WALK_AFTER_LAPS = 2 * DOOR_SEARCH_LAPS  # no means: the plain laps and two door rounds first
 SWEEPS_TO_GIVE_UP = 2  # owner 2026-11-08 21:5x 「全域を2回覆ったら諦める」
+# Owner 2026-11-21 「感知で回る・作り直した階でも一巡する」: on the 99F/100F floors one whole
+# coverage without the target shown, then the floor is regenerated (``finale_swept``).
+FINALE_SWEEPS_TO_REGENERATE = 1
 MEMORY = "_quest_target_search"
 MONSTERS, DOORS, BOTH = "monsters", "doors", "both"  # what a carried use detects
 MAX_SIGHT = 20  # define.h
@@ -234,12 +237,36 @@ def _bind_ledger(policy, snapshot: Snapshot, memory: Memory) -> None:
 
 
 def searching(policy, snapshot: Snapshot) -> bool:
-    """A random quest's target is still to be killed here and the floor is held for it."""
+    """A random quest's target is still to be killed here and the floor is held for it, or the
+    99F/100F battle lost its target (``finale_searching``)."""
+    if finale_searching(policy, snapshot):
+        return True
     return (not snapshot.in_town and snapshot.dungeon_level > 0
             and not snapshot.player.recalling and not policy._returning_to_town
             and policy._on_random_quest_floor(snapshot)
             and policy._active_kill_quest_id(snapshot) == snapshot.floor_key[2]
             and policy._quest_floor_exit_locked(snapshot))
+
+
+def finale_searching(policy, snapshot: Snapshot) -> bool:
+    """Owner 2026-11-21 「感知で回る」: on a 99F/100F floor of the finale's expedition the battle
+    lost its target past the arrival sweep (angband_finale_battle ``lost``) and the floor's lap
+    has not yet covered it once without showing it (``finale_swept``)."""
+    from hengbot import angband_finale_battle  # import cycle
+    return (not snapshot.player.recalling and angband_finale_battle.lost(policy, snapshot)
+            and not finale_swept(policy, snapshot))
+
+
+def finale_swept(policy, snapshot: Snapshot) -> bool:
+    """A 99F/100F floor of the finale's expedition the search covered whole
+    FINALE_SWEEPS_TO_REGENERATE times without the target shown: its stairs regenerate it (policy
+    ``_start_kill_quest_regeneration``)."""
+    from hengbot import angband_finale_battle  # import cycle
+    if not angband_finale_battle.applies(policy, snapshot):
+        return False
+    memory = getattr(policy, MEMORY, None)
+    return (memory is not None and memory.floor == snapshot.floor_key
+            and memory.sweeps.count >= FINALE_SWEEPS_TO_REGENERATE)
 
 
 def _routes(policy, snapshot: Snapshot) -> dict:

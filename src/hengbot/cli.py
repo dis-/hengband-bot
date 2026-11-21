@@ -2721,6 +2721,16 @@ class SendResult(str, Enum):
         return self is SendResult.SENT
 
 
+def _cap_lifted(policy) -> bool:
+    """The finale's expedition lifted the 95F cap (angband_finale ``lifted``): the executor
+    refuses the reset-recall-depth question then (n1-c life-217 2026-11-21 12:29:06: the recall
+    read on 98F answered y and the saved depth fell from 99 to 98)."""
+    if policy is None:
+        return False
+    from hengbot import angband_finale
+    return angband_finale.lifted(policy)
+
+
 class _ExecutorInputPort:
     """The sole producer-facing live input port.
 
@@ -2782,6 +2792,7 @@ class _ExecutorInputPort:
             transport=(Transport.TCP if self.executor.client is not None
                        else Transport.WM),
             work_record=work,
+            cap_lifted=_cap_lifted(self.policy),
         )
         from hengbot.observed_input import compile_observed_input
         if self.executor.active is None and self.executor.ready_board is not None:

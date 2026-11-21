@@ -15962,6 +15962,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             for monster in snapshot.visible_monsters
         ):
             return None
+        # Owner 2026-11-21 「感知で回る・作り直した階でも一巡する」: on a 99F/100F floor the stairs
+        # regenerate it only after the detection lap covered it once without the target
+        # (quest_target_search ``finale_swept``; n1-c life-217 2026-11-21 12:29:04 took them
+        # with the floor unsearched).
+        from hengbot import angband_finale_battle  # import cycle
+        if (angband_finale_battle.applies(self, snapshot)
+                and not quest_target_search.finale_swept(self, snapshot)):
+            return None
         if self._quest_regen_exhausted_floor == snapshot.floor_key:
             self.last_reason = "quest:regen:exhausted"
             return WAIT_KEY
