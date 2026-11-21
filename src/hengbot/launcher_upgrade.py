@@ -23,8 +23,8 @@ from hengbot import me_deep_launcher, spare_gear
 from hengbot.equipment_optimizer import ordinary_launcher_yields_to_light_crossbow
 from hengbot.launcher_damage import (
     LAUNCHER_PROPERTIES,
-    best_obtainable_launcher_damage,
-    launcher_average_damage,
+    best_obtainable_launcher_turn_damage,
+    launcher_turn_damage,
 )
 from hengbot.model import STORE_WEAPON, TVAL_BOW
 
@@ -32,12 +32,14 @@ CATEGORY = "launcher-ammo"
 
 
 def _would_replace(worn: Any, launcher: Any, obtainable: tuple) -> bool:
-    """The optimizer's launcher order, with store ammunition for the newcomer."""
+    """The optimizer's launcher order, with store ammunition for the newcomer: damage per
+    player turn, as the optimizer compares (owner 2026-11-19 「攻撃力の判定はすべて10ゲームターン
+    あたりの被害で評価」)."""
     if worn is None:
         return True
     return (ordinary_launcher_yields_to_light_crossbow(worn, launcher)
-            or launcher_average_damage(launcher)
-            > best_obtainable_launcher_damage(worn, obtainable))
+            or launcher_turn_damage(launcher)
+            > best_obtainable_launcher_turn_damage(worn, obtainable))
 
 
 def _buys_ammunition(policy: Any) -> bool:

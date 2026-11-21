@@ -328,7 +328,7 @@ from hengbot.warrior_optimization import (
     # warrior_optimization owns the per-source supersede rule; policy consumes it.
     _effective_intrinsic_abilities,
 )
-from hengbot.launcher_damage import launcher_average_damage
+from hengbot.launcher_damage import launcher_average_damage, launcher_turn_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE, melee_hit_chance
 from hengbot.town_hold import standing_claim
@@ -3922,8 +3922,9 @@ class EquipmentMixin:
         if ordinary_launcher_yields_to_light_crossbow(equipped, candidate):
             return False
 
-        equipped_damage = self._launcher_average_damage(equipped)
-        candidate_damage = self._launcher_average_damage(candidate)
+        # Damage per player turn, as the optimizer compares (owner 2026-11-19).
+        equipped_damage = launcher_turn_damage(equipped)
+        candidate_damage = launcher_turn_damage(candidate)
         equipped_grade = (int(equipped.is_artifact), int(equipped.is_ego))
         candidate_grade = (int(candidate.is_artifact), int(candidate.is_ego))
         no_worse = (

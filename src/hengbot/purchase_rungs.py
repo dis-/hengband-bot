@@ -76,6 +76,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "black-market:stone-to-mud": "utility:stone-to-mud",
     # Worn or stored by the equipment comparison (bm_destruction_fund.PRIORITY_WARES).
     "priority-ware:telepathy": "equipment-catalogue",
+    # The first Staff of Speed: the class-16 staff sequence keeps it until absorbed.
+    "priority-ware:speed-staff": "me-staff:absorb",
     # Read at once by _town_remove_curse_key.
     "curse:normal": CONSUMED_ON_USE,
     "curse:star-reserve": "remove-curse:reserve",

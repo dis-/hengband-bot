@@ -22,6 +22,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from hengbot import launcher_upgrade
 from hengbot.equipment_optimizer import ordinary_launcher_yields_to_light_crossbow
 from hengbot.launcher_damage import launcher_turn_damage
 from hengbot.model import SV_BOW_HEAVY_XBOW, SV_BOW_LIGHT_XBOW, SV_BOW_LONG, SV_BOW_SLING
@@ -72,6 +73,17 @@ class LauncherRecordedTest(unittest.TestCase):
         bow = dict(preparation.result.best.loadout.slots)["bow"]
         self.assertTrue(bow.item.name.startswith(ROBIN), bow.item.name)
         self.assertEqual(bow.origin, "home")
+
+    def test_the_shop_upgrade_compares_damage_per_turn(self):
+        """CONSTRUCTED from the recorded Home Long Bow: an ego one at (+3,+16) shoots plain arrows
+        for (2.5 + 16) x 3 = 55.5 a shot and a turn, below the worn crossbow's 63 a shot but above
+        its 52.5 a turn (owner 2026-11-19, damage per time)."""
+        bolts = tuple(item for item in self.board.inventory if item.is_ammo)
+        ego = replace(self.launcher("ロング・ボウ"), is_ego=True, to_d=16)
+        self.assertTrue(launcher_upgrade._would_replace(
+            self.launcher("ライト・クロスボウ"), ego, bolts))
+        self.assertFalse(launcher_upgrade._would_replace(
+            self.launcher("ライト・クロスボウ"), replace(ego, to_d=14), bolts))
 
     # CONSTRUCTED from the recorded Home Long Bow: the rule over every other kind.
     def test_ordinary_launchers_of_every_other_kind_yield(self):

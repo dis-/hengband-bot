@@ -47,6 +47,12 @@ The staff's row is wanted only while ``staff_wanted`` holds: a Magic-Eater whose
 *Destruction* count (me_capability.count: the displayed list's ``max``, else the absorption
 record, a lower bound) is above ``ME_STAFF_COUNT_LIMIT`` neither buys it as the Black Market's
 top pick (any number) nor sells Home's spares for it.  Every other class keeps the rule.
+
+Owner 2026-11-21 (verbatim): 「スピードの杖の一本目は最優先にする」.  The table's third row: a
+Magic-Eater's first Staff of Speed, wanted while no Speed power is absorbed (me_capability.count)
+and no Staff of Speed is carried or in the Home, read on every shop's shelf (the Magic shop and
+the Black Market stock it).  Later copies stay the Magic-Eater device table's
+(me_device_policy ``buy_more``, the "me-device:policy" rung).
 """
 from __future__ import annotations
 
@@ -55,7 +61,7 @@ from typing import Any, Callable
 
 from hengbot import item_fate
 from hengbot.item_reservation import decision_memo
-from hengbot.model import STORE_BLACK, STORE_HOME
+from hengbot.model import STORE_BLACK, STORE_HOME, SV_STAFF_SPEED, TVAL_STAFF
 
 # object-enchant/tr-types.h TR_TELEPATHY; the depth requirement's "telepathy"
 # (DEPTH_ABILITY_REQUIREMENTS, 50F) is the board's ability of this flag only
@@ -92,6 +98,25 @@ def _owns_telepathy(policy: Any, snapshot: Any) -> bool:
     return any(TR_TELEPATHY in item.known_flags for item in owned)
 
 
+def _is_speed_staff(_policy: Any, item: Any) -> bool:
+    return (item.tval == TVAL_STAFF and item.sval == SV_STAFF_SPEED and item.aware
+            and max(item.charges, item.pval) > 0)
+
+
+def first_speed_staff_wanted(policy: Any, snapshot: Any) -> bool:
+    """A Magic-Eater with no Speed power absorbed and no Staff of Speed carried or in the Home."""
+    from hengbot import me_capability
+    from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+
+    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
+        return False
+    if me_capability.count(policy, snapshot, "staff", SV_STAFF_SPEED) > 0:
+        return False
+    home = getattr(policy, "_home_knowledge_items", ()) or ()
+    return not any(item.tval == TVAL_STAFF and item.sval == SV_STAFF_SPEED and item.aware
+                   for item in (*snapshot.inventory, *home))
+
+
 # Owner 2026-11-16 「魔道具術師で取り込み回数が50を超えたらやめる」.
 ME_STAFF_COUNT_LIMIT = 50
 
@@ -115,6 +140,9 @@ PRIORITY_WARES = (
     # policy_shop's "priority-ware:telepathy" (``rung_matches``).
     PriorityWare("telepathy", None, _is_telepathy_ware,
                  lambda policy, snapshot: not _owns_telepathy(policy, snapshot)),
+    # Owner 2026-11-21 「スピードの杖の一本目は最優先にする」; its purchase rung is policy_shop's
+    # "priority-ware:speed-staff".
+    PriorityWare("speed-staff", None, _is_speed_staff, first_speed_staff_wanted),
 )
 _BY_LABEL = {entry.label: entry for entry in PRIORITY_WARES}
 _RANK = {entry.label: rank for rank, entry in enumerate(PRIORITY_WARES)}
