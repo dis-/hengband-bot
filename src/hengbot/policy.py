@@ -1286,6 +1286,12 @@ from .policy_town import OBSERVE_AND_LEAVE_REASON, TownMixin, _town_fact_views
 from .policy_observation import ObservationMixin
 
 
+
+def _finale_forbids_rest(policy, snapshot) -> bool:
+    """angband_finale_battle.forbids_rest (imported at call time: an import cycle)."""
+    from hengbot import angband_finale_battle
+    return angband_finale_battle.forbids_rest(policy, snapshot)
+
 class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, HomeMixin, EquipmentMixin, QuestMixin, PolicyHelpersMixin, CombatMixin, NavigationMixin, SupplyMixin, FundraisingMixin, IdentificationMixin, CalibrationMixin):
     """Goal-seeking policy: survive, gain levels, and keep descending.
 
@@ -7485,6 +7491,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not player.cut
             and not player.confused
             and player.food_state in {"normal", "full", "gorged"}
+            # Owner 2026-11-21 (LOCKED) 「99F 100Fでの休憩は許可していない」.
+            and not _finale_forbids_rest(self, snapshot)
         ):
             self.last_reason = "rest"
             return REST_MACRO

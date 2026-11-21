@@ -163,6 +163,11 @@ READERS = {
         "the 99F/100F battle's leave when the target and another monster are both in the player's "
         "line of fire (owner 2026-11-20 「ターゲットとターゲット以外が同時に射線に入っているときは"
         "召喚直後でなくとも離脱する」)",
+    ("angband_finale_battle", "_opens_line", "player_projectable"):
+        "whether melting one wall of the 99F/100F stand (``opened``) would leave the player's "
+        "line of fire to the target where it stands: that melt is never made, the target would act "
+        "first on the open line (owner 2026-11-21 「溶かした時に先手を取られて何も出来ず離脱している"
+        "場面が問題」)",
     ("angband_finale_battle", "_fight_key", "player_projectable"):
         "the 99F/100F powered Rocket at the target's grid: a ball aimed at a grid flies the bolt "
         "path to it (owner 2026-11-20 「岩石溶解を使って射線を通す」)",
@@ -307,15 +312,19 @@ def projectable(policy, snapshot, source: Position, target: Position, *,
     return bool(path) and path[-1] == target
 
 
-def player_projectable(policy, snapshot, source: Position, target: Position) -> bool:
-    """``projectable`` for the player's own projection (policy ``_stops_player_projection``)."""
+def player_projectable(policy, snapshot, source: Position, target: Position,
+                       opened: tuple = ()) -> bool:
+    """``projectable`` for the player's own projection (policy ``_stops_player_projection``).
+
+    ``opened``: grids read as open whatever the board shows (a wall about to be melted)."""
     if source == target:
         return True
-    path = player_path(policy, snapshot, source, target, MONSTER_SPELL_MAX_RANGE)
+    path = player_path(policy, snapshot, source, target, MONSTER_SPELL_MAX_RANGE, opened)
     return bool(path) and path[-1] == target
 
 
-def player_path(policy, snapshot, source: Position, target: Position, max_range: int) -> list:
+def player_path(policy, snapshot, source: Position, target: Position, max_range: int,
+                opened: tuple = ()) -> list:
     """The grids the player's own bolt, arrow or shot passes from ``source`` toward ``target``
     (project_path, projection-path-calculator.cpp), at most ``max_range`` long, the last one
     where it stops: a known grid without PROJECTION stops it, glass included
@@ -328,7 +337,8 @@ def player_path(policy, snapshot, source: Position, target: Position, max_range:
     (policy ``_offset_fire_aim``); each bolt stopped on the glass."""
     return projection_path(
         source, target, max_range,
-        lambda position: policy._stops_player_projection(snapshot, position),
+        lambda position: position not in opened
+        and policy._stops_player_projection(snapshot, position),
     )
 
 

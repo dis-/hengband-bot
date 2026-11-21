@@ -53,6 +53,7 @@ from hengbot.model import (
     AbilitySources, GridState, Position, game_distance, SV_POTION_STAR_HEALING, SV_WAND_STONE_TO_MUD, TVAL_POTION, TVAL_WAND,
     parse_snapshot,
 )
+from hengbot.policy_constants import REST_MACRO
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-411-angband-cap-1119"
@@ -321,7 +322,10 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         held = battle.battle(self.policy, self.recorded)
         self.assertEqual((held.phase, held.last_seen), (battle.RECOVER, (self.here.y, self.here.x + 1)))
         key, reason = decide(self.policy, self.board(hp=900))
-        self.assertIn(reason, {battle.REST_REASON, battle.RESTORE_MANA_REASON})
+        # Owner 2026-11-21 (LOCKED) 「99F 100Fでの休憩は許可していない」: a deficit short of a
+        # potion's 300 is not rested off; no rest of any owner answers on the floor.
+        self.assertNotIn(reason, {battle.REST_REASON, "rest"})
+        self.assertNotEqual(key, REST_MACRO)
         # Q3: a deficit of a potion's 300 or more is healed (the absorbed Healing first); the
         # drop to 600 is a hit below 800 (a teleport), the next board at 600 is no hit.
         key, reason = decide(self.policy, self.board(hp=600))

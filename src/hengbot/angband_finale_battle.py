@@ -51,13 +51,16 @@ The per-board order (``key``), the first that answers wins:
     (周辺感知) shows the floor further;
  5. the recovery after a teleport: once no awake hostile is in view, Restore Mana while the
     rocket can take a potion's refill, then the heal (``_heal``: the absorbed Healing, else a
-    Potion of Healing) for a deficit of a potion's 300 or more, else the rest to full HP; then on
-    to the last-seen cell;
+    Potion of Healing) for a deficit of a potion's 300 or more, never a rest (owner 2026-11-21
+    「99F 100Fでの休憩は許可していない」); then on to the last-seen cell;
  6. the battle: *Destruction* (powered when only it reaches) on the other monsters while the
     target is outside its worst circle; haste and the Resistance potion; the powered Rocket when
-    a line projects and HP - cost >= 800; else the stand on one of the eight rays of the target,
-    as far as the Rocket reaches, opened with Stone to Mud, its last wall kept until the target
-    is off the ray so that the target's own move opens the line (the first action is ours).
+    a line projects and HP - cost >= 800; else the stand on one of the eight rays of the target
+    (its row or column first), as far as the Rocket reaches, opened with Stone to Mud; a wall
+    whose melting would open the line on the target where it stands is never melted: it is kept
+    (``LAST_WALL_HOLD``) so that the target's own move opens a line and the hasted player fires
+    first, then the stand is given up (owner 2026-11-21, LOCKED 「溶かした時に先手を取られて何も
+    出来ず離脱している場面が問題」).
 
 Owner 2026-11-21 (verbatim, LOCKED) 「感知で回る・作り直した階でも一巡する」: past the sweep, a target
 shown nowhere with no last-seen cell kept (``lost``: the sweep's *Destruction* teleports the
@@ -69,7 +72,7 @@ the whole floor once without showing it (``finale_swept``); a regenerated level 
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from hengbot import angband_finale, destruction_use, me_capability, me_device_attacks
 from hengbot.model import Position, game_distance
@@ -98,6 +101,8 @@ MAP_REASON = f"{REASON}:map"
 HASTE_REASON = f"{REASON}:haste"
 RESIST_REASON = f"{REASON}:resistance"
 RESTORE_MANA_REASON = f"{REASON}:restore-mana"
+# No longer emitted (owner 2026-11-21 「99F 100Fでの休憩は許可していない」, ``_recover_key``); the
+# driver's loop window still names it for the older records (cli RECOVERING_REST_REASONS).
 REST_REASON = f"{REASON}:rest"
 RESTORE_STATS_REASON = f"{REASON}:restore-stats"  # the drained stats after a teleport (2026-11-21)
 APPROACH_REASON = f"{REASON}:approach"
@@ -122,12 +127,14 @@ SWEEP_SPACING = 20
 # The sweep ends after this many refused uses in a row (a damaged target in the circle, a
 # failed cast's fallback).
 SWEEP_REFUSALS = 3
-# A Potion of Healing's 300 (quaff-effects.cpp hp_player(300)): a smaller deficit is rested off.
+# A Potion of Healing's 300 (quaff-effects.cpp hp_player(300)): a smaller deficit is not healed
+# (and never rested off: ``_recover_key``).
 HEAL_DEFICIT = 300
 ROCKET = ("wand", 29)
 POWERED_SURE = 18
 POWERED_WORST = 22
-# The boards the last wall is kept while the target stands on the ray (「可能なら」: then opened).
+# The boards a wall whose melting would open the line on the target is kept (the target's own move
+# opens it); past them the stand is given up, never opened (``_stand_key``).
 LAST_WALL_HOLD = 10
 # The boards a fully open stand waits for the target to cross its ray before a new stand.
 OPEN_STAND_WAIT = 20
@@ -161,6 +168,9 @@ class Battle:
     restoration_read: int | None = None  # the game turn the rod list was last browsed for Restoration
     # The floor's quest was already done when this floor was first seen (``applies``).
     done_on_arrival: bool = False
+    # (stand cell, target cell) given up because the stand's wall would open the line on the target
+    # first (``_stand_key``): skipped while the target stays on that cell; cleared by a teleport.
+    refused: set = field(default_factory=set)
 
 
 def battle(policy, snapshot) -> Battle:
@@ -586,15 +596,21 @@ def _candidates(policy, snapshot, aim) -> list:
             walls = _walls_between(snapshot, stand)
             if walls is None or len(walls) > charges:
                 continue
-            # 「なるべく距離をとって」: the farthest first, then the fewest walls.
-            found.append(((-distance, len(walls)), stand))
+            # Owner 2026-11-21 (verbatim, an allowed simplification) 「必要なら問題の単純化のため、対象と
+            # x軸かy軸を合わせて待ち、対象の動きを予測しやすくすると良い」: the target's row or column
+            # first; then 「なるべく距離をとって」: the farthest, then the fewest walls.
+            diagonal = step[0] != 0 and step[1] != 0
+            found.append(((diagonal, -distance, len(walls)), stand))
     found.sort(key=lambda pair: pair[0])
     return [stand for _, stand in found]
 
 
 def _choose_stand(policy, snapshot, aim) -> Stand | None:
     here = (snapshot.player.position.y, snapshot.player.position.x)
-    for tried, stand in enumerate(_candidates(policy, snapshot, aim)):
+    held = battle(policy, snapshot)
+    candidates = [stand for stand in _candidates(policy, snapshot, aim)
+                  if (stand.cell, aim) not in held.refused]
+    for tried, stand in enumerate(candidates):
         if tried >= STAND_ROUTE_TRIES:
             break
         if stand.cell == here:
@@ -605,11 +621,15 @@ def _choose_stand(policy, snapshot, aim) -> Stand | None:
     return None
 
 
-def _on_ray(stand: Stand, cell) -> bool:
-    dy, dx = cell[0] - stand.cell[0], cell[1] - stand.cell[1]
-    sy, sx = -stand.step[0], -stand.step[1]
-    steps = max(abs(dy), abs(dx))
-    return 0 < steps <= ROCKET_RANGE and (dy, dx) == (sy * steps, sx * steps)
+def _opens_line(policy, snapshot, stand: Position, wall: Position, target: Position) -> bool:
+    """Melting ``wall`` would leave a line of fire from ``stand`` to the target where it is.
+
+    The player's projection path (line_of_fire.player_projectable, project_path) with ``wall``
+    read as open, within the spells' 18 grids (get_max_range).  The Rocket is aimed at the
+    target's cell ('@y,x', me_device_attacks.device_target_key), so the line is any angle, not
+    only the stand's ray; the target's spells see the player down the same path."""
+    from hengbot import line_of_fire
+    return line_of_fire.player_projectable(policy, snapshot, stand, target, opened=(wall,))
 
 
 def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
@@ -637,13 +657,21 @@ def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
     if walls is None:
         held.stand = None
         return None
-    on_ray = _on_ray(stand, aim)
     if walls:
-        if len(walls) == 1 and on_ray and stand.held < LAST_WALL_HOLD:
-            # The last wall waits: opened now, the line would be the target's first.
-            stand.held += 1
-            policy.last_reason = HOLD_REASON
-            return WAIT_KEY
+        if _opens_line(policy, snapshot, Position(*here), Position(*walls[0]), target.position):
+            # 「可能なら相手の移動後に射線が通るようにして、先手を取ること」 (owner 2026-11-21, LOCKED:
+            # 「溶かした時に先手を取られて何も出来ず離脱している場面が問題」): this melt would open the
+            # line on the target where it stands, and the melt spends the turn -- the target acts
+            # first on the open line.  The wall is kept while the target's own move may open a line
+            # (then the hasted player fires first), and past LAST_WALL_HOLD the stand is given up,
+            # never opened.
+            if stand.held < LAST_WALL_HOLD:
+                stand.held += 1
+                policy.last_reason = HOLD_REASON
+                return WAIT_KEY
+            held.refused.add((stand.cell, aim))
+            held.stand = None
+            return _stand_key(policy, snapshot, held, target)
         stand.held = 0
         return sealed_pocket.melt_at_key(policy, snapshot, Position(*walls[0]), MELT_REASON)
     if stand.held >= OPEN_STAND_WAIT:
@@ -662,7 +690,13 @@ def _safe(policy, snapshot) -> bool:
 
 
 def _recover_key(policy, snapshot, held: Battle) -> str | None:
-    from hengbot.policy_constants import REST_MACRO
+    """The recovery after a teleport: Restore Mana, the heal, the drained stats -- never a rest.
+
+    Owner 2026-11-21 (verbatim, LOCKED) 「99F 100Fでの休憩は許可していない。薬や取り込んだ体力回復の杖
+    などで回復する指示である。」: a deficit of a Potion of Healing's 300 or more takes the heal
+    (``_heal``: the absorbed Healing first); a smaller one, or none left to take, goes on at once.
+    The rests it replaced were cut short by every telepathy-sensed monster's move (n1-b life-411
+    Angband 99F 2026-11-21 13:59: 29 rests, 1041 -> 1111 HP, then loop-detected)."""
     if not _safe(policy, snapshot):
         return None
     restored = _restore_mana(policy, snapshot)
@@ -677,12 +711,15 @@ def _recover_key(policy, snapshot, held: Battle) -> str | None:
         restored_stats = _restore_stats(policy, snapshot, held)
         if restored_stats is not None:
             return restored_stats
-    if player.hp < player.max_hp:
-        policy.last_reason = REST_REASON
-        return REST_MACRO
     held.phase = BATTLE
     held.stand = None
     return None
+
+
+def forbids_rest(policy, snapshot) -> bool:
+    """Owner 2026-11-21 (LOCKED) 「99F 100Fでの休憩は許可していない」: no rest of any owner on a floor
+    the battle holds (the dungeon ladder's rest and the emergency rest ask this)."""
+    return applies(policy, snapshot)
 
 
 def _approach_key(policy, snapshot, held: Battle) -> str | None:
@@ -749,6 +786,7 @@ def key(policy, snapshot) -> str | None:
         away = _teleport(policy, snapshot)
         if away is not None:
             held.phase, held.stand = RECOVER, None
+            held.refused.clear()
             return away
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
