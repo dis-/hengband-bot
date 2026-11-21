@@ -95,6 +95,9 @@
   "purchase:priority-ware:speed-staff": [
     "optional-buy"
   ],
+  "purchase:priority-ware:rocket": [
+    "optional-buy"
+  ],
   "purchase:black-market:speed": [
     "optional-buy"
   ],

@@ -78,6 +78,9 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "priority-ware:telepathy": "equipment-catalogue",
     # The first Staff of Speed: the class-16 staff sequence keeps it until absorbed.
     "priority-ware:speed-staff": "me-staff:absorb",
+    # A Wand of Rockets: the device table absorbs it after the Tower's recharge
+    # (me_device_policy.awaits_absorption).
+    "priority-ware:rocket": "me-staff:absorb",
     # Read at once by _town_remove_curse_key.
     "curse:normal": CONSUMED_ON_USE,
     "curse:star-reserve": "remove-curse:reserve",

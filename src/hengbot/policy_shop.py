@@ -3166,6 +3166,8 @@ class ShopMixin(InStoreMixin):
         add(rung("priority-ware:telepathy", "telepathy", lambda: True, lambda i: bm_destruction_fund.rung_matches(self, snapshot, "telepathy", i)))
         # Its speed-staff row (owner 2026-11-21 「スピードの杖の一本目は最優先にする」).
         add(rung("priority-ware:speed-staff", "device", lambda: True, lambda i: bm_destruction_fund.rung_matches(self, snapshot, "speed-staff", i)))
+        # Its rocket row (owner 2026-11-22 「ロケットの魔法棒の購入優先度を最優先に」).
+        add(rung("priority-ware:rocket", "device", lambda: True, lambda i: bm_destruction_fund.rung_matches(self, snapshot, "rocket", i)))
         add(rung("black-market:speed", "speed", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_SPEED, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_SPEED))
         add(rung("black-market:healing", "healing", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_HEALING, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_HEALING))
         add(rung("black-market:resistance", "resistance", lambda: black_market_pick is not None and black_market_pick.tval == TVAL_POTION and black_market_pick.sval == SV_POTION_RESISTANCE, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_RESISTANCE))
