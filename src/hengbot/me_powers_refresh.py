@@ -32,6 +32,14 @@ _BOOKKEEPING_KEYS = ("\x13", CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO,
                      SKILL_KNOWLEDGE_MACRO)
 KINDS = ("staff", "wand", "rod")
 KIND_LETTER = {"staff": "A", "wand": "B", "rod": "C"}
+# A restarted process's read of a list still missing after this many decisions is asked again,
+# up to RESUME_READ_ATTEMPTS reads of the kind in all (browsing takes no game time).  A first
+# ``b`` whose list never arrived (the key taken by a prompt, the list shown on a board the
+# observer did not read) otherwise left the kind unread for the whole process: with no staff
+# list, me_capability.reliable reads the absorbed *Destruction* as no means and a 50F+ floor
+# recalls (n1-b life-411 2026-11-21, a restored policy on the 95F boards without the lists).
+RESUME_RETRY_DECISIONS = 5
+RESUME_READ_ATTEMPTS = 3
 
 
 def request_refresh(policy) -> None:
@@ -50,8 +58,10 @@ def resume_read_key(policy, snapshot):
     it shot arrows at the unseen tome from [5,5] until it died, the absorbed
     ドラゴンの火炎 (5 charges, the tome HURT_FIRE) unused.  Browsing takes no
     game time (the module docstring), so it may take a board under fire: the
-    replaced key comes back on the next board.  Each kind is asked once per
-    process; a kind with nothing absorbed comes back as an empty list.
+    replaced key comes back on the next board.  Each kind is asked once, and
+    again while its list is still missing ``RESUME_RETRY_DECISIONS`` decisions
+    later, up to ``RESUME_READ_ATTEMPTS`` reads; a kind with nothing absorbed
+    comes back as an empty list.
 
     Asked at the head of the decision (``ConservativePolicy._choose_key``), before any
     producer runs: a decision computed and then replaced would keep its side effects
@@ -65,8 +75,15 @@ def resume_read_key(policy, snapshot):
     from hengbot.me_device_attacks import observe_lists
     observe_lists(policy, snapshot)
     lists = getattr(policy, "_me_device_lists", None) or {}
-    asked = getattr(policy, "_me_power_resume_asked", frozenset())
-    missing = [kind for kind in KINDS if kind not in lists and kind not in asked]
+    attempts = dict(getattr(policy, "_me_power_resume_attempts", None) or {})
+    sequence = getattr(policy, "_decision_sequence", 0)
+
+    def due(kind) -> bool:
+        count, last = attempts.get(kind, (0, None))
+        return count == 0 or (count < RESUME_READ_ATTEMPTS
+                              and sequence - last >= RESUME_RETRY_DECISIONS)
+
+    missing = [kind for kind in KINDS if kind not in lists and due(kind)]
     if not missing:
         return None
     from hengbot.policy import WARNING_PROMPT_MESSAGE_PREFIXES, home_page_message_body
@@ -79,7 +96,9 @@ def resume_read_key(policy, snapshot):
     from hengbot import quest25_battle
     quest25_battle.observe_board(policy, snapshot)
     kind = missing[0]
-    policy._me_power_resume_asked = asked | {kind}
+    count, _last = attempts.get(kind, (0, None))
+    attempts[kind] = (count + 1, sequence)
+    policy._me_power_resume_attempts = attempts
     browse = "b" + KIND_LETTER[kind]
     policy.last_reason = REFRESH_REASON
     policy._offer_execution(

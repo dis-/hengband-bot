@@ -422,8 +422,8 @@ REGISTRY = (
     # me_powers_refresh
     S("_me_power_refresh_pending", "me_powers_refresh", LIFE,
       "me_powers_refresh: me power refresh pending (no comment at its definition)"),
-    S("_me_power_resume_asked", "me_powers_refresh", LIFE,
-      "me_powers_refresh: me power resume asked (no comment at its definition)"),
+    S("_me_power_resume_attempts", "me_powers_refresh", LIFE,
+      "me_powers_refresh: kind -> (reads asked, decision sequence of the last) of the restarted process's absorbed-power list reads (resume_read_key)"),
     # me_q1_torch
     S("_me_q1_missile_empty_turn", "me_q1_torch", LIFE,
       "me_q1_torch: me q1 missile empty turn (no comment at its definition)"),
@@ -2035,6 +2035,11 @@ RESET_BY = {
         "only the current visit's entries when it writes (no whole reset)"
     )),
     "_me_device_list_boards": Reset(("me_power_success.forget_list_boards",)),
+    "_me_power_resume_attempts": Reset(note=(
+        "per process (a restarted process starts without it); me_powers_refresh.resume_read_key "
+        "only adds reads, bounded by RESUME_READ_ATTEMPTS per kind, and a kind whose list arrived "
+        "is no longer asked"
+    )),
     "_acquire_store_visit_attempt": Reset(note=(
         "rewritten to a fresh record (a non-empty dict) in policy.choose_key, policy._choose_key "
         "and policy_shop._shopping_approach_step; never emptied"
