@@ -22963,5 +22963,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "Existing positioning and retreat observations.",
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_traced": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: wraps the enclosure askers (enclosed, sealed-in, route-veto-sealed, walled-off, cut-off, immobile-ring, past-traps); answers what the wrapped ladder or opener answers and notes the asker and its sides for the decision record (n1-b life-413 Angband 12F, 2026-11-21: neither stop capture told the cut-off opener from the vetoes' ladder); returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   }
 }

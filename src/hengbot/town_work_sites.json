@@ -15949,6 +15949,13 @@
     ],
     "delegation": "No independent success; pure reading."
   },
+  "retreat_enclosure.py:_traced": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
   "retreat_enclosure.py:cross_toward_key": {
     "classification": "action",
     "rows": [

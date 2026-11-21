@@ -112,6 +112,30 @@ def map_memory_summary(policy) -> dict[str, Any]:
         "open_frontiers": frontiers,
         "down_stairs": _positions(getattr(policy, "_remembered_downstairs", set())),
         "up_stairs": _positions(getattr(policy, "_remembered_upstairs", set())),
+        **avoid_summary(policy),
+    }
+
+
+AVOID_LIMIT = 64  # cells listed a set; the counts are whole
+
+
+def avoid_summary(policy) -> dict[str, Any]:
+    """The routes' vetoes and who left each, and the enclosure ladder's last asker
+    (retreat_enclosure.trace).  n1-b life-413 (Angband 12F, 2026-11-21) dug out of a corridor
+    whose exits were open; neither stop capture held the vetoes, so the asker could not be read."""
+    from hengbot import left_cells, retreat_enclosure
+
+    owned = getattr(policy, "_engagement_owned_avoid_cells", set()) or set()
+    avoid = getattr(policy, "_engagement_avoid_cells", set()) or set()
+
+    def listed(cells) -> list:
+        return [[cell.y, cell.x, sorted(left_cells.who_left(policy, cell))]
+                for cell in sorted(cells, key=lambda cell: (cell.y, cell.x))[:AVOID_LIMIT]]
+
+    return {
+        "avoid_cells": {"owned": len(owned), "routes": len(avoid), "owned_cells": listed(owned),
+                        "other_cells": listed(set(avoid) - set(owned))},
+        "enclosure_trace": retreat_enclosure.trace(policy),
     }
 
 
