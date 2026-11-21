@@ -1502,6 +1502,13 @@ class CombatMixin:
                 "hunt" if assessment["feasibility"]["feasible"] else "leave"
             )
             targets = tiered
+            if action == "leave" and threat_tiers.approach_pending(self, snapshot):
+                # A sensed T1 the approach owns is gone to and destroyed, not left (owner
+                # 2026-11-10 「積極的に*破壊*で消しにいく」): without a known way yet the rungs
+                # below explore toward it (threat_tiers ``approach_pending``).  n1-b life-413
+                # (Angband 80F, 2026-11-22 02:56:03): 『サウロンの口』 sensed 28 off, the
+                # approach with no known way, and this leave read Recall at 480/748 HP.
+                action = "approach-pending"
         elif tier == "weak" or breeders:
             # Breeders are hunted like the WEAK tier (「放置すると増える」).
             action = "hunt"

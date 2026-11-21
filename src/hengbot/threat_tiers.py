@@ -817,6 +817,17 @@ def approach_owns(policy, snapshot, strong) -> bool:
             or destruction_use.walk_step(policy, snapshot, subject) is not None)
 
 
+def approach_pending(policy, snapshot) -> bool:
+    """A sensed T1 the approach owns (``approach_owns``) where the tiers decide leaving: the
+    floor is not left for it by a rung below the combat layer's (policy_combat
+    ``_esp_threat_rest_key``).  Owner 2026-11-10 「積極的に*破壊*で消しにいく」: without a known
+    way yet, the rungs below map and explore toward it (``sensed_t1_leave_key``)."""
+    if not leave_decided_here(policy, snapshot):
+        return False
+    _, strong = _sensed_strong(policy, snapshot)
+    return bool(strong) and approach_owns(policy, snapshot, strong)
+
+
 def approach_key(policy, snapshot, strong) -> str | None:
     """While ``approach_owns``: the use of *Destruction* once a T1 is within its sure radius,
     else a step toward the nearest; else None (no known way yet: the rungs below map and
