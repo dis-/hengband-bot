@@ -12,8 +12,11 @@ approach stepped toward 1188, and on the next board the walk turned back to 1227
 '1' (36,79)->(37,78), '7' ->(36,77), '3' ->(37,78), '9' ->(36,79), until the loop detector.
 
 The fix (threat_tiers ``approach_subject``): the walk, its ownership and the remembered walk read
-the one monster the use asks about.  With no known way into its reach the approach answers None and
-the rungs below (the explore) take the board, as the approach's documented None says.
+the one monster the use asks about.  Since n1-b life-413 (2026-11-22, the 80F livelocks) a subject
+with no known way into its reach is passed over for the next most dangerous one with a way (the use
+fires when any one of the leaving hostiles is in the sure radius, owner 2026-11-17 Q1
+「脅威のどれか1体が半径13以内なら使う」): at (36,77), where the sleeper has no way, the subject is the
+warmonger in reach and the use fires, so the round does not begin.
 
 Recorded (tests/fixtures/approach-subject-20261117.json.gz, see
 tests/extract_approach_subject_1117_fixture.py): the 43 player-turn boards up to turn 4552007,
@@ -82,15 +85,17 @@ class ApproachSubjectRecordedTest(unittest.TestCase):
         self.assertEqual([recorded[turn]["key"] for turn in ROUND], ["1", "7", "3", "9"])
         self.assertEqual(self.data["decisions"][-1]["reason"], "loop-detected")
 
-    def test_the_use_asks_about_the_sleeper_not_the_nearer_warmonger(self):
-        for turn in (4551994, 4552002):
-            self.assertEqual(self.rows[turn][3], SLEEPER, self.rows[turn])
+    def test_the_use_asks_about_the_sleeper_where_it_has_a_way(self):
+        self.assertEqual(self.rows[4551994][3], SLEEPER, self.rows[4551994])
 
-    def test_no_approach_step_rounds_the_three_cells(self):
-        """With no known way into the sleeper's reach the approach answers None on the round's
-        boards and the explore below takes them (as the record did before the approach)."""
-        for turn in ROUND:
-            self.assertNotEqual(self.rows[turn][2], threat_tiers.APPROACH_REASON, self.rows[turn])
+    def test_without_a_way_to_the_sleeper_the_warmonger_in_reach_is_destroyed(self):
+        """At (36,77) the sleeper has no known way; the warmonger, in reach, is the subject and
+        the use fires (recorded: the approach stepped '3' back, the round's third move)."""
+        position, key, reason, subject = self.rows[4552002]
+        self.assertEqual(position, Position(36, 77))
+        self.assertEqual(subject, WARMONGER)
+        self.assertTrue(reason.startswith("emergency:destruction"), self.rows[4552002])
+        self.assertNotEqual(self.rows[4552007][2], threat_tiers.APPROACH_REASON, self.rows[4552007])
 
     def test_the_approach_still_walks_where_it_can(self):
         """Owner 2026-11-17: a sleeping T1 out of reach is gone to (the walk toward 881)."""

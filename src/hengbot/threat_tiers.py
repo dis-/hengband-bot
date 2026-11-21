@@ -522,9 +522,15 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     # Owner 2026-11-10 (the n1-b life-367 report's P2, verbatim 「積極的に*破壊*で消しにいく」):
     # a T1 known only by detection is gone to and destroyed, not left (``approach_key``).
     if approach_owns(policy, snapshot, strong):
-        # None: no known way toward them yet (the circle just destroyed, say); the rungs
-        # below map and explore, and the next board asks again.
-        return approach_key(policy, snapshot, strong)
+        # No known way toward the sensed ones: the remembered approach's targets lost from
+        # detection still have their way (n1-b life-413, Angband 80F, 2026-11-22 04:07:09: at
+        # (22,47) カオス・ワイアーム was sensed with no known cell in reach, the explore stepped
+        # '6' to (22,48), out of the telepathy's range, where the remembered approach stepped
+        # '4' back toward its targets, until the livelock's Recall).  None: no known way at all
+        # yet (the circle just destroyed, say); the rungs below map and explore, and the next
+        # board asks again.
+        key = approach_key(policy, snapshot, strong)
+        return key if key is not None else remembered_approach_key(policy, snapshot)
     if destruction_only:
         # The random quest floor (``destruction_only_here``): the use alone, never a leave.
         return destruction_use.key(policy, snapshot, leaving=strong)
@@ -759,8 +765,31 @@ def approach_subject(policy, snapshot, targets):
     leaving = destruction_leaving(policy, snapshot, targets)
     if not leaving:
         return None
-    return destruction_use.reach_subject(policy, snapshot, leaving,
-                                         destruction_use.quest_target_race(policy, snapshot))
+    target = destruction_use.quest_target_race(policy, snapshot)
+    # n1-b life-413 (Angband 80F, 2026-11-22 04:03:42, pingpong-escalate then the livelock's
+    # Recall): at (21,69) two T1s were sensed, 理想の戦士『ベネディクト』 (the most dangerous from
+    # contact) and アイス・ワイアーム; no known cell had Benedict within the sure radius, so the
+    # walk had no step, the explore stepped '9' to (20,70), where Benedict was out of the
+    # telepathy's range and the approach walked to the wyrm, '1' back to (21,69).  The use fires
+    # when any one of the leaving hostiles is in the sure radius (destruction_use
+    # ``_threat_in_reach``, owner 2026-11-17 Q1 「脅威のどれか1体が半径13以内なら使う」): a subject
+    # with no known way is passed over for the next most dangerous one with a way, the same
+    # reading on every board.
+    candidates, first = list(leaving), None
+    while (subject := destruction_use.reach_subject(policy, snapshot, candidates, target)) is not None:
+        if _walkable(policy, snapshot, subject):
+            return subject
+        first = first or subject
+        candidates = [monster for monster in candidates
+                      if (monster.index, monster.race_id) != (subject.index, subject.race_id)]
+    return first
+
+
+def _walkable(policy, snapshot, subject) -> bool:
+    """The approach has a place for the use on ``subject``: this cell is one (destruction_use
+    ``use_cell``) or a known way leads to one (``walk_step``)."""
+    return (destruction_use.use_cell(snapshot, subject, destruction_use.spared_positions(policy, snapshot))
+            or destruction_use.walk_step(policy, snapshot, subject) is not None)
 
 
 def _in_reach(snapshot, subject) -> bool:
