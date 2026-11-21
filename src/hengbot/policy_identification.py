@@ -2046,7 +2046,7 @@ class IdentificationMixin:
                 best_score = score
                 best = Position(ny, nx)
         if best is None:
-            self._probed_frontiers.add(origin)
+            self._write_off_frontier(snapshot, origin, "probe-nothing-left")
             return None
         yx = (best.y, best.x)
         self._probe_counts[yx] += 1
@@ -2055,4 +2055,5 @@ class IdentificationMixin:
             # see. Record it so the floor tile beside it stops reading as a
             # frontier (otherwise we are drawn back to that tile forever).
             self._blocked_unknown.add(yx)
+            self._note_writeoff(snapshot, yx, "probe-limit-wall")
         return best

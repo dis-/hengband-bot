@@ -17039,11 +17039,22 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # unrevealable neighbour (dark-room flicker) — stop chasing it so we move on
         # to real frontiers instead of oscillating in place.
         if self._visit_counts[grid.position] >= FRONTIER_EXHAUST_VISITS:
-            self._probed_frontiers.add(grid.position)
+            self._write_off_frontier(snapshot, grid.position, "visits-exhausted")
             return False
         if grid.position in self._probed_frontiers:
             return False
         return self._borders_unexplored(snapshot, grid.position)
+
+    def _write_off_frontier(self, snapshot: Snapshot, position: Position, cause: str) -> None:
+        """Write ``position`` off as a frontier, its cause kept in the floor's ledger
+        (exploration_ledger ``note_writeoff``) for a stop's diagnosis."""
+        self._probed_frontiers.add(position)
+        self._note_writeoff(snapshot, position, cause)
+
+    def _note_writeoff(self, snapshot: Snapshot, position, cause: str) -> None:
+        ledger = getattr(self, "_exploration_ledger", None)
+        if ledger is not None and ledger.floor_key == snapshot.floor_key:
+            ledger.note_writeoff(position, cause, snapshot.turn)
 
     def _borders_unexplored(self, snapshot: Snapshot, position: Position) -> bool:
         """A neighbour is unexplored ground: not a known tile (``_marked_t``:
@@ -17093,7 +17104,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if key not in self._floor_t:
             return False
         if self._visit_counts[position] >= FRONTIER_EXHAUST_VISITS:
-            self._probed_frontiers.add(position)
+            self._write_off_frontier(snapshot, position, "visits-exhausted")
             return False
         if position in self._probed_frontiers:
             return False

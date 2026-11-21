@@ -64,6 +64,11 @@ class ExplorationLedger:
         self.search_sweep_turn = 0
         self.search_sweeps = 0
         self.marked_high = 0
+        # Why each frontier was written off or each unknown grid read as wall: (y, x) ->
+        # (cause, game turn) of the first write-off (``note_writeoff``).  n1-b life-413 (Angband
+        # 12F, 2026-11-21): the explore had written off the corridor east of (46,30), and the
+        # ledger kept only that it was, not why.
+        self.writeoffs: dict[tuple[int, int], tuple[str, int]] = {}
         self._dirty_decisions = 0
         self._loaded = False
 
@@ -74,6 +79,7 @@ class ExplorationLedger:
         state.setdefault("search_sweep", set())
         state.setdefault("search_sweep_turn", 0)
         state.setdefault("search_sweeps", 0)
+        state.setdefault("writeoffs", {})
         self.__dict__.update(state)
 
     def _clear(self, floor_key: tuple[int, int, int] | None = None) -> None:
@@ -90,6 +96,7 @@ class ExplorationLedger:
         self.search_sweep_turn = 0
         self.search_sweeps = 0
         self.marked_high = 0
+        self.writeoffs = {}
         self._dirty_decisions = 0
 
     def bind(self, snapshot: Snapshot) -> bool:
@@ -151,6 +158,8 @@ class ExplorationLedger:
         self.search_sweep_turn = int(data.get("search_sweep_turn", 0))
         self.search_sweeps = int(data.get("search_sweeps", 0))
         self.marked_high = int(data.get("marked_high", 0))
+        self.writeoffs = {(int(y), int(x)): (str(cause), int(turn))
+                          for y, x, cause, turn in data.get("writeoffs", ())}
         return True
 
     @staticmethod
@@ -181,6 +190,11 @@ class ExplorationLedger:
         # local launch snapshot could accidentally validate an unrelated floor.
         mismatches = len(sample) - sum(comparable)
         return mismatches / len(sample) <= EXPLORATION_SAMPLE_MISMATCH_TOLERANCE
+
+    def note_writeoff(self, position, cause: str, turn: int) -> None:
+        """Keep why ``position`` was written off (the first cause and its game turn)."""
+        key = (position.y, position.x) if isinstance(position, Position) else tuple(position)
+        self.writeoffs.setdefault(key, (cause, int(turn)))
 
     def note_mapped_areas(self, areas: Iterable[tuple[int, int, int]]) -> None:
         """Keep this floor's mapped discs; a new one is written at once (a
@@ -230,6 +244,8 @@ class ExplorationLedger:
             "search_sweep_turn": self.search_sweep_turn,
             "search_sweeps": self.search_sweeps,
             "marked_high": self.marked_high,
+            "writeoffs": [[y, x, cause, turn]
+                          for (y, x), (cause, turn) in sorted(self.writeoffs.items())],
         }
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)

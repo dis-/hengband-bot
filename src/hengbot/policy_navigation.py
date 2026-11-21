@@ -1818,7 +1818,7 @@ class NavigationMixin:
             # left a maze's one open corridor unexplored for the rest of the
             # floor (n1-b life-306).
             if not unseen_veto:
-                self._probed_frontiers.add(goal)
+                self._write_off_frontier(snapshot, goal, "no-route")
             return []
         path: list[Position] = []
         node: Position | None = goal
@@ -1832,7 +1832,7 @@ class NavigationMixin:
         # through deep acid past a safe frontier nine steps away (n1-a life-478,
         # Angband 19F, 2026-11-04 10:45, died standing on it).
         if any(self._is_damaging_grid(snapshot.grids.get(cell)) for cell in path):
-            self._probed_frontiers.add(goal)
+            self._write_off_frontier(snapshot, goal, "route-over-damaging")
             return []
         return path
 
