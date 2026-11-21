@@ -59,6 +59,9 @@ _READ = "_enclosure_teleport_read"  # (floor, turn) of this floor's latest Telep
 TELEPORT_REASON = "stuck:enclosed-teleport"
 DIG_REASON = "stuck:walled-off-dig"
 DIG_WIELD_REASON = "stuck:walled-off-wield-digger"
+# The secret-door search before the dig (``_reveal_key``): the corridor dead-end search's reason.
+REVEAL_REASON = "search"
+REVEAL_DEVICE_REASON = "stuck:walled-off-door-beam"
 MELT_REASON = "stuck:walled-off-stone-to-mud"
 DISARM_REASON = "stuck:walled-off-disarm"
 STRIKE_REASON = "stuck:walled-off-strike"
@@ -300,12 +303,89 @@ def dig_has_route(policy, snapshot) -> bool:
     return walled is not None and _dig_route(policy, snapshot, walled) is not None
 
 
+def _reveal_key(policy, snapshot, wall: Position) -> str | None:
+    """Before any digging, the secret door the wall may be.
+
+    Owner 2026-11-08 (verbatim) 「閉じた区画では感知手段を使う・無ければ扉になりうる壁沿いも探す
+    （諦めない）」 and 2026-11-21 「どうみても隠し扉なのに罠破壊を試みない理由は？隠し扉って分からん？」
+    (n1-b life-413, Angband 12F: the dig's first wall was the dead end of a corridor beside a
+    room; the bot wielded the digger at once).  A secret door is a closed door under a granite
+    mimic (Grid::is_hidden_door): the absorbed Detect Doors discloses it (detect_doors,
+    me_powers SECRET_SEARCH, its own spacing), and a search ('s', do_cmd_search ->
+    player-move.cpp search) finds a hidden door beside the player with the search skill's chance
+    a turn.  The wall the dig would open next, beside the player, is searched SEARCH_LIMIT rounds
+    (policy ``_undersearched_walls``) before the digger is wielded or Stone to Mud is spent.
+    A MAZE dungeon's floor (cave-generator.cpp switch_making_floor -> build_maze_vault) is walls
+    and floor only, so there no wall is a door."""
+    from hengbot import immobile_ranged_kill, me_powers
+    from hengbot.policy_constants import SEARCH_KEY
+
+    if immobile_ranged_kill._in_maze(policy, snapshot):
+        return None   # build_maze_vault lays walls and floor only: a maze floor has no door
+    power = me_powers.power_key(policy, snapshot, me_powers.SECRET_SEARCH)
+    if power is not None:
+        return power
+    here = snapshot.player.position
+    grid = snapshot.grids.get(wall)
+    if grid is None or grid.passable or max(abs(wall.y - here.y), abs(wall.x - here.x)) != 1:
+        return None
+    beam = _door_beam_key(policy, snapshot, wall)
+    if beam is not None:
+        return beam
+    if (wall.y, wall.x) not in policy._undersearched_walls(here):
+        return None
+    policy._record_wall_search(here)
+    policy.last_reason = REVEAL_REASON
+    return SEARCH_KEY
+
+
+
+def _door_beam_key(policy, snapshot, wall: Position) -> str | None:
+    """A trap beam at ``wall``, once: KILL_TRAP discloses a hidden door on its line and KILL_DOOR
+    destroys it (effect/effect-feature.cpp; a hidden door's own terrain is the door under the
+    mimic).  The absorbed Disarming or Trap/Door Destruction (me_powers ``TRAP``, once a target),
+    then a carried rod or wand of either (sealed_loot ``TRAP_DEVICES``, Disarming first), one use
+    a wall a floor visit."""
+    from hengbot import me_powers, sealed_loot
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.model import TVAL_ROD
+
+    power = me_powers.power_key(policy, snapshot, me_powers.TRAP, wall)
+    if power is not None:
+        return power
+    uses = sealed_loot._device_uses(policy, snapshot)
+    if uses.get((wall.y, wall.x), 0):
+        return None
+    device = sealed_loot._trap_device(policy, snapshot, wall)
+    direction = me_powers.beam_direction(policy, snapshot, snapshot.player.position, wall)
+    if device is None or direction is None:
+        return None
+    kind = "rod" if device.tval == TVAL_ROD else "wand"
+    used = reserved_item_command(policy, snapshot, kind, device, suffix=direction)
+    if used is None:
+        return None
+    uses[(wall.y, wall.x)] = 1
+    policy.last_reason = REVEAL_DEVICE_REASON
+    return used
+
+
 def _dig_key(policy, snapshot, walled) -> str | None:
-    """The digger's route, else the Stone to Mud route."""
+    """The secret door first (``_reveal_key``), then the digger's route, else the Stone to Mud
+    route."""
     first = _dig_route(policy, snapshot, walled)
     if first is not None:
+        reveal = _reveal_key(policy, snapshot, first)
+        if reveal is not None:
+            return reveal
         return walkout_dig.dig_step_key(
             policy, snapshot, first, walkout_dig.diggable, DIG_REASON, DIG_WIELD_REASON)
+    player = snapshot.player
+    if not (player.blind or player.confused) and sealed_pocket.can_melt(policy, snapshot):
+        route = melt_route(policy, snapshot, walled.ground)
+        if route is not None:
+            reveal = _reveal_key(policy, snapshot, route[0])
+            if reveal is not None:
+                return reveal
     return _melt_key(policy, snapshot, walled)
 
 

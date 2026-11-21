@@ -22907,5 +22907,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "retreat_enclosure.py:_reveal_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: the walled-off ladder's secret door before any digging (owner 2026-11-21 「どうみても隠し扉なのに罠破壊を試みない理由は？隠し扉って分からん？」, n1-b life-413 Angband 12F): the absorbed Detect Doors, the door beam (_door_beam_key), then the search ('s') of the wall the dig or the melt would open next, SEARCH_LIMIT rounds; None on a MAZE floor; returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_door_beam_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: asked by _reveal_key with the wall beside the player the dig or the melt would open: the absorbed Disarming or Trap/Door Destruction (me_powers TRAP), then a carried rod or wand of either, once a wall a floor visit (KILL_TRAP discloses a hidden door, KILL_DOOR destroys it); returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   }
 }

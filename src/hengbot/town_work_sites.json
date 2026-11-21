@@ -15857,6 +15857,13 @@
     ],
     "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
+  "retreat_enclosure.py:_door_beam_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
   "retreat_enclosure.py:_first_step": {
     "classification": "data",
     "rows": [
@@ -15891,6 +15898,13 @@
       "positioning"
     ],
     "delegation": "No independent success; existing wait, retreat or teleport owner."
+  },
+  "retreat_enclosure.py:_reveal_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   },
   "retreat_enclosure.py:_sides": {
     "classification": "action",
