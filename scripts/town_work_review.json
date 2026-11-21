@@ -22791,5 +22791,16 @@
     "delegation": "selected child; no independent success",
     "context": "Pure: the catalogue id's item part, read by the preparation phase in town.",
     "evidence": "String helper of the phase's fixed target (finale_prep); no command or independent credit."
+  },
+  "finale_prep.py:_read_home_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Town only: the 99F/100F preparation phase's Home read, from its home step and from its supplies step when another Home take or deposit dropped the census (finale_prep town_key).",
+    "evidence": "Delegates to _home_full_knowledge_key through _town_producer_entry (home-full-knowledge, family home-scan, no game time) and renames its reason finale-prep:read-home; no command of its own (n1-c life-217 2026-11-21 11:32:56, the supplies step stopped as not-at-home after a full-home-sale take emptied the census)."
   }
 }

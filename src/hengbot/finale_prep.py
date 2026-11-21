@@ -27,7 +27,9 @@ keys come from ``town_key`` (the objectives ladder, before the ordinary town wor
               telepathy, resist curse, resist blindness or light, the *Destruction* means of that
               set: the absorbed power unless the set wears a NO_MAGIC).
 ``supplies``  takes the finale's counts out of the Home, one stack at a time (a Home errand of the
-              phase's own purpose, routed by the need ``CATEGORY``); the carry holds from here
+              phase's own purpose, routed by the need ``CATEGORY``; a census another Home take or
+              deposit dropped is read again first, and a stack whose slot that take left
+              unaddressed is filed for the errand's own read); the carry holds from here
               (angband_finale ``carry_target``: nothing deposits them again).  Done when the pack
               holds every count (``readiness``'s ``carried``) and no swap is under way.
 ``loadout``   the worn loadout's search runs in the finale's rank with the supplies carried; its
@@ -326,8 +328,12 @@ def observe(policy, snapshot, rows: dict | None) -> None:
 
 
 def _short_stack(policy, snapshot):
-    """(kind, Home stack, count) of the first finale kind the pack holds short of its count, with
-    an addressable stack in the current Home catalogue; (kind, None, count) when none is there."""
+    """(kind, Home stack, count, addressable) of the first finale kind the pack holds short of its
+    count, with a stack in the Home catalogue; (kind, None, count, False) when the catalogue holds
+    none.  ``addressable``: the stack's slot is still valid (before ``_home_knowledge_valid_before``;
+    another take earlier in the list leaves the later slots to a fresh census, which the filed
+    errand reads itself: n1-c life-217 2026-11-21 11:31:14, the *Healing* take at slot 4 left the
+    Restore Mana at slots 6-7 unaddressed and the step stopped as if none were at Home)."""
     from hengbot import angband_finale
     targets = {**angband_finale.CARRY,
                angband_finale.RESTORE_MANA: angband_finale.restore_mana_goal(policy, snapshot) or 0}
@@ -335,12 +341,34 @@ def _short_stack(policy, snapshot):
         missing = target - angband_finale.carried(snapshot, kind)
         if missing <= 0:
             continue
-        stack = next((item for index, item in enumerate(policy._home_knowledge_items)
-                      if index < policy._home_knowledge_valid_before
-                      and (item.tval, item.sval) == kind and getattr(item, "aware", True)
-                      and policy._item_signature(item) not in policy._deferred_home_items), None)
-        return kind, stack, missing
+        found = [(index, item) for index, item in enumerate(policy._home_knowledge_items)
+                 if (item.tval, item.sval) == kind and getattr(item, "aware", True)
+                 and policy._item_signature(item) not in policy._deferred_home_items]
+        addressable = [item for index, item in found
+                       if index < policy._home_knowledge_valid_before]
+        if addressable:
+            return kind, addressable[0], missing, True
+        if found:
+            return kind, found[0][1], missing, False
+        return kind, None, missing, False
     return None
+
+
+def _read_home_key(policy, snapshot) -> str | None:
+    """The phase's Home read (``~9``, no game time): the census the home step waits for, and the
+    one the supplies step reads again when another Home take or deposit dropped it."""
+    if not policy._home_knowledge_current and not policy._home_knowledge_invalidated:
+        policy._home_knowledge_invalidated = True  # the census to read is this visit's
+    if not policy._home_catalogue_scan_owed() and not (
+            policy._home_knowledge_scan_inflight
+            or policy._home_knowledge_scan_epoch is not None):
+        return None
+    key = policy._town_producer_entry(
+        "home-full-knowledge", lambda: policy._home_full_knowledge_key(snapshot),
+        family="home-scan")
+    if key is not None and policy.last_reason == "home:request-knowledge-scan":
+        policy.last_reason = HOME_REASON
+    return key
 
 
 def town_key(policy, snapshot) -> str | None:
@@ -351,32 +379,26 @@ def town_key(policy, snapshot) -> str | None:
     if held is None or not snapshot.in_town or snapshot.player.recalling:
         return None
     if held.step == HOME and not _home_current(policy):
-        if not policy._home_knowledge_current and not policy._home_knowledge_invalidated:
-            policy._home_knowledge_invalidated = True  # the census to read is this visit's
-        if not policy._home_catalogue_scan_owed() and not (
-                policy._home_knowledge_scan_inflight
-                or policy._home_knowledge_scan_epoch is not None):
-            return None
-        key = policy._town_producer_entry(
-            "home-full-knowledge", lambda: policy._home_full_knowledge_key(snapshot),
-            family="home-scan")
-        if key is not None and policy.last_reason == "home:request-knowledge-scan":
-            policy.last_reason = HOME_REASON
-        return key
+        return _read_home_key(policy, snapshot)
     if held.step != SUPPLIES or policy._home_errand.active:
         return None
     from hengbot.home_errand import HomeErrandRequest
     short = _short_stack(policy, snapshot)
     if short is None:
         return None
-    kind, stack, missing = short
+    kind, stack, missing, addressable = short
     if stack is None:
+        if not _home_current(policy):
+            # Another Home take or deposit of this visit dropped the census (n1-c life-217
+            # 2026-11-21 11:32:56: the full-home-sale take emptied the catalogue and the step
+            # stopped as not-at-home with 98 Healing there): read it again first.
+            return _read_home_key(policy, snapshot)
         _stop(policy, held, f"supplies:not-at-home:{kind[0]}-{kind[1]}")
         return None
     policy._file_home_errand(
         snapshot, HomeErrandRequest(policy._item_signature(stack), min(missing, stack.count),
                                     "home-catalog", PURPOSE),
-        knowledge_current=policy._home_knowledge_current)
+        knowledge_current=policy._home_knowledge_current and addressable)
     return None
 
 
