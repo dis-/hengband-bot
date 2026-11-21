@@ -92,6 +92,79 @@ def cached_optimal_loadout(policy):
     return loadout if loadout is not None and hasattr(loadout, "item_at") else None
 
 
+HANDS = ("main_hand", "sub_hand")
+# The causes the town's two hand owners name when the lending holds them (policy_equipment).
+LENT_CAUSE = "hands-lent-to-mining"
+SESSION_CAUSE = "hands-owned-by-transaction"
+# A mining set open: the next departure is the mining walk-in.
+LENDING_MODES = frozenset({"prepare", "mine"})
+# A mining run came back to this town visit with a digger in a hand (state_registry row).
+RETURN_STATE = "_mining_hands_returned"
+
+
+def _digger_in_hand(snapshot) -> bool:
+    return any(item.is_digging_tool and item.slot in HANDS
+               for item in getattr(snapshot, "equipment", ()))
+
+
+def note_run_return(policy, snapshot) -> None:
+    """A mining run came back to town (policy_observation ``returned_from_fundraising``) with a
+    digger in a hand: the hands stay lent through this town visit (``hands_lent``)."""
+    if _digger_in_hand(snapshot):
+        setattr(policy, RETURN_STATE, True)
+
+
+def end_lending(policy) -> None:
+    """The lending of a run's return ends: the town left (policy_observation), or an ordinary
+    (not mining) departure asked for the weapon (``departure_asks_weapon``)."""
+    setattr(policy, RETURN_STATE, False)
+
+
+def hands_lent(policy, snapshot) -> bool:
+    """In town, the combat hands are lent to the mining fundraise: one owner for them.
+
+    Owner 2026-11-22 Q6 (verbatim choice): after a temporary swap (mining, a quest, Zul) the
+    visit's target-loadout weapon is worn -- after the swap, not during it.  The mining
+    fundraise runs its Yeek cave 1F floors through town: the restock-wait owners (the
+    Magic-Eater's staff stock-out, the Identify-staff and recall stock-outs, the town end's
+    cycle) open a one-run set, its return to town ends the set (policy_observation, the run
+    count), and the visit opens the next one-run set late in its errands.  Each such visit took
+    the hands back first -- the town re-arm (``_town_restore_weapon_key``) or the visit's
+    equipment swap wielded the weapon, took the diggers off and even deposited them in the Home,
+    and the mining kit withdrew one again -- and the next floor's ``_wield_digging_tool_key``
+    stripped the weapon: n1-c life-220 (2026-11-22 06:04-06:13, build 56fa91268, Lv8
+    Magic-Eater, me-staff:fundraise:staff-stockout) wore ロング・ソード in town and シャベル on 1F
+    by turns every few seconds (equipment-visit.jsonl, decisions 269/328/407/421/429/444 ...).
+
+    So in town, with a digger in a hand, the hands are lent while a mining set is open (mode
+    "prepare" or "mine": the next departure is the mining walk-in) or while the visit a run
+    came back to has not asked for an ordinary departure (``note_run_return`` /
+    ``end_lending``): neither town owner touches them, nor starts the visit's swap.  An
+    ordinary departure asks for the weapon (policy ``_combat_weapon_ready``, the walk-in's
+    ``_descent_is_blocked``: ``departure_asks_weapon``) and ends the lending, so the visit's
+    target loadout is worn before it leaves.  The dungeon's own fight rules still re-arm on
+    contact (MINING_COMBAT_CONTACT_LIMIT)."""
+    if not (getattr(snapshot, "in_town", False) or getattr(snapshot, "store", None) is not None):
+        return False
+    if not _digger_in_hand(snapshot):
+        return False
+    mode = getattr(policy, "_fundraising_mode", None)
+    if mode in LENDING_MODES:
+        return True
+    # A scavenging set does not dig: its departure is no mining walk-in.
+    return mode is None and bool(getattr(policy, RETURN_STATE, False))
+
+
+def departure_asks_weapon(policy, snapshot) -> bool:
+    """An ordinary departure (not the mining walk-in) asks for the weapon: the lending of a run's
+    return ends here, and True says the hands were still lent (the caller's departure waits one
+    decision for the town re-arm or the visit's swap to wear the target's weapon)."""
+    lent = hands_lent(policy, snapshot) and getattr(policy, "_fundraising_mode", None) not in LENDING_MODES
+    if lent:
+        end_lending(policy)
+    return lent
+
+
 def remember_combat_hands(policy, main_hand, sub_hand) -> None:
     """Record the combat hands the digger swap displaces, once per swap.
 

@@ -31,8 +31,11 @@ The stop.  ``observe`` (every public decision, ``choose_key``) reads the board i
 trip's worn state stands in the same visit, when ``FLIPFLOP_STOPS`` is on; the
 decision then sends nothing under that reason (a policy final stop, ``policy_constants
 POLICY_FINAL_STOP_PREFIXES``) and the incident capture carries this journal.  The round trip is
-the observed one: the third wear has been posted and seen.  Out of town nothing is tracked (the
-digger swap's weapon -> digger -> weapon is the mining cycle's own).
+the observed one: the third wear has been posted and seen.  Out of town the visit's trail is not
+kept (the digger swap's weapon -> digger -> weapon is the mining set's own fight rule); the combat
+hands alone are read on every board, across the visits, into a record-only trail
+(``observe_hands``, ``equipment-hand-roundtrip:<slot>``: a temporary swap's round trip over the
+town's edge is written, never stopped on).
 """
 
 from __future__ import annotations
@@ -59,6 +62,11 @@ STOP_PREFIX = "town:blocked:equipment-slot-flipflop:"
 BANNED_STUCK_PREFIX = "town:blocked:banned-gear-stuck:"
 FLIPFLOP_EVENT = "equipment-slot-flipflop"
 REWEAR_EVENT = "equipment-rewear"
+# The combat hands' trail across town visits and the dungeon (``observe_hands``, record only:
+# a row of state_registry, owner equipment_visit_journal).
+HAND_TRAIL_STATE = "_equipment_hand_trail"
+HAND_TRAIL_LENGTH = 6
+HAND_ROUNDTRIP_EVENT = "equipment-hand-roundtrip"
 # Owner 2026-11-22 「往復が起きたら停止して直す」: the round trip is a named stop.  False turns it
 # back into a record only (the event row stays).
 FLIPFLOP_STOPS = True
@@ -229,11 +237,64 @@ def _worn_by_slot(snapshot: Any) -> dict:
             if getattr(item, "slot", None) and getattr(item, "tval", None) not in _AMMUNITION}
 
 
+def _hand_trail(policy: Any) -> dict:
+    state = getattr(policy, HAND_TRAIL_STATE, None)
+    if not isinstance(state, dict):
+        state = {"trail": {}}
+        setattr(policy, HAND_TRAIL_STATE, state)
+    return state
+
+
+def observe_hands(policy: Any, snapshot: Any) -> None:
+    """Read the combat hands of every board, in town and out (record only, never a stop).
+
+    Owner 2026-11-22 「決まりは足さず、着け直しを記録。往復が起きたら停止して直す。」 named the
+    stop for the town visit; the temporary swaps (the mining set's digger, a quest's, Zul's) run
+    across the town's edge, where the visit's trail cannot see them: n1-c life-220 (2026-11-22
+    06:04) wore ロング・ソード in town and シャベル on Yeek cave 1F by turns, one change per town
+    visit.  Each hand's trail here spans the visits (empty boards collapsed as in the visit's
+    trail); a trail that ends A, B, A with any of the three seen out of town, or seen in
+    different town visits, writes a ``equipment-hand-roundtrip:<slot>`` row with where each was
+    seen and whether the mining set held the hands then.  Nothing stops on it: the dungeon's
+    contact re-arm and the next floor's digger are the mining set's own fight rule."""
+    # Imported here: policy_constants imports this module, and mining_loadout policy_constants.
+    from hengbot import mining_loadout
+    state = _hand_trail(policy)
+    worn = _worn_by_slot(snapshot)
+    in_town = bool(getattr(snapshot, "in_town", False) or getattr(snapshot, "store", None) is not None)
+    where = ["town" if in_town else "away", getattr(policy, "_town_visit_epoch", None) if in_town else None,
+             getattr(snapshot, "turn", None)]
+    for slot in mining_loadout.HANDS:
+        item = worn.get(slot)
+        if item is None:
+            continue
+        identity = stable_identity(item)
+        trail = state["trail"].setdefault(slot, [])
+        if trail and _matches(trail[-1][0], identity):
+            continue
+        trail.append([identity, where])
+        del trail[:-HAND_TRAIL_LENGTH]
+        if len(trail) < 3:
+            continue
+        first, middle, last = trail[-3:]
+        if not _matches(first[0], identity) or _matches(middle[0], identity):
+            continue
+        places = [entry[1] for entry in (first, middle, last)]
+        if all(place[0] == "town" for place in places) and len({place[1] for place in places}) == 1:
+            continue  # one town visit: the visit's own trail (and its stop) reads it
+        _journal_row(policy, snapshot, f"{HAND_ROUNDTRIP_EVENT}:{slot}", slot=slot,
+                     trail=[entry[0] for entry in (first, middle, last)], where=places,
+                     item=_item(item), lent=mining_loadout.hands_lent(policy, snapshot),
+                     fundraising_mode=getattr(policy, "_fundraising_mode", None), stops=False)
+
+
 def observe(policy: Any, snapshot: Any) -> None:
     """Read this board's worn gear into the visit's trails (every public decision, record only).
 
     The visit is the epoch the previous board's observation minted (the first board of a visit
-    is read from the second on); a board off the town and its stores is not read."""
+    is read from the second on); a board off the town and its stores is not read (its hands
+    are: ``observe_hands``)."""
+    observe_hands(policy, snapshot)
     if (getattr(policy, "_town_visit_epoch", None) is None
             or not (getattr(snapshot, "in_town", False) or getattr(snapshot, "store", None) is not None)):
         return
