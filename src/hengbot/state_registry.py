@@ -424,6 +424,9 @@ REGISTRY = (
     # me_power_success
     S("_me_device_list_boards", "me_power_success", LIFE,
       "me_power_success: me device list boards (no comment at its definition)"),
+    S("_me_list_decided_board", "me_power_success", LIFE,
+      "the turn, stun rank and inputs of the board the last key was decided on: a power list "
+      "that key shows arrives on the next board but was printed under this one's stun"),
     # me_powerful_activation
     S("_me_powerful", "me_powerful_activation", LIFE,
       "me_powerful_activation: me powerful (no comment at its definition)"),
