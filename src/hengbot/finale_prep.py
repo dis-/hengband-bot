@@ -94,6 +94,24 @@ def phase(policy) -> Phase:
     return held
 
 
+# The finale's carry a process restarted on a 99F/100F floor reads as the expedition's: the
+# ordinary play carries neither potion (consumable_policy: they go to the Home), so two of either
+# are the expedition's (``expedition_evident``).
+RESTART_EVIDENCE = 2
+
+
+def expedition_evident(policy, snapshot) -> bool:
+    """A board of the finale's expedition, read from the game alone (a fresh process): a
+    Magic-Eater of the 95F exploration on Angband 99F/100F whose quest is still TAKEN, carrying
+    the finale's Restore Mana or *Healing* (``RESTART_EVIDENCE``)."""
+    from hengbot import angband_finale
+    if not (angband_finale.preparing(snapshot) and angband_finale.on_finale_floor(snapshot)
+            and not angband_finale.quest_done(snapshot)):
+        return False
+    return any(angband_finale.carried(snapshot, kind) >= RESTART_EVIDENCE
+               for kind in (angband_finale.RESTORE_MANA, angband_finale.STAR_HEALING))
+
+
 def _go(policy, held: Phase, step: str, note: str = "") -> None:
     held.step, held.since = step, policy._decision_sequence
     held.log.append((policy._decision_sequence, step, note))
@@ -255,7 +273,14 @@ def observe(policy, snapshot, rows: dict | None) -> None:
     ``rows`` is that board's readiness (None out of town or short of the 95F exploration)."""
     held = phase(policy)
     if not snapshot.in_town:
-        held.in_town = False
+        restarted, held.in_town = held.in_town is None, False
+        if not held.lifted and restarted and expedition_evident(policy, snapshot):
+            # The mark lives in the process only: a process started on the expedition's floor
+            # takes it again from what the game shows (n1-c life-217 2026-11-21 14:41:02, restarted
+            # on 100F beside the Serpent of Chaos: no battle, the ordinary rungs climbed and
+            # recalled, and it died at 14:41:09).
+            held.lifted = True
+            held.log.append((policy._decision_sequence, DONE, "restart-on-finale-floor"))
         if held.lifted:
             held.step = DONE  # the recall read: the expedition carries the mark
         elif held.step != DONE:
