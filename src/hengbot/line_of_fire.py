@@ -251,12 +251,43 @@ def danger(policy, snapshot, monster) -> bool:
     awake_monster), so its unknown grids stay closed: opened, every sleeper telepathy shows
     through unexplored rock reads as reaching (the same floor's fifteen sleeping 巨大首なし
     read as a lethal swarm on arrival at full HP).  Waking one is the ranged rung's question
-    (policy ``_sleeper_not_to_wake``)."""
+    (policy ``_sleeper_not_to_wake``).
+
+    An awake monster in view (the board's ``visible_monsters``: its grid is in the player's view,
+    CAVE_VIEW, bot-json-output.cpp make_visible_monsters_json) has a line: the view is the
+    game's line of sight now, whatever the map memory says between (``_in_view_reaches``; only
+    known glass, LOS without PROJECTION, and the spell range stop it).  n1-c life-219 (Angband
+    80F, 2026-11-22 05:56:11): the absorbed mapping showed the rock around the player, then the
+    混沌 swarm (KILL_WALL) dug it into floor the game no longer marks; the memory
+    (``_with_grid_memory``) kept the walls, so nine of the twelve 混沌 in view read no line, the
+    instant-death sum of those in fire read 517 against HP 766 (1199 with them), no
+    Teleportation was offered (deep_teleport ``no_means``) and the bot drank Healing instead."""
+    if not monster.asleep and _in_view(snapshot, monster) and _in_view_reaches(policy, snapshot, monster):
+        return True
     return straight_line(
         policy, snapshot, monster.position, snapshot.player.position,
         remembered=policy._remembered_grids,
     ) or (not monster.asleep and projectable(
         policy, snapshot, monster.position, snapshot.player.position))
+
+
+def _in_view(snapshot, monster) -> bool:
+    """``monster`` is one of the board's monsters in the player's view (not by detection)."""
+    return any(seen.index == monster.index and seen.position == monster.position
+               for seen in snapshot.visible_monsters)
+
+
+def _in_view_reaches(policy, snapshot, monster) -> bool:
+    """The bolt path from a monster in view to the player within the spell range
+    (projection-path-calculator.cpp), stopped only by known glass (glass_reach ``stops``): the
+    player's view of the monster's grid is the line of sight, so a remembered wall on it is
+    stale (``danger``)."""
+    target = snapshot.player.position
+    if monster.position == target:
+        return True
+    path = projection_path(monster.position, target, MONSTER_SPELL_MAX_RANGE,
+                           lambda position: glass_reach.stops(policy, snapshot.grid_at(position)))
+    return bool(path) and path[-1] == target
 
 
 def straight_line(policy, snapshot, origin: Position, target: Position, *,
