@@ -71,6 +71,8 @@ QUEST_FLOOR = "a quest floor: survival_preemption.preempts never refuses there"
 TOWN_ONLY = "town only: survival_preemption.preempts never refuses there"
 WALK_OUT = "the approved walk-out past breeders (survival_preemption's docstring)"
 MEANS_SPENT = "owner 2026-11-14 「敵への対処以前に手段が尽きた時点で帰還させる」: the Recall read first"
+BREEDER_COMEBACK = ("owner 2026-11-22 「1度で消しきれないなら帰還を読む」: the Recall read where ranged "
+                    "breeders came back after a *Destruction*")
 # No rule says so: named for the owner's question (D21 asked of these, not answered).
 NOT_DECIDED = "walks or shoots while attacked: not refused, and no rule decided it"
 
@@ -91,6 +93,8 @@ LADDER = (
         # Owner 2026-11-22: the named stop of a 50F+ floor entered by a descent without it first.
         *D("deep_climb.stop_key", exempt=MEANS_SPENT),
         *D("destruction_use.means_spent_recall_key", exempt=MEANS_SPENT),
+        # Owner 2026-11-22 「1度で消しきれないなら帰還を読む」: ranged breeders back after a use.
+        *D("destruction_use.breeder_comeback_recall_key", exempt=BREEDER_COMEBACK),
     )),
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
         # Owner 2026-11-21 「破壊が使えるなら破壊を優先。なければテレポート。」 (recall_wait_teleport).
@@ -545,6 +549,11 @@ _ABOVE_EMERGENCY = {
                                               "許可しない。敵への対処以前に手段が尽きた時点で帰還"
                                               "させる。」: a Recall read, before any enemy is "
                                               "answered",
+    "destruction_use.breeder_comeback_recall_key": "owner 2026-11-22 「群れの数に関わらず破壊対象とする。"
+                                                   "1度で消しきれないなら帰還を読む。」: a Recall read "
+                                                   "where ranged breeders came back after a landed "
+                                                   "*Destruction*; on the 50F+ 即死 board it answers "
+                                                   "nothing and the survival rung reads first",
     "zul_trip.global_key": "the Zul trip's global-map walk (owner 2026-11-07): the global map "
                            "shows no monster; an ambush leaves it for a local map",
     "_wilderness_survival_key": "the global map's own survival rung",

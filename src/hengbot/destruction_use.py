@@ -146,6 +146,10 @@ class Memory:
     # The last use was the Powerful Activation's (angband_finale_battle): its circle is
     # POWERED_RADIUS / POWERED_WORST_RADIUS.  A class default: restored checkpoints predate it.
     powerful: bool = False
+    # (floor, races): the ranged breeder races known on the board of a use whose flash landed on
+    # this floor (``comeback_races``, owner 2026-11-22).  A class default: restored checkpoints
+    # predate it.
+    breeder_landed: tuple | None = None
 
 
 def _memory(policy) -> Memory:
@@ -279,6 +283,71 @@ def means_spent(policy, snapshot) -> bool:
             and _floor_destroyed(policy, snapshot)
             and not _quest_floor(policy, snapshot)
             and not holds_means(policy, snapshot))
+
+
+BREEDER_COMEBACK_RECALL_REASON = "breeder-comeback:recall"
+
+
+def ranged_breeder(policy, race_id) -> bool:
+    """A race that multiplies and attacks at range (MULTIPLY, ``max_ranged_damage``: a breath,
+    a ball, a bolt, a cause, a shot)."""
+    knowledge = policy._monrace_knowledge.get(race_id)
+    return knowledge is not None and knowledge.can_multiply and knowledge.max_ranged_damage > 0
+
+
+def ranged_breeders(policy, snapshot) -> list:
+    """The shown hostiles (in view or detected) that are ranged breeders, on a 50F+ floor;
+    owner 2026-11-22 「群れの数に関わらず破壊対象とする」: each is a *Destruction* target whatever
+    the group's size (threat_tiers ``_sensed_strong``) while ``comeback_races`` does not hold
+    its race."""
+    if snapshot.dungeon_level < DEEP_FLOOR_DEPTH:
+        return []
+    return [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            if monster.hostile and ranged_breeder(policy, monster.race_id)]
+
+
+def comeback_races(policy, snapshot) -> frozenset:
+    """The ranged breeder races a landed *Destruction* of this floor was used among
+    (``Memory.breeder_landed``, from its board's ``pending_monsters``) that are shown again
+    after it: one use did not clear them.
+
+    Owner 2026-11-22 (n1-c life-219, Angband 80F, 05:56:04-05:56:08: nine absorbed *Destruction*
+    in about four seconds against 混沌 (MULTIPLY, KILL_WALL, BR_CHAO) that bred back each time;
+    the Recall was read with none left and the swarm and 『マダム・デビ』 killed the player during
+    its countdown), verbatim 「群れの数に関わらず破壊対象とする。1度で消しきれないなら帰還を読む。」"""
+    landed = getattr(getattr(policy, MEMORY, None), "breeder_landed", None)
+    if landed is None or landed[0] != snapshot.floor_key:
+        return frozenset()
+    return frozenset(monster.race_id for monster in ranged_breeders(policy, snapshot)
+                     if monster.race_id in landed[1])
+
+
+def breeder_comeback_recall_key(policy, snapshot) -> str | None:
+    """Word of Recall where ``comeback_races`` holds (「1度で消しきれないなら帰還を読む」): no
+    second *Destruction* is stacked on the breeders (threat_tiers leaves their races out of the
+    sensed T1 while they come back), and the charges left guard the countdown (the emergency
+    ladder's 即死 *Destruction*, recall_wait_teleport).  Where the tiers act, not on a quest floor,
+    not while Recall counts down, blind or confused; on the 50F+ 即死 board the emergency
+    ladder's escape comes first (owner 2026-11-16 「即死ならテレポートを先」, as
+    ``means_spent_recall_key``) and the Recall is read on the board after."""
+    from hengbot import deep_teleport, threat_tiers  # import cycle
+
+    player = snapshot.player
+    if (player.recalling or player.blind or player.confused or snapshot.floor_key[2] != 0
+            or not threat_tiers.acts_here(policy, snapshot)
+            or not comeback_races(policy, snapshot)
+            or deep_teleport.allows(policy, snapshot)
+            or not policy._can_read_scrolls(snapshot)):
+        return None
+    recall = policy._find_recall_scroll(snapshot)
+    if recall is None:
+        return None
+    key = policy._read_dungeon_recall_scroll_key(snapshot, recall)
+    if key is None:
+        return None
+    return_start.start(policy)
+    policy.last_reason = BREEDER_COMEBACK_RECALL_REASON
+    return key
 
 
 def means_spent_recall_key(policy, snapshot) -> str | None:
@@ -803,6 +872,7 @@ def observe(policy, snapshot) -> None:
         _end_emergency(policy, snapshot)
         forget_circle(policy, position, worst)
         keys, names = _deleted(policy, snapshot, memory, position, sure)
+        _note_breeders(policy, memory, floor)
         monster_memory.forget_destroyed(policy, snapshot, position, sure,
                                         lambda monster: _survives(policy, snapshot, monster),
                                         keys, names)
@@ -812,6 +882,19 @@ def observe(policy, snapshot) -> None:
     elif snapshot.turn != turn:
         memory.pending = None
         memory.fallback = floor
+
+
+def _note_breeders(policy, memory, floor) -> None:
+    """The ranged breeder races known on the board of the landed use, kept for the floor
+    (``comeback_races``)."""
+    races = frozenset(race for _index, race, *_rest in getattr(memory, "pending_monsters", ())
+                      if ranged_breeder(policy, race))
+    if not races:
+        return
+    landed = getattr(memory, "breeder_landed", None)
+    if landed is not None and landed[0] == floor:
+        races |= landed[1]
+    memory.breeder_landed = (floor, races)
 
 
 def _deleted(policy, snapshot, memory, centre, sure=GUARANTEED_RADIUS) -> tuple[frozenset, frozenset]:

@@ -605,7 +605,10 @@ def _sensed_strong(policy, snapshot, *, leave: bool = False) -> tuple[list, list
     them make a group.  life-391 (Angband 80F): 竜の『ファフナー』 and 黄金竜『スマウグ』, each T2
     alone, together T1 (two resisted fire breaths, 311 + 226, against HP 533), killed the player.
     Owner 2026-11-22 「倒して利益のない場合は破壊する」: else the members T2 or T3 alone that killing
-    yields nothing for, T1 together (``_unprofitable_group``).
+    yields nothing for, T1 together (``_unprofitable_group``).  Owner 2026-11-22 「群れの数に関わらず
+    破壊対象とする。1度で消しきれないなら帰還を読む。」: on 50F+ the ranged breeders shown are added
+    whatever their number (not to the ``leave`` set), and the races one *Destruction* did not clear
+    are left out (destruction_use ``comeback_races``: the Recall is read instead).
 
     On a random quest floor whose exit lock holds (``destruction_only_here``) the quest's target
     is none of them: *Destruction* cannot remove it, and its own T1 verdict gives the floor up
@@ -621,9 +624,13 @@ def _sensed_strong(policy, snapshot, *, leave: bool = False) -> tuple[list, list
             if monster.asleep and monster.index not in shown)]
     spared = (destruction_use.quest_target_race(policy, snapshot)
               if destruction_only_here(policy, snapshot) else None)
+    # Owner 2026-11-22 「1度で消しきれないなら帰還を読む」: the ranged breeders one *Destruction*
+    # did not clear are no sensed T1 (destruction_use.breeder_comeback_recall_key reads Recall).
+    comeback = destruction_use.comeback_races(policy, snapshot)
     sensing = [monster for monster in candidates
                if (not leave or (not monster.asleep and inside_sensing(policy, snapshot, monster)))
-               and (spared is None or monster.race_id != spared)]
+               and (spared is None or monster.race_id != spared)
+               and monster.race_id not in comeback]
     hp = snapshot.player.hp
     # 「倒しきれない段階の敵」: T1 on its own, judged from contact (a detected monster far off
     # would otherwise read T3 only because it has not come yet).
@@ -635,6 +642,14 @@ def _sensed_strong(policy, snapshot, *, leave: bool = False) -> tuple[list, list
             strong = group
     if not strong:
         strong = _unprofitable_group(policy, snapshot, readings, hp)
+    if not leave:
+        # Owner 2026-11-22 「群れの数に関わらず破壊対象とする」: on 50F+ every ranged breeder shown
+        # (destruction_use.ranged_breeders) is a target, whatever the group's size and tier.
+        listed = {(monster.index, monster.race_id) for monster in strong}
+        strong = [*strong, *(
+            monster for monster in destruction_use.ranged_breeders(policy, snapshot)
+            if (monster.index, monster.race_id) not in listed and monster.race_id not in comeback
+            and (spared is None or monster.race_id != spared))]
     return hostiles, strong
 
 

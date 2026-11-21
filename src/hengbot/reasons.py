@@ -256,6 +256,10 @@ _RULE_NO_AC = ("a worn NO_AC piece (宵闇のローブ, AC 0): owner 2026-11-21 
                "never the escape count's (no_ac_recall)")
 _rows(EXCLUDED, "no_ac_recall", _RULE_NO_AC, "no-ac:teleport", "no-ac:teleport:absorbed-power",
       "no-ac:recall")
+_rows(EXCLUDED, "destruction_use", "a town return: owner 2026-11-22 「群れの数に関わらず破壊対象とする。1度で"
+      "消しきれないなら帰還を読む。」 -- the Recall read where the ranged breeders one *Destruction* did not "
+      "clear came back (breeder_comeback_recall_key), never the escape count's",
+      "breeder-comeback:recall")
 _rows(NOT_ESCAPE, "policy_quest",
       "the Q2 plan's phases (q2-phase-<race>: a step of the sweep; q2-light-phase-<race>: the Light "
       "scroll read): \"phase\" is the plan's stage, not Phase Door",

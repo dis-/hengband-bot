@@ -2,7 +2,8 @@
 
 ``HengbotPolicy._decide`` asks this layer where its rows stand: below the floor plans
 (plan-above-survival), above the emergency ladder (ladder_emergency).  First the Recall read on
-a 50F+ floor without the *Destruction* means (owner 2026-11-14, destruction_use).  (The
+a 50F+ floor without the *Destruction* means (owner 2026-11-14, destruction_use), then the Recall
+read where ranged breeders came back after a *Destruction* (owner 2026-11-22).  (The
 committed STRONG-tier hunt stood here until the owner's 2026-11-15 Q8 「緊急の逃げの後に回す」: it
 is the summoner-shots layer's first rung now.)  ``PASS`` hands the decision on to the layers
 below.  scripts/dungeon_ladder_lint.py reads the rows here
@@ -26,4 +27,9 @@ def key(policy, snapshot):
     means_spent = destruction_use.means_spent_recall_key(policy, snapshot)
     if means_spent is not None:
         return means_spent
+    # Owner 2026-11-22 「1度で消しきれないなら帰還を読む」: the ranged breeders one *Destruction*
+    # did not clear are no second one's; Recall (destruction_use.breeder_comeback_recall_key).
+    comeback = destruction_use.breeder_comeback_recall_key(policy, snapshot)
+    if comeback is not None:
+        return comeback
     return PASS

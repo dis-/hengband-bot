@@ -19558,6 +19558,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "destruction_use.py:breeder_comeback_recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: destruction_use.comeback_races is non-empty (a 50F+ floor where threat_tiers.acts_here holds, not a quest floor, a landed *Destruction* among ranged breeders that are shown again), not while Recall counts down, blind or confused.",
+    "evidence": "Owner 2026-11-22 「群れの数に関わらず破壊対象とする。1度で消しきれないなら帰還を読む。」: latches the town return (return_start.start) and reads Word of Recall (breeder-comeback:recall) in the above-emergency layer; None on the 50F+ instant-death board (deep_teleport.allows) or without a read; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "destruction_use.py:means_spent_recall_key": {
     "classification": "producer",
     "rows": [
