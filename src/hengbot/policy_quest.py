@@ -241,6 +241,7 @@ from hengbot.policy_constants import (
 )
 from hengbot.policy_constants import (
     AIM_WAND_KEY,
+    DEEP_FLOOR_DEPTH,
     EQUIPMENT_SLOT_KEY,
     EXECUTABLE_QUEST_STRATEGY_IDS,
     FIXED_QUEST_ALLOWLIST,
@@ -906,7 +907,12 @@ class QuestMixin(OpeningRouteMixin):
         Owner 2026-10-31 「クエスト内部で巻物要求のとき、代わりに杖で照らす」:
         where the quest reads a scroll, a charged absorbed Light lights the
         area instead (me_absorbed_substitutes).  Sets ``last_reason``.
+
+        Owner 2026-11-22 「50F以降は使わない」 (the room light, me_powers ``_dark_room``):
+        nothing on a DEEP_FLOOR_DEPTH floor.
         """
+        if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH:
+            return None
         key = carry_cast_key(self, snapshot, "required_scrolls", "light")
         if key is not None:
             self.last_reason = reason + ABSORBED_CAST_SUFFIX
