@@ -139,5 +139,6 @@
   "_q34_recharge_attempted": "Q34 throwing-stand targets (race and cell) already rested for; monster identities, not an item selector.",
   "_q34_recharge_pending": "Turn and messages of the one Q34 rest just posted (q34_recharge); a rest observation, not an item selector.",
   "_quest_carry_lowered": "Quest id and the lowered Q1 carry counts per category that the gold buys (policy_opening); counts, not a selected item identity or reservation.",
-  "_town_progress_command_pending": "Flag pairing a town decision's start state with its final key for cycle detection; no item identity."
+  "_town_progress_command_pending": "Flag pairing a town decision's start state with its final key for cycle detection; no item identity.",
+  "_equipment_shelf_search": "Not an item intent: the decision's loadout-search inputs (its board and owned catalogue) stashed for the read-only shelf evaluation (policy_equipment._shelf_candidate_worn, equipment review E4b); read only within the same decision, it reserves, defers or retries nothing."
 }
