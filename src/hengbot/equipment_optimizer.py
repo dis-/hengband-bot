@@ -584,6 +584,11 @@ class EvaluatedLoadout:
     metrics: LoadoutMetrics
 
 
+# The depth bands of the descent, deepest first; a band reads the depth requirements of its
+# deepest floor (81+, 50-80, 40-49, 31-39, 26-30, 21-25, 20, <=19; owner 2026-08-10).
+DEPTH_BANDS = (81, 80, 49, 39, 30, 25, 20, 19)
+
+
 @dataclass(frozen=True)
 class BandDecision:
     """One inspectable step in an unconstrained depth-band descent."""
@@ -594,6 +599,8 @@ class BandDecision:
     melee_free: float
     refusal_reason: str | None
     ratio: float | None
+    # Adopted below the half-melee limit as the destination's band (destination_band_floor).
+    destination_floor: bool = False
 
 
 @dataclass(frozen=True)
@@ -1864,8 +1871,13 @@ def optimize_loadout(
     staff_gate=None,
     launcher_power_unscored: Callable[[int | None], bool] | None = None,
     finale: bool = False,
+    destination_floor: int | None = None,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out.
+
+    ``destination_floor`` (destination_band_floor): the depth-band descent takes the band of
+    this depth without the half-melee limit when one of its sets is owned; a deeper band keeps
+    the limit, and a shallower one is never reached while that band has a set.
 
     ``staff_gate`` (device_skill.StaffGate): an owned *Destruction* staff is the
     50F+ means of the loadouts whose device skill makes it reliable.
@@ -2035,7 +2047,10 @@ def optimize_loadout(
             raise RuntimeError("evaluated loadouts have no operational best")
         # Damage per game time (speed_valuation), as _within_half_melee.
         melee_free = max(time_melee(entry.metrics) for entry in evaluated)
-        for band in (81, 80, 49, 39, 30, 25, 20, 19):
+        floor_band = (None if destination_floor is None
+                      else min((band for band in DEPTH_BANDS if band >= destination_floor),
+                               default=DEPTH_BANDS[0]))
+        for band in DEPTH_BANDS:
             satisfying = [
                 entry
                 for entry in evaluated
@@ -2057,6 +2072,9 @@ def optimize_loadout(
             # The finale asks nothing of melee (owner 2026-11-20 「ACや近接攻撃力は求めない」).
             within_melee_limit = (list(satisfying) if finale
                                   else _within_half_melee(satisfying, melee_free))
+            floor_adopted = not within_melee_limit and band == floor_band
+            if floor_adopted:
+                within_melee_limit = list(satisfying)
             if not within_melee_limit:
                 melee = max(time_melee(entry.metrics) for entry in satisfying)
                 band_decisions.append(BandDecision(
@@ -2073,7 +2091,7 @@ def optimize_loadout(
             melee = time_melee(band_best.metrics)
             ratio = None if melee_free == 0 else melee / melee_free
             chosen_decision = BandDecision(
-                band, True, melee, melee_free, None, ratio,
+                band, True, melee, melee_free, None, ratio, floor_adopted,
             )
             band_decisions.append(chosen_decision)
             evaluated = satisfying
