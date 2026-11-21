@@ -15,12 +15,18 @@ them as well) and passed in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import confuser_contact, me_powers, return_yield, sent_away_t1, threat_tiers
+from hengbot import confuser_contact, me_powers, recall_wait_teleport, return_yield, sent_away_t1, threat_tiers
 from hengbot.dungeon_ladder import PASS
 
 
 def key(policy, snapshot, *, emergency_hostiles, paralyzers, physical_hostiles, physical_adjacent):
     """The emergency layer's answer, or PASS when none of its rungs acts."""
+    # Owner 2026-11-21 「破壊が使えるなら破壊を優先。なければテレポート。」: while Recall counts down,
+    # an unseen attacker's hit of a third of the maximum HP (recall_wait_teleport).
+    big_hit = recall_wait_teleport.big_hit_key(policy, snapshot)
+    if big_hit is not None:
+        policy._escape_state.enter("emergency", policy.last_reason)
+        return big_hit
     emergency = policy._town_producer_entry("_emergency_item", lambda: policy._emergency_item(snapshot, emergency_hostiles))
     if emergency is not None:
         if policy._choke_plan_active(snapshot):

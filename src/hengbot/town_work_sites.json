@@ -15745,6 +15745,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "recall_wait_teleport.py:big_hit_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "recall_wait_teleport.py:withheld.compute": {
     "classification": "data",
     "rows": [

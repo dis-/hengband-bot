@@ -22996,5 +22996,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "recall_wait_teleport.py:big_hit_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon only: while Recall counts down (threat_tiers.acts_here: never in town or a store).",
+    "evidence": "Returns destruction_use.key or the Teleportation read of _issue_emergency_consumable on an unseen hit of a third of the maximum HP (owner 2026-11-21 「破壊が使えるなら破壊を優先。なければテレポート。」); no town command."
   }
 }

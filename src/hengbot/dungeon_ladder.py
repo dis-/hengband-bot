@@ -91,6 +91,8 @@ LADDER = (
         *D("destruction_use.means_spent_recall_key", exempt=MEANS_SPENT),
     )),
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
+        # Owner 2026-11-21 「破壊が使えるなら破壊を優先。なければテレポート。」 (recall_wait_teleport).
+        *D("recall_wait_teleport.big_hit_key", exempt=ANSWERS_DANGER),
         *E("_emergency_item", exempt=ANSWERS_DANGER),
         *D("return_yield.quiet_recall_key", exempt=NO_ATTACKER),
         # Owner 2026-11-09 B 「即死でない強敵は *破壊* 優先」 (n1-b life-377): the sensed T1
@@ -528,6 +530,10 @@ class OwnerRule(NamedTuple):
 
 
 _ABOVE_EMERGENCY = {
+    "recall_wait_teleport.big_hit_key": "owner 2026-11-21 「破壊が使えるなら破壊を優先。なければテレポート。」: "
+                                        "while Recall counts down, an unseen attacker's hit of a "
+                                        "third of the maximum HP is itself the survival answer "
+                                        "(*Destruction*, else Teleportation)",
     "destruction_use.means_spent_recall_key": "owner 2026-11-14 「50F以降で破壊手段なしの探索は"
                                               "許可しない。敵への対処以前に手段が尽きた時点で帰還"
                                               "させる。」: a Recall read, before any enemy is "
