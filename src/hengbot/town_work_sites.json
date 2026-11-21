@@ -2768,6 +2768,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_target.py:redecide_events": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_transaction_planner.py:_slots": {
     "classification": "data",
     "rows": [
@@ -9128,6 +9135,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._banned_gear_stuck": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._banned_gear_stuck_stop": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._banned_gear_takeoff_preparation": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._closed_visit_failure_preparation": {
     "classification": "data",
     "rows": [
@@ -9422,6 +9450,13 @@
       "equipment-transaction"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_equipment.py:EquipmentMixin._worn_banned_pieces": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy_fundraising.py:FundraisingMixin._affordable_star_remove_curse": {
     "classification": "data",
@@ -18572,6 +18607,13 @@
     "delegation": "selected child; no independent success"
   },
   "warrior_optimization.py:load_character_calibration": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_optimization.py:optimization_blockers": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

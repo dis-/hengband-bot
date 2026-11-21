@@ -16,6 +16,12 @@ visit (tests/fixtures/n1b-411-twilight-robe-1121), replayed to its recall read (
 
 DECLARED CONSTRUCTED: the dump the C screen of row 11 wrote is the arrival's dump file (the robe was
 worn on both, nothing changed between them), its modification time set after the request.
+
+DECLARED (equipment review E3, owner Q7 2026-11-22 「先に外してから探索する」): since E3 a robe worn while
+no calibration lets the search run is taken off first (policy_equipment
+``_banned_gear_takeoff_preparation``; tests/test_equip_e3_visit_target_1122_recorded).  These two
+tests pin what stands behind it -- the sheet that calibrates with the robe worn, and the recall
+held while one is worn -- so the take-off answers "none" here (as for a robe it cannot plan).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -27,7 +33,10 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from unittest import mock
+
 from hengbot import no_ac_recall
+from hengbot.policy import HengbotPolicy
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.equipment_rules import TR_NO_AC
 from support.town_arrival_fixture import load
@@ -47,6 +56,11 @@ def post(policy, key):
 class N1b411RobeTownRecordedTest(unittest.TestCase):
     def setUp(self):
         self.scratch = TemporaryDirectory()
+        # DECLARED: the Q7 take-off left out (see the module docstring).
+        takeoff = mock.patch.object(HengbotPolicy, "_banned_gear_takeoff_preparation",
+                                    return_value=None)
+        takeoff.start()
+        self.addCleanup(takeoff.stop)
 
     def tearDown(self):
         self.scratch.cleanup()

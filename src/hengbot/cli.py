@@ -727,7 +727,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         return (f"<{reason}> the store approach yielded to the town's holder for "
                 f"{approach_answer.WAIT_LIMIT} boards and the holder never finished; "
                 "stopping the bot for investigation")
-    if reason.startswith(equipment_visit_journal.STOP_PREFIX):
+    if equipment_visit_journal.is_stop(reason):
         return equipment_visit_journal.stop_message(reason)
     if reason.startswith(STAGE_DEADLINE_STOP_PREFIX):
         return (f"<{reason}> this town visit spent the stage's deadline of decisions "
