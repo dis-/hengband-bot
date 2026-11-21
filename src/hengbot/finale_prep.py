@@ -58,16 +58,29 @@ IDLE = "idle"
 HOME = "home"
 CHECK = "check"
 SUPPLIES = "supplies"
+FOOD = "food"
 LOADOUT = "loadout"
 SWAP = "swap"
 RECALL = "recall"
 DONE = "done"
 STOPPED = "stopped"
-STEPS = (HOME, CHECK, SUPPLIES, LOADOUT, SWAP, RECALL)
+STEPS = (HOME, CHECK, SUPPLIES, FOOD, LOADOUT, SWAP, RECALL)
 
 # Decisions a step may take before it stops the phase (a step that makes no progress for this
 # long will not finish this visit).
-STEP_LIMIT = {HOME: 60, CHECK: 80, SUPPLIES: 400, LOADOUT: 80, SWAP: 600, RECALL: 300}
+STEP_LIMIT = {HOME: 60, CHECK: 80, SUPPLIES: 400, FOOD: 200, LOADOUT: 80, SWAP: 600, RECALL: 300}
+
+# Owner 2026-11-21 (verbatim, LOCKED) 「99F 100Fでは謎の魔法棒を銘を分けて3本持って食料とする」: a MANA
+# race (the Zombie: wand and staff charges are its food, cmd-item/cmd-eat.cpp:153) carries three
+# Wands of Wonder, each its own stack under its own inscription, so a monster's UN_POWER blow
+# (monster-attack/monster-eating.cpp process_un_power: one pack stack's charges at a time) leaves
+# two (n1-b life-411 2026-11-21 100F: its one stack of six was drained to 0).  Two stacks merge
+# when one of them is uninscribed (stack_force_notes, system/item/item-entity.cpp:1146-1150), so
+# the step splits one off on the town floor: a stack is inscribed, one wand of it dropped (it keeps
+# the inscription), the pack's stack inscribed anew, the dropped one picked up.
+FOOD_WANDS = 3
+FOOD_LABELS = ("@E1", "@E2", "@E3", "@E4", "@E5", "@E6")
+FOOD_REASON = "finale-prep:food"
 
 STATE = "_finale_prep"
 PURPOSE = "finale-prep-supplies"   # the Home errand of the supplies step
@@ -84,6 +97,7 @@ class Phase:
     stopped: str | None = None          # the named reason of a stopped phase
     in_town: bool | None = None         # the last board's side (None: no board yet)
     log: list = field(default_factory=list)  # [(sequence, step, note)] of this visit
+    food_dropped: str | None = None     # the food step's wand on the floor: its inscription
 
 
 def phase(policy) -> Phase:
@@ -130,6 +144,7 @@ def _stop(policy, held: Phase, reason: str) -> None:
 def _reset(held: Phase) -> None:
     held.step, held.since, held.target, held.lifted, held.stopped = IDLE, 0, None, False, None
     held.log = []
+    held.food_dropped = None
 
 
 # -- the readers ---------------------------------------------------------------------
@@ -138,8 +153,8 @@ def carrying(policy) -> bool:
     """The finale's carry and weight allowance hold: the phase reached its supplies, or the cap is
     lifted for the expedition."""
     held = getattr(policy, STATE, None)
-    return bool(held is not None and (held.lifted or held.step in (SUPPLIES, LOADOUT, SWAP, RECALL,
-                                                                   DONE)))
+    return bool(held is not None and (held.lifted or held.step in (SUPPLIES, FOOD, LOADOUT, SWAP,
+                                                                   RECALL, DONE)))
 
 
 def dedicated_order(policy) -> bool:
@@ -174,7 +189,7 @@ def owned_search_due(policy) -> bool:
 def holds_swap(policy) -> bool:
     """No equipment swap starts before the phase's swap step (policy_equipment)."""
     held = getattr(policy, STATE, None)
-    return bool(held is not None and held.step in (HOME, CHECK, LOADOUT))
+    return bool(held is not None and held.step in (HOME, CHECK, FOOD, LOADOUT))
 
 
 def routed(policy) -> bool:
@@ -343,7 +358,11 @@ def observe(policy, snapshot, rows: dict | None) -> None:
                 and not _restoring_at_home(policy)
                 and policy._equipment_transaction_session is None
                 and policy._equipment_catalog.home_scan_complete):
-            _go(policy, held, LOADOUT)
+            _go(policy, held, FOOD if food_wanted(snapshot) and not food_done(snapshot) else LOADOUT)
+        return
+    if held.step == FOOD:
+        if held.food_dropped is None and food_done(snapshot):
+            _go(policy, held, LOADOUT, f"{FOOD_WANDS} wands")
         return
     if held.step == SWAP:
         worn = frozenset(_signature(owned.id) for owned in policy._equipment_catalog.items
@@ -428,6 +447,113 @@ def _read_home_key(policy, snapshot) -> str | None:
     return key
 
 
+def food_wanted(snapshot) -> bool:
+    """The food step applies: a MANA race (its food the charges of wands and staves)."""
+    from hengbot.policy_constants import FOOD_TYPE_MANA
+    return snapshot.player.food_type == FOOD_TYPE_MANA
+
+
+def food_stacks(snapshot) -> list:
+    """The pack's identified Wands of Wonder (magic_eater_devices ``is_staple_food``), by stack."""
+    from hengbot.magic_eater_devices import is_staple_food
+    return [item for item in snapshot.inventory if is_staple_food(item)]
+
+
+def food_done(snapshot) -> bool:
+    """FOOD_WANDS stacks of the Wand of Wonder, each inscribed, the inscriptions distinct, each
+    with charges."""
+    stacks = food_stacks(snapshot)
+    labels = [item.inscription for item in stacks]
+    return (len(stacks) >= FOOD_WANDS and all(labels) and len(set(labels)) == len(labels)
+            and all(item.charges > 0 for item in stacks))
+
+
+def _free_label(taken) -> str | None:
+    return next((label for label in FOOD_LABELS if label not in taken), None)
+
+
+def _food_offer(policy, key, step, effect):
+    policy._offer_execution(
+        key, producer="finale-prep", work_id=f"finale-prep-food:{step}",
+        next_step=f"finale-prep.food.{step}", expected_effect=effect)
+    return key
+
+
+def _inscribe(policy, snapshot, held, item, taken) -> str | None:
+    from hengbot.item_reservation import reserved_item_command
+    label = _free_label(taken)
+    prefix = reserved_item_command(policy, snapshot, "inscribe", item, "finale-prep")
+    if label is None or prefix is None:
+        _stop(policy, held, "food:inscribe-refused")
+        return None
+    policy.last_reason = f"{FOOD_REASON}:inscribe"
+    return _food_offer(policy, prefix + label + "\r", "inscribe", "inscription-changed")
+
+
+def _food_key(policy, snapshot, held: Phase) -> str | None:
+    """The food step's next key (outside the stores: a store page is left first)."""
+    from hengbot.home_errand import HomeErrandRequest
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.magic_eater_devices import SV_WAND_WONDER
+    from hengbot.model import TVAL_WAND
+    from hengbot.policy_constants import LEAVE_STORE_KEY
+    if snapshot.store is not None:
+        policy.last_reason = f"{FOOD_REASON}:close-store"
+        return _food_offer(policy, LEAVE_STORE_KEY, "close-store", "store-exited")
+    stacks = food_stacks(snapshot)
+    labels = {item.inscription for item in stacks if item.inscription}
+    here = snapshot.grid_at(snapshot.player.position)
+    on_floor = here is not None and TVAL_WAND in (here.object_tvals or ())
+    if held.food_dropped is not None:
+        if not on_floor:
+            held.food_dropped = None  # picked up: the next board decides again
+            return None
+        twin = next((item for item in stacks if item.inscription == held.food_dropped), None)
+        if twin is not None:
+            # The pack's stack still bears the dropped one's inscription: a new one first, so the
+            # pick-up does not merge them.
+            return _inscribe(policy, snapshot, held, twin, labels | {held.food_dropped})
+        policy.last_reason = f"{FOOD_REASON}:pickup"
+        return _food_offer(policy, "g", "pickup", "item-picked-up")
+    if food_done(snapshot):
+        return None
+    for item in stacks:
+        if not item.inscription:
+            return _inscribe(policy, snapshot, held, item, labels)
+    if any(item.charges <= 0 for item in stacks):
+        _stop(policy, held, "food:wonder-uncharged")
+        return None
+    if len(stacks) >= FOOD_WANDS:
+        return None
+    splittable = next((item for item in stacks if item.count >= 2), None)
+    if splittable is not None:
+        if on_floor:
+            _stop(policy, held, "food:floor-occupied")
+            return None
+        prefix = reserved_item_command(policy, snapshot, "drop", splittable, "finale-prep")
+        if prefix is None:
+            _stop(policy, held, "food:drop-refused")
+            return None
+        held.food_dropped = splittable.inscription
+        policy.last_reason = f"{FOOD_REASON}:drop"
+        return _food_offer(policy, prefix + "1\r", "drop", "item-dropped")
+    if policy._home_errand.active:
+        return None
+    stock = next((item for index, item in enumerate(policy._home_knowledge_items)
+                  if index < policy._home_knowledge_valid_before
+                  and (item.tval, item.sval) == (TVAL_WAND, SV_WAND_WONDER)
+                  and getattr(item, "aware", True)), None)
+    if stock is None:
+        if not _home_current(policy):
+            return _read_home_key(policy, snapshot)
+        _stop(policy, held, f"food:wonder-short:{sum(item.count for item in stacks)}")
+        return None
+    policy._file_home_errand(
+        snapshot, HomeErrandRequest(policy._item_signature(stock), 1, "home-catalog", PURPOSE),
+        knowledge_current=policy._home_knowledge_current)
+    return None
+
+
 def town_key(policy, snapshot) -> str | None:
     """The phase's own keys (the objectives ladder, before the ordinary town work): the Home read
     of the home step; the supplies step files its Home errands here (the need ``CATEGORY`` then
@@ -437,6 +563,8 @@ def town_key(policy, snapshot) -> str | None:
         return None
     if held.step == HOME and not _home_current(policy):
         return _read_home_key(policy, snapshot)
+    if held.step == FOOD:
+        return _food_key(policy, snapshot, held)
     if held.step != SUPPLIES or policy._home_errand.active:
         return None
     from hengbot.home_errand import HomeErrandRequest

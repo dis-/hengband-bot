@@ -392,6 +392,12 @@ def carry_target(policy, snapshot, item) -> int | None:
     kind = _kind(item)
     if kind == RESTORE_MANA:
         return restore_mana_carry(policy, snapshot)
+    from hengbot import finale_prep  # import cycle
+    from hengbot.magic_eater_devices import SV_WAND_WONDER
+    from hengbot.model import TVAL_WAND
+    if kind == (TVAL_WAND, SV_WAND_WONDER) and finale_prep.food_wanted(snapshot):
+        # Owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って食料とする」 (finale_prep's food step).
+        return finale_prep.FOOD_WANDS
     if kind == RESTORING:
         return RESTORING_CARRY
     return CARRY.get(kind)

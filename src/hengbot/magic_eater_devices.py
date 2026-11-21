@@ -69,8 +69,13 @@ def wonder_held(policy, snapshot: Snapshot) -> int:
 
 
 def wonder_purchase_room(policy, snapshot: Snapshot) -> int:
-    """How many more Wands of Wonder may be bought (never past two held)."""
-    return max(0, WONDER_HOLD_LIMIT - wonder_held(policy, snapshot))
+    """How many more Wands of Wonder may be bought (never past two held; three while the
+    character prepares the 99F/100F expeditions, owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って
+    食料とする」, finale_prep.FOOD_WANDS)."""
+    from hengbot import angband_finale, finale_prep  # import cycle
+    limit = (max(WONDER_HOLD_LIMIT, finale_prep.FOOD_WANDS) if angband_finale.preparing(snapshot)
+             else WONDER_HOLD_LIMIT)
+    return max(0, limit - wonder_held(policy, snapshot))
 
 
 def staple_food(snapshot: Snapshot) -> InventoryItem | None:

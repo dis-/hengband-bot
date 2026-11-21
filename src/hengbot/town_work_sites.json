@@ -2747,6 +2747,40 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "finale_prep.py:_food_key": {
+    "classification": "adapter",
+    "rows": [
+      "equipment-inscription",
+      "home-withdraw",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:_food_offer": {
+    "classification": "adapter",
+    "rows": [
+      "equipment-inscription",
+      "home-withdraw",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:_free_label": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:_inscribe": {
+    "classification": "adapter",
+    "rows": [
+      "equipment-inscription",
+      "home-withdraw",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "finale_prep.py:_read_home_key": {
     "classification": "data",
     "rows": [
@@ -2762,6 +2796,13 @@
     "delegation": "selected child; no independent success"
   },
   "finale_prep.py:dedicated_order": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:food_stacks": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
