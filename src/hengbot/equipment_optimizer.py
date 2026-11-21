@@ -47,7 +47,6 @@ from hengbot.model import (
     item_requires_full_identification,
     lights_nothing,
 )
-from hengbot.launcher_damage import best_obtainable_launcher_turn_damage, launcher_turn_damage
 from hengbot.speed_valuation import (
     BASE_SPEED,
     field_strong_speed_energy,
@@ -1459,7 +1458,6 @@ def _prefer(
     candidate: EvaluatedLoadout,
     incumbent: EvaluatedLoadout,
     current_item_ids: frozenset[str],
-    launcher_damage: Mapping[str, float] | None = None,
     usable_launcher_ids: frozenset[str] = frozenset(),
     finale: bool = False,
 ) -> bool:
@@ -1481,16 +1479,15 @@ def _prefer(
             candidate_bow, incumbent_bow, usable_launcher_ids
         ):
             return False
-    if (
-        launcher_damage is not None
-        and candidate_bow is not None
-        and incumbent_bow is not None
-        and candidate_bow.id != incumbent_bow.id
-    ):
-        candidate_damage = launcher_damage.get(candidate_bow.id, 0.0)
-        incumbent_damage = launcher_damage.get(incumbent_bow.id, 0.0)
-        if candidate_damage != incumbent_damage:
-            return candidate_damage > incumbent_damage
+        # A launcher with nothing to shoot (no owned or seen rounds, see ``optimize_loadout``)
+        # never displaces one that can shoot, whatever its plain-round damage.
+        candidate_usable = candidate_bow.id in usable_launcher_ids
+        if candidate_usable != (incumbent_bow.id in usable_launcher_ids):
+            return candidate_usable
+    # No launcher-only damage comparison precedes the whole loadout's (owner 2026-11-22
+    # 「近接の増え方も入れて全体で比べる」): the launcher's shot (``ranged_dps``, the plain store
+    # round, launcher_damage.plain_ammo_turn_damage) and its stat modifiers' melee, devices
+    # and survival are compared below like every other slot's.
     # A permanent light is a strict operational upgrade over a lantern or
     # torch when every modeled combat result is identical. Keep this separate
     # from combat metrics so light quality cannot trade against defense or DPS.
@@ -1696,7 +1693,6 @@ def _within_half_melee(
 def _stable_operational_best(
     evaluated: Iterable[EvaluatedLoadout],
     current_item_ids: frozenset[str],
-    launcher_damage: Mapping[str, float] | None = None,
     usable_launcher_ids: frozenset[str] = frozenset(),
     *,
     launcher_power: bool = True,
@@ -1705,7 +1701,7 @@ def _stable_operational_best(
 
     ``launcher_power=False`` (me_deep_launcher, owner 2026-11-18 「射撃威力を評価値から外し、
     弓枠は追加能力や耐性のみで評価する」): the launcher's shooting power is left out, so the
-    grade rule and the obtainable-ammunition damage filter do not apply and every
+    grade rule does not apply and every
     ``ranged_dps`` reads 0; the bow slot competes through its flags like any other slot.
 
     Pairwise "material offense if survival is within 5%" comparisons can form
@@ -1726,11 +1722,11 @@ def _stable_operational_best(
         ]
         original = {id(stripped): entry for stripped, entry in zip(unscored, pool)}
         pool = unscored
-        launcher_damage = None
 
-    # Preserve the explicit launcher policy: an ordinary Sling or Short Bow
-    # does not compete with an available Light Crossbow (before the damage
-    # filter below). High-grade ones remain in the normal comparison.
+    # Preserve the explicit launcher policy: an ordinary launcher of another kind
+    # does not compete with an available Light Crossbow (owner 2026-11-21). High-grade
+    # ones remain in the normal comparison: the whole loadout's (owner 2026-11-22
+    # 「近接の増え方も入れて全体で比べる」), no launcher-only damage filter first.
     light_crossbows = [
         bow
         for entry in pool
@@ -1748,20 +1744,16 @@ def _stable_operational_best(
             )
         ]
 
-    if launcher_damage is not None:
-        best_launcher_damage = max(
-            (
-                launcher_damage.get(bow.id, 0.0)
-                for entry in pool
-                if (bow := entry.loadout.item_at(SLOT_BOW)) is not None
-            ),
-            default=0.0,
-        )
+    # A launcher with nothing to shoot never displaces one that can (``_prefer``).
+    if launcher_power and any(
+        (bow := entry.loadout.item_at(SLOT_BOW)) is not None and bow.id in usable_launcher_ids
+        for entry in pool
+    ):
         pool = [
             entry
             for entry in pool
             if (bow := entry.loadout.item_at(SLOT_BOW)) is None
-            or launcher_damage.get(bow.id, 0.0) == best_launcher_damage
+            or bow.id in usable_launcher_ids
         ]
 
     # Apply the existing half-melee limit within the already requirement-valid
@@ -1903,13 +1895,9 @@ def optimize_loadout(
         return launcher_is_high_grade(owned.item) and not any(
             ammo.tval == owned.item.ammo_tval and ammo.count > 0 for ammo in ammunition)
 
-    # Damage per player turn: the launcher's shots and energy count (owner 2026-11-19).
-    launcher_damage = {
-        owned.id: (launcher_turn_damage(owned.item) if regular_stock(owned)
-                   else best_obtainable_launcher_turn_damage(owned.item, ammunition))
-        for owned in catalog
-        if owned.item.ammo_tval is not None
-    }
+    # The launchers' damage is the evaluator's ``ranged_dps`` with the plain store round of each
+    # kind (owner 2026-11-22 「射撃武器の比較には店で買える並の矢弾を使って。」); the obtainable
+    # ammunition only says which launchers can shoot (the Light Crossbow rule's exception).
     usable_launcher_ids = frozenset(
         owned.id
         for owned in catalog
@@ -1944,7 +1932,7 @@ def optimize_loadout(
             entries = [entry for entry in entries if finale_rank(entry) == top]
         unscored = launcher_power_unscored is not None and launcher_power_unscored(band)
         return _stable_operational_best(
-            entries, current_item_ids, launcher_damage, usable_launcher_ids,
+            entries, current_item_ids, usable_launcher_ids,
             launcher_power=not unscored,
         )
 
@@ -1990,7 +1978,7 @@ def optimize_loadout(
         equivalence_key = _selection_equivalence_key(entry, current_item_ids)
         incumbent = evaluated_by_metrics.get(equivalence_key)
         if incumbent is None or _prefer(
-            entry, incumbent, current_item_ids, launcher_damage,
+            entry, incumbent, current_item_ids,
             usable_launcher_ids, finale,
         ):
             evaluated_by_metrics[equivalence_key] = entry
@@ -2054,7 +2042,7 @@ def optimize_loadout(
     chosen_decision = None
     if depth is None and evaluated and not timed_out:
         free_best = _stable_operational_best(
-            evaluated, current_item_ids, launcher_damage, usable_launcher_ids
+            evaluated, current_item_ids, usable_launcher_ids
         )
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
@@ -2157,11 +2145,11 @@ def optimize_loadout(
         key=cmp_to_key(
             lambda left, right: (
                 -1 if _prefer(
-                    left, right, current_item_ids, launcher_damage,
+                    left, right, current_item_ids,
                     usable_launcher_ids, finale,
                 )
                 else 1 if _prefer(
-                    right, left, current_item_ids, launcher_damage,
+                    right, left, current_item_ids,
                     usable_launcher_ids, finale,
                 )
                 else 0
