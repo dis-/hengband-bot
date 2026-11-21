@@ -94,7 +94,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hengbot import return_start
-from hengbot import cross_rules, line_of_fire, recall_wait_teleport
+from hengbot import cross_rules, line_of_fire, no_ac_recall, recall_wait_teleport
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL
 from hengbot.policy_constants import DEEP_FLOOR_DEPTH, SEARCH_KEY
@@ -184,7 +184,10 @@ def in_fire_p95(policy, snapshot, hostiles) -> list:
 
 def allows(policy, snapshot) -> bool:
     """The self-teleport may be read or cast on this board.  While Recall counts down the owner's
-    2026-11-15 rule (recall_wait_teleport) holds too, at every depth."""
+    2026-11-15 rule (recall_wait_teleport) holds too, at every depth.  A worn NO_AC piece with a
+    melee hostile closing lets it through (no_ac_recall, owner 2026-11-21 「打撃の届く敵を寄せない」)."""
+    if no_ac_recall.teleport_due(policy, snapshot):
+        return True
     if recall_wait_teleport.withheld(policy, snapshot):
         return False
     if not applies(policy, snapshot):
@@ -336,7 +339,10 @@ def no_means(policy, snapshot) -> bool:
     asked from inside).
 
     The one predicate every finder of the self-teleport asks, so the owner's 2026-11-15 rule
-    while Recall counts down (recall_wait_teleport, at every depth) withholds it here too."""
+    while Recall counts down (recall_wait_teleport, at every depth) withholds it here too; a worn
+    NO_AC piece with a melee hostile closing offers it (no_ac_recall, owner 2026-11-21)."""
+    if no_ac_recall.teleport_due(policy, snapshot):
+        return False
     if recall_wait_teleport.withheld(policy, snapshot):
         return True
     if getattr(policy, _NO_MEANS_BUSY, False) or not applies(policy, snapshot):

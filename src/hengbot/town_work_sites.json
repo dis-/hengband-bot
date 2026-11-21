@@ -6414,6 +6414,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "no_ac_recall.py:_closers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "no_ac_recall.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "once_quest_recall.py:read_key": {
     "classification": "producer",
     "rows": [
