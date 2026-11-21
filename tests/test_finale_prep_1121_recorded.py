@@ -85,7 +85,7 @@ class FinalePrepRecordedTest(unittest.TestCase):
         """DECLARED: the pack holding the finale's counts; with ``mushrooms_taken``, every Mushroom
         of Restoring at Home taken out too (finale_prep._restoring_at_home)."""
         targets = {**angband_finale.CARRY,
-                   angband_finale.RESTORE_MANA: angband_finale.restore_mana_goal(policy, board)}
+                   angband_finale.RESTORE_MANA: angband_finale.restore_mana_carry(policy, board)}
         pack = [replace(item, count=targets[(item.tval, item.sval)])
                 if (item.tval, item.sval) in targets else item for item in board.inventory]
         template = next(item for item in board.inventory

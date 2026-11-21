@@ -370,7 +370,7 @@ def _short_stack(policy, snapshot):
     Restore Mana at slots 6-7 unaddressed and the step stopped as if none were at Home)."""
     from hengbot import angband_finale
     targets = {**angband_finale.CARRY,
-               angband_finale.RESTORE_MANA: angband_finale.restore_mana_goal(policy, snapshot) or 0}
+               angband_finale.RESTORE_MANA: angband_finale.restore_mana_carry(policy, snapshot) or 0}
     for kind, target in targets.items():
         missing = target - angband_finale.carried(snapshot, kind)
         if missing <= 0:
