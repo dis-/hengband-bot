@@ -50,6 +50,7 @@ main hand empty and are left as they are.
 
 from __future__ import annotations
 
+from hengbot import equipment_target
 from hengbot.equipment_mutation import EquipmentMutationResult
 from hengbot.equipment_optimizer import equipment_identity
 from hengbot.model import TVAL_SHIELD
@@ -85,7 +86,7 @@ def worn_in_slot(snapshot, slot: str):
 
 def cached_optimal_loadout(policy):
     """The cached optimizer winner's loadout, or None."""
-    preparation = policy._equipment_optimization_preparation
+    preparation = equipment_target.loadout_target(policy)
     best = getattr(getattr(preparation, "result", None), "best", None)
     loadout = getattr(best, "loadout", None)
     return loadout if loadout is not None and hasattr(loadout, "item_at") else None

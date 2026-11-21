@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from hengbot import equipment_target
 from hengbot import item_use_route, launcher_upgrade, quest25_druj_gear
 from hengbot.model import STORE_HOME, SV_LITE_FEANOR, lights_nothing
 from hengbot.policy_constants import FUNDRAISING_START_GOLD
@@ -104,7 +105,7 @@ def quest_digger_at_home(policy: Any, snapshot: Any) -> Any:
 
 def _chosen_by_optimizer(policy: Any, item: Any) -> bool:
     from hengbot.equipment_optimizer import equipment_identity
-    preparation = policy._equipment_optimization_preparation
+    preparation = equipment_target.loadout_target(policy)
     best = getattr(getattr(preparation, "result", None), "best", None)
     loadout = getattr(best, "loadout", None)
     if loadout is None:

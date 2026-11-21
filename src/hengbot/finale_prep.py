@@ -53,6 +53,7 @@ enter again.  The departure's read of the recall while a step before ``recall`` 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from hengbot import ability_sources
 
 IDLE = "idle"
 HOME = "home"
@@ -237,7 +238,7 @@ def set_missing(policy, snapshot, loadout, metrics) -> list:
     names = {**ABILITY_FLAG, angband_finale.RESIST_CURSE: 148, "resist_blind": 56,
              "resist_lite": 54}
     abilities = {name for name, flag in names.items() if flag in flags}
-    abilities |= {name for name, sources in snapshot.player.ability_sources.items()
+    abilities |= {name for name, sources in ability_sources.ability_source_map(snapshot.player).items()
                   if set(sources) & angband_finale.INTRINSIC_SOURCES}
     absorbed = (destruction_means.Means(policy, snapshot).optimizer_without_gear()
                 and TR_NO_MAGIC not in flags)

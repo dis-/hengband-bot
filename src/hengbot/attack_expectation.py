@@ -64,12 +64,13 @@ from __future__ import annotations
 import math
 import re
 
+from hengbot import ability_sources
 from hengbot import me_device_attacks, speed_valuation
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, launcher_average_damage
 from hengbot.model import TVAL_BOLT, TVAL_ROD, TVAL_WAND
 from hengbot.monster_ranged_evaluator import _attribute_rates
-from hengbot.policy_constants import RESIST_FLAG_BY_ABILITY, USE_DEVICE_MIN
+from hengbot.policy_constants import USE_DEVICE_MIN
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE
 
 
@@ -236,8 +237,7 @@ def aura_self_damage(policy, snapshot, target) -> float:
     if not auras:
         return 0.0
     player = snapshot.player
-    flags = frozenset(flag for ability, flag in RESIST_FLAG_BY_ABILITY.items()
-                      if ability in player.abilities)
+    flags = ability_sources.held_ability_flags(player)
     dice, sides = 1 + knowledge.level // 26, 1 + knowledge.level // 17
     rolls = {0: 1}
     for _ in range(dice):

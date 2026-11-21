@@ -61,6 +61,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from hengbot import ability_sources
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_POTION_RESIST_COLD, SV_POTION_RESISTANCE, TVAL_POTION
 from hengbot.monster_ranged_evaluator import (
@@ -76,7 +77,7 @@ from hengbot.monster_ranged_evaluator import (
     TR_RES_POIS,
     maximum_ability_hp_damage,
 )
-from hengbot.policy_constants import OPPOSITION_FLAG, RESIST_FLAG_BY_ABILITY
+from hengbot.policy_constants import OPPOSITION_FLAG
 from hengbot.monster_memory import seen_or_ended, shown_by_index
 from hengbot.retreat_veto_life import Threat
 
@@ -118,17 +119,16 @@ def opposed(player) -> frozenset:
         return frozenset(element for element in FIVE if f"resist_{element}" in bar)
     # An emitter without the bar: the temporary source is the opposition (temporary-resistances.cpp).
     return frozenset(element for element in FIVE
-                     if "temporary" in player.ability_sources.get(f"resist_{element}", ()))
+                     if "temporary" in ability_sources.ability_source_map(player).get(f"resist_{element}", ()))
 
 
 def _lasting_flags(player) -> frozenset:
     """Every flag but the opposition: the five by their lasting layer, the rest as the prediction."""
-    flags = {flag for ability, flag in RESIST_FLAG_BY_ABILITY.items()
-             if ability in player.abilities and flag != OPPOSITION_FLAG
-             and flag not in RESISTANCE_FLAG.values()}
+    flags = set(ability_sources.held_ability_flags(player) - {OPPOSITION_FLAG}
+                - set(RESISTANCE_FLAG.values()))
     ultimate = player.status_bar is not None and ULTIMATE_RESISTANCE in player.status_bar
     for element, flag in RESISTANCE_FLAG.items():
-        if ultimate or player.ability_sources.get(f"resist_{element}", frozenset()) & LASTING_SOURCES:
+        if ultimate or ability_sources.ability_source_map(player).get(f"resist_{element}", frozenset()) & LASTING_SOURCES:
             flags.add(flag)
     flags.update(IMMUNITY_FLAG[element] for element in player.immunities if element in IMMUNITY_FLAG)
     return frozenset(flags)

@@ -54,6 +54,7 @@ from functools import lru_cache
 
 import numpy as np
 
+from hengbot import ability_sources
 from hengbot.model import Position, Snapshot, game_distance
 
 MAX_PLAYER_SIGHT = 20  # system/gamevalue.h
@@ -67,7 +68,7 @@ def darkness(policy, snapshot: Snapshot) -> bool:
 
 def walk_radius(policy, snapshot: Snapshot) -> int:
     """How far telepathy shows a monster around the player, 0 without it (the module docstring)."""
-    if "telepathy" not in snapshot.player.abilities:
+    if not ability_sources.has_ability(snapshot.player, "telepathy"):
         return 0
     return MAX_PLAYER_SIGHT // 2 if darkness(policy, snapshot) else MAX_PLAYER_SIGHT
 

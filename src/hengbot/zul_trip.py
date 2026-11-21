@@ -56,6 +56,7 @@ from functools import lru_cache
 from heapq import heappop, heappush
 from math import ceil
 
+from hengbot import ability_sources
 from hengbot import morivant_tower, town_travel
 from hengbot.model import STORE_BLACK, STORE_MAGIC, Position
 from hengbot.policy_constants import (
@@ -217,7 +218,7 @@ def cure_price(policy) -> int:
 
 
 def has_levitation(snapshot) -> bool:
-    return "levitation" in snapshot.player.abilities
+    return ability_sources.has_ability(snapshot.player, "levitation")
 
 
 def is_levitation_item(item) -> bool:
@@ -324,7 +325,7 @@ def food_per_step(snapshot) -> int:
     from hengbot.policy_constants import speed_energy
     energy = max(1, speed_energy(snapshot.player.speed))
     digestion = energy
-    abilities = snapshot.player.abilities
+    abilities = ability_sources.held_abilities(snapshot.player)
     if "regenerate" in abilities:
         digestion += 20
     if "slow_digest" in abilities:

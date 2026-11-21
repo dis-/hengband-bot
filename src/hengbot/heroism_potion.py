@@ -35,6 +35,7 @@ Whether fear is covered (a resistance now, or a carried potion to drink) is
 
 from __future__ import annotations
 
+from hengbot import ability_sources
 from hengbot import reasons
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_POTION_HEROISM, TVAL_POTION
@@ -55,11 +56,11 @@ CATEGORY = "heroism"  # the town need and the purchase rung's category
 def lasting_fear_resistance(snapshot) -> bool:
     """Fear resistance that does not run out: equipment or the character (not hero/berserk)."""
     player = snapshot.player
-    sources = player.ability_sources.get("resist_fear")
+    sources = ability_sources.ability_source_map(player).get("resist_fear")
     if sources is not None:
         return bool(sources & LASTING_SOURCES)
     # A flat (pre-per-source) emitter: the ability without a hero state on the bar.
-    return "resist_fear" in player.abilities and not hero_active(snapshot)
+    return ability_sources.has_ability(player, "resist_fear") and not hero_active(snapshot)
 
 
 def hero_active(snapshot) -> bool:
@@ -67,7 +68,7 @@ def hero_active(snapshot) -> bool:
     player = snapshot.player
     if HERO_BAR_KEYS & set(player.status_bar or ()):
         return True
-    return "temporary" in player.ability_sources.get("resist_fear", frozenset())
+    return "temporary" in ability_sources.ability_source_map(player).get("resist_fear", frozenset())
 
 
 def is_heroism(item) -> bool:

@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+from hengbot import ability_sources
 from hengbot import item_use_route, spare_gear, town_pack_budget
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.equipment_rules import TR_NO_AC
@@ -269,7 +270,7 @@ def _innate_covered(snapshot: Any, item: Any) -> bool:
             or item.pval or item.to_a or item.to_h or item.to_d):
         return False
     abilities = _abilities(item)
-    sources = snapshot.player.ability_sources
+    sources = ability_sources.ability_source_map(snapshot.player)
     return bool(abilities) and all(
         flag in _ABILITY_KEY and "permanent" in sources.get(_ABILITY_KEY[flag], ())
         for flag in abilities)

@@ -55,6 +55,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from hengbot import ability_sources
 from hengbot import restore_mana_target
 from hengbot.model import (
     DUNGEON_ANGBAND, SV_POTION_HEALING, SV_POTION_RESISTANCE, SV_POTION_RESTORE_MANA,
@@ -227,7 +228,7 @@ def supply_rows(policy, snapshot, count) -> dict:
 
 def _board_abilities(snapshot) -> frozenset:
     from hengbot import amberite_curse  # import cycle
-    abilities = set(snapshot.player.abilities)
+    abilities = set(ability_sources.held_abilities(snapshot.player))
     if amberite_curse.resists_curse(snapshot):
         abilities.add(RESIST_CURSE)  # read as the Amberite rule reads it
     else:

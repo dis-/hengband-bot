@@ -69,6 +69,7 @@ first when not hasted, and cures with the HP recovery potion when HP is down -- 
 before the Speed dose, as for blindness (owner 2026-11-04 「低い時は体力回復が先」).
 """
 
+from hengbot import ability_sources
 from hengbot import blind_strike, combat_answer, me_absorbed_substitutes, me_capability, speed_dose, unseen_strike
 from hengbot.game_messages import KILL_LINE_DESTROYED, KILL_LINE_KILLED, KILL_LINE_SLAIN
 from hengbot.item_reservation import reserved_item_command
@@ -315,7 +316,7 @@ def outpacing_blinders(policy, snapshot) -> list:
     from hengbot import teleport_follower, threat_tiers
 
     player = snapshot.player
-    if not player.blind or "resist_blind" in player.abilities:
+    if not player.blind or ability_sources.has_ability(player, "resist_blind"):
         return []
     blinders = []
     for monster in teleport_follower.adjacent(snapshot):

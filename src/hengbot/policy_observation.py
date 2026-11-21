@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from hengbot import ability_sources
+from hengbot import equipment_target
 from hengbot import approach_answer, return_start
 from hengbot import guardian_rumor, heal_offset, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -855,8 +857,7 @@ class ObservationMixin:
             # identification fundraising driver guarantees this boundary arrives
             # whenever a Home-identification deadlock is what blocks departure.
             self._processed_home_items.clear()
-            self._equipment_optimization_signature = None
-            self._equipment_optimization_preparation = None
+            equipment_target.clear_loadout_target(self)
 
         if snapshot.in_town and snapshot.player.class_id >= 0 and self._mining_set_runs_done():
             # The set's run-count end is a fact of the board, so it ends
@@ -1525,7 +1526,10 @@ class ObservationMixin:
         return force
 
     def _missing_required_abilities(self, snapshot: Snapshot, depth: int) -> frozenset:
-        missing = set(required_depth_gates(depth) - snapshot.player.abilities)
+        # Worn only (equipment review E2): the gate reads what the character has on now; the
+        # search reads every owned piece.  Stage E4 moves this to owned sources (owner Q3/Q4).
+        missing = ability_sources.missing_abilities(
+            self, snapshot, required_depth_gates(depth), sources=ability_sources.WORN_ONLY)
         # USER DECISION 2026-11-04 「使える手段がある時だけ解く」: 50F+ needs a
         # means destruction_use can use; scrolls or an intrinsic ability unlock
         # nothing.  This is the ONE place the rule is consulted -- every arrival

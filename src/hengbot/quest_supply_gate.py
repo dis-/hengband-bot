@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from hengbot import ability_sources
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_POTION_SPEED, TVAL_POTION
 
@@ -79,7 +80,7 @@ def other_conditions_met(policy: Any, snapshot: Any, profile: Any) -> bool:
     if not floors:
         return False
     if not all(has_ability_or_alternative(force, policy._profile_resistance_name(str(name)),
-                                          snapshot.player.abilities, snapshot.equipment)
+                                          ability_sources.held_abilities(snapshot.player), snapshot.equipment)
                for name in force.get("resists", ())):
         return False
     if not quest_ranged_force.turn_met(policy, snapshot, force, force):

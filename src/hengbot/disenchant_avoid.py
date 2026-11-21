@@ -49,6 +49,7 @@ Who decides what:
 
 from __future__ import annotations
 
+from hengbot import ability_sources
 from hengbot import hunt_target, monster_memory, survival_preemption
 from hengbot.breeder_stalemate import shows_kill
 from hengbot.model import Position
@@ -71,7 +72,7 @@ def _race_disenchants(policy, monster) -> bool:
 def exposes_gear(policy, snapshot, monster) -> bool:
     """Its blows or breath disenchant, and the player does not resist."""
     return (_race_disenchants(policy, monster)
-            and not snapshot.player.ability_sources.get(RESIST_ABILITY))
+            and not ability_sources.ability_source_map(snapshot.player).get(RESIST_ABILITY))
 
 
 def kept_away(policy, snapshot, monster) -> bool:

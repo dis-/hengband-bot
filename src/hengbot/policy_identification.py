@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot.item_reservation import reserved_item_command
 from hengbot.town_pack_budget import incoming_slots, permits, pile_fits
@@ -1012,8 +1013,7 @@ class IdentificationMixin:
         )
         if carried:
             self._town_unidentifiable_carried_sigs.add(signature)
-            self._equipment_optimization_signature = None
-            self._equipment_optimization_preparation = None
+            equipment_target.clear_loadout_target(self)
         else:
             self._defer_home_item(signature, home_site)
 

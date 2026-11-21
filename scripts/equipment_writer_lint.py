@@ -18,7 +18,27 @@ module of ``src/hengbot``, how many places do each of these (read from the AST):
   search's own store);
 - ``target-name``: either name as a string (``getattr``, a state dict key).
 
-``ALLOWED`` is today's set (2026-11-22, main 7cc84c1382 plus E0's journal hooks).  A module or a
+Stage E2 (2026-11-22) put the target behind ``equipment_target``: the four raw categories above
+are allowed in that module only (and the registry's names), so a direct read of the old
+internals elsewhere fails.  The writers stay at their sites through named functions, pinned here
+so stage E3 sees every one:
+
+- ``target-store-call``: a call of ``equipment_target.TARGET_WRITERS`` (``init_loadout_target``,
+  ``record_loadout_search``, ``replace_loadout_target``, ``set_unsearched_loadout_target``,
+  ``clear_loadout_target``);
+- ``search-reset-call``: a call of ``equipment_target.SEARCH_RESETTERS``
+  (``invalidate_loadout_search``, a forced re-search, and ``forget_loadout_search_in_state``).
+
+E2 also put the character's abilities behind ``ability_sources`` (worn / pack / Home):
+
+- ``ability-read``: ``player.abilities`` / ``player.ability_sources`` (on ``player`` or
+  ``<x>.player``) read;
+- ``ability-table``: the ability -> flag table ``RESIST_FLAG_BY_ABILITY`` read (an import is
+  not a read).
+
+Both are allowed in ``ability_sources`` only (``model`` builds the board).
+
+``ALLOWED`` is today's set (2026-11-22, E2 on main 23febce5a).  A module or a
 count above it is a new direct writer/reader and fails; a count below it fails too, so the pin
 is lowered with the change that removed one (the later stages E2/E5 move these behind one
 reader and one slot lease; each move lowers a pin here).
@@ -44,29 +64,42 @@ COMMAND_COMPOSERS = frozenset({"checked_item_command", "reserved_item_command", 
 WEAR_KINDS = frozenset({"wield", "takeoff"})
 TARGET = "_equipment_optimization_preparation"
 SIGNATURE = "_equipment_optimization_signature"
+sys.path.insert(0, str(ROOT / "src"))
+from hengbot.equipment_target import SEARCH_RESETTERS as SEARCH_RESET_CALLS  # noqa: E402
+from hengbot.equipment_target import TARGET_WRITERS as TARGET_STORE_CALLS  # noqa: E402
+TARGET_MODULE = "equipment_target"
+ABILITY_ATTRIBUTES = frozenset({"abilities", "ability_sources"})
+ABILITY_TABLE = "RESIST_FLAG_BY_ABILITY"
+# The categories only their owner module may have (the old internals); a reader elsewhere goes
+# through equipment_target / ability_sources.
+OWNED_CATEGORIES = {
+    "target-read": TARGET_MODULE, "target-write": TARGET_MODULE,
+    "search-reset": TARGET_MODULE, "target-name": TARGET_MODULE,
+    "ability-read": "ability_sources", "ability-table": "ability_sources",
+}
 
 ALLOWED: dict[str, dict[str, int]] = {
-    "destination_band_floor": {"search-reset": 1, "target-name": 1},
-    "equipment_capacity": {"search-reset": 1},
+    "ability_sources": {"ability-read": 3, "ability-table": 5},
+    "destination_band_floor": {"search-reset-call": 1},
+    "equipment_capacity": {"search-reset-call": 1},
     "equipment_mutation": {"wear-command": 2},
+    "equipment_target": {"search-reset": 5, "target-name": 2, "target-write": 5},
     "ladder_objectives": {"wear-exit": 2},
-    "me_powerful_activation": {"target-read": 1, "target-write": 1},
-    "mining_loadout": {"target-read": 1, "wear-exit": 2},
-    "policy": {"search-reset": 7, "target-read": 9, "target-write": 5, "wear-exit": 5},
-    "policy_calibration": {"search-reset": 3},
-    "policy_equipment": {"search-reset": 6, "target-read": 21, "target-write": 6, "wear-exit": 11},
+    "me_powerful_activation": {"target-store-call": 1},
+    "mining_loadout": {"wear-exit": 2},
+    "policy": {"search-reset-call": 2, "target-store-call": 5, "wear-exit": 5},
+    "policy_calibration": {"search-reset-call": 3},
+    "policy_equipment": {"search-reset-call": 1, "target-store-call": 6, "wear-exit": 11},
     "policy_fundraising": {"wear-exit": 1},
-    "policy_home": {"target-name": 1},
-    "policy_identification": {"search-reset": 1, "target-write": 1},
-    "policy_observation": {"search-reset": 1, "target-write": 1},
+    "policy_identification": {"target-store-call": 1},
+    "policy_observation": {"target-store-call": 1},
     "policy_opening": {"wear-exit": 1},
     "policy_quest": {"wear-exit": 3},
     "policy_shop": {"wear-exit": 3},
-    "policy_state": {"target-name": 1},
+    "policy_state": {"search-reset-call": 1},
     "policy_supply": {"wear-exit": 1},
-    "policy_town": {"target-read": 3, "wear-exit": 1},
+    "policy_town": {"wear-exit": 1},
     "quest25_druj_gear": {"wear-exit": 3},
-    "spare_gear": {"target-read": 1},
     "state_registry": {"target-name": 2},
     "zul_trip": {"wear-exit": 2},
 }
@@ -81,12 +114,31 @@ def _called_name(call: ast.Call) -> str | None:
     return None
 
 
+def _is_player(node: ast.AST) -> bool:
+    return ((isinstance(node, ast.Name) and node.id == "player")
+            or (isinstance(node, ast.Attribute) and node.attr == "player"))
+
+
+def _target_module_call(call: ast.Call) -> str | None:
+    """The function name of an ``equipment_target.<name>(...)`` call."""
+    func = call.func
+    if (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            and func.value.id == TARGET_MODULE):
+        return func.attr
+    return None
+
+
 def analyze_source(source: str) -> Counter:
     """The counts of one module's source (see the module docstring for the categories)."""
     counts: Counter = Counter()
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Call):
             name = _called_name(node)
+            target_call = _target_module_call(node)
+            if target_call in TARGET_STORE_CALLS:
+                counts["target-store-call"] += 1
+            elif target_call in SEARCH_RESET_CALLS:
+                counts["search-reset-call"] += 1
             if name in WEAR_EXITS:
                 counts["wear-exit"] += 1
             elif name in COMMAND_COMPOSERS and any(
@@ -101,6 +153,13 @@ def analyze_source(source: str) -> Counter:
                 counts["search-reset"] += 1
         elif isinstance(node, ast.Constant) and node.value in (TARGET, SIGNATURE):
             counts["target-name"] += 1
+        if (isinstance(node, ast.Attribute) and node.attr in ABILITY_ATTRIBUTES
+                and isinstance(node.ctx, ast.Load) and _is_player(node.value)):
+            counts["ability-read"] += 1
+        elif ((isinstance(node, ast.Name) and node.id == ABILITY_TABLE
+               and isinstance(node.ctx, ast.Load))
+              or (isinstance(node, ast.Attribute) and node.attr == ABILITY_TABLE)):
+            counts["ability-table"] += 1
     return counts
 
 
@@ -119,7 +178,11 @@ def findings(counts: dict[str, Counter], allowed: dict[str, dict[str, int]] = AL
         have, pinned = counts.get(module, Counter()), allowed.get(module, {})
         for category in sorted(set(have) | set(pinned)):
             seen, limit = have.get(category, 0), pinned.get(category, 0)
-            if seen > limit:
+            owner = OWNED_CATEGORIES.get(category)
+            if seen > limit and owner is not None and module != owner:
+                out.append(f"{module}: {category} {seen} > allowed {limit} -- a direct read of "
+                           f"the old internals; go through {owner}")
+            elif seen > limit:
                 out.append(f"{module}: {category} {seen} > allowed {limit} -- a new direct "
                            "writer/reader of gear; go through the equipment exit, or raise the pin "
                            "with the review's consent")

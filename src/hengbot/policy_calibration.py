@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+from hengbot import equipment_target
 from hengbot.model import Snapshot, InventoryItem, RESTORE_POTION_SVAL_BY_STAT, STORE_ALCHEMIST
 from hengbot.warrior_optimization import CharacterCalibration, load_character_calibration
 
@@ -170,7 +171,7 @@ class CalibrationMixin:
                       "character-response-unavailable:" + type(exc).__name__)
             self._calibration_unavailable_reason = reason
             self._calibration_rejection = (pending, reason)
-            self._equipment_optimization_signature = None
+            equipment_target.invalidate_loadout_search(self)
             return
         previous = self._character_calibration
         self._character_calibration = calibration
@@ -183,7 +184,7 @@ class CalibrationMixin:
             # ones every few dozen decisions, and dropping the memo there
             # re-ran the whole search (n1-b life-368 2026-11-11, decisions
             # 18166 and 18206, 30 s each on the viewing server).
-            self._equipment_optimization_signature = None
+            equipment_target.invalidate_loadout_search(self)
         self._confirmed_loadout = None
         self._confirmed_loadout_loaded = True
         if self._character_calibration_path is not None:
@@ -248,7 +249,7 @@ class CalibrationMixin:
         if reason is not None:
             self._character_calibration = None
             self._calibration_unavailable_reason = reason
-            self._equipment_optimization_signature = None
+            equipment_target.invalidate_loadout_search(self)
             self.request_character_dump()
             return None
         return calibration

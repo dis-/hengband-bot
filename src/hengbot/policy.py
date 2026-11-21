@@ -1,4 +1,6 @@
 from __future__ import annotations
+from hengbot import ability_sources
+from hengbot import equipment_target
 from hengbot import angband_finale
 from hengbot import approach_answer, return_start
 from hengbot import safety_watch
@@ -2451,11 +2453,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # it is not authoritative for global optimization because its short
         # signature collapses physically distinct identical items.
         self._equipment_catalog = OwnedEquipmentCatalog()
-        self._equipment_optimization_signature: tuple | None = None
+        # The search's target and memo (equipment_target: the one reader/writer).
+        equipment_target.init_loadout_target(self)
         self._equipment_optimization_pack_items: int | None = None
-        self._equipment_optimization_preparation: (
-            WarriorOptimizationPreparation | None
-        ) = None
         self._equipment_optimization_telemetry: dict[str, object] = {}
         self._equipment_fresh_search_target_ids: frozenset[str] = frozenset()
         self._town_plan_projection_telemetry: dict[str, object] = {
@@ -4965,7 +4965,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if scan_key is not None:
                 return scan_key
         if (
-            snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (snapshot.store.stock_num is None or self._store_page_can_request_knowledge(snapshot)) and (not self._equipment_catalog.home_scan_complete or self._home_knowledge_invalidated) and (self._home_errand.needs_knowledge or 'home-scan-incomplete' in getattr(self._equipment_optimization_preparation, 'blockers', ()) or (self._home_procurement_probe is not None or (self._home_visit.request is not None and self._home_visit.request.kind == HomeVisitKind.SCAN))) and (not self._home_knowledge_scan_requested) and (self._home_knowledge_scan_epoch is None) and (self._equipment_transaction_session is None) and (not self._town_space_deposit_actionable(snapshot)) and (self._store_leave_inflight is None) and (not self._defer_town_errand('home-errand' if self._home_errand.needs_knowledge else 'home-scan', 'choose-key-scan'))
+            snapshot.store is not None and snapshot.store.store_type == STORE_HOME and (snapshot.store.stock_num is None or self._store_page_can_request_knowledge(snapshot)) and (not self._equipment_catalog.home_scan_complete or self._home_knowledge_invalidated) and (self._home_errand.needs_knowledge or 'home-scan-incomplete' in equipment_target.loadout_target_blockers(self) or (self._home_procurement_probe is not None or (self._home_visit.request is not None and self._home_visit.request.kind == HomeVisitKind.SCAN))) and (not self._home_knowledge_scan_requested) and (self._home_knowledge_scan_epoch is None) and (self._equipment_transaction_session is None) and (not self._town_space_deposit_actionable(snapshot)) and (self._store_leave_inflight is None) and (not self._defer_town_errand('home-errand' if self._home_errand.needs_knowledge else 'home-scan', 'choose-key-scan'))
         ):
             self.last_reason = (
                 self._home_errand.reason("request-knowledge")
@@ -5699,14 +5699,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     # rebuild the remainder before any ordinary town policy can
                     # observe a session gap.
                     self._abandon_blocked_equipment_transaction(snapshot)
-                    self._equipment_optimization_signature = None
+                    equipment_target.invalidate_loadout_search(self)
                 else:
                     self._complete_equipment_transaction_claim()
                     self._equipment_transaction_session = None
                     self._equipment_transaction_restoring = False
                     self._equipment_transaction_restore_terminal = None
                     self._equipment_transaction_restore_remainder = ()
-                    self._equipment_optimization_signature = None
+                    equipment_target.invalidate_loadout_search(self)
                     if self._equipment_transaction_route_terminal_pending:
                         self._equipment_transaction_route_terminal_pending = False
                         self._equipment_transaction_route_terminal = (
@@ -5785,9 +5785,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and getattr(snapshot, "in_town", False)
             and not self._opening_q1_active(snapshot)
             and (
-                "home-scan-incomplete" in getattr(
-                    self._equipment_optimization_preparation, "blockers", ()
-                )
+                "home-scan-incomplete" in equipment_target.loadout_target_blockers(self)
                 or self._home_available(snapshot)
             )
             and not snapshot.player.recalling
@@ -9022,7 +9020,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and self._light_refill_item(snapshot) is None
         )
         if not low_without_refill and equipped.is_torch and candidate.is_lantern:
-            preparation = self._equipment_optimization_preparation
+            preparation = equipment_target.loadout_target(self)
             best = getattr(getattr(preparation, "result", None), "best", None)
             loadout = getattr(best, "loadout", None)
             if getattr(preparation, "ready", False) and isinstance(loadout, Loadout):
@@ -9685,7 +9683,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         The allowance spans outside equip and posted observations; route and
         store-need projections separately ask for the current Home action.
         """
-        preparation = self._equipment_optimization_preparation
+        preparation = equipment_target.loadout_target(self)
         # R1: a preparation with no target is not work that owns a Home route
         # or can exhaust one.
         blockers = tuple(
@@ -9817,7 +9815,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         preparation = (
             self._prepare_equipment_optimization(snapshot)
             if snapshot is not None
-            else self._equipment_optimization_preparation
+            else equipment_target.loadout_target(self)
         )
         session = self._equipment_transaction_session
         state: dict[str, object] = {
@@ -10064,14 +10062,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return []
         report: list[dict[str, object]] = []
         for ability in sorted(required_depth_gates(depth)):
-            flag = RESIST_FLAG_BY_ABILITY.get(ability)
+            flag = ability_sources.ability_flag(ability)
             if flag is None:
                 continue
-            sources = [
-                item
-                for item in self._equipment_catalog.items
-                if flag in item.flags
-            ]
+            sources = ability_sources.owned_ability_items(self, ability, ability_sources.OWNED)
             report.append({
                 "gate": ability,
                 "flag": flag,
@@ -10550,8 +10544,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_transaction_route_terminal_pending = False
         self._discard_unposted_equipment_transaction_command()
         self._set_equipment_transaction_session(None)
-        self._equipment_optimization_signature = None
-        self._equipment_optimization_preparation = None
+        equipment_target.clear_loadout_target(self)
         self._equipment_optimization_pack_items = None
         self._prepare_equipment_optimization(snapshot)
 
@@ -10729,8 +10722,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if alternate == DUNGEON_ANGBAND:
             self._rumor_unlock_pending = not snapshot.angband_recall_unlocked
         self._conquest_committed = None
-        self._equipment_optimization_signature = None
-        self._equipment_optimization_preparation = None
+        equipment_target.clear_loadout_target(self)
         return alternate
 
 
@@ -10752,7 +10744,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _target_loadout_known(self) -> bool:
         """Whether the optimizer currently supplies a concrete target loadout."""
-        preparation = self._equipment_optimization_preparation
+        preparation = equipment_target.loadout_target(self)
         if preparation is None:
             return False
         result = getattr(preparation, "result", None)
@@ -11482,7 +11474,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         catalog_owner = self._equipment_catalog
         key = (
             self._decision_sequence,
-            id(self._equipment_optimization_preparation),
+            id(equipment_target.loadout_target(self)),
             id(catalog_owner),
             id(catalog_owner._carried), id(catalog_owner._home),
             len(catalog_owner._carried), len(catalog_owner._home),
@@ -11497,7 +11489,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _build_plain_gear_baseline(self, snapshot: Snapshot) -> dict | None:
         if not self._target_loadout_known():
             return None
-        loadout = self._equipment_optimization_preparation.result.best.loadout
+        loadout = equipment_target.loadout_target(self).result.best.loadout
         catalog_owner = self._equipment_catalog
         if not catalog_owner.home_scan_complete:
             return None
@@ -12078,7 +12070,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if ((self.last_reason or "").startswith("equipment-transaction:")
                 and not self._equipment_home_full_refused_this_visit()):
             return False
-        preparation = self._equipment_optimization_preparation
+        preparation = equipment_target.loadout_target(self)
         home_full_equipment_closed = bool(
             self._equipment_home_full_refused_this_visit()
             and self._equipment_failure_unexecutable_this_visit(
@@ -12107,10 +12099,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._equipment_transaction_failed_items.clear()
         self._equipment_quarantine_second_chance_ids.clear()
         self._equipment_quarantine_readmitted_ids = ()
-        self._equipment_optimization_preparation = replace(
+        equipment_target.set_unsearched_loadout_target(self, replace(
             preparation, blockers=()
-        )
-        self._equipment_optimization_signature = None
+        ))
         # Home-full equipment has its own impossible-work record. Let another
         # live owner (notably overload) retain its ordinary progress/stop path.
         self._town_liveness_claim_retired = not self._equipment_home_full_refused_this_visit()
@@ -12488,8 +12479,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._retried_home_identification_items.update(signatures)
         self._rearm_town_store_for_new_work(STORE_HOME)
         self._retire_town_errand_plan_for_rebuild()
-        self._equipment_optimization_signature = None
-        self._equipment_optimization_preparation = None
+        equipment_target.clear_loadout_target(self)
         return True
 
     def _owns_lantern(self, snapshot: Snapshot) -> bool:
@@ -15054,7 +15044,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         either effect as a retreat trigger unless the corresponding intrinsic is
         present.  Reachability mirrors the melee portion of threat_prediction.
         """
-        missing_confusion_resistance = "resist_conf" not in snapshot.player.abilities
+        missing_confusion_resistance = not ability_sources.has_ability(snapshot.player, "resist_conf")
         missing_free_action = not self._has_state_based_free_action(snapshot)
         if not missing_confusion_resistance and not missing_free_action:
             return []
@@ -15200,7 +15190,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     ) -> int:
         if effect in NON_HP_DAMAGE_BLOW_EFFECTS:
             return 0
-        abilities = snapshot.player.abilities
+        abilities = ability_sources.held_abilities(snapshot.player)
         if effect in {"HURT", "SHATTER", "SUPERHURT"}:
             damage -= damage * min(snapshot.player.ac, 150) // 250
             if effect == "SUPERHURT":

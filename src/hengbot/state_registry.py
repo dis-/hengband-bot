@@ -588,8 +588,9 @@ REGISTRY = (
       "The board the equipment executor's fruitless count last saw.", saved=False),
     S("_equipment_mutation_post_commit", "policy", LIFE,
       "policy: equipment mutation post commit (no comment at its definition)"),
-    S("_equipment_optimization_signature", "policy", LIFE,
-      "policy: equipment optimization signature (no comment at its definition)"),
+    S("_equipment_optimization_signature", "equipment_target", LIFE,
+      "The input signature the stored loadout target was searched with; None forces a re-search "
+      "(equipment_target.search_signature / invalidate_search)."),
     S("_equipment_retired_worn_item_ids", "policy", VISIT,
       "A structurally actionless failed transaction may retire for the remainder of this town visit."),
     S("_equipment_transaction_failed_items", "policy", VISIT,
@@ -1083,8 +1084,9 @@ REGISTRY = (
       "Depth the last optimization pass was asked about, for diagnostics emitted when no snapshot is at hand."),
     S("_equipment_optimization_pack_items", "policy_equipment", LIFE,
       "policy_equipment: equipment optimization pack items (no comment at its definition)"),
-    S("_equipment_optimization_preparation", "policy_equipment", LIFE,
-      "policy_equipment: equipment optimization preparation (no comment at its definition)"),
+    S("_equipment_optimization_preparation", "equipment_target", LIFE,
+      "The intended loadout of this visit: the loadout search's last preparation "
+      "(equipment_target.target is its one reader)."),
     S("_equipment_optimization_search_surviving_ids", "policy_equipment", LIFE,
       "policy_equipment: equipment optimization search surviving ids (no comment at its definition)"),
     S("_equipment_optimization_telemetry", "policy_equipment", LIFE,

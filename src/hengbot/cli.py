@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Mapping
 
+from hengbot import ability_sources
 from hengbot import angband_finale
 from hengbot import __version__ as HENGBOT_VERSION
 from hengbot import dive_floor, means_spent_loop, spare_gear, torch_release
@@ -1826,7 +1827,7 @@ def _depth_safety(snapshot, policy) -> dict:
         "depth": depth,
         "required": required,
         "missing": missing,
-        "has": sorted(snapshot.player.abilities),
+        "has": sorted(ability_sources.held_abilities(snapshot.player)),
     }
 
 

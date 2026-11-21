@@ -37,11 +37,11 @@ the gap as it does without a shelf (``town_terminal``).
 
 from __future__ import annotations
 
-from hengbot import destruction_means, destruction_use, device_skill
+from hengbot import ability_sources, destruction_means, destruction_use, device_skill
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.model import STORE_HOME
 from hengbot.policy_constants import (
-    DESTRUCTION_GATE_LABEL, PLAYER_CLASS_BERSERKER, RESIST_FLAG_BY_ABILITY,
+    DESTRUCTION_GATE_LABEL, PLAYER_CLASS_BERSERKER,
 )
 from hengbot.town_pack_budget import room_assumed
 
@@ -130,8 +130,7 @@ def _landing_missing(policy, snapshot) -> frozenset:
 def _open_flags(policy, snapshot) -> frozenset[int]:
     """The flags that would close an ability the landing is missing."""
     missing = _landing_missing(policy, snapshot)
-    flags = {RESIST_FLAG_BY_ABILITY[ability] for ability in missing
-             if ability in RESIST_FLAG_BY_ABILITY}
+    flags = ability_sources.ability_flags(missing)
     if flags:
         flags -= _bought_flags(policy)
     return frozenset(flags)

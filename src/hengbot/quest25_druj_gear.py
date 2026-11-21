@@ -23,12 +23,13 @@ worn NO_TELE stops (spells-teleport.cpp, mspell-floor.cpp).  The data is the pro
 
 from __future__ import annotations
 
+from hengbot import ability_sources
 from hengbot.equipment_rules import EXPLORATION_FORBIDDEN_FLAGS, TR_NO_TELE
 from hengbot.model import (
     TVAL_AMULET, TVAL_BOOTS, TVAL_CLOAK, TVAL_CROWN, TVAL_DRAG_ARMOR, TVAL_GLOVES, TVAL_HARD_ARMOR,
     TVAL_HELM, TVAL_RING, TVAL_SHIELD, TVAL_SOFT_ARMOR,
 )
-from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, RESIST_FLAG_BY_ABILITY
+from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 
 GEAR_NAME = "anti_teleport"
 WEAR_GOAL = "quest25-druj-anti-teleport"
@@ -40,8 +41,7 @@ SLOTS_BY_TVAL = {
     TVAL_RING: ("main_ring", "sub_ring"),
 }
 # Ability name -> the TR flag a worn piece gives it by (the ESP alternatives included).
-_ABILITY_FLAG = {**{name: flag for name, flag in RESIST_FLAG_BY_ABILITY.items() if flag >= 0},
-                 "esp_undead": 105, "esp_evil": 112}
+_ABILITY_FLAG = {**ability_sources.object_ability_flags(), "esp_undead": 105, "esp_evil": 112}
 
 
 def wanted(profile) -> bool:
@@ -68,9 +68,9 @@ def _required(policy, force) -> list[tuple[str, ...]]:
 
 def _has_after(snapshot, ability: str, removed, added) -> bool:
     flag = _ABILITY_FLAG.get(ability)
-    sources = snapshot.player.ability_sources.get(ability, frozenset())
+    sources = ability_sources.ability_source_map(snapshot.player).get(ability, frozenset())
     if flag is None:
-        return ability in snapshot.player.abilities
+        return ability in ability_sources.held_abilities(snapshot.player)
     if added is not None and flag in added.known_flags:
         return True
     if sources - {"equipment"}:

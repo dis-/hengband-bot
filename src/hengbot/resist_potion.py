@@ -37,6 +37,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import NamedTuple
 
+from hengbot import ability_sources
 from hengbot import destruction_use, me_ranged_first, threat_tiers
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import SV_POTION_RESISTANCE, TVAL_POTION
@@ -104,7 +105,7 @@ def _awake_visible_enemy_it_answers(policy, snapshot) -> bool:
 
 def _winnable_after_the_drink(policy, snapshot, hostiles) -> bool:
     player = snapshot.player
-    after = replace(snapshot, player=replace(player, abilities=player.abilities | {OPPOSITION_ABILITY}))
+    after = replace(snapshot, player=replace(player, abilities=ability_sources.held_abilities(player) | {OPPOSITION_ABILITY}))
     return policy._engagement_is_winnable(
         after, hostiles, damage_against=lambda each: me_ranged_first.best_expected(policy, after, each))
 
