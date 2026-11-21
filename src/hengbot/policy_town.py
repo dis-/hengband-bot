@@ -8657,8 +8657,11 @@ class TownMixin:
         quest lock; the ordinary light-low return then leaves (the quest
         fails).
         """
+        from hengbot import angband_finale_battle  # import cycle
         return (
             not snapshot.in_town
+            # The 99F/100F battle's floors open by its recall cases alone (_quest_floor_exit_locked).
+            and not angband_finale_battle.applies(self, snapshot)
             and self._light_judgment(snapshot).releases_one_shot_quest
             and self._one_shot_quest_exit_lock_held(snapshot)
         )

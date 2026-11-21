@@ -76,6 +76,10 @@ VISIT_MEMORIES = (
     ("_floor_identify_tried", None, "floor_identify"),
     ("_sealed_loot_mapped", None, "sealed_loot"),
     ("_artifact_drop_memory", None, "sellable_artifacts"),
+    # The 99F/100F battle's floor (its sweep, last seen cell, stand): a level regenerated under
+    # the same key is a new floor whose arrival sweep runs again (n1-c life-217 2026-11-21
+    # 12:29:05: the 99F reached again by the stairs kept the earlier level's battle).
+    ("_angband_finale_battle", None, "angband_finale_battle"),
 )
 
 # The memories that keep the floor key on purpose, or that the floor change forgets already

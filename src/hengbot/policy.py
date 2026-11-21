@@ -13799,7 +13799,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     ) -> None:
         """Delegate an unwinnable runtime quest to the return owner: a visible target the
         duel projection cannot beat, or a target shown in sight or by detection as a T1
-        (hunt_target.quest_target_unbeatable, owner 2026-11-13 「階を諦めて帰還する」)."""
+        (hunt_target.quest_target_unbeatable, owner 2026-11-13 「階を諦めて帰還する」).
+
+        Not on the 99F/100F floors of the finale's expedition: Oberon and the Serpent are the
+        battle's (angband_finale_battle), which alone decides the leave (n1-c life-217
+        2026-11-21 12:29:06: Oberon detected as a T1 latched this return on 99F)."""
+        from hengbot import angband_finale_battle  # import cycle
+        if angband_finale_battle.applies(self, snapshot):
+            return
         if (
             self._unviable_quest_floor != snapshot.floor_key
             and (self._visible_unviable_quest_target(snapshot, hostiles)
