@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import ability_sources, equipment_target
+from hengbot import ability_sources, deep_climb, equipment_target
 from hengbot import angband_finale, finale_prep
 from hengbot import approach_answer, destination_band_floor, home_pass_charge, launcher_upgrade, spare_gear
 from hengbot import equipment_rules, equipment_visit_journal
@@ -3629,7 +3629,7 @@ class EquipmentMixin:
             and premise
             and preparation is not None
             and self._home_is_full(snapshot)
-            and not self._missing_required_abilities(snapshot, depth)
+            and not deep_climb.departure_gaps(self, snapshot, depth)
             and self._current_worn_loadout_confirmed(snapshot, preparation)
             and preparation.blockers
             and all(
@@ -3664,7 +3664,7 @@ class EquipmentMixin:
             and closure.get("epoch") == self._town_visit_epoch
             and closure.get("reason") == "pack-space-home-full"
             and self._home_is_full(snapshot)
-            and not self._missing_required_abilities(snapshot, depth)
+            and not deep_climb.departure_gaps(self, snapshot, depth)
             and ",".join(sorted(preparation.current.item_ids))
             == closure.get("loadout_id")
             and preparation.blockers
@@ -3752,7 +3752,7 @@ class EquipmentMixin:
             and self._terminal_pack_space_signature == self._town_pack_space_signature(snapshot)
             and not any(action.phase == PHASE_HOME_PREPARE and action.kind == "deposit"
                         for action in getattr(transaction, "actions", ()))
-            and not self._missing_required_abilities(snapshot, depth)
+            and not deep_climb.departure_gaps(self, snapshot, depth)
         )
 
     def _suppression_waits_on_current_loadout(self, snapshot, preparation, depth) -> bool:
@@ -3760,7 +3760,7 @@ class EquipmentMixin:
         visit, with no required ability missing from the worn loadout."""
         return bool(
             "pending-random-teleport-suppression" in preparation.blockers
-            and not self._missing_required_abilities(snapshot, depth)
+            and not deep_climb.departure_gaps(self, snapshot, depth)
             and not self._random_teleport_suppression_actionable(snapshot, preparation)
         )
 
@@ -3801,7 +3801,7 @@ class EquipmentMixin:
             codes.append("session-active")
         codes.extend(
             f"missing-ability:{ability}"
-            for ability in sorted(self._missing_required_abilities(snapshot, depth)))
+            for ability in sorted(deep_climb.departure_gaps(self, snapshot, depth)))
         return list(dict.fromkeys(codes)) or ["loadout-unconfirmed"]
 
     def _safe_optional_equipment_failure_departure(
@@ -3822,7 +3822,7 @@ class EquipmentMixin:
             return False
         depth = (self._equipment_departure_destination_depth(snapshot)
                  if destination_depth is None else destination_depth)
-        if self._missing_required_abilities(snapshot, depth):
+        if deep_climb.departure_gaps(self, snapshot, depth):
             return False
         return bool(self._optional_failure_current_loadout(snapshot, preparation))
 
@@ -3888,7 +3888,7 @@ class EquipmentMixin:
                 snapshot, self._active_dungeon_target(), via_recall=False)
         else:
             return
-        if (self._missing_required_abilities(snapshot, depth)
+        if (deep_climb.departure_gaps(self, snapshot, depth)
                 or self._equipment_transaction_owned_items
                 or self._equipment_transaction_restoring
                 or self._equipment_transaction_restore_remainder

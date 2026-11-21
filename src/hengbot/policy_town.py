@@ -6473,8 +6473,9 @@ class TownMixin:
                 and snapshot.player.mp >= snapshot.player.max_mp,
             "combat_weapon_ready": lambda: self._combat_weapon_ready(snapshot)
                 and self._equipped_digging_tool(snapshot) is None,
+            # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」 (deep_climb.departure_gaps).
             "depth_abilities": lambda: depth >= 1
-                and not self._missing_required_abilities(snapshot, depth),
+                and not deep_climb.departure_gaps(self, snapshot, depth),
             "inventory_weight_ready": lambda: (
                 None if self._inventory_weight_limit(snapshot) is None
                 else not self._inventory_overweight(snapshot)),
