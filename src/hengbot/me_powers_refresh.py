@@ -63,6 +63,9 @@ def resume_read_key(policy, snapshot):
     later, up to ``RESUME_READ_ATTEMPTS`` reads; a kind with nothing absorbed
     comes back as an empty list.
 
+    A list a Restore Mana made stale (me_device_attacks ``stale_kinds``) is read the same way,
+    on every such board: its uses are not known until it is shown again.
+
     Asked at the head of the decision (``ConservativePolicy._choose_key``), before any
     producer runs: a decision computed and then replaced would keep its side effects
     (the Q25 trap search counted searches never posted).  The board is observed first
@@ -83,7 +86,13 @@ def resume_read_key(policy, snapshot):
         return count == 0 or (count < RESUME_READ_ATTEMPTS
                               and sequence - last >= RESUME_RETRY_DECISIONS)
 
-    missing = [kind for kind in KINDS if kind not in lists and due(kind)]
+    from hengbot.me_device_attacks import stale_kinds
+    stale = stale_kinds(policy)
+    # A list a Restore Mana made stale is read again at once, the wand's (the Rocket) first; its
+    # read is not one of a missing list's bounded attempts (the shown list ends the staleness).
+    stale_reads = [kind for kind in ("wand", "staff", "rod") if kind in stale]
+    missing = stale_reads + [
+        kind for kind in KINDS if kind not in lists and kind not in stale and due(kind)]
     if not missing:
         return None
     from hengbot.policy import WARNING_PROMPT_MESSAGE_PREFIXES, home_page_message_body
@@ -96,9 +105,10 @@ def resume_read_key(policy, snapshot):
     from hengbot import quest25_battle
     quest25_battle.observe_board(policy, snapshot)
     kind = missing[0]
-    count, _last = attempts.get(kind, (0, None))
-    attempts[kind] = (count + 1, sequence)
-    policy._me_power_resume_attempts = attempts
+    if kind not in stale_reads:
+        count, _last = attempts.get(kind, (0, None))
+        attempts[kind] = (count + 1, sequence)
+        policy._me_power_resume_attempts = attempts
     browse = "b" + KIND_LETTER[kind]
     policy.last_reason = REFRESH_REASON
     policy._offer_execution(
