@@ -38,7 +38,7 @@ reaches deep_teleport's ``substitute`` (none is known) is refused with a search 
 
 from __future__ import annotations
 
-from hengbot import line_of_fire
+from hengbot import line_of_fire, threat_projection
 from hengbot.item_reservation import decision_memo
 
 FEW_SCROLLS = 3  # the owner's 「残り少なければ」 (Teleportation scrolls carried)
@@ -76,6 +76,13 @@ def withheld(policy, snapshot) -> bool:
         try:
             hostiles = threat_tiers.engagement(policy, snapshot)
             if threat_tiers.instant_death(policy, snapshot, hostiles).holds:
+                return False
+            # With nobody in view the unseen attacker's evidenced loss is the 即死 reading: the
+            # tiers' correction counts it only beside a visible hostile (threat_projection
+            # ``unseen_correction``).  n1-c life-218 (Castle 48F, 2026-11-21 21:35:39): an unseen
+            # mana breather's 246 at HP 132 withheld the 13 Teleportation scrolls, and the next
+            # breath killed it while its Recall counted down.
+            if not hostiles and threat_projection.unseen_loss(policy, snapshot) >= snapshot.player.hp:
                 return False
             if policy._count_teleport_scrolls(snapshot) <= FEW_SCROLLS:
                 return True
