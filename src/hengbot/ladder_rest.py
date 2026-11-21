@@ -20,6 +20,10 @@ REST_CAP = 25  # bound consecutive rest commands as a safety valve (policy.py im
 def key(policy, snapshot, *, strategic_hostiles):
     """The rest layer's answer, or PASS when none of its rungs acts."""
     player = snapshot.player
+    from hengbot import angband_finale_battle  # import cycle
+    if angband_finale_battle.forbids_rest(policy, snapshot):
+        # Owner 2026-11-21 (LOCKED) 「99F 100Fでの休憩は許可していない」.
+        return PASS
     # 4. Recover between fights: with nothing hostile in sight and HP down
     #    (and not bleeding, and not being hit by something unseen), rest until
     #    healed. This is our main way to stay survivable without healing items.
