@@ -8,13 +8,23 @@ LAUNCHER_PROPERTIES = {
     23: (18, 12000, 3),
     24: (18, 13333, 4),
 }
+# TR flag numbers (src/object-enchant/tr-types.h).
+TR_XTRA_MIGHT = 82
+TR_XTRA_SHOTS = 83
+
+
+def launcher_multiplier(launcher) -> int:
+    """The launcher's own multiplier: its kind's, plus one for extra might (shoot.cpp tmul++)."""
+    multiplier = LAUNCHER_PROPERTIES[launcher.sval][2]
+    return multiplier + (TR_XTRA_MIGHT in getattr(launcher, "known_flags", frozenset()))
 
 
 def launcher_average_damage(launcher, ammo=None) -> float:
     """Return per-shot launcher damage for one compatible ammunition stack."""
     if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES:
         return 0.0
-    ammo_tval, _energy, multiplier = LAUNCHER_PROPERTIES[launcher.sval]
+    ammo_tval = LAUNCHER_PROPERTIES[launcher.sval][0]
+    multiplier = launcher_multiplier(launcher)
     if ammo is not None and (ammo.tval != ammo_tval or ammo.count <= 0):
         return 0.0
     ammo_damage = STORE_AMMO_AVERAGE_DAMAGE[ammo_tval]
@@ -33,6 +43,35 @@ def best_obtainable_launcher_damage(launcher, ammunition) -> float:
     return max(
         (
             launcher_average_damage(launcher, ammo)
+            for ammo in ammunition
+            if ammo.tval == ammo_tval and ammo.count > 0
+        ),
+        default=0.0,
+    )
+
+
+def launcher_turn_damage(launcher, ammo=None) -> float:
+    """Damage per player turn (100 energy) of one compatible stack, or of plain store ammunition.
+
+    The per-shot damage times the launcher's own shots per turn: num_fire 100 plus 100 for its
+    extra shots, over its kind's energy (player-status.cpp calc_num_fire, the bow's
+    ``(1.20turn)``).  Owner 2026-11-19 「攻撃力の判定はすべて10ゲームターンあたりの被害で評価」:
+    at one speed, per player turn orders as per game time does."""
+    if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES:
+        return 0.0
+    energy = LAUNCHER_PROPERTIES[launcher.sval][1]
+    shots = 100 + 100 * (TR_XTRA_SHOTS in getattr(launcher, "known_flags", frozenset()))
+    return launcher_average_damage(launcher, ammo) * shots * 100 / energy
+
+
+def best_obtainable_launcher_turn_damage(launcher, ammunition) -> float:
+    """``launcher_turn_damage`` with the best compatible stack of ``ammunition``."""
+    if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES:
+        return 0.0
+    ammo_tval = LAUNCHER_PROPERTIES[launcher.sval][0]
+    return max(
+        (
+            launcher_turn_damage(launcher, ammo)
             for ammo in ammunition
             if ammo.tval == ammo_tval and ammo.count > 0
         ),

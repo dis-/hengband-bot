@@ -4796,6 +4796,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "launcher_damage.py:launcher_multiplier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "launcher_upgrade.py:is_waiting": {
     "classification": "data",
     "rows": [
