@@ -156,19 +156,29 @@ class Battle:
     stand: Stand | None = None
     sweep_refusals: int = 0           # the sweep's refused uses in a row
     restoration_read: int | None = None  # the game turn the rod list was last browsed for Restoration
+    # The floor's quest was already done when this floor was first seen (``applies``).
+    done_on_arrival: bool = False
 
 
 def battle(policy, snapshot) -> Battle:
     held = getattr(policy, MEMORY, None)
     if held is None or held.floor != snapshot.floor_key:
-        held = Battle(floor=snapshot.floor_key, prev_hp=snapshot.player.hp)
+        held = Battle(floor=snapshot.floor_key, prev_hp=snapshot.player.hp,
+                      done_on_arrival=angband_finale.quest_done(snapshot))
         setattr(policy, MEMORY, held)
     return held
 
 
 def applies(policy, snapshot) -> bool:
-    return (angband_finale.magic_eater(snapshot) and angband_finale.lifted(policy)
-            and angband_finale.on_finale_floor(snapshot))
+    """The battle owns this board: a 99F/100F floor of the finale's expedition whose quest was
+    still TAKEN when the floor was first seen.  A floor whose quest was already done on arrival
+    has nothing to fight and is no success to recall on: the expedition goes on down (n1-b
+    life-411 2026-11-21 14:25:30 and 14:36:55: Oberon already killed, every arrival on 99F read
+    the success recall at once and the 100F was never reached)."""
+    if not (angband_finale.magic_eater(snapshot) and angband_finale.lifted(policy)
+            and angband_finale.on_finale_floor(snapshot)):
+        return False
+    return not battle(policy, snapshot).done_on_arrival
 
 
 def _known_hostiles(snapshot) -> list:
