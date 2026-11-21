@@ -228,6 +228,9 @@ LADDER = (
         *I("town:wait-recall-step-off", "town:wait-recall", "town:eat-before-travel",
            "town:seek-shelter", "town:recover"),
         *E("_town_restore_weapon_key"),
+        # The 99F/100F preparation phase's own keys (finale_prep: its Home read and the
+        # filing of its Home withdrawals), before the ordinary town work.
+        *D("finale_prep.town_key"),
         *P("_fixed_quest_key#1"),
         *E("_town_space_deposit_key"),
         *P("_victory_loot_key", "_conquest_loot_key", "_fixed_quest_key#2"),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_identity import same_memory
-from hengbot import finale_teleport_tour
+from hengbot import finale_prep, finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
@@ -3601,6 +3601,9 @@ class TownMixin:
             add(STORE_TEMPLE, "experience-restore-check")
         if self._queue_home_experience_potion(snapshot):
             add(STORE_HOME, "experience-potion-home", "home-first")
+        # The 99F/100F preparation phase's supplies step: its Home withdrawal (finale_prep).
+        if finale_prep.routed(self):
+            add(STORE_HOME, finale_prep.CATEGORY, "home-first")
         if quest_optional_carry.routed(self):
             add(STORE_HOME, quest_optional_carry.CATEGORY, "home-first")
         low_level_sale = self._find_low_level_sale(snapshot)
@@ -4144,6 +4147,7 @@ class TownMixin:
             ("experience-restore-check", "normal", 1, False),  # One look at the Temple shelf per visit; never blocks departure.
             ("experience-potion-home", "home-first", 1, False),  # A stored Experience potion is withdrawn to drink.
             ("quest-optional-carry-home", "home-first", 1, False),  # Withdrawn before the quest; never a condition.
+            ("finale-prep-home", "home-first", 1, False),  # The 99F/100F phase's supplies (finale_prep).
             ("low-level-sale", "normal", 1, False),  # Low-level sales are opportunistic.
             ("mana-food-sale", "normal", 1, False),  # Surplus food sales are opportunistic.
             ("device-sale", "normal", 1, False),  # Device sales are opportunistic.
@@ -4241,6 +4245,7 @@ class TownMixin:
             "experience-restore-check",
             "experience-potion-home",
             quest_optional_carry.CATEGORY,
+            finale_prep.CATEGORY,
         }
         specs: dict[str, list[NeedSpec]] = {}
         for spec in self._town_need_registry():
@@ -7717,6 +7722,9 @@ class TownMixin:
                     night = finale_teleport_tour.night_key(self, snapshot)
                     if night is not None:
                         return night
+                    # The 99F/100F preparation phase short of its recall step: the town has
+                    # nothing left to do for that step, so it stops and the 95F read goes on.
+                    finale_prep.departure_reached(self, snapshot)
                     selection = self._recall_selection_key(
                         snapshot, recall_dungeon_id
                     )

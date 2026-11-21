@@ -1,0 +1,227 @@
+"""The 99F/100F preparation phase (finale_prep): its steps on n1-c's and n1-b's town visits.
+
+Owner 2026-11-21 (verbatim, LOCKED): 「99Fに挑む要件を満たしたら専用の準備フェイズを作って準備して。
+変に既存の仕組みを使おうとして破綻しているように見える」; question 1 「キー操作だけ既存の着け替えの処理に
+任せる」; questions 2 and 3 as proposed (finale_prep's docstring).
+
+Recorded: n1-c life-217's town visit of 2026-11-21 05:55:10 (tests/fixtures/n1c-finale-prep-1121,
+143 journal rows: every supply owned once its Teleportation are bought at row 34, the Home's
+Restore Mana, Healing and *Healing* not carried, the recall read at row 74) and n1-b life-411's of
+05:50:19 (tests/fixtures/n1b-finale-prep-1121, 267 rows, every supply owned on arrival).  Both were
+played by the build before the phase, so a replay matches the record only until the phase acts:
+from there the recorded keys are delivered row by row as the game received them (``deliver``).
+
+DECLARED CONSTRUCTED:
+* ``stocked``: n1-c's recorded board with the pack's finale stacks set to their counts (a missing
+  kind copies the Healing stack's row), as after the supplies step's withdrawals;
+* the swap's done-check board: the phase's fixed target set to the worn set's pieces (as after the
+  equipment transaction), the transaction left none;
+* the next visit's arrival: the expedition's board as Angband 99F, then the town board again with
+  no swap under way;
+* n1-b's 04:55 visit (tests/fixtures/n1b-411-switch-loop-1121) with the phase at its check step.
+"""
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import contextlib
+import io
+import unittest
+from dataclasses import replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from hengbot import angband_cap, angband_finale, finale_prep
+from hengbot.model import DUNGEON_ANGBAND
+from hengbot.policy import staged_prompt_chain_matches
+from support.town_arrival_fixture import load
+
+FIXTURES = Path(__file__).with_name("fixtures")
+N1C = "n1c-finale-prep-1121"
+N1B = "n1b-finale-prep-1121"
+N1C_ENTRY = 34       # the first board with every supply owned (its Teleportation bought)
+N1C_HOME_PAGE = 53   # the board where the supplies step's Home withdrawal is composed
+N1C_RECALL = 74      # the recorded Word of Recall read
+
+
+class FinalePrepRecordedTest(unittest.TestCase):
+    def setUp(self):
+        self.scratch = TemporaryDirectory()
+
+    def tearDown(self):
+        self.scratch.cleanup()
+
+    def load(self, name):
+        policy, _journal, steps = load(FIXTURES / name, Path(self.scratch.name) / name)
+        self.addCleanup(policy._home_disposal.history_path.unlink, missing_ok=True)
+        return policy, steps
+
+    @staticmethod
+    def decide(policy, board):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return policy.choose_key(board)
+
+    @staticmethod
+    def deliver(policy, key):
+        if key:
+            policy.confirm_key_posted(key)
+            chain = policy.peek_staged_prompt_chain()
+            if chain is not None and staged_prompt_chain_matches(chain, key):
+                policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
+
+    def n1c_until(self, last_row):
+        """n1-c's visit decided row by row through ``last_row``: [(row, board, key, reason)]."""
+        policy, steps = self.load(N1C)
+        decided = []
+        for recorded, supply in steps[:last_row + 1]:
+            board = supply()
+            key = self.decide(policy, board)
+            decided.append((recorded["row"], board, key, policy.last_reason))
+            if recorded["row"] < N1C_ENTRY:
+                self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+            self.deliver(policy, recorded["key"])
+        return policy, decided
+
+    def stocked(self, policy, board):
+        """DECLARED: the pack holding the finale's counts."""
+        targets = {**angband_finale.CARRY,
+                   angband_finale.RESTORE_MANA: angband_finale.restore_mana_goal(policy, board)}
+        pack = [replace(item, count=targets[(item.tval, item.sval)])
+                if (item.tval, item.sval) in targets else item for item in board.inventory]
+        template = next(item for item in board.inventory
+                        if (item.tval, item.sval) == angband_finale.HEALING)
+        held = {(item.tval, item.sval) for item in pack}
+        for kind, count in targets.items():
+            if kind not in held:
+                pack.append(replace(template, tval=kind[0], sval=kind[1], count=count,
+                                    slot=chr(ord("a") + len(pack))))
+        return replace(board, inventory=tuple(pack))
+
+    # -- n1-c ------------------------------------------------------------------------------
+
+    def test_n1c_enters_reads_home_checks_and_takes_the_supplies(self):
+        policy, decided = self.n1c_until(N1C_HOME_PAGE)
+        held = finale_prep.phase(policy)
+        steps = [step for _sequence, step, _note in held.log]
+        self.assertEqual(steps[:3], [finale_prep.HOME, finale_prep.CHECK, finale_prep.SUPPLIES])
+        row, _board, key, reason = decided[N1C_ENTRY]
+        self.assertEqual((key, reason), ("~9\x1b", finale_prep.HOME_REASON))  # the Home read
+        # At the Home the supplies step's withdrawal is composed by the Home executor (entry and
+        # withdrawal in one key).
+        _row, _board, key, reason = decided[N1C_HOME_PAGE]
+        self.assertTrue(reason.startswith("home-errand:atomic-withdraw:" + finale_prep.PURPOSE), reason)
+        self.assertTrue(key.startswith("5p"), key)
+        self.assertEqual(policy._home_errand.request.purpose, finale_prep.PURPOSE)
+        # The carry holds from the supplies step: nothing deposits them again.
+        self.assertTrue(finale_prep.carrying(policy))
+        self.assertFalse(finale_prep.lifted(policy))
+
+    def test_n1c_loadout_fixes_the_target_and_the_swap_composes_toward_it(self):
+        policy, decided = self.n1c_until(N1C_ENTRY + 4)
+        held = finale_prep.phase(policy)
+        self.assertEqual(held.step, finale_prep.SUPPLIES)
+        board = self.stocked(policy, decided[-1][1])
+        self.decide(policy, board)   # the supplies carried: the loadout step's search fixes the set
+        self.assertEqual(held.step, finale_prep.SWAP)
+        self.assertEqual(len(held.target), 12)
+        self.assertTrue(finale_prep.dedicated_order(policy))
+        # Every other owned piece is out of the search: the transaction goes toward the target.
+        catalog = policy._equipment_catalog.items
+        excluded = finale_prep.excluded_ids(policy, catalog)
+        self.assertEqual({finale_prep._signature(owned.id) for owned in catalog
+                          if owned.id not in excluded}, set(held.target))
+        session = policy._equipment_transaction_session
+        self.assertIsNotNone(session)
+        moved = {finale_prep._signature(action.item_id) for action in session.plan.actions
+                 if action.kind in ("withdraw", "equip")}
+        self.assertTrue(moved)
+        self.assertLessEqual(moved, set(held.target))
+        # The next search (the swap's own inputs) sees only the target's pieces.
+        self.decide(policy, board)
+        surviving = {finale_prep._signature(item_id)
+                     for item_id in policy._equipment_optimization_search_surviving_ids}
+        self.assertTrue(surviving)
+        self.assertLessEqual(surviving, set(held.target))
+
+    def test_n1c_the_worn_target_lifts_the_cap_and_the_recall_reads_past_95(self):
+        policy, decided = self.n1c_until(N1C_ENTRY + 4)
+        held = finale_prep.phase(policy)
+        board = self.stocked(policy, decided[-1][1])
+        self.decide(policy, board)
+        self.assertEqual(held.step, finale_prep.SWAP)
+        self.assertEqual(angband_cap.cap(DUNGEON_ANGBAND, policy), angband_cap.ANGBAND_DEPTH_CAP)
+        # DECLARED: the transaction done, the target worn.
+        held.target = frozenset(finale_prep._signature(owned.id)
+                                for owned in policy._equipment_catalog.items
+                                if owned.origin == "equipped")
+        policy._equipment_transaction_session = None
+        self.decide(policy, board)
+        self.assertEqual(held.step, finale_prep.RECALL)
+        self.assertTrue(finale_prep.lifted(policy))
+        self.assertIsNone(angband_cap.cap(DUNGEON_ANGBAND, policy))
+        # The departure read toward Angband: the small-floor option first, then the recall.
+        policy.last_reason = "town:recall-to-angband"
+        self.assertEqual(angband_finale.town_recall_key(policy, board, "rfa"),
+                         angband_finale.SMALL_FLOOR_MACRO)
+        recalling = replace(board, player=replace(board.player, recalling=True))
+        self.decide(policy, recalling)
+        self.assertEqual(held.step, finale_prep.DONE)
+        # The mark carries through the expedition to the next town.
+        dungeon = replace(board, floor_key=(DUNGEON_ANGBAND, 99, 0), town_flag=False)
+        angband_finale.observe(policy, dungeon)
+        self.assertTrue(finale_prep.lifted(policy) and finale_prep.carrying(policy))
+        policy._equipment_transaction_session = None  # DECLARED: no swap under way on arrival
+        angband_finale.observe(policy, board)
+        self.assertFalse(finale_prep.lifted(policy))
+        # Entered again in town (the Home census current: its home step done at once).
+        self.assertEqual([step for _s, step, _n in held.log], [finale_prep.HOME, finale_prep.CHECK])
+
+    def test_n1c_a_step_left_unfinished_at_the_departure_stops_by_name(self):
+        policy, decided = self.n1c_until(N1C_ENTRY + 4)
+        held = finale_prep.phase(policy)
+        self.assertEqual(held.step, finale_prep.SUPPLIES)
+        finale_prep.departure_reached(policy, decided[-1][1])
+        self.assertEqual(held.step, finale_prep.STOPPED)
+        self.assertEqual(held.stopped, "supplies:unfinished-at-departure")
+        self.assertFalse(finale_prep.carrying(policy) or finale_prep.lifted(policy))
+        self.assertEqual(angband_cap.cap(DUNGEON_ANGBAND, policy), angband_cap.ANGBAND_DEPTH_CAP)
+
+    # -- n1-b ------------------------------------------------------------------------------
+
+    def test_n1b_enters_on_arrival_and_no_ordinary_swap_starts_before_its_own(self):
+        policy, steps = self.load(N1B)
+        held = finale_prep.phase(policy)
+        recorded, supply = steps[0]
+        board = supply()
+        key = self.decide(policy, board)
+        self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+        # The census is current: the Home step is done at once, the check runs its search.
+        self.assertEqual([step for _s, step, _n in held.log], [finale_prep.HOME, finale_prep.CHECK])
+        self.assertTrue(finale_prep.holds_swap(policy))
+        self.assertFalse(finale_prep.carrying(policy))
+
+
+    # -- n1-b at 04:55, in a NO_MAGIC armour ----------------------------------------------
+
+    def test_n1b_the_checked_set_has_its_own_destruction_means(self):
+        """n1-b life-411's town visit of 2026-11-21 04:55:39 (tests/fixtures/n1b-411-switch-loop-1121)
+        arrived in a NO_MAGIC armour: its absorbed *Destruction* is no means on that board, but the
+        set the check step's search chose leaves the armour at Home, so it has the means (the
+        visit's own record: the swap took the armour off and the means came back)."""
+        from hengbot import destruction_use
+        from hengbot.me_power_success import worn_anti_magic
+        policy, steps = self.load("n1b-411-switch-loop-1121")
+        held = finale_prep.phase(policy)
+        held.in_town, held.step, held.since = True, finale_prep.CHECK, policy._decision_sequence  # DECLARED
+        for recorded, supply in steps[:2]:
+            board = supply()
+            key = self.decide(policy, board)
+            self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+            self.deliver(policy, key)
+        self.assertIsNotNone(policy._angband_finale_feasibility)  # the check step's search
+        angband_finale.observe(policy, board)  # its done-check on the next board
+        self.assertTrue(worn_anti_magic(board))
+        self.assertFalse(destruction_use.holds_means(policy, board))
+        self.assertEqual(held.step, finale_prep.SUPPLIES)  # the checked set meets every condition
+
+
+if __name__ == "__main__":
+    unittest.main()

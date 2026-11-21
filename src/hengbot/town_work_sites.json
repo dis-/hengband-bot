@@ -405,13 +405,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "angband_finale.py:switching": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "angband_finale.py:town_recall_key": {
     "classification": "data",
     "rows": [
@@ -2720,6 +2713,34 @@
     "delegation": "selected child; no independent success"
   },
   "fallback_depth_floor.py:floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:_signature": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:dedicated_order": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:lifted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:town_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

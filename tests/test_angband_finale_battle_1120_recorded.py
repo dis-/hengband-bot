@@ -44,7 +44,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import angband_finale, angband_finale_battle as battle
+from hengbot import angband_finale, angband_finale_battle as battle, finale_prep
 from hengbot import area_mapping, destruction_use, me_powerful_activation
 from hengbot.cli import _home_modal_continuation
 from hengbot.input_executor import ScreenKind, classify_screen
@@ -81,7 +81,7 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
 
     def setUp(self):
         self.policy = copy.deepcopy(self.arrival)
-        angband_finale.memory(self.policy).ready = True  # DECLARED CONSTRUCTED: the latch
+        finale_prep.phase(self.policy).lifted = True  # DECLARED CONSTRUCTED: the phase's mark
         # DECLARED CONSTRUCTED: a fresh arrival (the recorded visit's *Destruction* mapped).
         self.policy.__dict__.pop(area_mapping.MEMORY, None)
         self.recorded = parse_snapshot(copy.deepcopy(self.raw), self.policy._monrace_knowledge)
@@ -408,9 +408,9 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
     def test_small_floor_before_the_descent(self):
         policy = self.policy
         floor = self.floor(98)
-        angband_finale.memory(policy).ready = False
+        finale_prep.phase(policy).lifted = False
         self.assertIsNone(battle.key(policy, floor))  # not lifted: nothing
-        angband_finale.memory(policy).ready = True
+        finale_prep.phase(policy).lifted = True
         town = replace(floor, floor_key=(0, 0, 0), town_flag=True)
         self.assertIsNone(battle._small_floor(policy, town))  # never in town
         self.assertIsNone(battle._small_floor(policy, self.floor(99)))  # too late

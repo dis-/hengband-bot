@@ -11,11 +11,12 @@ takeoffs and equips until the takeoff of the bastard sword (identity 28aedef5bc0
 the departure's gear check (equipment_departure_ready) stopped the town at 22:32:06
 (``town:blocked:unmet:equipment_departure_ready``).
 
-Owner 2026-11-20 (verbatim): 「上限を外す時に初めて着け替える」: the 95F exploration keeps the
-ordinary loadout; the switch is the visit that heads to 99F/100F, decided as it begins
-(angband_finale ``observe``).  Replayed: the first 48 decisions match the record, the supplies are
-complete from decision 33 while the visit switches nothing, and decision 48 departs (Word of Recall
-to Angband) where the record began the swap.  (The replay posts the recorded keys; the
+Owner 2026-11-20 (verbatim): 「上限を外す時に初めて着け替える」, and 2026-11-21 「専用の準備フェイズを
+作って準備して」: the switch is the preparation phase's (finale_prep), whose swap is its own step,
+after its check and supplies.  Replayed: the first 48 decisions match the record, the supplies are
+complete from decision 33 and the phase is entered, but no swap starts and nothing is carried
+before its own steps; at decision 48, where the record began the mid-visit swap, the departure
+reads the Word of Recall to Angband and the phase, short of its check, stops by name.  (The replay posts the recorded keys; the
 optimizer's own search is not reproduced here: its calibration and skill records are runtime
 files the arrival checkpoint does not hold, so its swap is shown by the record, not replayed.)
 """
@@ -27,7 +28,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import angband_finale
+from hengbot import angband_finale, finale_prep
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-411-equipment-departure-1120"
@@ -47,7 +48,7 @@ class N1b411EquipmentDepartureRecordedTest(unittest.TestCase):
                 key = cls.policy.choose_key(board)
             cls.decided.append((key, cls.policy.last_reason))
             held = angband_finale.memory(cls.policy)
-            cls.latches.append((held.supplied, held.switching))
+            cls.latches.append((held.supplied, finale_prep.carrying(cls.policy)))
             cls.policy.confirm_key_posted(recorded["key"])
 
     @classmethod
@@ -65,6 +66,9 @@ class N1b411EquipmentDepartureRecordedTest(unittest.TestCase):
         self.assertTrue(all(latch == (True, False) for latch in self.latches[PURCHASE_ROW + 1:]))
         self.assertEqual(self.journal[SWAP_ROW]["reason"], "equipment-transaction:travel-home")
         self.assertEqual(self.decided[SWAP_ROW], ("rga", "town:recall-to-angband"))
+        held = finale_prep.phase(self.policy)
+        self.assertEqual((held.step, held.stopped),
+                         (finale_prep.STOPPED, "check:unfinished-at-departure"))
 
 
 if __name__ == "__main__":
