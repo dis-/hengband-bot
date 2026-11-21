@@ -321,7 +321,12 @@ def departure_carried(policy, snapshot, depth: int) -> bool:
     50F always; from 50F only with the means carried (``Means.carried``).  The departure
     leaf ``destruction_carried`` (policy_town) and the final town-to-dungeon boundary
     (policy_navigation._dungeon_entry_allowed) read it."""
-    return depth < DEEP_FLOOR_DEPTH or Means(policy, snapshot).carried()
+    from hengbot import deep_climb  # import cycle
+
+    # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the held Castle's 50F landing is
+    # climbed from at once without the means (deep_climb).
+    return (depth < DEEP_FLOOR_DEPTH or Means(policy, snapshot).carried()
+            or deep_climb.departure_admits(policy, snapshot, depth))
 
 
 def answers(policy, snapshot) -> tuple:

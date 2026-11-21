@@ -5,7 +5,7 @@ from hengbot import ability_sources
 from hengbot import safety_watch
 from hengbot import spare_gear
 from hengbot import random_quest_hold
-from hengbot import angband_hold, dive_floor, fallback_depth_floor
+from hengbot import angband_hold, deep_climb, dive_floor, fallback_depth_floor
 from hengbot import me_capped_pickup, sellable_artifacts
 from hengbot import destruction_means
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -751,9 +751,13 @@ class PolicyHelpersMixin:
 
     def _fallback_landing_allowed(
         self, snapshot: Snapshot, dungeon_id: int, landing_depth: int, *,
-        depth_floor: bool = True,
+        depth_floor: bool = True, climb_landing: bool = False,
     ) -> bool:
         """Whether a fallback's recall landing is a floor this kit may arrive on.
+
+        ``climb_landing`` (dive_floor.reaches_band, the unsafe-recall fallback's Castle): the
+        Castle's 50F landing missing only the 50F row is one (deep_climb, owner 2026-11-22
+        「城の50Fに帰還してすぐ38〜42Fへ登る」).
 
         Not shallower than the fallback depth floor (the deepest floor reached
         minus 20, ``fallback_depth_floor``) unless ``depth_floor`` is False.
@@ -771,10 +775,13 @@ class PolicyHelpersMixin:
         exists to end (live 2026-09-25: Orc cave, landing 23 = its guardian
         floor, picked as the unsafe-recall fallback, 7 round trips).
         """
-        return ((not depth_floor
-                 or fallback_depth_floor.landing_allowed(self, snapshot, landing_depth))
-                and not self._missing_required_abilities(snapshot, landing_depth, owned=True)
-                and not self._recall_landing_guardian_blocked(snapshot, dungeon_id, landing_depth))
+        if depth_floor and not fallback_depth_floor.landing_allowed(self, snapshot, landing_depth):
+            return False
+        missing = self._missing_required_abilities(snapshot, landing_depth, owned=True)
+        if missing and not (climb_landing
+                            and deep_climb.admits(missing, dungeon_id, landing_depth)):
+            return False
+        return not self._recall_landing_guardian_blocked(snapshot, dungeon_id, landing_depth)
 
     def _can_fight_in_dungeon(self, dungeon_id: int) -> bool:
         """Whether this character can fight in ``dungeon_id`` (static data).

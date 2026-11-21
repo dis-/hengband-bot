@@ -403,6 +403,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:outpost-fare-return-route-unavailable',
         'town:blocked:outpost-fare-recall-active',
         'wilderness:no-safe-route',
+        'dungeon:blocked:deep-arrival-without-destruction',
         *torch_release.HALT_REASONS,
     }
 )

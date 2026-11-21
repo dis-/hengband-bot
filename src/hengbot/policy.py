@@ -14,7 +14,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import cross_rules, dive_floor, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
+from hengbot import cross_rules, deep_climb, dive_floor, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -9402,6 +9402,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         missing = self._missing_required_abilities(snapshot, destination_depth, owned=True)
         if not missing:
             return True
+        # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the held Castle's 50F landing,
+        # its only gaps the 50F row, is recalled to and climbed from at once (deep_climb).
+        if deep_climb.departure_admits(self, snapshot, destination_depth, missing=missing):
+            return True
         self.last_reason = (
             f"depth-gate:destination-{destination_depth}:missing-"
             + ",".join(sorted(missing))
@@ -9590,7 +9594,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
         # A destination gate (equipment review E4, owner Q3): the target's Home piece counts.
-        if self._missing_required_abilities(snapshot, depth, owned=True):
+        missing = self._missing_required_abilities(snapshot, depth, owned=True)
+        # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」 (deep_climb).
+        if missing and not deep_climb.departure_admits(
+                self, snapshot, depth, dungeon_id=dungeon_id, missing=missing):
             return False
         return not self._recall_landing_guardian_blocked(snapshot, dungeon_id, depth)
 
@@ -15900,6 +15907,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」: no stair past the Angband cap,
         # before any quest-depth steering (angband_cap).
         if angband_cap.capped(snapshot, destination, self):
+            return False
+        # Owner 2026-11-18 「破壊を持っていないのに50F以降にいるのが不具合」 (the 2026-11-22 net,
+        # deep_climb): no stair into 50F+ without the means, before any quest-depth steering.
+        if (snapshot.dungeon_level > 0 and destination >= DEEP_FLOOR_DEPTH
+                and DESTRUCTION_GATE_LABEL in self._missing_required_abilities(
+                    snapshot, destination)):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.

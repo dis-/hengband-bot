@@ -17,7 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import finale_prep, reset_recall
+from hengbot import deep_climb, finale_prep, reset_recall
 from hengbot import approach_answer, return_start
 from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
@@ -39,6 +39,11 @@ RETURN_LOOT_SWEEP_TRIGGERS = frozenset(
 def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adjacent):
     """The objectives layer's answer, or PASS when none of its rungs acts."""
     player = snapshot.player
+    # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the climb off the Castle's 50F+
+    # floor before any objective or loot (deep_climb).
+    climb = deep_climb.key(policy, snapshot)
+    if climb is not None:
+        return climb
     quest_floor_recovery = policy._town_producer_entry("_kill_quest_floor_recovery_key", lambda: policy._kill_quest_floor_recovery_key(snapshot))
     if quest_floor_recovery is not None:
         return quest_floor_recovery

@@ -144,7 +144,10 @@ def reaches_band(policy, snapshot, dungeon_id: int) -> bool:
     high = band(policy, snapshot)[1]
     landing = _landing(snapshot, info)
     return (info.max_depth >= high
-            and policy._fallback_landing_allowed(snapshot, dungeon_id, landing, depth_floor=False)
+            # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: a 50F landing missing only
+            # the 50F row is climbed from at once (deep_climb).
+            and policy._fallback_landing_allowed(snapshot, dungeon_id, landing, depth_floor=False,
+                                                 climb_landing=True)
             and not policy._missing_required_abilities(snapshot, high, owned=True)
             and not policy._guardian_floor_blocked(snapshot, dungeon_id, high))
 

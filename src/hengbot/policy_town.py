@@ -3,7 +3,7 @@ from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
-from hengbot import return_start
+from hengbot import deep_climb, return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
@@ -8573,9 +8573,11 @@ class TownMixin:
             # Leaving the depth (the return itself) clears this, so it cannot
             # flap. DEPTH_ABILITY_REQUIREMENTS only starts at 20F, so shallow
             # (and Yeek Cave mining, capped at 13F) floors never trigger it.
-            gap = destruction_use.gap_here(
+            # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: on the Castle's climb the
+            # 50F row starts no return (deep_climb).
+            gap = deep_climb.floor_gaps(self, snapshot, destruction_use.gap_here(
                 self, snapshot,
-                self._missing_required_abilities(snapshot, snapshot.dungeon_level))
+                self._missing_required_abilities(snapshot, snapshot.dungeon_level)))
             if gap:
                 # Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。」: the *Destruction*
                 # label alone is the means spent (destruction_use.means_spent_recall_key).
