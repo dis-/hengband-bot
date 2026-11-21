@@ -788,6 +788,15 @@ def _policy_final_stop_banner(reason: str) -> str:
 assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
 
 
+def _melted_a_wall(snapshot) -> bool:
+    """The board names a wall turned to mud (effect/effect-feature.cpp, sealed_pocket's
+    MELTED_MESSAGES): the previous board's Stone to Mud use changed the map."""
+    from hengbot.sealed_pocket import MELTED_MESSAGES
+
+    return any(text in message for message in getattr(snapshot, "messages", ())
+               for text in MELTED_MESSAGES)
+
+
 def _rest_recovering(previous_player, player) -> bool:
     """The rest sent on the previous board restored something: HP or MP rose, or an
     ailment the rest wears off eased."""
@@ -828,6 +837,14 @@ def _cell_loop_guard_applies(
         and previous_position == snapshot.player.position
         and _rest_recovering(previous_player, snapshot.player)
     ):
+        return False
+    if previous_position == snapshot.player.position and _melted_a_wall(snapshot):
+        # A Stone to Mud use from this cell turned a wall to mud (the board names it): the
+        # map changed, no loop.  A battle's stand opens a line through several walls and a
+        # sealed pocket digs a tunnel one wall a use from where the player stands; n1-b
+        # life-411 (Angband 99F, 2026-11-21 13:18) melted twelve walls from (11,169) and
+        # twelve from (4,192), each use a wall, and the window stopped it as confined.  A use
+        # that melts nothing names no wall and still counts.
         return False
     return (
         not snapshot.in_town
