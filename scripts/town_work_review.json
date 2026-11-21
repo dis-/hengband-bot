@@ -22930,5 +22930,38 @@
     ],
     "delegation": "selected child; no independent success",
     "evidence": "Pure: the Scroll of Reset Recall predicate."
+  },
+  "mining_loadout.py:finish_swap_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "context": "Dungeon-only: asked from rollback_key, which returns None in town and in a store before it.",
+    "evidence": "The digger swap's second post by the swap itself (n1-b life-413 2026-11-21 19:02, the strip and the re-arm alternating 97 times each): the digger wielded on the hand the swap emptied (_wield_digging_tool_key), else, an awake hostile in view (strip_allowed) or no digger left to wield, the swap's abort, the displaced weapon wielded back under melee:rearm-empty-hand.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "retreat_enclosure.py:_reveal_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: the walled-off ladder's secret door before any digging (owner 2026-11-21 「どうみても隠し扉なのに罠破壊を試みない理由は？隠し扉って分からん？」, n1-b life-413 Angband 12F): the absorbed Detect Doors, the door beam (_door_beam_key), then the search ('s') of the wall the dig or the melt would open next, SEARCH_LIMIT rounds; None on a MAZE floor; returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
+  },
+  "retreat_enclosure.py:_door_beam_key": {
+    "classification": "action",
+    "rows": [
+      "positioning"
+    ],
+    "context": "Dungeon only: the hunted target's walk and the random quest search loop; never reached in town.",
+    "evidence": "dungeon-only: asked by _reveal_key with the wall beside the player the dig or the melt would open: the absorbed Disarming or Trap/Door Destruction (me_powers TRAP), then a carried rod or wand of either, once a wall a floor visit (KILL_TRAP discloses a hidden door, KILL_DOOR destroys it); returns the key or None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "Existing positioning and retreat observations.",
+    "delegation": "No independent success; existing wait, retreat, dig, disarm, melee, teleport or recall owner."
   }
 }

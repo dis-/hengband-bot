@@ -4617,6 +4617,9 @@ class EquipmentMixin:
             if key is not None:
                 self._digger_wield_attempts += 1
                 self.last_reason = reason
+                # The swap is now one owned transaction (mining_loadout.swap_in_progress): it
+                # ends only when the digger is worn or the swap itself aborts.
+                mining_loadout.begin_swap(self, snapshot, reason)
             elif self._equipment_mutation_result.report is not None:
                 self._digger_wield_attempts += 1
             return key

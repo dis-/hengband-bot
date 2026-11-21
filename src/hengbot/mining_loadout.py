@@ -255,6 +255,52 @@ def _rearm_target(policy, snapshot):
     return None
 
 
+def begin_swap(policy, snapshot, reason: str) -> None:
+    """The digger swap stripped a combat hand for ``reason``'s digger (policy_equipment
+    ``_wield_digging_tool_key``): the swap is in progress until its digger is worn or it aborts."""
+    policy._digger_swap = (snapshot.floor_key, reason)
+
+
+def swap_in_progress(policy, snapshot) -> bool:
+    """A combat hand is off for the digger and the digger is not worn yet: the hand is the swap's.
+
+    One owner for the weapon slot (n1-b life-413, Angband 12F, 2026-11-21 19:02:06,
+    stall:floor-dwell): stuck:walled-off-wield-digger took the Long Sword off ('ta'); on the next
+    board the breakout's restore rung read "no digger worn" as the swap over and cleared the dig
+    floor, so ``swap_abandoned`` held and the re-arm wielded the sword back ('wq') before the
+    digger's wield -- 97 times each.  The swap ends by the game's state, never by a count of
+    moves: the digger worn (done), the floor left, or the swap's own abort (``finish_swap_key``)."""
+    swap = getattr(policy, "_digger_swap", None)
+    if swap is None:
+        return False
+    if swap[0] != snapshot.floor_key or policy._equipped_digging_tool(snapshot) is not None:
+        policy._digger_swap = None
+        return False
+    return True
+
+
+def finish_swap_key(policy, snapshot) -> str | None:
+    """The swap's second post, by the swap itself: the digger wielded on the emptied hand, else
+    (an awake hostile in view: ``strip_allowed``, or no digger left to wield) the abort, the
+    displaced weapon wielded back.  Asked before any other rung that would act on the hand."""
+    if not swap_in_progress(policy, snapshot):
+        return None
+    reason = policy._digger_swap[1]
+    if strip_allowed(policy, snapshot):
+        key = policy._wield_digging_tool_key(snapshot, reason)
+        if key is not None:
+            return key
+    policy._digger_swap = None
+    target = _rearm_target(policy, snapshot)
+    if target is None:
+        return None
+    slot, item = target
+    key = policy._equipment_wield(snapshot, ROLLBACK_GOAL, item, slot)
+    if key is not None:
+        policy.last_reason = REARM_REASON
+    return key
+
+
 def swap_abandoned(policy, snapshot) -> bool:
     """No owner of the digger swap will wield the digger on this board.
 
@@ -267,7 +313,7 @@ def swap_abandoned(policy, snapshot) -> bool:
     worm mass, two Teleportation scrolls, then the return walked
     bare-handed from 139938 to the stop at 156613 with nothing in view.
     """
-    if policy._breakout_dig_floor == snapshot.floor_key:
+    if policy._breakout_dig_floor == snapshot.floor_key or swap_in_progress(policy, snapshot):
         return False
     return policy._returning_to_town or policy._fundraising_mode != "mine"
 
@@ -293,6 +339,9 @@ def rollback_key(policy, snapshot) -> str | None:
     while no swap owner will wield the digger (``swap_abandoned``)."""
     if snapshot.in_town or getattr(snapshot, "store", None) is not None:
         return None
+    if swap_in_progress(policy, snapshot):
+        # The emptied hand is the swap's: it wields the digger, or aborts and re-arms itself.
+        return finish_swap_key(policy, snapshot)
     if not any(item.is_digging_tool for item in snapshot.inventory):
         return None
     hostiles = policy._physical_hostiles(snapshot)

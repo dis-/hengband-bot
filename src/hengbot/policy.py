@@ -1550,6 +1550,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # _town_travel_state, _town_travel_fallback, _town_hunt_target and the
         # other town hold flags live in town_visit.TownHolds (stage 3-2a).
         self._digger_wield_attempts = 0  # consecutive un-taking digging-tool wields
+        # (floor, asker's reason) of a digger swap whose combat hand is stripped and whose digger
+        # is not worn yet (mining_loadout.swap_in_progress)
+        self._digger_swap: tuple | None = None
         self._equipment_mutation = EquipmentMutationExecutor()
         self._equipment_mutation_result = EquipmentMutationResult(None)
         self._equipment_mutation_observed_changes = 0
@@ -13164,6 +13167,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if self._breakout_dig_floor is None:
             return None
         if self._equipped_digging_tool(snapshot) is None:
+            if mining_loadout.swap_in_progress(self, snapshot):
+                # The weapon is off for the digger the swap wields next: not over.
+                return None
             self._breakout_dig_floor = None
             return None
         weapon = self._first_item(

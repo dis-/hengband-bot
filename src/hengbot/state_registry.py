@@ -1051,6 +1051,8 @@ REGISTRY = (
     S("_unseen_recall_damage_streak", "policy_combat", LIFE,
       "policy_combat: unseen recall damage streak (no comment at its definition)"),
     # policy_equipment
+    S("_digger_swap", "mining_loadout", LIFE,
+      "mining_loadout: (floor, asker's reason) of the digger swap whose combat hand is off and whose digger is not worn yet (swap_in_progress); cleared by the digger worn, the floor left or the swap's abort"),
     S("_digger_wield_attempts", "policy_equipment", LIFE,
       "consecutive un-taking digging-tool wields"),
     S("_equipment_atomic_withdraw_leave_count", "policy_equipment", LIFE,
