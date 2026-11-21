@@ -136,7 +136,18 @@ def avoid_summary(policy) -> dict[str, Any]:
         "avoid_cells": {"owned": len(owned), "routes": len(avoid), "owned_cells": listed(owned),
                         "other_cells": listed(set(avoid) - set(owned))},
         "enclosure_trace": retreat_enclosure.trace(policy),
+        "frontier_writeoffs": _writeoffs(policy),
     }
+
+
+def _writeoffs(policy) -> dict[str, Any]:
+    """The floor's written-off frontiers and wall-read unknown grids with their causes, the
+    latest AVOID_LIMIT by game turn (exploration_ledger ``writeoffs``)."""
+    ledger = getattr(policy, "_exploration_ledger", None)
+    writeoffs = getattr(ledger, "writeoffs", None) or {}
+    latest = sorted(writeoffs.items(), key=lambda item: (-item[1][1], item[0]))[:AVOID_LIMIT]
+    return {"count": len(writeoffs),
+            "latest": [[y, x, cause, turn] for (y, x), (cause, turn) in latest]}
 
 
 def policy_state(policy, snapshot=None) -> dict[str, Any]:
