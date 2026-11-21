@@ -24,7 +24,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot import launcher_upgrade
 from hengbot.equipment_optimizer import ordinary_launcher_yields_to_light_crossbow
-from hengbot.launcher_damage import launcher_turn_damage
+from hengbot.launcher_damage import launcher_average_damage, snapshot_plain_ammo_turn_damage
 from hengbot.model import SV_BOW_HEAVY_XBOW, SV_BOW_LIGHT_XBOW, SV_BOW_LONG, SV_BOW_SLING
 from support.town_arrival_fixture import load
 
@@ -63,10 +63,15 @@ class LauncherRecordedTest(unittest.TestCase):
         for recorded, key, reason in self.decided:
             self.assertEqual((key, reason), (recorded["key"], recorded["reason"]), recorded["row"])
 
-    def test_the_damage_per_player_turn_of_both_launchers(self):
-        bolts = next(item for item in self.board.inventory if item.name.startswith(STEEL_BOLTS))
-        self.assertEqual(launcher_turn_damage(self.launcher("ライト・クロスボウ"), bolts), 52.5)
-        self.assertEqual(launcher_turn_damage(self.launcher(ROBIN)), 58.5)
+    def test_the_damage_of_both_launchers(self):
+        """Per shot with the plain store round (owner 2026-11-22 「射撃武器の比較には店で買える並の
+        矢弾を使って。」): the crossbow (3 + 7) x 3 = 30 at 1.20 turns, the Short Bow (2.5 + 17) x 3 =
+        58.5 at 1.00 turn; the shared figure per turn (hit and critical included) ranks them so."""
+        crossbow, robin = self.launcher("ライト・クロスボウ"), self.launcher(ROBIN)
+        self.assertEqual(launcher_average_damage(crossbow), 30.0)
+        self.assertEqual(launcher_average_damage(robin), 58.5)
+        self.assertGreater(snapshot_plain_ammo_turn_damage(self.board, robin),
+                           snapshot_plain_ammo_turn_damage(self.board, crossbow))
 
     def test_the_search_targets_the_artifact_short_bow(self):
         preparation = self.policy._equipment_optimization_preparation
@@ -74,16 +79,15 @@ class LauncherRecordedTest(unittest.TestCase):
         self.assertTrue(bow.item.name.startswith(ROBIN), bow.item.name)
         self.assertEqual(bow.origin, "home")
 
-    def test_the_shop_upgrade_compares_damage_per_turn(self):
+    def test_the_shop_upgrade_compares_both_with_plain_rounds(self):
         """CONSTRUCTED from the recorded Home Long Bow: an ego one at (+3,+16) shoots plain arrows
-        for (2.5 + 16) x 3 = 55.5 a shot and a turn, below the worn crossbow's 63 a shot but above
-        its 52.5 a turn (owner 2026-11-19, damage per time)."""
-        bolts = tuple(item for item in self.board.inventory if item.is_ammo)
+        for (2.5 + 16) x 3 = 55.5 a turn, above the worn crossbow's plain bolts (3 + 7) x 3 = 30 at
+        1.20 turns, though below its 63 a shot with the owned 鋼鉄のクロスボウの矢 (owner 2026-11-22:
+        both launchers with the plain store round).  At (+3,+0): 7.5 a turn, below."""
         ego = replace(self.launcher("ロング・ボウ"), is_ego=True, to_d=16)
-        self.assertTrue(launcher_upgrade._would_replace(
-            self.launcher("ライト・クロスボウ"), ego, bolts))
-        self.assertFalse(launcher_upgrade._would_replace(
-            self.launcher("ライト・クロスボウ"), replace(ego, to_d=14), bolts))
+        crossbow = self.launcher("ライト・クロスボウ")
+        self.assertTrue(launcher_upgrade._would_replace(self.board, crossbow, ego))
+        self.assertFalse(launcher_upgrade._would_replace(self.board, crossbow, replace(ego, to_d=0)))
 
     # CONSTRUCTED from the recorded Home Long Bow: the rule over every other kind.
     def test_ordinary_launchers_of_every_other_kind_yield(self):

@@ -57,6 +57,10 @@ def _decide(with_staff: bool):
         board = parse_snapshot(raw, policy._monrace_knowledge)
     with contextlib.redirect_stdout(io.StringIO()):
         key = policy.choose_key(board)
+        # The search on this board (with the ~f skills choose_key fills in): without the staff
+        # the first decision (town:recover) does not consult it, and the checkpoint's memo was
+        # searched by the code of its time.
+        policy._prepare_equipment_optimization(policy._with_cached_skill_exp(board))
     return scratch, policy, board, key
 
 
@@ -97,12 +101,13 @@ class LauncherFlipRecordedTest(unittest.TestCase):
             policy._validated_character_calibration(board)), (False, None))
 
     def test_the_launcher_does_not_change_with_the_staff_it_absorbs(self):
-        """Without the staff (the board after the absorption) the 49F band and the crossbow; with
-        it the same, not the 80F band and the Short Bow worn for four seconds."""
+        """Without the staff (the board after the absorption) the 49F band; with it the same, not
+        the 80F band.  The 49F band's launcher is the Short Bow since the whole-loadout comparison
+        with plain rounds (owner 2026-11-22, test_n1b_413_launcher_total_1122_recorded); the
+        crossbow came back here before it."""
         self.assertEqual(self.chosen(False)[0], 49)
-        self.assertTrue(self.chosen(False)[1].startswith(CROSSBOW), self.chosen(False)[1])
         self.assertEqual(self.chosen(True), self.chosen(False))
-        self.assertFalse(self.chosen(True)[1].startswith(ROBIN))
+        self.assertTrue(self.chosen(True)[1].startswith(ROBIN), self.chosen(True)[1])
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ from hengbot.equipment_optimizer import (
     _prefer,
 )
 from hengbot.equipment_transaction_planner import plan_equipment_transactions
-from hengbot.launcher_damage import best_obtainable_launcher_damage
+from hengbot.launcher_damage import plain_ammo_turn_damage
 from hengbot.warrior_loadout_search import enumerate_warrior_loadouts
 from hengbot.model import (
     SV_DRAGON_HELM,
@@ -102,7 +102,9 @@ def metrics(
 
 
 class EquipmentOptimizerTest(unittest.TestCase):
-    def test_live_launcher_candidates_rank_by_best_obtainable_ammo_damage(self):
+    def test_live_launcher_candidates_rank_by_plain_ammo_damage(self):
+        """The evaluator's shot with the plain store round decides (owner 2026-11-22
+        「射撃武器の比較には店で買える並の矢弾を使って。」); the optimizer has no launcher-only order."""
         fixture = Path(__file__).parent / "fixtures" / (
             "launcher-post-swap-live-2237771.json.gz"
         )
@@ -134,9 +136,13 @@ class EquipmentOptimizerTest(unittest.TestCase):
             Loadout((("bow", crossbow),), "empty"),
         )
 
+        def shot(loadout):
+            return plain_ammo_turn_damage(
+                loadout.item_at("bow").item, skill_thb=snapshot.player.shooting_skill)
+
         result = optimize_loadout(
             (short, crossbow),
-            lambda _loadout: metrics(1),
+            lambda loadout: metrics(1, ranged=shot(loadout)),
             depth=1,
             current_item_ids=frozenset({short.id}),
             candidate_loadouts=candidates,
@@ -147,10 +153,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         chosen = result.best.loadout.item_at("bow")
         self.assertIsNotNone(chosen)
         self.assertEqual(chosen.item.sval, 23)
-        self.assertGreaterEqual(
-            best_obtainable_launcher_damage(chosen.item, snapshot.inventory),
-            best_obtainable_launcher_damage(short.item, snapshot.inventory),
-        )
+        self.assertGreater(shot(candidates[1]), shot(candidates[0]))
 
     def setUp(self):
         self.light = gear("light", 39)

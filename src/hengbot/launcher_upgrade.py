@@ -21,25 +21,22 @@ from typing import Any
 
 from hengbot import me_deep_launcher, spare_gear
 from hengbot.equipment_optimizer import ordinary_launcher_yields_to_light_crossbow
-from hengbot.launcher_damage import (
-    LAUNCHER_PROPERTIES,
-    best_obtainable_launcher_turn_damage,
-    launcher_turn_damage,
-)
+from hengbot.launcher_damage import LAUNCHER_PROPERTIES, snapshot_plain_ammo_turn_damage
 from hengbot.model import STORE_WEAPON, TVAL_BOW
 
 CATEGORY = "launcher-ammo"
 
 
-def _would_replace(worn: Any, launcher: Any, obtainable: tuple) -> bool:
-    """The optimizer's launcher order, with store ammunition for the newcomer: damage per
-    player turn, as the optimizer compares (owner 2026-11-19 「攻撃力の判定はすべて10ゲームターン
-    あたりの被害で評価」)."""
+def _would_replace(snapshot: Any, worn: Any, launcher: Any) -> bool:
+    """The optimizer's launcher order: the Light Crossbow rule, then the shared shot figure of
+    both launchers with the plain store round of their kinds (owner 2026-11-22 「射撃武器の比較
+    には店で買える並の矢弾を使って。」), never the worn one's owned rounds against the newcomer's
+    plain ones.  Only whether the Smith is worth a look: the optimizer decides the wear."""
     if worn is None:
         return True
     return (ordinary_launcher_yields_to_light_crossbow(worn, launcher)
-            or launcher_turn_damage(launcher)
-            > best_obtainable_launcher_turn_damage(worn, obtainable))
+            or snapshot_plain_ammo_turn_damage(snapshot, launcher)
+            > snapshot_plain_ammo_turn_damage(snapshot, worn))
 
 
 def _buys_ammunition(policy: Any) -> bool:
@@ -77,7 +74,7 @@ def waiting_launcher(policy: Any, snapshot: Any) -> Any:
                  and launcher.ammo_tval not in seen
                  and not policy._equip_blocked_by_identification(launcher)
                  and policy._item_signature(launcher) not in policy._deferred_home_items
-                 and _would_replace(worn, launcher, obtainable)), None)
+                 and _would_replace(snapshot, worn, launcher)), None)
 
 
 def is_waiting(policy: Any, snapshot: Any, item: Any) -> bool:

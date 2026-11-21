@@ -527,7 +527,7 @@ from hengbot.warrior_optimization import (
     # warrior_optimization owns the per-source supersede rule; policy consumes it.
     _effective_intrinsic_abilities,
 )
-from hengbot.warrior_loadout_evaluator import (
+from hengbot.launcher_damage import (
     LAUNCHER_PROPERTIES,
     STORE_AMMO_AVERAGE_DAMAGE,
 )

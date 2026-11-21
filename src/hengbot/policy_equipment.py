@@ -329,7 +329,7 @@ from hengbot.warrior_optimization import (
     # warrior_optimization owns the per-source supersede rule; policy consumes it.
     _effective_intrinsic_abilities,
 )
-from hengbot.launcher_damage import launcher_average_damage, launcher_turn_damage
+from hengbot.launcher_damage import launcher_average_damage, snapshot_plain_ammo_turn_damage
 from hengbot.warrior_loadout_search import disposable_dominated_item_ids
 from hengbot.warrior_equipment_evaluator import AC_REFERENCE, melee_hit_chance
 from hengbot.town_hold import standing_claim
@@ -461,20 +461,23 @@ def observer_defers_optimizer_search():
         _OBSERVER_DEFERS_OPTIMIZER_SEARCH.reset(token)
 
 
+# The launchers' comparison basis, in the memo key: a memo restored from a checkpoint made
+# before the plain-store-round comparison (owner 2026-11-22) is searched again.
+LAUNCHER_BASIS = "plain-store-round"
+
+
 def obtainable_ammunition_signature(ammunition) -> tuple:
     """What the optimizer reads of the obtainable ammunition, for its memo.
 
     ``optimize_loadout`` reads only each stack's tval with a positive count
-    (a usable launcher) and the dice and to-dam (launcher_damage), never
-    the name.  The names carry the game's ``(N/shot N/turn)`` figures,
+    (a usable launcher), never the dice, to-dam or name: launchers are compared
+    with the plain store round (launcher_damage.plain_ammo_turn_damage, owner
+    2026-11-22).  The names carry the game's ``(N/shot N/turn)`` figures,
     which follow the worn launcher, the stats and the level: in the key they
     re-ran the whole search when a fight in town moved them (n1-b life-368
     2026-11-11 02:08, decision 18196, 30 s).
     """
-    return tuple(sorted({
-        (item.tval, item.damage_dice_num, item.damage_dice_sides, item.to_d)
-        for item in ammunition if item.count > 0
-    }))
+    return (LAUNCHER_BASIS, tuple(sorted({item.tval for item in ammunition if item.count > 0})))
 
 
 class EquipmentMixin:
@@ -3928,9 +3931,9 @@ class EquipmentMixin:
         if ordinary_launcher_yields_to_light_crossbow(equipped, candidate):
             return False
 
-        # Damage per player turn, as the optimizer compares (owner 2026-11-19).
-        equipped_damage = launcher_turn_damage(equipped)
-        candidate_damage = launcher_turn_damage(candidate)
+        # The shared shot figure with the plain store round (owner 2026-11-22).
+        equipped_damage = snapshot_plain_ammo_turn_damage(snapshot, equipped)
+        candidate_damage = snapshot_plain_ammo_turn_damage(snapshot, candidate)
         equipped_grade = (int(equipped.is_artifact), int(equipped.is_ego))
         candidate_grade = (int(candidate.is_artifact), int(candidate.is_ego))
         no_worse = (

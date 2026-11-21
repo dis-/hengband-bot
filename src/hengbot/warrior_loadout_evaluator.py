@@ -9,7 +9,7 @@ from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.equipment_optimizer import Loadout, LoadoutMetrics, SLOT_BOW
 from hengbot.equipment_utility import utility_value
-from hengbot.launcher_damage import LAUNCHER_PROPERTIES, STORE_AMMO_AVERAGE_DAMAGE
+from hengbot.launcher_damage import LAUNCHER_PROPERTIES, plain_ammo_turn_damage
 from hengbot.me_loadout_offense import (
     TR_INT,
     MagicEaterOffenseInputs,
@@ -41,7 +41,6 @@ from hengbot.warrior_equipment_evaluator import (
     WarriorCombatInputs,
     WarriorMeleeResult,
     evaluate_warrior_melee,
-    hit_chance,
     modify_stat_value,
     stat_index,
     trunc_div,
@@ -255,41 +254,40 @@ def _shooting_misc_to_hit(loadout: Loadout) -> int:
 def warrior_ranged_offense_dps(
     loadout: Loadout, inputs: WarriorCombatInputs, target_ac: int = 100
 ) -> float:
-    """Evaluate a launcher with ordinary store ammunition of its matching type."""
+    """The worn launcher's shot with the plain store round of its kind, per player turn.
+
+    Owner 2026-11-22 「射撃武器の比較には店で買える並の矢弾を使って。」: the shared figure
+    (launcher_damage.plain_ammo_turn_damage), with this loadout's shooter: calc_to_hit_bow's
+    to_h_b from its STR/DEX and the other gear's to_h (a heavy launcher's penalty), the STR
+    term of the multiplier, the other gear's extra shots and extra might and the Warrior's
+    shots.  So a launcher's stat modifiers count here and in the melee (owner 2026-11-22
+    「近接の増え方も入れて全体で比べる」) through the ordinary comparison."""
     launcher = loadout.item_at(SLOT_BOW)
     if launcher is None or launcher.item.sval not in LAUNCHER_PROPERTIES:
         return 0.0
-    ammo_tval, energy, multiplier = LAUNCHER_PROPERTIES[launcher.item.sval]
-    ammo_damage = STORE_AMMO_AVERAGE_DAMAGE[ammo_tval]
     strength = modify_stat_value(inputs.natural_str, inputs.intrinsic_str + _pval_total(loadout, TR_STR))
     dexterity = modify_stat_value(inputs.natural_dex, inputs.intrinsic_dex + _pval_total(loadout, TR_DEX))
     str_idx = stat_index(strength)
     dex_idx = stat_index(dexterity)
     hold = ADJ_STR_HOLD[str_idx]
     heavy = hold < launcher.item.weight // 10
-
-    shots = 100 + 100 * sum(
-        1 for _, item in loadout.slots if TR_XTRA_SHOTS in item.flags
-    )
-    if not heavy and inputs.class_id == 0:
-        shots += inputs.level * 2
-    if any(TR_XTRA_MIGHT in item.flags for _, item in loadout.slots):
-        multiplier += 1
-
-    to_hit = ADJ_DEX_TO_H[dex_idx] + ADJ_STR_TO_H[str_idx]
-    to_hit += _shooting_misc_to_hit(loadout)
+    others = [item for slot, item in loadout.slots if slot != SLOT_BOW]
+    to_h_b = ADJ_DEX_TO_H[dex_idx] + ADJ_STR_TO_H[str_idx] + _shooting_misc_to_hit(loadout)
     if heavy:
-        to_hit += 2 * (hold - launcher.item.weight // 10)
-    proficiency = launcher.item.weapon_proficiency
-    if launcher.item.sval in {23, 24}:
-        to_hit += proficiency // 400
-    else:
-        to_hit += trunc_div(proficiency - MASTER_WEAPON_EXP // 2, 200)
-    reliability = inputs.shooting_skill + (to_hit + launcher.item.to_h) * 3
-    accuracy = hit_chance(reliability, target_ac, lazy=inputs.lazy_personality)
-    damage = (ammo_damage + launcher.item.to_d) * multiplier
-    damage *= (100 + ADJ_STR_TO_D[str_idx]) / 100
-    return accuracy * damage * shots * 100 / energy
+        to_h_b += 2 * (hold - launcher.item.weight // 10)
+    return plain_ammo_turn_damage(
+        launcher.item,
+        skill_thb=inputs.shooting_skill,
+        to_h_b=to_h_b,
+        str_td=ADJ_STR_TO_D[str_idx],
+        extra_shots=(sum(1 for _, item in loadout.slots if TR_XTRA_SHOTS in item.flags)
+                     - (TR_XTRA_SHOTS in launcher.item.known_flags)),
+        shots_bonus=inputs.level * 2 if not heavy and inputs.class_id == 0 else 0,
+        xtra_might=(any(TR_XTRA_MIGHT in item.flags for item in others)
+                    or TR_XTRA_MIGHT in launcher.flags),
+        target_ac=target_ac,
+        lazy=inputs.lazy_personality,
+    )
 
 
 class CachedWarriorLoadoutEvaluator:

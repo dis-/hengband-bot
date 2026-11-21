@@ -26,7 +26,7 @@ from hengbot.equipment_optimizer import (
     optimize_loadout,
 )
 from hengbot.equipment_transaction_planner import plan_equipment_transactions
-from hengbot.launcher_damage import best_obtainable_launcher_damage
+from hengbot.launcher_damage import best_obtainable_launcher_damage, plain_ammo_turn_damage
 from hengbot.model import (
     STORE_GENERAL,
     STORE_HOME,
@@ -116,12 +116,10 @@ class LiveLightCrossbowPreferenceTest(unittest.TestCase):
         )
 
         def evaluate(loadout):
-            # Mirror the live per-shot damage so the evaluator itself favours
-            # the higher-damage launcher, as the warrior evaluator does.
+            # The warrior evaluator's shot: the plain store round of the kind
+            # (owner 2026-11-22), so the evaluator favours the higher-damage launcher.
             bow = loadout.item_at("bow")
-            return flat_metrics(
-                best_obtainable_launcher_damage(bow.item, ammunition)
-            )
+            return flat_metrics(plain_ammo_turn_damage(bow.item, skill_thb=0))
 
         result = optimize_loadout(
             (sling, self.crossbow),
@@ -136,12 +134,11 @@ class LiveLightCrossbowPreferenceTest(unittest.TestCase):
 
     def test_live_ordinary_sling_yields_to_home_crossbow_with_store_bolts(self):
         ammunition = (*self.shots, *self.store_bolts)
-        # Damage alone would keep the sling: (2+10)x2 = 24 vs (3+3)x3 = 18.
-        self.assertEqual(
-            best_obtainable_launcher_damage(self.sling.item, ammunition), 24.0
-        )
-        self.assertEqual(
-            best_obtainable_launcher_damage(self.crossbow.item, ammunition), 18.0
+        # Damage alone would keep the sling: (2+10)x2 a shot at 0.8 turns against
+        # (3+3)x3 at 1.2 turns, with the plain store rounds.
+        self.assertGreater(
+            plain_ammo_turn_damage(self.sling.item, skill_thb=0),
+            plain_ammo_turn_damage(self.crossbow.item, skill_thb=0),
         )
 
         self.assertEqual(self.choose(self.sling, ammunition).id, self.crossbow.id)
@@ -165,7 +162,7 @@ class LiveLightCrossbowPreferenceTest(unittest.TestCase):
                     self.sling,
                     item=replace(self.sling.item, to_h=0, to_d=0, **grade),
                 )
-                # (2+0)x2 = 4 < 18: the damage comparison picks the crossbow.
+                # (2+0)x2 < (3+3)x3: the damage comparison picks the crossbow.
                 self.assertEqual(self.choose(weak, ammunition).id, self.crossbow.id)
 
     def test_pairwise_rule_precedes_damage_and_respects_unusable_crossbow(self):
@@ -175,17 +172,15 @@ class LiveLightCrossbowPreferenceTest(unittest.TestCase):
         crossbow = EvaluatedLoadout(
             Loadout((("bow", self.crossbow),), "empty"), flat_metrics(18.0)
         )
-        damage = {self.sling.id: 24.0, self.crossbow.id: 18.0}
         usable = frozenset({self.sling.id, self.crossbow.id})
         current = frozenset({self.sling.id})
 
-        self.assertTrue(_prefer(crossbow, sling, current, damage, usable))
-        self.assertFalse(_prefer(sling, crossbow, current, damage, usable))
+        self.assertTrue(_prefer(crossbow, sling, current, usable))
+        self.assertFalse(_prefer(sling, crossbow, current, usable))
         # No obtainable bolts: the usable sling is never displaced.
         sling_only = frozenset({self.sling.id})
-        no_bolts = {self.sling.id: 24.0, self.crossbow.id: 0.0}
-        self.assertFalse(_prefer(crossbow, sling, current, no_bolts, sling_only))
-        self.assertTrue(_prefer(sling, crossbow, current, no_bolts, sling_only))
+        self.assertFalse(_prefer(crossbow, sling, current, sling_only))
+        self.assertTrue(_prefer(sling, crossbow, current, sling_only))
 
 
 class LivePolicyLauncherEvidenceTest(unittest.TestCase):
