@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot import angband_finale
 from hengbot import approach_answer, return_start
 from hengbot import safety_watch
-from hengbot import angband_cap, item_identity
+from hengbot import angband_cap, equipment_rules, item_identity
 from hengbot.item_identity import MemorySignatureList, MemorySignatures, same_memory
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
@@ -159,7 +159,6 @@ from hengbot.policy_constants import (
     REST_TARGET_HP_RATIO,
     HOME_VISIT_LIMIT,
     CALIBRATION_HOME_VISIT_LIMIT,
-    DEPTH_ABILITY_REQUIREMENTS,
     DEEP_FLOOR_DEPTH,
     DESTRUCTION_GATE_LABEL,
     FUNDRAISING_START_GOLD,
@@ -167,7 +166,6 @@ from hengbot.policy_constants import (
     SPEED_GATE_LABEL,
     SPEED_GATE_MINIMUM,
     WEAPON_BLOCK_LIMIT,
-    _required_abilities_for_depth,
     required_depth_gates,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
@@ -8638,7 +8636,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             item.is_lantern
             and equipped_replaces_lantern
             and not item.is_ego
-            and item.pseudo_feeling not in {"excellent", "special"}
+            and item.pseudo_feeling not in equipment_rules.HIGH_GRADE_PSEUDO_FEELINGS
         )
 
 
@@ -11145,12 +11143,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     @staticmethod
     def _weapon_is_high_grade(item: InventoryItem | StoreItem) -> bool:
-        # 高級品以上: excellent/special pseudo-ID, or a known ego/artifact.
-        return (
-            item.is_ego
-            or item.is_artifact
-            or item.pseudo_feeling in {"excellent", "special"}
-        )
+        # 高級品以上: excellent/special pseudo-ID, or a known ego/artifact (equipment_rules).
+        return equipment_rules.is_high_grade(item)
 
     @staticmethod
     def _blocks_teleport(item: InventoryItem | StoreItem) -> bool:

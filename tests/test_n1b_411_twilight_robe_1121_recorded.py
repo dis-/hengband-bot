@@ -18,7 +18,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot.warrior_optimization import TR_NO_AC
+from hengbot.equipment_rules import TR_NO_AC
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-411-twilight-robe-1121"

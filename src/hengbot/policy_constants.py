@@ -837,8 +837,9 @@ Q2_BREACH_ATTEMPT_LIMIT = 20
 # USER DECISION 2026-11-04 「要求は深くなるごとにAND条件で厳しくする想定。」
 # Each row is (first floor, what that floor adds); a floor requires every row
 # at or above its first floor, so a deeper band never asks for less.  This is
-# the one table: the policy's depth gates and the equipment optimizer both read
-# it through _required_abilities_for_depth.
+# the one table: the policy's depth gates read it through _required_abilities_for_depth, every
+# equipment reader through equipment_rules (DEPTH_ABILITY_REQUIREMENTS,
+# required_abilities_for_depth), the one table of the owner's equipment rules.
 DEPTH_ABILITY_REQUIREMENTS = (
     (20, frozenset({"free_action", "resist_fire"})),
     (21, frozenset({"resist_conf"})),

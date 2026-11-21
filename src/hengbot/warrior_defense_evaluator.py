@@ -11,6 +11,7 @@ from functools import lru_cache
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_optimizer import Loadout, SLOT_MAIN_HAND, SLOT_SUB_HAND
+from hengbot.equipment_rules import TR_LOW_AC, TR_NO_AC
 from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonsterBlow
 from hengbot.policy_constants import speed_energy
 from hengbot.warrior_equipment_evaluator import modify_stat_value, stat_index
@@ -46,8 +47,6 @@ TR_FREE_ACT = 46
 TR_HOLD_EXP = 47
 TR_DEC_MANA = 70
 TR_IGNORE_ACID = 84
-TR_LOW_AC = 134
-TR_NO_AC = 141
 TR_SUPPORTIVE = 147
 TR_VUL_ACID = 152
 TR_VUL_COLD = 153

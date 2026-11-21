@@ -237,7 +237,7 @@ class FinalePrepRecordedTest(unittest.TestCase):
         robe (TWILIGHT: every resistance, NO_AC) would win on its resistances; the searches in the
         finale's rank (the check's and the loadout step's, which fixes the target) never take it."""
         from hengbot.equipment_optimizer import ABILITY_FLAG
-        from hengbot.warrior_optimization import TR_NO_AC
+        from hengbot.equipment_rules import TR_NO_AC
         policy, steps = self.load(N1C)
         robe = None
 

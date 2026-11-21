@@ -21,9 +21,9 @@ from __future__ import annotations
 
 from math import ceil
 
+from hengbot.equipment_rules import TR_NO_AC
 from hengbot.policy_constants import WAIT_KEY, speed_energy
 
-TR_NO_AC = 141  # object/tr-types.h
 RECALL_TRIGGER = "no-ac"
 RECALL_REASON = "no-ac:recall"
 TELEPORT_REASON = "no-ac:teleport"

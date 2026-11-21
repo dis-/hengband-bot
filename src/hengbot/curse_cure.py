@@ -59,7 +59,7 @@ import re
 
 from hengbot import cross_rules, me_absorbed_substitutes, me_capability, me_powers
 from hengbot import me_powerful_activation as powerful
-from hengbot.equipment_optimizer import (
+from hengbot.equipment_rules import (
     TR_CALL_ANIMAL, TR_CALL_DEMON, TR_CALL_DRAGON, TR_CALL_UNDEAD, TR_DRAIN_HP,
 )
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER

@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any
 
 from hengbot import me_deep_launcher, spare_gear
-from hengbot.equipment_optimizer import ordinary_launcher_yields_to_light_crossbow
+from hengbot.equipment_rules import ordinary_launcher_yields_to_light_crossbow
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, snapshot_plain_ammo_turn_damage
 from hengbot.model import STORE_WEAPON, TVAL_BOW
 
