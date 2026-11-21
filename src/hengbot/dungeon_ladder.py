@@ -234,6 +234,8 @@ LADDER = (
         # The 99F/100F preparation phase's own keys (finale_prep: its Home read and the
         # filing of its Home withdrawals), before the ordinary town work.
         *D("finale_prep.town_key"),
+        # Owner 2026-11-21 「フロア・リセットの巻物があれば使って95Fに戻す」 (reset_recall).
+        *E("reset_recall.key"),
         *P("_fixed_quest_key#1"),
         *E("_town_space_deposit_key"),
         *P("_victory_loot_key", "_conquest_loot_key", "_fixed_quest_key#2"),

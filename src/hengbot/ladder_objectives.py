@@ -17,7 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import finale_prep
+from hengbot import finale_prep, reset_recall
 from hengbot import approach_answer, return_start
 from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
@@ -140,6 +140,13 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
     prep = finale_prep.town_key(policy, snapshot)
     if prep is not None:
         return prep
+
+    # Owner 2026-11-21 「フロア・リセットの巻物があれば使って95Fに戻す」: Angband's recall depth
+    # refused outside the expedition, a carried Scroll of Reset Recall sets it to 95F (reset_recall).
+    reset = policy._town_producer_entry(
+        "reset_recall.key", lambda: reset_recall.key(policy, snapshot), family="departure")
+    if reset is not None:
+        return reset
 
     # Rung #1 applies only while stage-2 quest travel owns the town
     # (its intended_terminal, town_terminal.fixed_quest_return_intended_terminal).

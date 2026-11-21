@@ -22896,5 +22896,39 @@
     "delegation": "selected child; no independent success",
     "context": "Town only: the 99F/100F preparation phase's food step (finale_prep, owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って食料とする」); None outside its step.",
     "evidence": "Composes the food step's inscription key (reserved_item_command inscribe + label + Return) for _food_key; stops the phase when refused."
+  },
+  "reset_recall.py:key": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Town only: Angband's recall depth refused outside the finale's expedition (angband_cap deep_recall_refused, owner 2026-11-21 「フロア・リセットの巻物があれば使って95Fに戻す」).",
+    "classification": "adapter",
+    "rows": [
+      "departure",
+      "store-exit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Emits with _offer_execution (producer departure) the store exit, or the read of a carried Scroll of Reset Recall answered with Angband's chooser letter (policy._recall_selection_key) and 95 + Return."
+  },
+  "reset_recall.py:carried": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Town only: Angband's recall depth refused outside the finale's expedition (angband_cap deep_recall_refused, owner 2026-11-21 「フロア・リセットの巻物があれば使って95Fに戻す」).",
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure: the pack's Scroll of Reset Recall."
+  },
+  "reset_recall.py:is_reset_recall": {
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "context": "Town only: Angband's recall depth refused outside the finale's expedition (angband_cap deep_recall_refused, owner 2026-11-21 「フロア・リセットの巻物があれば使って95Fに戻す」).",
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure: the Scroll of Reset Recall predicate."
   }
 }

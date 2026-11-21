@@ -184,7 +184,10 @@ def carry_required(policy, snapshot, item) -> bool:
                        for other in (*snapshot.inventory, *snapshot.equipment)))
     if policy.quest_potion_carried_for_strategy(snapshot, item):
         return True
-    from hengbot import angband_finale  # import cycle (restore_mana_target)
+    from hengbot import angband_finale, reset_recall  # import cycle (restore_mana_target)
+    if reset_recall.is_reset_recall(item) and reset_recall.wanted(policy, snapshot):
+        # Owner 2026-11-21 「フロア・リセットの巻物があれば使って95Fに戻す」 (reset_recall).
+        return True
     if angband_finale.carry_target(policy, snapshot, item):
         # Owner 2026-11-20: the finale's *Healing* and Restore Mana are carried.
         return True
