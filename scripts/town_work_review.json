@@ -18683,6 +18683,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The blow or the step toward a known hostile. No independent progress."
   },
+  "kill_all_patrol.py:_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: kill_all_patrol.applies requires a taken KILL_ALL quest on this floor, asked by quest_navigator.decide after the approved plan answered None.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the floor's patrol memory.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "kill_all_patrol.py:_toward": {
     "classification": "data",
     "rows": [
@@ -18693,6 +18704,39 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "kill_all_patrol.py:_hunt_remembered": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: kill_all_patrol.applies requires a taken KILL_ALL quest on this floor, asked by quest_navigator.decide after the approved plan answered None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The step toward the cell a hostile was last seen or detected at (n1-b life-413, owner 2026-11-13 / 2026-11-09). No independent progress."
+  },
+  "kill_all_patrol.py:_rod_read_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: kill_all_patrol.applies requires a taken KILL_ALL quest on this floor, asked by quest_navigator.decide after the approved plan answered None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The turn-free browse of the absorbed rod list (bC) before the round's detection. No independent progress."
+  },
+  "kill_all_patrol.py:_powered_detect_all_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: kill_all_patrol.applies requires a taken KILL_ALL quest on this floor, asked by quest_navigator.decide after the approved plan answered None.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The absorbed Rod of Detection through Powerful Activation when safe (owner 2026-11-01, 2026-11-22). No independent progress."
   },
   "full_pack_exchange.py:key": {
     "classification": "producer",

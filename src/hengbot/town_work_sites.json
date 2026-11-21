@@ -4547,6 +4547,34 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "kill_all_patrol.py:_hunt_remembered": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "kill_all_patrol.py:_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "kill_all_patrol.py:_powered_detect_all_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "kill_all_patrol.py:_rod_read_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "kill_all_patrol.py:_toward": {
     "classification": "data",
     "rows": [

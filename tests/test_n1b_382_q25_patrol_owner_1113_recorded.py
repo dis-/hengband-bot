@@ -58,13 +58,14 @@ from tests.support import q25_house as q25
 from tests.support import recorded as harness
 from tests.test_magic_eater_o3 import prompt
 from tests.test_me_device_attacks import power_screen
+from tests.test_me_powerful_activation import racial_screen
 
 with gzip.open(Path(__file__).with_name("fixtures") / "n1b-382-q25-patrol-owner-1113.json.gz",
                "rt", encoding="utf-8") as _stream:
     CASE = json.load(_stream)
 
 PATROL = {kill_all_patrol.WALK_REASON, kill_all_patrol.HUNT_REASON, kill_all_patrol.DETECT_REASON,
-          kill_all_patrol.ABSORBED_DETECT_REASON}
+          kill_all_patrol.ABSORBED_DETECT_REASON, kill_all_patrol.POWERED_DETECT_REASON}
 TOME, TOME_CELL = battle.geo.TOME, (9, 8)
 # The recorded walks one way and the other: the plan's step on one cell, the patrol's on the next.
 OPPOSITE = {(7, 6): "8", (6, 6): "2", (4, 8): "4", (4, 7): "6"}
@@ -129,6 +130,11 @@ class _Replay(harness.ProductionHarness):
             # ABSORBED_DETECT_REASON) answers the kind question and the rod list
             # (cmd-magiceat.cpp), as tests/test_n1c_208_q25_patrol_1115_recorded builds them.
             prompts = [prompt("[A] 杖, [B] 魔法棒, [C] ロッド:"),
+                       power_screen("rod", [("g", "全感知", 0, 1, 5)])]
+        if key == "UCg":
+            # DECLARED CONSTRUCTED: the same rod through Powerful Activation (kill_all_patrol
+            # POWERED_DETECT_REASON): the racial list first (me_powerful_activation_input).
+            prompts = [racial_screen(raw["player"]["level"]), prompt("[A] 杖, [B] 魔法棒, [C] ロッド:"),
                        power_screen("rod", [("g", "全感知", 0, 1, 5)])]
         game.screens = [*prompts, harness.command_screen(following["turn"])]
         game.states = [copy.deepcopy(following) for _ in game.screens]
