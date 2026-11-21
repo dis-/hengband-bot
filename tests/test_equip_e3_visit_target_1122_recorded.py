@@ -10,7 +10,6 @@ stays: the round-trip stop is untouched.
 Recorded visits, replayed through the public ``choose_key`` (recorded keys posted):
 
 * n1-c life-219's visit of 2026-11-22 01:34 (tests/fixtures/n1c-219-flipflop-1122), the shovel case;
-* n1-b life-413's visit of 00:17:35 (tests/fixtures/n1b-413-launcher-flip-1122), the launcher flip;
 * n1-c life-217's 99F/100F preparation visit of 2026-11-21 05:55 (tests/fixtures/n1c-finale-prep-1121):
   a ★-less 守りのミラー・シールド bought at row 21, the finale phase's check step at rows 37/38, a
   Gold Dragon Scale Mail withdrawn from the Home by the supplies step;
@@ -22,11 +21,6 @@ DECLARED CONSTRUCTED:
   completion makes (policy ``_set_equipment_transaction_session(None)``, a forced re-search,
   policy.py's session-complete branch) -- the swap's Home deposit failed in the record, so its
   completion never ran;
-* n1b-413: the *Destruction* staff the game sent at 00:13:50 put in the pack (as
-  test_n1b_413_launcher_flip_1122_recorded) with no swap under way (the visit's first search
-  started one: as at 00:13:49, the staff was bought before the swap), and the town's absorption read
-  (destruction_means ``Means.town_absorbs``) answering False: the staff a means, as before the
-  life-413 fix, so its purchase changes the search's input;
 * n1b-411: the robe moved from the body slot to the pack (as after its take-off), and the robe
   made cursed (``is_cursed``) for the named stop.
 """
@@ -35,11 +29,9 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import contextlib
 import io
 import json
-import lzma
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest import mock
 
 from hengbot import equipment_target
 from hengbot.equipment_optimizer import equipment_move_identity
@@ -97,7 +89,9 @@ class _Fixture(unittest.TestCase):
 
 
 class VisitTargetHeldTest(_Fixture):
-    """(a) The worn set changing by the swap itself, and a bought staff, decide nothing again."""
+    """(a) The worn set changing by the swap itself decides nothing again.  (The bought
+    *Destruction* staff: tests/test_equip_e3b_destruction_means_1122_recorded, owner 2026-11-22
+    「決め直す」.)"""
 
     def test_n1c_219_the_completed_swap_keeps_the_visits_target(self):
         policy, _journal, steps = self.load("n1c-219-flipflop-1122")
@@ -118,35 +112,6 @@ class VisitTargetHeldTest(_Fixture):
         self.assertEqual(equipment_move_identity(worn["main_hand"]), main)
         self.assertEqual([row.get("events") for row in _rows(policy, "search")], [["visit-start"]])
         self.assertEqual(_rows(policy, "held")[-1]["changed"], ["no-previous"])
-
-    def test_n1b_413_a_staff_bought_mid_visit_keeps_the_launcher_and_band(self):
-        policy, journal, steps = self.load("n1b-413-launcher-flip-1122")
-        board = steps[0][1]()
-        _decide(policy, board)
-        _prepare(policy, board)
-        self.assertEqual(len(_rows(policy, "search")), 1)
-        decided = _target(policy)
-        band = equipment_target.loadout_target_result(policy).chosen_decision.band
-        raw = _raw(journal[0])
-        staff = json.loads(lzma.decompress(
-            (FIXTURES / "n1b-413-launcher-flip-1122" / "staff.json.xz").read_bytes()))
-        inventory = raw["inventory"]
-        for item in inventory[7:]:
-            item["slot"] = chr(ord(item["slot"]) + 1)
-        raw["inventory"] = [*inventory[:7], {**staff, "slot": "h"}, *inventory[7:]]
-        bought = parse_snapshot(raw, policy._monrace_knowledge)
-        policy._set_equipment_transaction_session(None)  # DECLARED: no swap under way
-        with mock.patch("hengbot.destruction_means.Means.town_absorbs", return_value=False):
-            _prepare(policy, bought)
-            # The staff is the 50F+ means now (the search's staff gate): before E3 it searched
-            # again and took the 80F band (the 00:13:49 swap).
-            self.assertIsNotNone(policy._optimizer_destruction_means(
-                bought, policy._equipment_catalog.items,
-                policy._validated_character_calibration(bought))[1])
-        self.assertEqual(len(_rows(policy, "search")), 1)
-        self.assertEqual(_target(policy), decided)
-        self.assertEqual(equipment_target.loadout_target_result(policy).chosen_decision.band, band)
-        self.assertEqual([row.get("events") for row in _rows(policy, "search")], [["visit-start"]])
 
 
 class VisitTargetEventsTest(_Fixture):
