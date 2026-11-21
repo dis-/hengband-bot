@@ -591,6 +591,10 @@ REGISTRY = (
     S("_equipment_optimization_signature", "equipment_target", LIFE,
       "The input signature the stored loadout target was searched with; None forces a re-search "
       "(equipment_target.search_signature / invalidate_search)."),
+    S("_equipment_visit_target", "equipment_target", LIFE,
+      "The town visit's fixed loadout target (equipment review E3, owner Q1 2026-11-22): the "
+      "visit's first deciding search, decided again only on equipment_target.REDECIDE_EVENTS; "
+      "read only for its own visit epoch."),
     S("_equipment_retired_worn_item_ids", "policy", VISIT,
       "A structurally actionless failed transaction may retire for the remainder of this town visit."),
     S("_equipment_transaction_failed_items", "policy", VISIT,

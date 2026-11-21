@@ -318,6 +318,7 @@ from hengbot.warrior_optimization import (
     confirmed_loadout_record,
     load_character_calibration,
     load_confirmed_loadout,
+    optimization_blockers,
     prepare_warrior_optimization,
     save_character_calibration,
     save_confirmed_loadout,
@@ -1027,6 +1028,11 @@ class EquipmentMixin:
         # path refreshes equipped constants without owning movement or gear.
         calibration = self._validated_character_calibration(snapshot)
         if calibration is None:
+            # Owner Q7 2026-11-22 「先に外してから探索する」: a worn banned piece comes off before the
+            # search that cannot run now (the departure no longer waits on the worn kit for it).
+            takeoff = self._banned_gear_takeoff_preparation(snapshot)
+            if takeoff is not None:
+                return takeoff
             self._equipment_optimization_telemetry = {
                 "result_source": "calibration-required-return",
                 "search_telemetry_freshness": "current-inputs",
@@ -1347,6 +1353,14 @@ class EquipmentMixin:
             or self._item_signature(item.item)
             in self._town_unidentifiable_carried_sigs
         )
+        # The preparation phase (finale_prep): the finale's order of the worn loadout's search,
+        # the read-only search of its check step and the swap's fixed target; the search memo's
+        # signature and the visit's target (equipment_target, ``finale-phase``) read it.
+        finale_key = (
+            (finale_prep.dedicated_order(self), angband_finale.lifted(self),
+             angband_finale.feasibility_due(self, snapshot),
+             tuple(sorted(finale_prep.phase(self).target or ())))
+            if angband_finale.preparing(snapshot) else None)
         # The selector memo is the owned equipment multiset plus knowledge
         # completeness. Origin and worn slot are transport state, so strip them
         # from the normal projection; gold, pack occupancy, recall progress and
@@ -1388,10 +1402,8 @@ class EquipmentMixin:
             # The preparation phase (finale_prep): the finale's order of the worn loadout's
             # search, the read-only search of its check step and the swap's fixed target are
             # inputs too: a hit kept the ordinary result across the switch.
-            (("angband-finale", finale_prep.dedicated_order(self), angband_finale.lifted(self),
-              angband_finale.feasibility_due(self, snapshot),
-              tuple(sorted(finale_prep.phase(self).target or ()))),)
-            if angband_finale.preparing(snapshot) else ()) + (
+            (("angband-finale", *finale_key),)
+            if finale_key is not None else ()) + (
             # The descent's floor (destination_band_floor): a hit kept the band it refused.
             (("destination-floor", destination_floor),)
             if destination_floor is not None else ())
@@ -1571,6 +1583,37 @@ class EquipmentMixin:
             cap_lifted=angband_finale.lifted(self),
             destination_floor=destination_floor,
         )
+        # Equipment review E3 (owner Q1 2026-11-22 「基本的にはそれで良い。99F100Fもそれでバグらず
+        # 行けるか確認」): the visit decides its target once; a changed signature searches again
+        # only on a named event (equipment_target.REDECIDE_EVENTS), else the visit's target is
+        # read again on this board's ids and its transaction planned below as a search's is.
+        visit_candidates = equipment_target.candidate_counts(
+            search_catalog,
+            lambda owned: self._item_signature(owned.item)
+            in self._town_unidentifiable_carried_sigs)
+        visit_context = (finale_key, destination_floor, equipment_rules.RULES_VERSION)
+        held_target = equipment_target.visit_target(self, self._town_visit_epoch)
+        redecide = (
+            (equipment_target.VISIT_START,) if held_target is None
+            else equipment_target.redecide_events(held_target, visit_candidates, visit_context))
+        held_preparation = None
+        if not redecide:
+            refused = optimization_blockers(
+                snapshot, search_catalog, self._monrace_knowledge,
+                home_scan_complete=self._equipment_catalog.home_scan_complete,
+                calibration=calibration)
+            if refused:
+                # The board a search would refuse (a Home census to read again, say): refused
+                # the same way, the visit's target kept for the next board.
+                held_preparation = WarriorOptimizationPreparation(
+                    current_loadout(search_catalog), None, None, refused)
+            else:
+                held_result, redecide = equipment_target.mapped_visit_target(
+                    held_target, search_catalog, curse_pinned)
+                if held_result is not None:
+                    held_preparation = WarriorOptimizationPreparation(
+                        current_loadout(search_catalog), held_result,
+                        EquipmentTransactionPlan((), (), 0), ())
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
         for owned in catalog:
@@ -1608,7 +1651,7 @@ class EquipmentMixin:
                     reasons.append("launcher-ammo-mismatch")
                 search_excluded_reasons[owned.id] = reasons
         self._equipment_optimization_telemetry = {
-            "result_source": "fresh-search",
+            "result_source": "fresh-search" if held_preparation is None else "visit-target-held",
             "search_telemetry_freshness": "current-inputs",
             "search_catalog_items": len(search_catalog),
             "search_catalog_origins": {
@@ -1630,47 +1673,50 @@ class EquipmentMixin:
             for item in search_catalog
             if item.exploration_legal and item.id not in search_excluded
         )
-        # Score safe partial-ID candidates as they will exist after `{.}` is
-        # applied. If one wins, the pending blocker below prevents transaction
-        # creation until the town suppression step has changed the real item.
-        optimizer_inputs = dict(
-            depth=optimization_depth,
-            home_scan_complete=self._equipment_catalog.home_scan_complete,
-            # The 50F+ gate (_optimizer_destruction_means): the absorbed power,
-            # or an owned staff in a loadout whose device skill makes it reliable.
-            # A hard-coded False here rejected EVERY 50F+ loadout and blocked
-            # departure even when the character already carried the means.
-            has_destruction=has_destruction,
-            staff_gate=staff_gate,
-            preserve_pack_item_ids=preserve,
-            search_excluded_item_ids=search_excluded,
-            identification_exempt_item_ids=identification_exempt,
-            loadout_report_path=self._loadout_report_path,
-            evaluator_cache=self._warrior_evaluator_cache,
-            calibration=calibration,
-            obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
-            curse_pinned_item_ids=curse_pinned,
-            magic_eater_powers=me_powers,
-            destination_floor=destination_floor,
-        )
-        # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's loadout order only on
-        # the visit that switches to 99F/100F (angband_finale ``switching``).
-        preparation = prepare_warrior_optimization(
-            snapshot, search_catalog, self._monrace_knowledge, **optimizer_inputs,
-            finale=self._angband_finale_order(),
-            cap_lifted=angband_finale.lifted(self),
-        )
-        # Before that visit, whether the owned gear CAN meet the finale's conditions: the same
-        # search in the finale's order, its result only read (no report, no transaction).
-        self._angband_finale_feasibility = (
-            prepare_warrior_optimization(
-                snapshot, search_catalog, self._monrace_knowledge,
-                **{**optimizer_inputs, "loadout_report_path": None},
-                finale=True, cap_lifted=True)
-            if angband_finale.feasibility_due(self, snapshot) else None
-        )
-        # The phase's loadout step: this search (in the finale's rank) chooses its fixed target.
-        finale_prep.fix_target(self, snapshot, preparation)
+        if held_preparation is not None:
+            preparation = held_preparation
+        else:
+            # Score safe partial-ID candidates as they will exist after `{.}` is
+            # applied. If one wins, the pending blocker below prevents transaction
+            # creation until the town suppression step has changed the real item.
+            optimizer_inputs = dict(
+                depth=optimization_depth,
+                home_scan_complete=self._equipment_catalog.home_scan_complete,
+                # The 50F+ gate (_optimizer_destruction_means): the absorbed power,
+                # or an owned staff in a loadout whose device skill makes it reliable.
+                # A hard-coded False here rejected EVERY 50F+ loadout and blocked
+                # departure even when the character already carried the means.
+                has_destruction=has_destruction,
+                staff_gate=staff_gate,
+                preserve_pack_item_ids=preserve,
+                search_excluded_item_ids=search_excluded,
+                identification_exempt_item_ids=identification_exempt,
+                loadout_report_path=self._loadout_report_path,
+                evaluator_cache=self._warrior_evaluator_cache,
+                calibration=calibration,
+                obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
+                curse_pinned_item_ids=curse_pinned,
+                magic_eater_powers=me_powers,
+                destination_floor=destination_floor,
+            )
+            # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's loadout order only on
+            # the visit that switches to 99F/100F (angband_finale ``switching``).
+            preparation = prepare_warrior_optimization(
+                snapshot, search_catalog, self._monrace_knowledge, **optimizer_inputs,
+                finale=self._angband_finale_order(),
+                cap_lifted=angband_finale.lifted(self),
+            )
+            # Before that visit, whether the owned gear CAN meet the finale's conditions: the same
+            # search in the finale's order, its result only read (no report, no transaction).
+            self._angband_finale_feasibility = (
+                prepare_warrior_optimization(
+                    snapshot, search_catalog, self._monrace_knowledge,
+                    **{**optimizer_inputs, "loadout_report_path": None},
+                    finale=True, cap_lifted=True)
+                if angband_finale.feasibility_due(self, snapshot) else None
+            )
+            # The phase's loadout step: this search (in the finale's rank) chooses its fixed target.
+            finale_prep.fix_target(self, snapshot, preparation)
         result = getattr(preparation, "result", None)
         if result is not None:
             # Observation-only mirror of warrior_optimization's search-factory
@@ -1831,6 +1877,17 @@ class EquipmentMixin:
             None if finale_prep.holds_swap(self)
             else self._equipment_transaction_session_for_preparation(preparation)
         )
+        if held_preparation is not None:
+            equipment_visit_journal.note_held(self, snapshot, previous_signature, signature)
+            self._offer_optimizer_result(preparation, source="visit-target-held")
+            return preparation
+        if (
+            isinstance(loadout, Loadout)
+            and "optimization-timeout" not in (preparation_blockers or ())
+        ):
+            # This search is the visit's target until a named event (equipment_target).
+            equipment_target.fix_visit_target(
+                self, self._town_visit_epoch, visit_candidates, visit_context, result)
         previous_target_ids = self._equipment_fresh_search_target_ids
         current_target_ids = frozenset(selected_ids)
         session = self._equipment_transaction_session
@@ -1847,7 +1904,7 @@ class EquipmentMixin:
         # Equipment review 2026-11-22 E0: the visit's record of why the search ran.
         equipment_visit_journal.note_search(
             self, snapshot, previous_signature, signature,
-            previous_target_ids, current_target_ids)
+            previous_target_ids, current_target_ids, events=redecide)
         self._offer_optimizer_result(preparation, source="fresh-search")
         return preparation
 
@@ -1975,6 +2032,100 @@ class EquipmentMixin:
         )
         self._abandon_blocked_equipment_transaction(snapshot)
         return True
+
+    def _worn_banned_pieces(self) -> tuple:
+        """(slot, OwnedEquipment) of every worn piece no loadout may hold (equipment_rules)."""
+        return tuple(
+            (slot, owned) for slot, owned in current_loadout(self._equipment_catalog.items).slots
+            if equipment_rules.loadout_banned(owned.flags))
+
+    def _banned_gear_stuck(self, pieces=None) -> str | None:
+        """The slot of a worn banned piece that cannot come off (cursed, or seen cursed)."""
+        pinned = self._equipment_curse_pinned_ids()
+        return next((slot for slot, owned in (self._worn_banned_pieces() if pieces is None
+                                              else pieces)
+                     if owned.item.is_cursed or owned.id in pinned), None)
+
+    def _banned_gear_takeoff_preparation(self, snapshot: Snapshot):
+        """The take-off of the worn banned pieces while the search cannot run, or None.
+
+        Equipment review E3, owner Q7 2026-11-22 (禁止の品を着ていて探索が走れない時は): 「先に外して
+        （代わりがあれば着けて）から探索する。外せない時は名指しで止める」.  Before, a missing
+        calibration was "no target: the worn kit stays" (``blocker_leaves_no_target``) and the
+        twilight robe stayed on (n1-b life-411 2026-11-21 12:41).  The transaction takes every worn
+        banned piece off; the slot gets this visit's target's piece for it when the visit decided
+        one (equipment_target), else it stays empty and the search that runs next fills it (no
+        other rule chooses gear here).  A piece that cannot come off is the named stop
+        (``_banned_gear_stuck_stop``) and gets no plan."""
+        pieces = self._worn_banned_pieces()
+        if not pieces or self._banned_gear_stuck(pieces) is not None:
+            return None
+        items = self._equipment_catalog.items
+        current = current_loadout(items)
+        pinned = self._equipment_curse_pinned_ids()
+        held = equipment_target.visit_target(self, self._town_visit_epoch)
+        held_result = (None if held is None
+                       else equipment_target.mapped_visit_target(held, items, pinned)[0])
+        held_loadout = getattr(getattr(held_result, "best", None), "loadout", None)
+        slots = dict(current.slots)
+        for slot, _owned in pieces:
+            replacement = None if held_loadout is None else held_loadout.item_at(slot)
+            if replacement is None or equipment_rules.loadout_banned(replacement.flags):
+                slots.pop(slot)
+            else:
+                slots[slot] = replacement
+        target = Loadout(tuple(sorted(slots.items())), current.hand_mode)
+        # Only the take-off (and the visit target's piece for the slot): the pack's gear stays
+        # where it is and the banned piece stays in the pack (no Home staging of either).  A pack
+        # without the room for it stages through the Home as any swap does (the planner's
+        # deposits of the gear the target does not wear).
+        for staged in (False, True):
+            transaction = plan_equipment_transactions(
+                items, current, target,
+                current_pack_items=len(snapshot.inventory),
+                home_scan_complete=self._equipment_catalog.home_scan_complete,
+                preserve_pack_item_ids=(frozenset() if staged else frozenset(
+                    owned.id for owned in items if owned.origin == "pack")),
+                retain_item_identities=(frozenset() if staged else frozenset(
+                    equipment_identity(owned.item) for _slot, owned in pieces)),
+                home_deposit_available=not self._home_is_full(snapshot),
+                curse_pinned_item_ids=pinned,
+            )
+            if not any(blocker.startswith("pack-space-required:")
+                       for blocker in transaction.blockers):
+                break
+        preparation = WarriorOptimizationPreparation(
+            current, None, transaction, transaction.blockers)
+        self._equipment_optimization_telemetry = {
+            "result_source": "banned-gear-takeoff",
+            "search_telemetry_freshness": "current-inputs",
+        }
+        self._set_equipment_transaction_session(
+            self._equipment_transaction_session_for_preparation(preparation))
+        # Every reader still sees what it saw: no target, the search waiting on the calibration
+        # (the departure waits while the take-off's session runs: ``blocker_leaves_no_target``).
+        preparation = replace(preparation, blockers=("calibration-required",))
+        equipment_target.set_unsearched_loadout_target(self, preparation)
+        self._offer_optimizer_result(preparation, source="banned-gear-takeoff")
+        self._offer_execution(
+            None, producer="equipment-opt",
+            work_id="equipment:optimizer:calibration",
+            next_step="calibration.acquire",
+            expected_effect="character-calibration-valid",
+            continuation="equipment.optimize",
+        )
+        return preparation
+
+    def _banned_gear_stuck_stop(self, snapshot: Snapshot) -> str | None:
+        """Owner Q7 2026-11-22 「外せない時は名指しで止める」: in town, the search cannot run (no
+        calibration) and a worn banned piece cannot come off -- the named stop's reason."""
+        if (snapshot.player.class_id not in EQUIPMENT_CLASS_PROFILES
+                or not (snapshot.in_town or snapshot.store is not None)
+                or self._character_calibration is not None
+                or not equipment_rules.wears_loadout_banned(snapshot)):
+            return None
+        slot = self._banned_gear_stuck()
+        return None if slot is None else equipment_visit_journal.BANNED_STUCK_PREFIX + slot
 
     def _equipment_curse_pinned_ids(self) -> frozenset[str]:
         """Worn catalog items seen cursed although the board's is_cursed is unset.

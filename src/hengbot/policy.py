@@ -4912,6 +4912,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if flipflop is not None:
             self.last_reason = flipflop
             return None
+        # A worn banned piece that cannot come off while the search cannot run: a final stop by
+        # name (owner 2026-11-22 Q7 「外せない時は名指しで止める」, policy_equipment).
+        banned_stuck = self._banned_gear_stuck_stop(snapshot)
+        if banned_stuck is not None:
+            self.last_reason = banned_stuck
+            return None
         light_halt = torch_release.light_halt(self, snapshot)
         if light_halt is not None:
             # Owner 2026-11-13: the crossbow light stops are final, nothing is sent

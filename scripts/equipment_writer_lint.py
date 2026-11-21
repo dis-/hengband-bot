@@ -38,7 +38,11 @@ E2 also put the character's abilities behind ``ability_sources`` (worn / pack / 
 
 Both are allowed in ``ability_sources`` only (``model`` builds the board).
 
-``ALLOWED`` is today's set (2026-11-22, E2 on main 23febce5a).  A module or a
+Stage E3 (2026-11-22) added the visit's fixed target (``fix_visit_target``, a target writer) and
+the Q7 take-off of a worn banned piece (``set_unsearched_loadout_target``): policy_equipment's
+``target-store-call`` 6 -> 8.
+
+``ALLOWED`` is today's set (2026-11-22, E2 on main 23febce5a; E3 as above).  A module or a
 count above it is a new direct writer/reader and fails; a count below it fails too, so the pin
 is lowered with the change that removed one (the later stages E2/E5 move these behind one
 reader and one slot lease; each move lowers a pin here).
@@ -89,7 +93,7 @@ ALLOWED: dict[str, dict[str, int]] = {
     "mining_loadout": {"wear-exit": 2},
     "policy": {"search-reset-call": 2, "target-store-call": 5, "wear-exit": 5},
     "policy_calibration": {"search-reset-call": 3},
-    "policy_equipment": {"search-reset-call": 1, "target-store-call": 6, "wear-exit": 11},
+    "policy_equipment": {"search-reset-call": 1, "target-store-call": 8, "wear-exit": 11},
     "policy_fundraising": {"wear-exit": 1},
     "policy_identification": {"target-store-call": 1},
     "policy_observation": {"target-store-call": 1},

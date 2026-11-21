@@ -872,6 +872,57 @@ def _effective_intrinsic_abilities(
     return stored
 
 
+def optimization_blockers(
+    snapshot: Snapshot,
+    items: tuple[OwnedEquipment, ...],
+    knowledge: Mapping[int, MonraceKnowledge],
+    *,
+    home_scan_complete: bool,
+    calibration: CharacterCalibration | None,
+) -> tuple[str, ...]:
+    """Why the loadout search cannot run on this board (``()``: it can).
+
+    ``prepare_warrior_optimization`` returns these as its blockers before it searches; the
+    visit's fixed target (policy_equipment, equipment review E3) reads the same ones, so a
+    board the search would refuse is refused with the target held, too.
+    """
+    blockers: list[str] = []
+    player = snapshot.player
+    if player.class_id not in EQUIPMENT_CLASS_PROFILES:
+        blockers.append("unsupported-class")
+    # Protocol 3 prints no raw stat_cur; the printed natural max stands in.
+    natural = player.stat_cur if player.stat_cur is not None else player.stat_max
+    if len(natural) < 4 or natural[0] <= 0 or natural[3] <= 0:
+        blockers.append("missing-natural-stats")
+    if not skill_exp_known(player):
+        # Protocol 3: the ~f skill list has not been read yet.
+        blockers.append("skill-exp-unknown")
+    if not knowledge:
+        blockers.append("missing-monrace-knowledge")
+    if not home_scan_complete:
+        blockers.append("home-scan-incomplete")
+    if calibration is None:
+        # P1: the worn-independent constants are a MANDATORY input of the
+        # selector.  There is deliberately no fallback derivation from the
+        # geared snapshot — that reconstruction (per-call modify_stat_value
+        # inversion, ADJ_DEX_TO_AC subtraction of the worn set) is the measured
+        # impurity this stage removes, so its absence fails closed here at the
+        # selector boundary, not just in the policy wrapper.
+        blockers.append("calibration-required")
+    else:
+        pinned_identities = tuple(
+            sorted(
+                (item.equipped_slot or "", equipment_identity(item.item))
+                for item in items
+                if item.origin == "equipped" and item.item.is_cursed
+            )
+        )
+        stale = calibration.stale_reason(player, pinned_identities)
+        if stale is not None:
+            blockers.append(f"calibration-stale:{stale}")
+    return tuple(blockers)
+
+
 def prepare_warrior_optimization(
     snapshot: Snapshot,
     items: tuple[OwnedEquipment, ...],
@@ -920,47 +971,17 @@ def prepare_warrior_optimization(
     the destination's monsters are read past it.
     """
     current = current_loadout(items)
-    blockers: list[str] = []
     player = snapshot.player
-    if player.class_id not in EQUIPMENT_CLASS_PROFILES:
-        blockers.append("unsupported-class")
-    # Protocol 3 prints no raw stat_cur; the printed natural max stands in.
-    natural = player.stat_cur if player.stat_cur is not None else player.stat_max
-    if len(natural) < 4 or natural[0] <= 0 or natural[3] <= 0:
-        blockers.append("missing-natural-stats")
-    if not skill_exp_known(player):
-        # Protocol 3: the ~f skill list has not been read yet.
-        blockers.append("skill-exp-unknown")
-    if not knowledge:
-        blockers.append("missing-monrace-knowledge")
-    if not home_scan_complete:
-        blockers.append("home-scan-incomplete")
+    blockers = optimization_blockers(
+        snapshot, items, knowledge, home_scan_complete=home_scan_complete,
+        calibration=calibration)
     # The banned pieces (equipment_rules.LOADOUT_BANNED_FLAGS: owner 2026-11-21 「99F 100Fでも
     # 宵闇のローブは禁止」) are in no loadout, ordinary or the finale's, at any depth; out of the
     # search, a worn one is taken off by the next town's swap (n1-b life-411 2026-11-21 wore one
     # on 95F).
     search_excluded_item_ids = search_excluded_item_ids | equipment_rules.loadout_banned_item_ids(items)
-    if calibration is None:
-        # P1: the worn-independent constants are a MANDATORY input of the
-        # selector.  There is deliberately no fallback derivation from the
-        # geared snapshot — that reconstruction (per-call modify_stat_value
-        # inversion, ADJ_DEX_TO_AC subtraction of the worn set) is the measured
-        # impurity this stage removes, so its absence fails closed here at the
-        # selector boundary, not just in the policy wrapper.
-        blockers.append("calibration-required")
-    else:
-        pinned_identities = tuple(
-            sorted(
-                (item.equipped_slot or "", equipment_identity(item.item))
-                for item in items
-                if item.origin == "equipped" and item.item.is_cursed
-            )
-        )
-        stale = calibration.stale_reason(player, pinned_identities)
-        if stale is not None:
-            blockers.append(f"calibration-stale:{stale}")
     if blockers:
-        return WarriorOptimizationPreparation(current, None, None, tuple(blockers))
+        return WarriorOptimizationPreparation(current, None, None, blockers)
 
     encounter_depth = (
         depth if depth is not None

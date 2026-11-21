@@ -6,6 +6,7 @@ from hengbot import reasons, torch_release
 from hengbot.town_visit_plan import CYCLE_BREAK_REASON, STAGE_DEADLINE_STOP_PREFIX
 from hengbot.approach_answer import WAIT_STOP_PREFIX as APPROACH_WAIT_STOP_PREFIX
 from hengbot.equipment_visit_journal import STOP_PREFIX as EQUIPMENT_FLIPFLOP_STOP_PREFIX
+from hengbot.equipment_visit_journal import BANNED_STUCK_PREFIX as BANNED_GEAR_STUCK_STOP_PREFIX
 from hengbot.model import (
     Position, SV_SCROLL_TELEPORT, TVAL_ARROW, TVAL_BOLT, TVAL_SHOT,
     STORE_ALCHEMIST,
@@ -427,7 +428,8 @@ OWNER_RETIRED_BURST_AFTER_PREFIX = 'town:blocked:owner-retired-burst:after:'
 # equipment_visit_journal), named after the slot.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
                               OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX,
-                              APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX)
+                              APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX,
+                              BANNED_GEAR_STUCK_STOP_PREFIX)
 
 TUNNEL_KEY = "T"
 

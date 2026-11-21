@@ -53,6 +53,10 @@ ROTATE_BYTES = 16 * 1024 ** 2
 GENERATIONS = 3
 VISIT_ROWS = 160          # rows of the visit kept in memory for the stop capture (the newest)
 STOP_PREFIX = "town:blocked:equipment-slot-flipflop:"
+# Owner Q7 2026-11-22 「外せない時は名指しで止める」 (stage E3): a worn banned piece (equipment_rules,
+# the twilight robe) that cannot come off while the loadout search cannot run (policy_equipment
+# ``_banned_gear_stuck_stop``).  A policy final stop like the round trip's.
+BANNED_STUCK_PREFIX = "town:blocked:banned-gear-stuck:"
 FLIPFLOP_EVENT = "equipment-slot-flipflop"
 REWEAR_EVENT = "equipment-rewear"
 # Owner 2026-11-22 「往復が起きたら停止して直す」: the round trip is a named stop.  False turns it
@@ -195,15 +199,29 @@ def signature_changes(previous, current) -> tuple[list[str], dict]:
     return changed, detail
 
 
-def note_search(policy: Any, snapshot: Any, previous, current, previous_target, target) -> None:
-    """A loadout search ran and its result was stored: why (the signature's changed fields)."""
+def note_search(policy: Any, snapshot: Any, previous, current, previous_target, target,
+                events=()) -> None:
+    """A loadout search ran and its result was stored: why (the signature's changed fields, and
+    the named event that let the visit decide again: equipment_target.REDECIDE_EVENTS, or
+    ``visit-start``)."""
     state = journal(policy)
     state["searches"] = state.get("searches", 0) + 1
     changed, detail = signature_changes(previous, current)
     _journal_row(policy, snapshot, "search", changed=changed, detail=detail,
+            events=list(events),
             target_added=sorted(map(str, set(target) - set(previous_target)))[:10],
             target_removed=sorted(map(str, set(previous_target) - set(target)))[:10],
             trigger_reason=getattr(policy, "last_reason", None))
+
+
+def note_held(policy: Any, snapshot: Any, previous, current) -> None:
+    """The signature changed but no named event did: the visit's target was read again (stage
+    E3), no search ran.  The changed fields say what would have searched before E3."""
+    state = journal(policy)
+    state["held"] = state.get("held", 0) + 1
+    changed, detail = signature_changes(previous, current)
+    _journal_row(policy, snapshot, "held", changed=changed, detail=detail,
+                 trigger_reason=getattr(policy, "last_reason", None))
 
 
 def _worn_by_slot(snapshot: Any) -> dict:
@@ -267,10 +285,16 @@ def held_stop(policy: Any, snapshot: Any) -> str | None:
 
 
 def is_stop(reason: str | None) -> bool:
-    return bool(reason) and reason.startswith(STOP_PREFIX)
+    """The equipment's named final stops: the slot round trip and the stuck banned piece."""
+    return bool(reason) and reason.startswith((STOP_PREFIX, BANNED_STUCK_PREFIX))
 
 
 def stop_message(reason: str) -> str:
+    if reason.startswith(BANNED_STUCK_PREFIX):
+        return (f"<{reason}> a worn banned piece (equipment_rules, the twilight robe) in the slot "
+                f"{reason[len(BANNED_STUCK_PREFIX):]} cannot be taken off (cursed) while the "
+                "loadout search cannot run (no calibration; owner 2026-11-22 Q7 「外せない時は"
+                "名指しで止める」); stopping the bot for investigation")
     return (f"<{reason}> the slot {reason[len(STOP_PREFIX):]} was worn A, B, A in one town visit "
             "(owner 2026-11-22 「往復が起きたら停止して直す」); the visit's searches and wears "
             "are in equipment-visit.jsonl and the capture's _equipment_visit_journal; "
