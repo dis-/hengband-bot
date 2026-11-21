@@ -51,6 +51,7 @@ from hengbot.equipment_optimizer import (
     SLOT_SUB_RING,
     TR_TELEPORT,
     Loadout,
+    OwnedEquipment,
     OwnedEquipmentCatalog,
     current_loadout,
     divable_depth,
@@ -1411,6 +1412,32 @@ class EquipmentMixin:
         # The owner's equipment rules (equipment_rules.RULES_VERSION): a search memo restored from
         # before a rule change is stale.
         signature += (("equipment-rules", equipment_rules.RULES_VERSION),)
+        # The search's inputs, read by the fresh search below and by the read-only shelf
+        # evaluation (``_shelf_candidate_worn``, equipment review E4b) of this decision.
+        optimizer_inputs = dict(
+            depth=optimization_depth,
+            home_scan_complete=self._equipment_catalog.home_scan_complete,
+            # The 50F+ gate (_optimizer_destruction_means): the absorbed power,
+            # or an owned staff in a loadout whose device skill makes it reliable.
+            # A hard-coded False here rejected EVERY 50F+ loadout and blocked
+            # departure even when the character already carried the means.
+            has_destruction=has_destruction,
+            staff_gate=staff_gate,
+            preserve_pack_item_ids=preserve,
+            search_excluded_item_ids=search_excluded,
+            identification_exempt_item_ids=identification_exempt,
+            loadout_report_path=self._loadout_report_path,
+            evaluator_cache=self._warrior_evaluator_cache,
+            calibration=calibration,
+            obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
+            curse_pinned_item_ids=curse_pinned,
+            magic_eater_powers=me_powers,
+            destination_floor=destination_floor,
+        )
+        self._equipment_shelf_search = (
+            self._decision_sequence, snapshot, signature, search_catalog,
+            {**optimizer_inputs, "loadout_report_path": None},
+            self._angband_finale_order(), angband_finale.lifted(self))
         if (
             signature == equipment_target.loadout_search_signature(self)
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
@@ -1680,27 +1707,8 @@ class EquipmentMixin:
         else:
             # Score safe partial-ID candidates as they will exist after `{.}` is
             # applied. If one wins, the pending blocker below prevents transaction
-            # creation until the town suppression step has changed the real item.
-            optimizer_inputs = dict(
-                depth=optimization_depth,
-                home_scan_complete=self._equipment_catalog.home_scan_complete,
-                # The 50F+ gate (_optimizer_destruction_means): the absorbed power,
-                # or an owned staff in a loadout whose device skill makes it reliable.
-                # A hard-coded False here rejected EVERY 50F+ loadout and blocked
-                # departure even when the character already carried the means.
-                has_destruction=has_destruction,
-                staff_gate=staff_gate,
-                preserve_pack_item_ids=preserve,
-                search_excluded_item_ids=search_excluded,
-                identification_exempt_item_ids=identification_exempt,
-                loadout_report_path=self._loadout_report_path,
-                evaluator_cache=self._warrior_evaluator_cache,
-                calibration=calibration,
-                obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
-                curse_pinned_item_ids=curse_pinned,
-                magic_eater_powers=me_powers,
-                destination_floor=destination_floor,
-            )
+            # creation until the town suppression step has changed the real item
+            # (``optimizer_inputs``: built above, before the search memo's check).
             # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's loadout order only on
             # the visit that switches to 99F/100F (angband_finale ``switching``).
             preparation = prepare_warrior_optimization(
@@ -3456,6 +3464,53 @@ class EquipmentMixin:
         return False, destruction_means.staff_gate(
             snapshot.player, current_loadout(catalog), stats[device_skill.INT],
             adjustments[device_skill.INT])
+
+    def _shelf_candidate_worn(self, snapshot: Snapshot, row) -> bool:
+        """Whether the gear search, with the shelf ``row`` added to the owned set, wears it.
+
+        Owner 2026-11-22 on the E4 report's question 1 (verbatim): 「組全体の評価で比べる」 -- a shop
+        item is an upgrade over the owned gear when the whole loadout's evaluation improves with
+        it, any slot against any slot.  The same search (this decision's inputs, stashed by
+        ``_prepare_equipment_optimization``) runs read-only over the owned catalogue plus the row
+        as a carried piece: no report, no transaction, the visit's target and the search memo
+        untouched (equipment review E3: evaluating a shelf piece decides nothing again; buying
+        it is the ``candidate-gained`` event).  The row is an upgrade when the chosen loadout
+        wears it (the search prefers a set holding it over every set without it).  False before
+        the visit has decided its target (the evaluation never makes the visit's first search)
+        and when the search cannot run this decision (no stash, a timeout, no result).  The verdict is
+        kept per visit, owned set and row."""
+        if equipment_target.visit_target(self, self._town_visit_epoch) is None:
+            # The visit has not decided its target: the shelf evaluation never makes that
+            # first search (the owned piece stands meanwhile).
+            return False
+        if getattr(self, "_equipment_shelf_search", None) is None or (
+                self._equipment_shelf_search[0] != self._decision_sequence):
+            # The visit's target is held (E3): this reads it again, it does not search.
+            self._prepare_equipment_optimization(snapshot)
+        stash = getattr(self, "_equipment_shelf_search", None)
+        if stash is None or stash[0] != self._decision_sequence:
+            return False
+        # The board the inputs were read on (the decision's, its skill list adopted).
+        _sequence, board, signature, catalog, inputs, finale, cap_lifted = stash
+        identity = (row.name, row.tval, row.sval, row.to_h, row.to_d, row.to_a,
+                    tuple(sorted(row.known_flags)), row.pval)
+        key = (self._town_visit_epoch, signature, identity)
+        verdicts = vars(self).setdefault("_ability_gear_shelf_verdicts", {})
+        for stale in [held for held in verdicts if held[0] != self._town_visit_epoch]:
+            del verdicts[stale]  # the visit's verdicts only
+        if key in verdicts:
+            return verdicts[key]
+        candidate = OwnedEquipment(
+            f"shelf:{row.letter}", row, "pack",
+            random_teleport_suppressed=random_teleport_is_suppressed(row),
+            average_feeling_trusted=self._equipment_catalog.average_feeling_trusted)
+        preparation = prepare_warrior_optimization(
+            board, (*catalog, candidate), self._monrace_knowledge, **inputs,
+            finale=finale, cap_lifted=cap_lifted)
+        best = getattr(getattr(preparation, "result", None), "best", None)
+        worn = bool(best is not None and candidate.id in best.loadout.item_ids)
+        verdicts[key] = worn
+        return worn
 
     def _equipment_departure_destination_depth(self, snapshot: Snapshot) -> int:
         """Use the planned departure's landing, not the optimizer's ceiling."""

@@ -332,13 +332,6 @@ def _at_most(item: Any, other: Any) -> bool:
     return other.weight <= item.weight
 
 
-def outdone_by(item: Any, other: Any) -> bool:
-    """``other`` is at least as good as ``item`` on every axis the equipment evaluation reads
-    (``_at_most``) and better on one: an upgrade of the same slot kind (ability_gear, owner Q5 of
-    the equipment review 2026-11-22 「店の品が装備の評価で上なら買い替えとして買ってよい」)."""
-    return _at_most(item, other) and not _at_most(other, item)
-
-
 def _dominance_piece(snapshot: Any, piece: Any) -> bool:
     """A piece the dominance compares: of a ``DOMINANCE_SLOTS`` kind, known whole
     (``_flags_complete``), uncursed, and not jewelry the character's own race already gives
