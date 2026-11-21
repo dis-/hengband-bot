@@ -400,7 +400,12 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     catalog = OwnedEquipmentCatalog()
     catalog.refresh_carried((), snapshot.equipment)
     worn = current_loadout(catalog.items)
-    if worn.flags & {134, 141}:
+    # LOW_AC's magnitude is not in the telemetry.  A worn NO_AC (宵闇のローブ) zeroes the whole AC
+    # (player-status.cpp calc_base_ac / calc_to_ac), so the constant beyond the gear cannot be read
+    # and is taken as 0 below; refusing the sheet instead left no calibration, so no loadout search
+    # and no swap could take the piece off (n1-b life-411 2026-11-21 05:51-12:41, owner 「AC0では
+    # 打撃を受けると即死抽選がある。優先対処。」).
+    if 134 in worn.flags:
         raise CharacterSheetUnavailable("unsupported-ac-interaction")
     # A complete AC set adds a flat AC the loadout model does not carry; the
     # constant derived below would absorb it.  One piece alone has no effect.
@@ -453,7 +458,8 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     defense = WarriorDefenseInputs(player.level, natural[3], shield_skill=player.shield_skill,
                                    intrinsic_dex=adjustments[3])
     try:
-        armor_constant = player.ac - ac_bonus - loadout_armor_class(worn, defense)
+        armor_constant = (0 if 141 in worn.flags
+                          else player.ac - ac_bonus - loadout_armor_class(worn, defense))
     except ValueError as exc:
         raise CharacterSheetUnavailable("unsupported-ac-interaction") from exc
     flags = character_intrinsic_flags(character["characteristics"])

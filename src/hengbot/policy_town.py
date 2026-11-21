@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_identity import same_memory
-from hengbot import finale_prep, finale_teleport_tour
+from hengbot import finale_prep, finale_teleport_tour, no_ac_recall
 from hengbot import angband_finale
 from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
@@ -44,6 +44,7 @@ from hengbot.town_hold import GOAL_REACH as CLAIM_GOAL_REACH
 CLAIM_UPSTAIRS_TARGET_KEY = "claim:return:upstairs-target"
 # A blind latched return rests until it sees (owner 2026-11-07).
 RETURN_WAIT_SIGHT_REASON = "return:wait-sight"
+NO_AC_DEPARTURE_REASON = "town:blocked:no-ac-worn"  # a worn NO_AC piece holds the departure (2026-11-21)
 _town_store_position_indices = WeakKeyDictionary()
 # The grids mapping and emitted window the retained town facts were last
 # refreshed from (decision caches only; held outside checkpointed state).
@@ -7725,6 +7726,16 @@ class TownMixin:
                     # The 99F/100F preparation phase short of its recall step: the town has
                     # nothing left to do for that step, so it stops and the 95F read goes on.
                     finale_prep.departure_reached(self, snapshot)
+                    # Owner 2026-11-21 「AC0では打撃を受けると即死抽選がある。優先対処。」: no departure
+                    # in a worn NO_AC piece (宵闇のローブ); the loadout search leaves it out, so the
+                    # town's swap takes it off first (n1-b life-411 2026-11-21 12:41 left in it).
+                    if no_ac_recall.worn(snapshot):
+                        self.last_reason = NO_AC_DEPARTURE_REASON
+                        self._offer_execution(
+                            WAIT_KEY, producer="departure", work_id="town:no-ac-worn",
+                            next_step="recall.wait-for-no-ac-swap",
+                            expected_effect="no-ac-piece-taken-off")
+                        return WAIT_KEY
                     selection = self._recall_selection_key(
                         snapshot, recall_dungeon_id
                     )
