@@ -1,6 +1,7 @@
 from __future__ import annotations
 from hengbot import angband_finale, finale_prep
 from hengbot import approach_answer, destination_band_floor, home_pass_charge, launcher_upgrade, spare_gear
+from hengbot import equipment_visit_journal
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
@@ -1780,6 +1781,7 @@ class EquipmentMixin:
                 transaction=None,
                 blockers=("equipment-transaction-failed",),
             )
+        previous_signature = self._equipment_optimization_signature
         self._equipment_optimization_signature = signature
         self._equipment_optimization_pack_items = len(snapshot.inventory)
         self._equipment_optimization_preparation = preparation
@@ -1809,6 +1811,10 @@ class EquipmentMixin:
             "trigger_reason": self.last_reason,
         }
         self._equipment_fresh_search_target_ids = current_target_ids
+        # Equipment review 2026-11-22 E0: the visit's record of why the search ran.
+        equipment_visit_journal.note_search(
+            self, snapshot, previous_signature, signature,
+            previous_target_ids, current_target_ids)
         self._offer_optimizer_result(preparation, source="fresh-search")
         return preparation
 
@@ -4543,6 +4549,8 @@ class EquipmentMixin:
         self._equipment_mutation_result = result
         if result.key is not None:
             self._equipment_mutation.bind_post_snapshot(snapshot)
+            equipment_visit_journal.note_prepared(
+                self, snapshot, "wield", target_slot, item, goal, result.key)
         elif result.report is not None:
             self.last_reason = result.report
             self._pending_mutation_report = result.report
@@ -4572,6 +4580,10 @@ class EquipmentMixin:
         self._equipment_mutation_result = result
         if result.key is not None:
             self._equipment_mutation.bind_post_snapshot(snapshot)
+            equipment_visit_journal.note_prepared(
+                self, snapshot, "takeoff",
+                next((slot for slot, key in EQUIPMENT_SLOT_KEY.items() if key == slot_key), None),
+                item, goal, result.key)
         elif result.report is not None:
             self.last_reason = result.report
             self._pending_mutation_report = result.report

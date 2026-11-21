@@ -23007,5 +23007,27 @@
     "delegation": "selected child; no independent success",
     "context": "Dungeon only: while Recall counts down (threat_tiers.acts_here: never in town or a store).",
     "evidence": "Returns destruction_use.key or the Teleportation read of _issue_emergency_consumable on an unseen hit of a third of the maximum HP (owner 2026-11-21 「破壊が使えるなら破壊を優先。なければテレポート。」); no town command."
+  },
+  "equipment_visit_journal.py:held_stop": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure board read (owner 2026-11-22 「往復が起きたら停止して直す」): names the slot round-trip final stop (town:blocked:equipment-slot-flipflop:<slot>) while the A, B, A worn state stands in the visit; _choose_key returns no key under it and the driver stops; no command"
+  },
+  "equipment_visit_journal.py:_writer": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the module:function:line of the caller of the wear/take-off exit, a journal field; no key."
   }
 }

@@ -20,7 +20,7 @@ from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import resist_alternatives, summoner_wait
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_sweep_record, quest_find_exit, quest_force_rows, quest_no_teleport, finale_prep, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
-from hengbot import amberite_curse, curse_cure, home_cap, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
+from hengbot import amberite_curse, curse_cure, equipment_visit_journal, home_cap, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
 
 from collections import Counter, deque
 import random
@@ -2290,6 +2290,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._home_entry_capture = None
         self._departure_block: dict[str, object] = {}
         self._loadout_report_path = None
+        # The town visit's equipment journal and its file (equipment_visit_journal, review 11-22 E0).
+        self._equipment_visit_journal: dict | None = None
+        self._equipment_journal_path: Path | None = None
         self._fundraising_mode: str | None = None
         self._scavenge_run_start_turn: int | None = None
         self._fundraising_run_purpose: FundraisingPurpose | None = None
@@ -2744,6 +2747,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         tunnel_feasibility.observe(self, snapshot)
         # Two owners stepping opposite ways in turn (owner 2026-11-13 「1と2だけ」, part 2).
         pingpong_guard.observe(self, snapshot)
+        # The town visit's worn gear per slot: re-wears and a slot's A, B, A (equipment_visit_journal,
+        # owner 2026-11-22 「決まりは足さず、着け直しを記録。往復が起きたら停止して直す。」).
+        equipment_visit_journal.observe(self, snapshot)
         # The Q25 phase battle the previous process left on this floor visit.
         quest25_battle_record.observe(self, snapshot)
         # The room sweep's kills the previous process read on this floor (quest_sweep_record).
@@ -2933,6 +2939,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # the refused cell unasked (n1-c life-200, Q25 2026-11-12 12:03).
             if key is None and self._warning_prompt_stops_decision:
                 key = None
+                break
+            # The slot round trip's named stop (equipment_visit_journal) sends nothing; no
+            # rewrite below may turn it into a key or read the missing key.
+            if key is None and equipment_visit_journal.is_stop(self.last_reason):
                 break
             if (
                 key
@@ -4898,6 +4908,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._pending_mutation_report = released or discarded
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         self._observe_town_equipment_work(snapshot)
+        # A slot worn A, B, A in this town visit is a final stop by name; nothing is sent
+        # (equipment_visit_journal; owner 2026-11-22 「往復が起きたら停止して直す」).
+        flipflop = equipment_visit_journal.held_stop(self, snapshot)
+        if flipflop is not None:
+            self.last_reason = flipflop
+            return None
         light_halt = torch_release.light_halt(self, snapshot)
         if light_halt is not None:
             # Owner 2026-11-13: the crossbow light stops are final, nothing is sent
@@ -10214,6 +10230,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._quest_strategy_recovery_pickup_prepared = None
             self._quest_strategy_recovery_pickup_prepared_key = None
         mutation_committed = self._equipment_mutation.confirm_posted(key)
+        if mutation_committed:
+            equipment_visit_journal.note_posted(self, key)
         pending_mutation_commit = self._equipment_mutation_post_commit
         if (
             mutation_committed

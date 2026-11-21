@@ -237,6 +237,9 @@ def policy_state(policy, snapshot=None) -> dict[str, Any]:
         # list is included because its omission prevented the 2026-09-11
         # equip/takeoff loop from being pinned from the incident capture.
         "_equipment_transaction_owned_items",
+        # The town visit's loadout searches, wears and take-offs, and a slot's round trip
+        # (equipment_visit_journal, owner 2026-11-22 「往復が起きたら停止して直す」).
+        "_equipment_visit_journal",
         # The errand plan includes its per-visit completion/block ledgers.  Its
         # omission prevented the 2026-09-11 boxed-breakout stall from being
         # pinned from the incident capture.
