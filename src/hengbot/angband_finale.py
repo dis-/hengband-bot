@@ -454,7 +454,12 @@ def stone_to_mud_wanted(policy, snapshot, row) -> bool:
 
 
 def black_market_wanted(policy, snapshot, item) -> bool:
-    """A Black Market *Healing* toward the carry (the table buys none otherwise)."""
+    """A Black Market *Healing* toward the carry (the table buys none otherwise), or a Scroll of
+    Reset Recall while Angband's recall depth is refused and none is carried (reset_recall, owner
+    2026-11-21 「闇市に並んだフロア・リセットの巻物があれば使って95Fに戻す」)."""
+    from hengbot import reset_recall  # import cycle
+    if reset_recall.is_reset_recall(item):
+        return reset_recall.wanted(policy, snapshot) and reset_recall.carried(snapshot) is None
     return _kind(item) == STAR_HEALING and shortage(policy, snapshot, STAR_HEALING) > 0
 
 

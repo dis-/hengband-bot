@@ -231,6 +231,9 @@ _rows(WALK, "quest_summon_answer", "a walk out of the summoner's lines (owner 20
       "quest-strategy:summoned-disengage-walk")
 # Owner 2026-11-19 「安全になったら休息してから召還主や召還されたモンスターを少しずつ釣りだして数を減らす」:
 # the walk to the pulling cell of a member of the group, and the rest before it.
+_rows(NOT_ESCAPE, "reset_recall", "a town read of the Scroll of Reset Recall that sets Angband's "
+      "recall depth to 95F (owner 2026-11-21 「フロア・リセットの巻物があれば使って95Fに戻す」): no "
+      "Word of Recall, no leave of a floor", "reset-recall:read", "reset-recall:close-store")
 _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's lure after a disengage: a step toward the monsters",
       "quest-strategy:summoned-lure-walk", "quest-strategy:summoned-rest")
 # Owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」: the step toward the summoner gone after.

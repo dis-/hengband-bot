@@ -4259,7 +4259,8 @@ class ShopMixin(InStoreMixin):
         elif heroism_potion.is_heroism(item):
             needed = heroism_potion.carry_shortage(snapshot)
         elif angband_finale.black_market_wanted(self, snapshot, item):
-            needed = angband_finale.shortage(self, snapshot, angband_finale.STAR_HEALING)
+            needed = (angband_finale.shortage(self, snapshot, angband_finale.STAR_HEALING)
+                      if (item.tval, item.sval) == angband_finale.STAR_HEALING else 1)
         else:
             needed = 1
         needed = max(needed, quest_needed)
