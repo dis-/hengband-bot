@@ -59,6 +59,12 @@ def rocket_damage(policy: Any, snapshot: Any, race_id: int) -> float:
     return expected_damage(powered(POWERS[ROCKET]), snapshot.player.level, flags)
 
 
+# Owner 2026-11-21 (verbatim, LOCKED) 「100Fに持っていく魔力復活の薬の量を想定の倍にして」 and
+# 「99Fも想定の倍で」: the expeditions own and carry twice the computed target; the computed target
+# stays "the plan" of 「魔力復活の薬を予定の倍以上使ったとき」 (angband_finale restore_mana_overspent).
+CARRY_FACTOR = 2
+
+
 def plan(policy: Any, snapshot: Any) -> dict | None:
     """The collection target and its figures for a Magic-Eater, else None."""
     if snapshot.player.class_id != me_capability.PLAYER_CLASS_MAGIC_EATER:
@@ -75,6 +81,7 @@ def plan(policy: Any, snapshot: Any) -> dict | None:
     return {"rockets": count, "target_hp": hp, "needed_damage": needed,
             "rocket_damage": damage, "uses_per_potion": uses,
             "damage_per_potion": per_potion, "target": target,
+            "carry": None if target is None else CARRY_FACTOR * target,
             "held": held(policy, snapshot)}
 
 
@@ -92,4 +99,4 @@ def wanted(policy: Any, snapshot: Any) -> bool:
     figures = plan(policy, snapshot)
     if figures is None:
         return False
-    return figures["target"] is None or figures["held"] < figures["target"]
+    return figures["target"] is None or figures["held"] < figures["carry"]

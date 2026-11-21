@@ -14,13 +14,13 @@ tests/test_angband_finale_battle_1120_recorded.py.)
 Recorded: n1-b life-411's town arrival of 2026-11-20 03:32:34 (tests/fixtures/
 n1b-411-home-closed-pending-1120): Lv50 Magic-Eater, Angband recall depth 95, speed 135, carrying
 9 Healing, 9 Resistance, 15 Teleportation, no *Healing* and no Restore Mana; its Home census holds
-207 Healing, 359 Resistance and one Restore Mana (target 25); Stone to Mud absorbed 99; weight 2136
+207 Healing, 359 Resistance and one Restore Mana (target 25, carried twice: 50, owner 2026-11-21 「想定の倍」); Stone to Mud absorbed 99; weight 2136
 over its limit 1950; telepathy, resist curse, resist blindness and light worn.  Its Black Market
 page is row 80.  The dungeon boards are n1-b's recorded Angband 99F arrival
 (tests/fixtures/n1b-411-angband-cap-1119).
 
 DECLARED CONSTRUCTED:
-* ``home_stocked``: the Home census with a *Healing* (15), a Restore Mana (25) and a Teleportation
+* ``home_stocked``: the Home census with a *Healing* (15), a Restore Mana (50, twice the target 25) and a Teleportation
   (25) stack added (copies of a recorded potion row);
 * ``pack_stocked``: the recorded town board with the carried stacks set to the finale's counts
   (the recorded Healing, Resistance and Teleportation stacks raised, a *Healing* and a Restore Mana
@@ -61,7 +61,7 @@ FLOOR_FIXTURE = Path(__file__).with_name("fixtures") / "n1b-411-angband-cap-1119
 BLACK_MARKET_ROW = 80
 HEALING, STAR = (TVAL_POTION, SV_POTION_HEALING), (TVAL_POTION, SV_POTION_STAR_HEALING)
 MANA, TELEPORT = (TVAL_POTION, SV_POTION_RESTORE_MANA), (TVAL_SCROLL, SV_SCROLL_TELEPORT)
-COUNTS = {HEALING: 30, STAR: 15, (TVAL_POTION, SV_POTION_RESISTANCE): 20, TELEPORT: 40, MANA: 25}
+COUNTS = {HEALING: 30, STAR: 15, (TVAL_POTION, SV_POTION_RESISTANCE): 20, TELEPORT: 40, MANA: 50}
 TR_RES_CURSE = 148
 
 
@@ -91,7 +91,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         policy._home_knowledge_items = (
             *policy._home_knowledge_items,
             replace(potion, sval=SV_POTION_STAR_HEALING, count=15, name="*体力回復*の薬"),
-            replace(potion, sval=SV_POTION_RESTORE_MANA, count=25, name="魔力復活の薬"),
+            replace(potion, sval=SV_POTION_RESTORE_MANA, count=50, name="魔力復活の薬"),
             replace(potion, tval=TVAL_SCROLL, sval=SV_SCROLL_TELEPORT, count=25, name="テレポートの巻物"))
 
     def pack_stocked(self, board=None):
@@ -100,7 +100,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         pack = [replace(item, count=COUNTS[(item.tval, item.sval)])
                 if (item.tval, item.sval) in COUNTS else item for item in board.inventory]
         pack.append(replace(healing, slot="x", sval=SV_POTION_STAR_HEALING, count=15, name="*体力回復*の薬"))
-        pack.append(replace(healing, slot="y", sval=SV_POTION_RESTORE_MANA, count=25, name="魔力復活の薬"))
+        pack.append(replace(healing, slot="y", sval=SV_POTION_RESTORE_MANA, count=50, name="魔力復活の薬"))
         return replace(board, inventory=pack)
 
     def without(self, board, names):
@@ -303,7 +303,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
         self.assertEqual(policy._carry_strategy_potion_target(board, healing),
                          (30, angband_finale.RETENTION_BRANCH))
         mana = replace(healing, sval=SV_POTION_RESTORE_MANA, count=1)
-        self.assertEqual(policy._carry_strategy_potion_target(board, mana)[0], 25)
+        self.assertEqual(policy._carry_strategy_potion_target(board, mana)[0], 50)
         self.assertTrue(consumable_policy.carry_required(policy, board, star))
         self.assertTrue(consumable_policy.carry_required(policy, board, mana))
         self.assertEqual(policy._procurement_missing_amount(board, pack[TELEPORT]), 25)

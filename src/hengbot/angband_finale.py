@@ -196,9 +196,16 @@ def preparing(snapshot) -> bool:
 
 
 def restore_mana_goal(policy, snapshot) -> int | None:
-    """restore_mana_target's computed target (None until a rocket is absorbed)."""
+    """restore_mana_target's computed target, "the plan" (None until a rocket is absorbed)."""
     figures = restore_mana_target.plan(policy, snapshot)
     return None if figures is None else figures["target"]
+
+
+def restore_mana_carry(policy, snapshot) -> int | None:
+    """What the expeditions own and carry: twice the plan (restore_mana_target.CARRY_FACTOR,
+    owner 2026-11-21 「想定の倍にして」「99Fも想定の倍で」)."""
+    figures = restore_mana_target.plan(policy, snapshot)
+    return None if figures is None else figures["carry"]
 
 
 def _row(measured: int, required: int | None) -> dict:
@@ -210,7 +217,7 @@ def supply_rows(policy, snapshot, count) -> dict:
     """The supplies counted by ``count`` (``carried`` or ``owned``) and the absorbed Stone to
     Mud (owner 2026-11-20 Q7), each ``{measured, required, ready}``."""
     from hengbot import me_capability
-    rows = {SUPPLY_NAMES[RESTORE_MANA]: _row(count(RESTORE_MANA), restore_mana_goal(policy, snapshot))}
+    rows = {SUPPLY_NAMES[RESTORE_MANA]: _row(count(RESTORE_MANA), restore_mana_carry(policy, snapshot))}
     for kind, target in CARRY.items():
         rows[SUPPLY_NAMES[kind]] = _row(count(kind), target)
     rows["stone_to_mud"] = _row(me_capability.count(policy, snapshot, *STONE_TO_MUD),
@@ -384,7 +391,7 @@ def carry_target(policy, snapshot, item) -> int | None:
         return None
     kind = _kind(item)
     if kind == RESTORE_MANA:
-        return restore_mana_goal(policy, snapshot)
+        return restore_mana_carry(policy, snapshot)
     if kind == RESTORING:
         return RESTORING_CARRY
     return CARRY.get(kind)
@@ -395,7 +402,7 @@ def shortage(policy, snapshot, kind) -> int:
     the character prepares."""
     if not preparing(snapshot):
         return 0
-    target = restore_mana_goal(policy, snapshot) if kind == RESTORE_MANA else CARRY.get(kind)
+    target = restore_mana_carry(policy, snapshot) if kind == RESTORE_MANA else CARRY.get(kind)
     return max(0, (target or 0) - owned(policy, snapshot, kind))
 
 
