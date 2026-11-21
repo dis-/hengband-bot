@@ -35,10 +35,12 @@ And (2026-11-20, verbatim) 「ターゲットとターゲット以外が同時�
 離脱する。」 (``crowded``).
 
 The per-board order (``key``), the first that answers wins:
- 1. the recall: on success (the floor's quest no longer TAKEN) or with twice the Restore Mana
-    target used (angband_finale ``restore_mana_overspent``), and nowhere else;
+ 1. the recall: on success (the floor's quest no longer TAKEN), with twice the Restore Mana
+    target used (angband_finale ``restore_mana_overspent``), or with no Teleportation left
+    (``teleports_out``: no scroll, no absorbed Staff of Teleportation charge; owner 2026-11-21),
+    and nowhere else;
  2. *Healing* below 400 HP after a hit;
- 3. the Teleportation scroll: on a summon, below 800 HP after a hit, the target within
+ 3. the Teleportation scroll (none left: the absorbed Staff of Teleportation): on a summon, below 800 HP after a hit, the target within
     distance 2, or the target and another monster both in the line of fire (``crowded``); the
     next boards recover (``RECOVER``);
  4. the arrival sweep (``SWEEP``): *Destruction* over the whole floor, the target allowed: cast on
@@ -82,6 +84,10 @@ HEAL_REASON = f"{REASON}:healing"
 # on the open prompt (stuck-prompt).
 ABSORBED_HEAL_REASON = f"{REASON}:absorbed-healing:absorbed-power"
 TELEPORT_REASON = f"{REASON}:teleport"
+# Owner 2026-11-21 (LOCKED) 「99F100Fでテレポートの巻物が尽きた時は取り込んだテレポートの杖を使用することを
+# 許可する」: the absorbed Staff of Teleportation once no scroll is left; the absorbed-power suffix
+# makes me_device_attacks_input own its prompt (an empty staff closes it with ESC).
+TELEPORT_STAFF_REASON = f"{REASON}:teleport:absorbed-power"
 SWEEP_SUFFIX = f":{REASON}-sweep"
 CLEAR_SUFFIX = f":{REASON}-clear"
 SWEEP_WALK_REASON = f"{REASON}:sweep-walk"
@@ -238,11 +244,29 @@ def _quaff(policy, snapshot, kind, reason) -> str | None:
 
 
 def _teleport(policy, snapshot) -> str | None:
+    """The Teleportation scroll, else (owner 2026-11-21) the absorbed Staff of Teleportation."""
+    from hengbot.me_absorbed_substitutes import TELEPORTATION, cast
     scroll = _carried(snapshot, angband_finale.TELEPORT)
-    if scroll is None or not policy._can_read_scrolls(snapshot):
-        return None
-    policy.last_reason = TELEPORT_REASON
-    return policy._read_key(snapshot, scroll)
+    if scroll is not None:
+        if not policy._can_read_scrolls(snapshot):
+            return None
+        policy.last_reason = TELEPORT_REASON
+        return policy._read_key(snapshot, scroll)
+    return cast(policy, snapshot, TELEPORTATION, TELEPORT_REASON)  # TELEPORT_STAFF_REASON
+
+
+def teleports_out(policy, snapshot) -> bool:
+    """No Teleportation scroll carried and no charge of the absorbed Staff of Teleportation on
+    its list (owner 2026-11-21 「テレポートの巻物が尽きたら帰還して補給」, with the staff allowed
+    first: 「尽きた時は取り込んだテレポートの杖を使用することを許可する」).  A staff list a Restore
+    Mana made stale counts its charges as there until it is read again (me_powers_refresh)."""
+    from hengbot.me_absorbed_substitutes import TELEPORTATION
+    if _carried(snapshot, angband_finale.TELEPORT) is not None:
+        return False
+    if "staff" in me_device_attacks.stale_kinds(policy):
+        return False
+    return (not me_capability.has(policy, snapshot, *TELEPORTATION)
+            or me_capability.charges(policy, snapshot, *TELEPORTATION) <= 0)
 
 
 def _recall(policy, snapshot) -> str | None:
@@ -261,7 +285,10 @@ def recall_permitted(policy, snapshot) -> bool:
     them through)."""
     return applies(policy, snapshot) and (
         angband_finale.quest_done(snapshot)
-        or angband_finale.restore_mana_overspent(policy, snapshot))
+        or angband_finale.restore_mana_overspent(policy, snapshot)
+        # Owner 2026-11-21 (LOCKED) 「100Fへ降りる前に巻物を補給する」 and its addition: with no
+        # scroll and no absorbed staff charge left, recall and resupply (finale_prep in town).
+        or teleports_out(policy, snapshot))
 
 
 # -- the rocket -------------------------------------------------------------------------
