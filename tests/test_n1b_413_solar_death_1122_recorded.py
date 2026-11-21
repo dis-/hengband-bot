@@ -126,6 +126,7 @@ class N1b413SolarDeath1122RecordedTest(unittest.TestCase):
         """Owner 2026-11-04 「先に出る」 holds for every other standstill on the death board."""
         board = self.boards[DEATH]
         destruction_use._memory(self.policy).pending = None  # no use answered this ask
+        self.policy.last_reason = "search"  # no escape (owner 2026-11-22: escapes stay)
         key = damaging_ground.step_off_key(self.policy, board, "s")
         self.assertIsNotNone(key)
         self.assertEqual(self.policy.last_reason, damaging_ground.STEP_REASON)

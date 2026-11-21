@@ -64,6 +64,18 @@ along the swamp twice: first with ソーラー sensed (HP 519 of 748), then on t
 プラネター beside it (HP 491).  The use booked for the first replaced key read as a failed one
 (destruction_use ``observe``), so the decision between read Word of Recall instead, and after the
 second step ソーラー's mana bolt and starburst and the プラネター's blows took HP 491 to -160.
+Owner 2026-11-22 (asked after that death) 「逃げの手は全部床より先にする」: every escape the
+decision chose stays (reasons ``escapes``: the registry's relocations, counted or not, and the
+uses that remove or send away the enemy -- the staff's and the absorbed Teleportation, Teleport
+Other, *Destruction*, the stairs and the reads); only the other stops (rest, search, wait, a shot,
+an attacking device) step off first.
+
+The floor's damage for a planned walk (``floor_damage``): the most one game tick of
+hp-mp-processor.cpp deals on each cell that hurts (``hurts_at``) -- DEEP 99, else 49 (randint0
+of 4000 / 2000 over 6000 / 3000, per 100), times the element's rate (calc_*_damage_rate: a
+resistance, the ability the emitter reports, takes (100 + 2) / 3; a vulnerability or a temporary
+opposition is not counted), a fifth over DEEP ground while levitating.  One tick per cell walked:
+a step at normal speed is one game tick (10 game turns), a faster one fewer.
 
 An immune or invulnerable player takes no such damage.  A levitating one takes none
 from shallow ground but a fifth of deep ground's (hp-mp-processor.cpp
@@ -78,7 +90,7 @@ from __future__ import annotations
 from collections import deque
 from functools import wraps
 
-from hengbot import ability_sources
+from hengbot import ability_sources, reasons
 from hengbot.policy_constants import DIRECTION_DELTAS, SEARCH_KEY, WAIT_KEY
 
 STEP_REASON = "hazard:step-off"
@@ -116,6 +128,36 @@ def hurts_at(policy, snapshot, position) -> bool:
             and grid.terrain_id not in getattr(policy, "_deep_damaging_terrain_ids", ())):
         return False
     return elements[grid.terrain_id] not in player.immunities
+
+
+# hp-mp-processor.cpp deal_damege_by_feat: the largest damage of one tick, per 100 of the rate.
+DEEP_TICK_MAX, SHALLOW_TICK_MAX = 99, 49
+RESISTANCE_BY_ELEMENT = {"fire": "resist_fire", "cold": "resist_cold", "elec": "resist_elec",
+                         "acid": "resist_acid", "": "resist_pois"}
+
+
+def floor_damage_at(policy, snapshot, position) -> int:
+    """The most one game tick standing on ``position`` deals this player (the module
+    docstring), 0 where ``hurts_at`` says it does not hurt."""
+    if not hurts_at(policy, snapshot, position):
+        return 0
+    player = snapshot.player
+    grid = snapshot.grid_at(position)
+    element = getattr(policy, "_damaging_terrain_elements", {})[grid.terrain_id]
+    deep = grid.terrain_id in getattr(policy, "_deep_damaging_terrain_ids", ())
+    damage = DEEP_TICK_MAX if deep else SHALLOW_TICK_MAX
+    rate = 100
+    if ability_sources.has_ability(player, RESISTANCE_BY_ELEMENT.get(element, "")):
+        rate = (rate + 2) // 3
+    damage = damage * rate
+    if ability_sources.has_ability(player, "levitation"):
+        damage //= 5
+    return max(1, -(-damage // 100))
+
+
+def floor_damage(policy, snapshot, cells) -> int:
+    """``floor_damage_at`` summed over ``cells``, one tick each."""
+    return sum(floor_damage_at(policy, snapshot, cell) for cell in cells)
 
 
 def _occupied(snapshot) -> frozenset:
@@ -289,8 +331,8 @@ def step_off_key(policy, snapshot, key: str | None) -> str | None:
     standstill, quaff = _replaces(key)
     if snapshot.in_town or not hurts_here(policy, snapshot):
         return None
-    if destruction_use.used_now(policy, snapshot):
-        # *Destruction* stands in for the teleport read, which stays (the module docstring).
+    if destruction_use.used_now(policy, snapshot) or reasons.escapes(policy.last_reason):
+        # Every escape goes before the floor (the module docstring).
         return None
     walked_on = (None if standstill or quaff or _crossing(policy, snapshot) is None
                  else _walked_on(policy, snapshot, key))
