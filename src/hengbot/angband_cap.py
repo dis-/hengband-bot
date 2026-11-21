@@ -71,11 +71,13 @@ def climbing(snapshot, policy=None) -> bool:
     return not snapshot.in_town and climbing_floor(snapshot.floor_key, policy)
 
 
-def reset_recall_depth(observation) -> bool:
+def reset_recall_depth(observation, *, lifted: bool = False) -> bool:
     """The answer to recall_player's reset-recall-depth question on the board ``observation``
     (the raw state the operation was posted on): y in Angband on a floor at or below the cap
-    while the saved depth is deeper than the cap; n everywhere else."""
-    if not isinstance(observation, Mapping):
+    while the saved depth is deeper than the cap; n everywhere else, and always n while the cap
+    is lifted for the finale's expedition (``lifted``, the operation's ``cap_lifted``: the saved
+    99F is the expedition's way back)."""
+    if lifted or not isinstance(observation, Mapping):
         return False
     floor = observation.get("floor")
     progress = observation.get("progress")

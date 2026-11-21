@@ -50,6 +50,9 @@ class N1c21799fQuickReturnRecordedTest(unittest.TestCase):
         held.lifted, held.step = True, finale_prep.DONE  # DECLARED: the expedition's mark
         # DECLARED: no return latched on the arrival.
         self.policy._returning_to_town, self.policy._last_return_trigger = False, None
+        # DECLARED: no list re-read at the decision's head (me_powers_refresh.resume_read_key
+        # answers before the board is observed, so the 98F board would not be seen).
+        self.policy._me_power_resume_reads = False
         rows = json.loads(lzma.decompress((FIXTURE / "boards.json.xz").read_bytes()))
         self.boards = {row["line"]: parse_snapshot(row["board"], self.policy._monrace_knowledge)
                        for row in rows}

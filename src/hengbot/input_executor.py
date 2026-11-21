@@ -534,6 +534,10 @@ class Operation:
     magic_eater_power_list: dict | None = None
     # The game answered the ``m`` command with command input (me_menu).
     magic_eater_command_refused: bool = False
+    # The 95F cap lifted for the finale's expedition (angband_finale ``lifted``) when the operation
+    # was submitted: recall_player's reset-recall-depth question is refused then
+    # (angband_cap.reset_recall_depth).
+    cap_lifted: bool = False
 
 
 @dataclass(frozen=True)
@@ -1704,7 +1708,8 @@ class OperationExecutor:
             # saved depth past it is set to this floor (angband_cap); refused everywhere else.
             from hengbot import angband_cap
 
-            answer = "y" if angband_cap.reset_recall_depth(self.active.observation) else "n"
+            answer = "y" if angband_cap.reset_recall_depth(
+                self.active.observation, lifted=self.active.cap_lifted) else "n"
             return self._post_and_barrier(answer, deadline, role="answer")
         if match.kind is ScreenKind.DUNGEON_CHOICE and self.active.keys[:1] in ("r", "z") \
                 and self.active.business_outcome != RECALL_DESTINATION_UNCHOSEN:
