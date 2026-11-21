@@ -3,6 +3,8 @@
 Sources (~/hengbot-soak/n1-b/life-413/jsonlog/snapshots/, copied read-only to
 C:/hengband-backups/pdca/deep80-defects-1122/):
 
+- b-f1.jsonl.gz (snapshots-20261122-025515-1835ba, player turns 2607000-2610300): 02:50:56
+  esp-threat:leave-recall at 2610137, HP 628/723, two 魔力ハウンド sensed.  Kept 2609000-2610137.
 - b-f2.jsonl.gz (snapshots-20261122-030935-28a359, player turns 2618400-2621500): 02:56:03
   esp-threat:leave-recall at 2621415, HP 480/748, 『サウロンの口』 (T1) sensed 28 off.  Kept
   2620300-2621415.
@@ -16,6 +18,7 @@ from pathlib import Path
 ROOT = Path("C:/hengband-backups/pdca/deep80-defects-1122")
 FIXTURES = Path(__file__).with_name("fixtures")
 WINDOWS = (
+    ("b-f1.jsonl.gz", "n1b-413-esp-rest-heal-1122.jsonl.gz", 2609000, 2610137),
     ("b-f2.jsonl.gz", "n1b-413-esp-rest-sensed-t1-1122.jsonl.gz", 2620300, 2621415),
 )
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot import ability_sources
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.policy_constants import ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
+from hengbot.policy_constants import ESP_THREAT_HEAL_REASON, ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
 from hengbot import return_start
 from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
@@ -1554,6 +1554,15 @@ class CombatMixin:
             self._declare_reach(step_target)
             self._declare_triggers(targets)
             return True, self._step_toward(snapshot, step)
+        if action in ("leave", "approach-pending"):
+            # Owner 2026-11-22 (verbatim) 「休息が難しいときに取り込んだ回復の力を使うことは許可
+            # する」: the rest cannot be taken here; the absorbed powers that restore HP up to the
+            # rest's target do it in its place (status_cure ``absorbed_heal_key``), else the
+            # leave answers as before.
+            heal = status_cure.absorbed_heal_key(self, snapshot, ESP_THREAT_HEAL_REASON)
+            if heal is not None:
+                assessment["action"] = action + ":heal"
+                return True, heal
         if action == "leave":
             key = self._esp_threat_leave_key(snapshot, strategic_hostiles)
             if key is None:
