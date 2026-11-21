@@ -23,7 +23,9 @@ from hengbot.item_identity import without_player_inscription
 from hengbot.model import (
     ARMOUR_TVALS,
     BAD_PSEUDO_FEELINGS,
+    SV_BOW_HEAVY_XBOW,
     SV_BOW_LIGHT_XBOW,
+    SV_BOW_LONG,
     SV_BOW_SHORT,
     SV_BOW_SLING,
     SV_LITE_FEANOR,
@@ -45,7 +47,7 @@ from hengbot.model import (
     item_requires_full_identification,
     lights_nothing,
 )
-from hengbot.launcher_damage import best_obtainable_launcher_damage
+from hengbot.launcher_damage import best_obtainable_launcher_turn_damage, launcher_turn_damage
 from hengbot.speed_valuation import (
     BASE_SPEED,
     field_strong_speed_energy,
@@ -1359,15 +1361,17 @@ def launcher_is_high_grade(item: EquipmentItem) -> bool:
 
 # User decisions 2026-07-19 (Short Bow) and 2026-10-02 (Sling, verbatim:
 # 「上質以下同士の比較ならスリングよりライトクロスボウを優先。スリングが高級品以上なら
-# 威力評価。」): an ordinary Sling or Short Bow yields to a Light Crossbow before
-# any damage comparison; a high-grade one competes on damage.
-_YIELDS_TO_LIGHT_XBOW_SVALS = frozenset({SV_BOW_SLING, SV_BOW_SHORT})
+# 威力評価。」), widened by the owner 2026-11-21 (n1-b life-413) to every other kind
+# 「ライトクロスボウを優先、ただし高級品やアーティファクトなら他種でも威力で評価」: an ordinary
+# launcher of any other kind yields to a Light Crossbow before any damage comparison; a
+# high-grade one competes on damage.
+_YIELDS_TO_LIGHT_XBOW_SVALS = frozenset({SV_BOW_SLING, SV_BOW_SHORT, SV_BOW_LONG, SV_BOW_HEAVY_XBOW})
 
 
 def ordinary_launcher_yields_to_light_crossbow(
     launcher: EquipmentItem, crossbow: EquipmentItem
 ) -> bool:
-    """The user grade rule: ordinary Sling/Short Bow < Light Crossbow."""
+    """The user grade rule: an ordinary launcher of another kind < Light Crossbow."""
     return (
         crossbow.tval == launcher.tval
         and crossbow.sval == SV_BOW_LIGHT_XBOW
@@ -1878,21 +1882,30 @@ def optimize_loadout(
     ``finale_rank`` first (resist curse, speed, resistances, telepathy, INT, CON)."""
     catalog = tuple(items)
     ammunition = tuple(obtainable_ammunition)
+    # "Obtainable" is the caller's ammunition list (the policy passes carried, Home and
+    # remembered plain store stock), and for a high-grade launcher the plain ammunition the
+    # Weaponsmith always stocks (articles-on-sale.cpp store_regular_sale_table: two each of
+    # shots, arrows and bolts): the owner's rule compares it by damage (n1-b life-413
+    # 2026-11-21, ★森の狩人ロビンフッドのショート・ボウ in Home with no arrows read 0).
+    def regular_stock(owned):
+        return launcher_is_high_grade(owned.item) and not any(
+            ammo.tval == owned.item.ammo_tval and ammo.count > 0 for ammo in ammunition)
+
+    # Damage per player turn: the launcher's shots and energy count (owner 2026-11-19).
     launcher_damage = {
-        owned.id: best_obtainable_launcher_damage(owned.item, ammunition)
+        owned.id: (launcher_turn_damage(owned.item) if regular_stock(owned)
+                   else best_obtainable_launcher_turn_damage(owned.item, ammunition))
         for owned in catalog
         if owned.item.ammo_tval is not None
     }
-    # "Obtainable" is exactly the caller's ammunition list (the policy passes
-    # carried, Home and remembered plain store stock).
     usable_launcher_ids = frozenset(
         owned.id
         for owned in catalog
         if owned.item.ammo_tval is not None
-        and any(
+        and (regular_stock(owned) or any(
             ammo.tval == owned.item.ammo_tval and ammo.count > 0
             for ammo in ammunition
-        )
+        ))
     )
     if require_light is None:
         require_light = any(lighting_light_candidate(item) for item in catalog)
