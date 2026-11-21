@@ -13339,6 +13339,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest25_battle.py:_dread_wait_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest25_battle.py:_dreadmaster": {
     "classification": "producer",
     "rows": [
@@ -13527,6 +13534,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest25_battle.py:_placed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest25_battle.py:_prepare": {
     "classification": "producer",
@@ -13822,6 +13836,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_geometry.py:_east_room_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest25_geometry.py:_key": {
     "classification": "data",
     "rows": [
@@ -13858,6 +13879,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest25_geometry.py:ball_centre": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_geometry.py:east_room_cells": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13921,13 +13949,6 @@
     "delegation": "selected child; no independent success"
   },
   "quest25_geometry.py:summon_counts": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "quest25_geometry.py:vision_cells": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15800,6 +15821,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_wait_placement.py:come_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_wait_placement.py:comes": {
     "classification": "producer",

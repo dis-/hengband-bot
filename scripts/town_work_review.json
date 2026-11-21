@@ -21172,7 +21172,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "Q25 phase5 (owner 2026-11-06): the dreadmaster fight, haste, the engage, else the walk to or hold on its stand (melee stand or the vision edge in the north corridor); also asked first after a monster's teleport into its range (_teleported_dreadmaster_key). A step, shot, blow, potion or hold of Q25's phase battle; no independent progress."
+    "evidence": "Q25 phase5: the dreadmaster fight, haste, the engage, else the walk to or hold on its stand (owner 2026-11-22: the east big room's cell its movement brings it to, _dread_wait_cell; it replaced 2026-11-06's melee stand [1,17] and vision edge [1,9]); also asked first after a monster's teleport into its range (_teleported_dreadmaster_key). A step, shot, blow, potion or hold of Q25's phase battle; no independent progress."
   },
   "quest25_battle.py:_walk_to_widest": {
     "classification": "producer",
@@ -23103,6 +23103,39 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: is_high_grade returns bool (高級品以上, equipment_rules' one table), not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_geometry.py:east_room_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_geometry.py:_east_room_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan (map cells, monsters read off the board, the attack options); owner 2026-11-12 sealed rooms / never toward.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_dread_wait_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: Quest 25's plan (quest25_battle._profile requires the TAKEN Q25 floor).",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper of the Q25 plan: phase 5's waiting cell in the east big room the dreadmaster's movement brings it to (owner 2026-11-22 「敵の行動アルゴリズムを確認して待つ場所を精査する」; quest_wait_placement.come_cells).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

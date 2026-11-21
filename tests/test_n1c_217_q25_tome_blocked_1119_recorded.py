@@ -168,7 +168,9 @@ class RestartRecordedTest(unittest.TestCase):
                 key, reason = decide(policy, raw)
                 if key not in step:
                     break
-                self.assertEqual(reason, battle.MASS_CELL_REASON)
+                # Owner 2026-11-22: the walk to the east room's stand [1,19] (it was the walk to the
+                # mass's line, MASS_CELL_REASON, while the stand lay west past the mass): the same cells.
+                self.assertEqual(reason, battle.WALK_REASON)
                 walked.append((raw["player"]["y"], raw["player"]["x"]))
                 dy, dx = step[key]
                 raw["player"]["y"] += dy
@@ -205,9 +207,11 @@ class TomeBlockedRecordedTest(unittest.TestCase):
             self.assertEqual(answers[index][:2], (recorded[index]["key"], recorded[index]["reason"]),
                              index + START)
         self.assertNotIn(BLOCKED, {reason for _key, reason, _flag in answers})
-        # On [8,20] the way to its stand is shut by the mass on [1,18]: owner 2026-11-19 「邪魔なら
-        # 死体の塊を倒して良い」, the walk to a cell with a line to it, its range not shunned.
-        self.assertEqual(set(answers[WALL - START:]), {("7", battle.MASS_CELL_REASON, True)})
+        # On [8,20]: owner 2026-11-22, its stand is in the east room ([1,19], quest25_battle
+        # ``_dread_wait_cell``), so the way to it is open and walked; before, the stand [1,9] lay past
+        # the mass on [1,18] and the walk went to a cell with a line to the mass (2026-11-19
+        # 「邪魔なら死体の塊を倒して良い」).  Either way the first step is the same, north-west.
+        self.assertEqual(set(answers[WALL - START:]), {("7", battle.WALK_REASON, True)})
 
     def test_control_without_it_the_plan_is_blocked(self):
         with patch.object(battle, "_teleported_dreadmaster_key", lambda _ctx: None):

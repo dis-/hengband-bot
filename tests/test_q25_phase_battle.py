@@ -177,6 +177,17 @@ class Q25GeometryTest(unittest.TestCase):
         for cell in (*geo.PHASE2_WALK, (5, 2), (4, 1), (6, 2), geo.START):
             self.assertIn(cell, outside)
 
+    def test_the_spectral_tyrannosaurs_flow_reaches_10_1_not_13_1(self):
+        # Owner 2026-11-22: the game's flow (grid.cpp update_flow) walks 32 steps from the player;
+        # a monster beyond it never comes.  From [9,19] the way round the north is 35 steps to [13,1].
+        from hengbot import quest_wait_placement
+
+        flow = quest_wait_placement._flow_from(TERRAIN, (9, 19), False)
+        self.assertEqual(flow.get(geo.MEET_RANGED), quest_wait_placement.FLOW_DEPTH)
+        self.assertEqual(geo.MEET_RANGED, (10, 1))
+        for cell in ((11, 1), (12, 1), (13, 1)):
+            self.assertNotIn(cell, flow)
+
     def test_traps_of_the_map(self):
         self.assertEqual(set(BATTLEFIELD.trap_cells) & set(geo.NORTH_CORRIDOR), set(geo.NORTH_CORRIDOR))
         self.assertIn((3, 1), BATTLEFIELD.maybe_trap_cells)
@@ -244,7 +255,8 @@ class Q25AmbushTest(unittest.TestCase):
         self.assertFalse(battle.melee_is_fewer(
             policy, parse_snapshot(unarmed, RACES), geo.SPECTRAL_T))
 
-    def test_ranged_opens_the_west_door_and_waits_on_the_start(self):
+    def test_ranged_opens_the_west_door_and_waits_beside_it(self):
+        # Owner 2026-11-22 (it replaces 2026-11-06 「[13,1] から」): [10,1] with the door [9,1] open.
         raw = without_melee(board())
         policy = new_policy(raw)
         key = choose(policy, raw)
@@ -254,10 +266,10 @@ class Q25AmbushTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), ("o8", battle.OPEN_REASON))
         open_door(raw, geo.WEST_DOOR)
         key = choose(policy, raw)
-        self.assertEqual((key, policy.last_reason), (step((10, 1), (11, 1)), battle.WALK_REASON))
+        self.assertEqual((key, policy.last_reason), (WAIT_KEY, HOLD_REASON))   # the door stays open
         raw["player"].update(y=13, x=1)
         key = choose(policy, raw)
-        self.assertEqual((key, policy.last_reason), (WAIT_KEY, HOLD_REASON))
+        self.assertEqual((key, policy.last_reason), (step((13, 1), (12, 1)), battle.WALK_REASON))
         self.assertEqual(memory(policy, raw).style, "ranged")
 
     def test_ranged_shoots_what_comes_down_the_corridor_after_the_haste(self):
@@ -765,17 +777,38 @@ class Q25CorpseMassTest(unittest.TestCase):
 
 
 class Q25DreadmasterTest(unittest.TestCase):
-    def test_ranged_waits_on_the_edge_of_its_vision(self):
+    """Owner 2026-11-22 (it replaces 2026-11-06 「感知範囲ギリギリ」/「17,1」): the east big room, on a
+    cell the dreadmaster's own movement brings it to."""
+
+    def test_the_wait_cell_is_the_east_rooms_nearest_it_comes_to(self):
+        raw = board((1, 9))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "dreadmaster", cleared=frozenset(geo.NORTH_CORRIDOR))
+        ctx = battle._ctx(policy, parse_snapshot(copy.deepcopy(raw), RACES))
+        self.assertEqual(battle._dread_wait_cell(ctx), (1, 19))
+        come = set(battle.quest_wait_placement.come_cells(
+            policy, ctx.snapshot, ctx.navigator, geo.DREADMASTER, (12, 24),
+            sorted(geo.east_room_cells(TERRAIN) | {(1, 17), (1, 9), (2, 9)})))
+        for cell in ((1, 19), (1, 22), (2, 19), (2, 22), (7, 21), (8, 25)):
+            self.assertIn(cell, come)
+        for cell in ((1, 17), (1, 9), (2, 9)):
+            self.assertNotIn(cell, come)
+
+    def test_ranged_walks_into_the_east_room_and_waits(self):
         raw = without_melee(board((1, 9)))
         open_door(raw, (1, 7))
         policy = new_policy(raw)
-        at_phase(policy, raw, "dreadmaster", cleared=frozenset({(1, 8), (1, 9)}))
-        self.assertEqual((choose(policy, raw), policy.last_reason), (WAIT_KEY, HOLD_REASON))
+        at_phase(policy, raw, "dreadmaster", cleared=frozenset(geo.NORTH_CORRIDOR))
+        self.assertEqual((choose(policy, raw), policy.last_reason), ("6", battle.WALK_REASON))
         self.assertEqual(memory(policy, raw).style, "ranged")
+        raw = without_melee(board((1, 19)))
+        policy = new_policy(raw)
+        at_phase(policy, raw, "dreadmaster", cleared=frozenset(geo.NORTH_CORRIDOR))
+        self.assertEqual((choose(policy, raw), policy.last_reason), (WAIT_KEY, HOLD_REASON))
 
-    def test_melee_walks_to_1_17(self):
-        raw = without_ranged(board((1, 9)))
-        open_door(raw, (1, 7))
+    def test_melee_walks_past_1_17(self):
+        raw = without_ranged(board((1, 17)))
+        open_door(raw, geo.EAST_ROOM_DOOR)
         policy = new_policy(raw)
         at_phase(policy, raw, "dreadmaster", cleared=frozenset(geo.NORTH_CORRIDOR))
         self.assertEqual((choose(policy, raw), policy.last_reason), ("6", battle.WALK_REASON))

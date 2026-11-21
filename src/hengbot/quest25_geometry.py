@@ -48,7 +48,12 @@ MASS = 202            # 死体の塊 (MULTIPLY)
 # The cells the draft names (owner decisions quote them; the derivations are below).
 START = (13, 1)
 WEST_DOOR = (9, 1)            # 扉 [9,1]
-MEET_RANGED = (13, 1)         # phase1: 「[13,1] から」
+# phase1, owner 2026-11-22 (it replaces 2026-11-06 「[13,1] から」): the ranged wait is [10,1] with the
+# door [9,1] open.  The game's flow (grid/grid.cpp update_flow, monster_flow_depth 32) reaches no
+# cell farther than 32 steps from the player; the spectral tyrannosaur [9,19] is 35 steps from
+# [13,1] (34 from [12,1], 33 from [11,1]) and 32 from [10,1], so on [13,1] it never came (n1-b
+# life-413, about 49,500 game turns).
+MEET_RANGED = (10, 1)
 MEET_MELEE = (10, 1)          # phase1: beside the closed door [9,1], its south side
 PHASE2_WALK = ((7, 1), (6, 1), (5, 1))   # 「(7,1)に移動、…(6,1)(5,1)と移動」
 WALL_PASSER_STAND = (7, 1)    # phase1_wall_passers: 「(7,1)に移動」
@@ -60,7 +65,11 @@ TOME_NEAR_STANDS = ((5, 5), (4, 5), (5, 6))  # phase3: 「[5,5] か [4,5][5,6]�
 MASS_STAND = (1, 6)           # phase4: 「[1,6] から撃つ」
 MASS_DOOR = (1, 7)
 NORTH_CORRIDOR = tuple((y, x) for y in (1, 2) for x in range(8, 18))
-DREADMASTER_MELEE_STAND = (1, 17)   # 「(17,1) は … [1,17] のこと」
+# phase5, owner 2026-11-22 (it replaces 2026-11-06 「感知範囲ギリギリ」 [1,9] and 「17,1」 [1,17]): the
+# dreadmaster is waited for in the east big room, on a cell its own movement brings it to
+# (quest25_battle ``_dread_wait_cell``).  [1,17] and [1,9] are none: n1-b life-413 held [1,17]
+# for about 9,650 game turns until a random move (RAND_25) brought it.
+EAST_ROOM_DOOR = (1, 18)
 DREADMASTER_VISION = 20
 STAIRWAY_DOOR = (13, 28)
 STAIRWAY_STAND = (13, 27)     # 「[13,27] から階段までは距離2」
@@ -292,6 +301,27 @@ def _room_cells(terrain_key: tuple, door: tuple) -> frozenset:
 def room_cells(terrain: dict, door) -> frozenset:
     """The standable cells behind ``door`` (a sealed room), the door itself not included."""
     return _room_cells(_key(terrain), tuple(door))
+
+
+@lru_cache(maxsize=16)
+def _east_room_cells(terrain_key: tuple) -> frozenset:
+    terrain = dict(terrain_key)
+    start = (EAST_ROOM_DOOR[0], EAST_ROOM_DOOR[1] + 1)
+    seen, stack = {start}, [start]
+    while stack:
+        y, x = stack.pop()
+        for dy, dx in _NEIGHBOURS:
+            cell = (y + dy, x + dx)
+            if cell not in seen and terrain.get(cell) in STANDABLE and terrain.get(cell) != "door":
+                seen.add(cell)
+                stack.append(cell)
+    return frozenset(seen)
+
+
+def east_room_cells(terrain: dict) -> frozenset:
+    """The standable cells of the east big room (rows 1-9, east of the door [1,18]; its doors
+    [1,18] and [10,24] not included): where the owner's 2026-11-22 phase-5 wait is chosen."""
+    return _east_room_cells(_key(terrain))
 
 
 def sealed_room_of(terrain: dict, cell):
