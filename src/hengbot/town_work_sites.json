@@ -2719,6 +2719,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "finale_prep.py:_read_home_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "finale_prep.py:_signature": {
     "classification": "data",
     "rows": [

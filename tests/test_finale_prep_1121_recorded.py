@@ -291,5 +291,82 @@ class FinalePrepRecordedTest(unittest.TestCase):
         self.assertEqual(held.step, finale_prep.SUPPLIES)  # the checked set meets every condition
 
 
+class FinalePrepCensusDroppedRecordedTest(unittest.TestCase):
+    """n1-c life-217's town visit of 2026-11-21 11:32:22 (tests/fixtures/n1c-finale-prep-stall-1121,
+    the first 33 journal rows of capture n1c-217-20261121-finale-prep-stall): the phase entered at
+    row 27 (its Home read), checked at row 28 and reached the supplies step at row 29, with 98
+    Healing, 24 *Healing* and 124 Restore Mana at Home and the pack holding 9, 0 and 0.  The
+    full-home-sale take of a crossbow (rows 30-31) dropped the Home census, and on row 32 the
+    supplies step found no Healing stack in the empty catalogue and stopped as
+    ``supplies:not-at-home:75-37``; the visit then went on as the 95F exploration (the same at
+    11:31:14, where the *Healing* take at slot 4 left the Restore Mana at slots 6-7 unaddressed
+    and the supplies just withdrawn were deposited again on the next decision).
+
+    DECLARED CONSTRUCTED: the census read again after row 32 (row 29's catalogue without the
+    crossbow taken), and its slots past the Healing left unaddressed by an earlier take."""
+
+    def setUp(self):
+        self.scratch = TemporaryDirectory()
+
+    def tearDown(self):
+        self.scratch.cleanup()
+
+    def until(self, last_row):
+        name = "n1c-finale-prep-stall-1121"
+        policy, _journal, steps = load(FIXTURES / name, Path(self.scratch.name) / name)
+        self.addCleanup(policy._home_disposal.history_path.unlink, missing_ok=True)
+        census, board = None, None
+        for recorded, supply in steps[:last_row + 1]:
+            board = supply()
+            key = FinalePrepRecordedTest.decide(policy, board)
+            if recorded["row"] < last_row:
+                self.assertEqual((key, policy.last_reason), (recorded["key"], recorded["reason"]))
+                if recorded["row"] == 29:
+                    census = policy._home_knowledge_items
+                FinalePrepRecordedTest.deliver(policy, recorded["key"])
+        return policy, board, key, census
+
+    def test_a_census_dropped_by_another_take_is_read_again_not_a_stop(self):
+        policy, board, key, census = self.until(32)
+        held = finale_prep.phase(policy)
+        self.assertEqual([step for _s, step, _n in held.log],
+                         [finale_prep.HOME, finale_prep.CHECK, finale_prep.SUPPLIES])
+        self.assertIsNone(held.stopped)
+        self.assertEqual(held.step, finale_prep.SUPPLIES)
+        self.assertFalse(policy._home_knowledge_items)  # the take dropped the census
+        self.assertEqual((key, policy.last_reason), ("~9", finale_prep.HOME_REASON))
+        self.assertTrue(finale_prep.carrying(policy))
+        # DECLARED: the census read again; the step files the Healing take it was short of.
+        crossbow = next(item for item in census if item.tval == 19)
+        policy._home_knowledge_items = tuple(item for item in census if item is not crossbow)
+        policy._home_knowledge_valid_before = len(policy._home_knowledge_items)
+        policy._home_knowledge_current, policy._home_knowledge_invalidated = True, False
+        policy._home_knowledge_scan_inflight, policy._home_knowledge_scan_epoch = False, None
+        self.assertIsNone(finale_prep.town_key(policy, board))
+        request = policy._home_errand.request
+        self.assertEqual(request.purpose, finale_prep.PURPOSE)
+        self.assertEqual(request.signature[1:], angband_finale.HEALING)
+        self.assertEqual(request.quantity, 30 - 9)
+        self.assertEqual(held.step, finale_prep.SUPPLIES)
+
+    def test_a_stack_an_earlier_take_left_unaddressed_is_filed_for_the_errands_read(self):
+        policy, board, _key, census = self.until(32)
+        held = finale_prep.phase(policy)
+        # DECLARED: the census current, but an earlier take at slot 3 left the later slots
+        # (the Healing at slot 3 among them) to a fresh read.
+        crossbow = next(item for item in census if item.tval == 19)
+        policy._home_knowledge_items = tuple(item for item in census if item is not crossbow)
+        healing = next(index for index, item in enumerate(policy._home_knowledge_items)
+                       if (item.tval, item.sval) == angband_finale.HEALING)
+        policy._home_knowledge_valid_before = healing
+        policy._home_knowledge_current, policy._home_knowledge_invalidated = True, False
+        self.assertIsNone(finale_prep.town_key(policy, board))
+        self.assertIsNone(held.stopped)
+        request = policy._home_errand.request
+        self.assertEqual((request.purpose, request.signature[1:]),
+                         (finale_prep.PURPOSE, angband_finale.HEALING))
+        self.assertTrue(policy._home_errand.needs_knowledge)  # the errand reads the Home first
+
+
 if __name__ == "__main__":
     unittest.main()
