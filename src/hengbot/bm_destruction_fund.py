@@ -53,6 +53,12 @@ Magic-Eater's first Staff of Speed, wanted while no Speed power is absorbed (me_
 and no Staff of Speed is carried or in the Home, read on every shop's shelf (the Magic shop and
 the Black Market stock it).  Later copies stay the Magic-Eater device table's
 (me_device_policy ``buy_more``, the "me-device:policy" rung).
+
+Owner 2026-11-22 (verbatim): 「魔道具術師の場合、ロケットの魔法棒の購入優先度を最優先に。破壊の杖同様
+売ってでも買う。」, how many: 「*破壊* と同じく取り込み50回まで」.  The table's fourth row: every Wand
+of Rockets a Magic-Eater sees on any shop's shelf (any number, a carried copy included), wanted
+while its absorbed Rocket count (me_capability.count) is at most ``ME_ROCKET_COUNT_LIMIT``; above
+it the device table's ordinary rung ("me-device:policy") buys it again.
 """
 from __future__ import annotations
 
@@ -62,7 +68,7 @@ from typing import Any, Callable
 from hengbot import ability_sources
 from hengbot import item_fate
 from hengbot.item_reservation import decision_memo
-from hengbot.model import STORE_BLACK, STORE_HOME, SV_STAFF_SPEED, TVAL_STAFF
+from hengbot.model import STORE_BLACK, STORE_HOME, SV_STAFF_SPEED, TVAL_STAFF, TVAL_WAND
 
 # object-enchant/tr-types.h TR_TELEPATHY; the depth requirement's "telepathy"
 # (DEPTH_ABILITY_REQUIREMENTS, 50F) is the board's ability of this flag only
@@ -122,6 +128,26 @@ def first_speed_staff_wanted(policy: Any, snapshot: Any) -> bool:
 ME_STAFF_COUNT_LIMIT = 50
 
 
+# sv-definition/sv-wand-types.h SV_WAND_ROCKETS.
+SV_WAND_ROCKETS = 29
+# Owner 2026-11-22 「*破壊* と同じく取り込み50回まで」.
+ME_ROCKET_COUNT_LIMIT = ME_STAFF_COUNT_LIMIT
+
+
+def _is_rocket_wand(_policy: Any, item: Any) -> bool:
+    return item.tval == TVAL_WAND and item.sval == SV_WAND_ROCKETS and item.aware
+
+
+def rocket_wanted(policy: Any, snapshot: Any) -> bool:
+    """A Magic-Eater whose absorbed Rocket count is at most ``ME_ROCKET_COUNT_LIMIT``."""
+    from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+    from hengbot import me_capability
+
+    return (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+            and me_capability.count(policy, snapshot, "wand", SV_WAND_ROCKETS)
+            <= ME_ROCKET_COUNT_LIMIT)
+
+
 def staff_wanted(policy: Any, snapshot: Any) -> bool:
     """The staff's priority purchase applies: not a Magic-Eater past ``ME_STAFF_COUNT_LIMIT``
     (me_capability.count is 0 for every other class)."""
@@ -144,6 +170,9 @@ PRIORITY_WARES = (
     # Owner 2026-11-21 「スピードの杖の一本目は最優先にする」; its purchase rung is policy_shop's
     # "priority-ware:speed-staff".
     PriorityWare("speed-staff", None, _is_speed_staff, first_speed_staff_wanted),
+    # Owner 2026-11-22 「ロケットの魔法棒の購入優先度を最優先に。破壊の杖同様売ってでも買う。」; its
+    # purchase rung is policy_shop's "priority-ware:rocket".
+    PriorityWare("rocket", None, _is_rocket_wand, rocket_wanted),
 )
 _BY_LABEL = {entry.label: entry for entry in PRIORITY_WARES}
 _RANK = {entry.label: rank for rank, entry in enumerate(PRIORITY_WARES)}
