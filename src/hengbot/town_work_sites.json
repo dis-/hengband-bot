@@ -2001,6 +2001,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_means.py:Means.kept_staves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_means.py:Means.supplies": {
     "classification": "data",
     "rows": [
