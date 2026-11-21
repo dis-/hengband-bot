@@ -918,6 +918,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "immobile_ranged_kill.py:_board_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon-only: read by key, which returns None in town.",
+    "evidence": "Pure reading (n1-b life-414 Orc cave 22F 2026-11-22): the goal walk's reach on this board (goal_route.reach) under the plan's search with the immobile summoner's zone withdrawn, searched once when a plan first asks; a monster with no shooting cell in it gets no route search of its own. Never chooses a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "immobile_ranged_kill.py:blocking_key": {
     "classification": "producer",
     "rows": [

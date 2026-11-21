@@ -3770,6 +3770,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "immobile_ranged_kill.py:_board_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "immobile_ranged_kill.py:_carry_out": {
     "classification": "action",
     "rows": [
