@@ -1117,6 +1117,15 @@ def _no_progress(policy, snapshot, phase, key: str) -> bool:
     record = state(policy)
     progress = (phase, snapshot.player.gold,
                 tuple((it.slot, it.name, it.count, it.charges) for it in snapshot.inventory))
+    if policy.last_reason == f"{REASON}recover":
+        # The recovery rest's work is the HP and the statuses it restores: a rest the
+        # town interrupts early still heals.  n1-b life-411 2026-11-21 09:28: seven
+        # rests at the Morivant arrival cell raised 948 to 1115 of 1153 HP and the
+        # eighth stopped the sequence as no-progress:absorb.  A rest that restores
+        # nothing still counts toward the bound.
+        player = snapshot.player
+        progress += (player.hp, player.blind, player.confused, player.poisoned,
+                     player.cut, player.stunned, player.hallucinated)
     if record.progress != progress:
         record.progress = progress
         record.positions = {}
