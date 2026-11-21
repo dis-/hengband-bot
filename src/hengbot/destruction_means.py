@@ -42,6 +42,7 @@ from __future__ import annotations
 from functools import cached_property
 
 from hengbot.model import SV_SCROLL_STAR_DESTRUCTION, SV_STAFF_DESTRUCTION, TVAL_SCROLL, TVAL_STAFF
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import DEEP_FLOOR_DEPTH, DESTRUCTION_USES_PER_STEP, PLAYER_CLASS_BERSERKER
 
 SCROLL = (TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)
@@ -146,21 +147,41 @@ class Means:
     def berserker(self) -> bool:
         return self.snapshot.player.class_id == PLAYER_CLASS_BERSERKER
 
+    def town_absorbs(self, item) -> bool:
+        """A Magic-Eater's staff the town absorbs (me_device_policy.absorbs: the *Destruction* row
+        「持ち帰って充填してから取り込む」, below the count cap): it ends as the absorbed power, so
+        in town it is that power's means (``absorbed_charges``, 80%+), never a staff means.
+
+        n1-b life-413 2026-11-22 00:13:49-00:13:55: a bought staff, reliable at the worn device
+        skill, opened the optimizer's 80F band (the launcher read for its abilities, owner
+        2026-11-18: ★森の狩人ロビンフッドのショート・ボウ worn); the staff sequence absorbed it
+        four seconds later into a power at 75%, the band fell back to 49F and the Light Crossbow
+        was worn again (owner 2026-11-22 「一瞬変えた後戻してるみたい」)."""
+        if not self.snapshot.in_town or self.snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
+            return False
+        from hengbot import me_device_policy
+
+        return me_device_policy.absorbs(self.policy, self.snapshot, item)
+
+    def kept_staves(self, items) -> tuple:
+        """``charged_staves`` of ``items`` but the ones the town absorbs (``town_absorbs``)."""
+        return tuple(item for item in charged_staves(items) if not self.town_absorbs(item))
+
     @cached_property
     def carried_charged_staff(self):
-        """The first known carried staff with a charge, else None."""
-        return next(iter(charged_staves(self.snapshot.inventory)), None)
+        """The first known carried staff with a charge the town does not absorb, else None."""
+        return next(iter(self.kept_staves(self.snapshot.inventory)), None)
 
     @cached_property
     def home_staves(self) -> tuple:
-        """The Home's charged staves (town only)."""
-        return staff_home_items(self.policy, self.snapshot)
+        """The Home's charged staves the town does not absorb (town only)."""
+        return self.kept_staves(staff_home_items(self.policy, self.snapshot))
 
     @cached_property
     def owned_staff_charges(self) -> int:
         """The charges of the known charged staves carried and (in town) in the Home."""
         return sum(stack_charges(item) for item in
-                   charged_staves((*self.snapshot.inventory, *self.home_staves)))
+                   (*self.kept_staves(self.snapshot.inventory), *self.home_staves))
 
     @cached_property
     def staff_success(self) -> float:
@@ -195,8 +216,9 @@ class Means:
 
     def supplies(self, item) -> bool:
         """``item`` adds a *Destruction* means by the definition: a staff the worn loadout makes
-        reliable.  A scroll never does (owner 2026-11-04)."""
-        return is_staff(item) and self.staff_reliable
+        reliable and the town does not absorb (``town_absorbs``).  A scroll never does (owner
+        2026-11-04)."""
+        return is_staff(item) and self.staff_reliable and not self.town_absorbs(item)
 
     # -- the readers (owner 2026-11-16 「深さの条件の定義に揃える」) --
 
@@ -221,7 +243,7 @@ class Means:
         """policy._total_destruction_uses: the absorbed charges and, when the worn loadout makes
         the staff reliable, every carried known staff's charges (user decision 2026-09-23 counts
         the charges); a scroll counts nothing.  More than 0 only when ``depth_gate`` holds."""
-        carried = (sum(stack_charges(item) for item in charged_staves(self.snapshot.inventory))
+        carried = (sum(stack_charges(item) for item in self.kept_staves(self.snapshot.inventory))
                    if self.staff_reliable else 0)
         return carried + self.absorbed_charges
 
