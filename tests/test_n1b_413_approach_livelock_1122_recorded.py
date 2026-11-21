@@ -33,6 +33,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 
 from hengbot import threat_tiers
 from hengbot.me_device_attacks import observe_lists
@@ -54,8 +55,13 @@ def _boards(path):
 
 
 class ApproachLivelockRecordedTest(unittest.TestCase):
+    # The window's hound packs (each T3 alone, no drops, T1 together) are destroyed by the 11-22
+    # group (threat_tiers ``_unprofitable_group``, test_group_destroy_no_profit_1122_recorded),
+    # which the recorded boards do not show; here it is off, so the run is the recorded one.
     @classmethod
     def setUpClass(cls):
+        cls.group = mock.patch.object(threat_tiers, "_unprofitable_group", lambda *_: [])
+        cls.group.start()
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
         lists = json.loads(LISTS.read_text(encoding="utf-8"))["lists"]
         for row in lists["rod"]:
@@ -65,6 +71,10 @@ class ApproachLivelockRecordedTest(unittest.TestCase):
         cls.decided = {}
         for name, path in (("unreached", UNREACHED), ("lost", LOST)):
             cls.decided[name] = cls.drive(_boards(path))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.group.stop()
 
     @classmethod
     def drive(cls, boards):

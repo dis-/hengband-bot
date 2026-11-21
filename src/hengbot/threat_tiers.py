@@ -604,6 +604,8 @@ def _sensed_strong(policy, snapshot, *, leave: bool = False) -> tuple[list, list
     only with supplies; a monster the free fight beats, T3, is no 強敵), and only two or more of
     them make a group.  life-391 (Angband 80F): 竜の『ファフナー』 and 黄金竜『スマウグ』, each T2
     alone, together T1 (two resisted fire breaths, 311 + 226, against HP 533), killed the player.
+    Owner 2026-11-22 「倒して利益のない場合は破壊する」: else the members T2 or T3 alone that killing
+    yields nothing for, T1 together (``_unprofitable_group``).
 
     On a random quest floor whose exit lock holds (``destruction_only_here``) the quest's target
     is none of them: *Destruction* cannot remove it, and its own T1 verdict gives the floor up
@@ -631,7 +633,45 @@ def _sensed_strong(policy, snapshot, *, leave: bool = False) -> tuple[list, list
         group = [monster for monster, reading in readings if reading.tier in STRONG_ON_THE_WAY]
         if len(group) > 1 and cannot_win(tiered(policy, snapshot, group, contact=True), hp):
             strong = group
+    if not strong:
+        strong = _unprofitable_group(policy, snapshot, readings, hp)
     return hostiles, strong
+
+
+# The tiers of a member of an unprofitable group (``_unprofitable_group``): beaten only with
+# supplies (T2) or without them (T3), alone from contact.
+UNPROFITABLE_GROUP_TIERS = (T2, T3)
+
+
+def kill_profit(policy, snapshot, monster) -> tuple:
+    """What killing ``monster`` yields, read from its race's drops alone (MonraceDefinitions):
+    the drop half of answer 5's reward races (``reward_reasons``: DROP_GOOD / DROP_GREAT, or at
+    least ``MANY_DROPS`` expected drops a kill, DROP_60 0.6 ... DROP_4D2 6.0).  The exp half is
+    left out: it is read against the exp still needed for the next level, so the same race is a
+    profit one board before a level-up and none after (owner question pending)."""
+    return tuple(reason for reason in reward_reasons(policy, snapshot, monster) if reason != "exp")
+
+
+def _unprofitable_group(policy, snapshot, readings, hp) -> list:
+    """The sensed members that killing yields nothing for (``kill_profit`` empty), each T2 or T3
+    alone from contact, when two or more of them together cannot be beaten (``cannot_win``,
+    judged from contact); else [].
+
+    Owner 2026-11-22 (the question 「11-13 の決まり『1体ずつは T2 以下でも、まとめて T1 の感知した
+    群れは感知した T1 と同じに扱う』の『T2 以下』に T3 も含めるか」, verbatim answer 「倒して利益の
+    ない場合は破壊する」): such a group is the sensed T1 (the approach to *Destruction* and its use,
+    as ``_sensed_strong``'s 11-13 group); a member worth killing is left out of it and fought by
+    the rules as before.  n1-c life-219 (Angband 80F, 2026-11-22): a hound pack (エア・ハウンド,
+    エナジー・ハウンド, 重力ハウンド, ...; no drops) at 04:32:05 and nine モアイ (DROP_90, 0.9 a kill)
+    at 05:08:20, each T3 alone and T1 together, were no *Destruction* target and the esp-threat
+    rest left the floor by Recall.  Breeders are not members: the breeder rules (owner
+    2026-11-08 「範囲で撃つ」) keep them."""
+    group = [monster for monster, reading in readings
+             if reading.tier in UNPROFITABLE_GROUP_TIERS and not monster.can_multiply
+             and not kill_profit(policy, snapshot, monster)]
+    if len(group) > 1 and cannot_win(tiered(policy, snapshot, group, contact=True), hp):
+        return group
+    return []
 
 
 def _upstairs_underfoot(policy, snapshot) -> bool:

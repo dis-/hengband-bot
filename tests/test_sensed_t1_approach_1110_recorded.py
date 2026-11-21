@@ -106,9 +106,13 @@ class SensedT1ApproachRecordedTest(unittest.TestCase):
         """Live: sensed-t1:teleport "rf" (a Teleportation counted as an escape)."""
         policy, board, decided = self.decide(MAP, DESTRUCTION, change=no_healing)
         self.assertEqual(decided[0][1], "me-power:new-floor:map-area")
-        self.assertEqual(decided[6][1], "ranged:fire-target")  # live 12806: *Destruction*
+        # Owner 2026-11-22 「倒して利益のない場合は破壊する」: the four ハヤブサ (each T3 alone, no
+        # drops) are T1 together, the sensed group (threat_tiers ``_unprofitable_group``), and the
+        # one in reach is destroyed as live 12806 did (until 11-22: ranged:fire-target); the
+        # next board maps the circle (the replayed board does not show it).
+        self.assertEqual(decided[6], ("mA3", "emergency:destruction:absorbed-power"))
         self.assertFalse([reason for _key, reason in decided if reason.startswith("sensed-t1:")])
-        self.assertEqual(decided[-1][1], "return:recall")
+        self.assertEqual(decided[-1][1], "me-power:after-destruction:map-area")
 
     def test_without_the_means_the_leave_is_as_before(self):
         _, board, decided = self.decide(MAP, change=no_healing)

@@ -1,0 +1,403 @@
+{
+ "lists": {
+  "rod": [
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 8,
+    "name": "トラップ感知",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 8,
+    "name": "光",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 3,
+    "name": "ドア/階段感知",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 3,
+    "name": "帰還",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 10,
+    "name": "イルミネーション",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 6,
+    "max": 3,
+    "name": "周辺感知",
+    "success": 94
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 4,
+    "name": "アシッド・ボルト",
+    "success": 95
+   },
+   {
+    "charging": 2,
+    "fail": 5,
+    "max": 2,
+    "name": "全感知",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 8,
+    "name": "サンダー・ボルト",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 9,
+    "name": "ファイア・ボルト",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 9,
+    "name": "アイス・ボルト",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 1,
+    "name": "アシッド・ボール",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 4,
+    "name": "サンダー・ボール",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 24,
+    "max": 2,
+    "name": "ファイア・ボール",
+    "success": 76
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 6,
+    "name": "害虫駆除",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 1,
+    "name": "アイス・ボール",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 1,
+    "name": "テレポート・アウェイ",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 2,
+    "name": "トラップ解除",
+    "success": 95
+   },
+   {
+    "charging": 0,
+    "fail": 5,
+    "max": 3,
+    "name": "岩石溶解",
+    "success": 95
+   }
+  ],
+  "staff": [
+   {
+    "current": 14,
+    "fail": 5,
+    "max": 17,
+    "name": "軽傷の治癒",
+    "success": 95
+   },
+   {
+    "current": 16,
+    "fail": 5,
+    "max": 16,
+    "name": "癒し",
+    "success": 95
+   },
+   {
+    "current": 5,
+    "fail": 56,
+    "max": 5,
+    "name": "体力回復",
+    "success": 44
+   },
+   {
+    "current": 22,
+    "fail": 5,
+    "max": 22,
+    "name": "テレポート",
+    "success": 95
+   },
+   {
+    "current": 99,
+    "fail": 5,
+    "max": 99,
+    "name": "鑑定",
+    "success": 95
+   },
+   {
+    "current": 21,
+    "fail": 5,
+    "max": 21,
+    "name": "解呪",
+    "success": 95
+   },
+   {
+    "current": 59,
+    "fail": 5,
+    "max": 59,
+    "name": "スピード",
+    "success": 95
+   },
+   {
+    "current": 16,
+    "fail": 5,
+    "max": 16,
+    "name": "スターライト",
+    "success": 95
+   },
+   {
+    "current": 19,
+    "fail": 5,
+    "max": 37,
+    "name": "光",
+    "success": 95
+   },
+   {
+    "current": 17,
+    "fail": 10,
+    "max": 17,
+    "name": "邪悪存在退散",
+    "success": 90
+   },
+   {
+    "current": 36,
+    "fail": 5,
+    "max": 37,
+    "name": "周辺感知",
+    "success": 95
+   },
+   {
+    "current": 5,
+    "fail": 56,
+    "max": 5,
+    "name": "力",
+    "success": 44
+   },
+   {
+    "current": 49,
+    "fail": 5,
+    "max": 49,
+    "name": "財宝感知",
+    "success": 95
+   },
+   {
+    "current": 5,
+    "fail": 56,
+    "max": 5,
+    "name": "聖浄",
+    "success": 44
+   },
+   {
+    "current": 25,
+    "fail": 5,
+    "max": 25,
+    "name": "アイテム感知",
+    "success": 95
+   },
+   {
+    "current": 22,
+    "fail": 5,
+    "max": 24,
+    "name": "トラップ感知",
+    "success": 95
+   },
+   {
+    "current": 24,
+    "fail": 5,
+    "max": 24,
+    "name": "地震",
+    "success": 95
+   },
+   {
+    "current": 32,
+    "fail": 5,
+    "max": 32,
+    "name": "ドア/階段感知",
+    "success": 95
+   },
+   {
+    "current": 2,
+    "fail": 10,
+    "max": 9,
+    "name": "*破壊*",
+    "success": 90
+   },
+   {
+    "current": 11,
+    "fail": 5,
+    "max": 11,
+    "name": "透明物体感知",
+    "success": 95
+   },
+   {
+    "current": 34,
+    "fail": 5,
+    "max": 35,
+    "name": "邪悪存在感知",
+    "success": 95
+   }
+  ],
+  "wand": [
+   {
+    "current": 30,
+    "fail": 5,
+    "max": 30,
+    "name": "アシッド・ボルト",
+    "success": 95
+   },
+   {
+    "current": 43,
+    "fail": 5,
+    "max": 43,
+    "name": "ファイア・ボルト",
+    "success": 95
+   },
+   {
+    "current": 50,
+    "fail": 5,
+    "max": 50,
+    "name": "テレポート・アウェイ",
+    "success": 95
+   },
+   {
+    "current": 16,
+    "fail": 5,
+    "max": 16,
+    "name": "アイス・ボルト",
+    "success": 95
+   },
+   {
+    "current": 17,
+    "fail": 5,
+    "max": 17,
+    "name": "トラップ解除",
+    "success": 95
+   },
+   {
+    "current": 13,
+    "fail": 10,
+    "max": 13,
+    "name": "アシッド・ボール",
+    "success": 90
+   },
+   {
+    "current": 58,
+    "fail": 5,
+    "max": 58,
+    "name": "トラップ/ドア破壊",
+    "success": 95
+   },
+   {
+    "current": 13,
+    "fail": 5,
+    "max": 13,
+    "name": "サンダー・ボール",
+    "success": 95
+   },
+   {
+    "current": 92,
+    "fail": 5,
+    "max": 99,
+    "name": "岩石溶解",
+    "success": 95
+   },
+   {
+    "current": 41,
+    "fail": 5,
+    "max": 41,
+    "name": "光",
+    "success": 95
+   },
+   {
+    "current": 12,
+    "fail": 5,
+    "max": 12,
+    "name": "アイス・ボール",
+    "success": 95
+   },
+   {
+    "current": 0,
+    "fail": 10,
+    "max": 6,
+    "name": "ドラゴンの火炎",
+    "success": 90
+   },
+   {
+    "current": 4,
+    "fail": 10,
+    "max": 5,
+    "name": "ドラゴンの冷気",
+    "success": 90
+   },
+   {
+    "current": 7,
+    "fail": 10,
+    "max": 7,
+    "name": "衰弱",
+    "success": 90
+   },
+   {
+    "current": 36,
+    "fail": 5,
+    "max": 36,
+    "name": "悪臭雲",
+    "success": 95
+   },
+   {
+    "current": 42,
+    "fail": 5,
+    "max": 42,
+    "name": "マジック・ミサイル",
+    "success": 95
+   }
+  ]
+ },
+ "source": "n1-c life-219 town-arrival checkpoint 20261122-055029 (turn 2732552), policy._me_device_lists"
+}
