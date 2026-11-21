@@ -124,6 +124,23 @@ def absorbed_power_fail_percent(
                                  personality_id=personality_id, flags=flags)
 
 
+# Owner 2026-11-21 「過剰な加速よりもまず知力を十分上げることを優先して」: the 99F/100F loadout raises
+# the INT until the absorbed Rockets reach 95% (equipment_optimizer ``finale_rank``).
+FINALE_POWER = ("wand", 29)
+
+
+def finale_power_success(inputs: MagicEaterOffenseInputs | None, int_pval: int,
+                         flags: frozenset[int]) -> int | None:
+    """The absorbed Rockets' success percent under this loadout's INT (cmd-magiceat.cpp, unstunned:
+    ``absorbed_power_fail_percent``), None without the Magic-Eater's inputs."""
+    power = me_device_attacks.POWERS.get(FINALE_POWER)
+    if inputs is None or power is None:
+        return None
+    return 100 - absorbed_power_fail_percent(
+        power.kind, power.level, inputs.level, loadout_intelligence(inputs, int_pval),
+        personality_id=inputs.personality_id, flags=flags)
+
+
 def held_attack_powers(device_lists) -> tuple[tuple[str, int], ...]:
     """(kind, sval) of the attack powers in the last displayed power lists.
 

@@ -14234,6 +14234,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _find_recall_scroll(self, snapshot: Snapshot) -> InventoryItem | None:
+        # Owner 2026-11-20 「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」: on the
+        # 99F/100F floors of the finale's expedition no other rule finds a Word of Recall to
+        # read (finale_prep ``recall_closed``; n1-b life-411 2026-11-21 09:02:18 read one under
+        # deep-teleport:recall, 09:07:45 summoner:recall, 09:14:53 esp-threat:leave-recall).
+        if finale_prep.recall_closed(self, snapshot):
+            return None
         return self._first_item(snapshot, lambda it: it.is_recall_scroll)
 
     def _town_recall_device(self, snapshot: Snapshot) -> InventoryItem | None:

@@ -40,8 +40,8 @@ keys come from ``town_key`` (the objectives ladder, before the ordinary town wor
               recall counts down.
 ``done``      the expedition: the mark holds until the next town board.
 
-No equipment swap starts while ``check`` or ``loadout`` runs (``holds_swap``), and the phase enters
-``home`` and ``loadout`` only with no swap under way: the order of the worn loadout's search never
+No equipment swap starts while ``home``, ``check`` or ``loadout`` runs (``holds_swap``), and the
+phase enters ``home`` and ``loadout`` only with no swap under way: the order of the worn loadout's search never
 changes under a swap (n1-b life-411 2026-11-20 22:29-22:32: a swap through Home failed half done
 when the order changed mid-visit).  A step that cannot complete stops the phase with a named reason
 (``stopped``): the visit goes on as the 95F exploration (no cap lift), and the next town visit may
@@ -135,6 +135,16 @@ def lifted(policy) -> bool:
     return bool(held is not None and held.lifted)
 
 
+def recall_closed(policy, snapshot) -> bool:
+    """On the 99F/100F floors of the expedition, Word of Recall is the battle's alone: read on
+    success or once the Restore Mana is overspent (angband_finale_battle ``recall_permitted``,
+    owner 2026-11-20 「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」); every
+    other rule (deep_teleport, the summoner's, the ESP threat's, the emergencies) finds none."""
+    from hengbot import angband_finale_battle  # import cycle
+    return (angband_finale_battle.applies(policy, snapshot)
+            and not angband_finale_battle.recall_permitted(policy, snapshot))
+
+
 def owned_search_due(policy) -> bool:
     """The read-only search over the owned gear (policy_equipment): the check step only."""
     held = getattr(policy, STATE, None)
@@ -144,7 +154,7 @@ def owned_search_due(policy) -> bool:
 def holds_swap(policy) -> bool:
     """No equipment swap starts before the phase's swap step (policy_equipment)."""
     held = getattr(policy, STATE, None)
-    return bool(held is not None and held.step in (CHECK, LOADOUT))
+    return bool(held is not None and held.step in (HOME, CHECK, LOADOUT))
 
 
 def routed(policy) -> bool:

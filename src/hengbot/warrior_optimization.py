@@ -839,6 +839,10 @@ def _effective_intrinsic_abilities(
     return stored
 
 
+# object/tr-types.h TR_NO_AC (宵闇のローブ's).
+TR_NO_AC = 141
+
+
 def prepare_warrior_optimization(
     snapshot: Snapshot,
     items: tuple[OwnedEquipment, ...],
@@ -898,6 +902,12 @@ def prepare_warrior_optimization(
         blockers.append("missing-monrace-knowledge")
     if not home_scan_complete:
         blockers.append("home-scan-incomplete")
+    if finale:
+        # Owner 2026-11-21 「99F 100Fでも宵闇のローブは禁止」: the finale's rank reads no AC, so a NO_AC
+        # piece (宵闇のローブ, EgoDefinitions.jsonc TWILIGHT: every resistance, AC 0) would win on
+        # its resistances; it is never in the finale's set.
+        search_excluded_item_ids = search_excluded_item_ids | frozenset(
+            item.id for item in items if TR_NO_AC in item.flags)
     if calibration is None:
         # P1: the worn-independent constants are a MANDATORY input of the
         # selector.  There is deliberately no fallback derivation from the

@@ -572,6 +572,10 @@ class LoadoutMetrics:
     # plus the gear's speed); None reads as +0 plus speed_bonus.  Read only
     # through speed_valuation.loadout_speed (owner 2026-11-17).
     player_speed: int | None = None
+    # The absorbed Rockets' success percent under this loadout's INT (me_loadout_offense
+    # ``finale_power_success``, the game's cmd-magiceat.cpp rate unstunned); None for every
+    # class but the Magic-Eater.  Read by ``finale_rank`` only.
+    finale_power_success: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1416,16 +1420,27 @@ def _stat_bonus(loadout: Loadout, flag: int) -> int:
     return sum(item.item.pval for _, item in loadout.slots if flag in item.flags)
 
 
+# Owner 2026-11-21 「過剰な加速よりもまず知力を十分上げることを優先して」 and 「成功率95%まで」: the
+# powered Rockets' success the INT is raised to before any speed beyond the +25 gate.
+FINALE_POWER_SUCCESS = 95
+
+
 def finale_rank(entry: EvaluatedLoadout) -> tuple:
     """The 99F/100F loadout's order, compared before everything else: resist curse, resist
-    blindness or light, the permanent speed, the number of resisted elements, telepathy, INT, CON.  Nothing of AC or melee: those
-    decide only between loadouts this rank holds equal (the ordinary comparison)."""
+    blindness or light, the speed gate (+25 after the weight); then, owner 2026-11-21
+    「過剰な加速よりもまず知力を十分上げることを優先して」「成功率95%まで」, the Rockets' success up to
+    95% (the INT that raises it); then the permanent speed, the number of resisted elements,
+    telepathy, INT, CON (owner 2026-11-20 「加速耐性テレパシー知力耐久力を優先」).  Nothing of AC or melee: those decide only between
+    loadouts this rank holds equal (the ordinary comparison)."""
     flags = entry.loadout.flags
     elements = (flags & FINALE_RESISTANCES) | {
         element for immunity, element in FINALE_IMMUNITY_ELEMENT.items() if immunity in flags}
+    speed = loadout_speed(entry.metrics)
+    success = getattr(entry.metrics, "finale_power_success", None)
     return (TR_RES_CURSE in flags, bool(flags & {TR_RES_BLIND, TR_RES_LITE}),
-            loadout_speed(entry.metrics), len(elements),
-            TR_TELEPATHY in flags, _stat_bonus(entry.loadout, TR_INT),
+            meets_speed_gate(speed),
+            min(success or 0, FINALE_POWER_SUCCESS),
+            speed, len(elements), TR_TELEPATHY in flags, _stat_bonus(entry.loadout, TR_INT),
             _stat_bonus(entry.loadout, TR_CON))
 
 

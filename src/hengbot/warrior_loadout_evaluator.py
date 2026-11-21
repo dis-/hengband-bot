@@ -13,6 +13,7 @@ from hengbot.launcher_damage import LAUNCHER_PROPERTIES, STORE_AMMO_AVERAGE_DAMA
 from hengbot.me_loadout_offense import (
     TR_INT,
     MagicEaterOffenseInputs,
+    finale_power_success,
     magic_eater_device_dps,
     survival_factor,
 )
@@ -532,6 +533,9 @@ def _combine_warrior_results(
         evaluation_complete=complete,
         device_dps=device_dps,
         player_speed=player_speed,
+        finale_power_success=finale_power_success(
+            getattr(inputs, "magic_eater", None), _pval_total(loadout, TR_INT),
+            loadout.flags | inputs.defense.intrinsic_flags),
     )
     return WarriorLoadoutResult(
         metrics, melee, defense, ranged, ranged_offense_dps, device_dps)

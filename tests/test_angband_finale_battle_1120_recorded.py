@@ -390,6 +390,23 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         key, reason = decide(self.policy, board)
         self.assertEqual(reason, battle.RECALL_REASON)
 
+    def test_no_other_rule_finds_a_recall_on_the_floor(self):
+        """「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」: the expedition's 99F
+        has its Word of Recall for the battle's two cases only; every other rule (n1-b life-411
+        2026-11-21 09:02:18 deep-teleport:recall, 09:07:45 summoner:recall, 09:14:53
+        esp-threat:leave-recall) finds none (finale_prep ``recall_closed``)."""
+        self.in_battle()
+        board = self.board()
+        self.assertTrue(any(item.is_recall_scroll for item in board.inventory))
+        self.assertIsNone(self.policy._find_recall_scroll(board))
+        quests = dict(board.quests)
+        quests[8] = replace(quests[8], status=2)
+        done = replace(board, quests=quests)
+        self.assertIsNotNone(self.policy._find_recall_scroll(done))  # the battle's own case
+        # Out of the expedition (no cap lift) the floor is the climb's, and recalls as ever.
+        finale_prep.phase(self.policy).lifted = False
+        self.assertIsNotNone(self.policy._find_recall_scroll(board))
+
     def test_restore_mana_uses_are_counted_on_the_floor(self):
         mana = replace(self.recorded.inventory[0], slot="y", tval=TVAL_POTION, sval=40, count=10)
         floor = replace(self.recorded, inventory=[*self.recorded.inventory, mana])

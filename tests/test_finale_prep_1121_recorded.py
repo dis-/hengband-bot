@@ -135,7 +135,9 @@ class FinalePrepRecordedTest(unittest.TestCase):
         self.assertTrue(moved)
         self.assertLessEqual(moved, set(held.target))
         # The next search (the swap's own inputs) sees only the target's pieces.
-        self.decide(policy, board)
+        policy._equipment_transaction_session = None  # DECLARED: no action posted yet
+        with contextlib.redirect_stdout(io.StringIO()):
+            policy._prepare_equipment_optimization(board)
         surviving = {finale_prep._signature(item_id)
                      for item_id in policy._equipment_optimization_search_surviving_ids}
         self.assertTrue(surviving)
@@ -183,6 +185,72 @@ class FinalePrepRecordedTest(unittest.TestCase):
         self.assertEqual(held.stopped, "supplies:unfinished-at-departure")
         self.assertFalse(finale_prep.carrying(policy) or finale_prep.lifted(policy))
         self.assertEqual(angband_cap.cap(DUNGEON_ANGBAND, policy), angband_cap.ANGBAND_DEPTH_CAP)
+
+    def test_n1c_no_twilight_robe_in_the_finale_set(self):
+        """Owner 2026-11-21 「99F 100Fでも宵闇のローブは禁止」: the finale's rank reads no AC, so the
+        robe (TWILIGHT: every resistance, NO_AC) would win on its resistances; the searches in the
+        finale's rank (the check's and the loadout step's, which fixes the target) never take it."""
+        from hengbot.equipment_optimizer import ABILITY_FLAG
+        from hengbot.warrior_optimization import TR_NO_AC
+        policy, steps = self.load(N1C)
+        robe = None
+
+        def carrying_robe(board):
+            nonlocal robe
+            if robe is None:
+                # DECLARED: a robe of twilight carried (the worn body armour's row, AC 0, every
+                # resistance, resist curse and NO_AC: without the rule it would win the rank).
+                worn = next(item for item in board.equipment if item.slot == "body")
+                flags = frozenset(flag for name, flag in ABILITY_FLAG.items()
+                                  if name.startswith("resist_")) | {TR_NO_AC, 148}
+                robe = replace(worn, slot=chr(ord("a") + len(board.inventory)),
+                               name="宵闇のローブ", ac=0, to_a=0,
+                               known_flags=frozenset(worn.known_flags) | flags)
+            return replace(board, inventory=(*board.inventory, robe))
+
+        for recorded, supply in steps[:N1C_ENTRY + 4]:
+            board = supply()
+            if recorded["row"] >= N1C_ENTRY:
+                board = carrying_robe(board)
+            self.decide(policy, board)
+            self.deliver(policy, recorded["key"])
+        held = finale_prep.phase(policy)
+        # The check's own search, with the robe among the owned gear: not in its set.
+        best = policy._angband_finale_feasibility.result.best
+        self.assertNotIn("宵闇のローブ", [item.item.name for _slot, item in best.loadout.slots])
+        angband_finale.observe(policy, carrying_robe(board))  # its done-check on the next board
+        self.assertEqual(held.step, finale_prep.SUPPLIES)  # the check passed
+        self.decide(policy, carrying_robe(self.stocked(policy, board)))  # the loadout step's search
+        self.assertEqual(held.step, finale_prep.SWAP)
+        robes = {finale_prep._signature(owned.id) for owned in policy._equipment_catalog.items
+                 if owned.item.name == "宵闇のローブ"}
+        self.assertTrue(robes)
+        self.assertFalse(robes & held.target)
+
+    def test_n1c_int_before_speed_beyond_the_gate(self):
+        """Owner 2026-11-21 「過剰な加速よりもまず知力を十分上げることを優先して」「成功率95%まで」:
+        among sets meeting the conditions, the absorbed Rockets' success up to 95% (the INT) comes
+        before any speed beyond the +25 gate; past 95% the speed comes first again."""
+        from hengbot.equipment_optimizer import FINALE_POWER_SUCCESS, finale_rank
+        policy, decided = self.n1c_until(N1C_ENTRY + 4)
+        held = finale_prep.phase(policy)
+        board = self.stocked(policy, decided[-1][1])
+        self.decide(policy, board)
+        self.assertEqual(held.step, finale_prep.SWAP)
+        best = policy._equipment_optimization_preparation.result.best
+        # The search's own sets carry the Rockets' success under their INT (the game's formula).
+        self.assertIsNotNone(best.metrics.finale_power_success)
+
+        def variant(speed, success):  # DECLARED: the chosen set with these two figures
+            return replace(best, metrics=replace(best.metrics, player_speed=speed,
+                                                 finale_power_success=success))
+        faster, surer = variant(140, FINALE_POWER_SUCCESS - 5), variant(136, FINALE_POWER_SUCCESS)
+        self.assertGreater(finale_rank(surer), finale_rank(faster))
+        # Past 95% the speed decides again.
+        self.assertGreater(finale_rank(variant(140, FINALE_POWER_SUCCESS)),
+                           finale_rank(variant(136, 99)))
+        # Below the +25 gate no INT makes up for it.
+        self.assertGreater(finale_rank(variant(135, 80)), finale_rank(variant(134, 99)))
 
     # -- n1-b ------------------------------------------------------------------------------
 
