@@ -211,9 +211,10 @@ class KillAllPatrolTest(unittest.TestCase):
     def test_the_detection_first_then_the_round(self):
         policy, raw = self._q31(device_lists=lists())
         answers = self._walk(policy, raw, 8)
-        # The absorbed rod under its menu owner (n1-c life-208, 2026-11-15).
-        self.assertEqual(answers[0][1], kill_all_patrol.ABSORBED_DETECT_REASON)
-        self.assertTrue(answers[0][0].startswith("mC"), answers[0])   # the absorbed 全感知 rod
+        # The absorbed 全感知 rod through Powerful Activation, safe here (owner 2026-11-22
+        # 「全感知の強力発動ならクエスト全域をカバーできるはずだが」, n1-b life-413).
+        self.assertEqual(answers[0][1], kill_all_patrol.POWERED_DETECT_REASON)
+        self.assertTrue(answers[0][0].startswith("UC"), answers[0])
         self.assertTrue(all(reason == kill_all_patrol.WALK_REASON for _key, reason, _cell in answers[1:]))
         cells = [cell for _key, _reason, cell in answers[1:]]
         self.assertEqual(len(cells), len(set(cells)))

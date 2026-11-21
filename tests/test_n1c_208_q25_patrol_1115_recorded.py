@@ -49,6 +49,7 @@ import gzip
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
 from hengbot import kill_all_patrol, me_capability, quest25_battle as battle
@@ -197,6 +198,17 @@ class TheRecordingTest(_Replay):
 
 
 class TheDetectionTest(_Replay):
+    """The plain cast (``m``): the Powerful Activation of the rod (kill_all_patrol
+    ``_powered_detect_all_key``, owner 2026-11-01 「安全なら強力発動で使う」) is held unsafe here
+    (DECLARED: me_powerful_activation.pays_safely False, as on a board whose HP the cost would take
+    below the low-HP rungs)."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch("hengbot.me_powerful_activation.pays_safely", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_the_replayed_cast_is_owned(self):
         policy, decided = self.replay("stuck", FIRST_CAST, FIRST_CAST, lists())
         self.assertEqual(decided, [(FIRST_CAST, OWNED, "mCg")])
@@ -209,7 +221,8 @@ class TheDetectionTest(_Replay):
         Detect Evil."""
         policy, _decided = self.replay("stuck", FIRST_CAST, ROUND_END, lists())
         patrol = policy._kill_all_patrol
-        patrol.detected_round = patrol.round - 1   # DECLARED (module note): the round over
+        patrol.detected_round = patrol.round - 1
+        patrol.targets = {}   # DECLARED: the quylthulg's remembered cell (kill_all_patrol._remember) let go   # DECLARED (module note): the round over
         raw = board("stuck", STOP)
         key = decide(policy, raw)
         self.assertEqual((policy.last_reason, key), (OWNED, "mCg"))
@@ -245,6 +258,7 @@ class TheDetectionTest(_Replay):
         policy, _decided = self.replay("stuck", FIRST_CAST, ROUND_END, lists())
         patrol = policy._kill_all_patrol
         patrol.detected_round = patrol.round - 1
+        patrol.targets = {}   # DECLARED: the quylthulg's remembered cell (kill_all_patrol._remember) let go
         raw = board("stuck", STOP)
         key = decide(policy, raw)
         accepted, _sent, result, _after = self.post(policy, raw, key, [
@@ -254,10 +268,13 @@ class TheDetectionTest(_Replay):
         self.assertEqual(accepted, ["m", "C", "g"])
 
     def test_a_rod_seen_charging_is_not_asked(self):
-        """The list already shows the rod charging: the staff first, no prompt to close."""
+        """The list this board's turn shows the rod charging: the staff first, no prompt to close."""
         policy, _decided = self.replay("stuck", FIRST_CAST, ROUND_END, lists(rod_charging=1))
         patrol = policy._kill_all_patrol
         patrol.detected_round = patrol.round - 1
+        patrol.targets = {}   # DECLARED: the quylthulg's remembered cell (kill_all_patrol._remember) let go
+        policy._me_device_lists = {kind: (STOP, rows) for kind, (_turn, rows)
+                                   in policy._me_device_lists.items()}
         key = decide(policy, board("stuck", STOP))
         self.assertEqual((policy.last_reason, key), (OWNED, "mAp"))
 
