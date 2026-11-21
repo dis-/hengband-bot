@@ -1591,7 +1591,8 @@ class EquipmentMixin:
             search_catalog,
             lambda owned: self._item_signature(owned.item)
             in self._town_unidentifiable_carried_sigs)
-        visit_context = (finale_key, destination_floor, equipment_rules.RULES_VERSION)
+        visit_context = (finale_key, destination_floor, equipment_rules.RULES_VERSION,
+                         equipment_target.destruction_means_key(has_destruction, staff_gate))
         held_target = equipment_target.visit_target(self, self._town_visit_epoch)
         redecide = (
             (equipment_target.VISIT_START,) if held_target is None

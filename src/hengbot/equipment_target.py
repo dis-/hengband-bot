@@ -44,6 +44,13 @@ The events (each names why the visit decided again; the visit journal's ``search
   2026-11-20 「上限を外す時に初めて着け替える」: the phase decides its loadout in the visit itself.
 - ``destination-band-floor``: destination_band_floor engaged a floor (owner 2026-11-21; Q4 of
   this review 「深さの条件を満たす組があれば打撃が半分を下回っても着て行く」).
+- ``destruction-means-gained``: the 50F+ *Destruction* means the search reads became satisfied
+  during the visit -- an owned charged staff (bought, withdrawn from the Home, picked up: the
+  search's staff gate) or the absorbed power (destruction_means ``optimizer_without_gear``).  Owner
+  2026-11-22 on the E3 report's question 4 (verbatim choice): 「決め直す」 -- the target and its depth
+  band are decided again in that visit, so a warrior can wear the deep band's set and depart.
+  Only the gain counts: the staff absorbed or used up decides nothing (the n1-b life-413 launcher
+  flip: a staff the town absorbs is no means, destruction_means ``town_absorbs``).
 - ``equipment-rules``: the rules table changed under a restored target (a new build).
 - ``target-piece-lost``: a piece of the target is owned no more (sold, destroyed, stolen) --
   NOT covered by the owner's answer; it decides again as before E3 and is reported.
@@ -74,12 +81,14 @@ EVENT_CANDIDATE_GAINED = "candidate-gained"
 EVENT_FINALE_PHASE = "finale-phase"
 EVENT_DESTINATION_FLOOR = "destination-band-floor"
 EVENT_RULES = "equipment-rules"
+EVENT_DESTRUCTION_MEANS = "destruction-means-gained"
 EVENT_TARGET_PIECE_LOST = "target-piece-lost"
 EVENT_WORN_CURSE = "worn-curse-found"
 # Every reason the visit's target is decided again (``redecide_events`` and
 # ``mapped_visit_target``); the first decision of a visit is ``VISIT_START``.
 REDECIDE_EVENTS = (EVENT_CANDIDATE_GAINED, EVENT_FINALE_PHASE, EVENT_DESTINATION_FLOOR,
-                   EVENT_RULES, EVENT_TARGET_PIECE_LOST, EVENT_WORN_CURSE)
+                   EVENT_RULES, EVENT_TARGET_PIECE_LOST, EVENT_WORN_CURSE,
+                   EVENT_DESTRUCTION_MEANS)
 VISIT_START = "visit-start"
 SEARCH_RESETTERS = frozenset({"invalidate_loadout_search", "forget_loadout_search_in_state"})
 
@@ -154,7 +163,8 @@ class VisitTarget:
     """The target this town visit decided, and what it was decided on."""
     epoch: object               # policy._town_visit_epoch of the visit
     candidates: tuple           # ``candidate_counts`` when it was decided
-    context: tuple              # ``(finale, destination floor, rules version)`` (policy_equipment)
+    context: tuple              # ``(finale, destination floor, rules version, means)``
+                                # (policy_equipment; ``means``: ``destruction_means_key``)
     result: object              # the search's OptimizationResult (``best.loadout`` is the target)
 
 
@@ -181,6 +191,13 @@ def candidate_counts(items, usable_unidentified) -> tuple:
     return tuple(sorted((key, carried, home) for key, (carried, home) in counts.items()))
 
 
+def destruction_means_key(has_destruction: bool, staff_gate) -> tuple[bool, bool]:
+    """The search's two 50F+ *Destruction* means (policy_equipment ``_optimizer_destruction_means``):
+    the absorbed power, and an owned charged staff (its gate's presence, not its success: that
+    one moves with the worn device skill, so wearing the target would read as a change)."""
+    return (bool(has_destruction), staff_gate is not None)
+
+
 def visit_target(policy, epoch) -> VisitTarget | None:
     """This visit's fixed target, or None (no visit, or none decided in it yet)."""
     held = getattr(policy, VISIT_TARGET_STATE, None)
@@ -200,8 +217,8 @@ def redecide_events(held: VisitTarget, candidates: tuple, context: tuple) -> tup
     owned_before = {key: carried + home for key, carried, home in held.candidates}
     if any(max(carried, home) > owned_before.get(key, 0) for key, carried, home in candidates):
         events.append(EVENT_CANDIDATE_GAINED)
-    finale, floor, rules = context
-    held_finale, held_floor, held_rules = held.context
+    finale, floor, rules, means = context
+    held_finale, held_floor, held_rules, held_means = held.context
     if finale != held_finale:
         events.append(EVENT_FINALE_PHASE)
     # A floor engaged now (a destination switch that leaves it unread decides nothing).
@@ -209,6 +226,8 @@ def redecide_events(held: VisitTarget, candidates: tuple, context: tuple) -> tup
         events.append(EVENT_DESTINATION_FLOOR)
     if rules != held_rules:
         events.append(EVENT_RULES)
+    if any(now and not before for now, before in zip(means, held_means)):
+        events.append(EVENT_DESTRUCTION_MEANS)
     return tuple(events)
 
 
