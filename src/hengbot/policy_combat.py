@@ -2464,8 +2464,15 @@ class CombatMixin:
         # summon at the player before the player's next action is no reason
         # to read (nor a dive emergency); the ranged-kill / retreat rules
         # below and elsewhere are unchanged.
+        # Not in town: the summoner escape leaves the floor (stairs, Teleportation, Recall), and the
+        # town has no stairs; its own rungs (town_kill_mob, town_last_stand) answer a town monster,
+        # and a lethal board still escapes below.  n1-b life-411 (Morivant, 2026-11-21 16:28-16:31,
+        # HP 1153/1153): a sleeping Mindcrafter (race 1055, Lv22, S_MONSTER) 9-12 cells away latched
+        # the summoner escape; phase door, the walk toward no stair, then emergency:wait until the
+        # loop detector stopped the bot.
         summoner_open = (
-            any(
+            not snapshot.in_town
+            and any(
                 self._summoner_may_summon_next_turn(snapshot, monster)
                 for monster in summoners
             )
