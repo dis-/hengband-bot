@@ -370,6 +370,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "angband_finale.py:quest_done": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_finale.py:restore_mana_goal": {
     "classification": "data",
     "rows": [

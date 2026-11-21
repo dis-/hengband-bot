@@ -94,6 +94,24 @@ def phase(policy) -> Phase:
     return held
 
 
+# The finale's carry a process restarted on a 99F/100F floor reads as the expedition's: the
+# ordinary play carries neither potion (consumable_policy: they go to the Home), so two of either
+# are the expedition's (``expedition_evident``).
+RESTART_EVIDENCE = 2
+
+
+def expedition_evident(policy, snapshot) -> bool:
+    """A board of the finale's expedition, read from the game alone (a fresh process): a
+    Magic-Eater of the 95F exploration on Angband 99F/100F whose quest is still TAKEN, carrying
+    the finale's Restore Mana or *Healing* (``RESTART_EVIDENCE``)."""
+    from hengbot import angband_finale
+    if not (angband_finale.preparing(snapshot) and angband_finale.on_finale_floor(snapshot)
+            and not angband_finale.quest_done(snapshot)):
+        return False
+    return any(angband_finale.carried(snapshot, kind) >= RESTART_EVIDENCE
+               for kind in (angband_finale.RESTORE_MANA, angband_finale.STAR_HEALING))
+
+
 def _go(policy, held: Phase, step: str, note: str = "") -> None:
     held.step, held.since = step, policy._decision_sequence
     held.log.append((policy._decision_sequence, step, note))
@@ -224,6 +242,13 @@ def fix_target(policy, snapshot, preparation) -> None:
     if held is None or held.step != LOADOUT:
         return
     best = _best(preparation)
+    if best is None and "home-scan-incomplete" in (getattr(preparation, "blockers", ()) or ()):
+        # The search did not run over the whole Home: another Home take or deposit of this visit
+        # left its scan incomplete (n1-b life-411 2026-11-21 14:26:13, the swap's deposits just
+        # before; the step stopped as loadout:no-set and the supplies were deposited again).  The
+        # supplies step reads the Home and comes back here.
+        _go(policy, held, SUPPLIES, "home-scan-incomplete")
+        return
     if best is None:
         _stop(policy, held, "loadout:no-set")
         return
@@ -255,7 +280,14 @@ def observe(policy, snapshot, rows: dict | None) -> None:
     ``rows`` is that board's readiness (None out of town or short of the 95F exploration)."""
     held = phase(policy)
     if not snapshot.in_town:
-        held.in_town = False
+        restarted, held.in_town = held.in_town is None, False
+        if not held.lifted and restarted and expedition_evident(policy, snapshot):
+            # The mark lives in the process only: a process started on the expedition's floor
+            # takes it again from what the game shows (n1-c life-217 2026-11-21 14:41:02, restarted
+            # on 100F beside the Serpent of Chaos: no battle, the ordinary rungs climbed and
+            # recalled, and it died at 14:41:09).
+            held.lifted = True
+            held.log.append((policy._decision_sequence, DONE, "restart-on-finale-floor"))
         if held.lifted:
             held.step = DONE  # the recall read: the expedition carries the mark
         elif held.step != DONE:
@@ -309,7 +341,8 @@ def observe(policy, snapshot, rows: dict | None) -> None:
             return
         if (angband_finale.ready(rows["carried"]) and not routed(policy)
                 and not _restoring_at_home(policy)
-                and policy._equipment_transaction_session is None):
+                and policy._equipment_transaction_session is None
+                and policy._equipment_catalog.home_scan_complete):
             _go(policy, held, LOADOUT)
         return
     if held.step == SWAP:
@@ -403,6 +436,10 @@ def town_key(policy, snapshot) -> str | None:
     from hengbot.home_errand import HomeErrandRequest
     short = _short_stack(policy, snapshot)
     if short is None:
+        # Every count carried: the loadout step's search runs over the whole Home, so a scan
+        # another Home operation left incomplete is read first (``fix_target``).
+        if not policy._equipment_catalog.home_scan_complete:
+            return _read_home_key(policy, snapshot)
         return None
     kind, stack, missing, addressable = short
     if stack is None:
