@@ -331,6 +331,18 @@ def _dig_route(policy, snapshot, walled) -> Position | None:
     return policy._dig_route_first_step(snapshot, set(walled.ground), walkout_dig.diggable)
 
 
+def can_open_toward(policy, snapshot, ground) -> bool:
+    """Whether ``open_toward_key``'s dig would have a way toward ``ground``: the digger's route,
+    else the Stone to Mud route with a melt in hand (no key is made, nothing is counted)."""
+    if not ground:
+        return False
+    if _dig_route(policy, snapshot, WalledOff(frozenset(), frozenset(ground))) is not None:
+        return True
+    player = snapshot.player
+    return (not (player.blind or player.confused) and sealed_pocket.can_melt(policy, snapshot)
+            and melt_route(policy, snapshot, ground) is not None)
+
+
 def dig_has_route(policy, snapshot) -> bool:
     """Whether the dig toward walled-off ground still has work (keeps the digger wielded)."""
     if not _first_read_spent(policy, snapshot):

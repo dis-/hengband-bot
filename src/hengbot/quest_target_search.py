@@ -158,6 +158,7 @@ from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT
 
 
 LOOP_REASON = "quest-search:loop"
+OPENING_REASON = "quest-search:opening"  # the walk to the unexplored way toward unreached floor
 REDETECT_WAIT_REASON = "quest-search:wait-redetect"  # reasons.STATIONARY_ROWS (EXEMPT)
 GAME_TURNS_PER_REST = 10  # a player turn at normal speed (policy's R300 note)
 DETECT_REASON = "quest-search:detect"
@@ -535,8 +536,12 @@ def _known(policy, snapshot: Snapshot, cell: Position) -> bool:
 
 def _cut_off_floor(policy, snapshot: Snapshot, routes: dict) -> set:
     """Remembered floor inside the outer ring that no walk reaches, not even over damaging
-    ground or past a veto (a known trap: ``_past_traps``; a veto: walled_off_key): the ground
-    only an opener reaches."""
+    ground or past a veto (a known trap: ``_past_traps``; a veto: walled_off_key), nor through
+    the ground the map does not hold (``_split``): the ground only an opener reaches."""
+    return _split(policy, snapshot)[0]
+
+
+def _reached(policy, snapshot: Snapshot) -> set:
     start = snapshot.player.position
     reached, queue = {start}, deque([start])
     while queue:
@@ -544,9 +549,88 @@ def _cut_off_floor(policy, snapshot: Snapshot, routes: dict) -> set:
             if neighbour not in reached:
                 reached.add(neighbour)
                 queue.append(neighbour)
+    return reached
+
+
+def _unexplored(policy, snapshot: Snapshot, cell: Position) -> bool:
+    """Ground the map does not hold (policy ``_borders_unexplored``'s reading), inside the outer
+    ring."""
+    key = (cell.y, cell.x)
+    return (0 < cell.y < snapshot.height - 1 and 0 < cell.x < snapshot.width - 1
+            and key not in policy._marked_t and key not in policy._blocked_unknown)
+
+
+def _split(policy, snapshot: Snapshot) -> tuple[set, set, set]:
+    """(sealed, unsealed, between): the remembered floor no walk reaches, split into what the
+    player's side joins through ground the map does not hold (``_unexplored``, 8-way, the
+    unreached remembered floor and doors on the way counted too) -- unsealed: a way may run
+    through that ground -- and the rest -- sealed: only an opener reaches it -- with the
+    unexplored ground of that join (``between``).
+
+    n1-b life-413 (Angband 12F, RANDOM quest 43, 2026-11-21 19:02 and 20:11): the remembered floor
+    no walk reached was a magic-mapped room (x 17-27) whose doors open onto corridors the map did
+    not hold (map_area does not memorize corridor floor: (45,21) beside the unknown (44,21)), and
+    the opener wielded the digger at (46,30) to dig west at (46,29) toward it, from a corridor that
+    ran on into unmapped ground north and east ((46,33) onward is floor: walked in the replay of
+    the 20:11 capture's keys).  A pocket whose unmapped surroundings known wall parts from the
+    player's side stays sealed."""
+    reached = _reached(policy, snapshot)
     height, width = snapshot.height, snapshot.width
-    return {cell for y, x in policy._floor_t
+    left = {cell for y, x in policy._floor_t
             if 0 < y < height - 1 and 0 < x < width - 1 and (cell := Position(y, x)) not in reached}
+    if not left:
+        return set(), set(), set()
+    doors = {Position(y, x) for y, x in policy._door_t} - reached
+
+    def joins(cell) -> bool:
+        return cell in left or cell in doors or _unexplored(policy, snapshot, cell)
+
+    joined, stack = set(), []
+    for cell in reached:
+        for dy, dx in NEIGHBOR_OFFSETS:
+            neighbour = Position(cell.y + dy, cell.x + dx)
+            if neighbour not in reached and neighbour not in joined and joins(neighbour):
+                joined.add(neighbour)
+                stack.append(neighbour)
+    while stack:
+        cell = stack.pop()
+        for dy, dx in NEIGHBOR_OFFSETS:
+            neighbour = Position(cell.y + dy, cell.x + dx)
+            if neighbour not in reached and neighbour not in joined and joins(neighbour):
+                joined.add(neighbour)
+                stack.append(neighbour)
+    unsealed = left & joined
+    between = {cell for cell in joined if _unexplored(policy, snapshot, cell)} if unsealed else set()
+    return left - joined, unsealed, between
+
+
+def _opening_toward(policy, snapshot: Snapshot, routes: dict, unsealed: set,
+                    between: set) -> Position | None:
+    """The walkable cell beside the unexplored ground that joins remembered floor no walk reaches
+    to the player's side, nearest by its walk plus its straight distance on to that floor, else
+    None: the search walks there before the floor is opened toward (the coordinator 2026-11-21:
+    walk the unexplored way toward a remembered room before digging).  Not the player's own cell
+    (standing there shows what it shows), nor a cell stood on FRONTIER_EXHAUST_VISITS times without
+    its neighbour showing (the explore's own exhaustion, a dark-room flicker); each arrival counts,
+    so these walks end."""
+    from hengbot.policy import FRONTIER_EXHAUST_VISITS
+
+    if not between or not unsealed:
+        return None
+    visits, here = policy._visit_counts, snapshot.player.position
+    openings = [cell for cell in routes
+                if cell != here and visits[cell] < FRONTIER_EXHAUST_VISITS
+                and (grid := snapshot.grids.get(cell)) is not None and grid.passable
+                and not grid.is_closed_door and not policy._is_damaging_grid(grid)
+                and any(Position(cell.y + dy, cell.x + dx) in between
+                        for dy, dx in NEIGHBOR_OFFSETS)]
+    if not openings:
+        return None
+
+    def on(cell) -> int:
+        return min(max(abs(cell.y - floor.y), abs(cell.x - floor.x)) for floor in unsealed)
+
+    return min(openings, key=lambda cell: (routes[cell][0] + on(cell), cell.y, cell.x))
 
 
 def _past_traps(policy, snapshot: Snapshot, routes: dict, avoided: frozenset) -> set:
@@ -710,7 +794,13 @@ def loop_key(policy, snapshot: Snapshot) -> str | None:
         lambda goal, reason: _walk_key(policy, snapshot, routes, goal, reason))
     if lock is not None:
         return lock
-    cut_off = _cut_off_floor(policy, snapshot, routes)
+    cut_off, unsealed, between = _split(policy, snapshot)
+    # Where the opener would dig toward the floor no walk reaches, the unexplored way toward it is
+    # walked first (the coordinator 2026-11-21: walk, do not dig, toward a remembered room).
+    if between and retreat_enclosure.can_open_toward(policy, snapshot, cut_off | unsealed):
+        opening = _opening_toward(policy, snapshot, routes, unsealed, between)
+        if opening is not None:
+            return _walk_key(policy, snapshot, routes, opening, OPENING_REASON)
     if cut_off:
         opened = retreat_enclosure.open_toward_key(policy, snapshot, routes.keys(), cut_off)
         if opened is not None:
