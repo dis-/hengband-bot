@@ -87,6 +87,52 @@ class ZigzagShape(unittest.TestCase):
         self.assertEqual(len(tunnel.cells), 3)  # c4 = (6,21) touches the open (5,22)
 
 
+def unseen(snapshot, cells):
+    """``snapshot`` with ``cells`` ((y, x)) not shown: grids the board does not know."""
+    grids = {pos: each for pos, each in snapshot.grids.items() if (pos.y, pos.x) not in cells}
+    return Snapshot(snapshot.player, grids, [], floor_key=snapshot.floor_key)
+
+
+class MappedBlank(unittest.TestCase):
+    """A grid a magic mapping left blank is floor (map_area marks every REMEMBER grid in range,
+    spell-kind/spells-floor.cpp:153-195); only a grid nothing showed is presumed rock.
+    n1-b life-413 (Angband 44F, 2026-11-21): a mapped corridor presumed rock took the tunnel
+    out onto it (test_n1b_413_anaguma_breakthrough_1122_recorded)."""
+
+    CORRIDOR = {(5, 22), (4, 22), (3, 22)}   # a blank column beside c4 = (6,21) and c5 = (5,20)
+
+    def test_an_unknown_grid_is_presumed_rock(self):
+        snapshot = unseen(board(), self.CORRIDOR)
+        tunnel = geo.longest(snapshot, Position(ROW, 20), (-1, 0), -1, 8)
+        self.assertEqual(len(tunnel.cells), 8)
+
+    def test_a_mapped_blank_beside_a_cell_refuses_it(self):
+        snapshot = unseen(board(), self.CORRIDOR)
+        tunnel = geo.longest(snapshot, Position(ROW, 20), (-1, 0), -1, 8, floor=self.CORRIDOR)
+        self.assertEqual(len(tunnel.cells), 3)  # as the open (5,22) of the board that shows it
+
+    def test_a_mapped_blank_is_never_dug(self):
+        snapshot = unseen(board(), {(7, 20)})
+        self.assertTrue(geo.diggable_at(snapshot, Position(7, 20), presume=True))
+        self.assertFalse(geo.diggable_at(snapshot, Position(7, 20), presume=True, floor={(7, 20)}))
+        tunnel = geo.longest(snapshot, Position(ROW, 20), (-1, 0), -1, 8, floor={(7, 20)})
+        self.assertEqual(len(tunnel.cells), 1)  # c3 = (7,20) is floor: c2 = (8,21) touches it
+
+    def test_a_mapped_blank_beside_the_pocket_breaks_it(self):
+        snapshot = board()
+        tunnel = geo.longest(snapshot, Position(ROW, 20), (-1, 0), -1, 4)
+        dug = unseen(opened(snapshot, tunnel.cells), {(5, 22)})
+        self.assertTrue(geo.pocket_holds(dug, tunnel.pocket, tunnel.mouth, presume=True))
+        self.assertFalse(geo.pocket_holds(dug, tunnel.pocket, tunnel.mouth, presume=True,
+                                          floor={(5, 22)}))
+
+    def test_a_shown_wall_is_not_read_as_a_blank(self):
+        """``floor`` covers only grids the board does not show: a marked wall stays rock."""
+        snapshot = board()
+        tunnel = geo.longest(snapshot, Position(ROW, 20), (-1, 0), -1, 8, floor=self.CORRIDOR)
+        self.assertEqual(len(tunnel.cells), 8)
+
+
 class Concealment(unittest.TestCase):
     def test_three_cells_hide_the_pocket_and_four_leave_one_breath_cell(self):
         snapshot = board()

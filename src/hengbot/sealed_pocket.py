@@ -285,6 +285,11 @@ def melt_charges(policy, snapshot: Snapshot) -> int:
     return wands + max(0, me_capability.charges(policy, snapshot, "wand", SV_WAND_STONE_TO_MUD))
 
 
+def aimed_at(policy, snapshot: Snapshot, wall: Position) -> bool:
+    """A use was aimed at ``wall`` on this floor visit (``_spend_melt`` counts it)."""
+    return _memory(policy, snapshot).uses[(wall.y, wall.x)] > 0
+
+
 def worn_out(policy, snapshot: Snapshot, wall: Position) -> bool:
     """``wall`` stayed after me_powers.FAILURES_PER_PLACE uses on this floor visit."""
     return _memory(policy, snapshot).uses[(wall.y, wall.x)] >= me_powers.FAILURES_PER_PLACE

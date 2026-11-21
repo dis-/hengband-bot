@@ -22,6 +22,10 @@ absorbed rod list the process remembered: the game displayed it when the arrival
 listed the rods (the Rod of Detection 0/1 charging, then cast), which the capture does not
 keep as a board.  The utility decisions between the melts (``me-power:...``) are not posted,
 so the replay's own differ (it does not see them done); the Anaguma rows are compared.
+DECLARED DIVERGENCE (2026-11-22, anaguma ``BROKE_THROUGH``): at turn 2722432 the record's second
+plan, standing on its first cell (57,69), melted the second cell (56,68) although the open
+(57,68) beside it already broke that cell's enclosure; the replay melts nothing there and ends
+the plan, and rejoins the record at the next plan's walk (turn 2722452).
 DECLARED CONSTRUCTED: the kind prompt screen (cmd-magiceat.cpp, as test_me_detection_rod_1101
 builds it); the item and direction prompts of the carried devices (cmd-zaprod/cmd-usestaff/
 cmd-aim, as test_destruction_use_1104 builds them); the carried Rod of Detection and Staff of
@@ -51,6 +55,7 @@ from tests.support.me_powerful import ORDINARY_ONLY
 FIXTURE = Path(__file__).with_name("fixtures") / "anaguma-detect-stuck-20261110.json.gz"
 DETECT_TURN = 2722672
 FIRST_DIG_TURN = 2722264
+BROKEN_MELT_TURN = 2722432  # the record's melt into a broken enclosure (module docstring)
 TYPE_PROMPT = "[A] 杖, [B] 魔法棒, [C] ロッド:"
 DETECTION = "全感知"
 AIM_PROMPT = "(持ち物:a-z, ESCで中断) どの魔法棒で狙いますか? "
@@ -132,8 +137,13 @@ class AnagumaDetectStuckRecordedTest(harness.ProductionHarness):
         recorded = self.recorded()
         anaguma_rows = [(turn, reason, key) for turn, reason, key in decided
                         if recorded[turn][0].startswith(ANAGUMA_REASONS)]
-        # Every recorded Anaguma decision is reproduced: the melts, steps, holds and blows.
+        # Every recorded Anaguma decision is reproduced: the melts, steps, holds and blows,
+        # but the melt into a broken enclosure (module docstring).
         for turn, reason, key in anaguma_rows[:-1]:
+            if turn == BROKEN_MELT_TURN:
+                self.assertEqual(recorded[turn], ("anaguma:dig", "ah7"))
+                self.assertNotEqual(reason, "anaguma:dig", key)
+                continue
             self.assertEqual((reason, key), recorded[turn], turn)
         self.assertEqual(recorded[DETECT_TURN], ("anaguma:detect", "mCg"))
         self.assertEqual(anaguma_rows[-1], (DETECT_TURN, "anaguma:detect" + CAST_SUFFIX, "mCg"))

@@ -34,8 +34,18 @@ Game facts (C:/hengband/src, design section 1):
 
 Unknown grids: from a corridor the player sees only the first layer of rock; the cells two
 deep are not known until a melted cell lets the light reach them.  A plan therefore presumes
-an unknown grid to be rock (``presume``); the dig checks every cell again as it opens
-(anaguma ``_dig_key``) and holds or ends when the presumption fails.
+an unknown grid to be rock (``presume``); the dig checks every cell again as it opens and
+before every melt (anaguma ``_dig_key``) and holds or ends when the presumption fails.
+
+The presumption never covers a grid a magic mapping left blank (``floor``, the cells of
+area_mapping.blank_floor): map_area (spell-kind/spells-floor.cpp:153-195) marks every REMEMBER
+grid within its range -- the rock, the veins, the doors -- and leaves the floor unmarked, so a
+blank grid inside the range is open floor (mapped_area's docstring).  n1-b life-413 (Angband 44F,
+2026-11-21 23:28): the absorbed mapping at (11,111) showed a corridor (33,99)-(33,104) and down
+column 104, all blank between marked walls; the plan from (26,104) presumed those blanks rock,
+put its seventh cell on the corridor's end (33,104), and the dig came out into the corridor and
+went on melting (34,105) (owner 2026-11-22 「穴熊を作るとき、掘りすぎて反対側に掘り抜くケースが
+見られる。掘りすぎると周囲7マス壁の要件を満たせなくなり意味がない。」).
 """
 
 from __future__ import annotations
@@ -100,6 +110,24 @@ def diggable(grid, presume: bool = False) -> bool:
     return solid(grid) and grid.tunnel and not grid.permanent
 
 
+def solid_at(snapshot: Snapshot, position: Position, presume: bool = False,
+             floor=frozenset()) -> bool:
+    """``solid`` of the grid at ``position``; a blank of a mapping (``floor``, (y, x)) is open."""
+    grid = snapshot.grid_at(position)
+    if (grid is None or not grid.known) and (position.y, position.x) in floor:
+        return False
+    return solid(grid, presume)
+
+
+def diggable_at(snapshot: Snapshot, position: Position, presume: bool = False,
+                floor=frozenset()) -> bool:
+    """``diggable`` of the grid at ``position``; a blank of a mapping (``floor``) is open."""
+    grid = snapshot.grid_at(position)
+    if (grid is None or not grid.known) and (position.y, position.x) in floor:
+        return False
+    return diggable(grid, presume)
+
+
 def interior(snapshot: Snapshot, position: Position) -> bool:
     """``position`` lies inside the floor's edge (the module docstring); with unknown
     dimensions every cell counts as inside."""
@@ -113,19 +141,20 @@ def open_cell(grid) -> bool:
 
 
 def zigzag(snapshot: Snapshot, start: Position, axis, side, length: int,
-           *, dug: int = 0, presume: bool = True) -> Zigzag | None:
+           *, dug: int = 0, presume: bool = True, floor=frozenset()) -> Zigzag | None:
     """The tunnel of ``length`` cells from ``start``, else None when the terrain refuses it.
 
     ``dug``: the first cells already melted (open floor); the rest must be diggable.  Every
     neighbour of a cell from the second on, other than its two tunnel neighbours, must be
-    solid, and so must every neighbour of the last cell but the one before it."""
+    solid, and so must every neighbour of the last cell but the one before it.  ``floor``:
+    the blanks of a mapping, open floor (the module docstring)."""
     if not open_cell(snapshot.grid_at(start)):
         return None
     cells = tuple(cell(start, axis, side, index) for index in range(1, length + 1))
     for index, here in enumerate(cells):
-        grid = snapshot.grid_at(here)
         if not interior(snapshot, here) or not (
-                open_cell(grid) if index < dug else diggable(grid, presume)):
+                open_cell(snapshot.grid_at(here)) if index < dug
+                else diggable_at(snapshot, here, presume, floor)):
             return None
     tunnel = set(cells)
     for index, here in enumerate(cells):
@@ -137,17 +166,17 @@ def zigzag(snapshot: Snapshot, start: Position, axis, side, length: int,
         for around in neighbours(here):
             if around in allowed:
                 continue
-            if around in tunnel or not solid(snapshot.grid_at(around), presume):
+            if around in tunnel or not solid_at(snapshot, around, presume, floor):
                 return None
     return Zigzag(start, tuple(axis), side, cells)
 
 
 def longest(snapshot: Snapshot, start: Position, axis, side, maximum: int,
-            *, dug: int = 0, presume: bool = True) -> Zigzag | None:
+            *, dug: int = 0, presume: bool = True, floor=frozenset()) -> Zigzag | None:
     """The longest valid tunnel of at most ``maximum`` cells (None when not even one)."""
     best = None
     for length in range(max(1, dug), maximum + 1):
-        found = zigzag(snapshot, start, axis, side, length, dug=dug, presume=presume)
+        found = zigzag(snapshot, start, axis, side, length, dug=dug, presume=presume, floor=floor)
         if found is None:
             break
         best = found
@@ -155,9 +184,9 @@ def longest(snapshot: Snapshot, start: Position, axis, side, maximum: int,
 
 
 def pocket_holds(snapshot: Snapshot, pocket: Position, mouth: Position,
-                 presume: bool = False) -> bool:
+                 presume: bool = False, floor=frozenset()) -> bool:
     """``pocket`` is open and ``mouth`` is its only open (non-solid) neighbour."""
     if not open_cell(snapshot.grid_at(pocket)):
         return False
-    return all(around == mouth or solid(snapshot.grid_at(around), presume)
+    return all(around == mouth or solid_at(snapshot, around, presume, floor)
                for around in neighbours(pocket))
