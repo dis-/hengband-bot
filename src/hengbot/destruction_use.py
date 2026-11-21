@@ -709,6 +709,13 @@ def success(policy, snapshot) -> float | None:
     return None
 
 
+def used_now(policy, snapshot) -> bool:
+    """``key`` answered this decision with the use (its ``Memory.pending`` is this board's)."""
+    memory = getattr(policy, MEMORY, None)
+    return (memory is not None and memory.pending is not None
+            and memory.pending[:2] == (snapshot.floor_key, snapshot.turn))
+
+
 def usable(policy, snapshot, *, leaving=None) -> bool:
     """Whether ``key`` (with the same ``leaving``) would use the means on this board (no state
     is changed)."""

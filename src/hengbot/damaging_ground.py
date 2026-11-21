@@ -54,6 +54,17 @@ towards the other door (45,187), and from (48,180), where a wall hid the ウル�
 time, until the loop guard.  Unseen, the held door also looked the nearer safe cell to the step
 off itself, so the goal across is kept rather than chosen afresh.
 
+A *Destruction* use stays (destruction_use ``used_now``: its ``key`` answered the decision),
+whichever rung asked it, as the teleport read it stands in for stays: owner 2026-11-04
+「強敵からのテレポートによる逃走に代わり*破壊*を使用する」, and 50F+ 2026-11-14 「当てはまらない時は
+破壊または近寄って破壊を試みる」 (deep_teleport ``substitute``).  Until 2026-11-22 the absorbed
+power's cast was a device use here: n1-b life-413 (Angband 80F, 2026-11-22 04:18:45, a poison
+swamp, the absorbed *Destruction* at 87%) had the emergency's *Destruction* replaced by a step
+along the swamp twice: first with ソーラー sensed (HP 519 of 748), then on the 即死 board with a
+プラネター beside it (HP 491).  The use booked for the first replaced key read as a failed one
+(destruction_use ``observe``), so the decision between read Word of Recall instead, and after the
+second step ソーラー's mana bolt and starburst and the プラネター's blows took HP 491 to -160.
+
 An immune or invulnerable player takes no such damage.  A levitating one takes none
 from shallow ground but a fifth of deep ground's (hp-mp-processor.cpp
 deal_damege_by_feat: DEEP terrain hurts whoever is over it, other damaging terrain only
@@ -273,8 +284,13 @@ def step_off_key(policy, snapshot, key: str | None) -> str | None:
     Once a step off has crossed towards a safe cell (``_crossing``), a walker's step onto
     another cell that hurts is the step off too, and the hazard ground that walk led over is
     given up when the player stands on safe ground again (``_safe_ground``)."""
+    from hengbot import destruction_use  # import cycle
+
     standstill, quaff = _replaces(key)
     if snapshot.in_town or not hurts_here(policy, snapshot):
+        return None
+    if destruction_use.used_now(policy, snapshot):
+        # *Destruction* stands in for the teleport read, which stays (the module docstring).
         return None
     walked_on = (None if standstill or quaff or _crossing(policy, snapshot) is None
                  else _walked_on(policy, snapshot, key))
