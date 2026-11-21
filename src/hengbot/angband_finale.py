@@ -58,7 +58,7 @@ from dataclasses import dataclass, field
 from hengbot import restore_mana_target
 from hengbot.model import (
     DUNGEON_ANGBAND, SV_POTION_HEALING, SV_POTION_RESISTANCE, SV_POTION_RESTORE_MANA,
-    SV_POTION_STAR_HEALING, SV_SCROLL_TELEPORT, TVAL_POTION, TVAL_SCROLL,
+    SV_POTION_STAR_HEALING, SV_SCROLL_TELEPORT, TVAL_FOOD, TVAL_POTION, TVAL_SCROLL,
 )
 
 PLAYER_CLASS_MAGIC_EATER = 16
@@ -75,6 +75,10 @@ STAR_HEALING = (TVAL_POTION, SV_POTION_STAR_HEALING)
 RESISTANCE = (TVAL_POTION, SV_POTION_RESISTANCE)
 TELEPORT = (TVAL_SCROLL, SV_SCROLL_TELEPORT)
 RESTORE_MANA = (TVAL_POTION, SV_POTION_RESTORE_MANA)
+# Owner 2026-11-21 「99F100Fに全復活のキノコをあるだけ持っていく」: every Mushroom of Restoring owned
+# (sv-food-types.h SV_FOOD_RESTORING; cmd-eat.cpp restore_all_status), no count and no condition.
+RESTORING = (TVAL_FOOD, 19)
+RESTORING_CARRY = 99  # 「あるだけ」: every one (a stack's limit)
 # Owner 2026-11-20 answer 2.
 CARRY = {HEALING: 30, STAR_HEALING: 15, RESISTANCE: 20, TELEPORT: 40}
 SUPPLY_NAMES = {HEALING: "healing", STAR_HEALING: "star_healing", RESISTANCE: "resistance",
@@ -381,6 +385,8 @@ def carry_target(policy, snapshot, item) -> int | None:
     kind = _kind(item)
     if kind == RESTORE_MANA:
         return restore_mana_goal(policy, snapshot)
+    if kind == RESTORING:
+        return RESTORING_CARRY
     return CARRY.get(kind)
 
 

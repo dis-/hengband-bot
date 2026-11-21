@@ -407,6 +407,71 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         finale_prep.phase(self.policy).lifted = False
         self.assertIsNotNone(self.policy._find_recall_scroll(board))
 
+    def restoring_board(self, *, mushrooms=0):
+        """DECLARED CONSTRUCTED: the battle's board after a teleport, INT drained, full HP; with
+        ``mushrooms`` Mushrooms of Restoring carried (a copy of the Healing row)."""
+        board = self.board()
+        player = replace(board.player, drained_stats=("int",), hp=board.player.max_hp)
+        inventory = list(board.inventory)
+        if mushrooms:
+            healing = next(item for item in inventory if item.tval == TVAL_POTION)
+            inventory.append(replace(healing, slot="x", tval=angband_finale.RESTORING[0],
+                                     sval=angband_finale.RESTORING[1], count=mushrooms,
+                                     name="全復活のキノコ"))
+        return replace(board, player=player, inventory=inventory)
+
+    def absorb_restoration(self, charges):
+        """DECLARED CONSTRUCTED: the absorbed Restoration (rod) in the record and the rod list."""
+        from hengbot import me_capability
+        from hengbot.me_absorbed_substitutes import RESTORATION
+        kind, sval = RESTORATION
+        record = me_capability.recorded(self.policy)
+        record[me_capability.record_key(kind, sval)] = 10
+        lists = dict(self.policy._me_device_lists)
+        turn, rows = lists.get(kind, (0, []))
+        rows = [row for row in rows if row.get("name") not in me_capability.names(kind, sval)]
+        rows.append({"name": me_capability.names(kind, sval)[0], "current": charges, "max": 10,
+                     "fail": 1, "success": 99, "letter": "z"})
+        lists[kind] = (turn, rows)
+        self.policy._me_device_lists = lists
+
+    def browse_rods(self, board):
+        """DECLARED CONSTRUCTED: the ``bC`` board: the recorded rod list displayed on this turn."""
+        lists = dict(self.policy._me_device_lists)
+        lists["rod"] = (board.turn, lists["rod"][1])
+        self.policy._me_device_lists = lists
+
+    def test_drained_stats_after_the_teleport(self):
+        """「テレポート後の回復タイミングで能力値が減っていれば食べる。ただし取り込んだ全復活が残っている
+        場合はそちらを優先する。」"""
+        held = battle.battle(self.policy, self.recorded)
+        held.phase = battle.RECOVER
+        board = self.restoring_board(mushrooms=3)
+        # Recorded: n1-b holds the absorbed Restoration, its rod list of turn 7813454 on the
+        # board of 7814111.  The stale list is browsed first (no game time), once a turn.
+        self.assertLess(self.policy._me_device_lists["rod"][0], board.turn)
+        self.assertEqual(battle._recover_key(self.policy, board, held), "bC")
+        self.assertEqual(self.policy.last_reason, "periodic:magic-eater-powers")
+        unread = battle._recover_key(self.policy, board, held)  # the list never arrived
+        self.assertTrue(unread.startswith("E"), unread)
+        # The list of this turn shows its charge: it comes first.
+        self.browse_rods(board)
+        key = battle._recover_key(self.policy, board, held)
+        self.assertEqual(self.policy.last_reason, battle.RESTORE_STATS_REASON + ":absorbed-power")
+        self.assertTrue(key.startswith("m"), key)
+        self.absorb_restoration(0)  # its charges spent (the list shows it empty)
+        self.browse_rods(board)
+        key = battle._recover_key(self.policy, board, held)
+        self.assertEqual(self.policy.last_reason, battle.RESTORE_STATS_REASON)
+        self.assertTrue(key.startswith("E"), key)  # the mushroom
+        self.assertFalse(any((item.tval, item.sval) == angband_finale.RESTORING
+                             for item in self.recorded.inventory))
+        self.assertIsNone(battle._recover_key(self.policy, self.restoring_board(), held))  # none
+        # Nothing drained: no restoring.
+        held.phase = battle.RECOVER
+        undrained = replace(board, player=replace(board.player, drained_stats=()))
+        self.assertIsNone(battle._recover_key(self.policy, undrained, held))
+
     def test_restore_mana_uses_are_counted_on_the_floor(self):
         mana = replace(self.recorded.inventory[0], slot="y", tval=TVAL_POTION, sval=40, count=10)
         floor = replace(self.recorded, inventory=[*self.recorded.inventory, mana])

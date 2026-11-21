@@ -503,6 +503,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_restore_stats": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "angband_finale_battle.py:_rocket": {
     "classification": "dungeon-only",
     "rows": [

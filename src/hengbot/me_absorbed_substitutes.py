@@ -50,7 +50,7 @@ def _cast_power(ident: tuple) -> me_powers.Power:
 
 # The rods cast in place of an item that ask for no direction (baseitem-key.cpp
 # BaseitemKey::is_aiming_rod lists no Healing; cmd-magiceat.cpp asks get_aim_dir only for those).
-_UNAIMED_RODS = frozenset({SV_ROD_HEALING})
+_UNAIMED_RODS = frozenset({SV_ROD_HEALING, 10})  # 10: SV_ROD_RESTORATION (sv-rod-types.h)
 
 
 # Cure Light Wounds, the blindness cure a blind player casts (status_cure.absorbed_cure_key).
@@ -65,6 +65,9 @@ TELEPORT_AWAY = (("rod", SV_ROD_TELEPORT_AWAY), ("wand", SV_WAND_TELEPORT_AWAY))
 # The detections the Anaguma pocket casts after its wait (anaguma._detect_key, owner 2026-11-10
 # 「待った後、可能なら感知を使って状況を把握する」): Detection and Detect Evil, neither aimed.
 DETECTION = (("rod", SV_ROD_DETECTION), ("staff", SV_STAFF_DETECT_EVIL))
+# Restoration (全復活, sv-rod-types.h SV_ROD_RESTORATION; cmd-zaprod.cpp restore_all_status), the
+# 99F/100F recovery's drained-stat cure (angband_finale_battle, owner 2026-11-21).
+RESTORATION = ("rod", 10)
 
 
 def _build_powers() -> dict:
@@ -73,7 +76,7 @@ def _build_powers() -> dict:
     powers[CURE_LIGHT] = _cast_power(CURE_LIGHT)
     powers[TELEPORTATION] = _cast_power(TELEPORTATION)
     powers[REMOVE_CURSE] = _cast_power(REMOVE_CURSE)
-    for ident in (*TELEPORT_AWAY, *DETECTION):
+    for ident in (*TELEPORT_AWAY, *DETECTION, RESTORATION):
         powers[ident] = _cast_power(ident)
     # Healing in the arena, where no potion works (arena.py); neither asks for a direction.
     # The staff's is also a ``cast`` row's (Q25, owner 2026-11-09), built above with its names.

@@ -308,6 +308,7 @@ def observe(policy, snapshot, rows: dict | None) -> None:
             _stop(policy, held, "supplies:withdrawal-failed")
             return
         if (angband_finale.ready(rows["carried"]) and not routed(policy)
+                and not _restoring_at_home(policy)
                 and policy._equipment_transaction_session is None):
             _go(policy, held, LOADOUT)
         return
@@ -351,7 +352,24 @@ def _short_stack(policy, snapshot):
         if found:
             return kind, found[0][1], missing, False
         return kind, None, missing, False
+    # Owner 2026-11-21 「全復活のキノコをあるだけ持っていく」: every one at Home, no count; none at
+    # Home is no shortage.
+    found = _restoring_at_home(policy)
+    if found:
+        index, item = found[0]
+        return (angband_finale.RESTORING, item, item.count,
+                index < policy._home_knowledge_valid_before)
     return None
+
+
+def _restoring_at_home(policy) -> list:
+    """[(index, stack)] of the Mushrooms of Restoring in the current Home catalogue."""
+    from hengbot import angband_finale
+    if not policy._home_knowledge_current:
+        return []
+    return [(index, item) for index, item in enumerate(policy._home_knowledge_items)
+            if (item.tval, item.sval) == angband_finale.RESTORING and getattr(item, "aware", True)
+            and policy._item_signature(item) not in policy._deferred_home_items]
 
 
 def _read_home_key(policy, snapshot) -> str | None:
