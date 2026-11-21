@@ -283,8 +283,20 @@ def _heal(policy, snapshot) -> str | None:
     return _quaff(policy, snapshot, angband_finale.HEALING, HEAL_REASON)
 
 
-def _restore_mana(policy, snapshot) -> str | None:
-    if not _refill_worth(policy, snapshot):
+def rocket_list_fresh(policy) -> bool:
+    """The wand list the Rocket's uses are read from was shown since the last Restore Mana
+    (me_device_attacks ``stale_kinds``).  n1-c life-217 (Angband 99F, 2026-11-21 12:59:06-08):
+    the list was not read again after a Restore Mana, the Rocket kept reading short, and the
+    recovery drank 22 of the owner's 「絶対に売ってはならない」 potions on consecutive boards."""
+    return "wand" not in me_device_attacks.stale_kinds(policy)
+
+
+def _restore_mana(policy, snapshot, *, empty: bool = False) -> str | None:
+    """A Restore Mana when the fresh wand list shows the Rocket empty (``empty``, the fight's
+    call) or short of a whole refill (``_refill_worth``); never on a list a quaff made stale."""
+    if not rocket_list_fresh(policy):
+        return None
+    if not (empty or _refill_worth(policy, snapshot)):
         return None
     return _quaff(policy, snapshot, angband_finale.RESTORE_MANA, RESTORE_MANA_REASON)
 
@@ -558,7 +570,7 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
     here = snapshot.player.position
     if line_of_fire.player_projectable(policy, snapshot, here, target.position):
         if rocket_charges(policy, snapshot) <= 0:
-            return _quaff(policy, snapshot, angband_finale.RESTORE_MANA, RESTORE_MANA_REASON)
+            return _restore_mana(policy, snapshot, empty=True)
         if not fire_hp_holds(snapshot):
             # Owner 2026-11-20 Q3: the heal outside the *Healing* rule (absorbed first) raises the
             # HP to the shot's 800 + cost.

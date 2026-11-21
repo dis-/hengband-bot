@@ -73,6 +73,11 @@ DEVICE_REASON = "ranged:magic-eater-device"
 # The same attack powers cast through Powerful Activation (``powered``, the racial ``U``).
 POWERFUL_REASON = "ranged:magic-eater-powerful"
 KIND_LETTER = {"staff": "A", "wand": "B", "rod": "C"}
+# Restore Mana's line for a Magic-Eater (spell/spells-status.cpp restore_mana): every absorbed
+# staff and wand gains uses and every rod recharges, so each displayed list is stale until the
+# game shows it again (``stale_kinds``).
+RESTORE_MANA_MESSAGES = ("頭がハッキリとした", "You feel your head clear")
+STALE = "_me_device_lists_stale"
 MISSILE = ("wand", 15)
 # Blast radius by shape (powerful=false): wand/rod balls ``rad = powerful ? 3
 # : 2`` (cmd-zapwand.cpp:57, cmd-zaprod.cpp:51); breaths fire_breath(..., 3)
@@ -311,12 +316,27 @@ def observe_lists(policy, snapshot) -> None:
     if any(turn > snapshot.turn for turn, _ in lists.values()):
         lists = {}  # the game turn went backwards: a new life
         me_power_success.forget_list_boards(policy)
+    stale = set(getattr(policy, STALE, ()) or ())
+    if any(message.startswith(RESTORE_MANA_MESSAGES) for message in snapshot.messages):
+        # n1-c life-217 (Angband 99F, 2026-11-21 12:59:06-08): the wand list read before the
+        # Restore Mana still showed the Rocket short, and the battle's recovery drank 22
+        # potions back to back on it.
+        stale |= set(lists)
     listed = getattr(snapshot, "magic_eater_power_list", None)
     if isinstance(listed, dict) and listed.get("kind") in KIND_LETTER:
         lists[listed["kind"]] = (snapshot.turn, tuple(
             dict(row) for row in listed.get("rows", ()) if isinstance(row, dict)))
         me_power_success.observe_list_board(policy, listed["kind"], snapshot)
+        stale.discard(listed["kind"])
     policy._me_device_lists = lists
+    setattr(policy, STALE, frozenset(stale))
+
+
+def stale_kinds(policy) -> frozenset:
+    """The kinds whose displayed list a Restore Mana made stale (``observe_lists``): their
+    uses are unknown until the game shows the list again (me_powers_refresh ``resume_read_key``
+    reads it on the next board)."""
+    return frozenset(getattr(policy, STALE, ()) or ())
 
 
 def _blast_centres(snapshot, power, target, direction):

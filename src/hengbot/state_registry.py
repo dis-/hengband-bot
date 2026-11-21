@@ -407,6 +407,9 @@ REGISTRY = (
     # me_device_attacks
     S("_me_device_lists", "me_device_attacks", LIFE,
       "me_device_attacks: me device lists (no comment at its definition)"),
+    S("_me_device_lists_stale", "me_device_attacks", LIFE,
+      "the kinds whose displayed absorbed-device list a Restore Mana made stale (its uses unknown "
+      "until the game shows the list again; me_powers_refresh reads it on the next board)"),
     # me_inn_refill
     S("_me_inn_refill_stay", "me_inn_refill", LIFE,
       "me_inn_refill: me inn refill stay (no comment at its definition)"),
