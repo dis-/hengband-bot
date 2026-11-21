@@ -38,10 +38,11 @@ def rows():
     return json.loads(lzma.decompress(FIXTURE.read_bytes()))
 
 
-def board(row, messages=None):
+def board(row, messages=None, hp=None):
     floor = row["floor"]
     player = SimpleNamespace(position=Position(row["position"]["y"], row["position"]["x"]),
-                             hp=row["hp"], mp=row["mp"], cut_rank=None, stun_rank=None,
+                             hp=row["hp"] if hp is None else hp, mp=row["mp"],
+                             cut_rank=None, stun_rank=None,
                              **{name: False for name in AILMENTS})
     return SimpleNamespace(inside_arena=False, in_town=False,
                            floor_key=(floor["dungeon_id"], floor["level"], floor["quest_id"]),
@@ -49,11 +50,12 @@ def board(row, messages=None):
                            messages=row["messages"] if messages is None else messages)
 
 
-def first_stop(recorded, *, drop_messages=False) -> int | None:
+def first_stop(recorded, *, drop_messages=False, hold_hp=False) -> int | None:
     """The row whose decision the driver's cell window stops (cli's dungeon loop), else None."""
     recent, previous_position, previous_player = [], None, None
     for index, row in enumerate(recorded):
-        snapshot = board(row, [] if drop_messages else None)
+        snapshot = board(row, [] if drop_messages else None,
+                         recorded[0]["hp"] if hold_hp else None)
         applies = cli._cell_loop_guard_applies(
             snapshot, row["reason"], previous_position, previous_player)
         previous_position, previous_player = snapshot.player.position, snapshot.player
@@ -83,8 +85,11 @@ class N1b411MeltLoopRecordedTest(unittest.TestCase):
     def test_melting_from_one_cell_is_no_loop(self):
         decided = self.recorded[:-1]
         self.assertIsNone(first_stop(decided))
-        # The same decisions, their boards naming no melted wall: the window still stops them.
-        self.assertEqual(first_stop(decided, drop_messages=True), len(decided) - 1)
+        # The HP held still (the battle's healing rests, another exemption, taken away): the
+        # melts alone keep the window open ...
+        self.assertIsNone(first_stop(decided, hold_hp=True))
+        # ... and the same decisions, their boards naming no melted wall, are still stopped.
+        self.assertEqual(first_stop(decided, drop_messages=True, hold_hp=True), len(decided) - 1)
 
 
 if __name__ == "__main__":
