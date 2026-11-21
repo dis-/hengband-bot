@@ -354,6 +354,12 @@ def observe(policy, snapshot, rows: dict | None) -> None:
         if missing:
             _stop(policy, held, "swap:" + ",".join(missing))
             return
+        if policy._find_edible(snapshot) is None:
+            # Owner 2026-11-21 (LOCKED) 「空腹で死ぬ前に帰還するように修正」: no expedition without
+            # something to eat (food, or for a MANA race a charged wand or staff); the ordinary town
+            # supply buys it and the next visit enters again.
+            _stop(policy, held, "swap:no-food")
+            return
         held.lifted = True
         _go(policy, held, RECALL)
         return
