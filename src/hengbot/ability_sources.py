@@ -17,6 +17,18 @@ Sources:
 
 ``scripts/equipment_writer_lint.py`` fails a read of ``player.abilities`` /
 ``player.ability_sources`` or of the flag table ``RESIST_FLAG_BY_ABILITY`` outside this module.
+
+Stage E4 (2026-11-22, behaviour-changing; owner answers of the review, verbatim choices):
+
+- Q3 「深さの条件を満たす唯一の品は全ての深さで優先して残し（売らない・闇市の資金にしない）、自宅・荷物に
+  あれば持っている物として数え、行き先に要るなら着けて行く」: :func:`sole_depth_source` names the piece
+  that is the only owned source of an ability of any row of the depth table (item_fate's disposal
+  gates and the junk class keep it); the town's destination gates ask ``OWNED``
+  (:func:`missing_abilities`): a carried or Home piece counts when the visit's target loadout
+  wears it (the search knows the destination, destination_band_floor), so the departure waits for
+  the transaction that puts it on.
+- Q5 「自宅に同じ能力の品があれば取り出して使い店では買わない。店の品が装備の評価で上なら買い替えとして
+  買ってよい」: :func:`owned_unworn_sources` (ability_gear).
 """
 
 from __future__ import annotations
@@ -108,17 +120,116 @@ def ability_sources_of(policy: Any, snapshot, ability: str) -> frozenset[str]:
     return frozenset(found)
 
 
+# --- the visit's target (stage E4) -----------------------------------------------------------
+
+def target_abilities(policy: Any, snapshot) -> frozenset[str]:
+    """The object abilities of the visit's target loadout while it will be put on, else none.
+
+    In town only, with a target this visit decided (equipment_target ``visit_target``) whose
+    preparation is ready (no blocker, a transaction: the equipment work holds the departure until
+    it is worn).  A target that waits on a blocker, failed or was decided on another visit gives
+    nothing: the gates then read what is worn, as before E4."""
+    from hengbot import equipment_target
+
+    if not getattr(snapshot, "in_town", False):
+        return frozenset()
+    if equipment_target.visit_target(policy, getattr(policy, "_town_visit_epoch", None)) is None:
+        return frozenset()
+    preparation = equipment_target.loadout_target(policy)
+    if preparation is None or not getattr(preparation, "ready", False):
+        return frozenset()
+    loadout = getattr(getattr(getattr(preparation, "result", None), "best", None), "loadout", None)
+    flags = getattr(loadout, "flags", None)
+    if not flags:
+        return frozenset()
+    return frozenset(ability for ability, flag in object_ability_flags().items() if flag in flags)
+
+
 # --- the gates --------------------------------------------------------------------------------
 
 def missing_abilities(policy: Any, snapshot, required: Iterable[str], *,
             sources: frozenset[str]) -> set[str]:
     """The ``required`` abilities no asked-for source gives.
 
-    ``sources`` is stated by every caller: today's departure and destination gates ask
-    ``WORN_ONLY`` (what the character has on now); stage E4 moves them to owned sources.
+    ``sources`` is stated by every caller.  ``WORN_ONLY``: what the character has on now (the
+    dungeon's gates, and every town reader of the worn kit).  ``OWNED`` (stage E4, owner Q3): what
+    is worn now or, in town, a carried or Home piece the visit's target loadout wears
+    (:func:`target_abilities`) -- the town's destination gates.  An ability the worn kit gives
+    but the target takes off is still read from the worn kit: the gate is read again on every
+    decision, so the worn kit after the transaction answers it.
     """
     required = frozenset(required)
-    if sources == WORN_ONLY:
-        return set(required - held_abilities(snapshot.player))
-    return {ability for ability in required
-            if not (ability_sources_of(policy, snapshot, ability) & sources)}
+    missing = set(required - held_abilities(snapshot.player))
+    if sources == WORN_ONLY or not missing:
+        return missing
+    return missing - target_abilities(policy, snapshot)
+
+
+# --- the only source (stage E4, owner Q3) and the owned source (Q5) --------------------------
+
+def _depth_abilities() -> frozenset[str]:
+    """Every ability of a row of the depth table that an object flag gives."""
+    from hengbot.equipment_rules import DEPTH_ABILITY_REQUIREMENTS
+
+    flagged = object_ability_flags()
+    return frozenset(ability for _first, adds in DEPTH_ABILITY_REQUIREMENTS
+                     for ability in adds if ability in flagged)
+
+
+def _usable_source(item) -> bool:
+    """A piece the loadout search may wear: known, uncursed, unbroken, of no banned flag."""
+    from hengbot.equipment_rules import loadout_banned
+
+    return bool(getattr(item, "is_equipment", True) and item.known
+                and not item.is_cursed and not item.is_broken
+                and not loadout_banned(frozenset(item.known_flags)))
+
+
+def sole_depth_sources(policy: Any, snapshot) -> frozenset:
+    """The signatures of the pieces that are the only owned source of a depth-table ability.
+
+    Every row of the depth table counts, whatever the depth (owner Q3 「全ての深さで」).  The
+    sources are the worn pieces (cursed ones too: they stay on), the pack's and the Home census's
+    pieces the search may wear (:func:`_usable_source`), and a worn source the board shows but no
+    worn piece's known flags do (an unidentified ability: no piece is then the only one).  An
+    ability the character holds permanently (race, class: the emitter's ``permanent`` source) has
+    no only piece.  A piece counts once whatever its stack."""
+    from hengbot.item_reservation import decision_memo
+
+    def compute():
+        worn = [item for item in snapshot.equipment if getattr(item, "is_equipment", True)]
+        owned = [item for item in (*snapshot.inventory,
+                                   *getattr(policy, "_home_knowledge_items", ()))
+                 if _usable_source(item)]
+        sources = ability_source_map(snapshot.player)
+        flags = object_ability_flags()
+        sole = set()
+        for ability in _depth_abilities():
+            if "permanent" in sources.get(ability, ()):
+                continue
+            flag = flags[ability]
+            worn_granting = {policy._item_signature(item) for item in worn
+                             if flag in item.known_flags}
+            unseen_worn = (not worn_granting and has_ability(snapshot.player, ability)
+                           and "equipment" in sources.get(ability, ()))
+            granting = worn_granting | {policy._item_signature(item) for item in owned
+                                        if flag in item.known_flags}
+            if len(granting) == 1 and not unseen_worn:
+                sole |= granting
+        return frozenset(sole)
+
+    return decision_memo(policy, "sole-depth-sources", snapshot, None, compute)
+
+
+def sole_depth_source(policy: Any, snapshot, item) -> bool:
+    """``item`` is the only owned source of an ability of the depth table (owner Q3)."""
+    if snapshot is None or not getattr(item, "is_equipment", False) or getattr(item, "is_ammo", False):
+        return False
+    return policy._item_signature(item) in sole_depth_sources(policy, snapshot)
+
+
+def owned_unworn_sources(policy: Any, ability: str) -> list:
+    """The carried and Home pieces of the catalog the loadout search may wear that give
+    ``ability`` (owner Q5: what is owned is withdrawn and worn, not bought again)."""
+    return [owned for owned in owned_ability_items(policy, ability, frozenset({PACK, HOME}))
+            if getattr(owned, "exploration_legal", True)]

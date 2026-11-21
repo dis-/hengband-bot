@@ -9393,8 +9393,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _destination_depth_allowed(
         self, snapshot: Snapshot, destination_depth: int
     ) -> bool:
-        """Bind a deeper-floor decision and its refusal to the arrival depth."""
-        missing = self._missing_required_abilities(snapshot, destination_depth)
+        """Bind a deeper-floor decision and its refusal to the arrival depth.
+
+        A destination gate: in town a carried or Home piece the visit's target wears counts
+        (``owned``, equipment review E4, owner Q3)."""
+        missing = self._missing_required_abilities(snapshot, destination_depth, owned=True)
         if not missing:
             return True
         self.last_reason = (
@@ -9584,7 +9587,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if angband_cap.deep_recall_refused(snapshot, dungeon_id, self):
             return False
         depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
-        if self._missing_required_abilities(snapshot, depth):
+        # A destination gate (equipment review E4, owner Q3): the target's Home piece counts.
+        if self._missing_required_abilities(snapshot, depth, owned=True):
             return False
         return not self._recall_landing_guardian_blocked(snapshot, dungeon_id, depth)
 
@@ -9594,7 +9598,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         """Whether the landing passes the depth gates but is a blocked guardian floor."""
         depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
         return (
-            not self._missing_required_abilities(snapshot, depth)
+            not self._missing_required_abilities(snapshot, depth, owned=True)
             and self._recall_landing_guardian_blocked(snapshot, dungeon_id, depth)
         )
 
@@ -12375,7 +12379,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         """
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False
-        missing = self._missing_required_abilities(snapshot, destination_depth)
+        missing = self._missing_required_abilities(snapshot, destination_depth, owned=True)
         if not missing or (
             not any_missing
             and missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}

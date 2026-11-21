@@ -1809,9 +1809,10 @@ def optimize_loadout(
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out.
 
-    ``destination_floor`` (destination_band_floor): the depth-band descent takes the band of
-    this depth without the half-melee limit when one of its sets is owned; a deeper band keeps
-    the limit, and a shallower one is never reached while that band has a set.
+    ``destination_floor`` (destination_band_floor, the town's destination band; owner Q4 of the
+    equipment review 2026-11-22): the depth-band descent takes the band of this depth without the
+    half-melee limit when one of its sets is owned (the limit then only chooses among its sets);
+    a deeper band keeps the limit, and a shallower one is never reached while that band has a set.
 
     ``staff_gate`` (device_skill.StaffGate): an owned *Destruction* staff is the
     50F+ means of the loadouts whose device skill makes it reliable.

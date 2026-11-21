@@ -29,6 +29,15 @@ row with MAGIC_MASTERY when the character owns a charged staff (carried, or in t
 and the row lets the owned gear reach the staff's reliable skill (``_device_need``: the
 bound of device_skill.mastery_bound; the equipment comparison then wears the set).
 
+Equipment review 2026-11-22 (stage E4), owner Q5 (verbatim choice): 「自宅に同じ能力の品があれば
+取り出して使い店では買わない。店の品が装備の評価で上なら買い替えとして買ってよい」.  What is missing is
+read by the destination gate (``owned``: a carried or Home piece the visit's target wears closes
+it), and a row closes an ability only while no carried or Home piece the search may wear gives it
+(ability_sources ``owned_unworn_sources``), unless the row outdoes one of those pieces on every
+axis the equipment evaluation reads and on one more -- a replacement of that piece (item_fate
+``outdone_by``: the same slot kind; a piece of another slot kind is no comparison, so the owned
+piece is used).
+
 Each row is judged once.  A bought row is never bought again, whatever became
 of it.  While a bought source of an ability is still owned, whether or not the
 comparison wore it, that ability buys nothing more; the town end then answers
@@ -123,8 +132,10 @@ def _bought_flags(policy) -> frozenset[int]:
 
 
 def _landing_missing(policy, snapshot) -> frozenset:
+    # The destination gate (owned: the visit's target wearing a carried or Home piece closes
+    # the gap; equipment review E4, owner Q5 「自宅に同じ能力の品があれば取り出して使い店では買わない」).
     return policy._missing_required_abilities(
-        snapshot, policy._equipment_departure_destination_depth(snapshot))
+        snapshot, policy._equipment_departure_destination_depth(snapshot), owned=True)
 
 
 def _open_flags(policy, snapshot) -> frozenset[int]:
@@ -134,6 +145,24 @@ def _open_flags(policy, snapshot) -> frozenset[int]:
     if flags:
         flags -= _bought_flags(policy)
     return frozenset(flags)
+
+
+def _owned_closes(policy, snapshot, row, flags: frozenset[int]) -> bool:
+    """Whether ``row`` closes an open ability no owned piece gives, or outdoes the owned ones.
+
+    Owner Q5 (module docstring): an ability a carried or Home piece gives is withdrawn and worn,
+    not bought, unless the shelf row is an upgrade of one such piece (a replacement buy)."""
+    from hengbot import item_fate
+
+    missing = _landing_missing(policy, snapshot)
+    for ability in missing:
+        flag = ability_sources.ability_flag(ability)
+        if flag is None or flag not in flags or flag not in row.known_flags:
+            continue
+        owned = ability_sources.owned_unworn_sources(policy, ability)
+        if not owned or any(item_fate.outdone_by(piece.item, row) for piece in owned):
+            return True
+    return False
 
 
 def _may_buy(policy, snapshot) -> bool:
@@ -151,7 +180,8 @@ def _rows(policy, snapshot, page, flags: frozenset[int]) -> list:
     return [row for row in page.items
             if row.is_equipment and row.price > 0 and row.count > 0
             and not row.is_cursed and not row.is_broken
-            and (row.known_flags & flags or _closes_device_gap(policy, snapshot, row))
+            and ((row.known_flags & flags and _owned_closes(policy, snapshot, row, flags))
+                 or _closes_device_gap(policy, snapshot, row))
             and snapshot.player.gold - row.price >= reserve
             and _identity(row.name, row.tval, row.sval) not in bought]
 

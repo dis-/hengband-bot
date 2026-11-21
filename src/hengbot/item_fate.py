@@ -73,6 +73,10 @@ def gear_tier(policy: Any, snapshot: Any, item: Any, ranks: dict | None = None) 
     except the ware the relief already chose from a census and has taken out.
     ``ranks`` is ``_ranks`` of this board when the caller asks many pieces.
     """
+    if ability_sources.sole_depth_source(policy, snapshot, item):
+        # Owner Q3 of the equipment review 2026-11-22 「深さの条件を満たす唯一の品は全ての深さで
+        # 優先して残し（売らない・闇市の資金にしない）」: before the named artifacts and the fund.
+        return KEEP
     if item.is_artifact:
         # Owner 2026-11-20: the named artifacts go once 50F is reached (sellable_artifacts).
         from hengbot import sellable_artifacts
@@ -129,9 +133,13 @@ def supply_kept(policy: Any, snapshot: Any, item: Any) -> bool:
 
 
 def held(policy: Any, snapshot: Any, item: Any, owner: str, sink: str, *, known: bool = True) -> bool:
-    """The gate every disposal path shares; ``known`` also asks for identification."""
+    """The gate every disposal path shares; ``known`` also asks for identification.
+
+    The only owned source of a depth-table ability is held (owner Q3 of the equipment review
+    2026-11-22, ability_sources ``sole_depth_source``)."""
     return bool(
         supply_kept(policy, snapshot, item)
+        or ability_sources.sole_depth_source(policy, snapshot, item)
         or not item_available(policy, snapshot, item, owner, sink)
         or item.is_bounty
         or policy._home_disposal.decision(policy._item_signature(item)) == "keep"
@@ -322,6 +330,13 @@ def _at_most(item: Any, other: Any) -> bool:
         return (item.sval == other.sval and item.weight >= other.weight
                 and item.weapon_proficiency <= other.weapon_proficiency)
     return other.weight <= item.weight
+
+
+def outdone_by(item: Any, other: Any) -> bool:
+    """``other`` is at least as good as ``item`` on every axis the equipment evaluation reads
+    (``_at_most``) and better on one: an upgrade of the same slot kind (ability_gear, owner Q5 of
+    the equipment review 2026-11-22 「店の品が装備の評価で上なら買い替えとして買ってよい」)."""
+    return _at_most(item, other) and not _at_most(other, item)
 
 
 def _dominance_piece(snapshot: Any, piece: Any) -> bool:
@@ -703,10 +718,12 @@ WORN, PACK, SHELF = "worn", "pack", "home"
 def _protected(policy: Any, snapshot: Any, item: Any, probe: Any) -> bool:
     """Never sold or destroyed: an artifact (but a Home one clearly dominated, owner 2026-11-19
     「アーティファクトであっても明確な下位互換は売る」, and one the owner named, 2026-11-20
-    sellable_artifacts), a bounty, a *Destruction* means, a named keep."""
+    sellable_artifacts), a bounty, a *Destruction* means, a named keep, the only owned source of
+    a depth-table ability (owner Q3 of the equipment review 2026-11-22)."""
     from hengbot import sellable_artifacts
     from hengbot.model import SV_STAFF_DESTRUCTION
-    return bool((item.is_artifact
+    return bool(ability_sources.sole_depth_source(policy, snapshot, item)
+                or (item.is_artifact
                  and not (_home_stock(probe) and _dominated(policy, snapshot, item))
                  and not sellable_artifacts.listed(policy, snapshot, item))
                 or item.is_bounty

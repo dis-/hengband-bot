@@ -145,7 +145,7 @@ def reaches_band(policy, snapshot, dungeon_id: int) -> bool:
     landing = _landing(snapshot, info)
     return (info.max_depth >= high
             and policy._fallback_landing_allowed(snapshot, dungeon_id, landing, depth_floor=False)
-            and not policy._missing_required_abilities(snapshot, high)
+            and not policy._missing_required_abilities(snapshot, high, owned=True)
             and not policy._guardian_floor_blocked(snapshot, dungeon_id, high))
 
 

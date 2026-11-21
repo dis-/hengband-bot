@@ -7,7 +7,7 @@ from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
-from hengbot import bm_destruction_fund, destination_band_floor, destruction_means
+from hengbot import bm_destruction_fund, destruction_means
 from hengbot.town_pack_budget import native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import item_use_route
@@ -7902,12 +7902,10 @@ class TownMixin:
                     expected_effect="safe-destination-selected",
                 )
                 return WAIT_KEY
-            # An owned set (Home included) meets the destination's band but the half-melee
-            # limit refused it: wear it instead of fundraising for what is owned
-            # (destination_band_floor, n1-c life-218 2026-11-21).  The re-search opens the
-            # transaction, so the equipment work below holds the departure until it is worn.
-            if self._missing_required_abilities(snapshot, destination_depth):
-                destination_band_floor.engage(self, snapshot, destination_depth)
+            # An owned set (Home included) meeting the destination's band is the visit's target
+            # from its first search (destination_band_floor, equipment review E4 owner Q4), and
+            # the gates count its pieces (owner Q3): nothing to engage here any more (n1-c
+            # life-218 2026-11-21).
             if self._town_claims_active(snapshot):
                 return None
             # Outstanding equipment work suppresses this departure terminal

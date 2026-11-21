@@ -1525,11 +1525,17 @@ class ObservationMixin:
                 force[name] = int(tier[name])
         return force
 
-    def _missing_required_abilities(self, snapshot: Snapshot, depth: int) -> frozenset:
-        # Worn only (equipment review E2): the gate reads what the character has on now; the
-        # search reads every owned piece.  Stage E4 moves this to owned sources (owner Q3/Q4).
+    def _missing_required_abilities(self, snapshot: Snapshot, depth: int, *,
+                                    owned: bool = False) -> frozenset:
+        # ``owned=False``: what the character has on now (every dungeon gate, and the town's
+        # readers of the worn kit: the departure on the worn loadout, the finale's board).
+        # ``owned=True`` (equipment review E4, owner Q3 「自宅・荷物にあれば持っている物として数え、
+        # 行き先に要るなら着けて行く」): the town's destination gates also count a carried or Home
+        # piece the visit's target loadout wears (ability_sources.OWNED; the target is searched
+        # for the destination, destination_band_floor).  The one switch point.
         missing = ability_sources.missing_abilities(
-            self, snapshot, required_depth_gates(depth), sources=ability_sources.WORN_ONLY)
+            self, snapshot, required_depth_gates(depth),
+            sources=ability_sources.OWNED if owned else ability_sources.WORN_ONLY)
         # USER DECISION 2026-11-04 「使える手段がある時だけ解く」: 50F+ needs a
         # means destruction_use can use; scrolls or an intrinsic ability unlock
         # nothing.  This is the ONE place the rule is consulted -- every arrival

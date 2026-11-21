@@ -34,14 +34,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "ability_sources.py:ability_source_map": {
+  "ability_sources.py:_depth_abilities": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
-  "ability_sources.py:ability_sources_of": {
+  "ability_sources.py:ability_source_map": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -70,6 +70,27 @@
     "delegation": "selected child; no independent success"
   },
   "ability_sources.py:missing_abilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:object_ability_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:sole_depth_sources.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "ability_sources.py:target_abilities": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -1965,6 +1986,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "destination_band_floor.py:band_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "destination_band_floor.py:floor": {
     "classification": "data",
