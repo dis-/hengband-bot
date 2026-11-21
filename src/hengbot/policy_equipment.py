@@ -1412,6 +1412,11 @@ class EquipmentMixin:
         # The owner's equipment rules (equipment_rules.RULES_VERSION): a search memo restored from
         # before a rule change is stale.
         signature += (("equipment-rules", equipment_rules.RULES_VERSION),)
+        # The mining fundraise's lending of the hands holds the swap (``_equipment_swap_held``):
+        # its end must re-plan the held target into a swap, so it is an input of the memo (the
+        # visit's target itself is not decided again: equipment_target, no named event).
+        if mining_loadout.hands_lent(self, snapshot):
+            signature += (("hands-lent", True),)
         # The search's inputs, read by the fresh search below and by the read-only shelf
         # evaluation (``_shelf_candidate_worn``, equipment review E4b) of this decision.
         optimizer_inputs = dict(
@@ -1542,7 +1547,7 @@ class EquipmentMixin:
                 )
                 equipment_target.replace_loadout_target(self, preparation)
                 self._set_equipment_transaction_session(
-                    None if finale_prep.holds_swap(self)
+                    None if self._equipment_swap_held(snapshot)
                     else self._equipment_transaction_session_for_preparation(preparation)
                 )
             self._equipment_optimization_pack_items = len(snapshot.inventory)
@@ -1883,8 +1888,9 @@ class EquipmentMixin:
         ):
             self._equipment_optimization_timed_out_this_visit = True
         self._set_equipment_transaction_session(
-            # No swap before the preparation phase's own swap step (finale_prep).
-            None if finale_prep.holds_swap(self)
+            # No swap before the preparation phase's own swap step (finale_prep), nor while
+            # the mining set holds the hands (mining_loadout.hands_lent).
+            None if self._equipment_swap_held(snapshot)
             else self._equipment_transaction_session_for_preparation(preparation)
         )
         if held_preparation is not None:
@@ -2125,6 +2131,13 @@ class EquipmentMixin:
             continuation="equipment.optimize",
         )
         return preparation
+
+    def _equipment_swap_held(self, snapshot: Snapshot) -> bool:
+        """No swap of the visit's target starts: before the 99F/100F phase's own swap step
+        (finale_prep), or while the combat hands are lent to the mining set (its town boards
+        between the set's floors; the set's end lets the swap wear the target,
+        mining_loadout.hands_lent, owner 2026-11-22 Q6)."""
+        return finale_prep.holds_swap(self) or mining_loadout.hands_lent(self, snapshot)
 
     def _banned_gear_stuck_stop(self, snapshot: Snapshot) -> str | None:
         """Owner Q7 2026-11-22 「外せない時は名指しで止める」: in town, the search cannot run (no
@@ -4457,6 +4470,25 @@ class EquipmentMixin:
             self._offer_execution_no_step(
                 producer="equipment-txn", work_id="restore-combat-weapon",
                 cause="deferred-by-town-holder",
+            )
+            return None
+        # One owner for the combat hands in town (owner 2026-11-22 Q6 and 「往復が起きたら停止して
+        # 直す」): the mining set holds them between its floors (mining_loadout.hands_lent), and a
+        # running swap of the visit's target owns them -- it wears the target's weapon.  n1-c
+        # life-220 (2026-11-22 06:03:54-06:04:04): this re-arm took the off-hand シャベル off
+        # ('tb') under the swap's own pending take-off of it, the swap's take-off went stale,
+        # its abandonment restored the シャベル ('wky', restore:6014bec50c328225) and the re-arm
+        # took it off again, nine times, until town:blocked:stage-deadline:equipment.
+        if mining_loadout.hands_lent(self, snapshot):
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause=mining_loadout.LENT_CAUSE,
+            )
+            return None
+        if self._equipment_transaction_session is not None:
+            self._offer_execution_no_step(
+                producer="equipment-txn", work_id="restore-combat-weapon",
+                cause=mining_loadout.SESSION_CAUSE,
             )
             return None
         current = next(
