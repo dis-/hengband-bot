@@ -74,7 +74,13 @@ REASON = "angband-finale"
 RECALL_REASON = f"{REASON}:recall"
 STAR_HEAL_REASON = f"{REASON}:star-healing"
 HEAL_REASON = f"{REASON}:healing"
-ABSORBED_HEAL_REASON = f"{REASON}:absorbed-healing"
+# The absorbed Healing's cast is owned by me_device_attacks_input (the reason ends with
+# me_absorbed_substitutes.CAST_SUFFIX): a rod the list shows still charging closes its prompt with
+# ESC.  n1-c life-217 (Angband 100F, 2026-11-21 14:24:00-01): the bare reason left the prompt
+# unowned; the remembered rod list (shown before the last cast) read the Rod of Healing ready
+# after its tenth cast, the game refused it (「その魔法はまだ充填している最中だ。」) and the bot stopped
+# on the open prompt (stuck-prompt).
+ABSORBED_HEAL_REASON = f"{REASON}:absorbed-healing:absorbed-power"
 TELEPORT_REASON = f"{REASON}:teleport"
 SWEEP_SUFFIX = f":{REASON}-sweep"
 CLEAR_SUFFIX = f":{REASON}-clear"
