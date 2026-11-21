@@ -22896,5 +22896,16 @@
     "delegation": "selected child; no independent success",
     "context": "Town only: the 99F/100F preparation phase's food step (finale_prep, owner 2026-11-21 「謎の魔法棒を銘を分けて3本持って食料とする」); None outside its step.",
     "evidence": "Composes the food step's inscription key (reserved_item_command inscribe + label + Return) for _food_key; stops the phase when refused."
+  },
+  "mining_loadout.py:finish_swap_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "equipment-transaction"
+    ],
+    "context": "Dungeon-only: asked from rollback_key, which returns None in town and in a store before it.",
+    "evidence": "The digger swap's second post by the swap itself (n1-b life-413 2026-11-21 19:02, the strip and the re-arm alternating 97 times each): the digger wielded on the hand the swap emptied (_wield_digging_tool_key), else, an awake hostile in view (strip_allowed) or no digger left to wield, the swap's abort, the displaced weapon wielded back under melee:rearm-empty-hand.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

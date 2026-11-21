@@ -88,6 +88,7 @@ VISIT_MEMORIES = (
 KEPT = {
     "_breeder_fled_floor": "the walk out of a breeder floor goes on over the floors above it",
     "_breakout_dig_floor": "the digger is put away again once the floor it was taken out on is left",
+    "_digger_swap": "mining_loadout.swap_in_progress ends the swap on another floor (its floor key read)",
     "_choke_outcome_floor": "the floor change sets it to the new floor",
     "_breeder_breakthrough_floor": "the floor change forgets it",
     "_fruitless_disengage_floor": "the floor change forgets it",
