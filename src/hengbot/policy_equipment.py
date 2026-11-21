@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import angband_finale, finale_prep
-from hengbot import approach_answer, home_pass_charge, launcher_upgrade, spare_gear
+from hengbot import approach_answer, destination_band_floor, home_pass_charge, launcher_upgrade, spare_gear
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
@@ -1225,6 +1225,9 @@ class EquipmentMixin:
             )
         )
         optimization_depth = max(1, depth_override) if depth_override is not None else None
+        # The departure's floor for the free descent (destination_band_floor).
+        destination_floor = (destination_band_floor.floor(self)
+                             if optimization_depth is None else None)
         # Keep pack weapons that the ordinary town policy has already classified
         # as sale loot out of the optimizer's Home staging deposits.  Otherwise
         # the optimizer stores them, Home processing immediately withdraws them
@@ -1356,7 +1359,10 @@ class EquipmentMixin:
             (("angband-finale", finale_prep.dedicated_order(self), angband_finale.lifted(self),
               angband_finale.feasibility_due(self, snapshot),
               tuple(sorted(finale_prep.phase(self).target or ()))),)
-            if angband_finale.preparing(snapshot) else ())
+            if angband_finale.preparing(snapshot) else ()) + (
+            # The descent's floor (destination_band_floor): a hit kept the band it refused.
+            (("destination-floor", destination_floor),)
+            if destination_floor is not None else ())
         if (
             signature == self._equipment_optimization_signature
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
@@ -1486,6 +1492,7 @@ class EquipmentMixin:
                 staff_gate=staff_gate,
                 finale=self._angband_finale_order(),
                 cap_lifted=angband_finale.lifted(self),
+                destination_floor=destination_floor,
             )
             self._offer_optimizer_result(
                 self._equipment_optimization_preparation,
@@ -1527,6 +1534,7 @@ class EquipmentMixin:
             staff_gate=staff_gate,
             finale=self._angband_finale_order(),
             cap_lifted=angband_finale.lifted(self),
+            destination_floor=destination_floor,
         )
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
@@ -1608,6 +1616,7 @@ class EquipmentMixin:
             obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
             curse_pinned_item_ids=curse_pinned,
             magic_eater_powers=me_powers,
+            destination_floor=destination_floor,
         )
         # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's loadout order only on
         # the visit that switches to 99F/100F (angband_finale ``switching``).
