@@ -104,6 +104,9 @@ LADDER = (
     )),
     # Owner 2026-11-06 「命に関わる時の後へ回す」: below the emergency ladder.
     Layer("summoner-shots", "the summons rules, floor avoidance, combat and all below", (
+        # Owner 2026-11-21 「着たまま帰還を読み、打撃の届く敵を寄せない」: a worn NO_AC piece
+        # (no_ac_recall) after the emergency escapes, before everything else.
+        *D("no_ac_recall.key", exempt=ANSWERS_DANGER),
         # Owner 2026-11-15 (maintainability review Q8 「緊急の逃げの後に回す」): the committed
         # STRONG-tier hunt (owner 2026-09-22) after the emergency escapes.
         *E("_esp_threat_hunt_key", exempt=FIGHTS),
@@ -565,6 +568,9 @@ OWNER_RULES = (
             "confuser_contact.leave_key": "leaves a faster confuser before its blow takes the "
                                           "scrolls away: survival (owner 2026-11-14 "
                                           "「混乱する前に離れるだけ」)",
+            "no_ac_recall.key": "a worn NO_AC piece (AC 0): the instant-death roll of every blow "
+                                "(owner 2026-11-21 「AC0では打撃を受けると即死抽選がある。優先対処。」"
+                                "「着たまま帰還を読み、打撃の届く敵を寄せない」): survival",
             "_esp_threat_hunt_key": "a committed STRONG-tier hunt fights its target (owner "
                                     "2026-09-22); it stood above the summons rule before and "
                                     "only went after survival (owner 2026-11-15 Q8)",

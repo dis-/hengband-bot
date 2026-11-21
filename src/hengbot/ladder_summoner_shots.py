@@ -10,12 +10,17 @@ here (dungeon_ladder.LAYER_MODULES), so the table still states this order.
 """
 from __future__ import annotations
 
-from hengbot import return_yield, summon_response, worsens_kill
+from hengbot import no_ac_recall, return_yield, summon_response, worsens_kill
 from hengbot.dungeon_ladder import PASS
 
 
 def key(policy, snapshot, *, emergency_hostiles, strategic_hostiles):
     """The summoner-shots layer's answer, or PASS when none of its rungs acts."""
+    # Owner 2026-11-21 「着たまま帰還を読み、打撃の届く敵を寄せない」: a worn NO_AC piece (宵闇のローブ)
+    # holds the floor after the emergency ladder: teleport from melee, read Recall, wait.
+    no_ac = no_ac_recall.key(policy, snapshot)
+    if no_ac is not None:
+        return no_ac
     # A committed STRONG-tier hunt (esp-threat-rest) owns its fight, Healing drinks included,
     # once the emergency ladder above has declined (owner 2026-11-15 Q8; it stood above the
     # emergency ladder before).
