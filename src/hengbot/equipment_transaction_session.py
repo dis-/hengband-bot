@@ -119,6 +119,11 @@ class EquipmentTransactionSession:
         return self.index >= len(self.plan.actions) and self._dispatched is None
 
     @property
+    def started(self) -> bool:
+        """An action was dispatched (the session has moved, or is moving, a piece)."""
+        return self.index > 0 or self._dispatched is not None
+
+    @property
     def executable(self) -> bool:
         return not self.blockers
 

@@ -123,8 +123,11 @@ class VisitTargetEventsTest(_Fixture):
         searches = _rows(policy, "search")
         # Before E3: seven searches (two Home withdrawals, a forced reset after a deposit).
         self.assertEqual(len(searches), 4, [row["changed"] for row in searches])
+        # The second decision is the bought Mirror Shield becoming fully known: the visit's
+        # census already held it, not fully known (equipment_target ``candidate-identified``,
+        # n1-c life-220 2026-11-22; ``candidate-gained`` before).
         self.assertEqual([row.get("events") for row in searches],
-                         [["visit-start"], ["candidate-gained"], ["finale-phase"],
+                         [["visit-start"], ["candidate-identified"], ["finale-phase"],
                           ["finale-phase"]])
         # The purchase (row 21): the Mirror Shield, a piece the visit did not own.
         held = equipment_target.visit_target(policy, policy._town_visit_epoch)
