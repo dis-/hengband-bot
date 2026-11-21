@@ -105,9 +105,10 @@ REGISTRY = (
       "angband_finale: the 99F/100F readiness latched on the last town board (the 95F cap's lift, "
       "owner 2026-11-20), the small-floor option's state and the expedition's Restore Mana uses"),
     # angband_finale_battle
-    S("_angband_finale_battle", "angband_finale_battle", LIFE,
+    S("_angband_finale_battle", "angband_finale_battle", FLOOR,
       "angband_finale_battle: the 99F/100F battle of the floor it names (phase, last-seen target "
-      "cell, the stand of the Stone to Mud line); a new floor starts a new one"),
+      "cell, the stand of the Stone to Mud line); every floor change forgets it (floor_visit_memory: "
+      "a level regenerated under the same key is a new floor)"),
     # amberite_curse
     S("_amberite_curse_note", "amberite_curse", LIFE,
       "(decision sequence, record);"),

@@ -5049,15 +5049,19 @@ class QuestMixin(OpeningRouteMixin):
 
     def _quest_floor_exit_locked(self, snapshot: Snapshot) -> bool:
         """Protect an incomplete kill attempt, with bounded survival releases."""
+        # Owner 2026-11-20 「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」: on the
+        # 99F/100F floors of the finale's expedition the battle's two recall cases are the only
+        # way off; no other release (the unviable-quest latch, the escape kit, the panic HP)
+        # opens the exit, and the stairs of an ordinary return stay shut with it (n1-c
+        # life-217 2026-11-21 12:29:06: the unviable-quest latch opened it, the return took the
+        # up stairs under the arrival to 98F and read Word of Recall there).
+        if angband_finale_battle.applies(self, snapshot):
+            return not angband_finale_battle.recall_permitted(self, snapshot)
         if self._unviable_quest_floor == snapshot.floor_key:
             return False
         # Owner 2026-11-19 「99F 100Fの戦い方をまだ作っていない」: no kill attempt past the
         # Angband cap (Oberon's 99F); the up stairs are the way on (angband_cap).
         if angband_cap.climbing(snapshot, self):
-            return False
-        # Owner 2026-11-20 「帰還による離脱は成功時と魔力復活の薬を予定の倍以上使ったときのみ」:
-        # the 99F/100F battle's own recall cases (angband_finale_battle).
-        if angband_finale_battle.recall_permitted(self, snapshot):
             return False
         quest_id = self._active_kill_quest_id(snapshot)
         if quest_id is None:
