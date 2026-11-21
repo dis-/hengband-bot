@@ -274,6 +274,9 @@ REGISTRY = (
       "the turn the finders held the teleport back on"),
     S("_deep_teleport_no_means_busy", "deep_teleport", LIFE,
       "the predicate is being computed (re-entry)"),
+    # deep_climb
+    S("_deep_climb_arrival", "deep_climb", LIFE,
+      "(floor_key of the last board, the 50F+ floor entered by a descent without the *Destruction* means or None): the named stop's record (owner 2026-11-22)."),
     # departure_rescues
     S("_departure_rescue_attempts", "departure_rescues", LIFE,
       "departure_rescues: departure rescue attempts (no comment at its definition)"),

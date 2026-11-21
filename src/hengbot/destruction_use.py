@@ -64,7 +64,7 @@ from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
 
-from hengbot import means_spent_loop, return_start
+from hengbot import deep_climb, means_spent_loop, return_start
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
@@ -270,7 +270,11 @@ def means_spent(policy, snapshot) -> bool:
     without the means."""
     from hengbot import threat_tiers  # import cycle
 
+    from hengbot import deep_climb  # import cycle
+
     return (snapshot.dungeon_level >= DEEP_FLOOR_DEPTH
+            # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the climb (deep_climb).
+            and not deep_climb.on_floor(policy, snapshot)
             and threat_tiers.acts_here(policy, snapshot)
             and _floor_destroyed(policy, snapshot)
             and not _quest_floor(policy, snapshot)
@@ -776,6 +780,7 @@ def observe(policy, snapshot) -> None:
     """Every decision, before the board joins the map memory: settle the last use."""
     setattr(policy, UNSAFE_NOTE, None)
     means_spent_loop.observe(policy, snapshot)
+    deep_climb.observe(policy, snapshot)
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
         setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
     if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and holds_means(policy, snapshot):

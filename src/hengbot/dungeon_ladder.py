@@ -88,6 +88,8 @@ LADDER = (
     Layer("above-emergency", "the emergency ladder and everything below", (
         # Owner 2026-11-14 「50F以降で破壊手段なしの探索は許可しない。敵への対処以前に手段が尽きた
         # 時点で帰還させる。」: the Recall read on a 50F+ floor without the means.
+        # Owner 2026-11-22: the named stop of a 50F+ floor entered by a descent without it first.
+        *D("deep_climb.stop_key", exempt=MEANS_SPENT),
         *D("destruction_use.means_spent_recall_key", exempt=MEANS_SPENT),
     )),
     Layer("emergency", "the summons rules, floor avoidance, combat and all below", (
@@ -227,6 +229,8 @@ LADDER = (
            "consumable_policy.use_now_key"),
     )),
     Layer("objectives", "rest, descent and idle; town and dungeon rungs interleaved", (
+        # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the climb before the loot.
+        *D("deep_climb.key"),
         *P("_kill_quest_floor_recovery_key"),
         *D("hunt_target.route_key"),
         *E("_home_disposal_processing_key", "_town_cancel_unsafe_recall_key"),
@@ -534,6 +538,9 @@ _ABOVE_EMERGENCY = {
                                         "while Recall counts down, an unseen attacker's hit of a "
                                         "third of the maximum HP is itself the survival answer "
                                         "(*Destruction*, else Teleportation)",
+    "deep_climb.stop_key": "owner 2026-11-22, the net under 2026-11-18 「破壊を持っていないのに"
+                           "50F以降にいるのが不具合」: a 50F+ floor entered by a descent without "
+                           "the means stops the bot under a name (no key is answered there)",
     "destruction_use.means_spent_recall_key": "owner 2026-11-14 「50F以降で破壊手段なしの探索は"
                                               "許可しない。敵への対処以前に手段が尽きた時点で帰還"
                                               "させる。」: a Recall read, before any enemy is "

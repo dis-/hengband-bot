@@ -271,6 +271,12 @@ _RULE_CASTLE_CLIMB = ("the unsafe-recall fallback's Castle below its band takes 
                       "階段を探して適正階層まで行く」, dive_floor.climbing)")
 _rows(EXCLUDED, "ladder_descent", _RULE_CASTLE_CLIMB, "castle-climb:ascend")
 _rows(WALK, "ladder_descent", _RULE_CASTLE_CLIMB, "castle-climb:seek-upstairs")
+_RULE_DEEP_CLIMB = ("the Castle's 50F landing is climbed from at once: the up stairs, the walk to them, "
+                    "the search for them; no enemy prompted it (owner 2026-11-22 「城の50Fに帰還して"
+                    "すぐ38〜42Fへ登る」, deep_climb)")
+_rows(EXCLUDED, "deep_climb", _RULE_DEEP_CLIMB, "castle-climb-landing-50:ascend")
+_rows(WALK, "deep_climb", _RULE_DEEP_CLIMB, "castle-climb-landing-50:seek-upstairs",
+      "castle-climb-landing-50:search-upstairs")
 _RULE_ANGBAND_CAP = ("an Angband floor deeper than the cap takes the up stairs in the down stairs' "
                      "place: no enemy prompted it (owner 2026-11-19 「n1-bは次回潜行時に95Fまで登り"
                      "階段で戻ること」, angband_cap.climbing)")

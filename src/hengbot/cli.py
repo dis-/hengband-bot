@@ -19,7 +19,7 @@ from typing import Iterable, Mapping
 from hengbot import ability_sources
 from hengbot import angband_finale
 from hengbot import __version__ as HENGBOT_VERSION
-from hengbot import dive_floor, means_spent_loop, spare_gear, torch_release
+from hengbot import deep_climb, dive_floor, means_spent_loop, spare_gear, torch_release
 
 _CONTROL_OWNER_HANDLES: dict[int, object] = {}
 _TOWN_IDLE_D0_SESSION_ID = uuid.uuid4().hex
@@ -783,6 +783,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "quest:blocked:quest-patrol-rounds": "a KILL_ALL quest floor stayed unwon after the patrol's rounds (kill_all_patrol.ROUNDS); inspect the floor's remaining monsters",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
+        deep_climb.STOP_REASON: deep_climb.STOP_MESSAGE,
         **torch_release.HALT_MESSAGES,
     }
     return f"<{reason}> {messages[reason]}; stopping the bot for investigation"
