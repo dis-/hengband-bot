@@ -473,7 +473,9 @@ def warrior_optimizer_input_key(
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
     inputs = {
-        "schema": 3,
+        # 4: no NO_AC piece in any loadout (owner 2026-11-21 「AC0では打撃を受けると即死抽選がある」):
+        # a confirmation or cache of an earlier search (a worn 宵闇のローブ) is stale.
+        "schema": 4,
         "items": tuple(sorted(
             (optimizer_item_projection(item) for item in items),
             key=lambda projection: projection[0],
@@ -902,12 +904,12 @@ def prepare_warrior_optimization(
         blockers.append("missing-monrace-knowledge")
     if not home_scan_complete:
         blockers.append("home-scan-incomplete")
-    if finale:
-        # Owner 2026-11-21 「99F 100Fでも宵闇のローブは禁止」: the finale's rank reads no AC, so a NO_AC
-        # piece (宵闇のローブ, EgoDefinitions.jsonc TWILIGHT: every resistance, AC 0) would win on
-        # its resistances; it is never in the finale's set.
-        search_excluded_item_ids = search_excluded_item_ids | frozenset(
-            item.id for item in items if TR_NO_AC in item.flags)
+    # Owner 2026-11-21 「99F 100Fでも宵闇のローブは禁止」 and 「AC0では打撃を受けると即死抽選がある。
+    # 優先対処。」: a NO_AC piece (宵闇のローブ, EgoDefinitions.jsonc TWILIGHT: every resistance, AC 0)
+    # is in no loadout, ordinary or the finale's, at any depth; out of the search, a worn one is
+    # taken off by the next town's swap (n1-b life-411 2026-11-21 wore one on 95F).
+    search_excluded_item_ids = search_excluded_item_ids | frozenset(
+        item.id for item in items if TR_NO_AC in item.flags)
     if calibration is None:
         # P1: the worn-independent constants are a MANDATORY input of the
         # selector.  There is deliberately no fallback derivation from the
