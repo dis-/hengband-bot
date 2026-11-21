@@ -18,7 +18,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot import launcher_upgrade, me_deep_launcher
+from hengbot import equipment_rules, launcher_upgrade, me_deep_launcher
 from hengbot.equipment_optimizer import (
     ABILITY_FLAG,
     EvaluatedLoadout,
@@ -131,12 +131,12 @@ class RecordedLoadoutTest(unittest.TestCase):
         """The rule is the Magic-Eater's: as class 0 the same catalog keeps the crossbow."""
         recorded = RecordedBoard("n1-c")
         self.addCleanup(recorded.close)
-        original = me_deep_launcher.launcher_power_unscored
+        original = equipment_rules.launcher_power_unscored
 
         def as_warrior(class_id, depth, **kwargs):
             return original(PLAYER_CLASS_WARRIOR, depth, **kwargs)
 
-        with patch.object(me_deep_launcher, "launcher_power_unscored", as_warrior):
+        with patch.object(equipment_rules, "launcher_power_unscored", as_warrior):
             bow = recorded.optimize().best.loadout.item_at(SLOT_BOW)
         self.assertEqual(bow.item.name, WORN_CROSSBOW)
 
@@ -246,7 +246,7 @@ class SelectionTest(unittest.TestCase):
                 candidate_loadouts=tuple(Loadout(((SLOT_BOW, bow),), "empty")
                                          for bow in (self.strong, self.resisting)),
                 require_light=False, require_body=False, require_armor_slots=frozenset(),
-                launcher_power_unscored=lambda band: me_deep_launcher.launcher_power_unscored(
+                launcher_power_unscored=lambda band: equipment_rules.launcher_power_unscored(
                     PLAYER_CLASS_MAGIC_EATER, band),
             ).best.loadout.item_at(SLOT_BOW)
 
@@ -257,7 +257,7 @@ class SelectionTest(unittest.TestCase):
 
 class JudgementTest(unittest.TestCase):
     def test_class_and_depth(self):
-        unscored = me_deep_launcher.launcher_power_unscored
+        unscored = equipment_rules.launcher_power_unscored
         self.assertTrue(unscored(PLAYER_CLASS_MAGIC_EATER, 50))
         self.assertTrue(unscored(PLAYER_CLASS_MAGIC_EATER, 81))
         self.assertFalse(unscored(PLAYER_CLASS_MAGIC_EATER, 49))

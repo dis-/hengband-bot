@@ -7,7 +7,7 @@ worn NO_TELE stops (spells-teleport.cpp, mspell-floor.cpp).  The data is the pro
 
  * ``qualifies``: a known, uncursed piece of armour or jewellery with NO_TELE and no other drawback:
    none of the flags the equipment optimizer forbids for exploration besides NO_TELE
-   (equipment_optimizer.FORBIDDEN_EXPLORATION_FLAGS) and no negative pval, to-hit, to-dam or
+   (equipment_rules.EXPLORATION_FORBIDDEN_FLAGS) and no negative pval, to-hit, to-dam or
    to-AC.  A melee weapon is left out: the town's own rule sells a carried NO_TELE weapon
    (policy_shop ``shop:sell-no-teleport-weapon``) and takes one off the hand.
  * ``slot_for``: the slot it goes in, and only where taking off what is there loses no ability
@@ -23,14 +23,13 @@ worn NO_TELE stops (spells-teleport.cpp, mspell-floor.cpp).  The data is the pro
 
 from __future__ import annotations
 
-from hengbot.equipment_optimizer import FORBIDDEN_EXPLORATION_FLAGS
+from hengbot.equipment_rules import EXPLORATION_FORBIDDEN_FLAGS, TR_NO_TELE
 from hengbot.model import (
     TVAL_AMULET, TVAL_BOOTS, TVAL_CLOAK, TVAL_CROWN, TVAL_DRAG_ARMOR, TVAL_GLOVES, TVAL_HARD_ARMOR,
     TVAL_HELM, TVAL_RING, TVAL_SHIELD, TVAL_SOFT_ARMOR,
 )
 from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, RESIST_FLAG_BY_ABILITY
 
-TR_NO_TELE = 68
 GEAR_NAME = "anti_teleport"
 WEAR_GOAL = "quest25-druj-anti-teleport"
 RESTORE_GOAL = "quest25-druj-restore"
@@ -54,7 +53,7 @@ def qualifies(item) -> bool:
     """「反テレポート付きで他のデメリットがない装備」."""
     return (item.is_equipment and item.tval in SLOTS_BY_TVAL and item.known
             and not item.is_cursed and TR_NO_TELE in item.known_flags
-            and not (set(item.known_flags) & (FORBIDDEN_EXPLORATION_FLAGS - {TR_NO_TELE}))
+            and not (set(item.known_flags) & (EXPLORATION_FORBIDDEN_FLAGS - {TR_NO_TELE}))
             and min(item.pval, item.to_h, item.to_d, item.to_a) >= 0)
 
 

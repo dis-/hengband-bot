@@ -27,7 +27,8 @@ needs ``path - 1`` moves and one blow.
 from __future__ import annotations
 
 from hengbot import line_of_fire
-from hengbot.policy_constants import DEPTH_ABILITY_REQUIREMENTS, MONSTER_SPELL_MAX_RANGE
+from hengbot.equipment_rules import DEPTH_ABILITY_REQUIREMENTS
+from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE
 
 
 # Owner 2026-11-09 (question E of n1-b life-346, 鉄獄19階: クトーニアン, 1_IN_5 HOLD and

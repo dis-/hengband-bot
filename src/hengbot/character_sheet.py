@@ -7,6 +7,7 @@ import re
 import unicodedata
 
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
+from hengbot.equipment_rules import TR_LOW_AC, TR_NO_AC
 from hengbot.warrior_equipment_evaluator import modify_stat_value
 
 
@@ -405,7 +406,7 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     # and is taken as 0 below; refusing the sheet instead left no calibration, so no loadout search
     # and no swap could take the piece off (n1-b life-411 2026-11-21 05:51-12:41, owner 「AC0では
     # 打撃を受けると即死抽選がある。優先対処。」).
-    if 134 in worn.flags:
+    if TR_LOW_AC in worn.flags:
         raise CharacterSheetUnavailable("unsupported-ac-interaction")
     # A complete AC set adds a flat AC the loadout model does not carry; the
     # constant derived below would absorb it.  One piece alone has no effect.
@@ -458,7 +459,7 @@ def derive_equipped_calibration(sheet: CharacterSheet, snapshot, character: dict
     defense = WarriorDefenseInputs(player.level, natural[3], shield_skill=player.shield_skill,
                                    intrinsic_dex=adjustments[3])
     try:
-        armor_constant = (0 if 141 in worn.flags
+        armor_constant = (0 if TR_NO_AC in worn.flags
                           else player.ac - ac_bonus - loadout_armor_class(worn, defense))
     except ValueError as exc:
         raise CharacterSheetUnavailable("unsupported-ac-interaction") from exc

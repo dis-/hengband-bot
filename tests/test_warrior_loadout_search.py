@@ -5,6 +5,7 @@ from dataclasses import replace
 from itertools import product
 
 from hengbot.equipment_encounters import EncounterTarget
+from hengbot.equipment_rules import TR_AGGRAVATE
 from hengbot.equipment_optimizer import (
     FIXED_SLOTS,
     SLOT_BODY,
@@ -14,7 +15,6 @@ from hengbot.equipment_optimizer import (
     SLOT_MAIN_RING,
     SLOT_NECK,
     SLOT_SUB_RING,
-    TR_AGGRAVATE,
     TR_FREE_ACT,
     TR_TELEPATHY,
     Loadout,

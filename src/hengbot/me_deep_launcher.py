@@ -4,7 +4,7 @@ Owner 2026-11-18 (verbatim): 「50F以降の装備優先度について。魔道
 から外し、弓枠は追加能力や耐性のみで評価する。また、射撃威力が100ダメージ/ターンを下回る場合は
 矢も持たない。」
 
-Two rules, each with its one reader here:
+Two rules (their data in equipment_rules), each with its one reader here:
 
 * ``launcher_power_unscored``: for class 16 at a depth of DEEP_FLOOR_DEPTH (50F) or deeper the
   equipment selection leaves the launcher's shooting power out (equipment_optimizer.
@@ -33,19 +33,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from hengbot import attack_expectation
+from hengbot import attack_expectation, equipment_rules
+from hengbot.equipment_rules import SHOT_POWER_FLOOR
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, launcher_average_damage
-from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.policy_constants import DEEP_FLOOR_DEPTH
 
-# 「射撃威力が100ダメージ/ターンを下回る場合は矢も持たない」
-SHOT_POWER_FLOOR = 100.0
-
-
-def launcher_power_unscored(class_id: int, depth: int | None) -> bool:
-    """Whether the selection leaves the launcher's shooting power out at ``depth``."""
-    return (class_id == PLAYER_CLASS_MAGIC_EATER and depth is not None
-            and depth >= DEEP_FLOOR_DEPTH)
+# The two rules' data and ``launcher_power_unscored`` are equipment_rules' (the one table of the
+# owner's equipment rules, equipment review stage E1); this module reads them for the town.
 
 
 def shot_power_per_turn(policy: Any, snapshot: Any) -> float:
@@ -63,7 +56,7 @@ def shot_power_per_turn(policy: Any, snapshot: Any) -> float:
 
 def planned_unscored(policy: Any, snapshot: Any) -> bool:
     """``launcher_power_unscored`` for the departure the town plans (``_planned_depth``)."""
-    return launcher_power_unscored(snapshot.player.class_id, policy._planned_depth())
+    return equipment_rules.launcher_power_unscored(snapshot.player.class_id, policy._planned_depth())
 
 
 def ammo_unneeded(policy: Any, snapshot: Any) -> bool:

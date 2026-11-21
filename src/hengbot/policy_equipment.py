@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import angband_finale, finale_prep
 from hengbot import approach_answer, destination_band_floor, home_pass_charge, launcher_upgrade, spare_gear
-from hengbot import equipment_visit_journal
+from hengbot import equipment_rules, equipment_visit_journal
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
@@ -53,7 +53,6 @@ from hengbot.equipment_optimizer import (
     OwnedEquipmentCatalog,
     current_loadout,
     divable_depth,
-    ordinary_launcher_yields_to_light_crossbow,
     equipment_identity,
     equipment_move_identity,
     operational_equipment_candidate,
@@ -61,6 +60,7 @@ from hengbot.equipment_optimizer import (
     random_teleport_is_suppressed,
     slot_for,
 )
+from hengbot.equipment_rules import ordinary_launcher_yields_to_light_crossbow
 from hengbot.equipment_transaction_session import (
     EquipmentTransactionObservation,
     EquipmentTransactionSession,
@@ -115,7 +115,6 @@ from hengbot.policy_types import (
 )
 from hengbot.policy_constants import (
     AMMO_CARRY_TARGET,
-    DEPTH_ABILITY_REQUIREMENTS,
     DEEP_FLOOR_DEPTH,
     DESTRUCTION_GATE_LABEL,
     FUNDRAISING_START_GOLD,
@@ -123,7 +122,6 @@ from hengbot.policy_constants import (
     SPEED_GATE_LABEL,
     SPEED_GATE_MINIMUM,
     WEAPON_BLOCK_LIMIT,
-    _required_abilities_for_depth,
     required_depth_gates,
     COMBAT_OUTCOME_WINDOW,
     COMBAT_REASON_PREFIXES,
@@ -1367,6 +1365,9 @@ class EquipmentMixin:
             # The descent's floor (destination_band_floor): a hit kept the band it refused.
             (("destination-floor", destination_floor),)
             if destination_floor is not None else ())
+        # The owner's equipment rules (equipment_rules.RULES_VERSION): a search memo restored from
+        # before a rule change is stale.
+        signature += (("equipment-rules", equipment_rules.RULES_VERSION),)
         if (
             signature == self._equipment_optimization_signature
             and self._equipment_optimization_pack_items == len(snapshot.inventory)

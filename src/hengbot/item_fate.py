@@ -19,6 +19,7 @@ from typing import Any
 
 from hengbot import item_use_route, spare_gear, town_pack_budget
 from hengbot.baseitem_knowledge import item_base_cost
+from hengbot.equipment_rules import TR_NO_AC
 from hengbot.item_reservation import decision_memo, item_available
 from hengbot.model import SV_STAFF_IDENTIFY, TVAL_ROD, TVAL_STAFF, TVAL_WAND
 from hengbot.store_sale import known_sale_value
@@ -204,7 +205,7 @@ _PVAL_FLAGS = frozenset(range(0, 14)) - {7}
 # A drawback a dominating piece must not add: EARTHQUAKE, NO_TELE, NO_MAGIC, TY_CURSE, the
 # drains and calls, the curses (ADD_*_CURSE .. SLOW_REGEN, DOWN_SAVING, NO_AC, BERS_RAGE), the
 # darkness source, the elemental vulnerabilities, the self damage and PERSISTENT/VUL_CURSE.
-_DRAWBACK_FLAGS = frozenset({26, 68, 69, 71, 89, 90, 91, *range(118, 138), 140, 141, 146,
+_DRAWBACK_FLAGS = frozenset({26, 68, 69, 71, 89, 90, 91, *range(118, 138), 140, TR_NO_AC, 146,
                              149, *range(152, 157), *range(158, 163)})
 # TR flag -> player.ability_sources key (bot-json-output.cpp
 # make_bot_player_ability_sources_json).

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.item_identity import same_memory
-from hengbot import finale_prep, finale_teleport_tour, no_ac_recall
+from hengbot import equipment_rules, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import return_start
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
@@ -7727,9 +7727,10 @@ class TownMixin:
                     # nothing left to do for that step, so it stops and the 95F read goes on.
                     finale_prep.departure_reached(self, snapshot)
                     # Owner 2026-11-21 「AC0では打撃を受けると即死抽選がある。優先対処。」: no departure
-                    # in a worn NO_AC piece (宵闇のローブ); the loadout search leaves it out, so the
-                    # town's swap takes it off first (n1-b life-411 2026-11-21 12:41 left in it).
-                    if no_ac_recall.worn(snapshot):
+                    # in a worn banned piece (equipment_rules.LOADOUT_BANNED_FLAGS: 宵闇のローブ); the
+                    # loadout search leaves it out, so the town's swap takes it off first (n1-b
+                    # life-411 2026-11-21 12:41 left in it).
+                    if equipment_rules.wears_loadout_banned(snapshot):
                         self.last_reason = NO_AC_DEPARTURE_REASON
                         self._offer_execution(
                             WAIT_KEY, producer="departure", work_id="town:no-ac-worn",

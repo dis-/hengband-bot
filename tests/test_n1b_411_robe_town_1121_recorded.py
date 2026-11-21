@@ -29,7 +29,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot import no_ac_recall
 from hengbot.policy import staged_prompt_chain_matches
-from hengbot.warrior_optimization import TR_NO_AC
+from hengbot.equipment_rules import TR_NO_AC
 from support.town_arrival_fixture import load
 
 FIXTURES = Path(__file__).with_name("fixtures")

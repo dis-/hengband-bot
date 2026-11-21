@@ -38,7 +38,7 @@ from hengbot.equipment_transaction_planner import (
 )
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_utility import with_destruction_means
-from hengbot import angband_cap, me_deep_launcher
+from hengbot import angband_cap, equipment_rules
 from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
 from hengbot.model import InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
@@ -474,9 +474,9 @@ def warrior_optimizer_input_key(
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
     inputs = {
-        # 4: no NO_AC piece in any loadout (owner 2026-11-21 「AC0では打撃を受けると即死抽選がある」):
-        # a confirmation or cache of an earlier search (a worn 宵闇のローブ) is stale.
-        "schema": 4,
+        # The owner's equipment rules (equipment_rules.RULES_VERSION, a digest of that table):
+        # changing a rule makes a confirmation or cache of an earlier search stale.
+        "schema": equipment_rules.RULES_VERSION,
         "items": tuple(sorted(
             (optimizer_item_projection(item) for item in items),
             key=lambda projection: projection[0],
@@ -845,10 +845,6 @@ def _effective_intrinsic_abilities(
     return stored
 
 
-# object/tr-types.h TR_NO_AC (宵闇のローブ's).
-TR_NO_AC = 141
-
-
 def prepare_warrior_optimization(
     snapshot: Snapshot,
     items: tuple[OwnedEquipment, ...],
@@ -912,12 +908,11 @@ def prepare_warrior_optimization(
         blockers.append("missing-monrace-knowledge")
     if not home_scan_complete:
         blockers.append("home-scan-incomplete")
-    # Owner 2026-11-21 「99F 100Fでも宵闇のローブは禁止」 and 「AC0では打撃を受けると即死抽選がある。
-    # 優先対処。」: a NO_AC piece (宵闇のローブ, EgoDefinitions.jsonc TWILIGHT: every resistance, AC 0)
-    # is in no loadout, ordinary or the finale's, at any depth; out of the search, a worn one is
-    # taken off by the next town's swap (n1-b life-411 2026-11-21 wore one on 95F).
-    search_excluded_item_ids = search_excluded_item_ids | frozenset(
-        item.id for item in items if TR_NO_AC in item.flags)
+    # The banned pieces (equipment_rules.LOADOUT_BANNED_FLAGS: owner 2026-11-21 「99F 100Fでも
+    # 宵闇のローブは禁止」) are in no loadout, ordinary or the finale's, at any depth; out of the
+    # search, a worn one is taken off by the next town's swap (n1-b life-411 2026-11-21 wore one
+    # on 95F).
+    search_excluded_item_ids = search_excluded_item_ids | equipment_rules.loadout_banned_item_ids(items)
     if calibration is None:
         # P1: the worn-independent constants are a MANDATORY input of the
         # selector.  There is deliberately no fallback derivation from the
@@ -1128,7 +1123,7 @@ def prepare_warrior_optimization(
                 staff_gate=staff_gate,
                 # Owner 2026-11-18 「魔道具術師については射撃威力を評価値から外し、弓枠は
                 # 追加能力や耐性のみで評価する」 (50F+).
-                launcher_power_unscored=lambda band: me_deep_launcher.launcher_power_unscored(
+                launcher_power_unscored=lambda band: equipment_rules.launcher_power_unscored(
                     player.class_id, band),
                 destination_floor=destination_floor,
             )

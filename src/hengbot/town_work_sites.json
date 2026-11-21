@@ -2670,6 +2670,41 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "equipment_rules.py:is_high_grade": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_rules.py:launcher_power_unscored": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_rules.py:loadout_banned": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_rules.py:loadout_banned_item_ids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_rules.py:required_abilities_for_depth": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_transaction_planner.py:_slots": {
     "classification": "data",
     "rows": [
@@ -5173,13 +5208,6 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "me_deep_launcher.py:launcher_power_unscored": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "me_device_attacks.py:Power.ident": {
     "classification": "data",

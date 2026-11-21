@@ -25,6 +25,7 @@ from hengbot.equipment_optimizer import (
     slot_for,
     worn_light_radius,
 )
+from hengbot.equipment_rules import TR_LOW_AC, TR_NO_AC
 from hengbot.equipment_utility import UTILITY_FLAGS
 from hengbot.warrior_defense_evaluator import PROTECTOR_TVALS, TR_SPEED
 from hengbot.warrior_equipment_evaluator import warrior_melee_signature
@@ -75,7 +76,7 @@ WARRIOR_EVALUATOR_FLAGS = BENEFICIAL_GEAR_FLAGS | frozenset(
         # absorbed power (me_power_success.REFUSED_FAILURE).  n1-b life-407
         # swapped 殺戮のセスタス for ☆『天豹』 {[魔} and lost *Destruction* on 64F.
         69,
-        134, 141,  # LOW_AC / NO_AC
+        TR_LOW_AC, TR_NO_AC,
         147, 151,  # supportive / impact
         152, 153, 154, 155,  # elemental vulnerabilities
     }

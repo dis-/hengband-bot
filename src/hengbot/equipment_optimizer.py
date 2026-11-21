@@ -23,11 +23,6 @@ from hengbot.item_identity import without_player_inscription
 from hengbot.model import (
     ARMOUR_TVALS,
     BAD_PSEUDO_FEELINGS,
-    SV_BOW_HEAVY_XBOW,
-    SV_BOW_LIGHT_XBOW,
-    SV_BOW_LONG,
-    SV_BOW_SHORT,
-    SV_BOW_SLING,
     SV_LITE_FEANOR,
     SV_LITE_LANTERN,
     TVAL_AMULET,
@@ -58,10 +53,17 @@ from hengbot.speed_valuation import (
     weighted_margin,
 )
 from hengbot.policy_constants import (
-    DEPTH_ABILITY_REQUIREMENTS,
     DEEP_FLOOR_DEPTH,
     SPEED_GATE_DEPTH,
-    _required_abilities_for_depth,
+)
+from hengbot.equipment_rules import (
+    DEPTH_ABILITY_REQUIREMENTS,
+    EXPLORATION_FORBIDDEN_FLAGS,
+    LIGHT_CROSSBOW_SVAL,
+    TR_NO_TELE,
+    launcher_is_high_grade,
+    ordinary_launcher_yields_to_light_crossbow,
+    required_abilities_for_depth,
 )
 
 
@@ -106,50 +108,12 @@ TR_RES_POIS = 52
 TR_RES_CONF = 57
 TR_RES_NETHER = 60
 TR_RES_CHAOS = 62
-TR_NO_TELE = 68
 TR_TELEPATHY = 79
-TR_DRAIN_EXP = 89
 TR_TELEPORT = 90
-TR_AGGRAVATE = 91
-TR_ADD_L_CURSE = 118
-TR_ADD_H_CURSE = 119
-TR_DRAIN_HP = 120
-TR_CALL_ANIMAL = 128
-TR_CALL_DEMON = 129
-TR_CALL_DRAGON = 130
-TR_CALL_UNDEAD = 131
-TR_COWARDICE = 132
-TR_BERS_RAGE = 149
-TR_SELF_FIRE = 158
-TR_SELF_ELEC = 159
-TR_SELF_COLD = 160
-TR_PERSISTENT_CURSE = 161
 
 
-# Flags whose behavior makes an exploration loadout unusable for the present
-# bot.  Temporary curse state is handled separately: such an item is held for
-# uncursing and is not an optimization candidate until the curse is gone.
-FORBIDDEN_EXPLORATION_FLAGS = frozenset(
-    {
-        TR_NO_TELE,
-        71,  # TY_CURSE / ancient curse
-        TR_DRAIN_EXP,
-        TR_AGGRAVATE,
-        TR_ADD_L_CURSE,
-        TR_ADD_H_CURSE,
-        TR_DRAIN_HP,
-        TR_CALL_ANIMAL,
-        TR_CALL_DEMON,
-        TR_CALL_DRAGON,
-        TR_CALL_UNDEAD,
-        TR_COWARDICE,
-        TR_BERS_RAGE,
-        TR_SELF_FIRE,
-        TR_SELF_ELEC,
-        TR_SELF_COLD,
-        TR_PERSISTENT_CURSE,
-    }
-)
+# The exploration ban is equipment_rules.EXPLORATION_FORBIDDEN_FLAGS (the one table of the
+# owner's equipment rules).
 
 # These flags have no selection or disposal value under the agreed policy.
 IGNORED_DOMINANCE_FLAGS = frozenset(
@@ -311,7 +275,7 @@ def random_teleport_is_suppressed(item: EquipmentItem) -> bool:
 
 
 def required_abilities(depth: int) -> frozenset[str]:
-    return _required_abilities_for_depth(depth)
+    return required_abilities_for_depth(depth)
 
 
 def destruction_means(loadout: "Loadout", has_destruction: bool, staff_gate) -> bool:
@@ -421,7 +385,7 @@ class OwnedEquipment:
 
     @property
     def exploration_legal(self) -> bool:
-        if not self.evaluable or self.flags.intersection(FORBIDDEN_EXPLORATION_FLAGS):
+        if not self.evaluable or self.flags.intersection(EXPLORATION_FORBIDDEN_FLAGS):
             return False
         if (
             not self.item.fully_known
@@ -1356,34 +1320,8 @@ def _pareto_dominates(left: EvaluatedLoadout, right: EvaluatedLoadout) -> bool:
     return no_worse and strictly_better
 
 
-def launcher_is_high_grade(item: EquipmentItem) -> bool:
-    """High grade (koukyuuhin ijou): ego, artifact, or excellent/special pseudo-ID."""
-    return (
-        item.is_ego
-        or item.is_artifact
-        or item.pseudo_feeling in {"excellent", "special"}
-    )
-
-
-# User decisions 2026-07-19 (Short Bow) and 2026-10-02 (Sling, verbatim:
-# 「上質以下同士の比較ならスリングよりライトクロスボウを優先。スリングが高級品以上なら
-# 威力評価。」), widened by the owner 2026-11-21 (n1-b life-413) to every other kind
-# 「ライトクロスボウを優先、ただし高級品やアーティファクトなら他種でも威力で評価」: an ordinary
-# launcher of any other kind yields to a Light Crossbow before any damage comparison; a
-# high-grade one competes on damage.
-_YIELDS_TO_LIGHT_XBOW_SVALS = frozenset({SV_BOW_SLING, SV_BOW_SHORT, SV_BOW_LONG, SV_BOW_HEAVY_XBOW})
-
-
-def ordinary_launcher_yields_to_light_crossbow(
-    launcher: EquipmentItem, crossbow: EquipmentItem
-) -> bool:
-    """The user grade rule: an ordinary launcher of another kind < Light Crossbow."""
-    return (
-        crossbow.tval == launcher.tval
-        and crossbow.sval == SV_BOW_LIGHT_XBOW
-        and launcher.sval in _YIELDS_TO_LIGHT_XBOW_SVALS
-        and not launcher_is_high_grade(launcher)
-    )
+# The Light Crossbow rule (owner 2026-07-19, 2026-10-02, 2026-11-21 n1-b life-413) is
+# equipment_rules' ``ordinary_launcher_yields_to_light_crossbow`` / ``launcher_is_high_grade``.
 
 
 def yields_to_light_crossbow(
@@ -1731,7 +1669,7 @@ def _stable_operational_best(
         bow
         for entry in pool
         if (bow := entry.loadout.item_at(SLOT_BOW)) is not None
-        and bow.item.sval == SV_BOW_LIGHT_XBOW
+        and bow.item.sval == LIGHT_CROSSBOW_SVAL
     ]
     if light_crossbows and launcher_power:
         pool = [
