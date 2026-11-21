@@ -237,6 +237,16 @@ def unseen_correction(policy, snapshot, hostiles) -> int:
     """The last attributable loss under ``observed_loss_lethal``'s gating, counted once, and only
     when an unseen attacker is evidenced (design 3.1): a loss the visible monsters dealt is in the
     p95 already, so adding it again would count it twice."""
+    if not hostiles:
+        return 0
+    return unseen_loss(policy, snapshot)
+
+
+def unseen_loss(policy, snapshot) -> int:
+    """The last loss an unseen attacker is evidenced to have dealt (``unseen_correction``'s
+    gating without its visible hostiles), else 0.  With nobody in view it is the whole of the
+    threat the board shows (recall_wait_teleport: n1-c life-218, Castle 48F, 2026-11-21 21:35:39,
+    an unseen mana breather's 246 at HP 132)."""
     player = snapshot.player
     attributable = (
         policy._took_damage
@@ -245,7 +255,7 @@ def unseen_correction(policy, snapshot, hostiles) -> int:
         and not policy._took_trap_or_terrain_damage
         and not snapshot.in_town
     )
-    if not attributable or not hostiles:
+    if not attributable:
         return 0
     unseen_caster_hit = unseen_strike.hit_by_spell(policy, snapshot)
     if not (unseen_caster_hit or not (player.poisoned or player.cut)):
