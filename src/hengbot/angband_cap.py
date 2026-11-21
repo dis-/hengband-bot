@@ -71,6 +71,27 @@ def climbing(snapshot, policy=None) -> bool:
     return not snapshot.in_town and climbing_floor(snapshot.floor_key, policy)
 
 
+# Owner 2026-11-21 (verbatim, LOCKED) 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」 (it replaces
+# 「今のまま（99Fに着いたら登って95Fへ）」): n1-b life-411 died on 100F at 17:16 after an ordinary
+# departure read Word of Recall toward Angband with its recall depth at 100 and landed beside the
+# Serpent of Chaos (it had done so once at 17:15 too).
+DEEP_RECALL_REFUSED_FROM = 96
+
+
+def deep_recall_refused(snapshot, dungeon_id: int, policy=None) -> bool:
+    """A recall toward Angband outside the finale's expedition (the cap not lifted for
+    ``policy``) while Angband's saved recall depth is DEEP_RECALL_REFUSED_FROM or deeper: the town's
+    departure takes another destination (policy ``_recall_destination_safe`` refuses it)."""
+    if dungeon_id != DUNGEON_ANGBAND or cap(dungeon_id, policy) is None:
+        return False
+    depths = getattr(snapshot, "dungeon_recall_depths", None) or {}
+    try:
+        saved = int(depths.get(DUNGEON_ANGBAND, 0) or 0)
+    except (TypeError, ValueError):
+        return False
+    return saved >= DEEP_RECALL_REFUSED_FROM
+
+
 def reset_recall_depth(observation, *, lifted: bool = False) -> bool:
     """The answer to recall_player's reset-recall-depth question on the board ``observation``
     (the raw state the operation was posted on): y in Angband on a floor at or below the cap
