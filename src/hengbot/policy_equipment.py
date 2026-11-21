@@ -553,6 +553,44 @@ class EquipmentMixin:
                 if owned not in retired
             ]
 
+    def _retire_slots_filled_by_abandoned_session(
+        self, snapshot: Snapshot | None,
+        session: EquipmentTransactionSession | None,
+    ) -> None:
+        """An abandoned session's confirmed wear keeps its slot; nothing restores over it.
+
+        The restoration puts taken-off gear back into a slot the failure left
+        empty.  A slot the session already filled with its planned item holds
+        the visit's target loadout, and restoring the old item there undoes the
+        swap (owner 2026-11-22 Q6: after a temporary swap the visit's target
+        weapon is worn).  n1-c life-219 2026-11-22 01:34: the transaction took
+        the mining シャベル pair off, wore ★ノートゥング and the shield, and
+        failed at its second shovel deposit (the first had stored the stack of
+        two); the restoration withdrew a shovel and wore it over ノートゥング,
+        main_hand A, B, A (town:blocked:equipment-slot-flipflop:main_hand).
+        """
+        if (snapshot is None or session is None
+                or self._equipment_transaction_restoring
+                or not self._equipment_transaction_owned_items):
+            return
+        worn = {
+            item.slot: {equipment_move_identity(item), equipment_identity(item)}
+            for item in snapshot.equipment if item.is_equipment
+        }
+        filled = {
+            action.target_slot
+            for action in session.plan.actions[:session.index]
+            if action.kind in {"equip", "reposition"}
+            and action.target_slot is not None
+            and (action.move_identity or action.item_identity)
+            in worn.get(action.target_slot, ())
+        }
+        if filled:
+            self._equipment_transaction_owned_items = [
+                owned for owned in self._equipment_transaction_owned_items
+                if owned[1] not in filled
+            ]
+
     # Stores whose shelves carry plain launcher ammunition, in errand order:
     # the Weapon Smith first, the General Store when the Weapon Smith cannot
     # supply it (the 012442 live pages show plain bolts in both).
@@ -2109,6 +2147,7 @@ class EquipmentMixin:
         self._equipment_optimization_signature = None
         self._equipment_optimization_preparation = None
         self._town_blocked_reason = None
+        self._retire_slots_filled_by_abandoned_session(snapshot, session)
         if self._equipment_transaction_owned_items:
             # Restoration is reconstructed from physical observations every
             # time it is interrupted.  An old blocked session is evidence only
