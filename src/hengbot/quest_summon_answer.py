@@ -559,9 +559,11 @@ def _note_group(policy, snapshot, navigator) -> None:
 
 
 def _strike_around(policy, snapshot, board, acting) -> str | None:
-    """Step 2: a blow or a shot at what acts on the player, summoners first, then the plan's order."""
+    """Step 2: a blow or a shot at what acts on the player, summoners first, then the plan's order;
+    a monster known by telepathy that fires at the player from out of view (``Board.firing``) is
+    shot as one in view (target-preparation.cpp target_able: ``ml`` and projectable)."""
     indices = {monster.index for monster in acting}
-    targets = sorted((monster for monster in board.in_view if monster.index in indices),
+    targets = sorted((monster for monster in (*board.in_view, *board.firing) if monster.index in indices),
                      key=lambda monster: not monster.can_summon)
     for target in targets:
         if target in board.beside:

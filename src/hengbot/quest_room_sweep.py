@@ -645,7 +645,9 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         answer = combat_answer.adjacent_attack(policy, snapshot, struck, MELEE_REASON)
         if answer is not None and answer.key is not None:
             return answer.key
-    for target in board.in_view:
+    # A monster known by telepathy that fires at the player from out of view is shot as one in view
+    # (target-preparation.cpp target_able: ``ml`` and projectable; quest_plan_base ``Board.firing``).
+    for target in (*board.in_view, *board.firing):
         if target not in board.beside and (shot := _shot(policy, snapshot, target)) is not None:
             navigator.sweep_enemy_turns = 0
             return shot

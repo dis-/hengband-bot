@@ -49,6 +49,10 @@ from tests.test_quest33_alignment_split import QUEST, quest_dir, recorded
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-220-q33-sensed-1122"
 HOLD_CELL = Position(1, 27)
+# On the 船幽霊's line of fire (the cells it crosses toward [1,27]) and 8 grids from [5,41]: within the
+# bot's reach for a shot (RANGED_MAX_DISTANCE 10), as [1,27] (14 grids) is not.
+SHOT_CELL = Position(3, 33)
+SHIP_CELLS = {"@4,41", "@5,41"}
 PHANTOM_SHIP = 1389
 INSTANT_DEATH_TURN = 3211903  # HP 119, the capture's 即死 (p95 164)
 ABSORBED = {me_capability.record_key("staff", SV_STAFF_TELEPORTATION): 20,
@@ -85,12 +89,18 @@ class N1c220SensedChooseKeyTest(unittest.TestCase):
         snapshot = parse_snapshot(raw, self.policy._monrace_knowledge)
         return replace(snapshot, player=replace(snapshot.player, two_weapon_skill=0, shield_skill=0))
 
-    def answers(self, *, board=lambda snapshot: snapshot):
+    def answers(self, *, at=None, boards=None, disengaged=True):
+        """choose_key over the recorded boards (the first ``boards``), the player on ``at`` if given;
+        ``disengaged``: the plan in the summon answer's steps after a disengage (else its own fight)."""
         out = []
-        for raw in load("boards.json.xz"):
-            snapshot = board(self.snapshot(raw))
+        for raw in load("boards.json.xz")[:boards]:
+            if at is not None:
+                raw = {**raw, "player": {**raw["player"], "y": at.y, "x": at.x}}
+            snapshot = self.snapshot(raw)
             navigator = _navigator(self.policy, snapshot, QUEST)
-            if navigator.summon_state is None:
+            if not disengaged:
+                navigator.summon_state = None
+            elif navigator.summon_state is None:
                 navigator.summon_state = quest_summon_answer.DISENGAGED
             if snapshot.turn == INSTANT_DEATH_TURN:
                 navigator.sweep_heal_next = False
@@ -135,6 +145,18 @@ class N1c220SensedChooseKeyTest(unittest.TestCase):
             self.assertEqual(snapshot.player.position, HOLD_CELL)
             if snapshot.player.hp_ratio < 0.5:
                 self.assertNotEqual((reason, key), (quest_room_sweep.HOLD_REASON, WAIT_KEY), snapshot.turn)
+
+    def test_a_sensed_caster_in_reach_is_shot(self):
+        # DECLARED CONSTRUCTED: the recorded boards with the player on SHOT_CELL (the boards while the
+        # haste lasted and the HP stood above the heal line).
+        # After the disengage (quest_summon_answer ``_strike_around``) and in the plan's own fight
+        # (quest_room_sweep ``_fight``).
+        for disengaged in (True, False):
+            with self.subTest(disengaged=disengaged):
+                for snapshot, reason, key in self.answers(at=SHOT_CELL, boards=6, disengaged=disengaged):
+                    self.assertEqual(snapshot.player.position, SHOT_CELL)
+                    self.assertEqual(reason, "ranged:magic-eater-device", snapshot.turn)
+                    self.assertIn(key[key.index("@"):], SHIP_CELLS)
 
 
 class Q18SensedFireTest(unittest.TestCase):
