@@ -40,8 +40,10 @@ policy takes into 50F+ is refused by the depth gate (``_is_descent_target`` /
 ``_destination_depth_allowed``), so what is left is the game's (a trap door, which drops one
 floor or two, deep_fall_guard; a Scroll of Teleport Level read as an escape).
 
-Only where no climb can be held (a dungeon other than the Castle and the Mountain, or a band
-the kit cannot reach, dive_floor.reaches_band) does the arrival stop the bot under
+Standing on such a floor is enough (``_standing_without_means``): the first board after a
+restart has no previous floor, and n1-a life-535 is resumed on the Castle's 50F.  Only where no
+climb can be held (a dungeon other than the Castle and the Mountain, or a band the kit cannot
+reach, dive_floor.reaches_band) does an arrival from a shallower floor stop the bot under
 ``STOP_REASON`` (``stop_key``).
 """
 from __future__ import annotations
@@ -198,6 +200,17 @@ def _hold_climb(policy, snapshot, dungeon_id: int) -> bool:
     return dive_floor.climb_dungeon(policy) == dungeon_id
 
 
+def _standing_without_means(policy, snapshot, floor_key) -> bool:
+    """A 50F+ floor of the Castle or the Mountain, no quest floor, without the *Destruction*
+    means and no climb held there: the climb is held (``_hold_climb``)."""
+    from hengbot import destruction_use, dive_floor
+
+    return (len(floor_key) == 3 and not snapshot.in_town and floor_key[2] == 0
+            and floor_key[1] >= LANDING and floor_key[0] in dive_floor.DIVE_FLOOR_DUNGEONS
+            and dive_floor.climb_dungeon(policy) != floor_key[0]
+            and not destruction_use.holds_means(policy, snapshot))
+
+
 def observe(policy, snapshot) -> None:
     """Every board: a new floor of 50F or deeper entered from a shallower floor of the same
     dungeon, with no *Destruction* means and no quest, holds the climb (``_hold_climb``, owner
@@ -211,6 +224,10 @@ def observe(policy, snapshot) -> None:
     record = getattr(policy, MEMORY, None)
     previous = record[0] if record else None
     stopped = record[1] if record else None
+    if _standing_without_means(policy, snapshot, floor_key):
+        # Standing there is enough, whatever the board before (the first board after a restart
+        # has no previous floor: n1-a life-535 is resumed on the Castle's 50F).
+        _hold_climb(policy, snapshot, floor_key[0])
     if previous == floor_key:
         return
     if (previous is not None and floor_key and not snapshot.in_town

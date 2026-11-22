@@ -23,6 +23,7 @@ DECLARED CONSTRUCTED:
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import contextlib
+import copy
 import io
 import json
 import lzma
@@ -60,6 +61,9 @@ class ArrivalClimbTest(unittest.TestCase):
         cls.walk = cls._board(next(raw for raw in reversed(raws)
                                    if raw["floor"]["level"] == 48))
         cls.arrival = cls._board(raws[-1])
+        # The restart: the same policy with no record of the floor before (deep_climb.MEMORY).
+        cls.restarted = copy.deepcopy(cls.policy)
+        setattr(cls.restarted, deep_climb.MEMORY, None)
         # DECLARED CONSTRUCTED (module docstring): the recorded 48F walk, observed.
         deep_climb.observe(cls.policy, cls.walk)
         cls.alternate_before = (cls.policy._alternate_dungeon,
@@ -108,6 +112,28 @@ class ArrivalClimbTest(unittest.TestCase):
         # The climb reads the teleport as above 50F, and no Recall for the missing means.
         self.assertFalse(deep_teleport.applies(policy, board))
         self.assertFalse(destruction_use.means_spent(policy, board))
+
+    def test_after_a_restart_standing_on_50f_holds_the_climb(self):
+        """The first board after a restart has no previous floor (n1-a is resumed on the
+        Castle's 50F): standing there without the means is enough."""
+        from hengbot import deep_climb, dive_floor
+
+        policy, board = self.restarted, self.arrival
+        self.assertIsNone(getattr(policy, deep_climb.MEMORY, None))
+        self.assertIsNone(dive_floor.climb_dungeon(policy))
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            policy.choose_key(board)
+        self.assertNotEqual(policy.last_reason, deep_climb.STOP_REASON)
+        self.assertEqual(dive_floor.climb_dungeon(policy), CASTLE)
+        self.assertTrue(deep_climb.on_floor(policy, board))
+        self.assertIsNone(deep_climb.stop_key(policy, board))
+        # A quest floor holds none.
+        fresh = copy.deepcopy(self.restarted)
+        fresh._alternate_dungeon, fresh._alternate_dungeon_reason = self.alternate_before
+        setattr(fresh, dive_floor.STATE, None)
+        from dataclasses import replace
+        deep_climb.observe(fresh, replace(board, floor_key=(CASTLE, 50, 1)))
+        self.assertIsNone(dive_floor.climb_dungeon(fresh))
 
     def test_the_recall_on_a_band_floor_resets_the_depth(self):
         from hengbot import dive_floor
