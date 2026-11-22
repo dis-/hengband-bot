@@ -9708,6 +9708,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if not blocker_leaves_no_target(blocker)
         )
         optimization_already_applied = self._optimization_already_applied(preparation)
+        if self._pack_space_only_without_home_relief(preparation):
+            # A swap waiting only on pack room Home does not free is not Home
+            # work: the sales free it.  n1-a life-532 2026-11-22: its
+            # pack-space-required:4 widened the Home bound to 300 and a Home
+            # claim that could not take its ware looped 32 times until
+            # town:blocked:stage-deadline:home.
+            blockers = ()
         return bool(blockers and (not optimization_already_applied) or (self._equipment_transaction_session is not None and not self._equipment_transaction_session.complete) or self._home_pending_item is not None or self._home_pending_batch or (self._home_atomic_withdraw_pending is not None) or (self._home_atomic_deposit_pending is not None))
 
     @staticmethod

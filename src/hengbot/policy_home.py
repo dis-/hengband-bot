@@ -4895,15 +4895,17 @@ class HomeMixin:
         # for *Identify*) never fetched the Home *Remove Curse* and stopped
         # under town:blocked:survival:remove_curse_ready.
         reserve = self._home_remove_curse_scroll(snapshot)
-        if reserve is None:
+        if reserve is None or not home_take_fits(snapshot, reserve, 1, policy=self):
+            # The scroll is read at once, so it may use one reserve slot
+            # (town_pack_budget.used_at_once); nothing is sold or shelved
+            # for it, and a pack fuller than that waits -- with Home's mark
+            # kept.  n1-a life-532 2026-11-22 14:37: the mark was cleared
+            # before this check, 22 of 23 carried, nothing was taken, and the
+            # plan went back to Home first 32 times while the sales that free
+            # the pack never got a turn (town:blocked:stage-deadline:home).
             return
         # Home is entered again for it, within its pass bound.
         self._rearm_town_store_for_new_work(STORE_HOME)
-        if not home_take_fits(snapshot, reserve, 1, policy=self):
-            # The scroll is read at once, so it may use one reserve slot
-            # (town_pack_budget.used_at_once); nothing is sold or shelved
-            # for it, and a pack fuller than that waits.
-            return
         signature = self._item_signature(reserve)
         self._home_pending_item = signature
         self._home_pending_quantity = 1
