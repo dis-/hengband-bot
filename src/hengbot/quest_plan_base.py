@@ -23,11 +23,12 @@ from hengbot import (
     quest_room_light,
     speed_dose,
     status_cure,
+    walk_vetoes,
 )
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import Position, SV_POTION_HEALING
-from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
-from hengbot.quest_navigator import QuestFloorNavigator
+from hengbot.model import Position, RESTORE_POTION_SVAL_BY_STAT, SV_POTION_HEALING, TVAL_POTION
+from hengbot.policy_constants import HEAL_POTION_SVALS, PACK_CAPACITY, REST_MACRO
+from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 
 MELEE_REASON = "quest-strategy:melee"
 HOLD_REASON = "quest-strategy:hold"
@@ -37,6 +38,11 @@ CURE_REASON = "quest-strategy:cure"
 SPEED_REASON = "quest-strategy:quaff-speed"
 TELEPORT_REASON = "quest-strategy:sweep-teleport"
 RESTORE_REASON = "quest-strategy:sweep-restore"
+FLOOR_RESTORE_WALK_REASON = "quest-strategy:floor-restore-walk"
+FLOOR_RESTORE_PICKUP_REASON = "quest-strategy:floor-restore-pickup"
+# Owner 2026-11-23 「数マス以内なら拾って飲む」: the walking steps to a floor restore potion
+# (quest_summon_answer's DISENGAGE_WALK_STEPS 3 is a step aside; 5 is a few cells, not the map).
+FLOOR_RESTORE_MAX_STEPS = 5
 STARVING = frozenset({"weak", "fainting"})
 PERMANENT_HASTE_SPEED = 120
 DEFAULT_SPEED_RATIO = 0.5
@@ -407,3 +413,71 @@ def _restore(policy, snapshot) -> str | None:
             policy.last_reason = RESTORE_REASON
             return reserved_item_command(policy, snapshot, "quaff", potion)
     return None
+
+
+def _floor_restore_cells(policy, snapshot) -> frozenset:
+    """The found cells holding an aware restore potion of a drained ability not carried."""
+    wanted = {RESTORE_POTION_SVAL_BY_STAT[stat] for stat in snapshot.player.drained_stats
+              if stat in RESTORE_POTION_SVAL_BY_STAT
+              and policy._carried_restore_potion(snapshot, stat) is None}
+    ids_by_cell = getattr(snapshot, "found_item_ids", None) or {}
+    if not wanted or not ids_by_cell:
+        return frozenset()
+    cells = set()
+    for row in getattr(snapshot, "found_items", None) or ():
+        position = Position(row[0], row[1])
+        ids = ids_by_cell.get(position) or ()
+        if any(tval == TVAL_POTION and identity is not None and identity.get("sval") in wanted
+               for tval, identity in zip(row[3:], ids)):
+            cells.add(position)
+    return frozenset(cells)
+
+
+def _floor_restore_first_step(policy, snapshot, cells) -> tuple[Position, Position] | None:
+    """The first step and the cell of the nearest ``cells`` within FLOOR_RESTORE_MAX_STEPS."""
+    start = snapshot.player.position
+    refused = walk_vetoes.retreat_left(policy, snapshot)
+    seen = {start}
+    frontier = [(start, None)]
+    for _depth in range(FLOOR_RESTORE_MAX_STEPS):
+        following = []
+        for position, first in frontier:
+            for neighbor in policy._walkable_neighbors(snapshot, position):
+                if neighbor in seen or neighbor in refused:
+                    continue
+                seen.add(neighbor)
+                step = neighbor if first is None else first
+                if neighbor in cells:
+                    return step, neighbor
+                following.append((neighbor, step))
+        frontier = following
+    return None
+
+
+def floor_restore_key(policy, snapshot) -> str | None:
+    """Owner 2026-11-23 「数マス以内なら拾って飲む」: on the plan's quiet board, a known restore potion
+    of a drained ability on the floor within FLOOR_RESTORE_MAX_STEPS walking steps is walked to and
+    picked up (``_restore`` then drinks it on the next quiet board) before the plan goes on.
+
+    n1-c life-221 (2026-11-23 05:00:11-05:03:48, Q25): a shadow demon drained INT on [5,1]; the
+    Restore Intelligence lay found on [7,1], two steps off, and the plan held and rested beside it
+    until its closing sweep picked it up.  Not with a full pack (the pickup could not take it)."""
+    if len(snapshot.inventory) >= PACK_CAPACITY:
+        return None
+    cells = _floor_restore_cells(policy, snapshot)
+    if not cells:
+        return None
+    here = snapshot.player.position
+    if here in cells:
+        row = next((row for row in snapshot.found_items or ()
+                    if (row[0], row[1]) == (here.y, here.x)), None)
+        count = row[2] if row is not None else 1
+        policy.last_reason = FLOOR_RESTORE_PICKUP_REASON
+        return PICKUP_KEY + ("a" * count if count > 1 else "")
+    found = _floor_restore_first_step(policy, snapshot, cells)
+    if found is None:
+        return None
+    step, target = found
+    policy.last_reason = FLOOR_RESTORE_WALK_REASON
+    policy._declare_reach(target)
+    return policy._step_toward(snapshot, step)

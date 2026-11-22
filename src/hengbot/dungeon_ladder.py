@@ -498,7 +498,9 @@ FLOOR_PLANS = (
             # quest is given up before the summon rules answer a single cast.
             ("quest_alignment_split.abort_key", FIRST),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
-            ("quest_plan_base._restore", OWN), ("_out_of_line", OWN),
+            ("quest_plan_base._restore", OWN),
+            # Owner 2026-11-23 「数マス以内なら拾って飲む」: a drained ability's floor restore potion.
+            ("quest_plan_base.floor_restore_key", OWN), ("_out_of_line", OWN),
             # QUEST_33, owner 2026-11-19 「安全になったら休息してから…少しずつ釣りだして数を減らす」.
             ("quest_summon_answer.after_key", OWN),
             ("quest_plan_base._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
