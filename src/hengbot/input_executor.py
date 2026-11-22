@@ -538,6 +538,10 @@ class Operation:
     # was submitted: recall_player's reset-recall-depth question is refused then
     # (angband_cap.reset_recall_depth).
     cap_lifted: bool = False
+    # The held climb switch's (dungeon, band shallowest, band deepest) when the operation was
+    # submitted (dive_floor ``RECALL_RESET``, owner 2026-11-22 「城は45Fまでにする」): the
+    # reset-recall-depth question is answered y on a band floor (dive_floor.reset_recall_depth).
+    climb_reset: tuple | None = None
 
 
 @dataclass(frozen=True)
@@ -1705,11 +1709,15 @@ class OperationExecutor:
             and self._is_recall_depth_confirm(match.feature)
         ):
             # Owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」: on the Angband cap's floor the
-            # saved depth past it is set to this floor (angband_cap); refused everywhere else.
-            from hengbot import angband_cap
+            # saved depth past it is set to this floor (angband_cap); owner 2026-11-22 「城は45F
+            # までにする」: on a band floor of the climb switch's Castle too (dive_floor); refused
+            # everywhere else.
+            from hengbot import angband_cap, dive_floor
 
-            answer = "y" if angband_cap.reset_recall_depth(
-                self.active.observation, lifted=self.active.cap_lifted) else "n"
+            answer = "y" if (angband_cap.reset_recall_depth(
+                self.active.observation, lifted=self.active.cap_lifted)
+                or dive_floor.reset_recall_depth(
+                    self.active.observation, self.active.climb_reset)) else "n"
             return self._post_and_barrier(answer, deadline, role="answer")
         if match.kind is ScreenKind.DUNGEON_CHOICE and self.active.keys[:1] in ("r", "z") \
                 and self.active.business_outcome != RECALL_DESTINATION_UNCHOSEN:
