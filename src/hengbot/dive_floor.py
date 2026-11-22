@@ -59,15 +59,17 @@ owner 2026-11-13 「最新到達-20Fまで」), wherever the recall lands:
 - in the band: the ordinary floor rules, no stair below the band (``capped``).
 
 The landing and the band must meet the depth requirements and pass no guardian floor
-(``reaches_band``); the recall depth is reset only on a band floor (below, owner 2026-11-22).
+(``reaches_band``); the recall depth is reset on a band floor or a climb floor (below, owner
+2026-11-22).
 
 Owner 2026-11-22 (verbatim, n1-a life-531): 「鉄獄50Fのとき、城は45Fまでにする。ギリギリを攻めない。」
 The band never reaches below ``CLIMB_BAND_DEEPEST`` (45), however deep the fallback depth floor:
 no stair goes below it (``capped``), every floor below it is climbed (``climbing``).  Word of
-Recall read on a band floor answers the game's reset-recall question y (``RECALL_RESET``, held
-every board by ``observe_recall_reset``, answered by ``reset_recall_depth``): the dungeon's saved
-depth becomes that floor, so the next visit lands in the band instead of on the 50F landing the
-climb starts from (deep_climb, 「城の50Fに帰還してすぐ38〜42Fへ登る」).
+Recall read on a band floor, or on a climb floor below the band, answers the game's
+reset-recall question y (``RECALL_RESET``, held every board by ``observe_recall_reset``,
+answered by ``reset_recall_depth``): the dungeon's saved depth becomes that floor, so the next
+visit lands in the band, or on the floor the climb had reached, instead of on the 50F landing
+the climb starts from (deep_climb, 「城の50Fに帰還してすぐ38〜42Fへ登る」).
 
 Owner 2026-11-19 「n1-bは次回潜行時に95Fまで登り階段で戻ること。以降、準備ができるまで鉄獄95Fで探索」:
 an Angband floor deeper than the cap is climbed the same way (``climbing`` / ``climbing_floor``) and
@@ -198,8 +200,13 @@ def observe_recall_reset(policy, snapshot) -> None:
 def reset_recall_depth(observation, held) -> bool:
     """recall_player's 「ここは最深到達階より浅い階です。この階に戻って来ますか？」 on the raw board
     ``observation`` (src/spell-kind/spells-world.cpp, ``set_max_level(floor.dun_level)`` on y):
-    y on a floor of the held climb switch's band (``held``: the operation's ``climb_reset``),
-    no quest floor, the saved depth deeper."""
+    y on a floor of the held climb switch's band (``held``: the operation's ``climb_reset``) or
+    on one of its climb floors below the band, no quest floor, the saved depth deeper.
+
+    A climb floor too (owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」 and 「ギリギリを攻めない」):
+    n1-a life-531 answered n on the Mountain's 47F and 45F (13:26-13:40), so every visit landed
+    on 50F again and the band was never reached; with y the next visit lands on the floor the
+    climb had reached."""
     if not held or not isinstance(observation, dict):
         return False
     floor = observation.get("floor")
@@ -213,7 +220,7 @@ def reset_recall_depth(observation, held) -> bool:
         quest = int(floor.get("quest_id", 0) or 0)
     except (TypeError, ValueError):
         return False
-    if dungeon_id != dungeon or quest or not low <= level <= high:
+    if dungeon_id != dungeon or quest or level < low:
         return False
     depths = progress.get("dungeon_recall_depths") if isinstance(progress, dict) else None
     saved = depths.get(str(dungeon_id), depths.get(dungeon_id)) if isinstance(depths, dict) else None
@@ -223,14 +230,19 @@ def reset_recall_depth(observation, held) -> bool:
         return False
 
 
-def climbing_floor(policy, snapshot, floor_key) -> bool:
-    """``floor_key`` is a floor of the held climb switch's dungeon deeper than its band, or an
-    Angband floor deeper than the cap (angband_cap, owner 2026-11-19)."""
-    if angband_cap.climbing_floor(floor_key, policy):
-        return True
+def climb_switch_floor(policy, snapshot, floor_key) -> bool:
+    """``floor_key`` is a floor of the held climb switch's dungeon deeper than its band."""
     dungeon = climb_dungeon(policy)
     return (dungeon is not None and floor_key is not None and floor_key[1] > 0
             and floor_key[0] == dungeon and floor_key[1] > band(policy, snapshot)[1])
+
+
+def climbing_floor(policy, snapshot, floor_key) -> bool:
+    """``floor_key`` is a floor of the held climb switch's dungeon deeper than its band
+    (``climb_switch_floor``), or an Angband floor deeper than the cap (angband_cap, owner
+    2026-11-19)."""
+    return (angband_cap.climbing_floor(floor_key, policy)
+            or climb_switch_floor(policy, snapshot, floor_key))
 
 
 def climbing(policy, snapshot) -> bool:

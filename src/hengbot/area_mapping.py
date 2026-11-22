@@ -283,9 +283,10 @@ def sealed_key(policy, snapshot: Snapshot) -> str | None:
 
 
 def deep_climb_key(policy, snapshot: Snapshot) -> str | None:
-    """The map deep_climb asks for on a 50F+ floor of the Castle's climb with no up stairs known
-    (owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」): a carried staff or rod, else a held
-    Scroll of Magic Mapping, where no map of this floor covers the player; else None."""
+    """The map deep_climb asks for on a climb floor of the Castle (deep_climb.climb_floor: 50F+
+    or below the band) with no up stairs known (owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ
+    登る」): a carried staff or rod, else a held Scroll of Magic Mapping, where no map of this
+    floor covers the player; else None."""
     from hengbot import mapped_area
 
     if _covered(policy, snapshot, mapped_area.floor_discs(policy, snapshot)):

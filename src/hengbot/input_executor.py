@@ -540,7 +540,8 @@ class Operation:
     cap_lifted: bool = False
     # The held climb switch's (dungeon, band shallowest, band deepest) when the operation was
     # submitted (dive_floor ``RECALL_RESET``, owner 2026-11-22 「城は45Fまでにする」): the
-    # reset-recall-depth question is answered y on a band floor (dive_floor.reset_recall_depth).
+    # reset-recall-depth question is answered y on a band floor or a climb floor below it
+    # (dive_floor.reset_recall_depth).
     climb_reset: tuple | None = None
 
 
@@ -1710,7 +1711,8 @@ class OperationExecutor:
         ):
             # Owner 2026-11-19 「準備ができるまで鉄獄95Fで探索」: on the Angband cap's floor the
             # saved depth past it is set to this floor (angband_cap); owner 2026-11-22 「城は45F
-            # までにする」: on a band floor of the climb switch's Castle too (dive_floor); refused
+            # までにする」: on a band floor of the climb switch's Castle too, and on a climb floor
+            # below its band (owner 2026-11-22 「すぐ38〜42Fへ登る」, dive_floor); refused
             # everywhere else.
             from hengbot import angband_cap, dive_floor
 

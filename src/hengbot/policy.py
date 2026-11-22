@@ -14,7 +14,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import cross_rules, deep_climb, deep_fall_guard, dive_floor, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
+from hengbot import cross_rules, deep_climb, deep_fall_guard, dive_floor, escape_count, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, slot_lending, town_pack_headroom, walkout_dig
@@ -15025,6 +15025,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         Owner 2026-11-14 「テレポートを使い逃げにカウントするのは射線が通っている場合のみに
         したい。」: a read the count will not count (no cause in the line of fire,
         line_of_fire) latches nothing either.
+
+        Owner 2026-11-22 「上りの間は即死以外でもテレポートを許すが」: nor on a climb floor of
+        the held climb switch (escape_count.returns_on).
         """
         if (
             snapshot.in_town
@@ -15032,6 +15035,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             or self._dive_emergencies + 1 < EMERGENCY_RETURN_COUNT
             or getattr(self, "_returning_to_town", False)
             or not line_of_fire.counts(self, snapshot, reason)
+            or not escape_count.returns_on(self, snapshot, snapshot.floor_key)
         ):
             return
         return_start.start(self, "emergency-repeat")
@@ -15108,7 +15112,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return "emergency-low-hp"
         if player.blind or player.confused or player.cut:
             return "emergency-status"
-        if self._dive_emergencies >= EMERGENCY_RETURN_COUNT:
+        if (self._dive_emergencies >= EMERGENCY_RETURN_COUNT
+                # Owner 2026-11-22: no count's return on a climb floor (escape_count.returns_on).
+                and escape_count.returns_on(self, snapshot, snapshot.floor_key)):
             return "emergency-repeat"
         # Owner 2026-11-14 「当てはめる」: only a summoner or breeder that can summon or
         # multiply before the player's next action (the 10-03 rule, material_threat).

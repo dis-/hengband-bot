@@ -23,10 +23,17 @@ on the question 「*破壊*すれば階の脅威は減るので滞在しても�
   行く」) counts for the floor's return as any other but is no over-extension evidence: the
   floor is deeper than the band by the owner's own choice of landing (``judged=False``; the
   floor's share of them, ``_floor_unjudged_escapes``, is left out of ``dive_total``).
+- On such a floor the count starts no town return (``returns_on``).  Owner 2026-11-22
+  (verbatim) 「上りの間は即死以外でもテレポートを許すが」: during the climb the escape is the
+  teleport and the search for the up stairs goes on, without a Recall.  n1-a life-531
+  (13:26-13:40, Mountain 47F): the second escape latched the return, the Recall answered n to
+  the reset question outside the band and every visit landed on 50F again, six times.  The
+  emergency ladder's own returns (low HP, a status, an instant death) are not the count's.
 """
 
 from __future__ import annotations
 
+from hengbot import dive_floor
 from hengbot.model import Position, game_distance
 
 CAUSE_BOARD = "_escape_cause_board"
@@ -81,6 +88,12 @@ def count(policy, *, judged: bool = True) -> None:
         escapes = []
         setattr(policy, ESCAPES, escapes)
     escapes.append(dict(getattr(policy, CAUSE_BOARD, {})))
+
+
+def returns_on(policy, snapshot, floor_key) -> bool:
+    """The count may start the town return for an escape decided on ``floor_key``: not on a
+    climb floor of the held climb switch (dive_floor.climb_switch_floor, owner 2026-11-22)."""
+    return not dive_floor.climb_switch_floor(policy, snapshot, floor_key)
 
 
 def dive_total(policy) -> int:
