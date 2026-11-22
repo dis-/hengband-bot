@@ -911,6 +911,40 @@ class HomeMixin:
                     and request.purpose in {"full-home-sale", "full-home-discard"}
                     and request.signature == relief.sale[0])
 
+    def _home_full_relief_holds_carried(self, snapshot: Snapshot, item: InventoryItem) -> bool:
+        """A carried stack the full-Home relief took out (or chose from the pack) to dispose of.
+
+        The ware is the relief's until its sale, destroy or skip ends it (``end_sale``): the
+        current ware once its take is observed (the carried count past the count before the
+        take) or chosen from the pack, and the cap tidy's batch taken out on this trip.  The
+        equipment transaction preserves it (policy_equipment ``_prepare_equipment_optimization``),
+        as it preserves the identification flow's pieces: shelving it again is not the
+        transaction's work (owner 2026-11-04 「使わない装備を持ったまま出発しない・自宅に仕舞う」
+        is about gear the character keeps, not a ware Home's relief is getting rid of).
+
+        n1-a life-532 2026-11-22 14:09:33-43 (Lv20 warrior): the sweep took the plain
+        ローブ [2,+5] out of the full Home to destroy it; the board after the take saw it as a
+        new pack piece outside the visit's target, the transaction planned its deposit and
+        owned it, the relief's destroy found it reserved (``identified-item-protected``) and
+        the transaction put it back: nine take/deposit trips until the stage deadline.  The
+        broadsword the sweep destroyed just before escaped only because the transaction
+        preserved it as an inferior weapon.
+        """
+        relief = self._home_full_relief
+        if relief is None or not item.is_equipment:
+            return False
+        identity = self._sale_item_identity(item)
+        if any(self._sale_signature_identity(entry[0]) == identity for entry in relief.carried):
+            return True
+        sale = relief.sale
+        if sale is None or self._sale_signature_identity(sale[0]) != identity:
+            return False
+        if relief.withdrawn or relief.pack_only:
+            return True
+        carried = sum(stack.count for stack in snapshot.inventory
+                      if self._sale_item_identity(stack) == identity)
+        return carried > sale[2]
+
     def _home_full_leave_key(self, reason: str) -> str:
         self.last_reason = reason
         self._offer_execution(LEAVE_STORE_KEY, producer="home-visit",

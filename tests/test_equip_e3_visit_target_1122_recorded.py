@@ -22,7 +22,12 @@ DECLARED CONSTRUCTED:
   policy.py's session-complete branch) -- the swap's Home deposit failed in the record, so its
   completion never ran;
 * n1b-411: the robe moved from the body slot to the pack (as after its take-off), and the robe
-  made cursed (``is_cursed``) for the named stop.
+  made cursed (``is_cursed``) for the named stop;
+* n1c-finale: the replay keeps the recorded build's pack preservation, which did not hold the
+  full-Home relief's taken ware (policy_home ``_home_full_relief_holds_carried`` answers False):
+  the record's cap tidy took the Gold Dragon Scale Mail out at row 3 and the transaction deposited
+  it back (the n1-a life-532 round trip, tests/test_home_relief_take_preserved_1122_recorded);
+  the current build destroys it at row 4, which the recorded game never received.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -30,6 +35,7 @@ import contextlib
 import io
 import json
 import unittest
+from unittest import mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -119,7 +125,10 @@ class VisitTargetEventsTest(_Fixture):
 
     def test_n1c_finale_visit_decides_on_the_purchase_and_the_phase_only(self):
         policy, _journal, steps = self.load("n1c-finale-prep-1121")
-        self.replay(policy, steps)
+        # DECLARED CONSTRUCTED (module docstring): the record's pack preservation, without the
+        # full-Home relief's taken ware (n1-a life-532), so the recorded keys stay the game's.
+        with mock.patch.object(policy, "_home_full_relief_holds_carried", return_value=False):
+            self.replay(policy, steps)
         searches = _rows(policy, "search")
         # Before E3: seven searches (two Home withdrawals, a forced reset after a deposit).
         self.assertEqual(len(searches), 4, [row["changed"] for row in searches])
