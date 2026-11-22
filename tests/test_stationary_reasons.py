@@ -17,6 +17,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import reason_registry_lint as lint  # noqa: E402
 from hengbot import anaguma, cli, policy, policy_constants, quest25_battle, quest_target_search, reasons  # noqa: E402
+from hengbot import status_cure  # noqa: E402
 from hengbot.model import Position  # noqa: E402
 
 # cli.STATIONARY_REASONS at ae4da7673c.
@@ -130,6 +131,7 @@ class ProducersTest(unittest.TestCase):
         self.assertIn(quest25_battle.RECHARGE_REASON, exempt)
         self.assertIn(policy_constants.ONCE_QUEST_TICK_REST_REASON, exempt)
         self.assertIn(quest_target_search.REDETECT_WAIT_REASON, exempt)
+        self.assertIn(status_cure.SHORT_BLIND_WAIT_REASON, exempt)
 
     def test_rows_are_unique_and_well_formed(self):
         names = [row.reason for row in reasons.STATIONARY_ROWS]

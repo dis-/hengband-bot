@@ -729,6 +729,14 @@ _stationary(EXEMPT, "FUNDRAISING_UPSTAIRS_DOOR_ATTEMPT_LIMIT per door (D19)",
 _stationary(EXEMPT, "MINING_STALL_LIMIT per target, MINING_SWEEP_HARD_LIMIT per floor (D31)",
             "fundraise:seek-treasure:open-door")
 _stationary(EXEMPT, "waiting at a choke for an unseen attacker", "unseen:choke-wait")
+# Waiting out a short light/darkness blindness at high HP with nothing adjacent to strike (owner
+# 2026-11-10 G1 「隣の敵は殴り、いなければ治るまで待つ」, status_cure.short_blind_key).  Each onset ends
+# within status_cure.SHORT_BLIND_MAX_GAME_TURNS (3-7 ticks, effect-player-resist-hurt.cpp), and sight,
+# a heavy HP loss, a confusion, a cut or a longer blindness ends the hold (short_blind_holds).
+# n1-a life-535 (2026-11-23 05:15, 城42階): light hounds' flash breaths re-blinded it four times in
+# 186 game turns; 28 waits on two cells filled the 40-decision window and stopped it.
+_stationary(EXEMPT, "status_cure.SHORT_BLIND_MAX_GAME_TURNS per onset (owner 2026-11-10 G1)",
+            "blind:short-wait")
 # Repeated opens against the reviewed Q34 doors are productive game actions: each lock-pick
 # attempt advances the game while the player stays at the approved approach cell.  The final
 # (glass) door is bounded by Q34_FINAL_DOOR_ATTEMPT_LIMIT, the doors after it by
