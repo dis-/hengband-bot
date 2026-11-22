@@ -14046,6 +14046,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_druj_gear.py:qualifies": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest25_druj_gear.py:restore_key": {
     "classification": "producer",
     "rows": [
@@ -14061,6 +14068,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest25_druj_gear.py:wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_druj_gear.py:worn_piece": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

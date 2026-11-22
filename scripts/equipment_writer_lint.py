@@ -46,7 +46,8 @@ search's own destination floor: its ``search-reset-call`` 1 -> 0.
 Stage E5 (2026-11-22, owner Q6) put every temporary swap's end behind ``slot_lending``: the
 return to the target loadout's piece goes through its two exits (``wield_back``, ``take_back``),
 so the swap ends of mining_loadout (2), policy_shop (3) and policy's breakout restore (1) moved
-there (``slot_lending`` wear-exit 2); the Zul trip's ring return followed (zul_trip 2 -> 1).
+there (``slot_lending`` wear-exit 2); the Zul trip's ring return followed (zul_trip 2 -> 1), then the Q25 druj piece's
+(quest25_druj_gear 3 -> 1).
 
 ``ALLOWED`` is today's set (2026-11-22, E2 on main 23febce5a; E3 as above).  A module or a
 count above it is a new direct writer/reader and fails; a count below it fails too, so the pin
@@ -106,7 +107,7 @@ ALLOWED: dict[str, dict[str, int]] = {
     "policy_state": {"search-reset-call": 1},
     "policy_supply": {"wear-exit": 1},
     "policy_town": {"wear-exit": 1},
-    "quest25_druj_gear": {"wear-exit": 3},
+    "quest25_druj_gear": {"wear-exit": 1},
     "slot_lending": {"wear-exit": 2},
     "state_registry": {"target-name": 2},
     "zul_trip": {"wear-exit": 1},

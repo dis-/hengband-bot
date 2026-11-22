@@ -316,7 +316,6 @@ class Battle:
     pen_no_way: int = 0            # phase-2 holds in a row with sight cells left and no way to them
     assumed_escaped: int = 0       # 「当たらない撃ちで補う」: counted escaped after the misses
     aimed_quyl: tuple | None = None    # the quylthulg cell the last shot was aimed at
-    displaced: tuple | None = None     # (slot, signature) the druj's anti-teleport piece displaced
     retreating: bool = False       # below the line with the anti-teleport piece on: out of the line
     retreat_rest_hp: int | None = None  # HP when the last rest out of the line was keyed
     observed: tuple | None = None      # the board last read (key and walk_key share one)
@@ -382,7 +381,7 @@ def _memory(navigator, policy=None, snapshot=None) -> Battle:
 def _next_phase(battle: Battle) -> None:
     kept = {name: getattr(battle, name) for name in (
         "phase", "kills", "kill_turns", "searches", "cleared", "found", "escaped", "quyls_done",
-        "melted", "lit", "observed", "teleports", "assumed_escaped", "displaced", "enlightened",
+        "melted", "lit", "observed", "teleports", "assumed_escaped", "enlightened",
         "beam", "detection", "detect_asked", "glowing", "tome_hp", "room", "gone", "absent", "cast", "recheck",
         "dread_teleported", "dread_style")}
     kept["phase"] += 1
@@ -2615,7 +2614,7 @@ def _druj(ctx: _Ctx) -> str | None:
     battle, druj = ctx.battle, next(cell for cell, race in ctx.navigator.battlefield.monster_placements
                                     if race == geo.DRUJ)
     # 「反テレポート付きで他のデメリットがない装備…この戦闘でのみ使用する」
-    worn = quest25_druj_gear.wear_key(ctx.policy, ctx.snapshot, ctx.profile, battle)
+    worn = quest25_druj_gear.wear_key(ctx.policy, ctx.snapshot, ctx.profile)
     if worn is not None:
         return worn
     door = geo.DRUJ_DOOR
@@ -2830,8 +2829,8 @@ def _phase_key(policy, snapshot) -> str | None:
         return None
     phase = current_phase(ctx)
     if phase is None:
-        # The druj is dead: what the anti-teleport piece displaced goes back on.
-        return (quest25_druj_gear.restore_key(policy, snapshot, ctx.battle)
+        # The druj is dead: the anti-teleport piece's slot returns to the target (slot_lending).
+        return (quest25_druj_gear.restore_key(policy, snapshot)
                 or _after_the_phases(ctx))
     from hengbot import quest25_presence, quest25_sealed_room
 

@@ -15064,7 +15064,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "After the hand druj's death, the wield (or takeoff) that puts back what the anti-teleport piece displaced, through policy._equipment_wield / _equipment_takeoff; no independent progress."
+    "evidence": "After the hand druj's death, the anti-teleport piece's lent slot (slot_lending q25-druj-anti-teleport) returns to the target loadout's piece through slot_lending.wield_back, or the piece comes off through slot_lending.take_back when the target names none for the slot (equipment review E5, owner 2026-11-22 Q6); no independent progress."
   },
   "quest25_battle.py:_avoided": {
     "classification": "data",
@@ -23458,5 +23458,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "_equipment_takeoff; no independent progress",
     "evidence": "The return exit of a lent slot the target leaves empty: one _equipment_takeoff with the caller's goal; emits the caller's key only."
+  },
+  "quest25_druj_gear.py:worn_piece": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The worn anti-teleport piece (qualifies), the druj phase's lent slot read from the board (slot_lending q25-druj-anti-teleport); read by restore_key and the retreat; pure selection."
   }
 }

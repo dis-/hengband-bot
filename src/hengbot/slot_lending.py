@@ -31,9 +31,11 @@ The borrowers, each with the slots it borrows and where its lending ends:
 - ``zul-levitation``: the Zul trip puts a Ring of Levitation on a ring slot (zul_trip
   ``_wear_key``); the record of :func:`lend` names the slot, the target's ring for it stays
   carried through the trip (:func:`retains`) and zul_trip ``rewear_key`` returns it after the trip.
-
-The weapon hand came first (owner Q6 names the weapon); the Q25 druj piece still remembers what
-it displaced until the next step moves it here.
+- ``q25-druj-anti-teleport``: Q25's druj phase wears the anti-teleport piece (quest25_druj_gear
+  ``wear_key``).  The lending is read from the board -- the worn anti-teleport piece, which no
+  target holds (equipment_rules: NO_TELE is forbidden for exploration) -- so a restart keeps it;
+  ``restore_key`` returns the slot to the target's piece once the druj is dead, or takes the piece
+  off when the target leaves the slot empty or its piece is not carried.
 
 Not borrowers: the 99F/100F preparation (finale_prep) swaps to its own loadout by deciding the
 target itself (equipment_target ``finale-phase``), so its end is the target's; the light slot's
