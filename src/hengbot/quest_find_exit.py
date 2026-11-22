@@ -491,11 +491,20 @@ class _Board:
                         if not monster.asleep and _never_moves(policy, monster)
                         and _pulls(policy, monster)]
         self.hit_by_unseen = once_quest_recall._hit_by_unseen(policy, snapshot)
+        # Known by telepathy or detection only and hurting the player from where it stands
+        # (quest_plan_base.fires_at_player, n1-c life-220 2026-11-22): it acts on him now.
+        self.firing = [monster for monster in known if monster.perception == "detected"
+                       and quest_plan_base.fires_at_player(policy, snapshot, monster)]
 
     @property
     def engaged(self) -> bool:
         """Something can act on the player now: the potions and the fight are for this."""
-        return bool(self.coming_in_view or self.hit_by_unseen)
+        return bool(self.coming_in_view or self.hit_by_unseen or self.firing)
+
+    @property
+    def acting(self) -> list:
+        """What acts on the player now (quest_plan_base ``Board.acting``, read by ``_speed``)."""
+        return [*self.coming_in_view, *self.firing]
 
     @property
     def enemy_for_the_line(self) -> bool:

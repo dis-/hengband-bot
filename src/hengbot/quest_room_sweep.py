@@ -93,7 +93,10 @@ once for cover is not left the same way again, or the hold, the walk back and th
 ever: the next hit there closes.
 
 ``key`` runs before the shared survival ladders while an enemy is about: they walk away and
-read Recall, which is what this plan refuses.  A quiet board stays with them (food, light,
+read Recall, which is what this plan refuses.  An enemy is one in view, the unseen's hit, or one
+known by telepathy or detection only that fires at the player from where it stands
+(quest_plan_base ``Board.firing``, n1-c life-220 2026-11-22: two 船幽霊 out of view held for to
+death); the plan's survival rungs answer each.  A quiet board stays with them (food, light,
 the unseen) and reaches ``walk_key`` through the navigator.  A leave already decided (a
 breeder stalemate, starvation) leaves the board to them.
 """
