@@ -59,8 +59,15 @@ owner 2026-11-13 「最新到達-20Fまで」), wherever the recall lands:
 - in the band: the ordinary floor rules, no stair below the band (``capped``).
 
 The landing and the band must meet the depth requirements and pass no guardian floor
-(``reaches_band``); the recall depth itself is never reset (the executor refuses the game's
-reset-recall question, fallback_depth_floor).
+(``reaches_band``); the recall depth is reset only on a band floor (below, owner 2026-11-22).
+
+Owner 2026-11-22 (verbatim, n1-a life-531): 「鉄獄50Fのとき、城は45Fまでにする。ギリギリを攻めない。」
+The band never reaches below ``CLIMB_BAND_DEEPEST`` (45), however deep the fallback depth floor:
+no stair goes below it (``capped``), every floor below it is climbed (``climbing``).  Word of
+Recall read on a band floor answers the game's reset-recall question y (``RECALL_RESET``, held
+every board by ``observe_recall_reset``, answered by ``reset_recall_depth``): the dungeon's saved
+depth becomes that floor, so the next visit lands in the band instead of on the 50F landing the
+climb starts from (deep_climb, 「城の50Fに帰還してすぐ38〜42Fへ登る」).
 
 Owner 2026-11-19 「n1-bは次回潜行時に95Fまで登り階段で戻ること。以降、準備ができるまで鉄獄95Fで探索」:
 an Angband floor deeper than the cap is climbed the same way (``climbing`` / ``climbing_floor``) and
@@ -86,6 +93,10 @@ REFUSED_DIVE_ORDER = (DUNGEON_CASTLE, DUNGEON_MOUNTAIN)
 # Owner 2026-11-17 「49Fに帰還して上り階段を探して適正階層まで行く」 (「40F付近」): the band explored.
 CLIMB_BAND_LOW = 38
 CLIMB_BAND_SPAN = 4
+# Owner 2026-11-22 「鉄獄50Fのとき、城は45Fまでにする。ギリギリを攻めない。」: the band's deepest floor.
+CLIMB_BAND_DEEPEST = 45
+# The held climb switch's (dungeon, band shallowest, band deepest), or None (observe_recall_reset).
+RECALL_RESET = "_climb_recall_reset"
 
 
 def _landing(snapshot, info) -> int:
@@ -117,7 +128,8 @@ def pick(policy, snapshot, *, too_hard: int) -> int | None:
 def band(policy, snapshot) -> tuple[int, int]:
     """The floors the unsafe-recall fallback's Castle explores: (shallowest, deepest)."""
     low = max(CLIMB_BAND_LOW, fallback_depth_floor.floor(policy, snapshot))
-    return low, low + CLIMB_BAND_SPAN
+    high = min(low + CLIMB_BAND_SPAN, CLIMB_BAND_DEEPEST)
+    return min(low, high), high
 
 
 def pick_refused(policy, snapshot, *, refused_depth: int) -> int | None:
@@ -167,6 +179,48 @@ def climb_dungeon(policy) -> int | None:
             or getattr(policy, "_alternate_dungeon_reason", None) != SAFE_FALLBACK_REASON):
         return None
     return alternate
+
+
+def observe_recall_reset(policy, snapshot) -> None:
+    """Every board: hold the climb switch's band for the executor's answer to the game's
+    reset-recall question (``reset_recall_depth``), a band floor no fallback refuses as a landing
+    (fallback_depth_floor.landing_allowed); None without the switch."""
+    dungeon = climb_dungeon(policy)
+    held = None
+    if dungeon is not None:
+        low, high = band(policy, snapshot)
+        low = max(low, fallback_depth_floor.floor(policy, snapshot))
+        if low <= high:
+            held = (dungeon, low, high)
+    setattr(policy, RECALL_RESET, held)
+
+
+def reset_recall_depth(observation, held) -> bool:
+    """recall_player's 「ここは最深到達階より浅い階です。この階に戻って来ますか？」 on the raw board
+    ``observation`` (src/spell-kind/spells-world.cpp, ``set_max_level(floor.dun_level)`` on y):
+    y on a floor of the held climb switch's band (``held``: the operation's ``climb_reset``),
+    no quest floor, the saved depth deeper."""
+    if not held or not isinstance(observation, dict):
+        return False
+    floor = observation.get("floor")
+    progress = observation.get("progress")
+    if not isinstance(floor, dict):
+        return False
+    dungeon, low, high = held
+    try:
+        dungeon_id = int(floor.get("dungeon_id", 0))
+        level = int(floor.get("level", 0))
+        quest = int(floor.get("quest_id", 0) or 0)
+    except (TypeError, ValueError):
+        return False
+    if dungeon_id != dungeon or quest or not low <= level <= high:
+        return False
+    depths = progress.get("dungeon_recall_depths") if isinstance(progress, dict) else None
+    saved = depths.get(str(dungeon_id), depths.get(dungeon_id)) if isinstance(depths, dict) else None
+    try:
+        return saved is None or int(saved) > level
+    except (TypeError, ValueError):
+        return False
 
 
 def climbing_floor(policy, snapshot, floor_key) -> bool:

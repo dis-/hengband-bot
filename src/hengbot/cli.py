@@ -2742,6 +2742,15 @@ def _cap_lifted(policy) -> bool:
     return angband_finale.lifted(policy)
 
 
+def _climb_reset(policy):
+    """The held climb switch's band (dive_floor ``RECALL_RESET``): the executor answers the
+    reset-recall-depth question y on its floors (owner 2026-11-22 「城は45Fまでにする」)."""
+    if policy is None:
+        return None
+    from hengbot import dive_floor
+    return getattr(policy, dive_floor.RECALL_RESET, None)
+
+
 class _ExecutorInputPort:
     """The sole producer-facing live input port.
 
@@ -2804,6 +2813,7 @@ class _ExecutorInputPort:
                        else Transport.WM),
             work_record=work,
             cap_lifted=_cap_lifted(self.policy),
+            climb_reset=_climb_reset(self.policy),
         )
         from hengbot.observed_input import compile_observed_input
         if self.executor.active is None and self.executor.ready_board is not None:
