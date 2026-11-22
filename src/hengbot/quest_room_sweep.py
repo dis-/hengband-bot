@@ -93,7 +93,10 @@ once for cover is not left the same way again, or the hold, the walk back and th
 ever: the next hit there closes.
 
 ``key`` runs before the shared survival ladders while an enemy is about: they walk away and
-read Recall, which is what this plan refuses.  A quiet board stays with them (food, light,
+read Recall, which is what this plan refuses.  An enemy is one in view, the unseen's hit, or one
+known by telepathy or detection only that fires at the player from where it stands
+(quest_plan_base ``Board.firing``, n1-c life-220 2026-11-22: two 船幽霊 out of view held for to
+death); the plan's survival rungs answer each.  A quiet board stays with them (food, light,
 the unseen) and reaches ``walk_key`` through the navigator.  A leave already decided (a
 breeder stalemate, starvation) leaves the board to them.
 """
@@ -189,8 +192,13 @@ def holds(policy, snapshot) -> bool:
 
 
 def planned_step(policy, snapshot) -> bool:
-    """This board's step is the plan's own: the low-HP walk gate does not rewrite it."""
-    return (policy.last_reason in {WALK_REASON, EXIT_WALK_REASON, COVER_REASON, CLOSE_REASON}
+    """This board's step is the plan's own: the low-HP walk gate does not rewrite it.  The steps
+    toward a shot at what fires at the player, or out of its line (quest_summon_answer
+    ``fire_answer_key``), are the plan's answer to that fire; its heal line (50% on QUEST_33) and
+    withdrawal line answer the HP on the way."""
+    return (policy.last_reason in {WALK_REASON, EXIT_WALK_REASON, COVER_REASON, CLOSE_REASON,
+                                   quest_summon_answer.FIRE_APPROACH_REASON,
+                                   quest_summon_answer.FIRE_WALK_REASON}
             and _plan(policy, snapshot) is not None)
 
 
@@ -642,7 +650,9 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         answer = combat_answer.adjacent_attack(policy, snapshot, struck, MELEE_REASON)
         if answer is not None and answer.key is not None:
             return answer.key
-    for target in board.in_view:
+    # A monster known by telepathy that fires at the player from out of view is shot as one in view
+    # (target-preparation.cpp target_able: ``ml`` and projectable; quest_plan_base ``Board.firing``).
+    for target in (*board.in_view, *board.firing):
         if target not in board.beside and (shot := _shot(policy, snapshot, target)) is not None:
             navigator.sweep_enemy_turns = 0
             return shot
@@ -654,6 +664,11 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         navigator.sweep_enemy_turns += 1
         policy.last_reason = HOLD_REASON
         return WAIT_KEY
+    # What fires at the player from out of view and no shot above reached (it stays and casts,
+    # quest_wait_placement): closed on to be shot, or left (owner 2026-11-19 「有効な場所で待つ」).
+    if board.firing and (answered := quest_summon_answer.fire_answer_key(
+            policy, snapshot, navigator, plan, board, board.firing)) is not None:
+        return answered
     if not board.in_view and (unseen := _unseen_key(policy, snapshot, navigator, plan, board)) is not None:
         return unseen
     if not board.in_view and not board.left_alone:

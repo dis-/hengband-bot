@@ -118,6 +118,10 @@ READERS = {
         "the recall wait's 「射線の通る T1」 (owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
     ("amberite_curse", "struck", "danger"):
         "an Amberite the shot may hit (owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
+    ("quest_plan_base", "fires_at_player", "danger"):
+        "a hostile known by telepathy or detection only that hurts the player from where it stands: an "
+        "enemy of the quest plans' boards (n1-c life-220, Quest 33 2026-11-22: two 船幽霊 out of view "
+        "held for to death; owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
     ("me_powers", "_sensed_unbeatable_in_fire", "danger"):
         "the T1 known only by detection the Recall wait sends away (owner 2026-11-22 「撃つ」: "
         "「射線が通っている」 is what may hurt the player)",

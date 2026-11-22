@@ -21575,6 +21575,25 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "QUEST_33: a step of the room sweep's walk (quest_room_sweep._path) toward the nearest cell out of every awake hostile's line."
   },
+  "quest_summon_answer.py:_out_of_lines_path": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The room sweep's walk (quest_room_sweep._path) to the nearest cell out of the given hostiles' lines; emits no key."
+  },
+  "quest_summon_answer.py:fire_answer_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_room_sweep.key (its _fight) and quest_summon_answer.after_key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33: against a sensed hostile firing at the player that no shot reached, a step toward a cell it is shot from, else out of its line, else the teleport (absorbed first)."
+  },
   "quest_summon_answer.py:_disengage": {
     "classification": "producer",
     "rows": [

@@ -14,7 +14,16 @@ Nothing here is persisted: the floor's state is the QuestFloorNavigator's (quest
 
 from __future__ import annotations
 
-from hengbot import me_ranged_first, once_quest_recall, quest_exposure, quest_no_teleport, quest_room_light, speed_dose, status_cure
+from hengbot import (
+    line_of_fire,
+    me_ranged_first,
+    once_quest_recall,
+    quest_exposure,
+    quest_no_teleport,
+    quest_room_light,
+    speed_dose,
+    status_cure,
+)
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, SV_POTION_HEALING
 from hengbot.policy_constants import HEAL_POTION_SVALS, REST_MACRO
@@ -77,9 +86,32 @@ def _door_is_closed(snapshot, cell: tuple[int, int]) -> bool:
     return grid is None or not grid.known or grid.is_closed_door
 
 
+def fires_at_player(policy, snapshot, monster) -> bool:
+    """An awake hostile that hurts the player from where it stands: a line of fire to him (the
+    ``danger`` reading, what may hurt the player, owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)
+    and a predicted damage above zero on the next turn.
+
+    n1-c life-220 (Quest 33, 2026-11-22 19:35:52-19:36:01): two 船幽霊 in the deep water at [4,41]
+    and [5,41], known by telepathy only (the board's ``detected_monsters``; its ``visible_monsters`` is
+    the player's view, bot-json-output.cpp make_visible_monsters_json), cast water bolts at the player
+    on [1,27] for 70 boards; the board read no enemy, and the plan held '5' 23 times from HP 811 to
+    death."""
+    return (not monster.asleep and line_of_fire.danger(policy, snapshot, monster)
+            and policy._predicted_damage(snapshot, [monster], turns=1) > 0)
+
+
 class Board:
     """The enemies of one board, as a room plan weighs them (quest_room_sweep; quest25_battle
-    leaves nothing alone).  ``left_alone``: the races seen but no target yet."""
+    leaves nothing alone).  ``left_alone``: the races seen but no target yet.
+
+    ``firing``: the hostiles known by detection or telepathy only (not in the player's view) that
+    hurt him from where they stand (``fires_at_player``).  They act on the player as one in view
+    does, so the board has an enemy (``enemy``) and the plan's survival rungs answer it: its 即死
+    escape, the withdrawal line, the heal line, the haste (QUEST_33, owner 2026-11-19; the haste in
+    a Magic-Eater's fights, owner 2026-11-04).  A telepathy-shown monster with a line from the
+    player can be aimed at (monster-update.cpp update_telepathy_sight sets ``ml``;
+    target-preparation.cpp target_able needs ``ml`` and projectable), so the plans' shots may take
+    them (quest_room_sweep ``_fight``, quest_summon_answer ``_strike_around``)."""
 
     def __init__(self, policy, snapshot, profile, left_alone):
         position = snapshot.player.position
@@ -99,10 +131,18 @@ class Board:
                        if not _never_moves(policy, monster)]
         self.pulling = ()
         self.hit_by_unseen = once_quest_recall._hit_by_unseen(policy, snapshot)
+        self.firing = [monster for monster in known
+                       if monster.perception == "detected" and monster.race_id not in left_alone
+                       and fires_at_player(policy, snapshot, monster)]
 
     @property
     def enemy(self) -> bool:
-        return bool(self.in_view or self.hit_by_unseen)
+        return bool(self.in_view or self.hit_by_unseen or self.firing)
+
+    @property
+    def acting(self) -> list:
+        """What acts on the player now: the awake hostiles in view and those firing at him."""
+        return [*self.coming_in_view, *self.firing]
 
 
 # -- the way --------------------------------------------------------------------------
@@ -212,14 +252,15 @@ def _heal(policy, snapshot, profile) -> str | None:
 
 
 def _speed(policy, snapshot, profile, board) -> str | None:
-    """Haste while it is off, for a row that lives by it, else when the fight is heavy.
+    """Haste while it is off, for a row that lives by it, else when the fight is heavy; the fight is
+    what acts on the player (``Board.acting``: in view, or firing at him from out of view).
 
     An ``always_hasted`` row doses whatever the permanent speed (owner 2026-11-19, verbatim
     「+10 以上でも飲んで読む」: the haste's +10 adds to any speed, player-speed.cpp
     time_effect_bonus, and its floors are read at the permanent speed + 10,
     attack_expectation.always_hasted_speed).  The heavy-fight dose of the other rows still
     stops at PERMANENT_HASTE_SPEED."""
-    if not board.coming_in_view or policy._player_hasted(snapshot):
+    if not board.acting or policy._player_hasted(snapshot):
         return None
     force = policy._strategy_force_for_snapshot(snapshot, profile)
     if not force.get("always_hasted"):
@@ -227,7 +268,7 @@ def _speed(policy, snapshot, profile, board) -> str | None:
             return None
         ratio = float(profile.consumable_plan.get("speed_potion_use_when", {}).get(
             "expected_damage_hp_ratio_min", DEFAULT_SPEED_RATIO))
-        projected = policy.threat_prediction(snapshot, board.coming_in_view, turns=3)
+        projected = policy.threat_prediction(snapshot, board.acting, turns=3)
         if projected["operational_total"] < ratio * snapshot.player.hp:
             return None
     return speed_dose.key(policy, snapshot, SPEED_REASON)

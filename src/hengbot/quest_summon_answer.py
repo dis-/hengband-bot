@@ -111,7 +111,7 @@ from hengbot import (
     threat_tiers,
 )
 from hengbot.model import Position
-from hengbot.policy_constants import REST_MACRO, WAIT_KEY
+from hengbot.policy_constants import RANGED_MAX_DISTANCE, REST_MACRO, WAIT_KEY
 from hengbot.projection_path import projection_path
 from hengbot.q2_kill_credit import _killed as kill_line
 
@@ -131,6 +131,11 @@ DISENGAGE_WALK_REASON = "quest-strategy:summoned-disengage-walk"
 LURE_WALK_REASON = "quest-strategy:summoned-lure-walk"
 APPROACH_REASON = "quest-strategy:summoned-approach"
 REST_REASON = "quest-strategy:summoned-rest"
+# What fires at the player and no blow or shot of the board reaches (``fire_answer_key``): the step
+# to where it is shot from, else out of its line.
+FIRE_APPROACH_REASON = "quest-strategy:fire-approach"
+FIRE_WALK_REASON = "quest-strategy:fire-disengage-walk"
+FIRE_TELEPORT_REASON = "quest-strategy:fire-disengage-teleport"
 # A walk this short is taken before a scroll: a teleport on this floor lands among sleeping clones
 # and summoners of both sides (quest_alignment_split), a walk keeps the plan's map.  Three steps:
 # the Queen at +10 against a hasted player (+10) acts once a player action, so at most three of
@@ -283,14 +288,19 @@ def _strike(policy, snapshot, target) -> str | None:
             or policy._ranged_attack_key(snapshot, [target], []))
 
 
-def _walk(policy, snapshot, navigator, plan, board, *, limit=None) -> str | None:
-    """A step toward the nearest cell out of the watchers' lines, within ``limit`` steps."""
+def _out_of_lines_path(policy, snapshot, navigator, plan, board, watchers) -> list:
+    """The plan's walk to the nearest cell out of ``watchers``' lines, [] with none."""
     from hengbot import quest_room_sweep  # it asks this module for its rungs
 
-    goals = _out_of_sight(policy, snapshot, navigator, _watchers(snapshot))
+    goals = _out_of_sight(policy, snapshot, navigator, watchers)
     if not goals:
-        return None
-    path = quest_room_sweep._path(policy, navigator, plan, snapshot, goals, board.occupied)
+        return []
+    return quest_room_sweep._path(policy, navigator, plan, snapshot, goals, board.occupied)
+
+
+def _walk(policy, snapshot, navigator, plan, board, *, limit=None) -> str | None:
+    """A step toward the nearest cell out of the watchers' lines, within ``limit`` steps."""
+    path = _out_of_lines_path(policy, snapshot, navigator, plan, board, _watchers(snapshot))
     if not path or (limit is not None and len(path) - 1 > limit):
         return None
     key = quest_plan_base._path_step(policy, snapshot, path, DISENGAGE_WALK_REASON)
@@ -298,6 +308,58 @@ def _walk(policy, snapshot, navigator, plan, board, *, limit=None) -> str | None
         navigator.summon_state = DISENGAGING
         navigator.summon_walk += 1
     return key
+
+
+def _shooting_cells(policy, snapshot, navigator, firer) -> set[Position]:
+    """The ground from which the player's shot reaches ``firer``: within RANGED_MAX_DISTANCE (the
+    bot's own reach for a shot, policy ``_ranged_target`` and me_ranged_first ``_clear_projection``)
+    with a line to its cell over the map, not beside it, and only while some shot of the player's
+    deals it damage from there (attack_expectation.ranged_against)."""
+    cell = _cell(firer.position)
+    if attack_expectation.ranged_against(policy, snapshot, firer.race_id, RANGED_MAX_DISTANCE) <= 0:
+        return set()
+    open_cells = _open_cells(navigator, snapshot)
+    walkable = quest_plan_base._terrain_of(navigator, snapshot, water=False)
+    return {Position(*spot) for spot, kind in walkable.items()
+            if kind in _STAND and 2 <= quest_exposure.game_distance(spot, cell) <= RANGED_MAX_DISTANCE
+            and _sight_line(open_cells, spot, cell)}
+
+
+def fire_answer_key(policy, snapshot, navigator, plan, board, firers) -> str | None:
+    """``firers``: hostiles that hurt the player from where they stand and that no blow or shot of
+    this board reaches.  A step toward the nearest cell a shot at one of them is taken from
+    (``_shooting_cells``) while the player is on none; else out of their line: a step toward the
+    nearest cell none of them has a line to, else the teleport (the absorbed Teleportation first on
+    Quest 33); else None.
+
+    Owner 2026-11-19 (verbatim) 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: a monster
+    with ranged attacks and a line to the player stays where it is and casts
+    (monster-sweep-grid.cpp RangedAttackMoveGridDecider, quest_wait_placement's reading), so a wait in
+    its line only takes its fire.  So it is closed on to be shot, or left (the plan's 「無理なら離脱」,
+    QUEST_33 owner 2026-11-19); the plan's survival rungs above answer the HP on the way.  On a
+    shooting cell with still no shot (the power failed to aim, the target moved behind another body)
+    the player leaves the line rather than holds in it.  n1-c life-220 (Quest 33, 2026-11-22
+    19:35:52-19:36:01): two 船幽霊 in deep water (AQUATIC: they never leave it), 14 grids away on
+    [4,41] and [5,41], fired water bolts at the player on [1,27] while the plan held for them, HP 811
+    to death."""
+    from hengbot import quest_room_sweep  # it asks this module for its rungs
+
+    if not firers or not answers(plan):
+        return None
+    shooting = set()
+    for firer in firers:
+        shooting |= _shooting_cells(policy, snapshot, navigator, firer)
+    if shooting and snapshot.player.position not in shooting:
+        path = quest_room_sweep._path(policy, navigator, plan, snapshot, shooting, board.occupied)
+        if (key := quest_plan_base._path_step(policy, snapshot, path, FIRE_APPROACH_REASON)) is not None:
+            return key
+    path = _out_of_lines_path(policy, snapshot, navigator, plan, board, firers)
+    if (key := quest_plan_base._path_step(policy, snapshot, path, FIRE_WALK_REASON)) is not None:
+        return key
+    if quest_no_teleport.forbids(policy, snapshot):
+        return None
+    return (absorbed_teleport_key(policy, snapshot, FIRE_TELEPORT_REASON)
+            or _scroll_teleport(policy, snapshot, FIRE_TELEPORT_REASON))
 
 
 def _disengage(policy, snapshot, navigator, plan, board) -> str | None:
@@ -559,9 +621,11 @@ def _note_group(policy, snapshot, navigator) -> None:
 
 
 def _strike_around(policy, snapshot, board, acting) -> str | None:
-    """Step 2: a blow or a shot at what acts on the player, summoners first, then the plan's order."""
+    """Step 2: a blow or a shot at what acts on the player, summoners first, then the plan's order;
+    a monster known by telepathy that fires at the player from out of view (``Board.firing``) is
+    shot as one in view (target-preparation.cpp target_able: ``ml`` and projectable)."""
     indices = {monster.index for monster in acting}
-    targets = sorted((monster for monster in board.in_view if monster.index in indices),
+    targets = sorted((monster for monster in (*board.in_view, *board.firing) if monster.index in indices),
                      key=lambda monster: not monster.can_summon)
     for target in targets:
         if target in board.beside:
@@ -664,17 +728,25 @@ def _mark_unreached(navigator, index) -> None:
     navigator.summon_unreached = {**navigator.summon_unreached, index: _kills(navigator)}
 
 
+def _stays(policy, race) -> bool:
+    """A race that never comes to a pulling cell: NEVER_MOVE never steps, an AQUATIC one steps only
+    on water (monster-info.cpp monster_can_cross_terrain), and the pulling cells are dry ground."""
+    flags = getattr(policy._monrace_knowledge.get(race), "flags", frozenset())
+    return bool({"NEVER_MOVE", "AQUATIC"} & set(flags))
+
+
 def _lure(policy, snapshot, navigator, plan, board) -> str | None:
     """Step 4: walk to the pulling cell of the member to pull, or hold there for it.  A member no
-    walk reaches is left to the plan (``_unreached``); with none reachable the plan goes on."""
-    close = False
+    walk reaches is left to the plan (``_unreached``); with none reachable the plan goes on.  A
+    member that never comes (``_stays``) is not lured from afar (owner 2026-11-19 「有効な場所で
+    待つ」): it is closed on at once, to a cell it would be seen from."""
     unreached = _unreached(navigator, board)
     if navigator.summon_target is None:
         choices = []
-        for index, (_race, _cell_, summons) in navigator.summon_group.items():
+        for index, (race, _cell_, summons) in navigator.summon_group.items():
             if index in unreached:
                 continue
-            found = _lure_path(policy, snapshot, navigator, plan, board, index, close=False)
+            found = _lure_path(policy, snapshot, navigator, plan, board, index, close=_stays(policy, race))
             if found is None:
                 _mark_unreached(navigator, index)
             else:
@@ -683,8 +755,8 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
             return None
         navigator.summon_target = min(choices)[-1]
         navigator.summon_hold = 0
-    else:
-        close = navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
+    close = (navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
+             or _stays(policy, navigator.summon_group[navigator.summon_target][0]))
     found = _lure_path(policy, snapshot, navigator, plan, board, navigator.summon_target, close=close)
     if found is None:
         _mark_unreached(navigator, navigator.summon_target)
@@ -707,6 +779,12 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
     if (struck := _strike_around(policy, snapshot, board, acting)) is not None:
         navigator.summon_hold = 0
         return struck
+    # What fires at the player from out of view and no blow or shot reaches: no wait in its line
+    # (owner 2026-11-19 「有効な場所で待つ」), closed on to be shot or left (``fire_answer_key``).
+    indices = {monster.index for monster in acting}
+    firers = [monster for monster in board.firing if monster.index in indices]
+    if (answered := fire_answer_key(policy, snapshot, navigator, plan, board, firers)) is not None:
+        return answered
     # n1-c life-217 (2026-11-19 18:32-19:05, 15,900 holds at [2,56]): two ボーシン awake beyond the
     # pits acted on the player (within their vision) and no walk reaches them.  Past the wait they
     # are left to the plan like any member no walk reaches (``_unreached``): the rest, the lure of
