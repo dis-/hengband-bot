@@ -7,9 +7,14 @@ had entered the Mountain's 50F, no stair the policy took (the depth gate refuses
 
 What the game does (C:/hengband/src):
 
-- A trap door (grid/trap.cpp hit_trap, TrapType::TRAPDOOR) drops the player exactly one floor
-  (FloorChangeMode::DOWN), unless levitating (「落とし戸を飛び越えた。」); on a quest floor it hurts
-  and changes nothing.  None is placed on a dungeon's last floor, the arena or a quest
+- A trap door (grid/trap.cpp hit_trap, TrapType::TRAPDOOR) drops the player one floor or two
+  (``TRAP_DOOR_DROPS``), unless levitating (「落とし戸を飛び越えた。」); on a quest floor it hurts
+  and changes nothing.  The source reads one (FloorChangeMode::DOWN, floor-leaver.cpp
+  jump_floors), but the viewing server's diaries (playrecord-SOAK.txt of every life, 2026-11-23)
+  count 106 falls of one floor and 64 of two, among them the Castle's 48F -> 50F of n1-a
+  life-535 (2026-11-23 00:59:50, 「48階(城): 落とし戸に落ちた」 then 「城の最深階50階に到達した」,
+  one game turn apart, the 2d8 of one trap door taken) and the Mountain's 48F -> 50F three
+  times; what sets the second floor is not found in the source.  None is placed on a dungeon's last floor, the arena or a quest
   (FloorType::select_random_trap).  A random trap is placed hidden (place_trap_at: ``mimic``):
   it is shown by a trap detection (detect_feat_flag, which also clears CAVE_UNSAFE in its range:
   the board's ``unsafe_rows``), by the passive search of a step (a chance, skill_srh) or by
@@ -21,18 +26,26 @@ What the game does (C:/hengband/src):
 
 A floor change is *sanctioned* (``sanctioned``) when it lands above 50F, or on the Castle's 50F
 landing of the held climb (deep_climb, owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」).
-On a floor where a fall would land unsanctioned (``at_risk``: no *Destruction* means, not
-levitating, a trap door possible here):
+On a floor where a fall of one or two floors would land unsanctioned (``at_risk``: no
+*Destruction* means, not levitating, a trap door possible here; 48F and 49F):
 
 - the known trap cells are kept off by every walk (``refresh_avoid``, the shared avoid set) and
   no step enters one, a disarm included (``step_refused``);
 - before a walk leaves the detected area (a walkable neighbour still CAVE_UNSAFE), the traps are
   detected (``key``: the absorbed Detect Traps, a carried Staff or Scroll of Detect Traps, a Rod of
   Trap Location or of Detection);
-- without a detection means, a 49F floor is left (``key``: the up stairs underfoot, else Word of
-  Recall, waited for in place) -- the fall would newly reach 50F; on the climb's 50F+ floors the
-  climb goes on (the owner's exception put it there) and a fall stops the bot
-  (deep_climb.stop_key);
+- without a detection means, a 48F or 49F floor is left (``key``: the up stairs underfoot, else
+  Word of Recall, waited for in place) -- the fall would newly reach 50F; on the climb's floors
+  (deep_climb.climb_floor: its 50F+ floors and its floors below the band) the climb goes on (the
+  owner's exception put it there, and it walks to the up stairs) and a fall onto 50F+ stops the
+  bot (deep_climb.stop_key);
+- in town, no Word of Recall lands where ``key`` would leave at once (``landing_refused``, asked
+  by policy._recall_destination_safe and policy._fallback_landing_allowed): n1-a life-535
+  (Warrior Lv40, 2026-11-23 00:19-00:21) recalled to Angband's 49F and back five times
+  (deep-fall-guard:recall), then the no-depth-progress lease sent it to the Castle's 48F landing,
+  whose trap door dropped it onto 50F.  A refused landing goes to the unsafe-recall fallback,
+  whose Castle climb (dive_floor.pick_refused, its band at most 45F, owner 2026-11-22
+  「城は45Fまでにする。ギリギリを攻めない。」) climbs from it at once;
 - no stair down is taken onto such a floor without a detection means (``descent_refused``,
   asked by ``_is_descent_target``): the connected stairs put a descent on an up staircase
   (floor-changer.cpp set_stairs), so the leave and the descent would alternate.  The last
@@ -74,6 +87,8 @@ WAIT_RECALL_REASON = f"{REASON}:wait-recall"
 STEP_REFUSED_REASON = f"{REASON}:trap-step-refused"
 MEMORY = "_deep_fall_guard"
 FAILURES_PER_PLACE = 3
+# The floors a trap door drops (the module docstring: one, or two as the diaries show).
+TRAP_DOOR_DROPS = (1, 2)
 FAILED = frozenset({
     "杖をうまく使えなかった。", "You failed to use the staff properly.",
     "うまくロッドを使えなかった。", "You failed to use the rod properly.",
@@ -88,6 +103,17 @@ def sanctioned(policy, dungeon_id: int, depth: int) -> bool:
 
     return depth < DEEP_FLOOR_DEPTH or (
         depth == deep_climb.LANDING and dive_floor.climb_dungeon(policy) == dungeon_id)
+
+
+def fall_unsanctioned(policy, dungeon_id: int, depth: int) -> bool:
+    """A trap door or a Teleport Level down from ``depth`` of ``dungeon_id`` may land
+    unsanctioned (``TRAP_DOOR_DROPS``), no deeper than the dungeon's last floor (the diaries'
+    three falls from the Mountain's 49F all landed on its last floor, 50F)."""
+    info = policy._dungeon_knowledge.get(dungeon_id)
+    last = info.max_depth if info is not None and info.max_depth > 0 else None
+    return any(not sanctioned(policy, dungeon_id,
+                              depth + drop if last is None else min(depth + drop, last))
+               for drop in TRAP_DOOR_DROPS)
 
 
 def _exposed(policy, snapshot) -> bool:
@@ -113,7 +139,7 @@ def at_risk(policy, snapshot) -> bool:
 
     return (_exposed(policy, snapshot) and not _last_floor(policy, snapshot)
             and not ability_sources.has_ability(snapshot.player, "levitation")
-            and not sanctioned(policy, snapshot.floor_key[0], snapshot.dungeon_level + 1))
+            and fall_unsanctioned(policy, snapshot.floor_key[0], snapshot.dungeon_level))
 
 
 def holds_detection(policy, snapshot) -> bool:
@@ -144,18 +170,23 @@ def descent_refused(policy, snapshot, destination: int) -> bool:
     floor's leave (``key``: the up stairs underfoot, where the connected stairs put a descent)
     and the descent into it would alternate.  A random quest's floor has no trap door, nor the
     dungeon's last floor (FloorType::select_random_trap)."""
-    from hengbot import ability_sources, destruction_use, random_quest_hold
-
     if (snapshot.in_town or snapshot.dungeon_level <= 0 or not snapshot.floor_key
             or snapshot.floor_key[2] != 0):
         return False
-    dungeon = snapshot.floor_key[0]
-    if sanctioned(policy, dungeon, destination + 1):
+    return _exposed_landing(policy, snapshot, snapshot.floor_key[0], destination)
+
+
+def _exposed_landing(policy, snapshot, dungeon: int, depth: int) -> bool:
+    """``depth`` of ``dungeon`` is a floor whose fall may land unsanctioned, and the character
+    holds neither the *Destruction* means, nor levitation, nor a trap detection."""
+    from hengbot import ability_sources, destruction_use, random_quest_hold
+
+    if depth <= 0 or not fall_unsanctioned(policy, dungeon, depth):
         return False
     info = policy._dungeon_knowledge.get(dungeon)
-    if info is not None and destination >= info.max_depth:
+    if info is not None and depth >= info.max_depth:
         return False
-    if destination in random_quest_hold._pending_random_levels(policy, snapshot, dungeon):
+    if depth in random_quest_hold._pending_random_levels(policy, snapshot, dungeon):
         return False
     if destruction_use.holds_means(policy, snapshot):
         return False
@@ -164,10 +195,21 @@ def descent_refused(policy, snapshot, destination: int) -> bool:
     return not holds_detection(policy, snapshot)
 
 
+def landing_refused(policy, snapshot, dungeon_id: int, depth: int) -> bool:
+    """A Word of Recall landing on ``depth`` of ``dungeon_id`` that ``key`` would leave at once
+    (the module docstring, n1-a life-535): the town's destination gates refuse it.  The held
+    climb's dungeon is not refused: its floors below the band are climbed at once (deep_climb)."""
+    from hengbot import dive_floor
+
+    if dive_floor.climb_dungeon(policy) == dungeon_id:
+        return False
+    return _exposed_landing(policy, snapshot, dungeon_id, depth)
+
+
 def teleport_level_refused(policy, snapshot) -> bool:
     """A Teleport Level read here could go down onto an unsanctioned floor."""
     return (_exposed(policy, snapshot) and not _last_floor(policy, snapshot)
-            and not sanctioned(policy, snapshot.floor_key[0], snapshot.dungeon_level + 1))
+            and fall_unsanctioned(policy, snapshot.floor_key[0], snapshot.dungeon_level))
 
 
 def _trap_cells(snapshot) -> set:
@@ -280,9 +322,10 @@ def key(policy, snapshot):
             memory["pending"] = (snapshot.turn, here)
             policy.last_reason = DETECT_REASON
             return detect
-    if deep_climb.on_floor(policy, snapshot):
-        # The owner's exception put the climb on 50F+: it goes on (deep_climb.key); a fall stops
-        # the bot (deep_climb.stop_key).
+    if deep_climb.climb_floor(policy, snapshot):
+        # The owner's exception put the climb here (its 50F+ floors and its floors below the
+        # band): it goes on to the up stairs (deep_climb.key); a fall onto 50F+ stops the bot
+        # (deep_climb.stop_key).  The climb's 49F, its fall of two floors onto 51F, is no leave.
         return None
     grid = snapshot.grid_at(here)
     if grid is not None and policy._is_upstairs_target(grid) \

@@ -5,7 +5,7 @@ from hengbot import item_need
 from hengbot import safety_watch
 from hengbot import spare_gear
 from hengbot import random_quest_hold
-from hengbot import angband_hold, deep_climb, dive_floor, fallback_depth_floor
+from hengbot import angband_hold, deep_climb, deep_fall_guard, dive_floor, fallback_depth_floor
 from hengbot import me_capped_pickup, sellable_artifacts
 from hengbot import destruction_means
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -781,6 +781,12 @@ class PolicyHelpersMixin:
         missing = self._missing_required_abilities(snapshot, landing_depth, owned=True)
         if missing and not (climb_landing
                             and deep_climb.admits(missing, dungeon_id, landing_depth)):
+            return False
+        # A landing the deep fall guard leaves at once (its trap door may land on 50F+ without
+        # the means); the climb's landing is climbed from at once (deep_fall_guard
+        # .landing_refused, n1-a life-535).
+        if not climb_landing and deep_fall_guard.landing_refused(
+                self, snapshot, dungeon_id, landing_depth):
             return False
         return not self._recall_landing_guardian_blocked(snapshot, dungeon_id, landing_depth)
 

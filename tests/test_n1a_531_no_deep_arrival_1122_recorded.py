@@ -126,7 +126,10 @@ class NoDeepArrivalTest(executor_pins.ProductionHarness):
         # The climb's own 49F falls onto its 50F landing; the Mountain's 50F is its last floor.
         self.assertFalse(deep_fall_guard.at_risk(policy, self._board((MOUNTAIN, 49, 0))[0]))
         self.assertFalse(deep_fall_guard.at_risk(policy, self._board((MOUNTAIN, 50, 0))[0]))
-        self.assertFalse(deep_fall_guard.at_risk(policy, self._board((ANGBAND, 48, 0))[0]))
+        # A trap door drops one floor or two (n1-a life-535, the Castle's 48F onto 50F, 2026-11-23):
+        # 48F is at risk, 47F is not.
+        self.assertTrue(deep_fall_guard.at_risk(policy, self._board((ANGBAND, 48, 0))[0]))
+        self.assertFalse(deep_fall_guard.at_risk(policy, self._board((ANGBAND, 47, 0))[0]))
 
     def test_no_step_onto_a_known_trap_on_an_at_risk_floor(self):
         policy = self.policy
@@ -140,8 +143,8 @@ class NoDeepArrivalTest(executor_pins.ProductionHarness):
             self.assertIn(east, policy._engagement_avoid_cells)
         finally:
             policy._engagement_avoid_cells = saved
-        # 48F: the trap is disarmed as before.
-        shallow, east = self._board((ANGBAND, 48, 0), trap_east=True)
+        # 47F (its fall lands on 49F at most): the trap is disarmed as before.
+        shallow, east = self._board((ANGBAND, 47, 0), trap_east=True)
         self.assertNotEqual(policy._step_toward(shallow, east), "5")
 
     def test_the_traps_are_detected_before_the_walk_else_the_49f_floor_is_left(self):
@@ -210,8 +213,10 @@ class NoDeepArrivalTest(executor_pins.ProductionHarness):
             ((ANGBAND, 48, 0), None, False),
             # A trap detection carried: the traps of 49F are detected there (deep_fall_guard.key).
             ((ANGBAND, 48, 0), rod, True),
-            # 48F's own trap door lands on 49F.
-            ((ANGBAND, 47, 0), None, True),
+            # 48F's own trap door lands on 50F too (two floors, n1-a life-535): refused.
+            ((ANGBAND, 47, 0), None, False),
+            # 47F's own trap door lands on 49F at most.
+            ((ANGBAND, 46, 0), None, True),
         )
         for floor_key, item, taken in cases:
             board, _ = self._board(floor_key, item=item, down_stairs=True)
@@ -221,13 +226,13 @@ class NoDeepArrivalTest(executor_pins.ProductionHarness):
         from hengbot import deep_fall_guard
         mountain, _ = self._board((MOUNTAIN, 48, 0), down_stairs=True)
         self.assertFalse(deep_fall_guard.descent_refused(policy, mountain, 49))
-        # The decision on Angband's 48F: the walk goes on instead of the stair.
-        board, _ = self._board((ANGBAND, 48, 0), down_stairs=True)
+        # The decision on Angband's 47F: the walk goes on instead of the stair.
+        board, _ = self._board((ANGBAND, 47, 0), down_stairs=True)
         key = policy.choose_key(board)
         self.assertNotEqual(key, ">")
         self.assertEqual(policy.last_reason, "explore")
-        self.assertTrue(self._post(key, (ANGBAND, 48, 0), board))
-        shallow, _ = self._board((ANGBAND, 47, 0), down_stairs=True)
+        self.assertTrue(self._post(key, (ANGBAND, 47, 0), board))
+        shallow, _ = self._board((ANGBAND, 46, 0), down_stairs=True)
         self.assertEqual((policy.choose_key(shallow), policy.last_reason), (">", "descend"))
 
     def test_teleport_level_is_not_read_where_it_could_go_down_onto_50f(self):
