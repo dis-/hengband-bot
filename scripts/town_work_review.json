@@ -5073,6 +5073,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_home.py:HomeMixin._home_full_buyer": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the full-Home relief (policy_home._home_full_sale_candidate and the relief's destroy site in _home_full_relief_key) in town only, while a full-Home relief, cap tidy or junk sweep is in progress.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: _home_full_buyer returns int | None (the store that pays for the ware; owner 2026-11-22 「売れる品は売り、壊すのは売れない品だけ」) used as input/observation, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "policy_home.py:HomeMixin._home_full_sale_candidate": {
     "classification": "data",
     "rows": [
