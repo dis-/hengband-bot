@@ -291,7 +291,7 @@ class TheCloseDoorStopTest(replay._Replay):
     def test_no_door_no_close(self):
         key, reason, fight = self.decide(CASE["close"]["boards"][self.STOP])
         self.assertEqual(fight.phase, battle.phase_index("ambush"))
-        self.assertNotEqual(key, "c")
+        self.assertFalse(key.startswith("c"), key)
         self.assertEqual((key, reason), ("5", battle.HOLD_REASON))
 
     def test_an_open_door_is_still_closed(self):
@@ -301,7 +301,7 @@ class TheCloseDoorStopTest(replay._Replay):
         palette = raw["grid_map"]["palette"]
         open_door = next(index for index, row in enumerate(palette) if row[0] == 4)   # OPEN_DOOR
         key, reason, _fight = self.decide(with_door(raw, open_door))
-        self.assertEqual((key, reason), ("c", battle.CLOSE_REASON))
+        self.assertEqual((key, reason), ("c8", battle.CLOSE_REASON))
 
 
 if __name__ == "__main__":

@@ -14,8 +14,8 @@ owner 2026-11-23 「立ち位置を守れば一切の反撃を受けずに倒せ
  * 05:03:24-34 (turns 3207204-3207646): the druj's phase, the door open, walked to its line
    ([11,25], [12,24]), was cursed (HP 672 -> 389) and shot it from [12,24] (``UB0@11,18``).
 
-The fix (quest25_battle): ``_bare_open`` opens with the bare ``o`` when the board shows exactly one
-closed door around the player; ``_druj_shut`` keeps every walk of the plan off [11,19] while the
+The fix: observed_input posts the ``o`` alone and releases the direction only at the observed
+direction question, for every producer (tests/test_easy_open_direction_1123_recorded.py); ``_druj_shut`` keeps every walk of the plan off [11,19] while the
 druj lives; ``_druj`` goes to [13,20] and aims the ball at [11,19] with the door already open too
 ([13,20] is out of the druj's line either way).
 
@@ -41,7 +41,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # noqa: F401 -- first: the plan modules import in a cycle alone
 from hengbot import quest25_battle as battle, quest25_battle_record
-from hengbot.model import parse_snapshot
+from hengbot.model import Position, parse_snapshot
 from tests.support import q25_house as q25
 from tests import test_n1c_208_q25_patrol_1115_recorded as life208
 
@@ -163,7 +163,8 @@ class TheStairwayStandTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             policy = new_policy(directory, raw, "stairway")
             key = decide(policy, raw)
-            self.assertEqual((key, policy.last_reason), ("o", battle.OPEN_REASON))
+            # ``o`` + direction; observed_input posts the ``o`` alone (easy_open, one door around).
+            self.assertEqual((key, policy.last_reason), ("o6", battle.OPEN_REASON))
 
     def test_control_two_closed_doors_around_keep_the_direction(self):
         """DECLARED CONSTRUCTED: the player on [12,27], beside both [11,28] and [13,28]."""
@@ -171,8 +172,9 @@ class TheStairwayStandTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             policy = new_policy(directory, raw, "stairway")
             ctx = ctx_of(policy, raw)
-            self.assertEqual(battle._closed_doors_beside(ctx), {(11, 28), geo.STAIRWAY_DOOR})
-            self.assertEqual(battle._bare_open(ctx, geo.STAIRWAY_DOOR, "o3"), "o3")
+            key = policy._step_toward(ctx.snapshot, Position(*geo.STAIRWAY_DOOR))
+            self.assertEqual(battle._open_key(ctx, key), "o3")
+            self.assertEqual(policy.last_reason, battle.OPEN_REASON)
 
 
 class TheDrujDoorTest(unittest.TestCase):

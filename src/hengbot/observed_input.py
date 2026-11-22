@@ -24,7 +24,8 @@ from hengbot.morivant_tower import RECHARGE_ALL_REASONS
 from hengbot.zul_trip import CURE_KEY, CURE_KEY_PATTERN, CURE_REASON
 from hengbot.policy_identification import SOURCE_PROMPT, IDENTIFY_ITEM_PROMPT
 from hengbot.policy_constants import (
-    ALTER_KEY, CHARACTER_DUMP_MACRO, HOME_CHARACTER_DUMP_MACRO, ENTER_DUNGEON_MACRO, STORE_HOME,
+    ALTER_KEY, CHARACTER_DUMP_MACRO, EASY_DIRECTION_COMMANDS, HOME_CHARACTER_DUMP_MACRO,
+    ENTER_DUNGEON_MACRO, STORE_HOME,
     IN_STORE_BUY_REASON,
 )
 
@@ -238,12 +239,25 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
              "equipment-transaction:deposit")):
         raise ValueError("store command on map screen")
 
-    if command in "Do" and owner in {"chest:disarm", "chest:open"} and re.fullmatch(r"[1-9]", tail):
-        # get_rep_dir may infer the sole adjacent chest (easy_open/disarm).
-        # Otherwise release the direction only at the observed question.
+    if command in EASY_DIRECTION_COMMANDS and re.fullmatch(r"[1-9]", tail) and (
+            owner in {"chest:disarm", "chest:open"} or kind in (None, ScreenKind.COMMAND)):
+        # The open / close / disarm of a door, a trap or a chest, from any producer.  With
+        # easy_open / easy_disarm (option-types-table.cpp, both on), cmd-open-close.cpp
+        # do_cmd_open sets command_dir itself when exactly one closed door (count_doors_traps
+        # GridCountKind::CLOSED_DOOR, marked grids) or one non-empty chest (open-util.cpp
+        # count_chests) and not both is around; do_cmd_close when exactly one open door is
+        # (GridCountKind::OPEN); do_cmd_disarm when exactly one trap (the player's own grid
+        # too) or one known trapped chest is.  get_rep_dir then asks no direction, and a
+        # composed ``o6`` left the ``6`` to the next command: a step onto the opened door, or
+        # an attack on a monster there.  n1-c life-221 (Quest 25, 2026-11-23): ``o3`` at [9,23]
+        # walked onto [10,24], ``o6`` at [13,27] onto [13,28] beside the stairway monster,
+        # ``o4`` at [11,20] into the druj's doorway [11,19].  So the command key goes alone and
+        # the direction is released only at the observed direction question; otherwise it
+        # falls away (bare command).  do_cmd_tunnel, do_cmd_bash, do_cmd_spike and exe_alter
+        # always ask (get_rep_dir with no command_dir set).
         # cmd-open-close.cpp: a monster on that square is attacked instead, and
         # cmd-attack.cpp do_cmd_attack asks input_check 「本当に攻撃しますか？」 of a
-        # visible non-hostile one.  The chest is not worth turning a friend: 'n'
+        # visible non-hostile one.  A door or a chest is not worth turning a friend: 'n'
         # answers only that observed question (n1-c life-216, 2026-11-17 00:41).
         return command, [_answer(ScreenKind.DIRECTION, tail, optional=True),
                          _answer(ScreenKind.CONFIRM, "n", _ATTACK_FRIEND, exact_feature=True,

@@ -132,7 +132,7 @@ from hengbot.model import (
     TVAL_POTION, TVAL_STAFF, TVAL_WAND, UNKNOWN_MONSTER_HP,
 )
 from hengbot.policy_constants import (
-    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, OPEN_KEY, RANGED_MAX_DISTANCE, REST_MACRO,
+    CLOSE_KEY, DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, RANGED_MAX_DISTANCE, REST_MACRO,
     SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
 )
 from hengbot.quest_plan_base import HOLD_REASON, MELEE_REASON
@@ -887,33 +887,18 @@ def _direction(origin, cell) -> str:
                            (cell[1] > origin[1]) - (cell[1] < origin[1]))]
 
 
-def _closed_doors_beside(ctx: _Ctx) -> set:
-    """The closed doors the board shows around the player (do_cmd_open's easy_open count,
-    floor-util count_doors_traps GridCountKind::CLOSED_DOOR)."""
-    y, x = ctx.here
-    cells = set()
-    for dy, dx in ((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (dy, dx) != (0, 0)):
-        grid = ctx.snapshot.grid_at(Position(y + dy, x + dx))
-        if grid is not None and grid.known and grid.is_closed_door:
-            cells.add((y + dy, x + dx))
-    return cells
-
-
-def _bare_open(ctx: _Ctx, door, key: str) -> str:
-    """The walk's ``key`` that opens ``door`` beside the player, keyed so he stays on the plan's cell.
+def _open_key(ctx: _Ctx, key: str) -> str:
+    """The walk's ``key`` that opens a door beside the player (``_step_toward``: ``o`` + direction,
+    the lock and jam counts), under the open's reason.
 
     do_cmd_open (cmd-action/cmd-open-close.cpp) with easy_open takes the direction itself when the
-    player has exactly one closed door around him (count_doors_traps), and get_rep_dir
-    (target/target-getter.cpp) then asks none: the walk's ``o`` + direction left the direction key
-    to the next command, a step onto the opened door.  n1-c life-221 (2026-11-23 05:00:39, Quest 25
-    phase 「stairway」): ``o6`` on the stand [13,27] opened [13,28] and the ``6`` walked onto it,
-    beside the stairway to hell [13,29] (owner 「[13,27] から階段までは距離2」); its touch stole and
-    the thief teleported away (「泥棒は笑って逃げた！」), and the phase shot the empty [13,29] for
-    some 10,000 game turns.  So with one closed door around, the bare ``o``; otherwise the prompt
-    takes the direction as before (``_step_toward``: the lock and jam counts)."""
+    player has exactly one closed door around him, and the composed ``o`` + direction then left the
+    direction key to the next command, a step onto the opened door.  n1-c life-221 (2026-11-23
+    05:00:39, Quest 25 phase 「stairway」): ``o6`` on the stand [13,27] opened [13,28] and the ``6``
+    walked onto it, beside the stairway to hell [13,29] (owner 「[13,27] から階段までは距離2」).
+    The key keeps its direction: observed_input sends the ``o`` alone and releases the direction
+    only at the observed direction question, for every producer (EASY_DIRECTION_COMMANDS)."""
     ctx.policy.last_reason = OPEN_REASON
-    if key == OPEN_KEY + _direction(ctx.here, door) and _closed_doors_beside(ctx) == {tuple(door)}:
-        return OPEN_KEY
     return key
 
 
@@ -1439,7 +1424,7 @@ def _ambush(ctx: _Ctx) -> str | None:
         if ctx.door_closed(door):
             if quest_exposure.game_distance(ctx.here, door) <= 1:
                 _unlatch_stale(ctx, door)
-                return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+                return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
             return _walk(ctx, {(door[0] + 1, door[1])})
         return _walk(ctx, {geo.MEET_RANGED}) or _hold(ctx)
     # Melee: the closed door, met the turn it opens (「相手が開けたターンに接敵」).
@@ -1455,7 +1440,9 @@ def _ambush(ctx: _Ctx) -> str | None:
             return _step(ctx, door, ENGAGE_REASON)
         if not targets and _door_to_close(ctx, door):
             ctx.policy.last_reason = CLOSE_REASON
-            return "c"     # easy_open closes the one open door beside, asking no direction
+            # 'c' + direction: observed_input sends the 'c' alone and releases the direction only at
+            # the observed question (easy_open closes the one open door beside, asking none).
+            return CLOSE_KEY + _direction(ctx.here, door)
     return _hold(ctx)
 
 
@@ -2212,7 +2199,7 @@ def _masses(ctx: _Ctx) -> str | None:
         return _walk(ctx, {geo.MASS_STAND})
     if ctx.door_closed(geo.MASS_DOOR):
         door = geo.MASS_DOOR
-        return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+        return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
     if not ctx.battle.lit:
         ctx.battle.lit = True
         light = quest_room_light.light_room_key(
@@ -2617,7 +2604,7 @@ def _stairway(ctx: _Ctx) -> str | None:
     if ctx.here == stand and ctx.door_closed(door) and (haste := _haste(ctx)) is not None:
         return haste      # 「全快し、加速して階段の前の扉を開ける」
     if ctx.door_closed(door):
-        return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+        return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
     seen = [monster for monster in ctx.seen_hostiles() if monster.race_id == geo.STAIRWAY]
     if battle.style == "melee":
         if ctx.here != door:
@@ -2712,7 +2699,7 @@ def _druj(ctx: _Ctx) -> str | None:
         return (_fire_at(ctx, door, geo.DRUJ, area_only=True) or _refill_key(ctx) or _hold(ctx))
     if ctx.door_closed(door):
         if quest_exposure.game_distance(ctx.here, door) <= 1:
-            return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+            return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
         beside = {(door[0] + dy, door[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)}
         return _walk(ctx, {cell for cell in beside if ctx.terrain.get(cell) == "floor"})
     trapless = sorted(cell for cell in lines if ctx.terrain.get(cell) == "floor"
