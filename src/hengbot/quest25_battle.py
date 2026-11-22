@@ -129,7 +129,7 @@ from hengbot.me_absorbed_substitutes import CAST_SUFFIX, carry_cast_key, item_ca
 from hengbot.model import (
     Position, SV_POTION_HEALING, SV_ROD_DETECTION, SV_ROD_DISARMING, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_EVIL,
     SV_STAFF_DETECT_TRAP, SV_WAND_DISARMING, SV_WAND_TRAP_DOOR_DEST, TVAL_ROD, TVAL_SCROLL,
-    TVAL_POTION, TVAL_STAFF, TVAL_WAND,
+    TVAL_POTION, TVAL_STAFF, TVAL_WAND, UNKNOWN_MONSTER_HP,
 )
 from hengbot.policy_constants import (
     DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, OPEN_KEY, RANGED_MAX_DISTANCE, REST_MACRO,
@@ -1093,23 +1093,41 @@ def _settle_beam(ctx: _Ctx) -> None:
 # -- attacks ----------------------------------------------------------------------------
 
 
-def _ball_powers(ctx: _Ctx, race: int):
+def _target_hp(ctx: _Ctx, race: int, grid=None) -> int | None:
+    """The hit points a shot at ``race`` (on ``grid``) can take: the board's estimate of a monster
+    of that race on the grid (model ``_estimated_monster_hp``: its race's maximum scaled by its
+    health), else the race's maximum (an unseen target: the stairway to hell, 15d8 FORCE_MAXHP,
+    is 120), else None (an unknown race: no cap)."""
+    if grid is not None:
+        cell = tuple(grid)
+        for monster in ctx.hostiles():
+            if (monster.race_id == race and (monster.position.y, monster.position.x) == cell
+                    and monster.hp != UNKNOWN_MONSTER_HP):
+                return monster.hp
+    knowledge = ctx.policy._monrace_knowledge.get(race)
+    return knowledge.max_hp if knowledge is not None else None
+
+
+def _ball_powers(ctx: _Ctx, race: int, grid=None):
     """(expected damage, radius, shape, key maker) of each ball or breath the character can aim
     at a grid: absorbed powers and carried wands and rods, strongest first; none that ``race``'s
     known flags cancel (``attack_expectation.effective``).
 
     Owner 2026-11-19 「3つとも広げる」 (Powerful Activation in the Q25 battle too): an absorbed
-    power is offered a second time cast powerfully while me_powerful_activation.pays_safely holds
+    power is offered a second time cast powerfully while me_device_attacks.powerful_ready holds
     (me_device_attacks.attack_uses: the same success, the doubled level, a ball's radius 3); of
-    equal damage the ordinary use, listed first, stays first (the sort is stable)."""
+    equal damage the ordinary use, listed first, stays first (the sort is stable).  Every row is
+    me_device_attacks.use_value's (owner 2026-11-23 「期待値で攻撃手段を選ぶ」): the success times
+    the damage, capped by the target's hit points (``_target_hp``)."""
     snapshot, policy = ctx.snapshot, ctx.policy
     flags = me_device_attacks.race_id_flags(policy, race)
     level = snapshot.player.level
+    hp = _target_hp(ctx, race, grid)
     found = []
     if me_device_attacks.can_use_powers(snapshot):
         for power, success in me_device_attacks.attack_uses(policy, snapshot):
             if power.shape in me_device_attacks.TARGETABLE_SHAPES and not power.group_only:
-                found.append((success * me_device_attacks.expected_damage(power, level, flags),
+                found.append((me_device_attacks.use_value(power, success, level, flags, hp),
                               power.area_radius, power.shape,
                               lambda grid, power=power: me_device_attacks.device_target_key(
                                   policy, power, Position(*grid), snapshot)))
@@ -1122,7 +1140,7 @@ def _ball_powers(ctx: _Ctx, race: int):
                 continue
             chance = (attack_expectation.device_use_success if kind == "wand"
                       else attack_expectation.rod_use_success)(snapshot.player.device_skill, power.level)
-            found.append((chance * me_device_attacks.expected_damage(power, level, flags),
+            found.append((me_device_attacks.use_value(power, chance, level, flags, hp),
                           me_device_attacks.AREA_RADIUS[power.shape], power.shape,
                           lambda grid, item=item, kind=kind: _carried_grid_key(ctx, kind, item, grid)))
     return sorted(attack_expectation.effective(found), key=lambda row: -row[0])
@@ -1158,12 +1176,13 @@ def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
     if direction is None or not me_device_attacks.can_use_powers(snapshot):
         return None
     flags = me_device_attacks.race_id_flags(ctx.policy, race)
+    hp = _target_hp(ctx, race, grid)
     best = None
     for power, success in me_device_attacks.attack_uses(ctx.policy, snapshot):
         share = _beam_share(power)
         if share <= 0 or power.group_only:
             continue
-        damage = success * share * me_device_attacks.expected_damage(power, snapshot.player.level, flags)
+        damage = me_device_attacks.use_value(power, success, snapshot.player.level, flags, hp, share=share)
         if damage > 0 and (best is None or damage > best[0]):   # a tie keeps the ordinary use
             best = (damage, lambda power=power: me_device_attacks.device_key(
                 ctx.policy, power, direction, snapshot))
@@ -1191,7 +1210,7 @@ def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_on
     radius-2 ball aimed there would miss)."""
     reach = None if covers is None else quest_exposure.game_distance(tuple(grid), tuple(covers))
     options = [(damage, lambda make=make: make(grid))
-               for damage, radius, shape, make in _ball_powers(ctx, race)
+               for damage, radius, shape, make in _ball_powers(ctx, race, grid)
                if (not area_only or shape == "ball") and (reach is None or radius >= reach)]
     if not area_only:
         if (beam := _beam_key(ctx, race, grid)) is not None:
@@ -1199,6 +1218,8 @@ def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_on
         if not piercing and missiles:
             distance = quest_exposure.game_distance(ctx.here, tuple(grid))
             launcher = attack_expectation.launcher_against(ctx.policy, ctx.snapshot, race, distance)
+            if (hp := _target_hp(ctx, race, grid)) is not None:
+                launcher = min(launcher, max(hp, 0))
             if launcher > 0:
                 options.append((launcher, lambda: _launcher_grid_key(ctx, grid)))
     return options

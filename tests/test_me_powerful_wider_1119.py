@@ -23,8 +23,9 @@ Recorded / constructed, per class:
   recorded bugs ([38,60] with [38,57], 3 apart, or with [38,54], 6 apart); a more dangerous mover
   acting (``more_dangerous_acting``) for the group-damage order.
 * Q25: tests/test_q25_phase_battle's board (Lv25, HP 800/800, the absorbed Fire Balls at 90%:
-  88 ordinary, 107 powered, cost 17; the low-HP line max(400, 800 - 300) = 500, so 518 pays and
-  517 does not).  DECLARED CONSTRUCTED as there: the phase memory, the wand lists (Fire Balls,
+  88 ordinary, 107 powered, cost 17; the low-HP line max(400, 800 - 300) = 500, and since
+  2026-11-23 (n1-c life-221, tests/test_n1c_221_me_ranged_ev_1123_recorded) the plan's heal line
+  0.70 x 800 = 560 above it (me_device_attacks.powerful_ready), so 577 pays and 576 does not).  DECLARED CONSTRUCTED as there: the phase memory, the wand lists (Fire Balls,
   Stinking Cloud, Acid Bolts), a carried Rod of Fire Balls.
 * Estimates: the n1-b life-411 town arrival moved onto the Q33 floor with a 『女王アリ』 in view
   (tests/test_me_powerful_attack_1119: Rockets at 70%, 400 ordinary, 550 powered) and the
@@ -142,12 +143,12 @@ class Q25BattleTest(unittest.TestCase):
     """quest25_battle ``_ball_powers`` / ``_beam_key`` / ``_fire_at``."""
 
     def test_the_pen_takes_the_powered_fire_ball(self):
-        raw = q25.with_wand_list(q25.board((5, 1), hp=518), q25.FIRE_BALL)
+        raw = q25.with_wand_list(q25.board((5, 1), hp=577), q25.FIRE_BALL)
         policy, key = _q25(raw, "ipsissimus")
         self.assertEqual((key, policy.last_reason), ("UBw@7,17", POWERFUL_REASON))
 
     def test_one_hit_point_short_the_ordinary_ball(self):
-        raw = q25.with_wand_list(q25.board((5, 1), hp=517), q25.FIRE_BALL)
+        raw = q25.with_wand_list(q25.board((5, 1), hp=576), q25.FIRE_BALL)
         policy, key = _q25(raw, "ipsissimus")
         self.assertEqual((key, policy.last_reason), ("mBw@7,17", DEVICE_REASON))
 
