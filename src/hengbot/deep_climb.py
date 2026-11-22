@@ -29,12 +29,20 @@ This one case is the exception to owner 2026-11-18 「破壊を持っていな�
   deepest floor + 1, owner 2026-11-22 「すぐ38〜42Fへ登る」); the row's gaps are the 50F+
   floors' only.
 
-The net under the rule (the same owner words): a floor of 50F or deeper entered from a
-shallower floor of the same dungeon without the means, outside a quest floor, stops the bot
-under ``STOP_REASON`` (``observe`` / ``stop_key``).  The 2026-11-19 Mountain 49F -> 50F arrival
-is not in the kept decision log; every stair the policy takes into 50F+ is refused by the depth
-gate (``_is_descent_target`` / ``_destination_depth_allowed``), so what is left is the game's
-(a trap door, a Scroll of Teleport Level read as an escape).
+A floor of 50F or deeper entered from a shallower floor of the same dungeon without the means,
+outside a quest floor (``observe``), is climbed from the same way: owner 2026-11-23 (n1-a
+life-535, the Castle's 48F trap door onto 50F, the answer 「登りと同じにすぐ45F以浅へ登る」) -- by
+any path the arrival holds the climb switch on its dungeon (``_hold_climb``: the unsafe-recall
+fallback's Castle climb, dive_floor ``bind_refused``), so ``key`` climbs to the band (at most
+45F), the climb reads the teleport as above 50F (deep_teleport.applies) and the Recall read on a
+band floor answers the reset-recall question y (dive_floor.reset_recall_depth).  Every stair the
+policy takes into 50F+ is refused by the depth gate (``_is_descent_target`` /
+``_destination_depth_allowed``), so what is left is the game's (a trap door, which drops one
+floor or two, deep_fall_guard; a Scroll of Teleport Level read as an escape).
+
+Only where no climb can be held (a dungeon other than the Castle and the Mountain, or a band
+the kit cannot reach, dive_floor.reaches_band) does the arrival stop the bot under
+``STOP_REASON`` (``stop_key``).
 """
 from __future__ import annotations
 
@@ -168,11 +176,32 @@ def key(policy, snapshot):
     return move
 
 
-# --- the net: an arrival at 50F+ by a descent without the means ------------------------------
+# --- an arrival at 50F+ by a descent without the means: the climb, else the named stop -------
+
+def _hold_climb(policy, snapshot, dungeon_id: int) -> bool:
+    """Hold the climb switch on ``dungeon_id`` (the Castle or the Mountain) whose band the kit
+    reaches, as the unsafe-recall fallback's Castle climb holds it (policy
+    ._activate_safe_recall_fallback with dive_floor.pick_refused); False where none can be held."""
+    from hengbot import dive_floor
+
+    if dive_floor.climb_dungeon(policy) == dungeon_id:
+        return True
+    if (dungeon_id not in dive_floor.DIVE_FLOOR_DUNGEONS
+            or not dive_floor.reaches_band(policy, snapshot, dungeon_id)):
+        return False
+    policy._alternate_dungeon = dungeon_id
+    policy._alternate_dungeon_reason = dive_floor.SAFE_FALLBACK_REASON
+    dive_floor.bind_refused(policy, snapshot, dungeon_id)
+    policy._target_dungeon_id = dungeon_id
+    policy._target_dungeon_reason = dive_floor.SAFE_FALLBACK_REASON
+    policy._conquest_committed = None
+    return dive_floor.climb_dungeon(policy) == dungeon_id
+
 
 def observe(policy, snapshot) -> None:
     """Every board: a new floor of 50F or deeper entered from a shallower floor of the same
-    dungeon, with no *Destruction* means and no quest, is remembered for ``stop_key``.  A
+    dungeon, with no *Destruction* means and no quest, holds the climb (``_hold_climb``, owner
+    2026-11-23 「登りと同じにすぐ45F以浅へ登る」), else is remembered for ``stop_key``.  A
     shallower 50F+ floor counts too: n1-a life-531 2026-11-22 08:04, on the Castle's 50F climb,
     fell through two trap doors (50F -> 52F -> 54F); the Castle's recall depth became 54 and
     the climb's landing was lost.  A floor deeper than the last one is a new descent too."""
@@ -190,14 +219,14 @@ def observe(policy, snapshot) -> None:
             and floor_key[2] == 0 and previous[2] == 0
             and not deep_fall_guard.sanctioned(policy, floor_key[0], floor_key[1])
             and not destruction_use.holds_means(policy, snapshot)):
-        stopped = floor_key
+        stopped = None if _hold_climb(policy, snapshot, floor_key[0]) else floor_key
     elif not (stopped is not None and stopped == floor_key):
         stopped = None
     setattr(policy, MEMORY, (floor_key, stopped))
 
 
 def stop_key(policy, snapshot):
-    """The named stop of an unadmitted 50F+ arrival (``observe``)."""
+    """The named stop of an unadmitted 50F+ arrival no climb can be held for (``observe``)."""
     record = getattr(policy, MEMORY, None)
     if not record or record[1] is None or record[1] != tuple(snapshot.floor_key):
         return None

@@ -138,11 +138,17 @@ class BlockedArrivalRecordedTest(unittest.TestCase):
         # 49F is no climb floor of this rule: the ordinary climb to the band plays there.
         self.assertFalse(deep_climb.on_floor(policy, self._dungeon_board((CASTLE, 49, 0))))
 
-    def test_a_descent_into_50f_without_the_means_is_a_named_stop(self):
-        from hengbot import deep_climb
+    def test_a_descent_into_50f_without_the_means_climbs_else_is_a_named_stop(self):
+        """Owner 2026-11-23 (n1-a life-535) 「登りと同じにすぐ45F以浅へ登る」: an arrival of the
+        Castle or the Mountain holds the climb there (deep_climb._hold_climb); elsewhere it stays
+        the named stop."""
+        from hengbot import deep_climb, dive_floor
 
         policy = self.policy
-        saved = getattr(policy, deep_climb.MEMORY, None)
+        names = ("_alternate_dungeon", "_alternate_dungeon_reason", "_target_dungeon_id",
+                 "_target_dungeon_reason", "_conquest_committed", dive_floor.STATE,
+                 deep_climb.MEMORY)
+        saved = {name: getattr(policy, name, None) for name in names}
         try:
             setattr(policy, deep_climb.MEMORY, None)
             for floor_key in ((0, 0, 0), (CASTLE, 50, 0)):
@@ -153,12 +159,20 @@ class BlockedArrivalRecordedTest(unittest.TestCase):
             for floor_key in ((MOUNTAIN, 49, 0), (MOUNTAIN, 50, 0)):
                 deep_climb.observe(policy, self._dungeon_board(floor_key))
             board = self._dungeon_board((MOUNTAIN, 50, 0))
+            self.assertIsNone(deep_climb.stop_key(policy, board))
+            self.assertEqual(dive_floor.climb_dungeon(policy), MOUNTAIN)
+            self.assertTrue(deep_climb.on_floor(policy, board))
+            # Angband holds no climb: the named stop stays.
+            for floor_key in ((ANGBAND, 49, 0), (ANGBAND, 50, 0)):
+                deep_climb.observe(policy, self._dungeon_board(floor_key))
+            board = self._dungeon_board((ANGBAND, 50, 0))
             self.assertEqual(deep_climb.stop_key(policy, board), "5")
             self.assertEqual(policy.last_reason, deep_climb.STOP_REASON)
             from hengbot.policy_constants import POLICY_FINAL_STOP_REASONS
             self.assertIn(deep_climb.STOP_REASON, POLICY_FINAL_STOP_REASONS)
         finally:
-            setattr(policy, deep_climb.MEMORY, saved)
+            for name, value in saved.items():
+                setattr(policy, name, value)
 
 
 class FundraiseArrivalRecordedTest(unittest.TestCase):
