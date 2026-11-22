@@ -52,25 +52,41 @@ class PowerfulStep(Continuation):
     stage: str = "racial"
     attempts: int = 0
     attack: bool = False                  # an absorbed attack power (me_device_attacks.POWERS)
+    utility: bool = False                 # an aimed utility power instead (me_powers.BY_KEY)
     goal: tuple[int, int] | None = None   # its burst grid (y, x), as DeviceStep's
 
 
-def _compile_attack(key):
+def _compile_attack(key, *, utility=False):
     match = _ATTACK_KEY.fullmatch(key)
     if match is None:
         raise ValueError("invalid Magic-Eater powerful attack")
     kind, sval = me_powers.kind_of(match["kind"]), me_powers.decode_letter(match["letter"])
-    power = POWERS.get((kind, sval))
+    power = (me_powers.BY_KEY if utility else POWERS).get((kind, sval))
     goal = (int(match["y"]), int(match["x"])) if match["y"] is not None else None
     if power is None or power.aimed != bool(match["direction"] or goal):
         raise ValueError("invalid Magic-Eater powerful attack")
     return powerful.RACIAL_KEY, [PowerfulStep(frozenset(), match["direction"] or "", sval=sval,
-                                              kind=kind, attack=True, goal=goal)]
+                                              kind=kind, attack=True, utility=utility, goal=goal)]
+
+
+def _aimed_utility(key, owner) -> bool:
+    """A me_powers row aimed through Powerful Activation (``U`` + kind + power + a direction or
+    ``@y,x``, owner ``me-power:...``): the Teleport Away at a given-up quest target (owner
+    2026-11-22, me_powers ``_given_up_target``), walked as an attack's aim."""
+    match = _ATTACK_KEY.fullmatch(key)
+    if (match is None or not (match["direction"] or match["y"])
+            or not (isinstance(owner, str) and owner.startswith(me_powers.REASON + ":"))):
+        return False
+    power = me_powers.BY_KEY.get((me_powers.kind_of(match["kind"]),
+                                  me_powers.decode_letter(match["letter"])))
+    return power is not None and power.aimed
 
 
 def compile_powerful(key, owner):
     if owner == POWERFUL_REASON:
         return _compile_attack(key)
+    if _aimed_utility(key, owner):
+        return _compile_attack(key, utility=True)
     match = _KEY.fullmatch(key)
     if match is None:
         return None
@@ -167,7 +183,7 @@ class PowerfulMenu(MagicEaterMenu):
 
     def power_of(self, step):
         if step.attack:
-            return POWERS[(step.kind, step.sval)]
+            return (me_powers.BY_KEY if step.utility else POWERS)[(step.kind, step.sval)]
         return powerful.activatable(step.kind, step.sval)
 
     def after_power(self, step):

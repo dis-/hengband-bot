@@ -829,7 +829,11 @@ def _approach_targets(policy, snapshot, strong) -> list:
         return []
     if not destruction_use.approach_gates(policy, snapshot):
         return []
-    return [monster for monster in strong if not destruction_use.spares(policy, snapshot, monster)]
+    # The quest's target is never gone to (destruction_use ``walk_spared_race``): spared before
+    # the Recall away from it is decided, and after it 「近づかず」 (owner 2026-11-22, n1-b life-415).
+    walk_spared = destruction_use.walk_spared_race(policy, snapshot)
+    return [monster for monster in strong if not destruction_use.spares(policy, snapshot, monster)
+            and monster.race_id != walk_spared]
 
 
 def approach_subject(policy, snapshot, targets):
@@ -846,7 +850,7 @@ def approach_subject(policy, snapshot, targets):
     leaving = destruction_leaving(policy, snapshot, targets)
     if not leaving:
         return None
-    target = destruction_use.quest_target_race(policy, snapshot)
+    target = destruction_use.walk_spared_race(policy, snapshot)
     # n1-b life-413 (Angband 80F, 2026-11-22 04:03:42, pingpong-escalate then the livelock's
     # Recall): at (21,69) two T1s were sensed, 理想の戦士『ベネディクト』 (the most dangerous from
     # contact) and アイス・ワイアーム; no known cell had Benedict within the sure radius, so the

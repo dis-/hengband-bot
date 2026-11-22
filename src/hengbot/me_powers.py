@@ -278,11 +278,11 @@ POWERS = (
     # regenmagic note), so it comes before the wand.
     Power("rod", SV_ROD_TELEPORT_AWAY, devices()[(TVAL_ROD, SV_ROD_TELEPORT_AWAY)].names,
           "teleport-away", 0, 70, ("unbeatable-in-range", "sensed-t1-in-line", "quest-opening-target"),
-          darkness_scaled=False,
+          powerful="given-up-target", darkness_scaled=False,
           aimed=True, against_hostile=True),
     Power("wand", SV_WAND_TELEPORT_AWAY, devices()[(TVAL_WAND, SV_WAND_TELEPORT_AWAY)].names,
           "teleport-away", 0, 71, ("unbeatable-in-range", "sensed-t1-in-line", "quest-opening-target"),
-          darkness_scaled=False,
+          powerful="given-up-target", darkness_scaled=False,
           aimed=True, against_hostile=True),
     Power("staff", SV_STAFF_SPEED, me_capability.names("staff", SV_STAFF_SPEED),
           "speed", 0, 80, ("fight-unhasted", "deep-arrival-unhasted"),
@@ -870,7 +870,24 @@ def _when_safe(ctx) -> bool:
             and _activation().pays_safely(ctx.policy, ctx.snapshot))
 
 
-POWERFUL = {"when-safe": _when_safe}
+def _given_up_target(ctx) -> bool:
+    """Owner 2026-11-22 (the n1-b life-415 question, verbatim answer 「近づかず、強力発動も駆使して
+    排除する」): the Teleport Away aimed at the quest target the Recall is decided away from
+    (destruction_use ``target_given_up``) is cast through Powerful Activation while its HP cost
+    is paid safely (me_powerful_activation.pays_safely): wand_effect / rod_effect send it
+    MAX_PLAYER_SIGHT * 8 instead of * 5 (cmd-item/cmd-zapwand.cpp:110-115,
+    cmd-zaprod.cpp:160-165; teleport_away places it at least half that far,
+    spells-teleport.cpp:122).  A QUESTOR is no bar: only RESIST_TELEPORT resists
+    (effect-monster-evil.cpp:7-30)."""
+    from hengbot import destruction_use  # import cycle
+
+    monster = ctx.target_hostile
+    return (monster is not None and destruction_use.target_given_up(ctx.policy, ctx.snapshot)
+            and monster.race_id == destruction_use.walk_spared_race(ctx.policy, ctx.snapshot)
+            and _activation().pays_safely(ctx.policy, ctx.snapshot))
+
+
+POWERFUL = {"when-safe": _when_safe, "given-up-target": _given_up_target}
 POWERFUL_SUFFIX = ":powerful"
 
 
@@ -997,6 +1014,9 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None, *
                 return destroyed
             powerful = _powerful(ctx, used)
             reason = f"{REASON}:{name}:{used.effect}" + (POWERFUL_SUFFIX if powerful else "")
+            if powerful and used.aimed:
+                # The aimed cast's HP cost, as an absorbed attack's (me_device_attacks.powered).
+                _activation().note_attack(policy, snapshot, used.kind, used.sval, reason)
             key = ((_activation().racial_key(*used.ident) if powerful else used.key)
                    + (ctx.aim if used.aimed else ""))
             policy.last_reason = reason
@@ -1050,11 +1070,16 @@ def sensed_threat_key(policy, snapshot) -> str | None:
     the Recall is awaited; else None (owner 2026-11-22 「撃つ」, ``_sensed_unbeatable_in_fire``)."""
     from hengbot import destruction_use  # import cycle
 
-    if not snapshot.player.recalling or not destruction_use.means_spent(policy, snapshot):
-        return None
-    here = snapshot.player.position
     sensed = [monster for monster in snapshot.detected_monsters
               if monster.hostile and not monster.asleep]
+    if not snapshot.player.recalling or not destruction_use.means_spent(policy, snapshot):
+        # Owner 2026-11-22 (n1-b life-415, 「近づかず、強力発動も駆使して排除する」): on a floor given up
+        # for its quest target (destruction_use ``target_given_up``) the target is asked as well.
+        if not destruction_use.target_given_up(policy, snapshot):
+            return None
+        race = destruction_use.walk_spared_race(policy, snapshot)
+        sensed = [monster for monster in sensed if monster.race_id == race]
+    here = snapshot.player.position
     for monster in sorted(sensed, key=lambda each: game_distance(here, each.position)):
         if (key := power_key(policy, snapshot, SENSED_THREAT, monster.position)) is not None:
             return key

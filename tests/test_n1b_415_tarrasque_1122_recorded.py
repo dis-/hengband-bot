@@ -20,11 +20,16 @@ Pinned here:
  B (owner 2026-11-22 「帰還すると決めたら標的を破壊に巻き込んで良い」): once the Recall away from
    the target is decided, *Destruction* is no longer withheld for the target in its radius
    (destruction_use ``_target_race``); before that decision the target is still spared.
+ C (owner 2026-11-22, verbatim 「近づかず、強力発動も駆使して排除する」): after that decision no step
+   goes toward the target (destruction_use ``walk_spared_race``); the absorbed *Destruction*
+   through Powerful Activation (radius 18) takes it beyond 13, and the absorbed Teleport Away
+   is aimed at it in a line of fire, through Powerful Activation (me_powers ``_given_up_target``).
 
 Every decision is the public ``choose_key`` of a fresh fully loaded policy fed the recorded
 boards in order (tests/support/recorded ``_policy``).  DECLARED CONSTRUCTED: the absorbed staff
-list (the death dump's rows: テレポート 15, 邪悪存在感知 25, スピード 11, *破壊* 7; the live process
-had read it, the state tail does not carry it); the live keys are posted, not the replayed ones
+list (the death dump's rows: テレポート 15, 邪悪存在感知 25, スピード 11, *破壊* 7) and the absorbed
+Teleport Away of the wand (28) and the rod (2) (the live process had read them, the state tail does
+not carry them); the live keys are posted, not the replayed ones
 (the boards are the game's), and each board after a recorded ``m`` cast carries the cast's
 completed operation (the CLI's ``_completed_operation_owner``); after the recorded Word of Recall
 the boards carry ``recalling`` as recorded.  A replayed use the game did not see shows no flash
@@ -59,6 +64,11 @@ STAFF = (row("テレポート", 3, current=15, count=15), row("邪悪存在感�
          row("スピード", 5, current=11, count=11), row("*破壊*", 10, current=7, count=7))
 DESTRUCTION_REASONS = ("emergency:destruction:absorbed-power",
                        "emergency:destruction:deep-teleport:absorbed-power")
+POWERED_DESTRUCTION = ("UA3", "emergency:destruction:powered")
+POWERED_REACH = 2124060                # decision 8024's board: the target 18 cells off
+APPROACH_TURNS = (2124065, 2124071, 2124073)   # the replayed approach toward it before the fix
+DEVICES = (("wand", (row("テレポート・アウェイ", 5, current=28, count=28),)),
+           ("rod", (row("テレポート・アウェイ", 5, charging=0, count=2),)))
 
 
 class N1b415Tarrasque1122RecordedTest(unittest.TestCase):
@@ -78,13 +88,14 @@ class N1b415Tarrasque1122RecordedTest(unittest.TestCase):
         """The first board of ``turn`` (the arrival turn has two)."""
         return copy.deepcopy(next(raw for raw in self.rows if raw["turn"] == turn))
 
-    def policy(self, first):
+    def policy(self, first, staff=STAFF):
         policy = _policy(self.root, self.races)
         policy.prime(parse_snapshot(copy.deepcopy(first), self.races))
         skill(policy, first)
-        listed = dict(copy.deepcopy(first), turn=first["turn"] - 1,
-                      _magic_eater_power_list=power_list("staff", *STAFF))
-        observe_lists(policy, parse_snapshot(listed, self.races))
+        for kind, rows in (("staff", staff), *DEVICES):
+            listed = dict(copy.deepcopy(first), turn=first["turn"] - 1,
+                          _magic_eater_power_list=power_list(kind, *rows))
+            observe_lists(policy, parse_snapshot(listed, self.races))
         return policy
 
     def replay(self):
@@ -197,15 +208,123 @@ class N1b415Tarrasque1122RecordedTest(unittest.TestCase):
     # ------------------------------------------------------------------ B: after the decision
 
     def test_destruction_is_used_with_the_target_in_reach_after_the_recall_decision(self):
-        """Live 8029-8036: return:wait-recall with the target 12 to 6 cells off; now the absorbed
-        *Destruction* on the first board it is in the sure radius, and on the death board."""
+        """Live 8024-8036: return:wait-recall with the target 18 to 6 cells off; now the absorbed
+        *Destruction* through Powerful Activation once it is within 18 (owner 2026-11-22
+        「強力発動も駆使して」), the plain use once it is within 13, and nothing but the uses and the
+        fallback of a use the game did not see (DECLARED) in between."""
         _, decided = self.replay()
-        self.assertEqual(decided[IN_REACH], ("mA3", DESTRUCTION_REASONS[0]))
-        self.assertEqual(decided[DEATH], ("mA3", DESTRUCTION_REASONS[1]))
-        reach = [turn for turn in decided if IN_REACH <= turn <= DEATH]
-        # Between the uses only the fallback of a use the game did not see (DECLARED).
+        self.assertEqual(decided[POWERED_REACH], POWERED_DESTRUCTION)
+        board = parse_snapshot(self.row(POWERED_REACH), self.races)
+        distance = game_distance(board.player.position, self.target(board).position)
+        self.assertTrue(destruction_use.GUARANTEED_RADIUS < distance <= destruction_use.POWERED_RADIUS)
+        uses = {POWERED_DESTRUCTION[1], *DESTRUCTION_REASONS}
+        reach = [turn for turn in decided if POWERED_REACH <= turn < DEATH]
         for turn in reach:
-            self.assertIn(decided[turn][1], (*DESTRUCTION_REASONS, "return:wait-recall"), turn)
+            self.assertIn(decided[turn][1], (*uses, "return:wait-recall"), turn)
+        within = []
+        for turn in reach:
+            shown = parse_snapshot(self.row(turn), self.races)
+            if decided[turn][1] in uses and destruction_use.in_sure_radius(shown, self.target(shown)):
+                within.append(turn)
+        self.assertTrue(within)
+        self.assertEqual(decided[within[0]], ("mA3", DESTRUCTION_REASONS[0]))
+
+    def test_the_powered_use_is_usable_only_after_the_recall_decision(self):
+        """``usable`` (the emergency layer's sensed T1 *Destruction* asks it first) reads the powered
+        circle on the same board as ``key``: the target 18 off is in its reach once the Recall away
+        from it is decided, and not before (no state changed)."""
+        raw = self.row(POWERED_REACH)
+        policy = self.policy(raw)
+        board = parse_snapshot(copy.deepcopy(raw), self.races)
+        target = self.target(board)
+        self.assertFalse(destruction_use.usable(policy, board, leaving=[target]))
+        policy._unviable_quest_floor = board.floor_key
+        self.assertTrue(destruction_use.usable(policy, board, leaving=[target]))
+        self.assertFalse(destruction_use.in_sure_radius(board, target))
+
+    def test_no_step_toward_the_given_up_target(self):
+        """Owner 2026-11-22 「近づかず」: after the Recall decision (on arrival) no board walks
+        toward the target (the replay of the first two commits stepped '4' toward it on
+        2124065-2124073, sensed-t1:approach-destruction)."""
+        policy, decided = self.replay()
+        for turn, (key, reason) in decided.items():
+            self.assertNotIn(reason, (threat_tiers.APPROACH_REASON, "hunt:detected-target"),
+                             (turn, key))
+        for turn in APPROACH_TURNS:
+            board = parse_snapshot(self.row(turn), self.races)
+            _, strong = threat_tiers._sensed_strong(policy, board)
+            self.assertIn(TARRASQUE, [m.race_id for m in strong])
+            self.assertNotIn(TARRASQUE, [m.race_id for m in
+                                         threat_tiers._approach_targets(policy, board, strong)])
+
+    def line_of_fire_board(self, *, hp=None):
+        """CONSTRUCTED: decision 8031's board (2124088, recalling) with the target moved to
+        (21,105), 3 cells off where the bolt path reaches the player (the only such cells of the
+        pocket the *Destruction* left); ``hp``: the player's HP and maximum (DECLARED: at 773
+        its breaths make the board 即死, where the 11-08 rule reads the Teleportation scroll
+        first and Teleport Away is no rung of that ladder)."""
+        raw = self.row(2124088)
+        target = next(m for m in raw["detected_monsters"] if m["race_id"] == TARRASQUE)
+        target["y"], target["x"] = 21, 105
+        if hp is not None:
+            raw["player"]["hp"] = raw["player"]["max_hp"] = hp
+        return raw
+
+    def test_teleport_away_through_powerful_activation_at_the_target_in_line_of_fire(self):
+        """No *Destruction* listed (DECLARED: the staff rows without it), HP 2000 (not 即死), the
+        floor given up for the target: the absorbed rod's Teleport Away aimed at the target's
+        cell through Powerful Activation (MAX_PLAYER_SIGHT * 8, cmd-zaprod.cpp:160-165), which
+        the executor walks as an aimed powerful cast."""
+        from hengbot import line_of_fire
+        from hengbot.me_menu_uses import compile_menu_key
+
+        raw = self.line_of_fire_board(hp=2000)
+        policy = self.policy(raw, staff=STAFF[:3])
+        board = parse_snapshot(copy.deepcopy(raw), self.races)
+        policy._unviable_quest_floor = board.floor_key  # the Recall away from it decided
+        target = self.target(board)
+        self.assertTrue(line_of_fire.danger(policy, board, target))
+        self.assertFalse(threat_tiers.instant_death(policy, board).holds)
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason),
+                         ("UCn@21,105", "me-power:sensed-t1-in-line:teleport-away:powerful"))
+        prefix, (step,) = compile_menu_key(key, policy.last_reason)
+        self.assertEqual((prefix, step.kind, step.goal, step.utility), ("U", "rod", (21, 105), True))
+        # Its HP cost is noted as an absorbed attack's (me_powerful_activation.note_attack).
+        from hengbot import me_powerful_activation
+        self.assertEqual(me_powerful_activation._memory(policy).pending[0].name, "attack:rod:13")
+
+    def test_no_walk_of_any_approach_toward_the_given_up_target(self):
+        """The walks toward a use (threat_tiers ``approach_subject``, deep_teleport ``_walk_step``)
+        take the given-up target as no subject on the replayed board of 2124065 (16 cells off)."""
+        from hengbot import deep_teleport
+
+        policy, _ = self.replay()
+        board = parse_snapshot(dict(self.row(2124065), player=dict(
+            self.row(2124065)["player"], recalling=True)), self.races)
+        target = self.target(board)
+        self.assertTrue(destruction_use.target_given_up(policy, board))
+        self.assertIsNone(threat_tiers.approach_subject(policy, board, [target]))
+        self.assertIsNone(deep_teleport._walk_step(policy, board, [target]))
+
+    def test_no_teleport_away_at_the_target_before_the_recall_decision(self):
+        """The same board without the decision: the target is no SENSED_THREAT subject while
+        *Destruction* is held (me_powers ``sensed_threat_key``)."""
+        from hengbot import me_powers
+
+        raw = self.line_of_fire_board(hp=2000)
+        policy = self.policy(raw)
+        board = parse_snapshot(copy.deepcopy(raw), self.races)
+        self.assertIsNone(me_powers.sensed_threat_key(policy, board))
+
+    def test_destruction_comes_before_teleport_away_in_line_of_fire(self):
+        """With *Destruction* listed the same board uses it (owner 2026-11-16 「常に *破壊* を先」)."""
+        raw = self.line_of_fire_board(hp=2000)
+        policy = self.policy(raw)
+        board = parse_snapshot(copy.deepcopy(raw), self.races)
+        policy._unviable_quest_floor = board.floor_key
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("mA3", DESTRUCTION_REASONS[0]))
 
     def test_the_target_is_spared_only_until_the_recall_decision(self):
         """The same board (IN_REACH) without and with the decision: before it the quest's target

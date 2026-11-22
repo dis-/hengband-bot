@@ -679,6 +679,52 @@ def quest_target_race(policy, snapshot) -> int | None:
     return _target_race(policy, snapshot)
 
 
+def walk_spared_race(policy, snapshot) -> int | None:
+    """The race no walk toward a use goes to (the approaches' subject and targets, threat_tiers
+    and deep_teleport): the active kill quest's target, whether or not the Recall away from it
+    is decided.  Before the decision the use spares it (``_target_race``); after it the use takes
+    it where it stands, and no walk goes toward it (owner 2026-11-22, the n1-b life-415 question
+    「勝てない標的から帰還すると決めた後、標的が *破壊* の範囲（13マス）に入るのを待ちますか、それとも
+    範囲に入れるため自分から近づきますか？」, verbatim answer 「近づかず、強力発動も駆使して排除する」)."""
+    quest_id = policy._active_kill_quest_id(snapshot)
+    quest = snapshot.quests.get(quest_id) if quest_id is not None else None
+    return policy._quest_target_race_id(quest) if quest is not None else None
+
+
+def _given_up_target_in_powered_reach(policy, snapshot, hostiles) -> bool:
+    """One of ``hostiles`` is the quest target the Recall is decided away from
+    (``target_given_up``), shown, within the Powerful Activation's sure radius."""
+    if not target_given_up(policy, snapshot):
+        return False
+    race, shown = walk_spared_race(policy, snapshot), _shown(snapshot)
+    return any(monster.hostile and monster.race_id == race and monster.index in shown
+               and game_distance(snapshot.player.position, monster.position) <= POWERED_RADIUS
+               for monster in hostiles)
+
+
+def _powered_scene(policy, snapshot, leaving) -> bool:
+    """Owner 2026-11-22 (「近づかず、強力発動も駆使して排除する」, ``walk_spared_race``): where the use's
+    own scene does not hold, the absorbed *Destruction* through Powerful Activation (radius
+    18 + randint0(5), cmd-usestaff.cpp:282, ``POWERED_RADIUS``) reaches the given-up quest target
+    of ``leaving`` (beyond the sure radius 13, say): a clear head, a floor the game destroys, and no
+    guardian to be kept within the powered worst radius (``_spared_positions``; the given-up
+    target is spared no more)."""
+    if leaving is None or not _clear_headed(snapshot.player) or not _floor_destroyed(policy, snapshot):
+        return False
+    if not _given_up_target_in_powered_reach(policy, snapshot, list(leaving)):
+        return False
+    origin = snapshot.player.position
+    return not any(game_distance(origin, position) <= POWERED_WORST_RADIUS
+                   for position in _spared_positions(policy, snapshot, None))
+
+
+def _powered_ready(policy, snapshot) -> bool:
+    """``_powered_key`` would cast (no state is changed)."""
+    from hengbot import me_powerful_activation  # import cycle
+    return (_absorbed_key(policy, snapshot) is not None
+            and me_powerful_activation.pays_safely(policy, snapshot))
+
+
 def scene_holds(policy, snapshot) -> bool:
     """The scene of a use without a ``leaving`` set (the 11-04 reading, ``_threat_in_range``),
     the means and the last use's fallback not asked: threat_escape's count of *Destruction* as a
@@ -745,7 +791,10 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None,
     if _falls_back(_memory(policy), snapshot):
         return None
     if not _scene_holds(policy, snapshot, in_range):
-        return None
+        # The given-up quest target beyond the sure radius: the powered circle (owner 2026-11-22).
+        if powerful or not _powered_scene(policy, snapshot, leaving):
+            return None
+        powerful = True
     if powerful:
         # ``powerful``: the 99F/100F battle's wider circle (owner 2026-11-20 「必要なら強力発動で
         # 範囲を広げる」), the absorbed power only.
@@ -823,7 +872,7 @@ def usable(policy, snapshot, *, leaving=None) -> bool:
         return False
     in_range = _threat_in_range if leaving is None else partial(_threat_in_reach, hostiles=list(leaving))
     if not _scene_holds(policy, snapshot, in_range):
-        return False
+        return _powered_scene(policy, snapshot, leaving) and _powered_ready(policy, snapshot)
     return _absorbed_key(policy, snapshot) is not None or _carried_key(policy, snapshot) is not None
 
 
