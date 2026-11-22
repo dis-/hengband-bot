@@ -17,7 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import deep_climb, finale_prep, reset_recall
+from hengbot import deep_climb, deep_fall_guard, finale_prep, reset_recall
 from hengbot import approach_answer, return_start
 from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
@@ -41,6 +41,11 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
     player = snapshot.player
     # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the climb off the Castle's 50F+
     # floor before any objective or loot (deep_climb).
+    # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: the traps detected before a
+    # walk leaves the detected area, else the floor left (deep_fall_guard).
+    guard = deep_fall_guard.key(policy, snapshot)
+    if guard is not None:
+        return guard
     climb = deep_climb.key(policy, snapshot)
     if climb is not None:
         return climb

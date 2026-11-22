@@ -277,6 +277,9 @@ REGISTRY = (
     # deep_climb
     S("_deep_climb_arrival", "deep_climb", LIFE,
       "(floor_key of the last board, the 50F+ floor entered by a descent without the *Destruction* means or None): the named stop's record (owner 2026-11-22)."),
+    # deep_fall_guard
+    S("_deep_fall_guard", "deep_fall_guard", FLOOR,
+      "The floor's trap detections (owner 2026-11-22): the pending use (turn, place), the failed uses per place, the places detected from."),
     # departure_rescues
     S("_departure_rescue_attempts", "departure_rescues", LIFE,
       "departure_rescues: departure rescue attempts (no comment at its definition)"),

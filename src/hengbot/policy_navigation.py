@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import destruction_means, means_spent_loop, mining_loadout, return_start
+from hengbot import deep_fall_guard, destruction_means, means_spent_loop, mining_loadout, return_start
 from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -2150,6 +2150,10 @@ class NavigationMixin:
                 return WAIT_KEY
         key = self._direction_key(snapshot.player.position, step)
         grid = snapshot.grids.get(step)
+        # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: no step onto a known
+        # trap where a trap door would land on 50F+ unsanctioned, a disarm included (deep_fall_guard).
+        if deep_fall_guard.step_refused(self, snapshot, grid):
+            return WAIT_KEY
         if grid is not None and grid.trap:
             # Class 16 aims an absorbed disarming power at the trap (me_powers).
             power = me_powers.power_key(self, snapshot, me_powers.TRAP, step)
