@@ -303,7 +303,7 @@ def policy_receiver(site, function, policy_classes):
 
     A method of the policy or its mixins writes ``self``; a module function
     whose first parameter is ``policy`` (logic moved into a cohesive module,
-    e.g. mining_loadout.remember_combat_hands) writes ``policy``.  Unrelated
+    e.g. equipment_target.record_loadout_search) writes ``policy``.  Unrelated
     executor ``self`` attributes stay outside the census.
     """
     qualified = site.split(':', 1)[1]

@@ -26,7 +26,7 @@ from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, TOWN_TELEPORT_COST, WAIT_KEY
 from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
-from hengbot.policy_constants import EQUIPMENT_SLOT_KEY, MIN_FREE_PACK_SLOTS
+from hengbot.policy_constants import MIN_FREE_PACK_SLOTS
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_RESISTANCE, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
 from hengbot.town_arbiter import _new_town_turn_arbiter
@@ -50,7 +50,7 @@ from hengbot import ability_gear, approach_answer, approach_walk, consumable_pol
 from hengbot.never_dispose import never_disposed
 from hengbot import restore_mana_target
 from hengbot import item_fate, item_use_route
-from hengbot import fundraising_survival, mining_loadout, mining_oil_sale
+from hengbot import fundraising_survival, mining_loadout, mining_oil_sale, slot_lending
 from hengbot.magic_eater_devices import is_mana_food_ware
 from hengbot.town_hold import hold_claims, offered_steps
 from hengbot.purchase_rungs import (
@@ -7033,25 +7033,22 @@ class ShopMixin(InStoreMixin):
     def _restore_mining_combat_hand_key(
         self, snapshot: Snapshot, reason: str, *, goal: str = "combat-loadout"
     ) -> str | None:
-        """Restore each combat hand displaced by the temporary mining loadout.
+        """Return each combat hand the temporary mining loadout borrowed (a digger in it)
+        to the target loadout (slot_lending: its weapon, its off-hand piece, or empty).
 
         ``goal`` is the executor goal of the takeoff and the wield.  The dungeon's
         contact re-arm passes mining_loadout.ROLLBACK_GOAL (see there).
         """
         main_hand = mining_loadout.worn_in_slot(snapshot, "main_hand")
-        for target_slot, remembered_name, remembered_identity, optimal_known in (
-            mining_loadout.remembered_hands(self)
-        ):
+        for target_slot in mining_loadout.HANDS:
             equipped = mining_loadout.worn_in_slot(snapshot, target_slot)
             # An empty hand is re-armed by mining_loadout.rollback_key.
             if equipped is None or not equipped.is_digging_tool:
                 continue
-            if target_slot == "sub_hand" and optimal_known and remembered_name is None:
+            if target_slot == "sub_hand" and slot_lending.returns_empty(self, target_slot):
                 if main_hand is not None and not main_hand.is_digging_tool:
                     self._digger_wield_attempts = 0
-                    key = self._equipment_takeoff(
-                        snapshot, goal, EQUIPMENT_SLOT_KEY[target_slot]
-                    )
+                    key = slot_lending.take_back(self, snapshot, goal, target_slot)
                     if key is not None:
                         self.last_reason = reason
                         if reason == "town:restore-combat-weapon":
@@ -7064,9 +7061,7 @@ class ShopMixin(InStoreMixin):
                                 continuation="equipment.restore-observe")
                     return key
                 continue
-            replacement = mining_loadout.restorable_item(
-                self, snapshot, target_slot, remembered_name, remembered_identity
-            )
+            replacement = slot_lending.return_item(self, snapshot, target_slot)
             if replacement is None:
                 if (
                     target_slot == "sub_hand"
@@ -7074,9 +7069,7 @@ class ShopMixin(InStoreMixin):
                     and not main_hand.is_digging_tool
                 ):
                     self._digger_wield_attempts = 0
-                    key = self._equipment_takeoff(
-                        snapshot, goal, EQUIPMENT_SLOT_KEY[target_slot]
-                    )
+                    key = slot_lending.take_back(self, snapshot, goal, target_slot)
                     if key is not None:
                         self.last_reason = reason
                         if reason == "town:restore-combat-weapon":
@@ -7094,8 +7087,8 @@ class ShopMixin(InStoreMixin):
                 self._digger_wield_attempts = 0
                 self.last_reason = f"{reason}:abandon-unconfirmed-equip"
                 return None
-            key = self._equipment_wield(
-                snapshot, goal, replacement, target_slot
+            key = slot_lending.wield_back(
+                self, snapshot, goal, replacement, target_slot
             )
             if key is not None:
                 self.last_reason = reason
@@ -7109,5 +7102,4 @@ class ShopMixin(InStoreMixin):
                         continuation="equipment.restore-observe")
             return key
         self._digger_wield_attempts = 0
-        self._mining_combat_loadout_remembered = False
         return None

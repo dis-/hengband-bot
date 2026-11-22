@@ -32,6 +32,7 @@ by a Blue yeek, race 52 of the fixture, asleep or awake in the same cell).
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import gzip
 import json
 from pathlib import Path
@@ -41,7 +42,6 @@ import unittest
 from hengbot.cli import _ExecutorInputPort, SendResult, _transport_key
 from hengbot.equipment_optimizer import (
     EvaluatedLoadout, Loadout, LoadoutMetrics, OptimizationResult, OwnedEquipment,
-    equipment_identity,
 )
 from hengbot.model import parse_snapshot
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
@@ -118,6 +118,20 @@ def carrying(raw, item):
     board = copy.deepcopy(raw)
     board["inventory"].append(dict(copy.deepcopy(item), slot="?"))
     return reletter(board)
+
+
+def install_target(policy, slots):
+    """The target loadout naming ``slots`` ((slot, item) pairs), as the search stores it."""
+    loadout = Loadout(tuple((slot, OwnedEquipment(f"target-{slot}", item, "pack"))
+                            for slot, item in slots), "one_handed")
+    policy._equipment_optimization_preparation = WarriorOptimizationPreparation(
+        current=loadout, transaction=None, blockers=(),
+        result=OptimizationResult(
+            best=EvaluatedLoadout(loadout, LoadoutMetrics(1.0, 1.0, 1.0)),
+            alternatives=(), pareto_frontier=(), dominated_item_ids=frozenset(),
+            combinations_considered=1, combinations_evaluated=1,
+            invalid_combinations=0, elapsed_seconds=0.0, timed_out=False,
+            incomplete_item_ids=frozenset()))
 
 
 class BarehandMiningRecordedTest(harness.ProductionHarness):
@@ -214,6 +228,34 @@ class BarehandMiningRecordedTest(harness.ProductionHarness):
         self.post(policy, sighted, key, armed)
         self.assert_fights(policy, armed)
 
+    def test_interrupted_swap_returns_the_hand_to_the_target_weapon(self):
+        # Owner 2026-11-22 Q6 (equipment review E5) 「一時的な付け替えの後はいつも目指す装備の武器に
+        # 戻す。各系統で元の武器を覚えるのをやめる」: the recorded strip of the Short Sword, then
+        # the worm mass in view; a target loadout decided after the strip names a Dagger the pack
+        # carries (a later decision of the target: in town the visit's, E3).  Before E5 the swap
+        # remembered the Short Sword it displaced (no target at the strip: the worn hand) and
+        # wielded it back; now the hand returns to the target's Dagger.  DECLARED CONSTRUCTED:
+        # the Dagger in the pack of the recorded boards and the target naming it.
+        worn, sighted = self.board("worn"), self.board("sighted")
+        sword = next(i for i in worn["equipment"] if i["slot"] == "main_hand")
+        dagger = dict(copy.deepcopy(sword), name=DAGGER + " (1d4) (+0,+0)", sval=4,
+                      damage_dice={"num": 1, "sides": 4}, weight=12)
+        worn, sighted = carrying(worn, dagger), carrying(sighted, dagger)
+        policy = self.policy(worn)
+        key = self.decide(policy, worn)
+        self.assertEqual((key, policy.last_reason), ("ta", STRIP))
+        self.post(policy, worn, key, taken_off(worn, "main_hand"))
+        parsed = parse_snapshot(copy.deepcopy(sighted), dict(self.races))
+        install_target(policy, (("main_hand", next(
+            i for i in parsed.inventory if i.name.startswith(DAGGER))),))
+        key = self.decide(policy, sighted)
+        self.assertEqual((key, policy.last_reason),
+                         ("w" + letter_of(sighted, DAGGER), REARM_REASON))
+        self.assertNotEqual(letter_of(sighted, DAGGER), letter_of(sighted, SWORD))
+        armed = wielded(sighted, DAGGER, "main_hand")
+        self.post(policy, sighted, key, armed)
+        self.assert_fights(policy, armed)
+
     def test_empty_hand_with_the_breeder_adjacent_rearms_first(self):
         # A fresh process (restart): the displaced weapon is not remembered.
         for name in ("adjacent", "latest"):
@@ -229,9 +271,10 @@ class BarehandMiningRecordedTest(harness.ProductionHarness):
                                      ("w" + letter_of(raw, SWORD), REARM_REASON))
                     self.post(policy, raw, key, wielded(raw, SWORD, "main_hand"))
 
-    def test_restart_rearm_takes_the_remembered_then_the_optimizer_weapon(self):
-        # DECLARED CONSTRUCTED: the last recorded board with a Dagger carried
-        # ahead of the Short Sword.
+    def test_rearm_takes_the_target_weapon_else_the_first_weapon(self):
+        # Owner 2026-11-22 Q6 (equipment review E5): the hand's lending returns to the target
+        # loadout's weapon, never one remembered by the swap.  DECLARED CONSTRUCTED: the last
+        # recorded board with a Dagger carried ahead of the Short Sword.
         raw = self.board("latest")
         sword = next(i for i in raw["inventory"] if i["name"].startswith(SWORD))
         raw["inventory"].insert(0, dict(copy.deepcopy(sword), name=DAGGER + " (1d4) (+0,+0)",
@@ -239,44 +282,35 @@ class BarehandMiningRecordedTest(harness.ProductionHarness):
         raw = reletter(raw)
         parsed = parse_snapshot(copy.deepcopy(raw), dict(self.races))
         carried_sword = next(i for i in parsed.inventory if i.name.startswith(SWORD))
+        gone = dataclasses.replace(carried_sword, name=SWORD + " (Home)", to_h=7)
         cases = {
-            "nothing-known": (None, DAGGER),       # the established first-weapon fallback
-            "optimizer": ("optimizer", SWORD),     # the cached optimizer winner (DECLARED CONSTRUCTED)
-            "remembered-not-carried": ("gone", DAGGER),
-            "remembered": ("remembered", SWORD),
+            "no-target": (None, DAGGER),               # the established first-weapon fallback
+            "target": (carried_sword, SWORD),          # the target's weapon (DECLARED CONSTRUCTED)
+            "target-not-carried": (gone, DAGGER),      # the target's weapon is not in the pack
         }
-        for case, (setup, expected) in cases.items():
+        for case, (weapon, expected) in cases.items():
             with self.subTest(case=case):
                 policy = self.policy(raw)
-                if setup == "optimizer":
-                    optimal = Loadout(
-                        (("main_hand", OwnedEquipment("optimal-sword", carried_sword, "pack")),),
-                        "one_handed")
-                    policy._equipment_optimization_preparation = WarriorOptimizationPreparation(
-                        current=optimal, transaction=None, blockers=(),
-                        result=OptimizationResult(
-                            best=EvaluatedLoadout(optimal, LoadoutMetrics(1.0, 1.0, 1.0)),
-                            alternatives=(), pareto_frontier=(), dominated_item_ids=frozenset(),
-                            combinations_considered=1, combinations_evaluated=1,
-                            invalid_combinations=0, elapsed_seconds=0.0, timed_out=False,
-                            incomplete_item_ids=frozenset()))
-                elif setup == "gone":
-                    policy._normal_weapon_identity = "equipped:not-carried:0"
-                elif setup == "remembered":
-                    policy._normal_weapon_identity = equipment_identity(carried_sword)
+                if weapon is not None:
+                    install_target(policy, (("main_hand", weapon),))
                 key = self.decide(policy, raw)
                 self.assertEqual((key, policy.last_reason),
                                  ("w" + letter_of(raw, expected), REARM_REASON))
 
     def test_two_hand_strip_interrupted_rearms_both_hands_then_fights(self):
         # DECLARED CONSTRUCTED: the recorded boards with a shield; the worm
-        # mass comes into view on the recorded 778665 board.
+        # mass comes into view on the recorded 778665 board; the target loadout
+        # names the sword and the shield (the hands return to it: owner 2026-11-22 Q6).
         worn = self.board("worn")
         worn["equipment"].append(copy.deepcopy(SHIELD))
         sighted = self.board("sighted")
+        parsed = parse_snapshot(copy.deepcopy(worn), dict(self.races))
+        target = tuple((slot, next(i for i in parsed.equipment if i.slot == slot))
+                       for slot in ("main_hand", "sub_hand"))
         for interrupted in ("after-ta", "after-tb"):
             with self.subTest(interrupted=interrupted):
                 policy = self.policy(worn)
+                install_target(policy, target)
                 key = self.decide(policy, worn)
                 self.assertEqual((key, policy.last_reason), ("ta", STRIP))
                 bare_main = taken_off(worn, "main_hand")

@@ -1220,7 +1220,9 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         pol._mining_threat_free_streak = MINING_THREAT_FREE_LIMIT
         self.assertEqual(pol._fundraising_key(snap, []), "ta")
         self.assertEqual(pol.last_reason, "fundraise:wield-digging-tool")
-        self.assertEqual(pol._normal_weapon_name, "Broad Sword")  # remembered to re-wield
+        # Owner 2026-11-22 Q6 (equipment review E5): the strip remembers nothing; the hand's
+        # return reads the target loadout (slot_lending), here none: the first melee weapon.
+        self.assertFalse(hasattr(pol, "_normal_weapon_name"))
 
     def test_mining_removes_single_combat_weapon_instead_of_declining_dual_wield(self):
         # Only the main hand occupied: do_cmd_wield asks "Dual wielding? [y/n]"
@@ -1400,7 +1402,8 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(pol._wield_digging_tool_key(one_digger, "mine:wield"), "wky")
-        self.assertEqual(pol._normal_sub_hand_name, "Shield")
+        # E5 (owner 2026-11-22 Q6): the displaced Shield is not remembered.
+        self.assertFalse(hasattr(pol, "_normal_sub_hand_name"))
 
     def test_dual_diggers_stay_wielded_and_the_next_detection_read_lands(self):
         scroll = item("s", TVAL_SCROLL, SV_SCROLL_DETECT_TREASURE, count=2)
@@ -1754,7 +1757,8 @@ class FundraisingStuckEscapeTest(unittest.TestCase):
         self.assertIsNone(
             pol._wield_digging_tool_key(snap, "fundraise:wield-digging-tool")
         )
-        self.assertEqual(pol._normal_weapon_name, "Cursed Mace")
+        # E5 (owner 2026-11-22 Q6): nothing displaced is remembered.
+        self.assertFalse(hasattr(pol, "_normal_weapon_name"))
 
     def test_heavy_cursed_main_offhand_digger_wield_is_bounded(self):
         from hengbot.policy import DIGGER_WIELD_LIMIT

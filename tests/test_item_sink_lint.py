@@ -276,7 +276,10 @@ class ItemIntentLintTest(unittest.TestCase):
         self.assertFalse(any('_other_identity' in f for f in findings), findings)
         repository = lint.intent_census({path.relative_to(POLICY_ROOT).as_posix(): path.read_text(encoding='utf8')
                                          for path in POLICY_ROOT.rglob('*.py')})
-        self.assertIn('mining_loadout.py:remember_combat_hands', repository['_normal_weapon_identity'])
+        # Equipment review E5 (2026-11-22) retired remember_combat_hands with its remembered hands
+        # (slot_lending); equipment_target.record_loadout_search writes through ``policy`` too.
+        self.assertIn('equipment_target.py:record_loadout_search',
+                      repository['_equipment_optimization_signature'])
 
     def test_reverse_import_driver_has_no_findings(self):
         sources = _policy_sources(' def choose_key(self, snapshot):\n  return None\n', extra={

@@ -4467,7 +4467,7 @@
       "equipment-transaction"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress. #47 (2026-11-01): the displaced combat hands are recorded by mining_loadout.remember_combat_hands (an off hand seen empty is restored empty); no new emission.",
+    "evidence": "Reviewed concrete returns/offers and all consumers in generated manifest; composite/adapters inherit selected child, never independent progress. #47 (2026-11-01), E5 (2026-11-22, owner Q6): the swap remembers nothing it displaced; the lent hands return to the target loadout (slot_lending; a target leaving the off hand empty restores it empty); no new emission.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -11144,10 +11144,10 @@
       "equipment-transaction"
     ],
     "context": "Dungeon-only: returns None in town and in a store (mining_loadout.rollback_key's first test); the town re-arm stays _town_restore_weapon_key.",
-    "evidence": "D45: only while an awake hostile is in view (mining_loadout.awake, the strip's own predicate; owner 2026-10-31 a sleeper does not count), one wield of the displaced combat weapon (remembered identity/name, cached optimizer winner, else the first usable melee weapon) through _equipment_wield with goal mining-loadout-rollback.",
+    "evidence": "D45: only while an awake hostile is in view (mining_loadout.awake, the strip's own predicate; owner 2026-10-31 a sleeper does not count), one wield of the target loadout's weapon (slot_lending.return_item, else the first usable melee weapon; owner 2026-11-22 Q6) through slot_lending.wield_back with goal mining-loadout-rollback.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "_equipment_wield; no independent progress"
+    "delegation": "slot_lending.wield_back; no independent progress"
   },
   "mining_loadout.py:empty_main_hand_weapon": {
     "classification": "data",
@@ -11166,29 +11166,7 @@
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Selects the carried weapon an empty main hand takes (the remembered weapon, the cached optimizer winner, else the first usable melee weapon; never a digger); shared by rollback_key's _rearm_target and empty_main_hand_weapon; pure selection.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "mining_loadout.py:restorable_item": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Selects the carried item a re-arm wields (never a digger); shared by _restore_mining_combat_hand_key and rollback_key; pure selection.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
-  "mining_loadout.py:restorable_item.matches": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Remembered identity/name match used by restorable_item; pure predicate.",
+    "evidence": "Selects the carried weapon an empty main hand takes: the lending's return (slot_lending.return_item: the target loadout's weapon, else the first usable melee weapon; never a digger); shared by rollback_key's _rearm_target and empty_main_hand_weapon; pure selection.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
@@ -23436,5 +23414,49 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: the trap detection (deep-fall-guard:detect-traps), else on a 49F floor the up stairs underfoot (deep-fall-guard:ascend), the Recall waited for in place (deep-fall-guard:wait-recall) or Word of Recall (deep-fall-guard:recall); on the climb's 50F+ floors None (the climb goes on)."
+  },
+  "slot_lending.py:_fallback": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The predicate of a lent slot without a target piece (the main hand any melee weapon, an off hand a shield only with no target); pure predicate."
+  },
+  "slot_lending.py:return_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-22 Q6: the carried item a lent slot goes back to -- the target loadout's piece (equipment_target.loadout_target), else the fallback; read by the re-arms (mining_loadout, _restore_mining_combat_hand_key, _town_restore_weapon_key, _breakout_restore_weapon_key); pure selection."
+  },
+  "slot_lending.py:wield_back": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "_equipment_wield; no independent progress",
+    "evidence": "The return exit of a lent slot: one _equipment_wield of the item return_item chose, with the caller's goal; emits the caller's key only."
+  },
+  "slot_lending.py:take_back": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "_equipment_takeoff; no independent progress",
+    "evidence": "The return exit of a lent slot the target leaves empty: one _equipment_takeoff with the caller's goal; emits the caller's key only."
   }
 }

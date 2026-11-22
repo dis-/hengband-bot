@@ -43,6 +43,11 @@ the Q7 take-off of a worn banned piece (``set_unsearched_loadout_target``): poli
 ``target-store-call`` 6 -> 8.  Stage E4 (2026-11-22) folded destination_band_floor's engage (a forced re-search) into the
 search's own destination floor: its ``search-reset-call`` 1 -> 0.
 
+Stage E5 (2026-11-22, owner Q6) put every temporary swap's end behind ``slot_lending``: the
+return to the target loadout's piece goes through its two exits (``wield_back``, ``take_back``),
+so the swap ends of mining_loadout (2), policy_shop (3) and policy's breakout restore (1) moved
+there (``slot_lending`` wear-exit 2).
+
 ``ALLOWED`` is today's set (2026-11-22, E2 on main 23febce5a; E3 as above).  A module or a
 count above it is a new direct writer/reader and fails; a count below it fails too, so the pin
 is lowered with the change that removed one (the later stages E2/E5 move these behind one
@@ -90,8 +95,7 @@ ALLOWED: dict[str, dict[str, int]] = {
     "equipment_target": {"search-reset": 5, "target-name": 2, "target-write": 5},
     "ladder_objectives": {"wear-exit": 2},
     "me_powerful_activation": {"target-store-call": 1},
-    "mining_loadout": {"wear-exit": 2},
-    "policy": {"search-reset-call": 2, "target-store-call": 5, "wear-exit": 5},
+    "policy": {"search-reset-call": 2, "target-store-call": 5, "wear-exit": 4},
     "policy_calibration": {"search-reset-call": 3},
     "policy_equipment": {"search-reset-call": 1, "target-store-call": 8, "wear-exit": 11},
     "policy_fundraising": {"wear-exit": 1},
@@ -99,11 +103,11 @@ ALLOWED: dict[str, dict[str, int]] = {
     "policy_observation": {"target-store-call": 1},
     "policy_opening": {"wear-exit": 1},
     "policy_quest": {"wear-exit": 3},
-    "policy_shop": {"wear-exit": 3},
     "policy_state": {"search-reset-call": 1},
     "policy_supply": {"wear-exit": 1},
     "policy_town": {"wear-exit": 1},
     "quest25_druj_gear": {"wear-exit": 3},
+    "slot_lending": {"wear-exit": 2},
     "state_registry": {"target-name": 2},
     "zul_trip": {"wear-exit": 2},
 }

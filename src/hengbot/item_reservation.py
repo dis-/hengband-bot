@@ -60,8 +60,6 @@ ITEM_RESERVATION_SOURCES = {
     '_look_floor_items': ('selection', 'look floor items; selection/observation intent, no additional exclusive owner'),
     '_morivant_full_identify': ('selection', 'morivant full identify; selection/observation intent, no additional exclusive owner'),
     '_no_teleport_rearm_pending': ('selection', 'no teleport rearm pending; selection/observation intent, no additional exclusive owner'),
-    '_normal_sub_hand_identity': ('equipment-txn', 'normal sub hand identity; existing exclusive predicate'),
-    '_normal_weapon_identity': ('equipment-txn', 'normal weapon identity; existing exclusive predicate'),
     '_pending_disposal_item': ('selection', 'pending disposal item; selection/observation intent, no additional exclusive owner'),
     '_pending_disposal_slot': ('selection', 'pending disposal slot; selection/observation intent, no additional exclusive owner'),
     '_ranged_target_macro_signature': ('selection', 'ranged target macro signature; selection/observation intent, no additional exclusive owner'),

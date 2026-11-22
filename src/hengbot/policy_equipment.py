@@ -13,7 +13,7 @@ from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
-from hengbot import consumable_policy, equipment_swap_weight, lamp_fuel, mining_loadout, quest_ranged_force
+from hengbot import consumable_policy, equipment_swap_weight, lamp_fuel, mining_loadout, quest_ranged_force, slot_lending
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_loadout_offense import held_magic_eater_powers
 
@@ -3021,20 +3021,9 @@ class EquipmentMixin:
                 return self._equipment_home_outcome(
                     None, label="retain-digging-tool",
                 )
-            main_hand = next(
-                (item for item in snapshot.equipment if item.slot == "main_hand"),
-                None,
-            )
-            if (
-                target.is_melee_weapon
-                and not target.is_digging_tool
-                and (main_hand is None or main_hand.is_digging_tool)
-            ):
-                # The optimizer may shelve the combat weapon after the mining
-                # tool has displaced it. Remember that identity before the Home
-                # transaction so the re-arm pass retrieves the same weapon,
-                # rather than blindly wielding the first pack weapon.
-                self._normal_weapon_name = target.name
+            # A combat weapon the target shelves while a digger holds the hand is no
+            # longer what the hand returns to: the re-arm reads the target's weapon
+            # (slot_lending, owner 2026-11-22 Q6), not a name remembered here.
             from hengbot.item_reservation import store_item_key
             key = store_item_key(self, snapshot, "deposit", target, "equipment-txn",
                                  quantity=target.count)
@@ -4436,16 +4425,10 @@ class EquipmentMixin:
             and not self._blocks_teleport(item)
         ]
         if weapons:
-            remembered = next(
-                (
-                    item
-                    for item in weapons
-                    if self._normal_weapon_name is not None
-                    and item.name == self._normal_weapon_name
-                ),
-                None,
-            )
-            weapon = remembered or max(weapons, key=self._home_rearm_weapon_score)
+            # The hand's lending returns to the target's weapon (slot_lending, owner
+            # 2026-11-22 Q6); without it on this page, the best-scored weapon.
+            target_weapon = slot_lending.return_home_item(self, weapons, "main_hand")
+            weapon = target_weapon or max(weapons, key=self._home_rearm_weapon_score)
             signature = self._item_signature(weapon)
             filing_identity = (
                 "filed", signature, 1, "home-page", "combat-weapon"
@@ -4597,30 +4580,13 @@ class EquipmentMixin:
             )
             return None
         # Swap the mining pickaxe back out for a real weapon BEFORE diving/recalling —
-        # a digger is a feeble weapon and the next floor's monsters are not. Prefer the
-        # exact weapon we swapped out (recorded when the digger went on); but a fresh bot
-        # process that inherited an already-wielded digger has no such record, so fall
-        # back to ANY melee weapon in the pack. Anything beats recalling on a pickaxe.
+        # a digger is a feeble weapon and the next floor's monsters are not.  The hand's
+        # lending returns to the target's weapon, else ANY melee weapon in the pack
+        # (slot_lending, owner 2026-11-22 Q6: nothing displaced is remembered). Anything
+        # beats recalling on a pickaxe.
         weapon = empty_hand_weapon
-        if weapon is None and self._normal_weapon_name is not None:
-            weapon = self._first_item(
-                snapshot,
-                lambda it: it.is_equipment
-                and not it.is_digging_tool
-                and not self._equip_blocked_by_identification(it)
-                and not it.is_broken
-                and not self._blocks_teleport(it)
-                and it.name == self._normal_weapon_name,
-            )
         if weapon is None:
-            weapon = self._first_item(
-                snapshot,
-                lambda it: it.is_equipment
-                and it.is_melee_weapon
-                and not self._equip_blocked_by_identification(it)
-                and not it.is_broken
-                and not self._blocks_teleport(it),
-            )
+            weapon = slot_lending.return_item(self, snapshot, "main_hand")
         if weapon is None:
             # No combat weapon to restore — the pickaxe is our only weapon. Don't hang
             # the town routine WAITing for one that will never appear; carry on.
@@ -4913,10 +4879,10 @@ class EquipmentMixin:
         prompt tail from the last observed hand state.
         """
         self._equipment_mutation_result = EquipmentMutationResult(None)
+        # The combat hands are lent to the digger (slot_lending ``mining-digger``): their
+        # return reads the target loadout, so nothing displaced is remembered here.
         main_hand = mining_loadout.worn_in_slot(snapshot, "main_hand")
         sub_hand = mining_loadout.worn_in_slot(snapshot, "sub_hand")
-        if not self._mining_combat_loadout_remembered:
-            mining_loadout.remember_combat_hands(self, main_hand, sub_hand)
         combat_hands = [
             item
             for item in (main_hand, sub_hand)
@@ -4959,19 +4925,6 @@ class EquipmentMixin:
         )
         if tool is None:
             return None
-        if (
-            main_hand is not None
-            and not main_hand.is_digging_tool
-            and not self._normal_weapon_is_optimal
-        ):
-            self._normal_weapon_name = main_hand.name
-        if (
-            target_slot == "sub_hand"
-            and sub_hand is not None
-            and not sub_hand.is_digging_tool
-            and not self._normal_sub_hand_is_optimal
-        ):
-            self._normal_sub_hand_name = sub_hand.name
         key = self._equipment_wield(snapshot, "mining-loadout", tool, target_slot)
         if key is not None:
             self._digger_wield_attempts += 1

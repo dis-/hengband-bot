@@ -296,6 +296,19 @@ def visit_target(policy, epoch) -> VisitTarget | None:
     return held
 
 
+def last_visit_loadout(policy):
+    """The loadout the last town visit fixed, whichever visit it was (None: none yet).
+
+    Read by a temporary swap's end (slot_lending, stage E5) when no target is stored now: the
+    stored target is cleared by a destination switch or the mining trip's return to town, and
+    the slot still returns to the visit's target loadout (owner 2026-11-22 Q6)."""
+    held = getattr(policy, VISIT_TARGET_STATE, None)
+    if not isinstance(held, VisitTarget):
+        return None
+    loadout = getattr(getattr(held.result, "best", None), "loadout", None)
+    return loadout if isinstance(loadout, Loadout) else None
+
+
 def fix_visit_target(policy, epoch, candidates: tuple, context: tuple, result,
                      pieces: tuple = ()) -> None:
     """The search decided the visit's target (its first decision, or a named event)."""

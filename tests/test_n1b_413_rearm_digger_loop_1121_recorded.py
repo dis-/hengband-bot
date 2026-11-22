@@ -17,6 +17,11 @@ in the ladder's order on the recorded boards: after the strip the restore rung k
 and the pre-combat rung answers the digger's wield, however many boards pass; with an awake
 hostile the swap aborts and re-arms; no decision makes the opposite weapon-slot action of the one
 before it while the swap holds the hand.
+
+Equipment review E5 (owner 2026-11-22 Q6): the abort returns the hand to the target loadout's
+weapon (slot_lending), not to one the swap remembered.  DECLARED CONSTRUCTED: the live policy's
+target named the worn Long Sword (the fresh policy here has none; with none the first melee weapon
+carried, the Sabre 'p', is the fallback).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -27,8 +32,12 @@ from dataclasses import replace
 from pathlib import Path
 
 from hengbot import mining_loadout
+from hengbot.equipment_optimizer import (
+    EvaluatedLoadout, Loadout, LoadoutMetrics, OptimizationResult, OwnedEquipment,
+)
 from hengbot.model import MonsterState, Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
+from hengbot.warrior_optimization import WarriorOptimizationPreparation
 from support.q25_house import RACES
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-413-rearm-digger-loop-1121" / "boards.json.xz"
@@ -46,6 +55,15 @@ class N1b413RearmDiggerLoopRecordedTest(unittest.TestCase):
         self.policy = HengbotPolicy()
         self.policy._monrace_knowledge = RACES
         self.policy._decision_sequence = 100
+        sword = mining_loadout.worn_in_slot(self.armed, "main_hand")
+        target = Loadout((("main_hand", OwnedEquipment("target-sword", sword, "equipped")),),
+                         "two_handed")
+        self.policy._equipment_optimization_preparation = WarriorOptimizationPreparation(
+            current=target, transaction=None, blockers=(), result=OptimizationResult(
+            best=EvaluatedLoadout(target, LoadoutMetrics(1.0, 1.0, 1.0)),
+            alternatives=(), pareto_frontier=(), dominated_item_ids=frozenset(),
+            combinations_considered=1, combinations_evaluated=1, invalid_combinations=0,
+            elapsed_seconds=0.0, timed_out=False, incomplete_item_ids=frozenset()))
 
     def strip(self):
         """Decision 1 on the armed board: the walled-off dig's swap strips the sword ('ta') and

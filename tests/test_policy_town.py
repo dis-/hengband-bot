@@ -3838,7 +3838,6 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
-        policy._normal_weapon_name = "sword"
         # n answers the "Dual wielding?" prompt (sub hand free) with "replace
         # the main hand", swapping the digger out instead of dual-wielding.
         self.assertEqual(policy.choose_key(snap), "wsn")
@@ -3982,7 +3981,7 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
-        policy._normal_weapon_name = None  # unknown after a restart
+        # E5 (owner 2026-11-22 Q6): no swap remembers the weapon; with no target the first one.
         self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
 
@@ -4010,7 +4009,6 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
             town_flag=True,
         )
         policy = HengbotPolicy()
-        policy._normal_weapon_name = None
 
         self.assertEqual(policy._town_restore_weapon_key(snap), "wsn")
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
@@ -4031,7 +4029,6 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         )
         policy = HengbotPolicy()
         policy._fundraising_mode = "mine"
-        policy._normal_weapon_name = None
         self.assertIsNone(policy._town_restore_weapon_key(snap))
 
     def test_pre_recall_check_is_not_ready_on_a_pickaxe(self):

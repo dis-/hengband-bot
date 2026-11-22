@@ -457,21 +457,6 @@ REGISTRY = (
     # me_staff_sequence
     S("_me_staff_sequence", "me_staff_sequence", LIFE,
       "me_staff_sequence: me staff sequence (no comment at its definition)"),
-    # mining_loadout
-    S("_mining_combat_loadout_remembered", "mining_loadout", LIFE,
-      "mining_loadout: mining combat loadout remembered (no comment at its definition)"),
-    S("_normal_sub_hand_identity", "mining_loadout", LIFE,
-      "mining_loadout: normal sub hand identity (no comment at its definition)"),
-    S("_normal_sub_hand_is_optimal", "mining_loadout", LIFE,
-      "mining_loadout: normal sub hand is optimal (no comment at its definition)"),
-    S("_normal_sub_hand_name", "mining_loadout", LIFE,
-      "mining_loadout: normal sub hand name (no comment at its definition)"),
-    S("_normal_weapon_identity", "mining_loadout", LIFE,
-      "mining_loadout: normal weapon identity (no comment at its definition)"),
-    S("_normal_weapon_is_optimal", "mining_loadout", LIFE,
-      "mining_loadout: normal weapon is optimal (no comment at its definition)"),
-    S("_normal_weapon_name", "mining_loadout", LIFE,
-      "mining_loadout: normal weapon name (no comment at its definition)"),
     # monster_memory
     S("_breeder_quest_seen", "monster_memory", LIFE,
       "monster_memory: breeder quest seen (no comment at its definition)", destruction=True),
