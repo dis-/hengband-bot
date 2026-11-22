@@ -114,6 +114,7 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         owner._nearest_goal_step = lambda _snapshot, _predicate: entrance
         owner._step_toward = lambda _snapshot, _step: "6"
         owner._quest_equipment_entry_allowed = lambda *_args, **_kwargs: True
+        owner._quest_entry_step_admitted = lambda *_args, **_kwargs: True
         action = QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 1), 1)
         self.assertEqual(action, "6")
         self.assertEqual(owner.last_reason, "quest:enter:approach")
@@ -126,6 +127,7 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         owner = SimpleNamespace(last_reason=None)
         owner._fixed_quest_entrance_positions = lambda _snapshot, _quest_id: {entrance}
         owner._quest_equipment_entry_allowed = lambda *_args, **_kwargs: False
+        owner._quest_entry_step_admitted = lambda *_args, **_kwargs: False
 
         self.assertIsNone(
             QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 2), 1)
@@ -146,6 +148,14 @@ class QuestFloorNavigatorTest(unittest.TestCase):
         )
         self.assertIsNone(
             QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 1), 1)
+        )
+        # n1-b life-415: every step of the walk asks it, not only the step onto
+        # the entrance (a refused entry is not walked to).
+        owner._nearest_goal_route = lambda *_args: SimpleNamespace(
+            first_step=Position(8, 3), target=entrance, remaining_edges=2
+        )
+        self.assertIsNone(
+            QuestFloorNavigator.enter_from_town(owner, self.snapshot(8, 4), 1)
         )
         self.assertEqual(route_calls, [])
 

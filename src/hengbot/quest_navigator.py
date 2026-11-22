@@ -337,9 +337,7 @@ class QuestFloorNavigator:
             if step is None:
                 owner.last_reason = "quest:blocked:enter"
                 return WAIT_KEY
-            if step in positions and not owner._quest_equipment_entry_allowed(
-                snapshot, quest_id
-            ):
+            if not owner._quest_entry_step_admitted(snapshot, quest_id, step in positions):
                 return None
             owner.last_reason = "quest:enter:approach"
             return owner._step_toward(snapshot, step)
@@ -361,8 +359,9 @@ class QuestFloorNavigator:
                 candidate_identity,
             )
         reason = "quest:enter:approach"
-        if route.first_step in positions and not owner._quest_equipment_entry_allowed(
-            snapshot, quest_id
+        # Every step waits on the entry's admission (n1-b life-415, _quest_entry_step_admitted).
+        if not owner._quest_entry_step_admitted(
+            snapshot, quest_id, route.first_step in positions
         ):
             return None
         # The step's owner is the entering owner before the step is composed
