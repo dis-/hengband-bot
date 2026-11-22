@@ -36,7 +36,9 @@ is asked for: a character that cannot take the quest yet spends nothing on it.
 
 from __future__ import annotations
 
-from hengbot import attack_expectation, me_capability, quest_one_turn_kill, quest_ranged_force
+from hengbot import (
+    attack_expectation, me_capability, permanent_max_hp, quest_one_turn_kill, quest_ranged_force,
+)
 from hengbot.model import SV_POTION_SPEED, SV_STAFF_TELEPORTATION
 
 ALTERNATIVES = "force_alternatives"
@@ -129,7 +131,8 @@ def _resolve_row(policy, snapshot, force: dict) -> dict:
         # The launcher and rounds the device charges leave (quest_ranged_force: Q2, Q22, Q31).
         return quest_ranged_force.settled_force(policy, snapshot, force)
     rows = [{name: force[name] for name in ROW_FIELDS if name in force}, *alternatives]
-    max_hp = snapshot.player.max_hp
+    # Without the timed additions (permanent_max_hp: n1-b life-415 took Q18 on the Heroism's +10).
+    max_hp = permanent_max_hp.permanent_max_hp(snapshot.player)
     damage = policy._strategy_measured_dps(snapshot, force)
     capable = [
         (_speed_cost(policy, snapshot, row, force), index) for index, row in enumerate(rows)

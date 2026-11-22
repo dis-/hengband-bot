@@ -62,6 +62,7 @@ def _latch(policy: Any, snapshot: Any, quest_id: int) -> None:
 def other_conditions_met(policy: Any, snapshot: Any, profile: Any) -> bool:
     """Every acceptance condition of ``profile`` that no purchase meets (module docstring)."""
     from hengbot import quest_force_rows, quest_one_turn_kill, quest_ranged_force
+    from hengbot.permanent_max_hp import permanent_max_hp
     from hengbot.policy_constants import DESTRUCTION_GATE_LABEL
     from hengbot.quest_strategies import (
         acceptance_dps_floor, acceptance_hp_floor, has_ability_or_alternative, torch_throw_output,
@@ -71,7 +72,7 @@ def other_conditions_met(policy: Any, snapshot: Any, profile: Any) -> bool:
     per_action = policy._strategy_measured_dps(snapshot, force)
     dps = quest_force_rows.row_damage(
         policy, snapshot, force, force, max(per_action, torch_throw_output(force, class_id)))
-    max_hp = snapshot.player.max_hp
+    max_hp = permanent_max_hp(snapshot.player)   # without the timed additions
     no_heal = force.get("no_healing_tier")
     floors = ((isinstance(no_heal, dict) and max_hp >= acceptance_hp_floor(no_heal, class_id)
                and dps >= acceptance_dps_floor(no_heal, class_id))

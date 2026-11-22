@@ -21,6 +21,7 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.quest_strategies import (
     acceptance_dps_floor, acceptance_hp_floor, carry_floor, is_heal_potion_for,
 )
+from hengbot.permanent_max_hp import permanent_max_hp
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.protocol import PROTOCOL_LEGACY, PROTOCOL_SCREEN_PARITY
 
@@ -144,7 +145,7 @@ class OpeningRouteMixin:
         # The same class-resolved tier floors as readiness (QUEST_1 class 16).
         tier = force.get("no_healing_tier", {})
         class_id = snapshot.player.class_id
-        no_heal = bool(tier and snapshot.player.max_hp >= acceptance_hp_floor(tier, class_id)
+        no_heal = bool(tier and permanent_max_hp(snapshot.player) >= acceptance_hp_floor(tier, class_id)
                        and measured["dps"]["measured"] >= acceptance_dps_floor(tier, class_id))
         return (
             ("quest-throwing-items", int(force.get("throwing_items", {}).get("lit_torch", 0)),
