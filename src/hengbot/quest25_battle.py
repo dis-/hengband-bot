@@ -3065,7 +3065,9 @@ def _restore(policy, snapshot) -> str | None:
     ctx = _ctx(policy, snapshot)
     if ctx is not None and ctx.battle.strong:
         return None
-    return quest_plan_base._restore(policy, snapshot)
+    return (quest_plan_base._restore(policy, snapshot)
+            # Owner 2026-11-23 「数マス以内なら拾って飲む」 (quest_plan_base.floor_restore_key).
+            or quest_plan_base.floor_restore_key(policy, snapshot))
 
 
 def _absorbed_heal(policy, snapshot, profile) -> str | None:

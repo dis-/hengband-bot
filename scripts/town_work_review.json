@@ -13572,6 +13572,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion or scroll of a KILL_ALL room sweep; no independent progress."
   },
+  "quest_plan_base.py:floor_restore_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from the quiet branches of quest_room_sweep.key and quest25_battle._restore (a TAKEN fixed quest with its floor plan).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-23 「数マス以内なら拾って飲む」: a step toward, or the pickup of, a found restore potion of a drained ability within 5 walking steps on the plan's quiet board; the drink is quest_plan_base._restore. No independent progress."
+  },
   "quest_plan_base.py:_shot": {
     "classification": "producer",
     "rows": [

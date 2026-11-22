@@ -738,6 +738,7 @@ def key(policy, snapshot) -> str | None:
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
             or quest_plan_base._restore(policy, snapshot)
+            or quest_plan_base.floor_restore_key(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
             # QUEST_33 (owner 2026-11-19 「安全になったら休息してから…少しずつ釣りだして数を減らす」):
             # after a disengage, the rest and the lure in the plan's walk's place.
