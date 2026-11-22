@@ -9028,11 +9028,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         )
         if not low_without_refill:
             # The light is the visit target's (n1-a life-534, equipment_target
-            # ``compared_target_piece``): when the target compared this candidate, its piece
-            # is the answer -- worn, nothing to change; carried, that piece.  The rank
-            # below serves only a light no target compared, or a target piece that cannot
-            # light now (not carried, unusable).
-            piece = equipment_target.compared_target_piece(self, "light", candidate)
+            # ``compared_target_piece``): when the target compared this candidate and the
+            # worn light (n1-b life-416: an older target that never saw the worn, newly
+            # identified lantern answers nothing about it), its piece is the answer -- worn,
+            # nothing to change; carried, that piece.  The rank below serves only lights no
+            # target compared, or a target piece that cannot light now (not carried, unusable).
+            piece = equipment_target.compared_target_piece(self, "light", candidate, equipped)
             if piece is not None:
                 identity = equipment_move_identity(piece)
                 if equipment_move_identity(equipped) == identity:
