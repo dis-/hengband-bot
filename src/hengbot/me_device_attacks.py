@@ -450,9 +450,36 @@ def usable_powers(policy, snapshot):
 
 def powerful_ready(policy, snapshot) -> bool:
     """Powerful Activation may cast an attack: its level and the HP rule of every use of it
-    (me_powerful_activation.pays_safely: the worst cost leaves HP above every low-HP rung)."""
+    (me_powerful_activation.pays_safely: the worst cost leaves HP above every low-HP rung), and
+    the worst cost leaves HP at or above the heal line of the fixed quest's approved plan in force
+    (``quest_heal_line``).
+
+    Owner 2026-11-19 (the attack's HP cost is paid along pays_safely's line): a cost that takes HP
+    below the plan's heal line is paid again in healing potions.  n1-c life-221 (Quest 25,
+    heal_threshold_ratio 0.70 = 470 of 672 HP; pays_safely's line 372): the powerful casts took
+    HP from 672 to 451-470 five times in ten seconds (05:00:39-05:00:48), each answered by
+    quest-strategy:heal's Healing potion, the 5 carried to none (no hostile in view: the stairway
+    had blinked away after its theft)."""
     from hengbot import me_powerful_activation
-    return me_powerful_activation.pays_safely(policy, snapshot)
+    if not me_powerful_activation.pays_safely(policy, snapshot):
+        return False
+    line = quest_heal_line(policy, snapshot)
+    player = snapshot.player
+    return line is None or player.hp - me_powerful_activation.cost(player.level) >= line
+
+
+def quest_heal_line(policy, snapshot) -> float | None:
+    """The HP below which the approved plan of the fixed quest on this floor drinks a healing
+    potion (its consumable_plan ``heal_threshold_ratio``, quest_plan_base ``_heal``), else None."""
+    try:
+        quest_id = policy._active_fixed_quest_id(snapshot)
+        profile = policy.approved_quest_strategy(quest_id) if quest_id is not None else None
+    except AttributeError:   # a policy stand-in without the quest readers: no plan
+        return None
+    ratio = (profile.consumable_plan.get("heal_threshold_ratio")
+             if profile is not None and isinstance(getattr(profile, "consumable_plan", None), dict)
+             else None)
+    return None if ratio is None else float(ratio) * snapshot.player.max_hp
 
 
 def attack_uses(policy, snapshot, *, powerful: bool = True):
@@ -473,6 +500,33 @@ def attack_uses(policy, snapshot, *, powerful: bool = True):
             yield powered(held), success
 
 
+def use_value(power, success, level, flags, hp=None, *, share=1.0) -> float:
+    """The one expected damage of one use of ``power`` that every chooser of an absorbed attack
+    (and of a carried wand or rod, at its use chance) compares: ``success`` (the game's rate under
+    the board's stun, ``power_success``; a failed use spends the action and deals nothing) times the
+    average damage after the known resistance (``expected_damage``) times ``share`` (a
+    bolt-or-beam's beam chance where only the beam reaches), capped by the target's ``hp`` (None:
+    no cap).
+
+    Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に期待値で比べて高い方（耐性・命中率・成功率まで）」
+    and 2026-11-23 「成功率31%のロケットを多用する選択は正しくない。期待値で攻撃手段を選ぶ指示だった
+    はずだが」: damage past the target's hit points is no damage.  n1-c life-221 (Quest 25,
+    2026-11-23 05:00-05:03, turn 3191524-): the battle's own chooser (quest25_battle
+    ``_ball_powers``) scored the Rocket against the stairway to hell (race 439, 15d8 FORCE_MAXHP:
+    120) uncapped, 28% x 484 (powerful) = 135 over the rod's Cold Ball at 93% x 128 = 119, and
+    cast it -- and its Powerful Activation's HP -- 21 rockets among more than a hundred failures;
+    capped, the rocket is worth 28% x 120 = 34 and the Cold Ball 93% x 120 = 112.
+
+    Every candidate is one player action (cmd-magiceat.cpp sets 100 energy on a use and on a
+    failure alike; a Powerful Activation is the same command, racial-switcher.cpp), so the owner's
+    per-10-game-turn reading (attack_expectation.per_10_game_turns, 2026-11-19) scales every one
+    of them by the same factor and the callers apply it where they weigh another kind of attack."""
+    damage = expected_damage(power, level, flags) * share
+    if hp is not None:
+        damage = min(damage, max(hp, 0))
+    return success * damage
+
+
 def _candidates(policy, snapshot, target, direction, powerful):
     flags = race_flags(policy, target)
     level = snapshot.player.level
@@ -482,8 +536,7 @@ def _candidates(policy, snapshot, target, direction, powerful):
             continue
         if catches_unbeatable_friendly(policy, snapshot, power, target, direction):
             continue
-        damage = min(expected_damage(power, level, flags), max(target.hp, 0))
-        yield success * damage, power
+        yield use_value(power, success, level, flags, target.hp), power
 
 
 def optimistic_score(policy, snapshot, power, target):
