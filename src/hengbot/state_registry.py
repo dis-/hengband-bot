@@ -1072,7 +1072,7 @@ REGISTRY = (
       "policy_combat: unseen recall damage streak (no comment at its definition)"),
     # policy_equipment
     S("_mining_hands_returned", "mining_loadout", LIFE,
-      "mining_loadout: a mining run came back to this town visit with a digger in a hand; the hands stay lent (hands_lent: no town re-arm, no swap) until a mining set opens or an ordinary departure asks for the weapon (departure_asks_weapon), cleared on leaving town (n1-c life-220 2026-11-22)"),
+      "mining_loadout: a mining run came back to this town visit with a digger in a hand; the hands stay lent (hands_lent: no town re-arm, no swap) until a mining set opens or an ordinary departure asks for the weapon (departure_asks_weapon: then the decision sequence that ended it, read by lending_ended_now for the town end, n1-b life-414), cleared on leaving town (n1-c life-220 2026-11-22)"),
     S("_digger_swap", "mining_loadout", LIFE,
       "mining_loadout: (floor, asker's reason) of the digger swap whose combat hand is off and whose digger is not worn yet (swap_in_progress); cleared by the digger worn, the floor left or the swap's abort"),
     S("_digger_wield_attempts", "policy_equipment", LIFE,

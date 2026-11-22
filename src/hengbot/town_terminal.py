@@ -39,7 +39,7 @@ from hengbot import sale_progress
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
-from hengbot import approach_answer, home_identification, identification_wait, town_end_mining
+from hengbot import approach_answer, home_identification, identification_wait, mining_loadout, town_end_mining
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2596,6 +2596,29 @@ def town_end_key(policy: Any, board: Any) -> str:
     kit = town_end_mining.home_kit_route_key(policy, board)
     if kit is not None:
         return kit
+    # The town end is the visit's ordinary departure asking for the weapon: a mining run's
+    # lending of the hands (mining_loadout.hands_lent) ends by then at the latest, and the hands'
+    # owner -- the visit's swap of its target when one is planned, else the town re-arm -- which
+    # declined this board's earlier rungs while the hands were still lent, answers before the
+    # departure minimum is read.  n1-b life-414 (2026-11-22 08:48:28, Lv31 Magic-Eater): the
+    # recall departure's question (policy_town ``_town_special_key`` -> ``_combat_weapon_ready``)
+    # ended the lending after both rungs had declined; the equipment search then planned the
+    # held target's swap (the re-arm waits on it) and the minimum's leaf stopped the bot as
+    # town:blocked:survival:combat_weapon_ready with シャベル in both hands and
+    # (防衛者)モーニング・スター in the pack; n1-c life-220 (09:15:54, Lv30) the same after the Tower
+    # of Sorcery's recharge, ★グングニル to wear again.  They answer here only when the lending
+    # ended within this decision: otherwise their rungs above already answered.  Their producer
+    # entries keep the rungs' terminal admission and holds.
+    if mining_loadout.departure_asks_weapon(policy, board) or mining_loadout.lending_ended_now(policy):
+        hands = (policy._town_producer_entry(
+                     "_equipment_transaction_town_key#2",
+                     lambda: policy._equipment_transaction_town_key(board), board=board)
+                 if policy._equipment_transaction_session is not None
+                 else policy._town_producer_entry(
+                     "_town_restore_weapon_key",
+                     lambda: policy._town_restore_weapon_key(board), board=board))
+        if hands is not None:
+            return hands
     material = gather_town_end(policy, board)
     if identification_wait.release(
             policy, board, (*material.survival_unmet, *material.unmet)):
