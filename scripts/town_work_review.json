@@ -23469,5 +23469,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "quest_plan_base.hall_away_key over the given candidates under the plan's reason; no independent progress."
+  },
+  "quest_find_exit.py:_haste_before_shouted": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The Speed dose (absorbed Speed, else a potion) before a walk's step onto a shouted cell while the haste is off (owner 2026-11-22 「加速してから入る」); no independent progress."
   }
 }

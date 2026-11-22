@@ -115,8 +115,17 @@ def potion(sval, count):
     return dict(copy.deepcopy(row), sval=sval, count=count, name=f"potion{sval}")
 
 
+def haste(raw):
+    """DECLARED CONSTRUCTED: the board with the haste on, as the game shows it (speed +10, the
+    yellow (+10) of the speed field, haste_read).  Owner 2026-11-22 「加速してから入る」 doses an
+    unhasted step onto a shouted cell; the walks pinned on such steps walk hasted."""
+    raw["player"]["speed"] = raw["player"]["speed"] + 10
+    raw["player"]["speed_display"] = {"color": "yellow", "riding": False, "text": "加速 (+10)", "value": 10}
+    return raw
+
+
 def board(position=ENTRANCE, *, hp=FULL_HP, monsters=(), healing=2, speed=1, teleports=True,
-          recalling=False, max_hp=FULL_HP, ammo=True):
+          recalling=False, max_hp=FULL_HP, ammo=True, hasted=False):
     """DECLARED CONSTRUCTED, see the module note."""
     raw = copy.deepcopy(BASE)
     raw["floor"].update(quest_id=18, level=1, height=len(QUEST["map"]), width=len(QUEST["map"][0]))
@@ -137,7 +146,7 @@ def board(position=ENTRANCE, *, hp=FULL_HP, monsters=(), healing=2, speed=1, tel
     raw["visible_monsters"] = [dict(row) for row in monsters]
     raw["detected_monsters"] = []
     raw["messages"] = []
-    return raw
+    return haste(raw) if hasted else raw
 
 
 def new_policy(primed=None):
@@ -256,8 +265,11 @@ class Q18ExposedCellTest(unittest.TestCase):
     """DECLARED CONSTRUCTED boards, cells from the real map."""
 
     def test_no_rest_on_an_exposed_cell_it_walks_on(self):
-        key, reason, _ = decide(board((1, 16), hp=400))
+        key, reason, _ = decide(board((1, 16), hp=400, hasted=True))
         self.assertEqual((key, reason), (step_key((1, 16), (1, 17)), WALK_REASON))
+        # Unhasted, the step onto the next shouted cell is the Speed dose first (owner 2026-11-22
+        # 「加速してから入る」); no rest either way.
+        self.assertEqual(decide(board((1, 16), hp=400))[1], SPEED_REASON)
 
     def test_no_hold_on_an_exposed_cell_with_an_enemy_coming(self):
         key, reason, _ = decide(board((2, 7), monsters=[monster(SHARK, 5, 9)], ammo=False))
@@ -349,7 +361,7 @@ class Q18DigTest(unittest.TestCase):
 
     def test_a_dug_cell_is_walked(self):
         for start, cell in (((2, 6), (1, 7)), ((5, 24), (5, 25))):
-            raw = board(start)
+            raw = board(start, hasted=True)
             open_cell(raw, cell)
             self.assertEqual(decide(raw)[:2], (step_key(start, cell), WALK_REASON))
 
@@ -369,7 +381,7 @@ class Q18DigTest(unittest.TestCase):
         self.assertEqual(decide(coming)[:2], (step_key((2, 6), (1, 5)), TO_CHOKE_REASON))
 
     def test_the_bound_falls_back_to_the_undug_route(self):
-        raw = board((2, 6))
+        raw = board((2, 6), hasted=True)
         policy = new_policy(raw)
         limit = STRATEGIES[18].engagement_plan["find_exit"]["dig_attempt_limit"]
         rows = []
@@ -553,7 +565,7 @@ class Q18ClearBeforeAdvancingTest(unittest.TestCase):
     def test_a_sleeper_in_the_only_way_is_shot_from_the_choke_or_struck_beside_it(self):
         sleeper = monster(SQUID, 2, 11, asleep=True)
         self.assertTrue(self.run_boards([board((1, 9), monsters=[sleeper])])[0][1].startswith("ranged:"))
-        self.assertEqual(self.run_boards([board((1, 9), monsters=[sleeper], ammo=False)]),
+        self.assertEqual(self.run_boards([board((1, 9), monsters=[sleeper], ammo=False, hasted=True)]),
                          [(step_key((1, 9), (1, 10)), WALK_REASON)])
         beside = monster(SQUID, *self.NEXT, asleep=True)
         self.assertEqual(self.run_boards([board(self.CHOKE, monsters=[beside], ammo=False)]),
@@ -812,13 +824,19 @@ class Q18PlaythroughTest(unittest.TestCase):
         self.assertEqual((key, reason), (step_key(ENTRANCE, (1, 3)), WALK_REASON))
 
     def test_a_quiet_floor_is_walked_and_dug_from_the_entrance_to_the_exit(self):
+        """The first step onto a shouted cell, (2,6), is the Speed dose first (owner 2026-11-22
+        「加速してから入る」); DECLARED CONSTRUCTED: from then on the boards show the haste."""
         raw = board()
         policy = new_policy(raw)
-        position, route, digs = ENTRANCE, [ENTRANCE], []
-        for _ in range(45):
+        position, route, digs, doses = ENTRANCE, [ENTRANCE], [], []
+        for _ in range(46):
             raw["player"].update(y=position[0], x=position[1])
             raw["turn"] += 10
             key = str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+            if policy.last_reason == SPEED_REASON:
+                doses.append(position)
+                haste(raw)
+                continue
             if key.startswith("T"):
                 self.assertEqual(policy.last_reason, DIG_REASON)
                 delta = next(offset for offset, value in DIRECTION.items() if value == key[1:])
@@ -833,6 +851,7 @@ class Q18PlaythroughTest(unittest.TestCase):
             if position == EXIT:
                 break
         self.assertEqual(digs, [((2, 6), (1, 7)), ((5, 24), (5, 25))])
+        self.assertEqual(doses, [(1, 5)])
         self.assertEqual(route, DUG_ROUTE_WITH_SHRIEKERS)
         self.assertEqual(len(route) - 1, 31)
 
@@ -1021,7 +1040,7 @@ class Q18AcceptanceTest(unittest.TestCase):
     (a worn weapon of that output is not in the recorded pack) and the resists are the
     recorded row with the six the strategy names set."""
 
-    def town(self, *, max_hp, healing=2, speed=12, resists=True, unhasted_speed=110):
+    def town(self, *, max_hp, healing=2, speed=17, resists=True, unhasted_speed=110):
         raw = board(max_hp=max_hp, hp=max_hp, healing=healing, speed=speed, teleports=False)
         raw["floor"].update(quest_id=0, level=0, in_town=True)
         raw["progress"]["quests"][0]["status"] = 0
@@ -1048,14 +1067,15 @@ class Q18AcceptanceTest(unittest.TestCase):
     def test_condition_one(self):
         ready, telemetry, force = self.verdict(self.town(max_hp=700), 150)
         self.assertTrue(ready, telemetry)
-        # Owner 2026-11-12 「加速手段を十分数確保することを必須にする。」: twelve doses, always hasted.
-        self.assertEqual((force["min_hp"], force["speed_potions"], force["heal_potions"]), (700, 12, 2))
+        # Owner 2026-11-12 「加速手段を十分数確保することを必須にする。」: always hasted; seventeen doses since
+        # owner 2026-11-22 「加速してから入る」 (the shouted stretches, QUEST_18 rationale).
+        self.assertEqual((force["min_hp"], force["speed_potions"], force["heal_potions"]), (700, 17, 2))
         self.assertTrue(force["always_hasted"])
 
-    def test_condition_two_with_twelve_potions(self):
-        ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=12), 75)
+    def test_condition_two_with_seventeen_potions(self):
+        ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=17), 75)
         self.assertTrue(ready, telemetry)
-        self.assertEqual((force["min_hp"], force["speed_potions"]), (500, 12))
+        self.assertEqual((force["min_hp"], force["speed_potions"]), (500, 17))
         self.assertTrue(force["always_hasted"])
 
     def test_condition_two_with_speed_from_gear(self):
@@ -1063,8 +1083,8 @@ class Q18AcceptanceTest(unittest.TestCase):
         self.assertTrue(ready, telemetry)
         self.assertEqual(force["speed_potions"], 0)
 
-    def test_condition_two_with_absorbed_speed_needs_twelve_charges(self):
-        for charges, accepted in ((12, True), (11, False)):
+    def test_condition_two_with_absorbed_speed_needs_seventeen_charges(self):
+        for charges, accepted in ((17, True), (16, False)):
             with patch("hengbot.me_capability.replaced_by_absorbed", return_value=True), \
                     patch("hengbot.me_capability.charges", return_value=charges), \
                     patch("hengbot.speed_dose.available", return_value=True):
@@ -1074,8 +1094,8 @@ class Q18AcceptanceTest(unittest.TestCase):
 
     def test_controls_refuse(self):
         for raw, damage, failed in (
-            (self.town(max_hp=700, speed=11), 150, "speed_potions"),  # both rows ask twelve
-            (self.town(max_hp=500, speed=11), 75, "speed_potions"),
+            (self.town(max_hp=700, speed=16), 150, "speed_potions"),  # both rows ask seventeen
+            (self.town(max_hp=500, speed=16), 75, "speed_potions"),
             (self.town(max_hp=499), 200, "hp"),
             (self.town(max_hp=800), 74, "dps"),
             (self.town(max_hp=800, healing=1), 200, "heal_potions"),
@@ -1165,7 +1185,7 @@ class Q18TownTest(unittest.TestCase):
         snapshot = self.snapshot(policy, raw)
         with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=200.0):
             force = policy._carry_procurement_strategy(snapshot).required_force
-        self.assertEqual((force["heal_potions"], force["speed_potions"]), (2, 12))
+        self.assertEqual((force["heal_potions"], force["speed_potions"]), (2, 17))
 
     def test_a_completed_quest_is_reported_and_its_reward_cell_is_the_towns(self):
         policy = self.policy()
@@ -1312,6 +1332,8 @@ class Q18SpeedRequiredTest(unittest.TestCase):
     """Owner 2026-11-12 「加速手段を十分数確保することを必須にする。（戦士でのみ頻発する理由は加速が
     不足していることと判断した）」.
 
+    Seventeen doses since owner 2026-11-22 「加速してから入る」: the twelve below and one before each
+    shouted stretch a haste does not outlast, five (QUEST_18 ``required_force.rationale``).
     Twelve doses: replaying the dose rule (a dose while an enemy is in view and the haste is off,
     each lasting the floor of 1d25+15, threat_projection.SPEED_DOSE_TURNS 16 turns) on the
     recorded floors asks 9 doses of n1-a life 515 up to (3,20), past six chokes, and 7 of life
@@ -1332,11 +1354,11 @@ class Q18SpeedRequiredTest(unittest.TestCase):
         policy.prime(snapshot)
         return policy, snapshot
 
-    def test_every_row_asks_twelve_doses_and_stays_hasted(self):
+    def test_every_row_asks_seventeen_doses_and_stays_hasted(self):
         force = STRATEGIES[18].required_force
         rows = [force, *force["force_alternatives"]]
-        self.assertEqual([row["speed_potions"] for row in rows], [12, 12])
-        self.assertEqual(rows[1]["speed_alternatives"], {"gear_speed_bonus": 10, "absorbed_charges": 12})
+        self.assertEqual([row["speed_potions"] for row in rows], [17, 17])
+        self.assertEqual(rows[1]["speed_alternatives"], {"gear_speed_bonus": 10, "absorbed_charges": 17})
         self.assertTrue(force["always_hasted"])
         self.assertTrue(force[quest_force_rows.DEPART_FLAG])
 
@@ -1345,29 +1367,29 @@ class Q18SpeedRequiredTest(unittest.TestCase):
         # DECLARED CONSTRUCTED: the quest row not yet taken, so the acceptance is asked.
         raw["progress"]["quests"] = [dict(row, status=0) if row["id"] == 18 else row
                                      for row in raw["progress"]["quests"]]
-        for count, ready in ((7, False), (11, False), (12, True)):  # recorded: 7
+        for count, ready in ((7, False), (16, False), (17, True)):  # recorded: 7
             policy, snapshot = self.town(_speed_potions(raw, count))
             self.assertEqual(policy._evaluate_fixed_quest_readiness(snapshot, 18, require_target_town=False),
                              ready, count)
             details = policy._fixed_quest_readiness["strategy_force"]
-            self.assertEqual(details["speed_potions"], {"measured": count, "required": 12})
+            self.assertEqual(details["speed_potions"], {"measured": count, "required": 17})
             self.assertEqual(details["failed"], [] if ready else ["speed_potions"])
 
     def test_life_516_seven_potions_do_not_enter_the_taken_quest(self):
         policy, snapshot = self.town(LIFE_516[LIFE_516_TOWN])  # recorded: walked in with 7
         self.assertIsNone(QuestFloorNavigator.enter_from_town(policy, snapshot, 18))
         self.assertEqual(policy.last_reason, SPEED_DEPARTURE_REFUSED_REASON)
-        policy, snapshot = self.town(_speed_potions(LIFE_516[LIFE_516_TOWN], 12))
+        policy, snapshot = self.town(_speed_potions(LIFE_516[LIFE_516_TOWN], 17))
         self.assertEqual(str(QuestFloorNavigator.enter_from_town(policy, snapshot, 18)), ">")
 
     def test_life_516_the_taken_quest_still_buys_its_doses(self):
         policy, snapshot = self.town(LIFE_516[LIFE_516_TOWN])
         strategy = policy._carry_procurement_strategy(snapshot)
-        self.assertEqual((strategy.quest_id, strategy.required_force["speed_potions"]), (18, 12))
+        self.assertEqual((strategy.quest_id, strategy.required_force["speed_potions"]), (18, 17))
         speed = next(item for item in snapshot.inventory
                      if item.tval == TVAL_POTION and item.sval == SV_POTION_SPEED)
-        # Kept up to the strategy's twelve, not the emergency carry's ten.
-        self.assertEqual(policy._carry_strategy_potion_target(snapshot, speed, strategy)[0], 12)
+        # Kept up to the strategy's seventeen, not the emergency carry's ten.
+        self.assertEqual(policy._carry_strategy_potion_target(snapshot, speed, strategy)[0], 17)
 
     def test_life_515_the_first_row_doses_the_coming_seahorse(self):
         """DECLARED CONSTRUCTED: the recorded (2,20) board of decision 48624 with the max HP it

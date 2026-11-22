@@ -39,7 +39,10 @@ from tempfile import TemporaryDirectory
 from hengbot import quest_exposure, quest_find_exit
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_device_attacks_input import compile_device
-from hengbot.model import Position, SV_ROD_TELEPORT_AWAY, SV_WAND_TELEPORT_AWAY, parse_snapshot
+from hengbot.model import (
+    Position, SV_POTION_SPEED, SV_ROD_TELEPORT_AWAY, SV_STAFF_SPEED, SV_WAND_TELEPORT_AWAY, parse_snapshot,
+)
+from hengbot.quest_plan_base import SPEED_REASON
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import WAIT_KEY
 from hengbot.quest_knowledge import find_quest_definitions, load_quest_knowledge
@@ -62,6 +65,11 @@ OPEN = 1769463                  # 22897 on (3,20): recorded emergency:quaff-spee
 COUNTDOWN = 1769526             # 22903 on (1,19), recalling: recorded emergency:cornered-attack '3'
 SEAHORSE, SQUID, SIREN = 443, 482, 1272
 AWAY = quest_find_exit.AWAY_REASON + ":absorbed-power"
+BEFORE_CORRIDOR = 1769390       # 22891 on (1,15), the step onto (1,16): recorded exit-walk '6'
+# The absorbed staff of Speed (sval 22, 'w'): the plan's Speed reason with the cast's suffix.
+HASTE = ("mA" + chr(ord("a") + SV_STAFF_SPEED), SPEED_REASON + ":absorbed-power")
+STEPS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1), "7": (-1, -1),
+         "8": (-1, 0), "9": (-1, 1)}
 ROD_AWAY = "mC" + chr(ord("a") + SV_ROD_TELEPORT_AWAY)      # 'mCn'
 WAND_AWAY = "mB" + chr(ord("a") + SV_WAND_TELEPORT_AWAY)    # 'mBd'
 
@@ -155,9 +163,17 @@ class ShriekHoldRecordedTest(unittest.TestCase):
         cls.policy, cls.decided = drive(ON_THE_CHOKE)
 
     def test_the_walk_to_the_choke_replays_as_recorded(self):
+        """The recorded walk, but each step onto a shouted cell of an unhasted board (the recorded
+        boards stay unhasted: the haste ran out at 22855) is the absorbed Speed first (owner
+        2026-11-22 「加速してから入る」, ``HasteBeforeShoutedRecordedTest``)."""
         recorded = ["6", "3", "9", "3", "9", "6", "6", "6", "3", "9"]
-        self.assertEqual([(key, reason) for _, key, reason in self.decided[:-1]],
-                         [(key, quest_find_exit.WALK_REASON) for key in recorded])
+        onto_shouted = {(1, 10), (2, 11), (1, 16), (1, 17), (2, 18)}
+        expected = []
+        for turn, key in zip(sorted(BOARDS), recorded):
+            here = (BOARDS[turn]["player"]["y"], BOARDS[turn]["player"]["x"])
+            step = (here[0] + STEPS[key][0], here[1] + STEPS[key][1])
+            expected.append(HASTE if step in onto_shouted else (key, quest_find_exit.WALK_REASON))
+        self.assertEqual([(key, reason) for _, key, reason in self.decided[:-1]], expected)
         for turn in SHRIEKS:
             self.assertTrue(any("金切り声をあげた" in message for message in BOARDS[turn]["messages"]))
 
@@ -194,6 +210,55 @@ class ShriekHoldRecordedTest(unittest.TestCase):
         self.assertTrue(all(row == (WAIT_KEY, quest_find_exit.HOLD_REASON) for row in decided[:-2]),
                         decided)
         self.assertEqual(decided[-1], ("3", quest_find_exit.WALK_REASON))
+
+
+class HasteBeforeShoutedRecordedTest(unittest.TestCase):
+    """Owner 2026-11-22 「加速してから入る」 to 「叫びの届くマスへ入る前に加速が切れていたら、敵が
+    見えていなくても取り込んだスピードか薬で加速するか」.  Recorded: on (1,15) the haste had been off
+    since 22855 (「動きの素早さがなくなったようだ。」 on (1,9)), nothing in view, and the walk stepped
+    onto (1,16), where the siren's first shriek came (22892)."""
+
+    def test_the_step_onto_1_16_is_the_absorbed_speed_first(self):
+        _, decided = drive(BEFORE_CORRIDOR)
+        board = BOARDS[BEFORE_CORRIDOR]
+        self.assertEqual((board["player"]["y"], board["player"]["x"]), (1, 15))
+        self.assertEqual(board["visible_monsters"] + board["detected_monsters"], [])
+        self.assertEqual(board["player"]["speed_display"]["color"], "white")  # not hasted
+        # Recorded: exit-walk '6' onto (1,16).
+        self.assertEqual(decided[-1][1:], HASTE)
+        verb, (step,) = compile_device(*decided[-1][1:])
+        self.assertEqual((verb, step.kind, step.sval), ("m", "staff", SV_STAFF_SPEED))
+
+    def test_control_hasted_it_steps_on(self):
+        """DECLARED CONSTRUCTED: the (1,15) board with the haste of 22902's board (speed 120,
+        the yellow (+10))."""
+        hasted = BOARDS[1769523]["player"]
+
+        def haste(turn, raw):
+            if turn == BEFORE_CORRIDOR:
+                raw["player"].update(speed=hasted["speed"], speed_display=copy.deepcopy(hasted["speed_display"]))
+        _, decided = drive(BEFORE_CORRIDOR, edit=haste)
+        self.assertEqual(decided[-1][1:], ("6", quest_find_exit.WALK_REASON))
+
+    def test_control_the_step_onto_a_free_cell_is_no_dose(self):
+        # 22888 on (2,11): the step onto the choke (1,12), which no caster reaches.
+        _, decided = drive(1769354)
+        self.assertEqual(decided[-1][1:], ("9", quest_find_exit.WALK_REASON))
+
+    def test_without_the_absorbed_speed_a_potion(self):
+        """DECLARED CONSTRUCTED: the absorbed Speed emptied, and three Speed potions in slot d
+        (賢さ復活の薬's place)."""
+        lists = _lists()
+        for row in lists["staff"]:
+            if row["name"] == "スピード":
+                row["current"] = 0
+
+        def potions(turn, raw):
+            for item in raw["inventory"]:
+                if item["slot"] == "d":
+                    item.update(sval=SV_POTION_SPEED, count=3, name="3服の スピードの薬")
+        _, decided = drive(BEFORE_CORRIDOR, edit=potions, lists=lists)
+        self.assertEqual(decided[-1][1:], ("qd", SPEED_REASON))
 
 
 class TeleportAwayRecordedTest(unittest.TestCase):

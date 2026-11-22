@@ -113,6 +113,11 @@ CAVE_NO_TELEPORT_DEST only outside quests and cave_monster_teleportable_bold nev
 the monster lands on this floor's water; the seahorse 443 and the giant squid 482 have no RES_TELE
 (MonraceDefinitions).
 
+Owner 2026-11-22 「加速してから入る」 to 「叫びの届くマスへ入る前に加速が切れていたら、敵が見えて
+いなくても取り込んだスピードか薬で加速するか」: a walk's step onto a shouted cell, the haste off,
+is a Speed dose first, whatever is in view (``_haste_before_shouted``).  QUEST_18's doses went
+from 12 to 17 for it (its rationale: one per shouted stretch a haste does not outlast).
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -122,7 +127,7 @@ the navigator.
 from __future__ import annotations
 
 from hengbot import combat_answer, left_cells, once_quest_recall, quest_exposure, quest_plan_base, resist_potion, summon_response
-from hengbot import threat_tiers
+from hengbot import speed_dose, threat_tiers
 from hengbot.model import Position
 from hengbot.policy_constants import TUNNEL_KEY, WAIT_KEY
 from hengbot.quest_navigator import QuestFloorNavigator
@@ -677,6 +682,9 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     crowded = _crowded_step(policy, snapshot, navigator, plan, board, path[1])
     if crowded is not None:
         return crowded
+    hasted = _haste_before_shouted(policy, snapshot, navigator, plan, path[1])
+    if hasted is not None:
+        return hasted
     navigator.exit_choke_goal = path[-1]
     _start_over(navigator, path[-1])
     return _path_step(policy, snapshot, path, TO_CHOKE_REASON)
@@ -1041,6 +1049,9 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     crowded = _crowded_step(policy, snapshot, navigator, plan, board, step)
     if crowded is not None:
         return crowded
+    hasted = _haste_before_shouted(policy, snapshot, navigator, plan, step)
+    if hasted is not None:
+        return hasted
     policy.last_reason = WALK_REASON
     policy._declare_reach(exit_cell)
     return policy._step_toward(snapshot, step)
@@ -1129,6 +1140,21 @@ def _away(policy, snapshot, candidates) -> str | None:
     """quest_plan_base.hall_away_key over ``candidates``: the absorbed rod, the absorbed wand, then
     a carried one; never at a never-moving monster or one the game surely keeps."""
     return quest_plan_base.hall_away_key(policy, snapshot, candidates, AWAY_REASON)
+
+
+def _haste_before_shouted(policy, snapshot, navigator, plan, step: Position) -> str | None:
+    """The Speed dose before a step onto a cell the casters reach, while the haste is off.
+
+    Owner 2026-11-22 「加速してから入る」 to 「叫びの届くマスへ入る前に加速が切れていたら、敵が見えて
+    いなくても取り込んだスピードか薬で加速するか」: the plan's own shouted cells (``_exposure``, the
+    floor as dug), whatever is in view; the absorbed Speed first, then a potion (speed_dose.key).
+    A siren reaches a cell beside its line one cast in four of its turns (1_IN_2, SHRIEK or
+    TELE_TO, the pull refused off the line, mspell-attack.cpp check_thrown_mspell); at +10 against
+    its +10 the three corridor cells (1,16) (1,17) (2,18) give it three turns, not six.  With no
+    dose left the step is taken as before."""
+    if policy._player_hasted(snapshot) or not _exposure(navigator, plan).exposed(_cell(step)):
+        return None
+    return speed_dose.key(policy, snapshot, SPEED_REASON)
 
 
 def _engaged_survival(policy, snapshot, profile, board) -> str | None:

@@ -19,7 +19,9 @@ tests/extract_q18_life523_fixture.py: the run's last 135 boards, 131 on (1,19), 
 answered through the public ``choose_key`` in a closed loop: each step key moves the player as
 the game does, and the board of the player's cell is the next recorded board there.  DECLARED
 CONSTRUCTED: a cell the recording has no board for is the last (1,19) board with the player
-moved (the squid and the puddles where ESP showed them); the turn goes on 10 game turns a board.
+moved (the squid and the puddles where ESP showed them); the turn goes on 10 game turns a board;
+after a Speed dose the boards show the haste (``haste``: owner 2026-11-22 「加速してから入る」 doses
+the unhasted step onto a shouted cell, here (2,20) to (3,20) and (1,19) to (2,18)).
 The walk on is posted through the production executor (``_ExecutorInputPort``).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -35,7 +37,8 @@ from hengbot import cli, pingpong_guard, quest_find_exit
 from hengbot.model import parse_snapshot
 from tests.support import recorded as executor_harness
 from tests.test_q18_water_cave import (
-    DIG_REASON, DIRECTION, HOLD_REASON, STRATEGIES, TO_CHOKE_REASON, WALK_REASON, new_policy, step_key,
+    DIG_REASON, DIRECTION, HOLD_REASON, SPEED_REASON, STRATEGIES, TO_CHOKE_REASON, WALK_REASON, haste,
+    new_policy, step_key,
 )
 
 FIXTURE = Path(__file__).with_name("fixtures") / "q18-life523-20261115.json.gz"
@@ -64,7 +67,7 @@ class N1a523Q18OutwaitedSquidTest(executor_harness.RecordedHarness):
         self.assertEqual(BOUND, 200)
 
     @staticmethod
-    def raw_at(position, used, turn, squid_cell=None):
+    def raw_at(position, used, turn, squid_cell=None, hasted=False):
         rows = BY_CELL.get(position)
         if rows:
             raw = copy.deepcopy(rows[used[position] % len(rows)])
@@ -77,7 +80,7 @@ class N1a523Q18OutwaitedSquidTest(executor_harness.RecordedHarness):
                 if row["index"] == SQUID_INDEX:
                     row.update(y=squid_cell[0], x=squid_cell[1])
         raw["turn"] = turn
-        return raw
+        return haste(raw) if hasted else raw
 
     def walk(self, decisions, squid_cell_of=lambda decision: None):
         """(rows, the decision the CLI cell loop guard tripped on, the ping-pong events, policy,
@@ -89,12 +92,14 @@ class N1a523Q18OutwaitedSquidTest(executor_harness.RecordedHarness):
         rows, events, tripped = [], [], None
         recent = deque(maxlen=cli.MULTIPLIER_COMBAT_LOOP_WINDOW)
         last_position = last_player = raw = None
+        hasted = False
         for decision in range(decisions):
             turn += 10
-            raw = self.raw_at(position, used, turn, squid_cell_of(decision))
+            raw = self.raw_at(position, used, turn, squid_cell_of(decision), hasted)
             snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
             key = str(policy.choose_key(snapshot))
             rows.append((position, key, policy.last_reason))
+            hasted = hasted or policy.last_reason.startswith(SPEED_REASON)
             if pingpong_guard.report(policy):
                 events.append((decision, pingpong_guard.report(policy)))
             previous_position, last_position = last_position, snapshot.player.position
@@ -117,9 +122,12 @@ class N1a523Q18OutwaitedSquidTest(executor_harness.RecordedHarness):
         self.assertEqual(rows[:BOUND], [(CHOKE, "5", HOLD_REASON)] * BOUND, rows[BOUND - 3:BOUND + 3])
         # Recorded: '1' exit-to-choke onto (2,18), then '9' back, until the stop.
         self.assertEqual(rows[BOUND], (CHOKE, step_key(CHOKE, (2, 20)), WALK_REASON), rows[BOUND:])
-        self.assertEqual([cell for cell, _, _ in rows[BOUND:BOUND + 6]],
-                         [CHOKE, (2, 20), (3, 20), (4, 21), (5, 22), (5, 23)], rows[BOUND:])
-        self.assertEqual(rows[BOUND + 6][1:], ("T" + step_key((5, 24), (5, 25)), DIG_REASON), rows[BOUND:])
+        # On (2,20), unhasted, the step onto the shouted (3,20) is the Speed dose first.
+        self.assertEqual(rows[BOUND + 2][0], (2, 20))
+        self.assertTrue(rows[BOUND + 1][2].startswith(SPEED_REASON), rows[BOUND:])
+        self.assertEqual([cell for cell, _, _ in rows[BOUND:BOUND + 7]],
+                         [CHOKE, (2, 20), (2, 20), (3, 20), (4, 21), (5, 22), (5, 23)], rows[BOUND:])
+        self.assertEqual(rows[BOUND + 7][1:], ("T" + step_key((5, 24), (5, 25)), DIG_REASON), rows[BOUND:])
         self.assertNotIn(BEHIND, [cell for cell, _, _ in rows])
         self.assertIsNone(tripped, rows[BOUND:])
         self.assertEqual(events, [])
@@ -135,8 +143,10 @@ class N1a523Q18OutwaitedSquidTest(executor_harness.RecordedHarness):
     def test_control_the_squid_seen_closing_in_sends_the_walk_to_a_choke_again(self):
         """DECLARED CONSTRUCTED: from the bound on, the squid on (5,24), two cells nearer (1,19)
         (game distance 7, was 9): ``approaching`` (owner 2026-11-06) still counts it."""
-        rows, _, _, policy, _ = self.walk(BOUND + 1, lambda decision: (5, 24) if decision >= BOUND else None)
-        self.assertEqual(rows[BOUND], (CHOKE, step_key(CHOKE, BEHIND), TO_CHOKE_REASON), rows[BOUND - 2:])
+        rows, _, _, policy, _ = self.walk(BOUND + 2, lambda decision: (5, 24) if decision >= BOUND else None)
+        # (2,18) is shouted: the Speed dose first, then the step (owner 2026-11-22 「加速してから入る」).
+        self.assertTrue(rows[BOUND][2].startswith(SPEED_REASON), rows[BOUND - 2:])
+        self.assertEqual(rows[BOUND + 1], (CHOKE, step_key(CHOKE, BEHIND), TO_CHOKE_REASON), rows[BOUND - 2:])
 
     def test_control_before_the_bound_the_squid_still_holds_the_choke(self):
         rows, _, _, policy, _ = self.walk(BOUND)

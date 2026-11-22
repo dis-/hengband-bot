@@ -14641,6 +14641,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_find_exit.py:_haste_before_shouted": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_find_exit.py:_hold": {
     "classification": "producer",
     "rows": [
