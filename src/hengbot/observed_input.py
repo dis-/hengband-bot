@@ -9,7 +9,7 @@ checkpoint attributes.
 from __future__ import annotations
 
 import re
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from collections.abc import Mapping
 
 from hengbot.angband_finale import SMALL_FLOOR_MACRO
@@ -42,6 +42,161 @@ _PRICE = (r"\s*買値 \$\d+ で買いますか？\[Y/n\]",)
 # cmd-action/cmd-attack.cpp do_cmd_attack: input_check before hitting a visible
 # non-hostile monster (input_check appends "[y/n]").
 _ATTACK_FRIEND = (r"\s*(?:本当に攻撃しますか？|Really hit it\? )\s*\[[Yy]/[Nn]\]\s*",)
+
+
+# Whole-bot maintainability review 2026-11-23 K4, (a)-3 (record only; nothing sent changes).
+# The questions a command asks after its key, in order, as the game source asks them.  A
+# composed key (command + item letter + direction, ...) that this entry passes through whole
+# relies on every non-optional question appearing; when one does not (a rod that does not aim,
+# no launcher, a -more- in between) the rest of the key becomes the next command (a move).
+# ``composed_passthrough`` names such a key so the executor's input-context log counts them.
+@dataclass(frozen=True)
+class ExpectedPrompt:
+    kinds: frozenset        # the ScreenKinds that may ask here (one of them)
+    optional: bool          # the game may skip this question (see ``when``)
+    when: str = ""          # when it is asked or skipped (game source)
+
+
+def _prompt(*kinds, optional=False, when=""):
+    return ExpectedPrompt(frozenset(kinds), optional, when)
+
+
+_ITEM = _prompt(ScreenKind.ITEM_SOURCE)
+# target/target-getter.cpp get_aim_dir: asks unless command_dir is already set (a repeat) or
+# use_old_target holds a valid target.  '*' (and ' ', Return) there opens target_set
+# (target-setter.cpp switch_target_input / switch_next_grid_command): 't'/'.'/'5'/'0' sets the
+# target and ends the mode, 'p' puts the cursor on the player, a direction moves it.
+_AIM = _prompt(ScreenKind.DIRECTION, when="get_aim_dir")
+COMMAND_PROMPTS: dict[str, tuple[ExpectedPrompt, ...]] = {
+    # cmd-quaff.cpp:40 「どの薬を飲みますか?」
+    "q": (_ITEM,),
+    # cmd-eat.cpp:314 「どれを食べますか?」
+    "E": (_ITEM,),
+    # cmd-read.cpp:41 「どの巻物を読みますか?」; identify/enchant scrolls ask the target item,
+    # Word of Recall off the dungeon floors asks choose_dungeon (spells-world.cpp).
+    "r": (_ITEM, _prompt(ScreenKind.ITEM_TARGET, ScreenKind.DUNGEON_CHOICE, optional=True,
+                         when="identify/enchant target; recall destination on the surface")),
+    # cmd-usestaff.cpp:321 「どの杖を使いますか?」; the Perception staff asks the target item.
+    "u": (_ITEM, _prompt(ScreenKind.ITEM_TARGET, optional=True, when="Perception staff")),
+    # cmd-zapwand.cpp:336 「どの魔法棒で狙いますか?」; zapwand-execution.cpp:51 get_aim_dir
+    # always, except a floor stack of more than one (message, no question).
+    "a": (_ITEM, _AIM),
+    # cmd-zaprod.cpp:301 「どのロッドを振りますか?」; zaprod-execution.cpp:54 get_aim_dir only
+    # when is_aiming_rod() or the rod is not aware; Recall on the surface asks choose_dungeon.
+    "z": (_ITEM, _prompt(ScreenKind.DIRECTION, ScreenKind.DUNGEON_CHOICE, optional=True,
+                         when="aiming or unaware rod; recall destination on the surface")),
+    # cmd-shoot.cpp:57 「どれを撃ちますか?」 (no launcher, the Crimson or a harp: a message and
+    # no question at all); combat/shoot.cpp:536 exe_fire get_aim_dir.
+    "f": (_ITEM, _AIM),
+    # throw-execution.cpp:346 「どのアイテムを投げますか?」, :140 calc_throw_grid get_aim_dir.
+    "v": (_ITEM, _AIM),
+    # cmd-tunnel.cpp:45 get_rep_dir (always asks; no easy_* option).
+    "T": (_prompt(ScreenKind.DIRECTION, when="get_rep_dir"),),
+    # cmd-others.cpp:66 exe_alter get_rep_dir; cmd-attack.cpp input_check before a visible
+    # non-hostile monster.
+    "+": (_prompt(ScreenKind.DIRECTION, when="get_rep_dir"),
+          _prompt(ScreenKind.CONFIRM, optional=True, when="visible non-hostile monster")),
+    # cmd-open-close.cpp do_cmd_open/close/disarm: get_rep_dir is skipped by easy_open /
+    # easy_disarm when exactly one candidate is around (see the gate below).
+    "o": (_prompt(ScreenKind.DIRECTION, optional=True, when="easy_open: one closed door/chest"),),
+    "c": (_prompt(ScreenKind.DIRECTION, optional=True, when="easy_open: one open door"),),
+    "D": (_prompt(ScreenKind.DIRECTION, optional=True, when="easy_disarm: one trap/chest"),),
+}
+
+# The composers outside this entry that append a direction or a target walk to a command key.
+# scripts/composed_key_lint.py fails on an unlisted one (or a count that differs).
+# Suffix kinds: "direction" (get_aim_dir/get_rep_dir digit), "target-cursor" ('*' then
+# target_set keys, ``*t5\x1b`` / ``*p<moves>t5\x1b``), "item-target" (an identify/enchant
+# target letter), "floor-item" ('-'), "dungeon-choice" (the recall destination).
+# reserved_item_command(..., suffix=...) calls: (module, function) -> (calls, suffix kinds).
+COMPOSED_SUFFIX_SITES: dict[tuple[str, str], tuple[int, frozenset]] = {
+    ("arena", "_shot_key"): (1, frozenset({"direction"})),
+    ("breeder_area_attack", "_use"): (1, frozenset({"direction"})),
+    ("floor_identify", "_source_key"): (1, frozenset({"floor-item"})),
+    ("magic_eater", "planned_throw_key"): (1, frozenset({"direction"})),
+    ("me_q1_torch", "attack_key"): (1, frozenset({"direction"})),
+    ("me_ranged_first", "_use"): (1, frozenset({"direction"})),
+    ("policy", "_floor_item_identify_key"): (1, frozenset({"floor-item"})),
+    ("policy", "_read_key"): (1, frozenset({"item-target", "floor-item", "dungeon-choice"})),
+    ("policy", "validate_read_key"): (1, frozenset({"item-target", "floor-item",
+                                                     "dungeon-choice"})),
+    ("policy", "_town_recall_device_key"): (1, frozenset({"dungeon-choice"})),
+    ("policy_combat", "_adjacent_ranged_key"): (1, frozenset({"direction"})),
+    ("policy_combat", "_ranged_attack_key"): (3, frozenset({"direction", "target-cursor"})),
+    ("policy_home", "_home_disposal_processing_key"): (1, frozenset({"item-target"})),
+    ("policy_identification", "_identify_carried_item_key"): (1, frozenset({"item-target"})),
+    ("policy_quest", "_q2_ranged_core_key"): (2, frozenset({"direction", "target-cursor"})),
+    ("policy_quest", "_q2_breach_key"): (1, frozenset({"direction"})),
+    ("policy_quest", "_quest_execute_key"): (2, frozenset({"direction"})),
+    ("policy_town", "_town_device_processing_key"): (1, frozenset({"item-target"})),
+    ("policy_town", "_town_item_processing_dispatch_key"): (1, frozenset({"item-target"})),
+    ("quest25_battle", "_disarm_device_key"): (1, frozenset({"direction"})),
+    ("quest25_battle", "_carried_grid_key"): (1, frozenset({"target-cursor"})),
+    ("quest25_battle", "_launcher_grid_key"): (1, frozenset({"target-cursor"})),
+    ("quest_lure_approach", "_fire_key"): (1, frozenset({"target-cursor"})),
+    ("quest_plan_base", "hall_away_key"): (1, frozenset({"direction"})),
+    ("retreat_enclosure", "_door_beam_key"): (1, frozenset({"direction"})),
+    ("sealed_loot", "_trap_key"): (1, frozenset({"direction"})),
+    ("sealed_pocket", "wand_key"): (1, frozenset({"direction"})),
+    ("supply_fight", "_spend"): (1, frozenset({"direction"})),
+    ("teleport_follower", "away_key"): (1, frozenset({"direction"})),
+}
+# ``KEY + direction`` / ``'*p' + cursor walk`` written outside reserved_item_command:
+# (module, function) -> (sites, how this entry sends it).  "observed": the direction is
+# released only at its observed question; "passthrough": sent composed.
+COMPOSED_APPEND_SITES: dict[tuple[str, str], tuple[int, str]] = {
+    ("blind_strike", "strike_key"): (1, "observed"),           # '+' (ALTER_KEY gate)
+    ("magic_eater", "q34_missile_key"): (1, "observed"),       # 'mBp' (magic_eater_input)
+    ("me_q1_torch", "attack_key"): (1, "observed"),            # 'mBp'
+    ("me_ranged_first", "_fire_missile"): (1, "observed"),     # 'mBp'
+    ("policy_fundraising", "_mining_tunnel_key"): (1, "passthrough"),  # 'T'
+    ("policy_identification", "_chest_processing_key"): (2, "observed"),  # 'D' / 'o'
+    ("policy_quest", "_q2_ranged_core_key"): (1, "passthrough"),  # '*p' walk (fire suffix)
+    ("policy_quest", "_q2_breach_key"): (1, "passthrough"),     # 'T'
+    ("policy_quest", "_quest_sequence_door_key"): (1, "observed"),  # 'o'
+    ("policy_quest", "_quest_execute_key"): (1, "observed"),    # 'o'
+    ("policy_town", "_town_kill_mob_key"): (1, "passthrough"),  # '+' dir 'y'
+    ("quest25_battle", "_cursor_suffix"): (1, "passthrough"),   # '*p' walk (fire/device suffix)
+    ("quest25_battle", "_ambush"): (1, "observed"),             # 'c'
+    ("quest_find_exit", "_dig"): (1, "passthrough"),            # 'T'
+    ("quest_lure_approach", "_fire_key"): (1, "passthrough"),   # '*p' walk (device suffix)
+    ("unseen_strike", "key"): (1, "observed"),                  # '+'
+}
+
+
+def _suffix_kind(command: str, tail: str) -> str:
+    if not tail:
+        return "none"
+    if tail.startswith("*"):
+        return "target-cursor"
+    if re.fullmatch(r"[1-9]", tail[:1]):
+        return "direction"
+    if tail.startswith("-"):
+        return "floor-item"
+    return "item-target" if command in "ru" else "other"
+
+
+def composed_passthrough(key: str, prefix: str) -> dict | None:
+    """The record of a composed ``key`` sent whole (``prefix`` is what
+    ``compile_observed_input`` made the first segment), or None.
+
+    Record only: whether the questions of ``COMMAND_PROMPTS`` appeared is not observed
+    for such a key, so each one is counted (review 2026-11-23 K4, (a)-3).
+    """
+    if not isinstance(key, str) or len(key) < 2 or prefix != key:
+        return None
+    plan = COMMAND_PROMPTS.get(key[0])
+    if plan is None:
+        return None
+    item_first = ScreenKind.ITEM_SOURCE in plan[0].kinds
+    tail = key[2:] if item_first else key[1:]
+    return {
+        "command": key[0],
+        "key": key,
+        "suffix": _suffix_kind(key[0], tail),
+        "expected": [sorted(kind.value for kind in step.kinds) + (["optional"] if step.optional else [])
+                     for step in plan],
+    }
 
 
 def _answer(kind, keys, feature=None, **options):

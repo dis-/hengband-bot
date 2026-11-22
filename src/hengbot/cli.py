@@ -2837,6 +2837,7 @@ class _ExecutorInputPort:
                 return SendResult.TERMINAL
             operation.keys, operation.continuations = (
                 _transport_key(prefix, self.tunnel_macros_ready), steps)
+            _record_composed_passthrough(self.executor, operation.owner, key, prefix)
         budget = max(
             self.request_budget,
             _command_response_grace(key, str(decision.get("reason", "unknown"))),
@@ -2860,6 +2861,19 @@ class _ExecutorInputPort:
             print(self.last_result.stop_line or self.last_result.reason,
                   file=sys.stderr, flush=True)
         return SendResult.TERMINAL
+
+
+def _record_composed_passthrough(executor, owner: str, key: str, prefix: str) -> None:
+    """Count a composed key sent whole in the input-context log (review 2026-11-23 K4,
+    (a)-3).  Record only: a failure here never changes what is sent."""
+    try:
+        from hengbot.observed_input import composed_passthrough
+        record = composed_passthrough(key, prefix)
+        shadow = getattr(executor, "input_context_shadow", None)
+        if record is not None and shadow is not None:
+            shadow.composed_passthrough(owner, record)
+    except Exception:  # noqa: BLE001 - recording must not stop an admitted operation
+        pass
 
 
 def _send_new_decision_key(
