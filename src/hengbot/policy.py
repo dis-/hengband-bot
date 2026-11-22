@@ -9618,6 +9618,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if missing and not deep_climb.departure_admits(
                 self, snapshot, depth, dungeon_id=dungeon_id, missing=missing):
             return False
+        # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: no recall onto a floor whose
+        # trap door may land on 50F+ and which the deep fall guard leaves at once (n1-a life-535:
+        # Angband 49F five times, then the Castle's 48F and its trap door onto 50F).
+        if deep_fall_guard.landing_refused(self, snapshot, dungeon_id, depth):
+            return False
         return not self._recall_landing_guardian_blocked(snapshot, dungeon_id, depth)
 
     def _recall_refused_only_for_guardian(
