@@ -300,6 +300,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
+from hengbot.permanent_max_hp import permanent_max_hp
 from hengbot.quest_strategies import StrategyProfile, heal_potion_sval
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 from hengbot.quest_final_room import (
@@ -5405,7 +5406,7 @@ class QuestMixin(OpeningRouteMixin):
             "roster_size": 0,
             "toughest_r_idx": None,
             "worst_adjacent": None,
-            "hp_healing_budget": snapshot.player.max_hp,
+            "hp_healing_budget": permanent_max_hp(snapshot.player),
             "hasted": False,
             "verdict": False,
         }
@@ -5633,7 +5634,8 @@ class QuestMixin(OpeningRouteMixin):
                 reverse=True,
             )[:FIXED_QUEST_THREAT_TURNS]
         )
-        telemetry["hp_healing_budget"] = snapshot.player.max_hp + healing_budget
+        # Without the timed additions (permanent_max_hp): a buff that runs out is no budget.
+        telemetry["hp_healing_budget"] = permanent_max_hp(snapshot.player) + healing_budget
         max_damage_ratio = entry_damage_ratio(
             profile, snapshot.player.class_id, FIXED_QUEST_MAX_DAMAGE_RATIO)
         telemetry["max_damage_ratio"] = max_damage_ratio

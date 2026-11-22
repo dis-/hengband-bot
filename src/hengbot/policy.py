@@ -489,6 +489,7 @@ from hengbot.quest_knowledge import (
     QUEST_TYPE_RANDOM,
     QuestInfo,
 )
+from hengbot.permanent_max_hp import permanent_max_hp
 from hengbot.quest_strategies import (
     StrategyProfile, acceptance_dps_floor, acceptance_hp_floor,
     heal_potion_sval, torch_throw_output,
@@ -13628,12 +13629,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         )
         speed_count = self._exact_potion_count(snapshot, SV_POTION_SPEED)
         speed_required = me_capability.force_count(self, snapshot, force, "speed_potions")
+        # The HP floors read the maximum HP without the timed additions (permanent_max_hp):
+        # n1-b life-415 accepted Q18 at 706, the Heroism's +10 on 696, against the row's 700.
+        max_hp = permanent_max_hp(snapshot.player)
         healing = self._strategy_heal_potion_count(snapshot, force)
         details = {
             "reference_ac": reference_ac,
             "dps": {"measured": dps, "required": acceptance_dps_floor(force, snapshot.player.class_id),
                     "per_action": max(per_action, torch_throw_output(force, snapshot.player.class_id))},
-            "hp": {"measured": snapshot.player.max_hp, "required": acceptance_hp_floor(force, snapshot.player.class_id)},
+            "hp": {"measured": max_hp, "required": acceptance_hp_floor(force, snapshot.player.class_id)},
             "carries": carry_status,
             "speed_potions": {"measured": speed_count, "required": speed_required},
             "heal_potions": {"measured": healing, "required": int(force.get("heal_potions", 0))},
@@ -13664,14 +13668,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         no_heal = force.get("no_healing_tier")
         if isinstance(no_heal, dict) and (
-            snapshot.player.max_hp >= acceptance_hp_floor(no_heal, snapshot.player.class_id)
+            max_hp >= acceptance_hp_floor(no_heal, snapshot.player.class_id)
             and dps >= acceptance_dps_floor(no_heal, snapshot.player.class_id)
         ):
             details["failed"] = []
             return True
         details["failed"] = [
             name for name, ready in (
-                ("hp", snapshot.player.max_hp >= acceptance_hp_floor(force, snapshot.player.class_id)),
+                ("hp", max_hp >= acceptance_hp_floor(force, snapshot.player.class_id)),
                 ("dps", dps >= acceptance_dps_floor(force, snapshot.player.class_id)),
                 ("speed_potions", speed_count >= speed_required),
                 ("heal_potions", healing >= int(force.get("heal_potions", 0))),

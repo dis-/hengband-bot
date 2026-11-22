@@ -30,6 +30,7 @@ quiet floor: the low-HP walk gate rests through it and spends no scroll.
 from __future__ import annotations
 
 from hengbot import safety_watch
+from hengbot.permanent_max_hp import permanent_max_hp
 from hengbot import breeder_quest, quest_no_teleport
 from hengbot.policy_constants import ONCE_QUEST_TICK_REST_REASON, REST_MACRO, STUCK_ESCAPE_LIMIT
 
@@ -92,7 +93,7 @@ def below_entry_force(policy, snapshot) -> bool:
     navigator = None if quest_id is None else policy._quest_navigators.get(quest_id)
     floor = getattr(navigator, "entry_force_min_hp", None)
     return (floor is not None and navigator.floor_key == snapshot.floor_key
-            and snapshot.player.max_hp < int(floor))
+            and permanent_max_hp(snapshot.player) < int(floor))
 
 
 def held(policy, snapshot) -> bool:
