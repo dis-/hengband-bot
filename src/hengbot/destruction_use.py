@@ -36,6 +36,8 @@ stun-adjusted success); a means is reliable (``me_capability.RELIABLE_MIN_SUCCES
 absorbed power first as in speed_dose); the floor is one the game destroys; one of
 the threats the use is for (``_threat_in_range``: a T1 alone seen or sensed, or the most dangerous
 visible hostile; ``_threat_in_reach``: one of the ``leaving`` set), other than the quest target,
+(but once the Recall away from the target is decided, owner 2026-11-22 「帰還すると決めたら標的を
+破壊に巻き込んで良い」, ``_target_race``),
 awake or asleep, is in ``GUARANTEED_RADIUS`` (owner 2026-11-17 「両方の条件を外して直して」: no
 rule of the owner's asks it awake; owner 2026-11-17 Q1 「脅威のどれか1体が半径13以内なら使う」);
 and no damaged target or guardian is in ``WORST_RADIUS``.  Anything
@@ -426,10 +428,30 @@ def _floor_destroyed(policy, snapshot) -> bool:
     return snapshot.floor_key[2] == 0 or policy._on_random_quest_floor(snapshot)
 
 
+def target_given_up(policy, snapshot) -> bool:
+    """The Recall away from this floor's quest target is decided: the target was judged
+    unbeatable (the visible duel or its T1 verdict, hunt_target ``quest_target_unbeatable``) and
+    the return owner's ``quest-unviable`` latch holds for this floor (policy
+    ``_latch_unviable_quest_return``)."""
+    return getattr(policy, "_unviable_quest_floor", None) == snapshot.floor_key
+
+
 def _target_race(policy, snapshot) -> int | None:
+    """The quest target the use spares, else None.
+
+    Owner 2026-11-22 (the n1-b life-415 question, verbatim answer 「帰還すると決めたら標的を破壊に
+    巻き込んで良い」): once the Recall away from the target is decided (``target_given_up``) the
+    target is spared no more: the use heals and teleports a QUESTOR (spells-floor.cpp
+    destroy_area), which moves it away while the Recall is awaited.  The triggers and their
+    order stay the earlier rules'.  n1-b life-415 (Angband 76F, RANDOM quest 42, 2026-11-22
+    17:08): Word of Recall read for 『タラスク』 (race 838, speed +20, T1) at 20 cells; 13
+    turns of return:wait-recall with the absorbed *Destruction* (7 charges) held while it closed
+    to 6, then two breaths (about 1,040 against HP 773)."""
     quest_id = policy._active_kill_quest_id(snapshot)
     quest = snapshot.quests.get(quest_id) if quest_id is not None else None
-    return policy._quest_target_race_id(quest) if quest is not None else None
+    if quest is None or target_given_up(policy, snapshot):
+        return None
+    return policy._quest_target_race_id(quest)
 
 
 def _guardian_race(policy, snapshot) -> int | None:
@@ -450,9 +472,9 @@ def _guardian_kept(policy, snapshot, monster, guardian) -> bool:
 
 def spares(policy, snapshot, monster) -> bool:
     """``monster`` is no target of a use: the active quest's target (a QUESTOR, healed and moved,
-    never deleted), or the floor's guardian while it is to be kept (``_guardian_kept``).  The one
-    reader of the set the approaches and the concerned monsters leave out (threat_tiers,
-    deep_teleport)."""
+    never deleted) until the Recall away from it is decided (``_target_race``, owner 2026-11-22),
+    or the floor's guardian while it is to be kept (``_guardian_kept``).  The one reader of the
+    set the approaches and the concerned monsters leave out (threat_tiers, deep_teleport)."""
     return (monster.race_id == _target_race(policy, snapshot)
             or _guardian_kept(policy, snapshot, monster, _guardian_race(policy, snapshot)))
 
@@ -653,8 +675,54 @@ def spared_positions(policy, snapshot) -> list:
 
 def quest_target_race(policy, snapshot) -> int | None:
     """The active kill quest's target race (a QUESTOR the use heals and moves, never deletes),
-    else None."""
+    else None; None as well once the Recall away from it is decided (``_target_race``)."""
     return _target_race(policy, snapshot)
+
+
+def walk_spared_race(policy, snapshot) -> int | None:
+    """The race no walk toward a use goes to (the approaches' subject and targets, threat_tiers
+    and deep_teleport): the active kill quest's target, whether or not the Recall away from it
+    is decided.  Before the decision the use spares it (``_target_race``); after it the use takes
+    it where it stands, and no walk goes toward it (owner 2026-11-22, the n1-b life-415 question
+    「勝てない標的から帰還すると決めた後、標的が *破壊* の範囲（13マス）に入るのを待ちますか、それとも
+    範囲に入れるため自分から近づきますか？」, verbatim answer 「近づかず、強力発動も駆使して排除する」)."""
+    quest_id = policy._active_kill_quest_id(snapshot)
+    quest = snapshot.quests.get(quest_id) if quest_id is not None else None
+    return policy._quest_target_race_id(quest) if quest is not None else None
+
+
+def _given_up_target_in_powered_reach(policy, snapshot, hostiles) -> bool:
+    """One of ``hostiles`` is the quest target the Recall is decided away from
+    (``target_given_up``), shown, within the Powerful Activation's sure radius."""
+    if not target_given_up(policy, snapshot):
+        return False
+    race, shown = walk_spared_race(policy, snapshot), _shown(snapshot)
+    return any(monster.hostile and monster.race_id == race and monster.index in shown
+               and game_distance(snapshot.player.position, monster.position) <= POWERED_RADIUS
+               for monster in hostiles)
+
+
+def _powered_scene(policy, snapshot, leaving) -> bool:
+    """Owner 2026-11-22 (「近づかず、強力発動も駆使して排除する」, ``walk_spared_race``): where the use's
+    own scene does not hold, the absorbed *Destruction* through Powerful Activation (radius
+    18 + randint0(5), cmd-usestaff.cpp:282, ``POWERED_RADIUS``) reaches the given-up quest target
+    of ``leaving`` (beyond the sure radius 13, say): a clear head, a floor the game destroys, and no
+    guardian to be kept within the powered worst radius (``_spared_positions``; the given-up
+    target is spared no more)."""
+    if leaving is None or not _clear_headed(snapshot.player) or not _floor_destroyed(policy, snapshot):
+        return False
+    if not _given_up_target_in_powered_reach(policy, snapshot, list(leaving)):
+        return False
+    origin = snapshot.player.position
+    return not any(game_distance(origin, position) <= POWERED_WORST_RADIUS
+                   for position in _spared_positions(policy, snapshot, None))
+
+
+def _powered_ready(policy, snapshot) -> bool:
+    """``_powered_key`` would cast (no state is changed)."""
+    from hengbot import me_powerful_activation  # import cycle
+    return (_absorbed_key(policy, snapshot) is not None
+            and me_powerful_activation.pays_safely(policy, snapshot))
 
 
 def scene_holds(policy, snapshot) -> bool:
@@ -723,7 +791,10 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None,
     if _falls_back(_memory(policy), snapshot):
         return None
     if not _scene_holds(policy, snapshot, in_range):
-        return None
+        # The given-up quest target beyond the sure radius: the powered circle (owner 2026-11-22).
+        if powerful or not _powered_scene(policy, snapshot, leaving):
+            return None
+        powerful = True
     if powerful:
         # ``powerful``: the 99F/100F battle's wider circle (owner 2026-11-20 「必要なら強力発動で
         # 範囲を広げる」), the absorbed power only.
@@ -801,7 +872,7 @@ def usable(policy, snapshot, *, leaving=None) -> bool:
         return False
     in_range = _threat_in_range if leaving is None else partial(_threat_in_reach, hostiles=list(leaving))
     if not _scene_holds(policy, snapshot, in_range):
-        return False
+        return _powered_scene(policy, snapshot, leaving) and _powered_ready(policy, snapshot)
     return _absorbed_key(policy, snapshot) is not None or _carried_key(policy, snapshot) is not None
 
 

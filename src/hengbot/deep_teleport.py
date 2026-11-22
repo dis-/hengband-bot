@@ -282,8 +282,10 @@ def _walk_step(policy, snapshot, targets):
 
     if not destruction_use.approach_gates(policy, snapshot):
         return None
+    # The quest's target is never walked to (destruction_use ``walk_spared_race``, owner
+    # 2026-11-22 「近づかず」).
     return destruction_use.walk_step(policy, snapshot, destruction_use.reach_subject(
-        policy, snapshot, targets, destruction_use.quest_target_race(policy, snapshot)))
+        policy, snapshot, targets, destruction_use.walk_spared_race(policy, snapshot)))
 
 
 def _walk_key(policy, snapshot, targets) -> str | None:

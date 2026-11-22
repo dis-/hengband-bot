@@ -2225,6 +2225,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:_powered_ready": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:_powered_scene": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_reliable_carried_staff": {
     "classification": "data",
     "rows": [
@@ -2296,13 +2310,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "destruction_use.py:quest_target_race": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "destruction_use.py:reach_subject": {
     "classification": "data",
     "rows": [
@@ -2339,6 +2346,13 @@
     "delegation": "selected child; no independent success"
   },
   "destruction_use.py:use_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "destruction_use.py:walk_spared_race": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -5842,6 +5856,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_powerful_activation.py:awaits_identify": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_powerful_activation.py:pays_safely": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17733,6 +17754,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "threat_tiers.py:given_up_stairs": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "threat_tiers.py:instant_death_key": {
     "classification": "producer",

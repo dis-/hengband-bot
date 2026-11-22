@@ -43,6 +43,10 @@ LOOP, PICK, SEEK = "quest-search:loop", locked_doors.PICK_REASON, locked_doors.S
 MOVES = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1),
          "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 STUCK_ANSWER = ["ドアはがっちりと閉じられているようだ。"]
+# DECLARED CONSTRUCTED: the quest list's race made race 85 (Lv4).  『黄衣の王』 reads T1 from the
+# quest list on arrival and gives the floor up at once (hunt_target ``_judge_quest_race``, n1-b
+# life-415 2026-11-22); these pins are of the search's lap and locks.
+BEATABLE_QUEST_RACE = 85
 
 
 def _pin():
@@ -58,6 +62,8 @@ class N1b50fQuestLapRecordedTest(recorded.ProductionHarness):
 
     def policy(self, at=None):
         raw = copy.deepcopy(self.pin["board"])
+        next(q for q in raw["progress"]["quests"]
+             if q["id"] == raw["floor"]["quest_id"])["r_idx"] = BEATABLE_QUEST_RACE
         if at is not None:
             raw["player"]["y"], raw["player"]["x"] = at
         directory = TemporaryDirectory()

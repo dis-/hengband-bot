@@ -14,7 +14,8 @@ The hunted race (``target_race``):
  - the runtime RANDOM / KILL_LEVEL quest occupying this floor without an
    approved fixed-map strategy (the race ``_locked_kill_quest_targets``
    fights: ``_quest_target_race_id``), unless it read T1 judged from contact when last
-   shown (``_judge_quest_target``; a T1 gives the floor up, owner 2026-11-13);
+   shown (``_judge_quest_target``; a T1 gives the floor up, owner 2026-11-13), or, not shown
+   yet, from the quest list's race on arrival (``_judge_quest_race``, n1-b life-415);
  - else the final guardian of the target dungeon on its final floor, while the
    dungeon is not conquered and the kit can beat it (the floor the guardian
    rung ``_viable_target_guardian_visible`` fights on, its
@@ -103,9 +104,13 @@ class FloorVisit:
     frontier_goal: Position | None = None
     # The guardian's contact tier when last shown was not T2 or T3 (``_guardian_beatable``).
     guardian_declined: bool = False
-    # The random-quest target read T1 when last shown (``_judge_quest_target``): not hunted,
-    # and the floor is given up (``quest_target_unbeatable``).
+    # The random-quest target read T1 when last shown (``_judge_quest_target``), or from the quest
+    # list's race on arrival before it was shown (``_judge_quest_race``): not hunted, and the
+    # floor is given up (``quest_target_unbeatable``).
     quest_unbeatable: bool = False
+    # The arrival's verdict from the quest list's race was asked on this visit (once).  A class
+    # default: restored checkpoints predate it.
+    quest_race_judged: bool = False
 
 
 def _quest_race(policy, snapshot) -> int | None:
@@ -170,6 +175,32 @@ def _judge_quest_target(policy, snapshot, visit: FloorVisit, target) -> None:
     visit.quest_unbeatable = threat_tiers.cannot_win(reading, snapshot.player.hp)
 
 
+def _judge_quest_race(policy, snapshot, visit: FloorVisit, race: int) -> None:
+    """The 2026-11-13 verdict (``_judge_quest_target``) on arriving at a runtime RANDOM quest
+    floor, before the target is shown: from the quest list's race (the quest screen shows it, the
+    board's ``progress.quests`` r_idx: player-visible) on the duel board the guardian's landing
+    reads (guardian_landing ``race_duel``: the race alone, adjacent, at its average HP, against
+    the player at full HP).  Asked once a visit; a board that shows the target judges it again
+    from contact, and that verdict stands.
+
+    n1-b life-415 (Angband 76F, RANDOM quest 42, 2026-11-22 17:08): the quest list showed
+    『タラスク』 (race 838, Lv84, speed +20, BR_FIRE/BR_COLD/BR_DISE 1_IN_2) before the descent;
+    the floor was given up only when Detect Evil showed it 20 cells off, three decisions after
+    the arrival (8018) had stepped off the up staircase to use *Destruction* on a sleeping T1;
+    13 turns of the Recall's wait later it breathed twice (about 1,040 against HP 773)."""
+    from hengbot import guardian_landing, threat_tiers  # threat_tiers imports this module
+    visit.quest_race_judged = True
+    weapon = next((item for item in snapshot.equipment if item.slot == "main_hand"), None)
+    if weapon is None or snapshot.player.main_hand_blows <= 0:
+        return
+    duel = guardian_landing.race_duel(policy, snapshot, race, "quest")
+    if duel is None:
+        return
+    board, target = duel
+    reading = threat_tiers.tiered(policy, board, [target], contact=True)
+    visit.quest_unbeatable = threat_tiers.cannot_win(reading, board.player.hp)
+
+
 def quest_target_unbeatable(policy, snapshot) -> bool:
     """The random-quest target was shown on this floor visit as a T1 (``_judge_quest_target``)."""
     visit = _visit(policy, snapshot)
@@ -221,6 +252,8 @@ def observe(policy, snapshot) -> None:
         elif shown_target := _perceived(policy, snapshot, quest):
             _judge_quest_target(policy, snapshot, visit,
                                 min(shown_target, key=lambda monster: monster.distance))
+        elif not visit.quest_race_judged and policy._on_random_quest_floor(snapshot):
+            _judge_quest_race(policy, snapshot, visit, quest)
     elif (guardian := _guardian_race(policy, snapshot, judged=False)) is not None:
         if shown_guardian := _perceived(policy, snapshot, guardian):
             visit.guardian_declined = not _guardian_beatable(
