@@ -35,7 +35,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from hengbot import ability_sources, bm_destruction_fund, item_fate
+from hengbot import ability_sources, bm_destruction_fund, item_fate, item_need
 from support.town_arrival_fixture import load
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -120,8 +120,14 @@ class WornSourceRecordedTest(ArrivalCase):
         self.assertTrue(ring.is_cursed)
         self.assertTrue(ability_sources.sole_depth_source(policy, board, ring))
         self.assertEqual(item_fate.gear_tier(policy, board, ring), item_fate.KEEP)
+        self.assertEqual(item_need.keep_reason(policy, board, ring), "sole-depth-source")
         with mock.patch.object(ability_sources, "sole_depth_source", lambda *_args: False):
-            self.assertEqual(item_fate.gear_tier(policy, board, ring), item_fate.ROOM)
+            # Equipment review E6: a worn piece is needed too (item_need), so the ranking keeps
+            # it; before E6 its rank left it for room (a worn piece is never sold either way).
+            self.assertEqual(item_need.keep_reason(policy, board, ring), "worn")
+            self.assertEqual(item_fate.gear_tier(policy, board, ring), item_fate.KEEP)
+            with mock.patch.object(item_need, "keep_reason", lambda *_args: None):
+                self.assertEqual(item_fate.gear_tier(policy, board, ring), item_fate.ROOM)
 
     def test_a_worn_source_makes_the_home_piece_not_the_only_one(self):
         policy, board = self.policy, self.board

@@ -58,7 +58,11 @@ from hengbot.purchase_rungs import (
     PurchaseMatch,
     PurchaseRung,
     PurchaseSelection,
+    TIER_PRIORITY,
     purchase_rung_retention,
+    purchase_rung_tier,
+    short_money_choice,
+    tier_rank,
 )
 
 
@@ -2631,6 +2635,7 @@ class ShopMixin(InStoreMixin):
                 # staff at Home, and the walk re-entered until the burst.
                 town_pack_headroom.make_room_for_refused_purchase(self, snapshot)
             return None
+        item = self._tiered_purchase(snapshot, item, refused, commit_churn)
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
         curse_kind = self._required_remove_curse_kind(snapshot)
@@ -3024,7 +3029,8 @@ class ShopMixin(InStoreMixin):
                     return None
                 return PurchaseMatch(rung_id, stage, self._purchase_item_identity(item),
                                      shortage=quantity, rationale="opening-q1:" + stage)
-            return (PurchaseRung(rung_id, stage, match, purchase_rung_retention(rung_id)),)
+            return (PurchaseRung(rung_id, stage, match, purchase_rung_retention(rung_id),
+                                 purchase_rung_tier(rung_id)),)
         if zul_trip.shopping(self, context.snapshot):
             # Owner 2026-11-07 「無ければ指輪を買う」: the Zul trip's Ring of Levitation.
             ware = zul_trip.purchase(self, context.snapshot)
@@ -3034,7 +3040,8 @@ class ShopMixin(InStoreMixin):
                 return PurchaseMatch(zul_trip.BUY_RUNG, "levitation", self._purchase_item_identity(item),
                                      shortage=1, rationale="zul:levitation")
             return (PurchaseRung(zul_trip.BUY_RUNG, "levitation", match,
-                                 purchase_rung_retention(zul_trip.BUY_RUNG)),)
+                                 purchase_rung_retention(zul_trip.BUY_RUNG),
+                                 purchase_rung_tier(zul_trip.BUY_RUNG)),)
         if me_staff_sequence.shopping(self, context.snapshot):
             ware = me_staff_sequence.purchase(self, context.snapshot)
             if ware is None:
@@ -3045,7 +3052,8 @@ class ShopMixin(InStoreMixin):
                 return PurchaseMatch(me_staff_sequence.BUY_RUNG, "me-staff", self._purchase_item_identity(item),
                                      shortage=1, rationale="me-staff:one-of-each")
             return (PurchaseRung(me_staff_sequence.BUY_RUNG, "me-staff", match,
-                                 purchase_rung_retention(me_staff_sequence.BUY_RUNG)),)
+                                 purchase_rung_retention(me_staff_sequence.BUY_RUNG),
+                                 purchase_rung_tier(me_staff_sequence.BUY_RUNG)),)
         snapshot = context.snapshot
         ledger = self._supply_ledger(snapshot, self._planned_depth())
         strategy = self._carry_procurement_strategy(snapshot)
@@ -3062,7 +3070,7 @@ class ShopMixin(InStoreMixin):
                     cur, goal, shortage, rationale or rung_id,
                 )
             return PurchaseRung(rung_id, category, match,
-                            purchase_rung_retention(rung_id))
+                            purchase_rung_retention(rung_id), purchase_rung_tier(rung_id))
 
         rungs = []
         add = rungs.append
@@ -3179,6 +3187,57 @@ class ShopMixin(InStoreMixin):
         add(rung("curse:star-reserve", "star-remove-curse", lambda: self._has_unremovable_curse_target(snapshot) or self._star_remove_curse_reserve_purchase_needed(snapshot), lambda i: i.tval == TVAL_SCROLL and i.sval == SV_SCROLL_STAR_REMOVE_CURSE))
         add(rung("tail:launcher-enchant", "launcher-enchant", lambda: self._launcher_enchant_purchase(snapshot) is not None, lambda i: i.tval == TVAL_SCROLL and i.sval in {SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM}))
         return tuple(rungs)
+
+    # Owner Q8 (2026-11-22): how many of today's later picks the short-money tier reads.
+    TIERED_PURCHASE_PICKS = 6
+
+    def _purchase_tier(self, snapshot: Snapshot, item) -> str | None:
+        """The highest tier among the live rungs this ware closes (None: no rung matches)."""
+        tiers = [purchase_rung_tier(match.rung_id)
+                 for match in self._matching_live_purchase_rungs(snapshot, item)]
+        return min(tiers, key=tier_rank) if tiers else None
+
+    def _higher_tier_on_page(self, snapshot: Snapshot, tier: str | None) -> bool:
+        """A ware of this page closes a live rung of a tier above ``tier``."""
+        store = snapshot.store
+        context = PurchaseContext(snapshot)
+        rungs = [rung for rung in self._purchase_rungs(context)
+                 if tier_rank(rung.tier) < tier_rank(tier)]
+        return store is not None and any(
+            rung.match(context, ware) is not None for rung in rungs for ware in store.items)
+
+    def _purchase_cost(self, snapshot: Snapshot, ware) -> int:
+        """The gold one purchase of ``ware`` takes (its price times the quantity bought)."""
+        return ware.price * max(1, self._purchase_quantity(snapshot, ware))
+
+    def _tiered_purchase(self, snapshot: Snapshot, first, excluded, commit_state: bool):
+        """Owner Q8 「お金が足りない時は区分の高い段から買う。今の順は区分の中で保つ」.
+
+        ``first`` is today's pick.  When a ware of a higher tier is on the page, today's order
+        is read on (up to ``TIERED_PURCHASE_PICKS`` more picks, each class excluded once picked);
+        when the gold does not cover every pick, the first pick of the highest tier is bought
+        (purchase_rungs ``short_money_choice``).  With the gold for all of them, ``first``."""
+        if first is None or snapshot.store is None:
+            return first
+        tier = self._purchase_tier(snapshot, first)
+        if tier_rank(tier) == tier_rank(TIER_PRIORITY) or not self._higher_tier_on_page(snapshot, tier):
+            return first
+
+        picks = [(first, self._purchase_cost(snapshot, first), tier)]
+        excluded = set(excluded) | {(first.tval, first.sval)}
+        for _ in range(self.TIERED_PURCHASE_PICKS):
+            ware = self._legacy_next_purchase_unreserved(
+                snapshot, excluded_classes=excluded, commit_state=False)
+            if ware is None:
+                break
+            excluded.add((ware.tval, ware.sval))
+            if self._store_purchase_fits_pack(snapshot, ware):
+                picks.append((ware, self._purchase_cost(snapshot, ware), self._purchase_tier(snapshot, ware)))
+        chosen = short_money_choice(picks, snapshot.player.gold)
+        if chosen is not first:
+            self._shop_selector_diagnostics["purchase_tier"] = (
+                f"short-money:{picks[0][2]}->{self._purchase_tier(snapshot, chosen)}")
+        return chosen
 
     def _matching_live_purchase_rungs(self, snapshot: Snapshot, item) -> tuple[PurchaseMatch, ...]:
         if (me_capability.replaced_by_absorbed(self, snapshot, item, me_capability.PURCHASE)
@@ -3517,6 +3576,7 @@ class ShopMixin(InStoreMixin):
         )
         if not needs:
             return None
+        firsts = []
         for rung in self._purchase_rungs(PurchaseContext(snapshot)):
             rung_needs = [need for need in needs if need.category == rung.category]
             if not rung_needs:
@@ -3555,10 +3615,11 @@ class ShopMixin(InStoreMixin):
                 )
             if candidates:
                 item, match, quantity = candidates[0]
-                return PurchaseSelection(
+                firsts.append((PurchaseSelection(
                     match, item, store.store_type, PurchaseContext(snapshot), quantity
-                )
-        return None
+                ), item.price * quantity, rung.tier))
+        # Owner Q8: short of the gold for every rung's first buy, the highest tier first.
+        return short_money_choice(firsts, snapshot.player.gold)
 
     def _absorbed_power_refuses_purchase(self, snapshot: Snapshot, item) -> bool:
         """Class 16: no purchase path, nor the ordinary order, takes this shelf row.

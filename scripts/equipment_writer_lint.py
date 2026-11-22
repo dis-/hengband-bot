@@ -49,6 +49,12 @@ so the swap ends of mining_loadout (2), policy_shop (3) and policy's breakout re
 there (``slot_lending`` wear-exit 2); the Zul trip's ring return followed (zul_trip 2 -> 1), then the Q25 druj piece's
 (quest25_druj_gear 3 -> 1).
 
+Stage E6 (2026-11-22, 「要るか」を 1 つに) put the reasons a piece is needed behind ``item_need``:
+
+- ``need-read``: a call of ``sole_depth_source`` / ``sole_depth_sources`` (owner Q3's only
+  source of a depth ability) -- allowed in ``item_need`` (its one reader) and in
+  ``ability_sources`` (which computes it); every disposal path asks ``item_need``.
+
 ``ALLOWED`` is today's set (2026-11-22, E2 on main 23febce5a; E3 as above).  A module or a
 count above it is a new direct writer/reader and fails; a count below it fails too, so the pin
 is lowered with the change that removed one (the later stages E2/E5 move these behind one
@@ -87,13 +93,16 @@ OWNED_CATEGORIES = {
     "target-read": TARGET_MODULE, "target-write": TARGET_MODULE,
     "search-reset": TARGET_MODULE, "target-name": TARGET_MODULE,
     "ability-read": "ability_sources", "ability-table": "ability_sources",
+    "need-read": "item_need",
 }
+NEED_READS = frozenset({"sole_depth_source", "sole_depth_sources"})
 
 ALLOWED: dict[str, dict[str, int]] = {
-    "ability_sources": {"ability-read": 3, "ability-table": 5},
+    "ability_sources": {"ability-read": 3, "ability-table": 5, "need-read": 1},
     "equipment_capacity": {"search-reset-call": 1},
     "equipment_mutation": {"wear-command": 2},
     "equipment_target": {"search-reset": 5, "target-name": 2, "target-write": 5},
+    "item_need": {"need-read": 1},
     "ladder_objectives": {"wear-exit": 2},
     "me_powerful_activation": {"target-store-call": 1},
     "policy": {"search-reset-call": 2, "target-store-call": 5, "wear-exit": 4},
@@ -148,6 +157,8 @@ def analyze_source(source: str) -> Counter:
                 counts["target-store-call"] += 1
             elif target_call in SEARCH_RESET_CALLS:
                 counts["search-reset-call"] += 1
+            if name in NEED_READS:
+                counts["need-read"] += 1
             if name in WEAR_EXITS:
                 counts["wear-exit"] += 1
             elif name in COMMAND_COMPOSERS and any(

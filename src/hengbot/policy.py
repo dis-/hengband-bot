@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import ability_sources
+from hengbot import ability_sources, item_need
 from hengbot import equipment_target
 from hengbot import angband_finale
 from hengbot import approach_answer, return_start
@@ -11378,13 +11378,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _is_disposable_dominated_armour(
         self, snapshot: Snapshot, candidate: InventoryItem | StoreItem
     ) -> bool:
-        """Whether this fully known item is disposal-safe under the R1 prune."""
+        """item_need's ``dominated-armour`` ground: disposal-safe under the R1 prune, and
+        nothing needs it (equipment review E6)."""
         if candidate.tval == TVAL_BOW:
             return self._is_disposable_dominated_launcher(snapshot, candidate)
         if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
             return False
         if (
-            not candidate.is_equipment
+            item_need.needed(self, snapshot, candidate)
+            or not candidate.is_equipment
             or not candidate.known
             or candidate.is_cursed
             or candidate.is_broken

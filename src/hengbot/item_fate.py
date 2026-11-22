@@ -17,8 +17,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from hengbot import ability_sources
-from hengbot import item_use_route, spare_gear, town_pack_budget
+from hengbot import ability_sources, item_need, item_use_route, spare_gear, town_pack_budget
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.equipment_rules import TR_NO_AC
 from hengbot.item_reservation import decision_memo, item_available
@@ -72,10 +71,13 @@ def gear_tier(policy: Any, snapshot: Any, item: Any, ranks: dict | None = None) 
     Without a current Home census the rank is unknown, so nothing is released,
     except the ware the relief already chose from a census and has taken out.
     ``ranks`` is ``_ranks`` of this board when the caller asks many pieces.
+
+    A piece something needs (item_need ``keep_reason``: worn, the target loadout's, the only
+    source of a depth ability -- owner Q3 「深さの条件を満たす唯一の品は全ての深さで優先して残し
+    （売らない・闇市の資金にしない）」 --, the transaction's, ...) is kept before the named
+    artifacts, the fund and the rank (equipment review E6).
     """
-    if ability_sources.sole_depth_source(policy, snapshot, item):
-        # Owner Q3 of the equipment review 2026-11-22 「深さの条件を満たす唯一の品は全ての深さで
-        # 優先して残し（売らない・闇市の資金にしない）」: before the named artifacts and the fund.
+    if item_need.needed(policy, snapshot, item):
         return KEEP
     if item.is_artifact:
         # Owner 2026-11-20: the named artifacts go once 50F is reached (sellable_artifacts).
@@ -135,11 +137,11 @@ def supply_kept(policy: Any, snapshot: Any, item: Any) -> bool:
 def held(policy: Any, snapshot: Any, item: Any, owner: str, sink: str, *, known: bool = True) -> bool:
     """The gate every disposal path shares; ``known`` also asks for identification.
 
-    The only owned source of a depth-table ability is held (owner Q3 of the equipment review
-    2026-11-22, ability_sources ``sole_depth_source``)."""
+    A piece something needs is held (item_need ``keep_reason``; the only owned source of a
+    depth-table ability among them, owner Q3 of the equipment review 2026-11-22)."""
     return bool(
         supply_kept(policy, snapshot, item)
-        or ability_sources.sole_depth_source(policy, snapshot, item)
+        or item_need.needed(policy, snapshot, item)
         or not item_available(policy, snapshot, item, owner, sink)
         or item.is_bounty
         or policy._home_disposal.decision(policy._item_signature(item)) == "keep"
@@ -352,13 +354,12 @@ def _dominated(policy: Any, snapshot: Any, item: Any) -> bool:
     pieces dominate it.  Kept pieces are the worn ones and the carried or Home pieces the
     owner's ranking keeps (``gear_tier`` KEEP: the top ``KEPT_RANKS``, artifacts) and nothing dominates
     away.  A piece whose abilities are not all shown is never sold on this ground, nor counted
-    as kept; neither is a piece the equipment transaction owns (the optimizer's chosen
-    loadout), a bounty or a quest's tagged piece (Q34).  A worn piece is never dominated.
+    as kept; neither is a piece something needs (item_need ``keep_reason``: worn, the target
+    loadout's, the transaction's, the only source of a depth ability, a bounty, a quest's tagged
+    piece (Q34), ...).
     """
-    from hengbot.equipment_optimizer import q34_item_tagged
     slot = SLOT_BY_TVAL.get(item.tval)
-    if (not _dominance_piece(snapshot, item) or item.is_bounty
-            or q34_item_tagged(item) or policy._equipment_transaction_owns_item(item)):
+    if not _dominance_piece(snapshot, item) or item_need.needed(policy, snapshot, item):
         return False
     return policy._item_signature(item) in decision_memo(
         policy, "dominated-gear", snapshot, slot,
@@ -469,7 +470,11 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
     slot, ``_home_full_sale_candidate``) keeps its own rules.
 
     ``always`` asks the 11-17 classes with no relief running (the Home ledger, ``fate``).
+
+    Nothing a piece something needs (item_need ``keep_reason``) is called useless.
     """
+    if item_need.needed(policy, snapshot, item):
+        return None
     if _home_stock(item) and not carried:
         if not item.is_artifact:
             if _unused_book(policy, item):
@@ -711,15 +716,15 @@ WORN, PACK, SHELF = "worn", "pack", "home"
 def _protected(policy: Any, snapshot: Any, item: Any, probe: Any) -> bool:
     """Never sold or destroyed: an artifact (but a Home one clearly dominated, owner 2026-11-19
     「アーティファクトであっても明確な下位互換は売る」, and one the owner named, 2026-11-20
-    sellable_artifacts), a bounty, a *Destruction* means, a named keep, the only owned source of
-    a depth-table ability (owner Q3 of the equipment review 2026-11-22)."""
+    sellable_artifacts), a *Destruction* means, a named keep, and every piece something needs
+    (item_need ``keep_reason``: a bounty, the only owned source of a depth-table ability -- owner
+    Q3 of the equipment review 2026-11-22 --, the target loadout's, the transaction's, ...)."""
     from hengbot import sellable_artifacts
     from hengbot.model import SV_STAFF_DESTRUCTION
-    return bool(ability_sources.sole_depth_source(policy, snapshot, item)
+    return bool(item_need.needed(policy, snapshot, item)
                 or (item.is_artifact
                  and not (_home_stock(probe) and _dominated(policy, snapshot, item))
                  and not sellable_artifacts.listed(policy, snapshot, item))
-                or item.is_bounty
                 or (item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION)
                 or policy._home_disposal.decision(policy._item_signature(item)) == "keep")
 

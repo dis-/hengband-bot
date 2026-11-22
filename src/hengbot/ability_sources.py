@@ -177,12 +177,19 @@ def _depth_abilities() -> frozenset[str]:
 
 
 def _usable_source(item) -> bool:
-    """A piece the loadout search may wear: known, uncursed, unbroken, of no banned flag."""
-    from hengbot.equipment_rules import loadout_banned
+    """A piece the loadout search may wear: known, uncursed, unbroken, of no banned flag.
 
+    Equipment review E6: nor of a flag no exploration loadout holds (EXPLORATION_FORBIDDEN_FLAGS:
+    NO_TELE, the drains, aggravation, ...): the search never wears it, so it meets no depth
+    requirement and is not the only source (the weapon smith sold a no-teleport weapon before E4
+    whatever it gave)."""
+    from hengbot.equipment_rules import EXPLORATION_FORBIDDEN_FLAGS, loadout_banned
+
+    flags = frozenset(item.known_flags)
     return bool(getattr(item, "is_equipment", True) and item.known
                 and not item.is_cursed and not item.is_broken
-                and not loadout_banned(frozenset(item.known_flags)))
+                and not loadout_banned(flags)
+                and flags.isdisjoint(EXPLORATION_FORBIDDEN_FLAGS))
 
 
 def sole_depth_sources(policy: Any, snapshot) -> frozenset:
