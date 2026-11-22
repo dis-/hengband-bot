@@ -2669,6 +2669,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:_worn_in_place": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:average_feeling_uninformative": {
     "classification": "data",
     "rows": [
