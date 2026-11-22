@@ -1628,6 +1628,17 @@ def _within_half_melee(
     ]
 
 
+def _worn_in_place(entry: EvaluatedLoadout, current_item_ids: frozenset[str]) -> int:
+    """How many of the set's pieces are worn now in the slot the set puts them in.
+
+    The light slot is left out: among operationally equal sets the light keeps its own order
+    (``light_source_quality``, then the radius: a permanent light is a strict upgrade over the
+    worn lantern, ``_prefer``'s identical-metrics rule; owner 2026-10-19 「照らせる範囲も比べる」)."""
+    return sum(1 for slot, owned in entry.loadout.slots
+               if slot != SLOT_LIGHT and owned.id in current_item_ids
+               and owned.equipped_slot == slot)
+
+
 def _stable_operational_best(
     evaluated: Iterable[EvaluatedLoadout],
     current_item_ids: frozenset[str],
@@ -1770,6 +1781,13 @@ def _stable_operational_best(
         key=lambda entry: (
             time_ranged(entry.metrics),
             time_device(entry.metrics),
+            # Inside the bands above the sets are operationally equal: the one keeping more of
+            # the worn pieces in their slots wins before the secondary tie-breaks.  Owner
+            # 2026-11-22 (verbatim) 「全部位を決め直す。鑑定するイベントは1回なのに往復するほうが
+            # おかしい。」: n1-c life-220 06:52 chose 浮遊の軟革ブーツ over the worn 硬革ブーツ
+            # inside the 1% margin band (secondary value), and the next whole decision, a glove
+            # *Identify*-ed (+2 AC, the two boots then 1.9% apart), put the 硬革ブーツ back on.
+            _worn_in_place(entry, current_item_ids),
             entry.metrics.secondary_value,
             entry.metrics.utility_value,
             loadout_speed(entry.metrics),

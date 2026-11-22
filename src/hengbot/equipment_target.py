@@ -39,17 +39,11 @@ The events (each names why the visit decided again; the visit journal's ``search
 - ``candidate-identified``: a piece the visit already owned is known better -- *Identify*-ed or
   uncursed (its identity changed), or one this town cannot identify now allowed unidentified --
   and nothing was gained (``candidate_gains``: the new identity's excess is the same physical
-  piece, item_identity ``stable_identity``, as an identity the owned set lost).  NOT covered by
-  the owner's answer (E3 kept it deciding again); n1-c life-220 2026-11-22 06:53 (the feet round
-  trip): the visit wore its target's 浮遊の軟革ブーツ, then *Identify* made a carried 革グローブ
-  [1,+2], and the whole search, with every other slot open again, took the boots back off for the
-  硬革ブーツ the target had put in Home (the 1% margin band of ``_stable_operational_best`` held
-  them equal with the [1,+0] gloves, not with the [1,+2] ones).  Owner 2026-11-22 Q1 (decide
-  once per visit) and E0 「往復が起きたら停止して直す」: the visit's decision stands and the
-  better-known pieces join it -- the search runs over the held target (mapped, as when it is
-  read again) and those pieces only (policy_equipment: every other owned piece is
-  ``search_excluded``, as the finale's swap excludes all but its fixed target).  Bought,
-  picked up or withdrawn pieces still open the whole owned set (E4b, 「組全体の評価で比べる」).
+  piece, item_identity ``stable_identity``, known better, as an identity the owned set lost).
+  Owner 2026-11-22 (verbatim): 「全部位を決め直す。鑑定するイベントは1回なのに往復するほうがおかしい。」
+  -- it decides the whole target again like a gain (the name only tells the journal why); the
+  round trip one re-decision made (n1-c life-220 06:53, the feet) is the search's to prevent:
+  equipment_optimizer ``_stable_operational_best`` keeps the worn piece among near-equal sets.
 - ``finale-phase``: the 99F/100F preparation phase moved (finale_prep: its check step's read-only
   search, the loadout step's search in the finale's rank, the swap's fixed target, the cap lift, a
   stopped phase back to the ordinary order).  Owner Q1 「99F100Fもそれでバグらず行けるか確認」 and
@@ -367,38 +361,3 @@ def mapped_visit_target(held: VisitTarget, items, curse_pinned_ids=frozenset()):
             return None, (EVENT_WORN_CURSE,)
     return replace(held.result, best=replace(best, loadout=mapped)), ()
 
-
-def identified_search_exclusion(held: VisitTarget, items, candidates: tuple, pieces: tuple,
-                                usable_unidentified, curse_pinned_ids=frozenset()):
-    """(the owned ids a ``candidate-identified`` decision leaves out of the search, the events
-    that forbid it).
-
-    The search keeps the held target's pieces and the pieces known better
-    (``candidate_gains``' identified keys); every other owned piece is out.  A target piece is
-    found by the identity a move keeps or, when *Identify* changed that identity, as a better-known
-    piece of the same physical identity (n1-c life-220 07:45: the target's スピードの硬革ブーツ
-    gained its {+速} from the *Identify* after the one that named it).  ``target-piece-lost``
-    when a target piece is neither (owned no more: decides again as before); ``worn-curse-found``
-    as ``mapped_visit_target``."""
-    best = getattr(held.result, "best", None)
-    loadout = getattr(best, "loadout", None)
-    if not isinstance(loadout, Loadout):
-        return None, (EVENT_TARGET_PIECE_LOST,)
-    _acquired, identified = candidate_gains(held, candidates, pieces)
-    better_known = [owned for owned in items
-                    if (equipment_move_identity(owned.item), bool(usable_unidentified(owned)))
-                    in identified]
-    keep = {owned.id for owned in better_known}
-    for _slot, piece in loadout.slots:
-        identity = equipment_move_identity(piece.item)
-        if any(equipment_move_identity(owned.item) == identity for owned in items):
-            keep.update(owned.id for owned in items
-                        if equipment_move_identity(owned.item) == identity)
-        elif not any(_same_physical(stable_identity(piece.item), stable_identity(owned.item))
-                     for owned in better_known):
-            return None, (EVENT_TARGET_PIECE_LOST,)
-    for owned in items:
-        if (owned.id in curse_pinned_ids and owned.origin == "equipped"
-                and owned.id not in keep):
-            return None, (EVENT_WORN_CURSE,)
-    return frozenset(owned.id for owned in items if owned.id not in keep), ()

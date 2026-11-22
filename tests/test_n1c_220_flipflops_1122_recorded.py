@@ -6,14 +6,18 @@ visit's target once; decide again on buying, picking up, withdrawing from Home).
 target's own transaction (policy_equipment ``_equipment_transaction_home_key``), the target
 decided twice:
 
-* feet, 06:53:42 (bot-cc0ba74d6): the visit wore its target's 浮遊の軟革ブーツ over the 硬革ブーツ;
-  then *Identify* made a carried 革グローブ [1] a [1,+2] (``candidate-gained``) and the whole search,
-  every slot open again, chose the 硬革ブーツ back (the 1% margin band of
-  equipment_optimizer ``_stable_operational_best`` held the two boots equal beside the [1,+0]
-  gloves, 34.32 / 34.62 survival, not beside the [1,+2] ones, 34.80 / 35.47).  Fix: a piece the
-  visit already owned that is only known better is ``candidate-identified``: the search runs
-  over the held target and the better-known pieces (equipment_target
-  ``identified_search_exclusion``).
+* feet, 06:53:42 (bot-cc0ba74d6): the visit's start (06:52:35, the Lv21 calibration) chose the
+  浮遊の軟革ブーツ over the worn 硬革ブーツ inside the 1% margin band of equipment_optimizer
+  ``_stable_operational_best`` (34.32 / 34.62 survival beside the [1,+0] gloves: its secondary
+  value) and the transaction wore them; then *Identify* made a carried 革グローブ [1] a [1,+2]
+  (``candidate-identified``) and the whole search chose the 硬革ブーツ back (34.80 / 35.47 beside
+  the [1,+2] gloves: 1.9% apart, outside the band).  Owner 2026-11-22 (verbatim)
+  「全部位を決め直す。鑑定するイベントは1回なのに往復するほうがおかしい。」: the *Identify* decides
+  every slot again (ee98f4ca21's ``identified_search_exclusion``, which kept the held target's
+  pieces, is gone), and the evaluation is the one to stabilise: among the sets the bands hold
+  equal, the one keeping more worn pieces in their slots wins (``_worn_in_place``, before the
+  secondary value).  The visit's start keeps the 硬革ブーツ, and the *Identify*'s whole decision
+  keeps them again with the [1,+2] gloves: no round trip.
 * sub_ring, 07:23:21: the target put 耐火の指輪 with 耐冷の指輪, the transaction deposited the
   浮遊の指輪; the destination's band moved (19 -> 20, ``destination-band-floor``) and the new
   search wore the 浮遊の指輪 again.  The two rings tied on every metric and the last tie-break
@@ -31,12 +35,15 @@ checkpoint and the journal rows read here.
 DECLARED CONSTRUCTED:
 
 * feet: the character calibration at Lv21.  The checkpoint's sidecar is the Lv20 one (stale:
-  ``calibration-stale:level``) and the dump the visit wrote at its row 4 is not in the capture;
-  it is the sidecar with the level, base HP (max HP minus the CON bonus, as
+  ``calibration-stale:level``) and the dump the visit wrote at its row 4 is not in the capture
+  (a replay from the arrival leaves the recorded keys at row 5, on ee98f4ca21 as on this
+  branch); it is the sidecar with the level, base HP (max HP minus the CON bonus, as
   ``derive_equipped_calibration``) and HP floor of row 134's board.  With it the search gives
   the live loadout-report's survival exactly (34.3164616741415 at 06:52:35, 35.46982214841637 and
-  34.79982401589997 at 06:53:40).  The Home is row 131's page (the visit's last Home page before
-  the *Identify*), the visit's target the search on row 134's board.
+  34.79982401589997 at 06:53:40).  Row 112's search reads its own Home page (the last before the
+  transaction's first move, row 116); rows 134 and 135 read row 131's (the visit's last Home page
+  before the *Identify*).  The 硬革ブーツ worn at the *Identify*: row 135's catalogue with the two
+  boots' places exchanged (the boots the branch's visit never takes off).
 * sub_ring: the 浮遊の指輪 moved to the Home in the search's catalogue (the transaction's
   deposit, rows 33-36) with the destination floor of the re-decision (band 20).
 * body: rows 2-61 (Quest 25's walk and claim) are left out; the boards of rows 62-65 are decided
@@ -88,8 +95,26 @@ def _post(policy, recorded) -> None:
             policy.commit_staged_prompt_chain({"outcome": "released", "posted": posted})
 
 
+def _boards(policy, rows, journal) -> dict:
+    boards = {}
+    for row, entry in zip(rows, journal):
+        line = entry["line"] if entry["line"] is not None else entry["inputs"][-1]
+        boards[row] = policy._with_cached_skill_exp(
+            parse_snapshot(json.loads(line), policy._monrace_knowledge))
+    return boards
+
+
+def _lv21_calibration(policy, boards):
+    """DECLARED CONSTRUCTED (module docstring): the recorded sidecar at row 134's level."""
+    recorded = load_character_calibration(policy._character_calibration_path)
+    level = boards[134].player.level
+    return replace(recorded, level=level, hp_floor=level + 1,
+                   base_hp=boards[134].player.max_hp
+                   - constitution_hp_bonus(recorded.base_stats[4], level))
+
+
 class FeetIdentifiedGlovesTest(unittest.TestCase):
-    """06:53: *Identify* of a carried piece does not reopen the visit's boots."""
+    """06:52-06:53: the near-tie keeps the worn boots, and the *Identify* decides every slot."""
 
     @classmethod
     def setUpClass(cls):
@@ -97,25 +122,15 @@ class FeetIdentifiedGlovesTest(unittest.TestCase):
         cls.addClassCleanup(cls.scratch.cleanup)
         policy, journal, _steps = _quiet(load, FIXTURES / "feet", Path(cls.scratch.name))
         cls.rows = json.loads((FIXTURES / "feet" / "rows.json").read_text(encoding="utf-8"))
-        boards = {}
-        for row, entry in zip(cls.rows, journal):
-            line = entry["line"] if entry["line"] is not None else entry["inputs"][-1]
-            boards[row] = policy._with_cached_skill_exp(
-                parse_snapshot(json.loads(line), policy._monrace_knowledge))
-        recorded = load_character_calibration(policy._character_calibration_path)
-        level = boards[134].player.level
-        # DECLARED CONSTRUCTED (module docstring): the Lv21 calibration.
-        cls.calibration = replace(
-            recorded, level=level, hp_floor=level + 1,
-            base_hp=boards[134].player.max_hp
-            - constitution_hp_bonus(recorded.base_stats[4], level))
-        policy._adopt_home_catalogue(tuple(
-            policy._inventory_item_from_store_item(item) for item in boards[131].store.items))
-        cls.policy, cls.boards = policy, boards
+        cls.policy, cls.boards = policy, _boards(policy, cls.rows, journal)
+        cls.calibration = _lv21_calibration(policy, cls.boards)
         cls.catalogue = {}
-        for row in (134, 135):
-            policy._refresh_carried_equipment_catalog(boards[row])
-            cls.catalogue[row] = policy._operational_equipment_catalog(boards[row])
+        for row, home in ((112, 112), (134, 131), (135, 131)):
+            policy._adopt_home_catalogue(tuple(
+                policy._inventory_item_from_store_item(item)
+                for item in cls.boards[home].store.items))
+            policy._refresh_carried_equipment_catalog(cls.boards[row])
+            cls.catalogue[row] = policy._operational_equipment_catalog(cls.boards[row])
         cls.decided = cls.search(134)
         candidates, pieces = policy._visit_candidate_census(cls.catalogue[134])
         cls.held = equipment_target.VisitTarget(
@@ -123,49 +138,108 @@ class FeetIdentifiedGlovesTest(unittest.TestCase):
         policy._home_disposal.history_path.unlink(missing_ok=True)
 
     @classmethod
-    def search(cls, row, excluded=frozenset()):
-        return _quiet(prepare_warrior_optimization, cls.boards[row], cls.catalogue[row],
+    def search(cls, row, catalogue=None):
+        return _quiet(prepare_warrior_optimization, cls.boards[row],
+                      cls.catalogue[row] if catalogue is None else catalogue,
                       cls.policy._monrace_knowledge, depth=None, home_scan_complete=True,
-                      calibration=cls.calibration, timeout_seconds=120.0,
-                      search_excluded_item_ids=excluded)
+                      calibration=cls.calibration, timeout_seconds=120.0)
 
     def test_recorded_boards(self):
-        self.assertEqual(self.rows, [131, 134, 135])
+        self.assertEqual(self.rows, [112, 131, 134, 135])
         carried = {row: [item.name for item in self.boards[row].inventory
-                         if item.name.startswith("革グローブ")] for row in (134, 135)}
-        self.assertEqual(carried, {134: ["革グローブ [1]"], 135: ["革グローブ [1,+2]"]})
-        worn = {item.slot: item.name for item in self.boards[135].equipment}
-        self.assertEqual(worn["feet"], LEVITATION_BOOTS)
+                         if item.name.startswith("革グローブ")] for row in (112, 134, 135)}
+        self.assertEqual(carried, {112: ["革グローブ [1]"], 134: ["革グローブ [1]"],
+                                   135: ["革グローブ [1,+2]"]})
+        worn = {row: {item.slot: item.name for item in self.boards[row].equipment}["feet"]
+                for row in (112, 135)}
+        self.assertEqual(worn, {112: HARD_BOOTS, 135: LEVITATION_BOOTS})
+        self.assertIn(LEVITATION_BOOTS, [item.name for item in self.boards[112].store.items])
         self.assertIn(HARD_BOOTS, [item.name for item in self.boards[131].store.items])
 
-    def test_the_visit_target_wears_the_levitation_boots(self):
-        """The live target (survival as loadout-report 06:52:35)."""
+    def test_the_visit_start_keeps_the_worn_hard_boots(self):
+        """On ee98f4ca21 this search wore the 浮遊の軟革ブーツ (survival 34.3164616741415, the
+        live loadout-report 06:52:35): the two boots inside the band, the secondary value first."""
+        best = self.search(112).result
+        self.assertEqual(_slots(best)["feet"], HARD_BOOTS)
+        self.assertEqual(_slots(best)["arms"], "革グローブ [1,+0]")
+        self.assertEqual(best.best.metrics.survival_turns, 34.62295264673545)
+
+    def test_the_worn_levitation_boots_stay_inside_the_band(self):
+        """The live visit, the 浮遊の軟革ブーツ worn: the same band keeps them (34.3164616741415)."""
         self.assertEqual(_slots(self.decided.result)["feet"], LEVITATION_BOOTS)
         self.assertEqual(self.decided.result.best.metrics.survival_turns, 34.3164616741415)
 
-    def test_the_whole_search_after_the_identify_takes_the_boots_back(self):
-        """What the live re-decision did (loadout-report 06:53:40): the round trip's B -> A."""
+    def test_the_whole_search_after_the_identify_takes_the_better_boots(self):
+        """What the live re-decision did (loadout-report 06:53:40): 1.9% apart, outside the band."""
         best = self.search(135).result
         self.assertEqual(_slots(best)["feet"], HARD_BOOTS)
         self.assertEqual(best.best.metrics.survival_turns, 35.46982214841637)
 
     def test_the_identify_is_a_better_known_piece_not_a_gained_one(self):
-        """On main the [1,+2] gloves were ``candidate-gained``: the whole search ran."""
+        """The event only names why the visit decided again (the journal's ``search`` row)."""
         candidates, pieces = self.policy._visit_candidate_census(self.catalogue[135])
         self.assertEqual(
             equipment_target.redecide_events(self.held, candidates, self.held.context, pieces),
             (equipment_target.EVENT_CANDIDATE_IDENTIFIED,))
 
-    def test_the_held_target_takes_the_gloves_and_keeps_the_boots(self):
-        candidates, pieces = self.policy._visit_candidate_census(self.catalogue[135])
-        excluded, events = equipment_target.identified_search_exclusion(
-            self.held, self.catalogue[135], candidates, pieces,
-            self.policy._usable_unidentified_candidate)
-        self.assertEqual(events, ())
-        best = self.search(135, excluded).result
-        self.assertEqual(_slots(best)["feet"], LEVITATION_BOOTS)
+    def test_hard_boots_worn_at_the_identify_stay(self):
+        """The branch's visit: the 硬革ブーツ never left, the *Identify* decides every slot and
+        keeps them with the [1,+2] gloves."""
+        catalogue = self.catalogue[135]
+        levitation = next(owned for owned in catalogue if owned.item.name == LEVITATION_BOOTS)
+        hard = next(owned for owned in catalogue if owned.item.name == HARD_BOOTS)
+        self.assertEqual((levitation.origin, hard.origin), ("equipped", "home"))
+        # DECLARED CONSTRUCTED (module docstring): the two boots' places exchanged.
+        exchanged = tuple(
+            replace(owned, id=owned.id.replace("equipped:", "home:"), origin="home",
+                    equipped_slot=None) if owned is levitation
+            else replace(owned, id=owned.id.replace("home:", "equipped:"), origin="equipped",
+                         equipped_slot="feet") if owned is hard
+            else owned
+            for owned in catalogue)
+        best = self.search(135, exchanged).result
+        self.assertEqual(_slots(best)["feet"], HARD_BOOTS)
         self.assertEqual(_slots(best)["arms"], "革グローブ [1,+2]")
-        self.assertEqual(best.best.metrics.survival_turns, 34.79982401589997)
+        self.assertEqual(best.best.metrics.survival_turns, 35.46982214841637)
+
+
+class FeetIdentifyDecidesEverySlotTest(unittest.TestCase):
+    """The policy's own decisions: the visit's start on row 134, the *Identify* on row 135."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.scratch = TemporaryDirectory()
+        cls.addClassCleanup(cls.scratch.cleanup)
+        policy, journal, _steps = _quiet(load, FIXTURES / "feet", Path(cls.scratch.name))
+        rows = json.loads((FIXTURES / "feet" / "rows.json").read_text(encoding="utf-8"))
+        boards = _boards(policy, rows, journal)
+        calibration = _lv21_calibration(policy, boards)
+        policy._character_calibration = calibration
+        policy._character_calibration_loaded = True
+        policy._calibration_session_id = calibration.session_id
+        policy._adopt_home_catalogue(tuple(
+            policy._inventory_item_from_store_item(item) for item in boards[131].store.items))
+        cls.decided = {}
+        for row in (134, 135):
+            policy._refresh_carried_equipment_catalog(boards[row])
+            preparation = _quiet(policy._prepare_equipment_optimization, boards[row])
+            cls.decided[row] = (preparation.blockers, preparation.result)
+        cls.searches = [entry.get("events")
+                        for entry in equipment_visit_journal.journal(policy)["rows"]
+                        if entry["kind"] == "search"]
+        policy._home_disposal.history_path.unlink(missing_ok=True)
+
+    def test_the_identify_decides_every_slot_again(self):
+        """On ee98f4ca21 the search kept the held target's pieces (the 浮遊の軟革ブーツ, survival
+        34.79982401589997) and took only the better-known gloves."""
+        self.assertEqual(self.searches, [["visit-start"], ["candidate-identified"]])
+        for row, (blockers, _result) in self.decided.items():
+            self.assertEqual(blockers, (), row)
+        self.assertEqual(_slots(self.decided[134][1])["feet"], LEVITATION_BOOTS)
+        result = self.decided[135][1]
+        self.assertEqual(_slots(result)["feet"], HARD_BOOTS)
+        self.assertEqual(_slots(result)["arms"], "革グローブ [1,+2]")
+        self.assertEqual(result.best.metrics.survival_turns, 35.46982214841637)
 
 
 class SubRingTieTest(unittest.TestCase):
@@ -255,7 +329,7 @@ class BodyUnstartedSessionTest(unittest.TestCase):
         self.assertEqual(self.searches[:2], [["visit-start"], ["candidate-gained"]])
         self.assertTrue(self.seen[62][1]["body"].startswith(ROBE))
 
-    def test_the_identifies_join_the_target_and_keep_the_robe(self):
+    def test_the_identifies_decide_every_slot_again_and_keep_the_robe(self):
         self.assertEqual(self.searches[2:],
                          [["candidate-identified"]] * (len(self.searches) - 2))
         target = self.seen[65][1]

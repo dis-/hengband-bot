@@ -1663,19 +1663,6 @@ class EquipmentMixin:
             (equipment_target.VISIT_START,) if held_target is None
             else equipment_target.redecide_events(
                 held_target, visit_candidates, visit_context, visit_pieces))
-        if redecide == (equipment_target.EVENT_CANDIDATE_IDENTIFIED,):
-            # A piece the visit owned is known better and nothing else happened
-            # (equipment_target ``candidate-identified``, n1-c life-220 06:53 the feet round
-            # trip): the held target and the better-known pieces are the search's whole field.
-            excluded, refusal = equipment_target.identified_search_exclusion(
-                held_target, search_catalog, visit_candidates, visit_pieces,
-                self._usable_unidentified_candidate, curse_pinned)
-            if excluded is None:
-                redecide = refusal
-            else:
-                # The search's field only: what the identification flow and the telemetry read
-                # of the owned set (``search_excluded``) stays the whole owned set's.
-                optimizer_inputs["search_excluded_item_ids"] = search_excluded | excluded
         held_preparation = None
         if not redecide:
             refused = optimization_blockers(

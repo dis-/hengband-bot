@@ -24,7 +24,8 @@ What it records (one small rotation-bounded jsonl beside the decision log,
 - ``equipment-slot-flipflop:<slot>``: the slot's worn items in this visit, consecutive repeats
   and empty boards collapsed, end A, B, A (A != B).  An empty slot between does not count
   (the calibration strip takes everything off and puts the same gear back: A, -, A is no round
-  trip).
+  trip).  The row counts the slot's round trips in the visit (``round_trip``); only the
+  ``STOP_ROUND_TRIPS``-th stops (owner 2026-11-22 「1往復で決定するなら止める必要はない」).
 
 The stop.  ``observe`` (every public decision, ``choose_key``) reads the board into the trails;
 ``held_stop`` (at the head of ``_choose_key``) returns ``STOP_PREFIX + slot`` while the round
@@ -70,6 +71,10 @@ HAND_ROUNDTRIP_EVENT = "equipment-hand-roundtrip"
 # Owner 2026-11-22 「往復が起きたら停止して直す」: the round trip is a named stop.  False turns it
 # back into a record only (the event row stays).
 FLIPFLOP_STOPS = True
+# Owner 2026-11-22 (verbatim) 「1往復で決定するなら止める必要はない」: one round trip A, B, A
+# that settles is recorded (``stops`` false); the slot's second round trip in the visit (A, B,
+# A, B or A, B, A, C, A: it keeps going back and forth) is the stop.
+STOP_ROUND_TRIPS = 2
 _AMMUNITION = frozenset({TVAL_SHOT, TVAL_ARROW, TVAL_BOLT})
 # policy_equipment's search signature: its leading positional fields, then tagged pairs.
 SIGNATURE_FIELDS = ("owned-catalog", "identification-exempt", "home-scan-complete", "worn",
@@ -90,7 +95,7 @@ def _matches(left: tuple | None, right: tuple | None) -> bool:
 
 def _new(epoch) -> dict:
     return {"epoch": epoch, "worn": None, "trail": {}, "taken_off": [], "rows": [],
-            "prepared": None, "stop": None, "searches": 0, "posts": 0}
+            "prepared": None, "stop": None, "searches": 0, "posts": 0, "round_trips": {}}
 
 
 def journal(policy: Any) -> dict:
@@ -321,10 +326,13 @@ def observe(policy: Any, snapshot: Any) -> None:
         if not trail or not _matches(trail[-1], new):
             trail.append(new)
         if len(trail) >= 3 and _matches(trail[-3], new) and not _matches(trail[-2], new):
+            trips = state.setdefault("round_trips", {})
+            trips[slot] = trips.get(slot, 0) + 1
+            stops = FLIPFLOP_STOPS and trips[slot] >= STOP_ROUND_TRIPS
             name = f"{FLIPFLOP_EVENT}:{slot}"
             _journal_row(policy, snapshot, name, slot=slot, trail=trail[-3:],
-                    item=_item(worn[slot]), stops=FLIPFLOP_STOPS)
-            if FLIPFLOP_STOPS and state.get("stop") is None:
+                    item=_item(worn[slot]), stops=stops, round_trip=trips[slot])
+            if stops and state.get("stop") is None:
                 state["stop"] = {"reason": STOP_PREFIX + slot, "worn": now}
     state["worn"] = now
 
@@ -356,7 +364,9 @@ def stop_message(reason: str) -> str:
                 f"{reason[len(BANNED_STUCK_PREFIX):]} cannot be taken off (cursed) while the "
                 "loadout search cannot run (no calibration; owner 2026-11-22 Q7 「外せない時は"
                 "名指しで止める」); stopping the bot for investigation")
-    return (f"<{reason}> the slot {reason[len(STOP_PREFIX):]} was worn A, B, A in one town visit "
-            "(owner 2026-11-22 「往復が起きたら停止して直す」); the visit's searches and wears "
+    return (f"<{reason}> the slot {reason[len(STOP_PREFIX):]} made its second round trip in one "
+            "town visit (A, B, A, then back again: A, B, A, B or A, B, A, C, A; owner 2026-11-22 "
+            "「往復が起きたら停止して直す」, "
+            "「1往復で決定するなら止める必要はない」); the visit's searches and wears "
             "are in equipment-visit.jsonl and the capture's _equipment_visit_journal; "
             "stopping the bot for investigation")

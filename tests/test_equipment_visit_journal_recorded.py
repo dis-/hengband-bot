@@ -1,16 +1,21 @@
 """The town visit's equipment journal and the named stop on a slot's round trip (review 11-22 E0).
 
-Owner 2026-11-22 「決まりは足さず、着け直しを記録。往復が起きたら停止して直す。」
+Owner 2026-11-22 「決まりは足さず、着け直しを記録。往復が起きたら停止して直す。」 and (verbatim)
+「1往復で決定するなら止める必要はない」: one round trip that settles is recorded, the slot's
+second round trip in the visit stops.
 
 Recorded round trips (both in town, one visit each):
 
 - tests/fixtures/equip-swap-20260826 (the 2026-08-26 equip-swap loop): the body slot went
-  硬革よろい -> (off) -> 鎖かたびら (board 230) -> 硬革よろい (board 237).  The boards 208-240
-  are decided through the public ``choose_key`` by a fresh policy (as
-  test_equipment_swap_loop_incident does with the same boards): every decision before board 237
-  is the same with the stop switched off, and board 237 stops by name and sends nothing.
+  硬革よろい -> (off) -> 鎖かたびら (board 230) -> 硬革よろい (board 237, the first round trip) ->
+  (off) -> 汚れたボロ服 (275) -> 硬革よろい (282, the second).  The boards 208-283 are decided
+  through the public ``choose_key`` by a fresh policy (as test_equipment_swap_loop_incident does
+  with the same boards): every decision before board 282 is the same with the stop switched
+  off (board 237 included: recorded, ``stops`` false), and board 282 stops by name and sends
+  nothing (until the worn state changes: board 283 takes the armour off).
 - tests/fixtures/equipment-alternation-20261005: main_hand シャベル -> (off) -> ソウルソード (4658)
   -> シャベル (4660), sub_hand シャベル -> (off) -> シャベル (the same item back: no round trip).
+  One round trip: recorded, no stop.
   DECLARED: these boards are read by the journal directly (``observe`` / ``held_stop``, the two
   calls ``choose_key`` and ``_choose_key`` make); a fresh policy cannot decide them (the ~f
   skill list of the capture is not in it).
@@ -41,8 +46,10 @@ from hengbot.policy import HengbotPolicy
 FIXTURES = Path(__file__).with_name("fixtures")
 SNAPSHOTS_0826 = FIXTURES / "equip-swap-20260826.snapshots.jsonl.gz"
 ALTERNATION_1005 = FIXTURES / "equipment-alternation-20261005.json.gz"
-FIRST, CHAIN_MAIL_WORN, HARD_LEATHER_BACK, LAST = 208, 230, 237, 240
+FIRST, CHAIN_MAIL_WORN, HARD_LEATHER_BACK, RAG_WORN, HARD_LEATHER_AGAIN, LAST = (
+    208, 230, 237, 275, 282, 283)
 HARD_LEATHER = "硬革よろい (-1) [6,+5]"
+RAG_NAME = "汚れたボロ服 [1,+6]"
 RAG = "8cc0213094bf60d5"
 HARD_ARMOUR = "ba9b081829fa4479"
 
@@ -78,37 +85,46 @@ class SlotRoundTripStopRecordedTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.scratch.cleanup()
 
-    def test_the_recorded_boards_wear_a_b_a(self):
+    def test_the_recorded_boards_round_trip_twice(self):
         bodies = [next((item["name"] for item in self.raw[index]["equipment"]
                         if item["slot"] == "body"), None)
-                  for index in (FIRST, CHAIN_MAIL_WORN - 1, CHAIN_MAIL_WORN, HARD_LEATHER_BACK)]
-        self.assertEqual(bodies, [HARD_LEATHER, None, "鎖かたびら (-2) [14,+0]", HARD_LEATHER])
+                  for index in (FIRST, CHAIN_MAIL_WORN - 1, CHAIN_MAIL_WORN, HARD_LEATHER_BACK,
+                                RAG_WORN - 1, RAG_WORN, HARD_LEATHER_AGAIN, LAST)]
+        self.assertEqual(bodies, [HARD_LEATHER, None, "鎖かたびら (-2) [14,+0]", HARD_LEATHER,
+                                  None, RAG_NAME, HARD_LEATHER, None])
 
-    def test_the_single_swap_does_not_stop_and_every_key_is_unchanged(self):
-        for index in range(FIRST, HARD_LEATHER_BACK):
+    def test_the_first_round_trip_does_not_stop_and_every_key_is_unchanged(self):
+        """On ee98f4ca21 board 237 (the first A, B, A) stopped and sent nothing."""
+        for index in range(FIRST, HARD_LEATHER_AGAIN):
             self.assertEqual(self.decided[index], self.decided_off[index], index)
             self.assertFalse(self.decided[index][2], (index, self.decided[index]))
             self.assertFalse(journal.is_stop(self.decided[index][1]), index)
 
-    def test_the_round_trip_is_a_named_final_stop(self):
+    def test_the_second_round_trip_is_a_named_final_stop(self):
         stop = journal.STOP_PREFIX + "body"
         self.assertEqual(stop, "town:blocked:equipment-slot-flipflop:body")
-        for index in range(HARD_LEATHER_BACK, LAST + 1):
-            self.assertEqual(self.decided[index], (None, stop, True), index)
-        self.assertIn("A, B, A", _policy_final_stop_banner(stop))
+        self.assertEqual(self.decided[HARD_LEATHER_AGAIN], (None, stop, True))
+        self.assertIn("second round trip", _policy_final_stop_banner(stop))
         # Switched off, the same board is decided as before (record only).
-        self.assertNotEqual(self.decided_off[HARD_LEATHER_BACK][1], stop)
-        self.assertFalse(self.decided_off[HARD_LEATHER_BACK][2])
+        self.assertNotEqual(self.decided_off[HARD_LEATHER_AGAIN][1], stop)
+        self.assertFalse(self.decided_off[HARD_LEATHER_AGAIN][2])
+        # The stop stands while the round trip's worn state does (board 283: the armour off).
+        self.assertFalse(journal.is_stop(self.decided[LAST][1]))
 
     def test_the_stop_context_and_the_file_hold_the_visit(self):
         kinds = [row["kind"] for row in self.policy._equipment_visit_journal["rows"]]
-        self.assertEqual(kinds, [journal.REWEAR_EVENT, "equipment-slot-flipflop:body"])
+        self.assertEqual(kinds, [journal.REWEAR_EVENT, "equipment-slot-flipflop:body"] * 2)
         captured = policy_state(self.policy)["state"]["_equipment_visit_journal"]
         self.assertEqual(captured["stop"]["reason"], journal.STOP_PREFIX + "body")
-        flip = captured["rows"][-1]
-        self.assertEqual(flip["item"]["name"], HARD_LEATHER)
-        self.assertEqual(flip["trail"][0], flip["trail"][2])
-        self.assertNotEqual(flip["trail"][0], flip["trail"][1])
+        flips = [row for row in captured["rows"] if row["kind"] == "equipment-slot-flipflop:body"]
+        self.assertEqual([(row["round_trip"], row["stops"]) for row in flips],
+                         [(1, False), (2, True)])
+        for flip in flips:
+            self.assertEqual(flip["item"]["name"], HARD_LEATHER)
+            self.assertEqual(flip["trail"][0], flip["trail"][2])
+            self.assertNotEqual(flip["trail"][0], flip["trail"][1])
+        # B: the 鎖かたびら the first time, the 汚れたボロ服 the second.
+        self.assertNotEqual(flips[0]["trail"][1], flips[1]["trail"][1])
         written = [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines()]
         self.assertEqual([row["kind"] for row in written], kinds)
         # Record only keeps the event rows.
@@ -118,7 +134,8 @@ class SlotRoundTripStopRecordedTest(unittest.TestCase):
 
 
 class TwoHandRoundTripRecordedTest(unittest.TestCase):
-    def test_the_shovel_back_in_main_hand_stops_the_spare_shovel_does_not(self):
+    def test_one_round_trip_of_the_shovel_is_recorded_without_a_stop(self):
+        """On ee98f4ca21 board 4660 (the shovel back in main_hand) stopped."""
         data = json.loads(gzip.decompress(ALTERNATION_1005.read_bytes()))
         policy = HengbotPolicy()
         held = {}
@@ -130,12 +147,13 @@ class TwoHandRoundTripRecordedTest(unittest.TestCase):
             policy._town_visit_epoch = data["rows"]["4655"]["turn"]
             journal.observe(policy, board)
             held[sequence] = journal.held_stop(policy, board)
-        self.assertEqual(held, {**{n: None for n in range(4655, 4660)},
-                                4660: journal.STOP_PREFIX + "main_hand"})
+        self.assertEqual(held, {n: None for n in range(4655, 4661)})
         rows = policy._equipment_visit_journal["rows"]
         self.assertEqual([(row["kind"], row["slot"]) for row in rows],
                          [(journal.REWEAR_EVENT, "sub_hand"), (journal.REWEAR_EVENT, "main_hand"),
                           ("equipment-slot-flipflop:main_hand", "main_hand")])
+        self.assertEqual((rows[-1]["round_trip"], rows[-1]["stops"]), (1, False))
+        self.assertIsNone(policy._equipment_visit_journal["stop"])
 
 
 class WearPostRecordTest(unittest.TestCase):
