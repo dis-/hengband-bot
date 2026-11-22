@@ -969,6 +969,55 @@ class EquipmentMixin:
         its input key and its search read this one."""
         return finale_prep.dedicated_order(self)
 
+    def _operational_equipment_catalog(self, snapshot: Snapshot) -> tuple:
+        """The owned pieces the town search may wear (before quarantine and Home deferral)."""
+        oil_carried = self._first_item(
+            snapshot, lambda item: item.is_oil and item.fuel > 0
+        ) is not None
+        # An unidentified lantern the board showed out is as empty as a known
+        # one at 0 turns: without carried oil it is no light to choose (n1-b
+        # life-330, the optimizer took the torch off for it 26 times).
+        return tuple(
+            item
+            for item in self._equipment_catalog.items
+            if operational_equipment_candidate(item, oil_carried=oil_carried)
+            and not (
+                not oil_carried
+                and item.origin in {"pack", "equipped"}
+                and lamp_fuel.unidentified_lantern_seen_out(self, item.item)
+            )
+        )
+
+    def _usable_unidentified_candidate(self, owned: OwnedEquipment) -> bool:
+        """An unidentified piece this town cannot identify now (allowed unidentified)."""
+        return self._item_signature(owned.item) in self._town_unidentifiable_carried_sigs
+
+    def _visit_candidate_census(self, catalog) -> tuple[tuple, tuple]:
+        """(equipment_target ``candidate_counts``, ``candidate_pieces``) of ``catalog``."""
+        return (equipment_target.candidate_counts(catalog, self._usable_unidentified_candidate),
+                equipment_target.candidate_pieces(catalog, self._usable_unidentified_candidate))
+
+    def _unstarted_session_yields(self, snapshot: Snapshot) -> bool:
+        """Whether the visit's not yet started transaction yields to a gained candidate.
+
+        The session applies the visit's target; a piece the owned set gained since the target
+        was decided (equipment_target ``candidate-gained``: bought, picked up, withdrawn; the
+        owner's Q1 event), or one it knows better (``candidate-identified``), decides the target
+        again before the session moves anything.  n1-c
+        life-220 2026-11-22 07:45 (the body round trip): the session planned at the visit's
+        start waited behind Quest 25's reward and two *Identify*s; it then wore the target's
+        胴丸 over the オログのローブ, and only its completion let the search see the reward's
+        耐混乱の指輪 and the identified スピードの硬革ブーツ, whose target put the robe back on.
+        A session that has moved something runs to its end as before."""
+        session = self._equipment_transaction_session
+        held = equipment_target.visit_target(self, self._town_visit_epoch)
+        if session is None or session.started or held is None:
+            return False
+        candidates, pieces = self._visit_candidate_census(
+            self._operational_equipment_catalog(snapshot))
+        acquired, identified = equipment_target.candidate_gains(held, candidates, pieces)
+        return bool(acquired or identified)
+
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
@@ -985,6 +1034,7 @@ class EquipmentMixin:
         if (
             self._equipment_transaction_session is not None
             and not self._equipment_transaction_session.complete
+            and not self._unstarted_session_yields(snapshot)
         ):
             self._equipment_optimization_telemetry["result_source"] = (
                 "in-flight-session-return"
@@ -1082,22 +1132,7 @@ class EquipmentMixin:
                 )
                 return preparation
         optimization_depth = depth_override
-        oil_carried = self._first_item(
-            snapshot, lambda item: item.is_oil and item.fuel > 0
-        ) is not None
-        # An unidentified lantern the board showed out is as empty as a known
-        # one at 0 turns: without carried oil it is no light to choose (n1-b
-        # life-330, the optimizer took the torch off for it 26 times).
-        operational_catalog = tuple(
-            item
-            for item in self._equipment_catalog.items
-            if operational_equipment_candidate(item, oil_carried=oil_carried)
-            and not (
-                not oil_carried
-                and item.origin in {"pack", "equipped"}
-                and lamp_fuel.unidentified_lantern_seen_out(self, item.item)
-            )
-        )
+        operational_catalog = self._operational_equipment_catalog(snapshot)
         eligible_catalog = tuple(
             item
             for item in operational_catalog
@@ -1620,16 +1655,27 @@ class EquipmentMixin:
         # 行けるか確認」): the visit decides its target once; a changed signature searches again
         # only on a named event (equipment_target.REDECIDE_EVENTS), else the visit's target is
         # read again on this board's ids and its transaction planned below as a search's is.
-        visit_candidates = equipment_target.candidate_counts(
-            search_catalog,
-            lambda owned: self._item_signature(owned.item)
-            in self._town_unidentifiable_carried_sigs)
+        visit_candidates, visit_pieces = self._visit_candidate_census(search_catalog)
         visit_context = (finale_key, destination_floor, equipment_rules.RULES_VERSION,
                          equipment_target.destruction_means_key(has_destruction, staff_gate))
         held_target = equipment_target.visit_target(self, self._town_visit_epoch)
         redecide = (
             (equipment_target.VISIT_START,) if held_target is None
-            else equipment_target.redecide_events(held_target, visit_candidates, visit_context))
+            else equipment_target.redecide_events(
+                held_target, visit_candidates, visit_context, visit_pieces))
+        if redecide == (equipment_target.EVENT_CANDIDATE_IDENTIFIED,):
+            # A piece the visit owned is known better and nothing else happened
+            # (equipment_target ``candidate-identified``, n1-c life-220 06:53 the feet round
+            # trip): the held target and the better-known pieces are the search's whole field.
+            excluded, refusal = equipment_target.identified_search_exclusion(
+                held_target, search_catalog, visit_candidates, visit_pieces,
+                self._usable_unidentified_candidate, curse_pinned)
+            if excluded is None:
+                redecide = refusal
+            else:
+                # The search's field only: what the identification flow and the telemetry read
+                # of the owned set (``search_excluded``) stays the whole owned set's.
+                optimizer_inputs["search_excluded_item_ids"] = search_excluded | excluded
         held_preparation = None
         if not redecide:
             refused = optimization_blockers(
@@ -1903,7 +1949,8 @@ class EquipmentMixin:
         ):
             # This search is the visit's target until a named event (equipment_target).
             equipment_target.fix_visit_target(
-                self, self._town_visit_epoch, visit_candidates, visit_context, result)
+                self, self._town_visit_epoch, visit_candidates, visit_context, result,
+                visit_pieces)
         previous_target_ids = self._equipment_fresh_search_target_ids
         current_target_ids = frozenset(selected_ids)
         session = self._equipment_transaction_session

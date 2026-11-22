@@ -23359,5 +23359,27 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-22, the net under 2026-11-18 「破壊を持っていないのに50F以降にいるのが不具合」: WAIT_KEY under the policy final stop dungeon:blocked:deep-arrival-without-destruction (POLICY_FINAL_STOP_REASONS); None otherwise."
+  },
+  "equipment_target.py:redecide_events": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: equipment_target.redecide_events returns the named events (tuple of str) since the visit's held target was decided -- candidate-gained / candidate-identified (candidate_gains: acquired vs better-known pieces), finale-phase, destination-band-floor, equipment-rules, destruction-means-gained -- read by _prepare_equipment_optimization to search again or hold the target; no key, no send seam, no store or town action (n1-c life-220 2026-11-22 equipment round trips).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._operational_equipment_catalog": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _operational_equipment_catalog returns the owned pieces (tuple of OwnedEquipment) the town search may wear (operational_equipment_candidate, the unidentified lantern seen out without oil left out), read by _prepare_equipment_optimization and _unstarted_session_yields; no key, no send seam, no store or town action (n1-c life-220 2026-11-22).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
