@@ -15,11 +15,16 @@ Owner 2026-11-13 (pingpong root fix): a round trip is fixed by registering the o
 mechanism.  The relief's ware is registered in the transaction's pack preservation
 (policy_home ``_home_full_relief_holds_carried``, read by policy_equipment
 ``_prepare_equipment_optimization`` beside the identification flow and the inferior weapon), so
-the sweep destroys the robe and the visit goes on.
+the sweep disposes of the robe and the visit goes on.
+
+Owner 2026-11-22 「売れる品は売り、壊すのは売れない品だけ」: the sweep's wares a store pays for are
+sold, not destroyed (policy_home ``_home_full_buyer``, tests/test_home_tidy_sell_1122_recorded):
+the broadsword (row 13) goes to the Weapon Smith and the robe (row 16) to the Armoury; the
+transaction holds the robe through its sale as it held it for the destroy.
 
 Recorded: n1-a life-532's town-arrival checkpoint (tests/fixtures/n1a-532-robe-round-trip-1122,
 rows 0-19), decided through the public ``choose_key`` with the recorded keys posted; rows 0-15
-match the record, row 16 is the fix.
+match the record but row 13 (the broadsword's sale, owner 2026-11-22), row 16 is the fix.
 
 DECLARED CONSTRUCTED:
 
@@ -27,7 +32,7 @@ DECLARED CONSTRUCTED:
   character had just reached Lv20, STR 18/47) is not in the checkpoint, so the same character's
   Lv20 calibration the restarted bot recorded at 14:17 is used, with the worn cursed 鎖かたびら in
   its pinned set as on these boards (fixture ``character-calibration-lv20.json``);
-* the boards of rows 17-19 without the robe, as after its destroy (their responses are the
+* the boards of rows 17-19 without the robe, as after its disposal (their responses are the
   recorded ones: the Home census of row 18 is the Home without the robe).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
@@ -40,6 +45,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot import equipment_target
+from hengbot.model import STORE_ARMOURY
 from hengbot.policy import staged_prompt_chain_matches
 from replay_town_arrival import adopt_calibration
 from support.town_arrival_fixture import load
@@ -48,6 +54,8 @@ FIXTURE = Path(__file__).with_name("fixtures") / "n1a-532-robe-round-trip-1122"
 ROBE = "ローブ [2,+5]"
 TAKE_ROW = 15
 SKIP_ROW = 16
+# The sweep's broadsword: destroyed in the record ('01km'), sold now (owner 2026-11-22).
+BROADSWORD_ROW = 13
 
 
 def _post(policy, key):
@@ -100,6 +108,8 @@ class HomeReliefTakePreservedRecordedTest(unittest.TestCase):
                            and policy._home_full_relief_holds_carried(cls.board, item)]
         cls.key = _decide(policy, cls.board)
         cls.reason = policy.last_reason
+        relief = policy._home_full_relief
+        cls.relief_after = None if relief is None else (relief.mode, relief.sale[1], relief.sweep)
         cls.telemetry = dict(policy._equipment_optimization_telemetry)
         cls.session_after_take = policy._equipment_transaction_session
         _post(policy, cls.key)
@@ -111,7 +121,12 @@ class HomeReliefTakePreservedRecordedTest(unittest.TestCase):
 
     def test_rows_before_the_skip_replay_as_recorded(self):
         for row, (decided, recorded) in enumerate(self.replayed):
-            self.assertEqual(decided, recorded, row)
+            if row != BROADSWORD_ROW:
+                self.assertEqual(decided, recorded, row)
+        # Owner 2026-11-22 「売れる品は売り、壊すのは売れない品だけ」: the broadsword the record
+        # destroyed walks to the Weapon Smith ('#', its entrance) for its sale.
+        self.assertEqual(self.replayed[BROADSWORD_ROW],
+                         (("`n#.", "shop:approach"), ("01km", "home:junk-sweep:plain-gear")))
         self.assertEqual(self.journal[TAKE_ROW]["key"], "5pj\x1b")
         self.assertEqual(self.journal[TAKE_ROW]["reason"],
                          "home-errand:atomic-withdraw:full-home-discard")
@@ -126,20 +141,22 @@ class HomeReliefTakePreservedRecordedTest(unittest.TestCase):
         self.assertTrue(self.held_before)
         self.assertEqual(self.others_held, [])
 
-    def test_the_sweep_destroys_the_robe_and_no_deposit_is_planned(self):
-        # Before: ('9', 'town:entrance-step-off:home:full-skip:identified-item-protected'),
-        # the transaction's session owning the robe for its deposit.
-        self.assertEqual((self.key, self.reason), ("01km", "home:junk-sweep:plain-gear"))
+    def test_the_sweep_sells_the_robe_and_no_deposit_is_planned(self):
+        # Before n1-a life-532's fix: ('9', 'town:entrance-step-off:home:full-skip:identified-
+        # item-protected'), the transaction's session owning the robe for its deposit.  Before
+        # owner 2026-11-22: ('01km', 'home:junk-sweep:plain-gear'), the robe destroyed.
+        self.assertEqual((self.key, self.reason), ("9", "shop:approach"))
+        self.assertEqual(self.relief_after, ("sale", STORE_ARMOURY, True))
         self.assertIsNone(self.session_after_take)
         [preserved] = self.telemetry["preserve_pack_items"]["items"]
         self.assertEqual((preserved["name"], preserved["reasons"]),
                          (ROBE, ["home-full-relief-take"]))
 
-    def test_after_the_destroy_the_visit_goes_on_without_a_deposit_trip(self):
+    def test_after_the_disposal_the_visit_goes_on_without_a_deposit_trip(self):
         policy = self.policy
         decided = []
         for recorded, supply in self.steps[SKIP_ROW + 1:]:
-            # DECLARED CONSTRUCTED (module docstring): the boards without the destroyed robe.
+            # DECLARED CONSTRUCTED (module docstring): the boards without the robe.
             board = _without_robe(supply())
             key = _decide(policy, board)
             decided.append((recorded["row"], key, policy.last_reason,
@@ -149,7 +166,7 @@ class HomeReliefTakePreservedRecordedTest(unittest.TestCase):
             self.assertIsNone(session, row)
             self.assertFalse(reason.startswith("equipment-transaction"), (row, reason))
             self.assertNotIn("full-home-discard", reason, row)
-        # Row 19 is the Home page after the destroy: the census is read again, nothing is put back.
+        # Row 19 is the Home page after the disposal: the census is read again, nothing is put back.
         self.assertEqual(decided[-1][:3], (19, "~9\x1b", "home:request-knowledge-scan"))
 
 

@@ -543,22 +543,12 @@ class HomeMixin:
             item = replace(item, slot="home-surplus")
         signature = self._item_signature(item)
         probe = replace(snapshot, inventory=(*snapshot.inventory, item))
-        preferred_store = self._home_disposal_store(signature)
-        # The Black Market last: it buys every kind (store/service-checker.cpp), the
-        # outlet left when the stores of the kind are full this visit.
-        store_type = next((store for store in (preferred_store, STORE_WEAPON, STORE_ARMOURY,
-                           STORE_MAGIC, STORE_GENERAL, STORE_TEMPLE, STORE_ALCHEMIST,
-                           STORE_BLACK)
-                           if store != STORE_HOME
-                           and self._store_accepts_sale(store, item)
-                           and store not in self._store_sale_refused), None)
+        store_type = self._home_full_buyer(item)
         # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを作れる」:
         # clearly useless stock (item_fate.clearly_useless) passes the rank keep,
         # the standing digger retention and the ammunition reservations.
         useless = item_fate.clearly_useless(self, snapshot, item, carried=carried) is not None
         if (item_fate.held(self, snapshot, item, "home-visit", "home-full-sale")
-                or item.is_empty_bottle
-                or signature in self._unsellable_items
                 or (not useless and item_fate.stock_reserved(self, snapshot, probe, item))
                 or same_memory(signature, self._home_pending_item)
                 or signature in self._home_pending_batch
@@ -571,10 +561,31 @@ class HomeMixin:
                 or (not useless and not item_fate.gear_surplus(self, snapshot, item))
                 or store_type is None):
             return None
+        return item, store_type, item_fate.sale_value(self, item)
+
+    def _home_full_buyer(self, item: InventoryItem) -> int | None:
+        """The store that pays for the relief's ware, or None when no store buys it.
+
+        The one answer the relief's sale and its destroy share (owner 2026-11-22 「売れる品は
+        売り、壊すのは売れない品だけ」): the ware's kind store first (``_home_disposal_store``),
+        then each store that buys the kind (``_store_accepts_sale``: a positive sale value), the
+        Black Market last -- it buys every kind (store/service-checker.cpp), the outlet left
+        when the stores of the kind are full this visit; never a store that refused a sale this
+        visit (``_store_sale_refused``), never a ware remembered unsellable
+        (``_unsellable_items``), an empty bottle or a kind of base value 0.
+        """
+        signature = self._item_signature(item)
+        if item.is_empty_bottle or signature in self._unsellable_items:
+            return None
         base = item_base_cost(item, self._baseitem_costs)
         if base is not None and base <= 0:
             return None
-        return item, store_type, item_fate.sale_value(self, item)
+        return next((store for store in (self._home_disposal_store(signature), STORE_WEAPON,
+                                         STORE_ARMOURY, STORE_MAGIC, STORE_GENERAL,
+                                         STORE_TEMPLE, STORE_ALCHEMIST, STORE_BLACK)
+                     if store != STORE_HOME
+                     and self._store_accepts_sale(store, item)
+                     and store not in self._store_sale_refused), None)
 
     def _home_full_relief_leaves_recall_short(
         self, snapshot: Snapshot, item: InventoryItem | StoreItem,
@@ -1165,6 +1176,21 @@ class HomeMixin:
                         # neither its take nor its identification is disposal.
                         return self._town_producer_entry("_home_full_skip_key",
                             lambda: self._home_full_skip_key("identified-item-protected"))
+                    buyer = None if relief.destroy_posted else self._home_full_buyer(target)
+                    if buyer is not None:
+                        # Owner 2026-11-22 「売れる品は売り、壊すのは売れない品だけ」: the ware the
+                        # tidy judged unneeded goes to the store that pays for it, by the relief's
+                        # own sale (the cap tidy's batch, the round trip of the surplus bolts);
+                        # only a ware no store buys is destroyed here.  n1-c life-217's finale
+                        # visit (2026-11-21): the cap tidy took the Gold Dragon Scale Mail
+                        # [40,+14] out to destroy it as plain gear the loadout outdoes.  A store
+                        # refusing the sale (store full, unsellable) falls back to the destroy
+                        # below once no store is left that buys it.
+                        relief.reset(*DESTROY_FIELDS)
+                        relief.sale = (signature, buyer, before_count)
+                        relief.mode = "sale"
+                        return self._town_producer_entry("_home_full_relief_key",
+                            lambda: self._home_full_relief_key(snapshot))
                     posted = relief.destroy_posted
                     if posted and count < (relief.destroy_before_count
                                            if relief.destroy_before_count is not None
