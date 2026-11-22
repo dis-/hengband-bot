@@ -15,7 +15,13 @@ half, for every scene that drank a Potion of Speed:
  * A failed cast (the executor's ``failed`` refusal; cmd-magiceat.cpp prints
    「呪文をうまく唱えられなかった！」, spends the turn and keeps the charge) re-arms
    the scene once (``rearm``: its one-shot mark, a JSON-safe path), and on that
-   floor its next ask drinks a carried potion instead of casting again.
+   floor its next ask drinks a carried potion above the scene's reserve instead of
+   casting again.  With no such potion the power is cast again: the failure kept
+   its charge, and the owner's 「代わりに取り込んだ杖を試みる」 (a reliable staff
+   carries no potion) and the scenes' haste (11-04 「戦闘時に加速する」, Q25 phase 2
+   「事前に加速して」) still stand.  n1-c life-220 (2026-11-22, Q25): one failed cast
+   on phase 1 left every later ask on the floor without a dose, the Ipsissimus walk
+   and its summons fight went unhasted.
  * A scene whose trigger holds again once the dose has run out (a reviewed
    quest plan's ``speed_potion_use_when``) passes ``renew``: when the speed
    field has shown the haste and shows it no longer on the same floor, its
@@ -47,7 +53,7 @@ MEMORY = "_speed_dose_memory"
 @dataclass
 class DoseMemory:
     pending: tuple | None = None       # (turn, owner reason, rearm) of the last cast
-    failed_floor: tuple | None = None  # a cast failed here: the next ask drinks a potion
+    failed_floor: tuple | None = None  # a cast failed here: the next ask drinks a spare potion
     renewal: tuple | None = None       # (floor, rearm, haste seen) of a ``renew`` dose
 
 
@@ -108,9 +114,17 @@ def observe(policy, snapshot) -> None:
         memory.pending = None
 
 
-def _cast_key(policy, snapshot) -> str | None:
+def _spare_potions(policy, snapshot, potion_reserve: int) -> int:
+    """The carried Potions of Speed above the scene's reserve."""
+    return max(0, policy._exact_potion_count(snapshot, SV_POTION_SPEED) - potion_reserve)
+
+
+def _cast_key(policy, snapshot, potion_reserve: int = 0) -> str | None:
+    """The absorbed power's cast; after a failed cast on this floor only while no
+    potion above ``potion_reserve`` is carried (the failure kept the charge)."""
     memory = getattr(policy, MEMORY, None)
-    if memory is not None and memory.failed_floor == snapshot.floor_key:
+    if (memory is not None and memory.failed_floor == snapshot.floor_key
+            and _spare_potions(policy, snapshot, potion_reserve) > 0):
         return None
     return substitutes.item_cast_key(policy, snapshot, POTION)
 
@@ -119,7 +133,7 @@ def key(policy, snapshot, reason: str, *, rearm=None, potion_reserve: int = 0,
         renew: bool = False) -> str | None:
     """The scene's Speed dose, setting ``last_reason`` (the cast's ends in
     ``CAST_SUFFIX``); None when it has none."""
-    cast = _cast_key(policy, snapshot)
+    cast = _cast_key(policy, snapshot, potion_reserve)
     if cast is not None:
         policy.last_reason = reason + substitutes.CAST_SUFFIX
         _memory(policy).pending = (snapshot.turn, policy.last_reason, rearm)
@@ -142,8 +156,8 @@ def _renewing(policy, snapshot, command, rearm, renew):
 def spare(policy, snapshot, potion_reserve: int = 0) -> int:
     """The doses a fight model may spend: the potions above the reserve, at
     least one while the absorbed power serves."""
-    potions = max(0, policy._exact_potion_count(snapshot, SV_POTION_SPEED) - potion_reserve)
-    return max(potions, int(_cast_key(policy, snapshot) is not None))
+    potions = _spare_potions(policy, snapshot, potion_reserve)
+    return max(potions, int(_cast_key(policy, snapshot, potion_reserve) is not None))
 
 
 def available(policy, snapshot) -> bool:
