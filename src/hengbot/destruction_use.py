@@ -64,7 +64,7 @@ from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
 
-from hengbot import deep_climb, means_spent_loop, return_start
+from hengbot import deep_climb, deep_fall_guard, means_spent_loop, return_start
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
@@ -850,6 +850,7 @@ def observe(policy, snapshot) -> None:
     setattr(policy, UNSAFE_NOTE, None)
     means_spent_loop.observe(policy, snapshot)
     deep_climb.observe(policy, snapshot)
+    deep_fall_guard.observe(policy, snapshot)
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
         setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
     if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and holds_means(policy, snapshot):

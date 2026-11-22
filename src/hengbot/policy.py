@@ -14,7 +14,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import cross_rules, deep_climb, dive_floor, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
+from hengbot import cross_rules, deep_climb, deep_fall_guard, dive_floor, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
@@ -7898,6 +7898,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         threat_tiers.observe(self, snapshot)
         oneshot_breath.observe(self, snapshot)
         self._refresh_warning_avoidance(snapshot)
+        # Owner 2026-11-22: the known traps of a floor whose trap door would land on 50F+
+        # unsanctioned are kept off by every walk (deep_fall_guard).
+        deep_fall_guard.refresh_avoid(self, snapshot)
         giveup_plan = self._choke_engagement_plan
         if (
             giveup_plan is not None
@@ -15917,6 +15920,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if (snapshot.dungeon_level > 0 and destination >= DEEP_FLOOR_DEPTH
                 and DESTRUCTION_GATE_LABEL in self._missing_required_abilities(
                     snapshot, destination)):
+            return False
+        # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: no stair onto a floor whose
+        # trap door would land on 50F+ without the means, unless the traps can be detected there
+        # (deep_fall_guard).
+        if deep_fall_guard.descent_refused(self, snapshot, destination):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.

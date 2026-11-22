@@ -235,6 +235,8 @@ LADDER = (
            "consumable_policy.use_now_key"),
     )),
     Layer("objectives", "rest, descent and idle; town and dungeon rungs interleaved", (
+        # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: trap detection first.
+        *D("deep_fall_guard.key"),
         # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the climb before the loot.
         *D("deep_climb.key"),
         *P("_kill_quest_floor_recovery_key"),

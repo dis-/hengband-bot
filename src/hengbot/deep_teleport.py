@@ -137,10 +137,13 @@ def applies(policy, snapshot) -> bool:
     """A 50F+ floor where the tiers act, but the 99F/100F battle's (angband_finale_battle): the
     owner's 2026-11-20 directive names its own Teleportation there (「召喚または攻撃を受けてHPが
     800を下回ったとき、または対象が距離2より近づいたときテレポートの巻物で離脱する」)."""
-    from hengbot import angband_finale_battle, destruction_use, threat_tiers  # noqa: F401 -- import cycle
+    from hengbot import angband_finale_battle, deep_climb, destruction_use, threat_tiers  # noqa: F401 -- import cycle
 
+    # Owner 2026-11-22 「上りの間は即死以外でもテレポートを許す」: the Castle's climb off 50F+
+    # (deep_climb) reads the teleport as above 50F.
     return (snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and threat_tiers.acts_here(policy, snapshot)
-            and not angband_finale_battle.applies(policy, snapshot))
+            and not angband_finale_battle.applies(policy, snapshot)
+            and not deep_climb.on_floor(policy, snapshot))
 
 
 def fire_p95(policy, snapshot) -> int:

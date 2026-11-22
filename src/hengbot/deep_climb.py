@@ -150,7 +150,7 @@ def observe(policy, snapshot) -> None:
     shallower 50F+ floor counts too: n1-a life-531 2026-11-22 08:04, on the Castle's 50F climb,
     fell through two trap doors (50F -> 52F -> 54F); the Castle's recall depth became 54 and
     the climb's landing was lost.  A floor deeper than the last one is a new descent too."""
-    from hengbot import destruction_use
+    from hengbot import deep_fall_guard, destruction_use
 
     floor_key = tuple(getattr(snapshot, "floor_key", ()) or ())
     record = getattr(policy, MEMORY, None)
@@ -162,6 +162,7 @@ def observe(policy, snapshot) -> None:
             and previous[0] == floor_key[0] and 0 < previous[1] < floor_key[1]
             and floor_key[1] >= LANDING
             and floor_key[2] == 0 and previous[2] == 0
+            and not deep_fall_guard.sanctioned(policy, floor_key[0], floor_key[1])
             and not destruction_use.holds_means(policy, snapshot)):
         stopped = floor_key
     elif not (stopped is not None and stopped == floor_key):

@@ -9,7 +9,7 @@ whether they can be restored, and the monsters that need not be fought (``need_n
 
 from __future__ import annotations
 
-from hengbot import ability_sources
+from hengbot import ability_sources, deep_fall_guard
 from hengbot import (
     destruction_use,
     line_of_fire,
@@ -121,7 +121,9 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
     if readable and not teleport_blocked and not forbidden and scrolls & {8, 9}:
         means.append("teleport-scroll")
     if (readable and not policy._teleport_blocked_by_equipment(snapshot) and not forbidden
-            and SV_SCROLL_TELEPORT_LEVEL in scrolls):
+            and SV_SCROLL_TELEPORT_LEVEL in scrolls
+            # Owner 2026-11-22: never down onto 50F+ unsanctioned (deep_fall_guard).
+            and not deep_fall_guard.teleport_level_refused(policy, snapshot)):
         means.append("teleport-level")
     if readable and any(item.is_recall_scroll for item in snapshot.inventory):
         means.append("recall")

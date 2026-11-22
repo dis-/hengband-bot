@@ -281,6 +281,11 @@ _RULE_DEEP_CLIMB = ("the Castle's 50F landing is climbed from at once: the up st
 _rows(EXCLUDED, "deep_climb", _RULE_DEEP_CLIMB, "castle-climb-landing-50:ascend")
 _rows(WALK, "deep_climb", _RULE_DEEP_CLIMB, "castle-climb-landing-50:seek-upstairs",
       "castle-climb-landing-50:search-upstairs")
+_RULE_DEEP_FALL = ("a floor whose trap door would newly reach 50F, without a trap detection, is left by "
+                   "the up stairs or Recall: no enemy prompted it (owner 2026-11-22 「そもそも50Fに降りない"
+                   "方をしっかり作ること」, deep_fall_guard)")
+_rows(EXCLUDED, "deep_fall_guard", _RULE_DEEP_FALL, "deep-fall-guard:ascend", "deep-fall-guard:recall")
+_rows(WALK, "deep_fall_guard", _RULE_DEEP_FALL, "deep-fall-guard:wait-recall")
 _RULE_ANGBAND_CAP = ("an Angband floor deeper than the cap takes the up stairs in the down stairs' "
                      "place: no enemy prompted it (owner 2026-11-19 「n1-bは次回潜行時に95Fまで登り"
                      "階段で戻ること」, angband_cap.climbing)")
@@ -674,6 +679,9 @@ _stationary(HOLD, _RULE_WAIT_RECALL + " (the mining abort's)",
 _stationary(HOLD, "clearing an occupied escape route attacks without moving",
             "fundraise:clear-escape-path")
 _stationary(HOLD, _RULE_WAIT_RECALL, "town:wait-recall", "wilderness:wait-recall")
+# deep_fall_guard waits for its own Recall in place on a floor whose trap door would land on 50F+
+# (owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」), emitted only while player.recalling.
+_stationary(HOLD, _RULE_WAIT_RECALL + " (deep_fall_guard)", "deep-fall-guard:wait-recall")
 # Waiting for Recall after a breeder disengage is bounded (FRUITLESS_DISENGAGE_LIMIT backstops it);
 # like the other *:wait-recall reasons it must not feed the guard, or the very escape armed by the
 # breeder-containment disengage re-trips it.
