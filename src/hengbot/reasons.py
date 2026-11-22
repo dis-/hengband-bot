@@ -190,6 +190,10 @@ _rows(EXCLUDED, "quest_plan_base",
       "Teleport Away in Q25's Teleportation place moves the enemy, not the player (owner 2026-11-12 "
       "「回復とテレポートアウェイで対処する」)",
       "quest-strategy:teleport-away", "quest-strategy:teleport-away:absorbed-power")
+_rows(EXCLUDED, "quest_find_exit",
+      "Teleport Away at Q18's worst enemy on the 即死 rung and in the Recall's countdown moves the "
+      "enemy, not the player (owner 2026-11-22 「使う」)",
+      "quest-strategy:exit-teleport-away", "quest-strategy:exit-teleport-away:absorbed-power")
 _rows(EXCLUDED, "teleport_follower",
       "Teleport Other at a monster that follows the player's teleport moves the enemy, not the "
       "player (owner 2026-11-09 「*破壊*>テレポートアウェイ>戦闘」; E handles a T1 sent away)",

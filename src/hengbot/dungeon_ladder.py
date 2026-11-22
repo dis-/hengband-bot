@@ -433,6 +433,8 @@ FLOOR_PLANS = (
         Branch("the exit is beside the player", (("_step_on_exit", FIRST),)),
         Branch("on a cell the casters reach", (
             (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), ("_heal", SURVIVAL),
+            # Owner 2026-11-22 「使う」: Teleport Away at what comes in the Recall's countdown.
+            ("_recall_wait_away", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
             # More than the strategy's max_simultaneous_melee beside the player: back to a choke.
             ("_melee_cap_retreat", OWN),
@@ -447,6 +449,7 @@ FLOOR_PLANS = (
             ("_wait_after_fight", OWN), ("_advance", OWN)), enemy=False),
         Branch("an enemy for the line", (
             (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), ("_engaged_survival", SURVIVAL),
+            ("_recall_wait_away", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_fight", OWN),
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
     )),

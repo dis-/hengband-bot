@@ -18177,11 +18177,11 @@
     "rows": [
       "survival"
     ],
-    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
+    "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft, or quest_find_exit._plan the TAKEN fixed quest on this floor with a find_exit plan (Q18).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
+    "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward), and Q18's Teleport Away on the instant-death rung and in the Recall's countdown (owner 2026-11-22). No independent progress."
   },
   "quest_room_light.py:room_of": {
     "classification": "data",
@@ -23436,5 +23436,49 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: the trap detection (deep-fall-guard:detect-traps), else on a 49F floor the up stairs underfoot (deep-fall-guard:ascend), the Recall waited for in place (deep-fall-guard:wait-recall) or Word of Recall (deep-fall-guard:recall); on the climb's 50F+ floors None (the climb goes on)."
+  },
+  "quest_find_exit.py:_instant_death_escape": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The plan's escape on its instant-death rung: Teleport Away at the worst hostile in view, then the Recall (owner 2026-11-22 「使う」); no independent progress."
+  },
+  "quest_find_exit.py:_recall_wait_away": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Teleport Away at an enemy that comes while the Recall counts down (owner 2026-11-22 「使う」); no independent progress."
+  },
+  "quest_find_exit.py:_away": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "quest_plan_base.hall_away_key over the given candidates under the plan's reason; no independent progress."
+  },
+  "quest_find_exit.py:_haste_before_shouted": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The Speed dose (absorbed Speed, else a potion) before a walk's step onto a shouted cell while the haste is off (owner 2026-11-22 「加速してから入る」); no independent progress."
   }
 }

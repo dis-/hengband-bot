@@ -289,20 +289,22 @@ def _below_line(policy, snapshot, profile, navigator, *, line=True) -> str | Non
 AWAY_REASON = "quest-strategy:teleport-away"
 
 
-def hall_away_key(policy, snapshot) -> str | None:
+def hall_away_key(policy, snapshot, candidates=None, reason: str = AWAY_REASON) -> str | None:
     """Teleport Away at the most dangerous moving hostile in view on a beam's line, else None.
 
     The absorbed rod or wand first, then a carried rod or wand (teleport_follower's order).  Not
     at a never-moving one (its place is the plan's), nor at one the game surely keeps
     (effect_monster_away_resist: RES_TELE with UNIQUE or RES_ALL).  The wand's bolt is a beam
-    (spells-launcher.cpp fire_beam with TELE_AWAY): aimed by direction along an 8-way line."""
+    (spells-launcher.cpp fire_beam with TELE_AWAY): aimed by direction along an 8-way line.
+    ``candidates``: the monsters to choose from (None: every physical hostile in view);
+    ``reason``: the reason the key is recorded under (the absorbed cast adds its suffix)."""
     from hengbot import me_absorbed_substitutes, me_powers, teleport_follower
 
     if not teleport_follower._aim_ready(snapshot):
         return None
     here = snapshot.player.position
     aimed = []
-    for monster in policy._physical_hostiles(snapshot):
+    for monster in (policy._physical_hostiles(snapshot) if candidates is None else candidates):
         knowledge = policy._monrace_knowledge.get(monster.race_id)
         flags = getattr(knowledge, "flags", frozenset())
         if knowledge is None or "NEVER_MOVE" in flags or (
@@ -320,7 +322,7 @@ def hall_away_key(policy, snapshot) -> str | None:
         key = me_absorbed_substitutes.cast_key(
             policy, snapshot, me_absorbed_substitutes.POWERS[absorbed], direction, blind_ok=True)
         if key is not None:
-            policy.last_reason = AWAY_REASON + me_absorbed_substitutes.CAST_SUFFIX
+            policy.last_reason = reason + me_absorbed_substitutes.CAST_SUFFIX
             return key
     carried = teleport_follower._carried(snapshot)
     if carried is None:
@@ -328,7 +330,7 @@ def hall_away_key(policy, snapshot) -> str | None:
     kind, item = carried
     key = reserved_item_command(policy, snapshot, kind, item, suffix=direction)
     if key is not None:
-        policy.last_reason = AWAY_REASON
+        policy.last_reason = reason
     return key
 
 
