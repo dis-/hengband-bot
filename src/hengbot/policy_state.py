@@ -23,6 +23,13 @@ _RETAINED_CALIBRATION_NAMES = frozenset({
 # Record-only claim diagnostics deleted in stage 2 B slice 3 (the S3.3 shadow
 # verdict, the declaration mismatch, the completed-Home verdict conflict and
 # the unread per-decision gate counters).  Older checkpoints still carry them.
+# Equipment review E5 (owner 2026-11-22 Q6 「各系統で元の武器を覚えるのをやめる」): the mining
+# swap's remembered combat hands; a slot's lending returns to the target loadout (slot_lending).
+_RETIRED_SLOT_MEMORY_NAMES = (
+    "_normal_weapon_name", "_normal_weapon_identity", "_normal_weapon_is_optimal",
+    "_normal_sub_hand_name", "_normal_sub_hand_identity", "_normal_sub_hand_is_optimal",
+    "_mining_combat_loadout_remembered",
+)
 _RETIRED_CLAIM_RECORD_NAMES = (
     "_claim_last_completed_home", "_claim_active_operation_identity",
     "_decision_declaration_mismatch", "_decision_home_approach_fails_before",
@@ -306,8 +313,14 @@ def normalize_policy_state(restored, *, restart=False):
     # checkpoint's dict is read into it.
     adopt_home_full_relief(restored.__dict__)
     current_ledger = restored.__dict__.get("_town_visit_ledger")
-    for name in _RETIRED_CLAIM_RECORD_NAMES:
+    for name in _RETIRED_CLAIM_RECORD_NAMES + _RETIRED_SLOT_MEMORY_NAMES:
         restored.__dict__.pop(name, None)
+    # E5: the Zul trip's remembered ring (signature, slot) is now the lending of its slot.
+    replaced_ring = restored.__dict__.pop("_zul_replaced_ring", None)
+    if replaced_ring is not None:
+        lending = dict(restored.__dict__.get("_slot_lending") or {})
+        lending.setdefault(replaced_ring[1], "zul-levitation")
+        restored.__dict__["_slot_lending"] = lending
     restored.__dict__.setdefault("_trap_warning_cells", {})
     # The warning cells' restart record (warning_cell_record) postdates them.
     restored.__dict__.setdefault("_warning_cell_record_path", None)

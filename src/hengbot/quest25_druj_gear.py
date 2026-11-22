@@ -16,20 +16,22 @@ worn NO_TELE stops (spells-teleport.cpp, mspell-floor.cpp).  The data is the pro
    piece does not give itself, is lost.
  * Town: ``home_piece`` is what quest_optional_carry takes from Home while Q25 is prepared;
    ``kept`` keeps a carried one out of the spare-gear deposit (spare_gear.released).
- * Dungeon (quest25_battle's druj phase): ``wear_key`` puts it on, remembering what it
-   displaced; ``restore_key`` puts that back once the druj is dead.  Both go through the
-   equipment mutation the rest of the bot wields with (policy._equipment_wield).
+ * Dungeon (quest25_battle's druj phase): ``wear_key`` puts it on, borrowing its slot (slot_lending
+   ``q25-druj-anti-teleport``, read from the board: the worn piece); ``restore_key`` returns the
+   slot to the target loadout's piece once the druj is dead (equipment review E5, owner 2026-11-22 Q6
+   「一時的な付け替え（採掘・クエスト・ズル等）の後はいつも目指す装備の武器に戻す。各系統で元の
+   武器を覚えるのをやめる」: nothing displaced is remembered).  Both go through the equipment
+   mutation the rest of the bot wields with (policy._equipment_wield).
 """
 
 from __future__ import annotations
 
-from hengbot import ability_sources
+from hengbot import ability_sources, slot_lending
 from hengbot.equipment_rules import EXPLORATION_FORBIDDEN_FLAGS, TR_NO_TELE
 from hengbot.model import (
     TVAL_AMULET, TVAL_BOOTS, TVAL_CLOAK, TVAL_CROWN, TVAL_DRAG_ARMOR, TVAL_GLOVES, TVAL_HARD_ARMOR,
     TVAL_HELM, TVAL_RING, TVAL_SHIELD, TVAL_SOFT_ARMOR,
 )
-from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 
 GEAR_NAME = "anti_teleport"
 WEAR_GOAL = "quest25-druj-anti-teleport"
@@ -120,8 +122,8 @@ def kept(policy, snapshot, item) -> bool:
     return wanted(profile)
 
 
-def wear_key(policy, snapshot, profile, memory) -> str | None:
-    """Put the carried piece on; remember the piece it displaced (``memory.displaced``)."""
+def wear_key(policy, snapshot, profile) -> str | None:
+    """Put the carried piece on: its slot is lent to the druj phase while it is worn."""
     if not wanted(profile) or worn_piece(snapshot) is not None:
         return None
     item = carried_piece(snapshot)
@@ -131,37 +133,25 @@ def wear_key(policy, snapshot, profile, memory) -> str | None:
     slot = slot_for(policy, snapshot, force, item)
     if slot is None:
         return None
-    displaced = next((worn for worn in snapshot.equipment if worn.slot == slot), None)
     key = policy._equipment_wield(snapshot, WEAR_GOAL, item, slot, quest_contract_exempt=True)
     if key is not None:
-        memory.displaced = (slot, None if displaced is None else policy._item_signature(displaced))
         policy.last_reason = f"quest25:{WEAR_GOAL}"
     return key
 
 
-def restore_key(policy, snapshot, memory) -> str | None:
-    """Once the druj is dead: the displaced piece back on (「この戦闘でのみ使用」)."""
-    if memory.displaced is None:
+def restore_key(policy, snapshot) -> str | None:
+    """Once the druj is dead: the lent slot (the worn piece's) back to the target's piece
+    (「この戦闘でのみ使用」), else the piece taken off (the target leaves the slot empty, or its
+    piece is not carried: a worn NO_TELE piece stops every teleport)."""
+    worn = worn_piece(snapshot)
+    if worn is None:
         return None
-    slot, signature = memory.displaced
-    worn = next((item for item in snapshot.equipment if item.slot == slot), None)
-    if signature is None:
-        # The slot was empty: the piece comes off again.
-        if worn is None or not qualifies(worn):
-            memory.displaced = None
-            return None
-        key = policy._equipment_takeoff(snapshot, RESTORE_GOAL, EQUIPMENT_SLOT_KEY[slot])
-        if key is not None:
-            policy.last_reason = f"quest25:{RESTORE_GOAL}"
-        return key
-    if worn is not None and policy._item_signature(worn) == signature:
-        memory.displaced = None
-        return None
-    item = next((item for item in snapshot.inventory if policy._item_signature(item) == signature), None)
+    item = slot_lending.return_item(policy, snapshot, worn.slot)
     if item is None:
-        memory.displaced = None
-        return None
-    key = policy._equipment_wield(snapshot, RESTORE_GOAL, item, slot, quest_contract_exempt=True)
+        key = slot_lending.take_back(policy, snapshot, RESTORE_GOAL, worn.slot)
+    else:
+        key = slot_lending.wield_back(policy, snapshot, RESTORE_GOAL, item, worn.slot,
+                                      quest_contract_exempt=True)
     if key is not None:
         policy.last_reason = f"quest25:{RESTORE_GOAL}"
     return key

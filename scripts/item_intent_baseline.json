@@ -75,8 +75,6 @@
   "_mining_viability_pending_floor": "Floor ID awaiting viability observation; not an item identity.",
   "_nav_ledger_deferred_loot": "Deferred floor positions for navigation; no carried item identity.",
   "_nav_progress_marker": "Movement progress marker; not item identities.",
-  "_normal_sub_hand_name": "Display/compare name; restore identity is in _normal_sub_hand_identity.",
-  "_normal_weapon_name": "Display name used to compare equipment; identity is held in _normal_weapon_identity.",
   "_one_step_explore_failures": "Negative navigation eligibility cache; not item identities.",
   "_one_step_explore_signatures": "Observed grid signatures for navigation; not item identities.",
   "_oscillation_outcome_marker": "Navigation outcome marker; not item identities.",

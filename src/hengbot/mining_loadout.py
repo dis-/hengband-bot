@@ -24,7 +24,7 @@ hostile in view, ``awake``) so they can never alternate:
   decisions, counted by the same predicate).  Owner 2026-10-31: 「眠っている
   敵なら外してよい」 -- a hostile that is asleep does not keep the weapon on;
 - ``rollback_key``: while an awake hostile is in view, an empty combat hand
-  is re-armed with the weapon the swap displaced before any fight producer
+  is re-armed with the target's weapon (slot_lending) before any fight producer
   takes the turn -- at once when a sleeping one wakes or one comes into view
   awake.  Flight goes first (survival) only beside an awake hostile or
   below FLEE_HP_RATIO (``_flight_first``): elsewhere the empty hand is the
@@ -33,9 +33,11 @@ hostile in view, ``awake``) so they can never alternate:
   flee rung for the rest of the run).  With nothing awake in view the hand
   is re-armed too once no swap owner will wield the digger
   (``swap_abandoned``: a latched return, no mining run, no dig route of
-  the breakout's family on this floor).  After a restart the remembered
-  weapon is lost: the cached optimizer winner, else the first usable melee
-  weapon carried (the established fallback of every re-arm), never a digger.
+  the breakout's family on this floor).  The hand goes back to the target
+  loadout's weapon, else the first usable melee weapon carried (the
+  established fallback of every re-arm), never a digger: the swap remembers
+  nothing it displaced (slot_lending, owner 2026-11-22 Q6 「各系統で元の武器を
+  覚えるのをやめる」).
 
 A digger in a hand keeps the approved mining-combat spec (ranged first,
 re-arm after MINING_COMBAT_CONTACT_LIMIT contact decisions).
@@ -50,10 +52,8 @@ main hand empty and are left as they are.
 
 from __future__ import annotations
 
-from hengbot import equipment_target
+from hengbot import slot_lending
 from hengbot.equipment_mutation import EquipmentMutationResult
-from hengbot.equipment_optimizer import equipment_identity
-from hengbot.model import TVAL_SHIELD
 from hengbot.policy_constants import FLEE_HP_RATIO
 
 
@@ -84,15 +84,7 @@ def worn_in_slot(snapshot, slot: str):
     return next((item for item in snapshot.equipment if item.slot == slot), None)
 
 
-def cached_optimal_loadout(policy):
-    """The cached optimizer winner's loadout, or None."""
-    preparation = equipment_target.loadout_target(policy)
-    best = getattr(getattr(preparation, "result", None), "best", None)
-    loadout = getattr(best, "loadout", None)
-    return loadout if loadout is not None and hasattr(loadout, "item_at") else None
-
-
-HANDS = ("main_hand", "sub_hand")
+HANDS = slot_lending.HANDS
 # The causes the town's two hand owners name when the lending holds them (policy_equipment).
 LENT_CAUSE = "hands-lent-to-mining"
 SESSION_CAUSE = "hands-owned-by-transaction"
@@ -175,91 +167,6 @@ def lending_ended_now(policy) -> bool:
             and ended == getattr(policy, "_decision_sequence", None))
 
 
-def remember_combat_hands(policy, main_hand, sub_hand) -> None:
-    """Record the combat hands the digger swap displaces, once per swap.
-
-    The cached optimizer winner is authoritative for both hands, its empty
-    off hand included.  An absent main-hand choice is not: the observed
-    weapon is kept so a cold or incomplete cache never makes the restore
-    weaponless.  Without a winner the observed hands are recorded, and an
-    off hand seen empty is authoritative too (#47, n1-c lives 077 and 086:
-    an unrecorded empty off hand was re-armed with any carried melee
-    weapon, a dual wield the Magic-Eater's skill cannot hit with,
-    player-status.cpp calc_double_weapon_penalty).  A digger in the off
-    hand (a restart mid-swap) leaves it unknown.
-    """
-    loadout = cached_optimal_loadout(policy)
-    optimal_main = loadout.item_at("main_hand") if loadout is not None else None
-    if optimal_main is not None:
-        policy._normal_weapon_name = optimal_main.item.name
-        policy._normal_weapon_identity = equipment_identity(optimal_main.item)
-        policy._normal_weapon_is_optimal = True
-    elif main_hand is not None and not main_hand.is_digging_tool:
-        policy._normal_weapon_name = main_hand.name
-        policy._normal_weapon_identity = equipment_identity(main_hand)
-        policy._normal_weapon_is_optimal = False
-    if loadout is not None:
-        sub = loadout.item_at("sub_hand")
-        _remember_sub_hand(policy, sub.item if sub is not None else None, True)
-    elif sub_hand is None:
-        _remember_sub_hand(policy, None, True)
-    elif not sub_hand.is_digging_tool:
-        _remember_sub_hand(policy, sub_hand, False)
-    else:
-        _remember_sub_hand(policy, None, False)
-    policy._mining_combat_loadout_remembered = True
-
-
-def _remember_sub_hand(policy, item, authoritative: bool) -> None:
-    policy._normal_sub_hand_name = item.name if item is not None else None
-    policy._normal_sub_hand_identity = (
-        equipment_identity(item) if item is not None else None)
-    policy._normal_sub_hand_is_optimal = authoritative
-
-
-def remembered_hands(policy) -> tuple:
-    """(slot, name, identity, authoritative) of each displaced combat hand.
-
-    ``authoritative`` (the ``_normal_*_is_optimal`` attributes) marks the
-    optimizer winner, or an off hand remember_combat_hands saw empty: an
-    authoritative empty off hand is restored empty.
-    """
-    return (
-        ("main_hand", policy._normal_weapon_name,
-         policy._normal_weapon_identity, policy._normal_weapon_is_optimal),
-        ("sub_hand", policy._normal_sub_hand_name,
-         policy._normal_sub_hand_identity, policy._normal_sub_hand_is_optimal),
-    )
-
-
-def restorable_item(policy, snapshot, slot: str, name, identity):
-    """The carried item that goes back into ``slot`` (never a digger).
-
-    The remembered identity, else the remembered name, else any usable melee
-    weapon for the main hand and a shield for the off hand: a second weapon
-    goes on only as the displaced item or the optimizer's choice, never
-    unevaluated (#47: the Magic-Eater's unskilled dual wield missed).
-    """
-    def matches(item) -> bool:
-        if identity is not None:
-            return equipment_identity(item) == identity
-        if name is not None:
-            return item.name == name
-        if slot == "main_hand":
-            return item.is_melee_weapon
-        return item.tval == TVAL_SHIELD
-
-    return policy._first_item(
-        snapshot,
-        lambda item: item.is_equipment
-        and not item.is_digging_tool
-        and not policy._equip_blocked_by_identification(item)
-        and not item.is_broken
-        and not policy._blocks_teleport(item)
-        and matches(item),
-    )
-
-
 def strip_allowed(policy, snapshot) -> bool:
     """A combat hand may be emptied for the digger only with no awake hostile in view."""
     return not awake(policy._physical_hostiles(snapshot))
@@ -270,25 +177,11 @@ def deferred_strip() -> EquipmentMutationResult:
 
 
 def main_hand_weapon(policy, snapshot):
-    """The carried weapon an empty main hand takes, or None.
-
-    The displaced weapon, else (a restart lost it) the cached optimizer
-    winner, else any usable melee weapon carried (owner 2026-10-31:
-    「最適化の結果→最初の近接武器」 「これでよい」).
+    """The carried weapon an empty main hand takes, or None: the lending's return
+    (slot_lending ``return_item``), the target's weapon, else any usable melee weapon
+    carried (owner 2026-10-31: 「最適化の結果→最初の近接武器」 「これでよい」).
     """
-    loadout = cached_optimal_loadout(policy)
-    optimal = loadout.item_at("main_hand") if loadout is not None else None
-    choices = tuple(
-        choice for choice in (
-            (policy._normal_weapon_name, policy._normal_weapon_identity),
-            (None, equipment_identity(optimal.item) if optimal is not None else None),
-        ) if choice != (None, None)
-    ) + ((None, None),)
-    for name, identity in choices:
-        item = restorable_item(policy, snapshot, "main_hand", name, identity)
-        if item is not None:
-            return item
-    return None
+    return slot_lending.return_item(policy, snapshot, "main_hand")
 
 
 def stray_off_hand_digger(snapshot):
@@ -323,17 +216,18 @@ def empty_main_hand_weapon(policy, snapshot):
 def _rearm_target(policy, snapshot):
     """(slot, item) the rollback wields next, main hand first, or None."""
     main = worn_in_slot(snapshot, "main_hand")
-    for slot, name, identity, _optimal in remembered_hands(policy):
+    for slot in HANDS:
         if worn_in_slot(snapshot, slot) is not None:
             continue
         if slot == "main_hand":
             item = main_hand_weapon(policy, snapshot)
-        elif main is None or main.is_digging_tool or (name is None and identity is None):
-            # An empty off hand is an ordinary loadout unless the swap
-            # displaced an item from it; it never goes beside a digger.
+        elif (main is None or main.is_digging_tool
+              or slot_lending.target_piece(policy, slot) is None):
+            # An empty off hand is an ordinary loadout unless the target
+            # fills it; it never goes beside a digger.
             continue
         else:
-            item = restorable_item(policy, snapshot, slot, name, identity)
+            item = slot_lending.return_item(policy, snapshot, slot)
         if item is not None:
             return slot, item
     return None
@@ -366,7 +260,7 @@ def swap_in_progress(policy, snapshot) -> bool:
 def finish_swap_key(policy, snapshot) -> str | None:
     """The swap's second post, by the swap itself: the digger wielded on the emptied hand, else
     (an awake hostile in view: ``strip_allowed``, or no digger left to wield) the abort, the
-    displaced weapon wielded back.  Asked before any other rung that would act on the hand."""
+    hand returned to the target's weapon (slot_lending).  Asked before any other rung that would act on the hand."""
     if not swap_in_progress(policy, snapshot):
         return None
     reason = policy._digger_swap[1]
@@ -379,7 +273,7 @@ def finish_swap_key(policy, snapshot) -> str | None:
     if target is None:
         return None
     slot, item = target
-    key = policy._equipment_wield(snapshot, ROLLBACK_GOAL, item, slot)
+    key = slot_lending.wield_back(policy, snapshot, ROLLBACK_GOAL, item, slot)
     if key is not None:
         policy.last_reason = REARM_REASON
     return key
@@ -439,7 +333,7 @@ def rollback_key(policy, snapshot) -> str | None:
     if awake(hostiles) and _flight_first(policy, snapshot, hostiles):
         return None
     slot, item = target
-    key = policy._equipment_wield(snapshot, ROLLBACK_GOAL, item, slot)
+    key = slot_lending.wield_back(policy, snapshot, ROLLBACK_GOAL, item, slot)
     if key is not None:
         policy.last_reason = REARM_REASON
     return key

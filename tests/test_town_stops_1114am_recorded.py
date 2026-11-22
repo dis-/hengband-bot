@@ -40,6 +40,7 @@ import lzma
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from hengbot import slot_lending
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import JOURNAL_FILE, POLICY_FILE
 from replay_town_arrival import adopt_calibration, decisions, restore
@@ -107,7 +108,8 @@ class TownStops1114RecordedTest(executor_harness.RecordedHarness):
         hands = {item.slot: item for item in board.equipment if item.slot in ("main_hand", "sub_hand")}
         self.assertTrue(all(item.is_digging_tool for item in hands.values()), hands)
         spear = next(item for item in board.inventory if item.is_melee_weapon)
-        self.assertEqual(spear.name, policy._normal_weapon_name)
+        # The hands' lending returns to the target's weapon (slot_lending, owner 2026-11-22 Q6).
+        self.assertEqual(spear.name, slot_lending.return_item(policy, board, "main_hand").name)
         key = policy.choose_key(board)
         self.assertEqual(policy.last_reason, "town:restore-combat-weapon")
         self.assertTrue(key.startswith("w"), key)

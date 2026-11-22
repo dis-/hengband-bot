@@ -460,21 +460,6 @@ REGISTRY = (
     # me_staff_sequence
     S("_me_staff_sequence", "me_staff_sequence", LIFE,
       "me_staff_sequence: me staff sequence (no comment at its definition)"),
-    # mining_loadout
-    S("_mining_combat_loadout_remembered", "mining_loadout", LIFE,
-      "mining_loadout: mining combat loadout remembered (no comment at its definition)"),
-    S("_normal_sub_hand_identity", "mining_loadout", LIFE,
-      "mining_loadout: normal sub hand identity (no comment at its definition)"),
-    S("_normal_sub_hand_is_optimal", "mining_loadout", LIFE,
-      "mining_loadout: normal sub hand is optimal (no comment at its definition)"),
-    S("_normal_sub_hand_name", "mining_loadout", LIFE,
-      "mining_loadout: normal sub hand name (no comment at its definition)"),
-    S("_normal_weapon_identity", "mining_loadout", LIFE,
-      "mining_loadout: normal weapon identity (no comment at its definition)"),
-    S("_normal_weapon_is_optimal", "mining_loadout", LIFE,
-      "mining_loadout: normal weapon is optimal (no comment at its definition)"),
-    S("_normal_weapon_name", "mining_loadout", LIFE,
-      "mining_loadout: normal weapon name (no comment at its definition)"),
     # monster_memory
     S("_breeder_quest_seen", "monster_memory", LIFE,
       "monster_memory: breeder quest seen (no comment at its definition)", destruction=True),
@@ -2000,9 +1985,12 @@ REGISTRY = (
       "warning_cell_record: warning cell record (no comment at its definition)"),
     S("_warning_cell_record_read", "warning_cell_record", LIFE,
       "warning_cell_record: warning cell record read (no comment at its definition)"),
+    # slot_lending
+    S("_slot_lending", "slot_lending", LIFE,
+      "slot_lending: the recorded lendings {slot: borrower} of the temporary swaps a board does "
+      "not tell (the Zul trip's ring slot): each slot returns to the target loadout's piece "
+      "(equipment review E5, owner 2026-11-22 Q6), nothing displaced is remembered"),
     # zul_trip
-    S("_zul_replaced_ring", "zul_trip", LIFE,
-      "zul_trip: zul replaced ring (no comment at its definition)"),
     S("_zul_trip", "zul_trip", LIFE,
       "zul_trip: zul trip (no comment at its definition)"),
 )

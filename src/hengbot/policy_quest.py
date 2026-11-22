@@ -2227,12 +2227,8 @@ class QuestMixin(OpeningRouteMixin):
             ):
                 self.last_reason = "quest:blocked:q2-breach-tool"
                 return WAIT_KEY
-            main_hand = next(
-                (item for item in snapshot.equipment if item.slot == "main_hand"),
-                None,
-            )
-            if main_hand is not None and not main_hand.is_digging_tool:
-                self._normal_weapon_name = main_hand.name
+            # The main hand is lent to the breach's digger (slot_lending ``q2-breach-digger``):
+            # the re-arms return it to the target's weapon, nothing displaced is remembered.
             self.last_reason = "quest-strategy:q2-breach-wield"
             return self._equipment_wield(
                 snapshot, "q2-breach-loadout", strong, "main_hand"

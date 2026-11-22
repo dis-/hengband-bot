@@ -21,7 +21,10 @@ from dataclasses import replace
 
 from hengbot import attack_expectation, quest25_battle as battle, quest25_geometry as geo, quest25_plan, threat_tiers
 from hengbot import quest25_druj_gear as druj_gear, quest_exposure, quest_optional_carry, quest_room_sweep, spare_gear
-from hengbot import quest_no_teleport
+from hengbot import equipment_target, quest_no_teleport
+from hengbot.equipment_optimizer import (
+    EvaluatedLoadout, Loadout, LoadoutMetrics, OptimizationResult, OwnedEquipment,
+)
 from hengbot.me_device_attacks import DEVICE_REASON
 from hengbot.me_powers_refresh import REFRESH_REASON
 from hengbot.model import TVAL_ROD, TVAL_WAND, parse_snapshot
@@ -56,6 +59,18 @@ def new_policy(raw, strategies=APPROVED):
 def choose(policy, raw):
     raw["turn"] += 10
     return str(policy.choose_key(parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)))
+
+
+def install_target(policy, slots):
+    """CONSTRUCTED: the loadout the last town visit fixed (equipment_target, stage E5's return)."""
+    loadout = Loadout(tuple((slot, OwnedEquipment(f"target-{slot}", item, "equipped"))
+                            for slot, item in slots), "one_handed")
+    equipment_target.fix_visit_target(policy, "an-earlier-visit", (), (None, None, None, (False, False)),
+                                      OptimizationResult(
+        best=EvaluatedLoadout(loadout, LoadoutMetrics(1.0, 1.0, 1.0)),
+        alternatives=(), pareto_frontier=(), dominated_item_ids=frozenset(),
+        combinations_considered=1, combinations_evaluated=1, invalid_combinations=0,
+        elapsed_seconds=0.0, timed_out=False, incomplete_item_ids=frozenset()))
 
 
 def memory(policy, raw):
@@ -1211,15 +1226,20 @@ class Q25DrujGearTest(unittest.TestCase):
         self.assertEqual(druj_gear.slot_for(policy, snapshot, force, snapshot.inventory[-1]), "sub_ring")
 
     def test_worn_for_the_druj_and_put_back_after(self):
+        # Equipment review E5 (owner 2026-11-22 Q6): the piece borrows the slot and the druj's
+        # death returns it to the target loadout's ring.  CONSTRUCTED: the target names the worn
+        # left ring (the town's search).
         raw = with_piece(board((12, 24)))
         policy = new_policy(raw)
+        worn = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        install_target(policy, (("main_ring", next(
+            item for item in worn.equipment if item.slot == "main_ring")),))
         at_phase(policy, raw, "druj")
         policy._player_hasted = lambda snapshot: True
         key = choose(policy, raw)
         self.assertEqual(policy.last_reason, f"quest25:{druj_gear.WEAR_GOAL}", key)
         self.assertTrue(key.startswith("w"), key)
-        self.assertEqual(memory(policy, raw).displaced[0], "main_ring")
-        # Worn; then the druj killed: the displaced ring goes back on.
+        # Worn; then the druj killed: the target's ring goes back on.
         ring = next(item for item in raw["equipment"] if item["slot"] == "main_ring")
         piece = raw["inventory"].pop()
         raw["inventory"].append(dict(ring, slot="m"))
@@ -1228,7 +1248,30 @@ class Q25DrujGearTest(unittest.TestCase):
         raw["messages"] = [RACES[geo.DRUJ].names[0] + "を倒した。"]
         key = choose(policy, raw)
         self.assertEqual(policy.last_reason, f"quest25:{druj_gear.RESTORE_GOAL}", key)
-        self.assertTrue(key.startswith("w"), key)
+        self.assertTrue(key.startswith("wm"), key)   # the ring from pack slot m
+
+    def test_the_druj_slot_returns_to_the_target_not_the_displaced_piece(self):
+        # Owner 2026-11-22 Q6: the target leaves the left ring slot empty (CONSTRUCTED: its search
+        # put no ring there); before E5 the displaced ring was put back, now the anti-teleport
+        # piece comes off and the slot stays empty as the target has it.
+        raw = with_piece(board((12, 24)))
+        policy = new_policy(raw)
+        worn = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
+        install_target(policy, (("main_hand", next(
+            item for item in worn.equipment if item.slot == "main_hand")),))
+        at_phase(policy, raw, "druj")
+        policy._player_hasted = lambda snapshot: True
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, f"quest25:{druj_gear.WEAR_GOAL}", key)
+        ring = next(item for item in raw["equipment"] if item["slot"] == "main_ring")
+        piece = raw["inventory"].pop()
+        raw["inventory"].append(dict(ring, slot="m"))
+        raw["equipment"] = [dict(piece, slot="main_ring") if item["slot"] == "main_ring" else item
+                            for item in raw["equipment"]]
+        raw["messages"] = [RACES[geo.DRUJ].names[0] + "を倒した。"]
+        key = choose(policy, raw)
+        self.assertEqual(policy.last_reason, f"quest25:{druj_gear.RESTORE_GOAL}", key)
+        self.assertTrue(key.startswith("t"), key)
 
     @staticmethod
     def wearing(position, *, hp, monsters=()):

@@ -6,24 +6,32 @@ Owner 2026-11-08, question 「ズルへの旅で浮遊の指輪をはめる時�
 nothing remembered and the replaced ring had no retention reservation (n1-c: the Ring of
 Resist Chaos could be sold or stored).
 
-Now the replaced ring is remembered when the levitation ring goes on, kept in the pack
-for the trip, and put back in its slot once the trip is over and the character is in a
-town other than Zul; the levitation ring then follows the ordinary unused-gear rules.
+Now the levitation ring borrows its ring slot (slot_lending ``zul-levitation``); the target
+loadout's ring for that slot is kept in the pack for the trip and goes back in the slot once the
+trip is over and the character is in a town other than Zul; the levitation ring then follows the
+ordinary unused-gear rules.  Equipment review E5 (owner 2026-11-22 Q6 「一時的な付け替え（採掘・
+クエスト・ズル等）の後はいつも目指す装備の武器に戻す。各系統で元の武器を覚えるのをやめる」): the
+slot returns to the target's ring, not to a ring remembered when the levitation ring went on.
 
 Recorded board: n1-b life-345 08:13:40, the Outpost after the recall (turn 1744015,
 tests/fixtures/n1b-343-345-1108/zul.tar.xz): the Ring of Levitation worn in the sub ring
 slot, the Ring of Lightning [+10] {r電} in the pack (slot j).
-DECLARED CONSTRUCTED: the memory of the replaced ring (that the Ring of Lightning came
-off the sub ring for the levitation ring), the finished trip (closed for this stay), and
-the board moved after the restart's turn; the Ring of Damage board for the wear.
+DECLARED CONSTRUCTED: the lending of the sub ring slot (the levitation ring went on it), the
+target loadout naming the Ring of Lightning in the sub ring (the search's), the finished trip
+(closed for this stay), and the board moved after the restart's turn; the Ring of Damage board for
+the wear; a target naming another ring for the slot.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
 import time
+from dataclasses import replace
 import unittest
 
-from hengbot import zul_trip
+from hengbot import equipment_target, slot_lending, zul_trip
+from hengbot.equipment_optimizer import (
+    EvaluatedLoadout, Loadout, LoadoutMetrics, OptimizationResult, OwnedEquipment,
+)
 from hengbot.cli import _ExecutorInputPort, _send_new_decision_key
 from hengbot.model import parse_snapshot
 from tests.test_classA_observed_input import recorded
@@ -34,6 +42,22 @@ from tests import test_n1b_345_zul_1108_recorded as zul_pins
 
 OUTPOST_TURN = 1744015
 LIGHTNING = "電撃の指輪 [+10] {r電}"
+
+
+def install_target(policy, slots):
+    """DECLARED CONSTRUCTED: the loadout an earlier town visit fixed (equipment_target, stage E3)
+    naming ``slots`` ((slot, item) pairs); the recorded checkpoint (11-08) predates the visit
+    target, and the town's own events clear the stored search target."""
+    loadout = Loadout(tuple((slot, OwnedEquipment(f"target-{slot}", item, "pack"))
+                            for slot, item in slots), "one_handed")
+    result = OptimizationResult(
+        best=EvaluatedLoadout(loadout, LoadoutMetrics(1.0, 1.0, 1.0)),
+        alternatives=(), pareto_frontier=(), dominated_item_ids=frozenset(),
+        combinations_considered=1, combinations_evaluated=1,
+        invalid_combinations=0, elapsed_seconds=0.0, timed_out=False,
+        incomplete_item_ids=frozenset())
+    equipment_target.fix_visit_target(policy, "an-earlier-visit", (), (None, None, None, (False, False)),
+                                      result)
 
 
 class ZulRingRewearTest(zul_pins.ZulRecordedTest):
@@ -77,23 +101,26 @@ class ZulRingRewearTest(zul_pins.ZulRecordedTest):
                             for row in raw["equipment"]]
         return raw
 
-    def test_the_wear_remembers_the_replaced_ring(self):
+    def test_the_wear_lends_the_ring_slot(self):
         policy, raw, _board, ring = self.outpost()
+        install_target(policy, (("sub_ring", ring),))
         before = parse_snapshot(self.swapped(raw), policy._monrace_knowledge)
         levitation = next(item for item in before.inventory if zul_trip.is_levitation_item(item))
         key = zul_trip._wear_key(policy, before, levitation)
         self.assertEqual(key, f"w{levitation.slot})")
-        self.assertEqual(zul_trip.replaced_ring(policy), (policy._item_signature(ring), "sub_ring"))
-        # Kept in the pack for the trip (no sale, deposit or destruction).
-        self.assertTrue(zul_trip.retains_replaced_ring(policy, ring))
+        self.assertEqual(slot_lending.lent_slots(policy, slot_lending.ZUL_LEVITATION), ("sub_ring",))
+        self.assertFalse(hasattr(policy, "_zul_replaced_ring"))
+        # The target's ring for the slot is kept in the pack for the trip.
+        self.assertTrue(zul_trip.retains_returning_ring(policy, ring))
         board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         carried = next(item for item in board.inventory if item.name == LIGHTNING)
         self.assertEqual(policy._retention_reservation_baseline_detail(board, carried),
                          (1, "zul-trip:replaced-ring"))
 
-    def test_after_the_trip_the_replaced_ring_goes_back_on(self):
+    def test_after_the_trip_the_target_ring_goes_back_on(self):
         policy, raw, board, ring = self.outpost()
-        policy._zul_replaced_ring = (policy._item_signature(ring), "sub_ring")
+        slot_lending.lend(policy, "sub_ring", slot_lending.ZUL_LEVITATION)
+        install_target(policy, (("sub_ring", ring),))
         key = self.decide(policy, board)
         self.assertEqual(policy.last_reason, zul_trip.REWEAR_REASON, key)
         # Both ring slots filled: wield pack slot j, ')' at 「どちらの指輪と取り替えますか?」.
@@ -116,18 +143,33 @@ class ZulRingRewearTest(zul_pins.ZulRecordedTest):
                                snapshot=board, posting_contract=None)
         self.assertEqual(game.accepted, ["w", ring.slot, ")"])
         self.assertEqual(port.last_result.outcome, "completed")
-        # Once it is worn, the memory ends and the levitation ring is ordinary gear.
+        # Once it is worn, the lending ends and the levitation ring is ordinary gear.
         worn = self.swapped(raw)
         worn["turn"] += 10
         after = parse_snapshot(worn, policy._monrace_knowledge)
         policy.confirm_key_posted(key)
         self.decide(policy, after)
-        self.assertIsNone(zul_trip.replaced_ring(policy))
+        self.assertEqual(slot_lending.lent_slots(policy, slot_lending.ZUL_LEVITATION), ())
         self.assertNotEqual(policy.last_reason, zul_trip.REWEAR_REASON)
+
+    def test_after_the_trip_the_slot_returns_to_the_target_not_the_replaced_ring(self):
+        # Owner 2026-11-22 Q6: the target loadout names another ring for the sub ring (DECLARED
+        # CONSTRUCTED: a ring the search preferred, not carried): the replaced Ring of Lightning is
+        # not put back -- before E5 the remembered ring was -- and the lending ends with the slot
+        # left to the visit's swap.
+        policy, _raw, board, ring = self.outpost()
+        other = replace(ring, name="力の指輪 <+3>", pval=3)
+        slot_lending.lend(policy, "sub_ring", slot_lending.ZUL_LEVITATION)
+        install_target(policy, (("sub_ring", other),))
+        self.assertFalse(zul_trip.retains_returning_ring(policy, ring))
+        self.decide(policy, board)
+        self.assertNotEqual(policy.last_reason, zul_trip.REWEAR_REASON)
+        self.assertEqual(slot_lending.lent_slots(policy, slot_lending.ZUL_LEVITATION), ())
 
     def test_no_rewear_while_the_trip_is_under_way(self):
         policy, _raw, board, ring = self.outpost()
-        policy._zul_replaced_ring = (policy._item_signature(ring), "sub_ring")
+        slot_lending.lend(policy, "sub_ring", slot_lending.ZUL_LEVITATION)
+        install_target(policy, (("sub_ring", ring),))
         policy._zul_trip = zul_trip.ZulTrip(active=True, start_town=0, curable=(1,))
         self.assertIsNone(zul_trip.rewear_key(policy, board))
 

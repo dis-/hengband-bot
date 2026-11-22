@@ -17,7 +17,7 @@ from hengbot import town_visit_plan
 from hengbot import cross_rules, deep_climb, deep_fall_guard, dive_floor, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
-from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, town_pack_headroom, walkout_dig
+from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, slot_lending, town_pack_headroom, walkout_dig
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import resist_alternatives, summoner_wait
@@ -2327,13 +2327,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._scavenge_without_digger = False
         self._mining_detection_centers: list[Position] = []
         self._sell_scavenged_consumables = False
-        self._normal_weapon_name: str | None = None
-        self._normal_sub_hand_name: str | None = None
-        self._normal_weapon_identity: str | None = None
-        self._normal_sub_hand_identity: str | None = None
-        self._normal_weapon_is_optimal = False
-        self._normal_sub_hand_is_optimal = False
-        self._mining_combat_loadout_remembered = False
         self._breakout_dig_floor: tuple[int, int, int] | None = None
         self._no_teleport_rearm_pending = False
         self._yeek_conquest_processed = False
@@ -13193,7 +13186,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     @claims(ClaimOwner.DETECTORS)
     def _breakout_restore_weapon_key(self, snapshot: Snapshot) -> str | None:
-        """Re-arm the weapon displaced solely for a dig-to-stairs breakout."""
+        """Return the hand lent solely to a dig-to-stairs breakout's digger to the target's
+        weapon, else any melee weapon carried (slot_lending, owner 2026-11-22 Q6)."""
         if self._breakout_dig_floor is None:
             return None
         if self._equipped_digging_tool(snapshot) is None:
@@ -13202,21 +13196,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return None
             self._breakout_dig_floor = None
             return None
-        weapon = self._first_item(
-            snapshot,
-            lambda it: it.is_equipment
-            and it.is_melee_weapon
-            and not it.is_digging_tool
-            and not self._blocks_teleport(it)
-            and (
-                self._normal_weapon_name is None
-                or it.name == self._normal_weapon_name
-            ),
-        )
+        weapon = slot_lending.return_item(self, snapshot, "main_hand")
         if weapon is None:
             return None
         self.last_reason = "breakout:restore-combat-weapon"
-        key = self._wield_weapon_key(snapshot, weapon)
+        key = slot_lending.wield_back(self, snapshot, "combat-loadout", weapon, "main_hand")
         if key is not None:
             self._equipment_mutation_post_commit = (key, "breakout-restore")
         return key
