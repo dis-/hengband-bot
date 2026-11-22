@@ -11870,6 +11870,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_shop.py:ShopMixin._purchase_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_shop.py:ShopMixin._purchase_diagnostic_category": {
     "classification": "data",
     "rows": [
@@ -11906,6 +11913,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_shop.py:ShopMixin._purchase_rungs.rung.match": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._purchase_tier": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -12134,6 +12148,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_shop.py:ShopMixin._strategy_potion_needs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_shop.py:ShopMixin._tiered_purchase": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13367,6 +13388,20 @@
     "delegation": "selected child; no independent success"
   },
   "purchase_rungs.py:purchase_rung_retention": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "purchase_rungs.py:purchase_rung_tier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "purchase_rungs.py:short_money_choice": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
