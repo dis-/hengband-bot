@@ -15,6 +15,10 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
  - トラップ感知 (12): detect_traps (30, known): CAVE_IN_DETECT within range - 1
    (spells-detection.cpp:73-77).  The area is not on the board, so it is
    remembered here from the use points (trap-detect-rod-only, 2026-10-23).
+   Owner 2026-11-22 (asked 「取り込んだトラップ感知を、害の無い敵（眠っている弱い敵など）が見えている
+   時にも唱えますか？」, answered 「害の無い敵の横でも唱える」): ``beside_harmless``, as the mapping.
+   n1-c life-220 (Angband 49F, 2026-11-22 10:24): five sleeping ogres in view of the arrival stair
+   held it back, and deep_fall_guard left the floor by the up stairs instead.
  - 光 (8): lite_area(2d8, radius 2) and lite_room; nothing in a DARKNESS
    dungeon (spell-kind/spells-lite.cpp:331-348).
  - トラップ解除 (rod 14, wand 4): disarm_trap(dir) (cmd-zaprod.cpp:168,
@@ -238,8 +242,10 @@ POWERS = (
           preferred=(("rod", SV_ROD_DETECTION),)),
     Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
           "detect-all", DETECT_RAD, 10, ("hunt-target-unseen", "quest-remaining-unseen"), powerful="when-safe"),
+    # Owner 2026-11-22 「害の無い敵の横でも唱える」 (as the mapping's 「脅威でなければ感知する」).
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
-          "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled")),
+          "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled"),
+          beside_harmless=True),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           MAP_AREA, DETECT_RAD, 30,
           ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket",

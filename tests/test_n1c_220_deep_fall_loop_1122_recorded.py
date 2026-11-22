@@ -22,7 +22,13 @@ DECLARED CONSTRUCTED:
   executor adds to it (``_completed_operation_owner``/``_sequence``/``_receipt``,
   input_executor.py), which the capture's state.jsonl lines do not keep;
 * the executor's game: the recorded board the key is posted on, and the recorded next board
-  (for the 48F walk step, the same board ten game turns on).
+  (for the 48F walk step, the same board ten game turns on);
+* every absorbed Detect Traps cast has failed ``me_powers.FAILURES_PER_PLACE`` times at the
+  place of each board (``_detect_traps_failed_here``): since the owner's 2026-11-22
+  「害の無い敵の横でも唱える」 (ME-TRAP-DETECT) the sleeping ogres no longer hold it back, so the
+  detection held but not usable on the board is the failures' (deep_fall_guard ``key``), and the
+  recorded decisions (the map, the leave, the stair back) stand as recorded.  The cast beside the
+  ogres is tests/test_me_trap_detect_beside_harmless_1122_recorded.py.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -43,6 +49,20 @@ from town_work_corpus import replay_window
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-220-deep-fall-loop-1122"
 STAIR_48F = Position(29, 93)
 STAIR_49F = Position(24, 7)
+
+
+def _detect_traps_failed_here(policy, board):
+    """DECLARED CONSTRUCTED (module docstring): the absorbed Detect Traps has failed
+    FAILURES_PER_PLACE times here on this floor visit (me_powers ``_usable``)."""
+    from hengbot import me_powers
+
+    memory = getattr(policy, me_powers.MEMORY, None)
+    if memory is None or memory.floor != board.floor_key:
+        memory = me_powers.FloorMemory(board.floor_key, board.turn)
+        setattr(policy, me_powers.MEMORY, memory)
+    row = next(power for power in me_powers.POWERS if power.effect == "detect-traps")
+    for trigger in row.triggers:
+        memory.failed[(row.ident, trigger, board.player.position)] = me_powers.FAILURES_PER_PLACE
 
 
 class DeepFallLoopTest(executor_pins.ProductionHarness):
@@ -71,6 +91,7 @@ class DeepFallLoopTest(executor_pins.ProductionHarness):
                            _completed_operation_sequence=cls.policy._decision_sequence,
                            _completed_operation_receipt={})
             board = parse_snapshot(raw, cls.policy._monrace_knowledge)
+            _detect_traps_failed_here(cls.policy, board)
             with contextlib.redirect_stdout(io.StringIO()), \
                     contextlib.redirect_stderr(io.StringIO()):
                 key = cls.policy.choose_key(board)
@@ -118,7 +139,7 @@ class DeepFallLoopTest(executor_pins.ProductionHarness):
         raw, board, key, _reason = self.decided[leave]
         self.assertEqual((board.floor_key, board.player.position), ((1, 49, 0), STAIR_49F))
         self.assertEqual(key, "<")
-        # Five sleeping ogres in view: the absorbed Detect Traps is held but not cast here.
+        # The absorbed Detect Traps is held but not usable here (its failures, constructed).
         self.assertTrue(deep_fall_guard.holds_detection(self.policy, board))
         self.assertTrue(self.policy._physical_hostiles(board))
         next_raw = self.decided[leave + 1][0]

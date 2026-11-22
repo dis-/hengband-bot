@@ -16,7 +16,9 @@ life-065, Yeek cave 1F (decisions 6468-6494, owner 2026-11-01 「脅威でなけ
 感知する」): an asleep level-1 monster stayed in view from the arrival, the
 common gate refused every power while a hostile was visible, and the visit
 ended without mapping.  Mapping is now cast while the visible hostiles are not
-dangerous by the combat ladder's own judgement; the other powers keep the gate.
+dangerous by the combat ladder's own judgement; the other powers keep the gate,
+but Detect Traps (owner 2026-11-22 「害の無い敵の横でも唱える」, ME-TRAP-DETECT): on the
+arrival it comes first (its row's priority), then the mapping.
 
 DECLARED CONSTRUCTED: the absorbed staff list (5 charges each; the recorded
 rows cast detect-evil, detect-traps, map-area and lite-area); the earlier uses
@@ -46,6 +48,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "me-mapping-1101.json.gz"
 STAIR = Position(16, 33)
 MAP_AREA = "me-power:stairs-needed-and-unknown:map-area"
 ARRIVAL_MAP = "me-power:new-floor:map-area"
+ARRIVAL_TRAPS = "me-power:new-floor:detect-traps"
 
 
 def _harness(name):
@@ -148,10 +151,14 @@ class MagicEaterMappingRecordedTest(mining.harness.ProductionHarness):
         board = parse_snapshot(raw, policy._monrace_knowledge)
         self.assertEqual(len(policy._physical_hostiles(board)), 1)
         mapping = me_powers.BY_KEY[("staff", stage2.MAPPING)]
+        traps = me_powers.BY_KEY[("staff", stage2.TRAP)]
 
         key = self.choose(policy, raw)
+        self.assertPower(policy, key, traps.letter, ARRIVAL_TRAPS)
+        after = self.cast(policy, raw, key, stage2.staff_rows())
+        key = self.choose(policy, after)
         self.assertPower(policy, key, mapping.letter, ARRIVAL_MAP)
-        self.cast(policy, raw, key, stage2.staff_rows())
+        self.cast(policy, after, key, stage2.staff_rows())
 
         with self.subTest("dangerous visible hostile: no power"):
             dangerous = copy.deepcopy(raw)
@@ -165,7 +172,7 @@ class MagicEaterMappingRecordedTest(mining.harness.ProductionHarness):
             self.assertIsNone(self.floor_power(policy, snapshot))
         with self.subTest("just hit: no power"):
             policy = self.policy(raw)
-            self.assertEqual(self.floor_power(policy, board), mapping.key)
+            self.assertEqual(self.floor_power(policy, board), traps.key)
             policy._took_damage = True
             self.assertIsNone(self.floor_power(policy, board))
 
