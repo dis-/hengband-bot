@@ -1,4 +1,4 @@
-"""A refused quest entry is not walked to
+"""A refused quest entry is not walked to, and Q18's first row counts the absorbed Speed's doses
 (n1-b life-415, 2026-11-22 14:36, loop-detected in the Outpost).
 
 Live (n1-b life-415, Magic-Eater Lv34, build bot-53f7a340e,
@@ -15,14 +15,19 @@ That refusal was asked only on the step onto the entrance.  The walk to it
 Outpost to the cell before Q18's entrance, was refused, the shops' errand took the board and its
 walk away, and the walk to the entrance came back on the next board, until loop-detected.
 
-Now every step of the walk waits on the entry's own admission
-(``_quest_entry_step_admitted``).
+Now every step of the walk waits on the entry's own admission (``_quest_entry_step_admitted``),
+and an ``always_hasted`` row that names no ``absorbed_charges`` counts its own doses,
+one charge a dose (quest_force_rows._speed_cost).
 
 The rows are replayed through the public chooser, each posting its recorded key.
+
+DECLARED CONSTRUCTED: the board of row 3 with the maximum HP the acceptance read (706, the
+heroism's), for the first row's dose count; the acceptance board itself is not in the capture.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import copy
+import dataclasses
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -34,6 +39,7 @@ from support.town_arrival_fixture import load
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-415-q18-entry-walk-1122" / "n1b-415-1434"
 WALK_ROW = 3          # live: quest:enter:approach, the first step toward Q18's entrance
 QUEST = 18
+HEROIC_MAX_HP = 706   # decision 5197, the acceptance of Q18
 
 
 def post(policy, key):
@@ -81,6 +87,20 @@ class N1b415Q18EntryWalk1122RecordedTest(unittest.TestCase):
         key = policy.choose_key(self.walk_board)
         self.assertFalse(policy.last_reason.startswith("quest:enter"), (key, policy.last_reason))
         self.assertFalse(policy.last_reason.startswith("fixedquest:"), (key, policy.last_reason))
+
+    def test_the_first_row_counts_its_doses_in_absorbed_charges(self):
+        policy = self.policy()
+        board = dataclasses.replace(
+            self.walk_board,
+            player=dataclasses.replace(self.walk_board.player, max_hp=HEROIC_MAX_HP))
+        profile = policy.approved_quest_strategy(QUEST)
+        force = policy._strategy_force_for_snapshot(board, profile)
+        self.assertEqual(force["min_hp"], 700)   # the first row serves at 706
+        self.assertNotIn("speed_alternatives", force)
+        self.assertTrue(force.get(quest_force_rows.ABSORBED_SHORT))
+        self.assertFalse(policy._approved_strategy_force_ready(board, profile))
+        self.assertIn("absorbed_speed_charges",
+                      policy._fixed_quest_readiness["strategy_force"]["failed"])
 
 
 if __name__ == "__main__":
