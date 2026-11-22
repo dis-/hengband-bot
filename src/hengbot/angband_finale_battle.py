@@ -102,7 +102,7 @@ HASTE_REASON = f"{REASON}:haste"
 RESIST_REASON = f"{REASON}:resistance"
 RESTORE_MANA_REASON = f"{REASON}:restore-mana"
 # No longer emitted (owner 2026-11-21 「99F 100Fでの休憩は許可していない」, ``_recover_key``); the
-# driver's loop window still names it for the older records (cli RECOVERING_REST_REASONS).
+# driver's loop window exempts its rest by the command (cli REST_MACRO), not by this name.
 REST_REASON = f"{REASON}:rest"
 RESTORE_STATS_REASON = f"{REASON}:restore-stats"  # the drained stats after a teleport (2026-11-21)
 APPROACH_REASON = f"{REASON}:approach"
