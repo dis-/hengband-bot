@@ -1,0 +1,284 @@
+{
+ "lists": {
+  "rod": [
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 10,
+    "name": "トラップ感知",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 2,
+    "name": "光",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 3,
+    "name": "ドア/階段感知",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 3,
+    "name": "帰還",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 13,
+    "name": "イルミネーション",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 1,
+    "name": "ファイア・ボルト",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 1,
+    "name": "アイス・ボルト",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 20,
+    "max": 1,
+    "name": "サンダー・ボール",
+    "success": 80
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 1,
+    "name": "害虫駆除",
+    "success": 85
+   },
+   {
+    "charging": 0,
+    "fail": 15,
+    "max": 1,
+    "name": "テレポート・アウェイ",
+    "success": 85
+   }
+  ],
+  "staff": [
+   {
+    "current": 17,
+    "fail": 15,
+    "max": 17,
+    "name": "軽傷の治癒",
+    "success": 85
+   },
+   {
+    "current": 8,
+    "fail": 15,
+    "max": 8,
+    "name": "癒し",
+    "success": 85
+   },
+   {
+    "current": 17,
+    "fail": 15,
+    "max": 17,
+    "name": "テレポート",
+    "success": 85
+   },
+   {
+    "current": 73,
+    "fail": 15,
+    "max": 73,
+    "name": "鑑定",
+    "success": 85
+   },
+   {
+    "current": 6,
+    "fail": 20,
+    "max": 6,
+    "name": "解呪",
+    "success": 80
+   },
+   {
+    "current": 8,
+    "fail": 20,
+    "max": 8,
+    "name": "スピード",
+    "success": 80
+   },
+   {
+    "current": 11,
+    "fail": 15,
+    "max": 11,
+    "name": "スターライト",
+    "success": 85
+   },
+   {
+    "current": 54,
+    "fail": 15,
+    "max": 54,
+    "name": "光",
+    "success": 85
+   },
+   {
+    "current": 20,
+    "fail": 15,
+    "max": 21,
+    "name": "周辺感知",
+    "success": 85
+   },
+   {
+    "current": 41,
+    "fail": 15,
+    "max": 41,
+    "name": "財宝感知",
+    "success": 85
+   },
+   {
+    "current": 5,
+    "fail": 77,
+    "max": 5,
+    "name": "聖浄",
+    "success": 23
+   },
+   {
+    "current": 29,
+    "fail": 15,
+    "max": 29,
+    "name": "アイテム感知",
+    "success": 85
+   },
+   {
+    "current": 42,
+    "fail": 15,
+    "max": 42,
+    "name": "トラップ感知",
+    "success": 85
+   },
+   {
+    "current": 25,
+    "fail": 15,
+    "max": 25,
+    "name": "ドア/階段感知",
+    "success": 85
+   },
+   {
+    "current": 14,
+    "fail": 15,
+    "max": 14,
+    "name": "透明物体感知",
+    "success": 85
+   },
+   {
+    "current": 27,
+    "fail": 15,
+    "max": 27,
+    "name": "邪悪存在感知",
+    "success": 85
+   }
+  ],
+  "wand": [
+   {
+    "current": 11,
+    "fail": 15,
+    "max": 11,
+    "name": "ファイア・ボルト",
+    "success": 85
+   },
+   {
+    "current": 17,
+    "fail": 15,
+    "max": 17,
+    "name": "テレポート・アウェイ",
+    "success": 85
+   },
+   {
+    "current": 9,
+    "fail": 15,
+    "max": 9,
+    "name": "アイス・ボルト",
+    "success": 85
+   },
+   {
+    "current": 10,
+    "fail": 15,
+    "max": 10,
+    "name": "トラップ解除",
+    "success": 85
+   },
+   {
+    "current": 27,
+    "fail": 15,
+    "max": 27,
+    "name": "トラップ/ドア破壊",
+    "success": 85
+   },
+   {
+    "current": 10,
+    "fail": 15,
+    "max": 11,
+    "name": "サンダー・ボール",
+    "success": 85
+   },
+   {
+    "current": 94,
+    "fail": 15,
+    "max": 94,
+    "name": "岩石溶解",
+    "success": 85
+   },
+   {
+    "current": 7,
+    "fail": 43,
+    "max": 7,
+    "name": "ファイア・ボール",
+    "success": 57
+   },
+   {
+    "current": 33,
+    "fail": 15,
+    "max": 33,
+    "name": "光",
+    "success": 85
+   },
+   {
+    "current": 7,
+    "fail": 43,
+    "max": 7,
+    "name": "衰弱",
+    "success": 57
+   },
+   {
+    "current": 61,
+    "fail": 15,
+    "max": 61,
+    "name": "悪臭雲",
+    "success": 85
+   },
+   {
+    "current": 27,
+    "fail": 15,
+    "max": 27,
+    "name": "マジック・ミサイル",
+    "success": 85
+   }
+  ]
+ },
+ "source": {
+  "checkpoint": "n1-b/life-414/town-arrival/20261122-084821.496358536-turn1565228",
+  "turns": {
+   "rod": 1558403,
+   "staff": 1564625,
+   "wand": 1540080
+  }
+ }
+}

@@ -177,7 +177,7 @@ class OwnerRulePlacesTest(unittest.TestCase):
     def test_the_instant_death_rung_dropped_from_a_plan_module_fails(self):
         findings = analyze_with(plan=lambda source: source.replace(
             '        threat_tiers.instant_death_key(\n            policy, snapshot, lambda: '
-            '_below_line_recall(policy, snapshot, profile, line=False))\n        or ', '        ', 1))
+            '_instant_death_escape(policy, snapshot, profile, board))\n        or ', '        ', 1))
         self.assertTrue(any('quest_find_exit.key: the table says' in finding for finding in findings),
                         findings)
 

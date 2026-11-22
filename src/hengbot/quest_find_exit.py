@@ -91,6 +91,28 @@ Owner 2026-11-12 (the same death and n1-a life 516):
  * A choke spent by its quiet wait is the retreat again while an enemy in view comes
    (``_readmitted``): life 515 left (1,19) for (3,22) across the open with a seahorse coming.
 
+Owner 2026-11-22 (n1-b life-414, the fourth Q18 death), verbatim 「叫びを受けた理由を調査すること。
+受けないように立ち回る指示なので。」: the walk took the plan's own route ([1,16] [1,17] [2,18] are
+three of its eleven shouted cells: beside (2,17), the one cell of that corridor the siren on (6,14)
+has a direct line to, through the gap (3,16); the corridor's other walls are permanent, "X" of
+QuestPreferences).  What the shrieks woke and hasted came on after it: life-414 heard them on
+(1,16) and (2,18), went on from the choke (1,19) at once, and met two hasted seahorses and a squid
+on the open (3,20).  The plan's 「目を覚ました敵がいる間は、叫びの届かない隘路に立って1体ずつ倒す」
+and 「戦った隘路では、敵が見えなくなってからも30手待って何も来なければ進む」: a shriek heard
+(mspell-floor.cpp spell_RF4_SHRIEK's 「がかん高い金切り声をあげた」, or aggravate_monsters'
+stirring, spells-sight.cpp) sends the walk's next unexposed choke into the wait a fight does
+(``_shriek_hold``), ``choke_hold_turns`` quiet turns before the walk goes on.
+
+Owner 2026-11-22 「使う」 to 「Q18 で即死の見込みがある時と帰還待ちの間に、敵を飛ばすテレポート・
+アウェイを使ってよいか」: on the 即死 rung the plan's escape is Teleport Away at the worst hostile in
+a beam's line before the Recall (``_instant_death_escape``), and while the Recall counts down
+an enemy that comes is sent away before any retreat or blow (``_recall_wait_away``): the absorbed
+rod, then the absorbed wand, then a carried one (quest_plan_base.hall_away_key).  The player's own
+teleport stays unread (owner 2026-11-04).  Game: teleport_away (spells-teleport.cpp) skips
+CAVE_NO_TELEPORT_DEST only outside quests and cave_monster_teleportable_bold never reads it, so
+the monster lands on this floor's water; the seahorse 443 and the giant squid 482 have no RES_TELE
+(MonraceDefinitions).
+
 ``key`` runs before the shared survival ladders while an enemy is about on such a
 floor: their answers walk away from the choke, which is what this plan refuses.  A
 quiet board stays with them (food, light, the unseen) and reaches ``walk_key`` through
@@ -136,6 +158,11 @@ PULL_REFUSED_REASON = "quest-strategy:pull-cell-refused"
 CLEAR_REASON = "quest-strategy:exit-clear-first"
 PULL_WALK_REASON = "quest-strategy:exit-pull-walk"
 MELEE_CAP_REASON = "quest-strategy:exit-crowd-back"
+# Owner 2026-11-22 「使う」: Teleport Away at an enemy on the 即死 rung and in the Recall's countdown.
+AWAY_REASON = "quest-strategy:exit-teleport-away"
+# A shriek reached the player: the caster's line (mspell-floor.cpp spell_RF4_SHRIEK) or what it
+# stirred (spells-sight.cpp aggravate_monsters), in both languages.
+SHRIEK_MARKS = ("金切り声をあげた", "makes a high pitched shriek", "突如興奮した", "sudden stirring")
 _PLANNED_STEPS = frozenset({TO_CHOKE_REASON, WALK_REASON, STEP_ON_EXIT_REASON, DIG_REASON,
                            PULLED_BACK_REASON, CLEAR_REASON, PULL_WALK_REASON, MELEE_CAP_REASON})
 
@@ -182,7 +209,18 @@ def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
     if plan is not None:
         _observe_digs(snapshot, navigator, plan)
         _record_entry_force(policy, snapshot, navigator, quest_id)
+        _observe_shriek(snapshot, navigator)
     return navigator
+
+
+def _observe_shriek(snapshot, navigator) -> None:
+    """A shriek reached the player on this board: what it woke and hasted may come
+    (``_shriek_hold``).  Not on the choke a fight or the last shriek holds the walk on
+    (``exit_fought_at``): that wait is under way, and one each shriek restarted might not end."""
+    if snapshot.player.position == navigator.exit_fought_at:
+        return
+    if any(mark in message for message in snapshot.messages for mark in SHRIEK_MARKS):
+        navigator.exit_shrieked = True
 
 
 def _record_entry_force(policy, snapshot, navigator, quest_id: int) -> None:
@@ -571,9 +609,26 @@ def _hold(policy, snapshot, navigator, plan, position, board) -> str | None:
 def _wait_after_fight(policy, snapshot, navigator, plan, board) -> str | None:
     """Nothing in sight on the choke that fought: what the noise woke may still come."""
     position = snapshot.player.position
+    _shriek_hold(navigator, plan, position)
     if navigator.exit_fought_at != position or position in navigator.exit_spent_chokes:
         return None
     return _hold(policy, snapshot, navigator, plan, position, board)
+
+
+def _shriek_hold(navigator, plan, position: Position) -> None:
+    """A shriek heard since the last choke (``_observe_shriek``), and the player on an unexposed
+    choke: it waits there as the choke that fought does (owner 2026-11-22, the module note;
+    n1-b life-414 left (1,19) at once after the shrieks on (1,16) and (2,18) and died on (3,20)).
+    A choke spent before is taken again and its waits start over."""
+    if not navigator.exit_shrieked:
+        return
+    exposure = _exposure(navigator, plan)
+    if [position.y, position.x] not in plan["choke_cells"] or exposure.exposed(_cell(position)):
+        return
+    navigator.exit_shrieked = False
+    _start_over(navigator, position)
+    navigator.exit_hold_cell = None
+    navigator.exit_fought_at = position
 
 
 def _clear_the_way_key(policy, snapshot, navigator, plan, board, path) -> str | None:
@@ -1012,9 +1067,10 @@ def key(policy, snapshot) -> str | None:
         # Owner 2026-11-07 「作戦が先・即死だけ例外」: the 1-turn 即死 heads each enemy board.
         return (
             threat_tiers.instant_death_key(
-                policy, snapshot, lambda: _below_line_recall(policy, snapshot, profile, line=False))
+                policy, snapshot, lambda: _instant_death_escape(policy, snapshot, profile, board))
             or (_below_line_recall(policy, snapshot, profile) if board.enemy_for_the_line else None)
             or (_heal(policy, snapshot, profile) if board.engaged else None)
+            or _recall_wait_away(policy, snapshot, board)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
             or _melee_cap_retreat(policy, snapshot, navigator, plan, board)
@@ -1033,9 +1089,10 @@ def key(policy, snapshot) -> str | None:
         )
     return (
         threat_tiers.instant_death_key(
-            policy, snapshot, lambda: _below_line_recall(policy, snapshot, profile, line=False))
+            policy, snapshot, lambda: _instant_death_escape(policy, snapshot, profile, board))
         or _below_line_recall(policy, snapshot, profile)
         or (_engaged_survival(policy, snapshot, profile, board) if board.engaged else None)
+        or _recall_wait_away(policy, snapshot, board)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)
         or resist_potion.key(policy, snapshot)
@@ -1043,6 +1100,35 @@ def key(policy, snapshot) -> str | None:
         or _choke_walk_under_way(policy, snapshot, navigator, plan, board)
         or _advance(policy, snapshot, navigator, plan, board)
     )
+
+
+def _instant_death_escape(policy, snapshot, profile, board) -> str | None:
+    """The plan's escape on its 即死 rung (threat_tiers.instant_death_key): Teleport Away at the
+    worst hostile in view on a beam's line, then the Recall whatever the HP.
+
+    Owner 2026-11-22 「使う」 (n1-b life-414 on (3,20), two hasted seahorses 443 beside it: the
+    emergency's Speed and two steps; at (1,19) in the Recall's countdown two cornered blows, and
+    death with the absorbed wand of Teleport Away at 23 charges).  The Recall fires in 15 to 35
+    player turns; the blow that kills comes on the next one, which only sending its maker away
+    answers.  On the next board, the line read again, the Recall is read as before."""
+    return (_away(policy, snapshot, board.in_view)
+            or _below_line_recall(policy, snapshot, profile, line=False))
+
+
+def _recall_wait_away(policy, snapshot, board) -> str | None:
+    """The Recall counting down and an enemy in view that comes: Teleport Away at the worst of
+    them, before the plan's retreats and blows (owner 2026-11-22 「使う」).  The plan's heal (and,
+    off the shouted cells, its cure and Speed) comes first; the 即死 board has its own rung above."""
+    if not snapshot.player.recalling or not board.engaged:
+        return None
+    coming = [monster for monster in board.in_view if monster in board.reachable_awake]
+    return _away(policy, snapshot, coming) if coming else None
+
+
+def _away(policy, snapshot, candidates) -> str | None:
+    """quest_plan_base.hall_away_key over ``candidates``: the absorbed rod, the absorbed wand, then
+    a carried one; never at a never-moving monster or one the game surely keeps."""
+    return quest_plan_base.hall_away_key(policy, snapshot, candidates, AWAY_REASON)
 
 
 def _engaged_survival(policy, snapshot, profile, board) -> str | None:
