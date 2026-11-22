@@ -77,7 +77,7 @@ from hengbot.game_messages import KILL_LINE_DESTROYED, KILL_LINE_KILLED, KILL_LI
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
-    SV_POTION_CURE_CRITICAL, SV_ROD_HEALING, SV_STAFF_HEALING,
+    SV_POTION_CURE_CRITICAL, SV_ROD_HEALING, SV_STAFF_HEALING, TVAL_FOOD,
 )
 from hengbot.policy_constants import HEAL_ORDER, REST_MACRO, REST_TARGET_HP_RATIO, WAIT_KEY
 
@@ -132,6 +132,18 @@ _HEAVY_LOSS_DIVISOR = 3
 # cure_critical_wounds(300 / 1200), Life is life_stream (quaff-effects.cpp:128-133,
 # spells-status.cpp:289 and 397).  policy_constants.HEAL_ORDER.
 _HP_RECOVERY_CURES = HEAL_ORDER
+# The mushrooms that cure blindness or confusion, by sval, with what each cures
+# (sv-food-types.h; cmd-eat.cpp exe_eat_food_type_object: CURE_BLINDNESS set_blindness(0),
+# CURE_CONFUSION set_confusion(0), CURE_SERIOUS cure_serious_wounds, which clears both,
+# spells-status.cpp:362-376).  The effect comes before any race's food handling, and
+# do_cmd_eat_food has no blindness or confusion refusal (unlike reading, cmd-read.cpp).
+CURE_MUSHROOMS = {
+    16: frozenset({"blind", "confused"}),  # SV_FOOD_CURE_SERIOUS
+    13: frozenset({"blind"}),               # SV_FOOD_CURE_BLINDNESS
+    15: frozenset({"confused"}),            # SV_FOOD_CURE_CONFUSION
+}
+CURE_MUSHROOM_REASON = "item:cure-mushroom"
+EMERGENCY_CURE_MUSHROOM_REASON = "emergency:cure-mushroom"
 
 
 def _observe_attacker(policy, snapshot) -> None:
@@ -443,6 +455,45 @@ def cure_potion(policy, snapshot, *, instant_death: bool = False):
     return policy._find_status_cure_potion(snapshot)
 
 
+def cure_mushroom(policy, snapshot):
+    """A carried, known mushroom that clears the treated blindness or confusion, else None.
+
+    Only where no curing potion is carried and no absorbed cure is cast: the potion and the
+    cast keep their place.  One that clears every treated status first, the narrowest of those
+    (a Cure Blindness for blindness alone keeps the Cure Serious Wounds); else one that clears a
+    part.  n1-a life-533 (2026-11-22 15:14-15:15, オークの洞窟19階): blind and confused for 145
+    turns with no potion left beside the gibbering mouthers, a Mushroom of Cure Serious Wounds
+    carried (unknown to it: never identified) and never eaten, until dead."""
+    player = snapshot.player
+    treated = frozenset(
+        status for status, held in (("blind", player.blind and not cure_futile(policy, snapshot)),
+                                    ("confused", player.confused)) if held)
+    if not treated:
+        return None
+    best = None
+    for item in snapshot.inventory:
+        cures = CURE_MUSHROOMS.get(item.sval) if item.tval == TVAL_FOOD else None
+        if not item.aware or item.count <= 0 or not cures or not cures & treated:
+            continue
+        rank = (not treated <= cures, len(cures))
+        if best is None or rank < best[0]:
+            best = (rank, item)
+    return best[1] if best is not None else None
+
+
+def cure_mushroom_key(policy, snapshot, reason: str) -> str | None:
+    """Eat ``cure_mushroom`` (``last_reason`` ``reason``), else None.  The board after it
+    decides the escape the status blocked (a scroll is readable again)."""
+    mushroom = cure_mushroom(policy, snapshot)
+    if mushroom is None:
+        return None
+    key = reserved_item_command(policy, snapshot, "eat", mushroom)
+    if key is not None:
+        policy.last_reason = reason
+        note_cure(policy, snapshot)
+    return key
+
+
 def _absorbed_cure_castable(policy, snapshot) -> bool:
     """The Magic-Eater's absorbed Cure Light Wounds can clear this blindness now.
 
@@ -551,7 +602,7 @@ def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None
         return None  # owner 2026-11-10 G1: the potion is kept (short_blind_key)
     potion = cure_potion(policy, snapshot)
     if potion is None:
-        return None
+        return cure_mushroom_key(policy, snapshot, CURE_MUSHROOM_REASON)
     policy.last_reason = (
         "item:cure-critical"
         if potion.sval == SV_POTION_CURE_CRITICAL

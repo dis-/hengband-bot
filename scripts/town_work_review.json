@@ -23645,5 +23645,27 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:cure_mushroom": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the carried known mushroom (CURE_MUSHROOMS: Cure Serious Wounds, Cure Blindness, Cure Confusion; cmd-eat.cpp, spells-status.cpp cure_serious_wounds) that clears the treated blindness or confusion, one clearing every treated status first (n1-a life-533).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:cure_mushroom_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "n1-a life-533 (2026-11-22, Orc Cave 19F): blind or confused with no curing potion and no absorbed cure, the eat key of status_cure.cure_mushroom via reserved_item_command under the caller's reason. Called from status_cure_key (item:cure-mushroom) and the emergency ladder (emergency:cure-mushroom) before the blind strike and the wait; dungeon survival only; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

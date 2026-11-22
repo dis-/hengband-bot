@@ -2737,6 +2737,11 @@ class CombatMixin:
                     self, snapshot, status_cure.EMERGENCY_ABSORBED_CURE_REASON)
                 if potion is None and cast is None:
                     potion = status_cure.cure_potion(self, snapshot, instant_death=instant_death)
+                if potion is None and cast is None:
+                    # No potion and no absorbed cure: a carried curing mushroom (n1-a life-533)
+                    # before the blind strike and the wait below; the next board's escape follows.
+                    cast = status_cure.cure_mushroom_key(
+                        self, snapshot, status_cure.EMERGENCY_CURE_MUSHROOM_REASON)
                 if potion is not None or cast is not None:
                     if potion is not None:
                         self.last_reason = (
