@@ -55,6 +55,7 @@ AWAKE_RACE = 338             # the air hounds of the recorded board
 CURE_REASONS = ("item:cure", "item:cure-critical")
 USE_PROMPT = "どの杖を使いますか? "
 TARGET = rq.QUEST_TARGET_RACE
+WEAK_TARGET = 85             # a Lv4 race (average HP 40), a beatable quest target
 
 
 def with_staff(raw, *, skill=RELIABLE_SKILL, charges=5):
@@ -319,9 +320,44 @@ class DestructionUseTest(rq.RandomQuestTeleportReserveRecordedTest):
         self.assertEqual((key, reason), TELEPORT)
         self.assertTrue(destruction_use.usable(policy, board))
 
-    def test_wounded_target_within_seventeen_reads_teleport(self):
+    @staticmethod
+    def beatable_target(raw):
+        """DECLARED CONSTRUCTED: the quest's target race (the quest list's r_idx, and the
+        renamed monster when there is one) made race 85 (Lv4, average HP 40): no T1 verdict
+        gives the floor up from the quest list's race, so no Recall away from it is decided on
+        the first board (destruction_use ``target_given_up``)."""
+        next(q for q in raw["progress"]["quests"] if q["id"] == rq.QUEST_ID)["r_idx"] = WEAK_TARGET
+        for monster in raw["visible_monsters"]:
+            if monster["race_id"] == TARGET:
+                monster.update(race_id=WEAK_TARGET, level=4)
+        return raw
+
+    def test_wounded_target_within_seventeen_bars_the_use_until_the_recall_decision(self):
+        """Owner 2026-11-04 「傷を負ったターゲットは巻き込まない場面に限定する」, until the Recall away
+        from the target is decided (owner 2026-11-22, destruction_use ``target_given_up``).  On
+        this board every decision decides it (the visible duel against the target and the
+        hounds), so the use is asked without one (``usable``, no state changed): the policy fed
+        only the first board, the quest's target a beatable race (``beatable_target``)."""
+        self.first = self.beatable_target(copy.deepcopy(self.first))
+        raw = self.beatable_target(
+            self.as_target(with_staff(copy.deepcopy(self.raw)), wounded=True, distance=17))
+        policy = self.policy()
+        board = parse_snapshot(copy.deepcopy(raw), self.monraces)
+        self.assertIsNone(policy._unviable_quest_floor)
+        self.assertFalse(destruction_use.usable(policy, board))
+        policy._unviable_quest_floor = board.floor_key  # the Recall away from it decided
+        self.assertTrue(destruction_use.usable(policy, board))
+
+    def test_wounded_target_within_seventeen_after_the_recall_decision_is_no_bar(self):
+        """Owner 2026-11-22 (n1-b life-415, verbatim 「帰還すると決めたら標的を破壊に巻き込んで
+        良い」): the recorded target race (1347), which gives the floor up (the visible duel and
+        its T1 verdict: the ``quest-unviable`` Recall), is no bar to the use, wounded within 17
+        or not."""
         raw = self.as_target(with_staff(copy.deepcopy(self.raw)), wounded=True, distance=17)
-        self.assertEqual(self.answer(raw)[0], TELEPORT)
+        (key, reason), policy = self.answer(raw)
+        board = parse_snapshot(copy.deepcopy(raw), self.monraces)
+        self.assertTrue(destruction_use.target_given_up(policy, board))
+        self.assertEqual((key, reason), STAFF_KEY)
 
     def test_wounded_target_beyond_seventeen_is_no_bar(self):
         raw = self.as_target(with_staff(copy.deepcopy(self.raw)), wounded=True, distance=18)
