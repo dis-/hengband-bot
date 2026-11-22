@@ -11707,13 +11707,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._pending_disposal_slot = item.slot
         return item
 
-    def _release_stale_home_candidate_waiting(
+    def _home_candidate_waiting_stale(
         self, snapshot: Snapshot | None = None
-    ) -> None:
-        """Release a Home latch with no owner or executable scan this visit."""
-        if (
-            self._home_candidate_waiting
-            and self._home_pending_item is None
+    ) -> bool:
+        """Whether the Home latch has no owner or executable scan this visit (pure).
+
+        The departure gate's ``home_candidate_resolved`` reads this as well as the release:
+        the observation re-arms the latch on every town board while Home holds an Identify
+        scroll (``_home_identification_candidate_pending``), and the town key releases it
+        only when it runs.  A gate read before the release (the store page's purchase
+        selector) answered "unresolved" while the planner, reading after it, answered
+        "resolved" (n1-a life-535 2026-11-22 16:44).
+        """
+        return bool(
+            self._home_pending_item is None
             and not self._home_pending_batch
             and not self._home_batch_review_items
             and self._home_atomic_withdraw_pending is None
@@ -11731,7 +11738,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     and not self._home_catalog_routable(snapshot)
                 )
             )
-        ):
+        )
+
+    def _release_stale_home_candidate_waiting(
+        self, snapshot: Snapshot | None = None
+    ) -> None:
+        """Release a Home latch with no owner or executable scan this visit."""
+        if self._home_candidate_waiting and self._home_candidate_waiting_stale(snapshot):
             # 2026-07-28/29: a consumed candidate or an exhausted Home pass can
             # leave this visit-scoped latch with no claim capable of clearing it.
             self._home_candidate_waiting = False

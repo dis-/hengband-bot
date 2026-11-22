@@ -2558,8 +2558,12 @@ class TownMixin:
             "equipment_departure_ready": (
                 self._equipment_departure_ready(snapshot) if commit
                 else self._equipment_departure_ready(snapshot, commit=False)),
+            # A latch the release would drop is resolved on every read of the gate, not
+            # only after the town key ran the release (n1-a life-535: the store page's
+            # selector read it unresolved, the planner resolved, the visit looped).
             "home_candidate_resolved": (
                 not home_required or not self._home_candidate_waiting
+                or self._home_candidate_waiting_stale(snapshot)
             ),
             # A bounded Home pass can end with the page catalog still
             # incomplete. Once Home is blocked, defer unroutable catalog work.

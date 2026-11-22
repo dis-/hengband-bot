@@ -7581,6 +7581,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy.py:HengbotPolicy._home_candidate_waiting_stale": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._home_catalogue_work_key": {
     "classification": "producer",
     "rows": [
