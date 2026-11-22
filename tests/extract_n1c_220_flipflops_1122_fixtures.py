@@ -14,13 +14,14 @@ and loadout-report.jsonl.  Each fixture keeps the arrival policy and sidecars
 (support.town_arrival_fixture's format) and only the journal rows its test reads, in order
 (``rows.json``: their row numbers in the visit's journal).
 
-    python tests/extract_n1c_220_flipflops_1122_fixtures.py
-    (PYTHONPATH: src, tests and the root)
+    python tests/extract_n1c_220_flipflops_1122_fixtures.py [case ...]
+    (PYTHONPATH: src, tests and the root; no case: all three)
 """
 import tests  # noqa: F401 -- isolate runtime files before policy imports
 
 import gzip
 import json
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -30,8 +31,9 @@ from support.town_arrival_fixture import extract
 CAPTURES = Path("C:/hengband-backups/pdca/captures/n1c-220-flipflops-1122")
 TARGET = Path(__file__).with_name("fixtures") / "n1c-220-flipflops-1122"
 CASES = {
-    # The Home page of row 131 and the boards around the *Identify* of the 革グローブ.
-    "feet": ("20261122-065342-town-blocked-equipment-slot-flipflop-feet", (131, 134, 135)),
+    # The Home page before the transaction's first move (row 112: the 硬革ブーツ worn), the Home
+    # page of row 131 and the boards around the *Identify* of the 革グローブ.
+    "feet": ("20261122-065342-town-blocked-equipment-slot-flipflop-feet", (112, 131, 134, 135)),
     # The visit up to the take-off its target leaves out (row 29 took the 浮遊の指輪 off).
     "sub_ring": ("20261122-072321-town-blocked-equipment-slot-flipflop-sub_ring",
                  tuple(range(30))),
@@ -43,7 +45,10 @@ CASES = {
 
 
 def main() -> None:
+    wanted = sys.argv[1:] or list(CASES)
     for name, (capture, rows) in CASES.items():
+        if name not in wanted:
+            continue
         visit = CAPTURES / capture / "town-arrival"
         target = TARGET / name
         journal = gzip.decompress((visit / JOURNAL_FILE).read_bytes()).splitlines(True)
