@@ -42,9 +42,11 @@ levitating, a trap door possible here):
   2026-10-31 「逃げた階に戻らないための決定」, the one record of a floor left that the descent owners
   read): the stair it lands on leads back to the saved floor left, and is not taken again.
   ``descent_refused`` reads the means held, ``key`` the means usable on the board: the absorbed
-  Detect Traps is not cast while a hostile is in view (me_powers ``_hostiles_allow``).  n1-c
-  life-220 (Magic-Eater Lv32, Angband, 2026-11-22 10:24): the 49F arrival stair stood in view of
-  five sleeping ogres, the leave went up onto 48F's down stair and ``descend`` loaded the same
+  Detect Traps is not cast while a threat is in view or the character was just hit (me_powers
+  ``_hostiles_allow``; beside harmless hostiles it is, owner 2026-11-22 「害の無い敵の横でも唱える」),
+  nor after its failures at the place.  n1-c life-220 (Magic-Eater Lv32, Angband, 2026-11-22
+  10:24): the 49F arrival stair stood in view of five sleeping ogres, which then held the absorbed
+  Detect Traps back; the leave went up onto 48F's down stair and ``descend`` loaded the same
   49F, 20 times until the loop detector stopped the bot.  Another down stair of the floor above
   is a new floor.
 
@@ -287,7 +289,7 @@ def key(policy, snapshot):
             and snapshot.player.hp_ratio >= DESCEND_MIN_HP_RATIO:
         # The connected stairs land this leave on the down stair of the saved floor above whose
         # ``special`` is this very floor (fled_floor_stairs): that stair is not a descent target
-        # again, so a detection held but not usable here (``_detection_key``: a visible hostile,
+        # again, so a detection held but not usable here (``_detection_key``: a threat in view,
         # the failures, blindness) does not alternate with the descent (n1-c life-220).
         fled_floor_stairs.note_flight(policy, snapshot)
         policy.last_reason = ASCEND_REASON
