@@ -37,7 +37,16 @@ levitating, a trap door possible here):
   asked by ``_is_descent_target``): the connected stairs put a descent on an up staircase
   (floor-changer.cpp set_stairs), so the leave and the descent would alternate.  The last
   escape down the stairs underfoot (``_down_stairs_underfoot_key``) is kept: the leave follows
-  on the floor below.
+  on the floor below;
+- the leave by the up stairs is an escape by stairs (fled_floor_stairs ``note_flight``, owner
+  2026-10-31 「逃げた階に戻らないための決定」, the one record of a floor left that the descent owners
+  read): the stair it lands on leads back to the saved floor left, and is not taken again.
+  ``descent_refused`` reads the means held, ``key`` the means usable on the board: the absorbed
+  Detect Traps is not cast while a hostile is in view (me_powers ``_hostiles_allow``).  n1-c
+  life-220 (Magic-Eater Lv32, Angband, 2026-11-22 10:24): the 49F arrival stair stood in view of
+  five sleeping ogres, the leave went up onto 48F's down stair and ``descend`` loaded the same
+  49F, 20 times until the loop detector stopped the bot.  Another down stair of the floor above
+  is a new floor.
 
 Teleport Level is not read where its downward half lands unsanctioned (``teleport_level_refused``,
 asked by every reader: the immobile summoner's exits, the item-destroying breeder's leave and the
@@ -45,6 +54,7 @@ threat escape's means).
 """
 from __future__ import annotations
 
+from hengbot import fled_floor_stairs
 from hengbot.model import (
     SV_ROD_DETECTION, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_TRAP, TVAL_ROD, TVAL_SCROLL,
     TVAL_STAFF,
@@ -275,6 +285,11 @@ def key(policy, snapshot):
     grid = snapshot.grid_at(here)
     if grid is not None and policy._is_upstairs_target(grid) \
             and snapshot.player.hp_ratio >= DESCEND_MIN_HP_RATIO:
+        # The connected stairs land this leave on the down stair of the saved floor above whose
+        # ``special`` is this very floor (fled_floor_stairs): that stair is not a descent target
+        # again, so a detection held but not usable here (``_detection_key``: a visible hostile,
+        # the failures, blindness) does not alternate with the descent (n1-c life-220).
+        fled_floor_stairs.note_flight(policy, snapshot)
         policy.last_reason = ASCEND_REASON
         return UP_STAIRS_KEY
     if snapshot.player.recalling:
