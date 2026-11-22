@@ -132,8 +132,8 @@ from hengbot.model import (
     TVAL_POTION, TVAL_STAFF, TVAL_WAND,
 )
 from hengbot.policy_constants import (
-    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, RANGED_MAX_DISTANCE, REST_MACRO, SEARCH_KEY,
-    UP_STAIRS_KEY, WAIT_KEY,
+    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, OPEN_KEY, RANGED_MAX_DISTANCE, REST_MACRO,
+    SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
 )
 from hengbot.quest_plan_base import HOLD_REASON, MELEE_REASON
 from hengbot.unseen_strike import message_text
@@ -653,9 +653,21 @@ def _unlatch_stale(ctx: _Ctx, cell) -> None:
         ctx.policy._release_warning_refusal(target)
 
 
+def _druj_shut(ctx: _Ctx) -> frozenset:
+    """The druj's door [11,19] while the druj lives: no walk of the plan opens or crosses it.
+
+    Owner (phase7, ``revised_plan_draft``): 「ドアを開けずに13,20に移動して、11,19を岩石溶解して
+    11,19に範囲攻撃」, and 2026-11-23 「立ち位置を守れば一切の反撃を受けずに倒せた」.  n1-c life-221
+    (2026-11-23 05:03:15): the stairway phase's walk to a sight cell (``_walk_to_sight``) went to
+    [11,19], keyed ``o4`` from [11,20] and stepped into the doorway beside the druj; the door stood
+    open for the druj's phase, which then fought it from its line ([11,25], [12,24]) and was cursed
+    (HP 672 -> 389).  [11,19] leads nowhere but the druj's own cell [11,18]."""
+    return frozenset() if _druj_done(ctx) else frozenset({geo.DRUJ_DOOR})
+
+
 def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
     # The cells an owner left (left_cells) are refused as the warning's are.
-    refused = _refused(ctx) | left_cells.refused_yx(ctx.policy, ctx.snapshot)
+    refused = _refused(ctx) | left_cells.refused_yx(ctx.policy, ctx.snapshot) | _druj_shut(ctx)
     goals = {tuple(goal) for goal in goals} - refused
     if not goals:
         return []
@@ -873,6 +885,36 @@ def _out_of_fire_key(policy, snapshot) -> str | None:
 def _direction(origin, cell) -> str:
     return DIRECTION_KEYS[((cell[0] > origin[0]) - (cell[0] < origin[0]),
                            (cell[1] > origin[1]) - (cell[1] < origin[1]))]
+
+
+def _closed_doors_beside(ctx: _Ctx) -> set:
+    """The closed doors the board shows around the player (do_cmd_open's easy_open count,
+    floor-util count_doors_traps GridCountKind::CLOSED_DOOR)."""
+    y, x = ctx.here
+    cells = set()
+    for dy, dx in ((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (dy, dx) != (0, 0)):
+        grid = ctx.snapshot.grid_at(Position(y + dy, x + dx))
+        if grid is not None and grid.known and grid.is_closed_door:
+            cells.add((y + dy, x + dx))
+    return cells
+
+
+def _bare_open(ctx: _Ctx, door, key: str) -> str:
+    """The walk's ``key`` that opens ``door`` beside the player, keyed so he stays on the plan's cell.
+
+    do_cmd_open (cmd-action/cmd-open-close.cpp) with easy_open takes the direction itself when the
+    player has exactly one closed door around him (count_doors_traps), and get_rep_dir
+    (target/target-getter.cpp) then asks none: the walk's ``o`` + direction left the direction key
+    to the next command, a step onto the opened door.  n1-c life-221 (2026-11-23 05:00:39, Quest 25
+    phase 「stairway」): ``o6`` on the stand [13,27] opened [13,28] and the ``6`` walked onto it,
+    beside the stairway to hell [13,29] (owner 「[13,27] から階段までは距離2」); its touch stole and
+    the thief teleported away (「泥棒は笑って逃げた！」), and the phase shot the empty [13,29] for
+    some 10,000 game turns.  So with one closed door around, the bare ``o``; otherwise the prompt
+    takes the direction as before (``_step_toward``: the lock and jam counts)."""
+    ctx.policy.last_reason = OPEN_REASON
+    if key == OPEN_KEY + _direction(ctx.here, door) and _closed_doors_beside(ctx) == {tuple(door)}:
+        return OPEN_KEY
+    return key
 
 
 # -- traps (phase4, phase5) -------------------------------------------------------------
@@ -1376,8 +1418,7 @@ def _ambush(ctx: _Ctx) -> str | None:
         if ctx.door_closed(door):
             if quest_exposure.game_distance(ctx.here, door) <= 1:
                 _unlatch_stale(ctx, door)
-                ctx.policy.last_reason = OPEN_REASON
-                return ctx.policy._step_toward(ctx.snapshot, Position(*door))
+                return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
             return _walk(ctx, {(door[0] + 1, door[1])})
         return _walk(ctx, {geo.MEET_RANGED}) or _hold(ctx)
     # Melee: the closed door, met the turn it opens (「相手が開けたターンに接敵」).
@@ -2149,8 +2190,8 @@ def _masses(ctx: _Ctx) -> str | None:
     if opening and ctx.here != geo.MASS_STAND:
         return _walk(ctx, {geo.MASS_STAND})
     if ctx.door_closed(geo.MASS_DOOR):
-        ctx.policy.last_reason = OPEN_REASON
-        return ctx.policy._step_toward(ctx.snapshot, Position(*geo.MASS_DOOR))
+        door = geo.MASS_DOOR
+        return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
     if not ctx.battle.lit:
         ctx.battle.lit = True
         light = quest_room_light.light_room_key(
@@ -2555,8 +2596,7 @@ def _stairway(ctx: _Ctx) -> str | None:
     if ctx.here == stand and ctx.door_closed(door) and (haste := _haste(ctx)) is not None:
         return haste      # 「全快し、加速して階段の前の扉を開ける」
     if ctx.door_closed(door):
-        ctx.policy.last_reason = OPEN_REASON
-        return ctx.policy._step_toward(ctx.snapshot, Position(*door))
+        return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
     seen = [monster for monster in ctx.seen_hostiles() if monster.race_id == geo.STAIRWAY]
     if battle.style == "melee":
         if ctx.here != door:
@@ -2637,17 +2677,21 @@ def _druj(ctx: _Ctx) -> str | None:
     if (ctx.snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER and ctx.here not in lines
             and (haste := _haste(ctx)) is not None):
         return haste
-    if (battle.melted or ctx.door_closed(door)) and _balls(ctx, geo.DRUJ) and (battle.melted or _can_melt(ctx)):
+    # The door already open (not melted) needs no melt: [13,20] is out of the druj's line either
+    # way and the ball aimed at [11,19] reaches [11,18] (owner 2026-11-23 「立ち位置を守れば一切の
+    # 反撃を受けずに倒せた」; n1-c life-221 fought it from its line [12,24] with the door open).
+    opened = battle.melted or not ctx.door_closed(door)
+    if _balls(ctx, geo.DRUJ) and (opened or _can_melt(ctx)):
         # 「ドアを開けずに13,20に移動して、11,19を岩石溶解して11,19に範囲攻撃を撃つ」
         if ctx.here != geo.DRUJ_AREA_STAND:
             return _walk(ctx, {geo.DRUJ_AREA_STAND})
-        if not battle.melted:
+        if not opened:
             return _melt_key(ctx, door)
-        return _fire_at(ctx, door, geo.DRUJ, area_only=True)
+        # Nothing charged: the refill rest on the stand, not a shot from elsewhere.
+        return (_fire_at(ctx, door, geo.DRUJ, area_only=True) or _refill_key(ctx) or _hold(ctx))
     if ctx.door_closed(door):
         if quest_exposure.game_distance(ctx.here, door) <= 1:
-            ctx.policy.last_reason = OPEN_REASON
-            return ctx.policy._step_toward(ctx.snapshot, Position(*door))
+            return _bare_open(ctx, door, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
         beside = {(door[0] + dy, door[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)}
         return _walk(ctx, {cell for cell in beside if ctx.terrain.get(cell) == "floor"})
     trapless = sorted(cell for cell in lines if ctx.terrain.get(cell) == "floor"

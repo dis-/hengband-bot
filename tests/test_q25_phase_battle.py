@@ -278,7 +278,8 @@ class Q25AmbushTest(unittest.TestCase):
         self.assertEqual((key, policy.last_reason), (step((13, 1), (12, 1)), battle.WALK_REASON))
         raw["player"].update(y=10, x=1)
         key = choose(policy, raw)
-        self.assertEqual((key, policy.last_reason), ("o8", battle.OPEN_REASON))
+        # easy_open opens the one closed door: the bare 'o' (n1-c life-221, _bare_open)
+        self.assertEqual((key, policy.last_reason), ("o", battle.OPEN_REASON))
         open_door(raw, geo.WEST_DOOR)
         key = choose(policy, raw)
         self.assertEqual((key, policy.last_reason), (WAIT_KEY, HOLD_REASON))   # the door stays open
@@ -774,7 +775,8 @@ class Q25CorpseMassTest(unittest.TestCase):
         raw = board((1, 6))
         policy = new_policy(raw)
         at_phase(policy, raw, "corpse-masses")
-        self.assertEqual((choose(policy, raw), policy.last_reason), ("o6", battle.OPEN_REASON))
+        # easy_open opens the one closed door: the bare 'o' (n1-c life-221, _bare_open)
+        self.assertEqual((choose(policy, raw), policy.last_reason), ("o", battle.OPEN_REASON))
         raw = board((1, 6), monsters=[monster(geo.MASS, 1, 11, index=950)])
         open_door(raw, (1, 7))
         policy = new_policy(raw)
@@ -880,7 +882,8 @@ class Q25StairwayTest(unittest.TestCase):
         key = choose(policy, raw)
         self.assertEqual(policy.last_reason, battle.HASTE_REASON, key)
         policy._player_hasted = lambda snapshot: True
-        self.assertEqual((choose(policy, raw), policy.last_reason), ("o6", battle.OPEN_REASON))
+        # easy_open opens the one closed door: the bare 'o' (n1-c life-221, _bare_open)
+        self.assertEqual((choose(policy, raw), policy.last_reason), ("o", battle.OPEN_REASON))
         open_door(raw, geo.STAIRWAY_DOOR)
         raw["visible_monsters"] = [monster(geo.STAIRWAY, 13, 29, index=970)]   # seen from [13,27]
         key = choose(policy, raw)
