@@ -309,6 +309,13 @@ TOWN_CYCLE_BREAK_LIMIT = 2  # second cycle in one town visit -> visible stop
 STAIR_OBSERVATION_WAIT_LIMIT = TOWN_TRAVEL_STALL_LIMIT
 
 OPEN_KEY = "o"
+# do_cmd_close (cmd-open-close.cpp); with easy_open it takes the direction itself when one
+# open door is around (observed_input EASY_DIRECTION_COMMANDS).
+CLOSE_KEY = "c"
+# The commands whose direction the game may take itself (easy_open / easy_disarm, both on):
+# open, close and disarm (CHEST_DISARM_KEY), cmd-open-close.cpp.  observed_input sends the
+# command alone and releases the direction only at the observed direction question.
+EASY_DIRECTION_COMMANDS = OPEN_KEY + CLOSE_KEY + CHEST_DISARM_KEY
 # do_cmd_alter (input-key-processor.cpp '+'): attacks a monster in the
 # direction, seen or not (cmd-others.cpp exe_alter).
 ALTER_KEY = "+"
