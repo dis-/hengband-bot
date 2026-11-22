@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot import ability_sources
+from hengbot import item_need
 
 from hengbot import safety_watch
 from hengbot import spare_gear
@@ -344,9 +344,10 @@ class PolicyHelpersMixin:
         """
         if (item.is_bounty or item.is_artifact or self._is_high_value_book(item)
                 or self._item_signature(item) in self._undestroyable_sigs
-                # Owner Q3 of the equipment review 2026-11-22: the only owned source of a
-                # depth-table ability is never discarded (ability_sources.sole_depth_source).
-                or ability_sources.sole_depth_source(self, snapshot, item)):
+                # A piece something needs is never discarded (item_need, equipment review E6:
+                # the only owned source of a depth-table ability -- owner Q3 --, the target
+                # loadout's, the transaction's, ...).
+                or item_need.needed(self, snapshot, item)):
             return None
         # The item's class comes first; the board's retention / ownership
         # gates (the costly purchase ladder) run only for an item that has

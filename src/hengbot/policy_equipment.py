@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot import ability_sources, deep_climb, equipment_target
 from hengbot import angband_finale, finale_prep
-from hengbot import approach_answer, destination_band_floor, home_pass_charge, launcher_upgrade, spare_gear
+from hengbot import approach_answer, destination_band_floor, home_pass_charge, item_need, launcher_upgrade, spare_gear
 from hengbot import equipment_rules, equipment_visit_journal
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
@@ -4036,25 +4036,43 @@ class EquipmentMixin:
         return key
 
     def _find_weapon_sale(self, snapshot: Snapshot) -> InventoryItem | None:
+        """A weapon the Weapon Smith buys: a no-teleport weapon, or an inferior spare.
+
+        Neither is ever a piece something needs (item_need, equipment review E6: the only
+        source of a depth ability, the target loadout's, the transaction's, ...).
+        """
         no_teleport = self._first_item(
             snapshot,
             lambda it: it.is_melee_weapon
             and self._blocks_teleport(it)
+            and not item_need.needed(self, snapshot, it)
             and self._store_accepts_sale(STORE_WEAPON, it)
             and item_available(self, snapshot, it, "shop-sell", "sell")
             and display_signature(it) not in self._unsellable_items,
         )
         if no_teleport is not None:
             return no_teleport
-        # Once an excellent-or-better weapon is wielded, the good/average spares
-        # are redundant — sell them at the Weapon Smith instead of hoarding.
-        if not self._equipped_weapon_high_grade(snapshot):
-            return None
+        # Owner Q1 2026-10-20: unneeded plain gear is destroyed, not walked to
+        # a store, so the junk predicate's items are no sale candidates (#95).
+        return self._first_item(
+            snapshot,
+            lambda it: self._inferior_weapon_spare(snapshot, it)
+            and not item_need.needed(self, snapshot, it)
+            and self._junk_class(snapshot, it) is None
+            and self._store_accepts_sale(STORE_WEAPON, it)
+            and item_available(self, snapshot, it, "shop-sell", "sell")
+            and display_signature(it) not in self._unsellable_items,
+        )
+
+    def _inferior_weapon_spare(self, snapshot: Snapshot, item: InventoryItem) -> bool:
+        """item_need's ``inferior-weapon`` ground: a good-or-average weapon no better than the
+        wielded excellent-or-better one (the spares are redundant, sold at the Weapon Smith
+        instead of hoarded).  Without a calibration the comparison is unknowable: kept."""
+        if not self._weapon_is_inferior(item) or not self._equipped_weapon_high_grade(snapshot):
+            return False
         wielded = next(
-            (
-                item for item in snapshot.equipment
-                if item.slot == "main_hand" and item.is_melee_weapon
-            ),
+            (worn for worn in snapshot.equipment
+             if worn.slot == "main_hand" and worn.is_melee_weapon),
             None,
         )
         calibration = self._validated_character_calibration(snapshot)
@@ -4063,27 +4081,11 @@ class EquipmentMixin:
             if wielded is not None
             else 0.0
         )
-
-        def sale_quality_allows(item: InventoryItem) -> bool:
-            # Without a calibration the DPS comparison is unknowable: fail
-            # closed and keep the spare until the constants exist.
-            candidate_dps = weapon_expected_dps(snapshot, item, 100, calibration)
-            return (
-                candidate_dps is not None
-                and wielded_dps is not None
-                and candidate_dps <= wielded_dps
-            )
-
-        # Owner Q1 2026-10-20: unneeded plain gear is destroyed, not walked to
-        # a store, so the junk predicate's items are no sale candidates (#95).
-        return self._first_item(
-            snapshot,
-            lambda it: self._weapon_is_inferior(it)
-            and sale_quality_allows(it)
-            and self._junk_class(snapshot, it) is None
-            and self._store_accepts_sale(STORE_WEAPON, it)
-            and item_available(self, snapshot, it, "shop-sell", "sell")
-            and display_signature(it) not in self._unsellable_items,
+        candidate_dps = weapon_expected_dps(snapshot, item, 100, calibration)
+        return (
+            candidate_dps is not None
+            and wielded_dps is not None
+            and candidate_dps <= wielded_dps
         )
 
     @staticmethod
@@ -4181,7 +4183,8 @@ class EquipmentMixin:
     def _is_disposable_dominated_launcher(
         self, snapshot: Snapshot, candidate: InventoryItem | StoreItem
     ) -> bool:
-        """Return whether the equipped launcher strictly dominates this spare."""
+        """item_need's ``dominated-launcher`` ground: the equipped launcher strictly dominates
+        this spare, which nothing needs (equipment review E6)."""
         equipped = self._equipped_launcher(snapshot)
         if (
             snapshot.player.class_id != PLAYER_CLASS_WARRIOR
@@ -4197,6 +4200,7 @@ class EquipmentMixin:
                 and not candidate.fully_known
             )
             or self._equipment_disposal_reserved(snapshot, candidate)
+            or item_need.needed(self, snapshot, candidate)
         ):
             return False
         # The user launcher rule ranks a Light Crossbow above an ordinary

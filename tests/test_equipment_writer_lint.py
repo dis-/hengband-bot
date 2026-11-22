@@ -80,8 +80,12 @@ def flags():
             self.assertEqual(findings(repository_counts(tree)), [])
             # Undo one routed reader of each API (the pre-E2 source).
             for name, old, new in (
-                    ("spare_gear.py", "equipment_target.loadout_target(policy)",
+                    ("item_need.py", "equipment_target.loadout_target(policy)",
                      "policy._equipment_optimization_preparation"),
+                    # Equipment review E6: the only-source keep read outside item_need.
+                    ("item_fate.py", "    if item_need.needed(policy, snapshot, item):\n        return KEEP",
+                     "    if ability_sources.sole_depth_source(policy, snapshot, item):\n"
+                     "        return KEEP"),
                     ("search_coverage.py", 'not ability_sources.has_ability(snapshot.player, "telepathy")',
                      '"telepathy" not in snapshot.player.abilities'),
                     ("arena_odds.py", "ability_sources.held_ability_flags(snapshot.player)",
@@ -95,8 +99,9 @@ def flags():
         self.assertEqual(problems, [
             "arena_odds: ability-read 1 > allowed 0",
             "arena_odds: ability-table 1 > allowed 0",
+            "item_fate: need-read 1 > allowed 0",
+            "item_need: target-read 1 > allowed 0",
             "search_coverage: ability-read 1 > allowed 0",
-            "spare_gear: target-read 1 > allowed 0",
         ])
 
 
