@@ -23,6 +23,13 @@ reaches):
     sweep's again (it walks to it); shots in a row with no hit, pain or kill line (the owner's
     「当たらない撃ちで補う」 count, ``pen_misses_to_escaped``) say it moved (BLINK, TELE_AWAY): the
     cell is forgotten and the sweep detects again.
+ 3a. A target no line from beside the wall reaches, the melted wall's own cell does: the stand melts
+    it, the player steps onto the melted cell and shoots from there (``fire_cell``).  n1-b life-416
+    (2026-11-23 00:50, turn 2507389): the sweep's detection showed the second Nexus quylthulg on
+    [8,3]; from [10,2] the line to [8,3] crosses the permanent [9,2], every other cell beside
+    [9,3] is a permanent wall or inside the pocket, so no stand was found and the sweep held on
+    [8,21] for 90,000 game turns (``stall:floor-dwell:quest-strategy:hold``).  The owner's
+    「溶かして撃つ」 is the melt and the shot; the cell it is shot from is the plan's.
  4. With no Stone to Mud (no absorbed power, no carried wand) and the wall still standing: the
     floor is given up (``_unviable_quest_floor``, the leave the ONCE quest's hold does not reverse,
     as the random quest's T1 target gives it up, owner 2026-11-13 「階を諦めて帰還する」) and Word of
@@ -35,10 +42,15 @@ from hengbot import once_quest_recall, quest_exposure
 from hengbot import quest25_battle as battle_mod
 from hengbot import quest25_geometry as geo
 from hengbot.model import Position
+from hengbot.policy_constants import WAIT_KEY
 from hengbot.unseen_strike import message_text
 
 WALK_REASON = f"{battle_mod.REASON}:walk-to-melt"
 RECALL_REASON = f"{battle_mod.REASON}:sealed-pocket-recall"
+STEP_IN_REASON = f"{battle_mod.REASON}:step-into-melted"
+# No wall of the map opens a line to a remembered sealed cell, from beside it or from its own
+# cell: the sweep's hold had no end (owner 2026-11-19 「来ないなら待ち続けない」), a named stop.
+NO_LINE_REASON = "quest:blocked:quest25-sealed-pocket-no-line"
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (dy, dx) != (0, 0))
 
 
@@ -63,27 +75,45 @@ def _opened(ctx, wall) -> dict:
     return {**ctx.open_terrain(), tuple(wall): "floor"}
 
 
+def _fires_from(ctx, wall, stand, target):
+    """The cell the shot leaves from with ``wall`` melted: ``stand`` when a line reaches
+    ``target`` from it, else the melted wall's own cell when one does from there; None."""
+    terrain = _opened(ctx, wall)
+    if quest_exposure.projectable(terrain, stand, target):
+        return stand
+    if tuple(wall) != tuple(target) and quest_exposure.projectable(terrain, tuple(wall), target):
+        return tuple(wall)
+    return None
+
+
 def plan(ctx, target):
     """(wall, stand) of the nearest stand a walk reaches beside a granite wall of the map from which,
-    the wall melted, a line of fire reaches ``target``; None without one (the module docstring)."""
+    the wall melted, a line of fire reaches ``target`` -- from the stand, else from the melted wall's
+    own cell (``fire_cell``); a stand that shoots itself first.  None without one."""
     target = tuple(target)
     best = None
     for wall, kind in ctx.terrain.items():
         if kind != "wall" or not (_granite(ctx, wall) or melted(ctx, wall)):
             continue
-        terrain = _opened(ctx, wall)
         for dy, dx in _NEIGHBOURS:
             stand = (wall[0] + dy, wall[1] + dx)
             if ctx.terrain.get(stand) not in geo.STANDABLE or stand == target:
                 continue
-            if not quest_exposure.projectable(terrain, stand, target):
+            fire = _fires_from(ctx, wall, stand, target)
+            if fire is None:
                 continue
             steps = 0 if stand == ctx.here else len(battle_mod._path(ctx, {stand}))
             if stand != ctx.here and steps < 2:
                 continue
-            if best is None or steps < best[0]:
-                best = (steps, wall, stand)
+            rank = (fire != stand, steps)
+            if best is None or rank < best[0]:
+                best = (rank, wall, stand)
     return None if best is None else (best[1], best[2])
+
+
+def fire_cell(ctx, target, wall, stand):
+    """Where the planned shot at ``target`` leaves from (``_fires_from``)."""
+    return _fires_from(ctx, wall, stand, tuple(target)) or tuple(stand)
 
 
 def note_shot(ctx) -> None:
@@ -105,12 +135,27 @@ def note_shot(ctx) -> None:
         battle.detected, battle.detect_turn, battle.pocket = (left or None), -1, None
 
 
+def _kept(ctx, target):
+    """The (wall, stand) the plan chose for ``target`` while it is still the one being opened.
+
+    Once the player stands on the melted cell, a plan made again from there finds the cells inside
+    the pocket a walk away and would move the stand in beside the target (n1-b life-416: [8,4]
+    beside [8,3]); the chosen stand and the cell it shoots from stay the plan's."""
+    pocket = ctx.battle.pocket
+    if pocket is None or tuple(pocket[0]) != tuple(target):
+        return None
+    wall = tuple(pocket[1])
+    if not (_granite(ctx, wall) or melted(ctx, wall)):
+        return None
+    return wall, tuple(pocket[2])
+
+
 def key(ctx, cells) -> str | None:
     """The sweep's step for remembered ``cells`` no walk reaches (the module docstring); None when
     none of them can be opened (the sweep holds)."""
     battle = ctx.battle
     for target in cells:
-        found = plan(ctx, target)
+        found = _kept(ctx, target) or plan(ctx, target)
         if found is None:
             continue
         wall, stand = found
@@ -127,13 +172,26 @@ def key(ctx, cells) -> str | None:
             ctx.policy._unviable_quest_floor = ctx.snapshot.floor_key
             recall = once_quest_recall.read_key(ctx.policy, ctx.snapshot, RECALL_REASON)
             return recall if recall is not None else battle_mod._hold(ctx)
-        if ctx.here != stand:
+        fire = fire_cell(ctx, target, wall, stand)
+        if ctx.here not in {stand, fire}:
             return battle_mod._walk(ctx, {stand}, WALK_REASON) or battle_mod._hold(ctx)
         if not melted(ctx, wall):
+            if ctx.here != stand:
+                return battle_mod._walk(ctx, {stand}, WALK_REASON) or battle_mod._hold(ctx)
             return battle_mod._melt_key(ctx, wall) or battle_mod._hold(ctx)
+        if ctx.here != fire:
+            # The map still draws the wall, so the walk does not cross it: the one step onto the
+            # melted cell beside the stand (the board shows it floor).
+            return battle_mod._step(ctx, fire, STEP_IN_REASON)
         seen = bool(battle_mod._seen_at(ctx, geo.QUYL, {tuple(target)}))
         shot = battle_mod._unseen_fire(ctx, tuple(target), geo.QUYL, seen=seen)
         if shot is not None and battle.pocket is not None:
             battle.pocket_shot = True
         return shot or battle_mod._hold(ctx)
     return None
+
+
+def no_line_key(ctx) -> str:
+    """Every remembered cell is sealed and no melt opens a line to it (``key`` found no plan)."""
+    ctx.policy.last_reason = NO_LINE_REASON
+    return WAIT_KEY
