@@ -321,8 +321,7 @@
     "self._return_to_town_key(snapshot, self._strategic_hostiles(snapshot)) @ If:body:len(snapshot.inventory) >= PACK_CAPACITY": 1
   },
   "policy_quest.py:_fixed_quest_enter_key": {
-    "self._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:snapshot.player.position in positions / If:orelse:not self._quest_equipment_entry_allowed(snapshot, quest_id)": 1,
-    "self._quest_equipment_entry_allowed(snapshot, quest_id) @ If:orelse:step in positions and (not self._kill_quest_descent_allowed(snapshot) or not self._quest_equipment_entry_allowed(snapshot, quest_id))": 1
+    "self._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:snapshot.player.position in positions / If:orelse:not self._quest_equipment_entry_allowed(snapshot, quest_id)": 1
   },
   "policy_quest.py:_fixed_quest_key": {
     "self._telmora_q2_travel_key(snapshot, quest) @ If:body:quest_id == 2": 1,
@@ -507,9 +506,7 @@
     "owner._direction_key(snapshot.player.position, owner._weakest(adjacent).position) @ If:body:completed and adjacent and (not snapshot.player.afraid) and owner._can_fight_in_dungeon(snapshot.floor_key[0])": 1
   },
   "quest_navigator.py:enter_from_town": {
-    "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:snapshot.player.position in positions / If:orelse:not owner._quest_equipment_entry_allowed(snapshot, quest_id)": 1,
-    "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:orelse:route.first_step in positions and (not owner._quest_equipment_entry_allowed(snapshot, quest_id))": 1,
-    "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:context is None / If:orelse:step in positions and (not owner._quest_equipment_entry_allowed(snapshot, quest_id))": 1
+    "owner._quest_equipment_entry_allowed(snapshot, quest_id) @ If:body:snapshot.player.position in positions / If:orelse:not owner._quest_equipment_entry_allowed(snapshot, quest_id)": 1
   },
   "quest_opening_readiness.py:q34_readiness_rejection_key": {
     "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:step is not None": 1,
@@ -538,5 +535,8 @@
   },
   "quest_summon_answer.py:_strike": {
     "policy._ranged_attack_key(snapshot, [target], []) @ ": 1
+  },
+  "policy_quest.py:_quest_entry_step_admitted": {
+    "self._quest_equipment_entry_allowed(snapshot, quest_id) @ ": 1
   }
 }

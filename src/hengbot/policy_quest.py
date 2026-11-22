@@ -1277,6 +1277,25 @@ class QuestMixin(OpeningRouteMixin):
             self._town_blocked_reason = "equipment-departure-incomplete"
         return False
 
+    def _quest_entry_step_admitted(
+        self, snapshot: Snapshot, quest_id: int, onto_entrance: bool
+    ) -> bool:
+        """A step of the walk to a fixed quest's entrance: the entry's own admission
+        (``_quest_equipment_entry_allowed``) on every step, not only the step onto the entrance.
+
+        n1-b life-415 2026-11-22 14:36 (loop-detected in the Outpost): Q18 taken, its entry
+        refused for the absorbed Speed's charges (quest:readiness:speed), which no walk changes.
+        Asked only on the step onto the entrance, the refusal handed that one board to the shops
+        and their walk away, the walk to the entrance won every other board, and the two
+        alternated across the town.  The opening Q1 and Q34 keep their readiness to the step onto
+        the entrance: it is not rebuilt while the taken quest is walked to
+        (test_opening_route_r3_recorded)."""
+        opening = ((quest_id == 34 and self._opening_q34_active(snapshot))
+                   or (quest_id == 1 and self._opening_q1_active(snapshot)))
+        if opening and not onto_entrance:
+            return True
+        return self._quest_equipment_entry_allowed(snapshot, quest_id)
+
     def _request_priority_body_rearm(self, snapshot: Snapshot) -> None:
         """Ask the shared selector to resolve body armour with the whole kit."""
         if (
@@ -5963,9 +5982,8 @@ class QuestMixin(OpeningRouteMixin):
             )
         if step is None:
             return None
-        if step in positions and (
-            not self._kill_quest_descent_allowed(snapshot)
-            or not self._quest_equipment_entry_allowed(snapshot, quest_id)
+        if (step in positions and not self._kill_quest_descent_allowed(snapshot)) or (
+            not self._quest_entry_step_admitted(snapshot, quest_id, step in positions)
         ):
             return None
         self.last_reason = "fixedquest:enter" if step in positions else "fixedquest:approach"

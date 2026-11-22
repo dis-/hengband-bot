@@ -50,13 +50,24 @@ _SPEED_POTION = me_capability.FORCE_KINDS["speed_potions"]
 _NO_KIT = {"throwing_items": {}, "required_potions": {}}
 
 
-def _speed_cost(policy, snapshot, row: dict) -> int:
-    """The Speed potions this row asks of this character."""
+def _speed_cost(policy, snapshot, row: dict, force: dict) -> int:
+    """The Speed potions this row asks of this character.
+
+    An absorbed Speed power at the reliable rate stands for them with the charges the row's
+    ``absorbed_charges`` names; an ``always_hasted`` row that names none counts its own doses,
+    one charge a dose.  Its Speed potions are the haste doses the fight lives on: QUEST_18's
+    first row asks seventeen (owner 2026-11-12 「加速手段を十分数確保することを必須にする。」,
+    seventeen since 2026-11-22), and its file sends the absorbed power to the second row with
+    the same count.  Read as no charge at all, the first row took Q18 for n1-b life-415 with
+    the absorbed Speed at 8 charges (2026-11-22 14:28), whose entry the second row then
+    refused."""
     alternatives = row.get("speed_alternatives", {})
     if attack_expectation.gear_waives(snapshot, row):
         return 0
     if me_capability.replaced_by_absorbed(policy, snapshot, _SPEED_POTION):
-        needed = int(alternatives.get("absorbed_charges", 0))
+        doses = (int(row.get("speed_potions", 0))
+                 if attack_expectation.row_always_hasted(force, row) else 0)
+        needed = int(alternatives.get("absorbed_charges", doses))
         power = me_capability.replacing_power(_SPEED_POTION)
         held = me_capability.charges(policy, snapshot, *power)
         return 0 if held >= needed else _WAITING_FOR_CHARGES
@@ -102,7 +113,7 @@ def _resolve_row(policy, snapshot, force: dict) -> dict:
         doses = quest_one_turn_kill.haste_doses(force)
         row = {"speed_potions": max(doses, int(force.get("speed_potions", 0))),
                "speed_alternatives": {"absorbed_charges": doses}}
-        cost = _speed_cost(policy, snapshot, row)
+        cost = _speed_cost(policy, snapshot, row, force)
         force = {**force, **row, DEPART_FLAG: True}
         if cost == _WAITING_FOR_CHARGES:
             force[ABSORBED_SHORT] = True
@@ -121,7 +132,7 @@ def _resolve_row(policy, snapshot, force: dict) -> dict:
     max_hp = snapshot.player.max_hp
     damage = policy._strategy_measured_dps(snapshot, force)
     capable = [
-        (_speed_cost(policy, snapshot, row), index) for index, row in enumerate(rows)
+        (_speed_cost(policy, snapshot, row, force), index) for index, row in enumerate(rows)
         if max_hp >= int(row["min_hp"])
         and row_damage(policy, snapshot, force, row, damage) >= float(row["min_expected_dps"])
         and quest_ranged_force.turn_met(policy, snapshot, force, row)
