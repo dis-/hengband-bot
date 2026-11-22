@@ -1781,6 +1781,15 @@ def _stable_operational_best(
             entry.metrics.survival_turns,
             time_melee(entry.metrics),
             len(entry.metrics.relevant_traits),
+            # The pieces themselves, not where they are: a catalogue id names the piece's
+            # origin (equipped / pack / home), which the visit's own moves change.  n1-c
+            # life-220 2026-11-22 07:23 (the sub_ring round trip): 耐冷の指輪 and 浮遊の指輪
+            # tied on every metric; worn, 'equipped:4827..' outranked 'equipped:2ca7..', and
+            # after the levitation ring went to the Home 'home:2ca7..' outranked the worn cold
+            # ring, so the next search wore the levitation ring again.  The ids stay last, for
+            # copies of one identity only.
+            tuple(sorted(equipment_move_identity(owned.item)
+                         for _slot, owned in entry.loadout.slots)),
             tuple(sorted(entry.loadout.item_ids)),
         ),
     )

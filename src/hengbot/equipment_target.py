@@ -35,9 +35,21 @@ ammunition, a stat restored, a destination switched -- no longer change the targ
 The events (each names why the visit decided again; the visit journal's ``search`` row carries it):
 
 - ``candidate-gained``: the owned set holds more of some piece than when the target was decided
-  (bought, picked up, a Home piece the target's census had not seen, a piece *Identify*-ed or
-  uncursed -- its identity changed -- or one this town cannot identify now allowed unidentified).
-  The owner's event.
+  (bought, picked up, a Home piece the target's census had not seen).  The owner's event.
+- ``candidate-identified``: a piece the visit already owned is known better -- *Identify*-ed or
+  uncursed (its identity changed), or one this town cannot identify now allowed unidentified --
+  and nothing was gained (``candidate_gains``: the new identity's excess is the same physical
+  piece, item_identity ``stable_identity``, as an identity the owned set lost).  NOT covered by
+  the owner's answer (E3 kept it deciding again); n1-c life-220 2026-11-22 06:53 (the feet round
+  trip): the visit wore its target's 浮遊の軟革ブーツ, then *Identify* made a carried 革グローブ
+  [1,+2], and the whole search, with every other slot open again, took the boots back off for the
+  硬革ブーツ the target had put in Home (the 1% margin band of ``_stable_operational_best`` held
+  them equal with the [1,+0] gloves, not with the [1,+2] ones).  Owner 2026-11-22 Q1 (decide
+  once per visit) and E0 「往復が起きたら停止して直す」: the visit's decision stands and the
+  better-known pieces join it -- the search runs over the held target (mapped, as when it is
+  read again) and those pieces only (policy_equipment: every other owned piece is
+  ``search_excluded``, as the finale's swap excludes all but its fixed target).  Bought,
+  picked up or withdrawn pieces still open the whole owned set (E4b, 「組全体の評価で比べる」).
 - ``finale-phase``: the 99F/100F preparation phase moved (finale_prep: its check step's read-only
   search, the loadout step's search in the finale's rank, the swap's fixed target, the cap lift, a
   stopped phase back to the ordinary order).  Owner Q1 「99F100Fもそれでバグらず行けるか確認」 and
@@ -66,6 +78,7 @@ from dataclasses import dataclass, replace
 
 from hengbot.equipment_optimizer import Loadout, equipment_move_identity
 from hengbot.equipment_rules import loadout_banned
+from hengbot.item_identity import stable_identity
 
 # The policy's two attributes (rows of state_registry, owner "equipment_target").
 TARGET_STATE = "_equipment_optimization_preparation"
@@ -79,6 +92,7 @@ TARGET_WRITERS = frozenset({"init_loadout_target", "record_loadout_search", "rep
 VISIT_TARGET_STATE = "_equipment_visit_target"
 
 EVENT_CANDIDATE_GAINED = "candidate-gained"
+EVENT_CANDIDATE_IDENTIFIED = "candidate-identified"
 EVENT_FINALE_PHASE = "finale-phase"
 EVENT_DESTINATION_FLOOR = "destination-band-floor"
 EVENT_RULES = "equipment-rules"
@@ -89,7 +103,7 @@ EVENT_WORN_CURSE = "worn-curse-found"
 # ``mapped_visit_target``); the first decision of a visit is ``VISIT_START``.
 REDECIDE_EVENTS = (EVENT_CANDIDATE_GAINED, EVENT_FINALE_PHASE, EVENT_DESTINATION_FLOOR,
                    EVENT_RULES, EVENT_TARGET_PIECE_LOST, EVENT_WORN_CURSE,
-                   EVENT_DESTRUCTION_MEANS)
+                   EVENT_DESTRUCTION_MEANS, EVENT_CANDIDATE_IDENTIFIED)
 VISIT_START = "visit-start"
 SEARCH_RESETTERS = frozenset({"invalidate_loadout_search", "forget_loadout_search_in_state"})
 
@@ -167,6 +181,87 @@ class VisitTarget:
     context: tuple              # ``(finale, destination floor, rules version, means)``
                                 # (policy_equipment; ``means``: ``destruction_means_key``)
     result: object              # the search's OptimizationResult (``best.loadout`` is the target)
+    # ``candidate_pieces`` when it was decided: each candidate key's physical identity and
+    # knowledge (a target restored from before 2026-11-22 has none: every gain then reads as
+    # ``candidate-gained``).
+    pieces: tuple = ()
+
+
+def candidate_pieces(items, usable_unidentified) -> tuple:
+    """``(key, (stable identity, knowledge))`` of the owned candidates (``candidate_counts``' keys).
+
+    The stable identity (item_identity ``stable_identity``: kind, weight, and the knowledge-gated
+    flavour and grade as None while unknown) is what stays when *Identify* changes the key; the
+    knowledge is ``(aware, known, fully_known)``, what *Identify* raises."""
+    pieces: dict = {}
+    for owned in items:
+        if loadout_banned(owned.flags):
+            continue
+        key = (equipment_move_identity(owned.item), bool(usable_unidentified(owned)))
+        pieces.setdefault(key, (stable_identity(owned.item), _knowledge(owned.item)))
+    return tuple(sorted(pieces.items(), key=lambda entry: entry[0]))
+
+
+def _knowledge(item) -> tuple[bool, bool, bool]:
+    return (bool(getattr(item, "aware", True)), bool(getattr(item, "known", True)),
+            bool(getattr(item, "fully_known", True)))
+
+
+def _better_known(before_key, before, after_key, after) -> bool:
+    """Whether the piece ``after`` can be the piece ``before`` known better: the same physical
+    identity (``_same_physical``) with more knowledge, or the same identity now allowed
+    unidentified (the key's second part)."""
+    if before is None or after is None:
+        return False
+    (identity, knowledge), (other, other_knowledge) = before, after
+    if not _same_physical(identity, other):
+        return False
+    if before_key[0] == after_key[0]:
+        return before_key[1] != after_key[1]
+    return (all(now >= then for now, then in zip(other_knowledge, knowledge))
+            and tuple(other_knowledge) != tuple(knowledge))
+
+
+def _same_physical(before, after) -> bool:
+    """Whether two stable identities can be one item (equipment_mutation ``same_item``)."""
+    if before is None or after is None:
+        return False
+    return (before[0] == after[0] and before[1] == after[1]
+            and (before[2] is None or after[2] is None or before[2] == after[2])
+            and (before[3] is None or after[3] is None or before[3] == after[3]))
+
+
+def candidate_gains(held: VisitTarget, candidates: tuple, pieces: tuple = ()) -> tuple[set, set]:
+    """(acquired keys, identified keys): the candidate keys owned more than when ``held`` was
+    decided, split into pieces the owned set gained and pieces it only knows better.
+
+    A key's excess is a bucket holding more than the whole owned count the target was decided on
+    (a withdrawal shows the piece in the pack while the Home census still lists it).  It is
+    identified when it is covered by keys the owned set now holds fewer of (whole count, both
+    buckets) whose piece it can be, known better (``_better_known``)."""
+    owned_before = {key: carried + home for key, carried, home in held.candidates}
+    owned_now = {key: carried + home for key, carried, home in candidates}
+    excess = {key: max(carried, home) - owned_before.get(key, 0)
+              for key, carried, home in candidates
+              if max(carried, home) > owned_before.get(key, 0)}
+    if not excess:
+        return set(), set()
+    lost = {key: count - owned_now.get(key, 0) for key, count in owned_before.items()
+            if count > owned_now.get(key, 0)}
+    held_physical = dict(getattr(held, "pieces", ()) or ())
+    now_physical = dict(pieces or ())
+    acquired, identified = set(), set()
+    for key, count in sorted(excess.items()):
+        for gone in sorted(lost):
+            if count <= 0:
+                break
+            if lost[gone] > 0 and _better_known(gone, held_physical.get(gone),
+                                                key, now_physical.get(key)):
+                taken = min(count, lost[gone])
+                count -= taken
+                lost[gone] -= taken
+        (identified if count <= 0 else acquired).add(key)
+    return acquired, identified
 
 
 def candidate_counts(items, usable_unidentified) -> tuple:
@@ -207,17 +302,21 @@ def visit_target(policy, epoch) -> VisitTarget | None:
     return held
 
 
-def fix_visit_target(policy, epoch, candidates: tuple, context: tuple, result) -> None:
+def fix_visit_target(policy, epoch, candidates: tuple, context: tuple, result,
+                     pieces: tuple = ()) -> None:
     """The search decided the visit's target (its first decision, or a named event)."""
-    setattr(policy, VISIT_TARGET_STATE, VisitTarget(epoch, candidates, context, result))
+    setattr(policy, VISIT_TARGET_STATE, VisitTarget(epoch, candidates, context, result, pieces))
 
 
-def redecide_events(held: VisitTarget, candidates: tuple, context: tuple) -> tuple[str, ...]:
+def redecide_events(held: VisitTarget, candidates: tuple, context: tuple,
+                    pieces: tuple = ()) -> tuple[str, ...]:
     """The named events since ``held`` was decided, from the board's candidates and context."""
     events = []
-    owned_before = {key: carried + home for key, carried, home in held.candidates}
-    if any(max(carried, home) > owned_before.get(key, 0) for key, carried, home in candidates):
+    acquired, identified = candidate_gains(held, candidates, pieces)
+    if acquired:
         events.append(EVENT_CANDIDATE_GAINED)
+    elif identified:
+        events.append(EVENT_CANDIDATE_IDENTIFIED)
     finale, floor, rules, means = context
     held_finale, held_floor, held_rules, held_means = held.context
     if finale != held_finale:
@@ -267,3 +366,39 @@ def mapped_visit_target(held: VisitTarget, items, curse_pinned_ids=frozenset()):
                 and getattr(mapped.item_at(owned.equipped_slot), "id", None) != owned.id):
             return None, (EVENT_WORN_CURSE,)
     return replace(held.result, best=replace(best, loadout=mapped)), ()
+
+
+def identified_search_exclusion(held: VisitTarget, items, candidates: tuple, pieces: tuple,
+                                usable_unidentified, curse_pinned_ids=frozenset()):
+    """(the owned ids a ``candidate-identified`` decision leaves out of the search, the events
+    that forbid it).
+
+    The search keeps the held target's pieces and the pieces known better
+    (``candidate_gains``' identified keys); every other owned piece is out.  A target piece is
+    found by the identity a move keeps or, when *Identify* changed that identity, as a better-known
+    piece of the same physical identity (n1-c life-220 07:45: the target's スピードの硬革ブーツ
+    gained its {+速} from the *Identify* after the one that named it).  ``target-piece-lost``
+    when a target piece is neither (owned no more: decides again as before); ``worn-curse-found``
+    as ``mapped_visit_target``."""
+    best = getattr(held.result, "best", None)
+    loadout = getattr(best, "loadout", None)
+    if not isinstance(loadout, Loadout):
+        return None, (EVENT_TARGET_PIECE_LOST,)
+    _acquired, identified = candidate_gains(held, candidates, pieces)
+    better_known = [owned for owned in items
+                    if (equipment_move_identity(owned.item), bool(usable_unidentified(owned)))
+                    in identified]
+    keep = {owned.id for owned in better_known}
+    for _slot, piece in loadout.slots:
+        identity = equipment_move_identity(piece.item)
+        if any(equipment_move_identity(owned.item) == identity for owned in items):
+            keep.update(owned.id for owned in items
+                        if equipment_move_identity(owned.item) == identity)
+        elif not any(_same_physical(stable_identity(piece.item), stable_identity(owned.item))
+                     for owned in better_known):
+            return None, (EVENT_TARGET_PIECE_LOST,)
+    for owned in items:
+        if (owned.id in curse_pinned_ids and owned.origin == "equipped"
+                and owned.id not in keep):
+            return None, (EVENT_WORN_CURSE,)
+    return frozenset(owned.id for owned in items if owned.id not in keep), ()
