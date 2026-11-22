@@ -79,10 +79,10 @@ def replay():
 def guard_stop(answers):
     """The decision the driver's cell loop guard stops at, fed as cli.main feeds it; else None."""
     recent, last_position, last_player = [], None, None
-    for sequence, snapshot, _, reason in answers:
+    for sequence, snapshot, key, reason in answers:
         previous_position, last_position = last_position, snapshot.player.position
         previous_player, last_player = last_player, snapshot.player
-        if not cli._cell_loop_guard_applies(snapshot, reason, previous_position, previous_player):
+        if not cli._cell_loop_guard_applies(snapshot, reason, previous_position, previous_player, key):
             recent.clear()
             continue
         position = snapshot.player.position

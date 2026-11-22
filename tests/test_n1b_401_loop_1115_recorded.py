@@ -187,7 +187,7 @@ def _walked(decisions, *, fixed, guard_cells=pingpong_guard.CYCLE_MAX_CELLS, rou
             previous_position, last_position = last_position, snapshot.player.position
             previous_player, last_player = last_player, snapshot.player
             if cli._cell_loop_guard_applies(snapshot, policy.last_reason, previous_position,
-                                            previous_player):
+                                            previous_player, key):
                 recent.append((snapshot.floor_key, position.y, position.x))
                 if tripped is None and cli._is_looping(recent):
                     tripped = len(rows) - 1

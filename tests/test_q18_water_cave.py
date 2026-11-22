@@ -730,7 +730,7 @@ class Q18InViewThatDoesNotComeTest(unittest.TestCase):
             previous_position, last_position = last_position, snapshot.player.position
             previous_player, last_player = last_player, snapshot.player
             if cli._cell_loop_guard_applies(snapshot, policy.last_reason, previous_position,
-                                            previous_player):
+                                            previous_player, key):
                 recent.append((snapshot.floor_key, position[0], position[1]))
                 if tripped is None and cli._is_looping(recent):
                     tripped = decision
@@ -803,7 +803,7 @@ class Q18RestLoopGuardTest(unittest.TestCase):
             previous_position, last_position = last_position, snapshot.player.position
             previous_player, last_player = last_player, snapshot.player
             if not cli._cell_loop_guard_applies(snapshot, policy.last_reason, previous_position,
-                                                previous_player):
+                                                previous_player, key):
                 recent.clear()
                 continue
             recent.append((snapshot.floor_key, snapshot.player.position.y, snapshot.player.position.x))

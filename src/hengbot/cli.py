@@ -82,6 +82,7 @@ from hengbot.policy_constants import (
     OWNER_RETIRED_BURST_AFTER_PREFIX,
     POLICY_FINAL_STOP_REASONS,
     POLICY_FINAL_STOP_PREFIXES,
+    REST_MACRO,
     STAGE_DEADLINE_STOP_PREFIX,
     TOWN_END_SURVIVAL_STOP_PREFIX,
     TOWN_END_UNMET_STOP_PREFIX,
@@ -792,11 +793,16 @@ def _policy_final_stop_banner(reason: str) -> str:
 assert max(TOWN_TRAVEL_STALL_LIMIT, TOWN_TRAVEL_TURN_STALL_LIMIT) < TOWN_RESIDENCE_STOP_LIMIT
 
 
-# The rests a recovering board exempts from the cell window: the ordinary rest, and the 99F/100F
-# battle's rest after a Teleportation (angband_finale_battle.REST_REASON), which telepathy-sensed
-# monsters moving cut short each turn while the HP still rises (n1-b life-411 Angband 99F
-# 2026-11-21 13:59, 29 rests on two cells, HP 1041 -> 1111 of 1153, loop-detected).
-RECOVERING_REST_REASONS = frozenset({"rest", "angband-finale:rest"})
+# The rest a recovering board exempts from the cell window is the game's rest command itself
+# (REST_MACRO, cmd-move.cpp REST_UNTIL_DONE), whichever producer sent it.  A monster that moves
+# while the player senses it (monster.ml: in view, or by telepathy) disturbs the rest
+# (monster-floor/monster-move.cpp: disturb_move / disturb_near / disturb_high / disturb_unknown),
+# so a rest beside monsters ends after a turn while the HP still rises.  The exemption was a list
+# of reasons, and each new producer's rest was missed until it stopped a bot: the ordinary
+# "rest" (n1-a life 490, 11-06 Q18), the 99F/100F battle's "angband-finale:rest" (n1-b life-411,
+# 2026-11-21 13:59, 29 rests, HP 1041 -> 1111 of 1153) and Quest 33's
+# "quest-strategy:summoned-rest" (n1-c life-220, 2026-11-22 18:29, 40 rests on (2,4), HP
+# 737 -> 973 of 978).
 
 
 def _melted_a_wall(snapshot) -> bool:
@@ -825,7 +831,7 @@ def _rest_recovering(previous_player, player) -> bool:
 
 
 def _cell_loop_guard_applies(
-    snapshot, reason: str, previous_position=None, previous_player=None
+    snapshot, reason: str, previous_position=None, previous_player=None, key=None
 ) -> bool:
     """Leave town repetition to the policy's bounded repair path.
 
@@ -833,7 +839,7 @@ def _cell_loop_guard_applies(
     blocked-state stop.  Feeding the same decisions to the generic dungeon
     cell guard can stop the bot before ``town:cycle-break`` is emitted.
 
-    A rest (``RECOVERING_REST_REASONS``) on the same cell that is recovering
+    A rest (``key`` is the game's rest command, REST_MACRO) on the same cell that is recovering
     (``previous_player`` is the player of the previous guarded board) is no loop: a monster moving in
     view or in the ESP range disturbs it after one turn, and n1-a life 490
     (2026-11-06, Q18) stopped after 40 rests on (1,12) with HP 550 -> 604
@@ -844,7 +850,7 @@ def _cell_loop_guard_applies(
     if previous_position is None:
         previous_position = snapshot.player.position
     if (
-        reason in RECOVERING_REST_REASONS
+        key == REST_MACRO
         and previous_position == snapshot.player.position
         and _rest_recovering(previous_player, snapshot.player)
     ):
@@ -5512,7 +5518,7 @@ def _run_follow(
                     previous_player = cell_guard_last_player
                     cell_guard_last_player = snapshot.player
                     if not _cell_loop_guard_applies(
-                        snapshot, policy.last_reason, previous_position, previous_player
+                        snapshot, policy.last_reason, previous_position, previous_player, key
                     ):
                         # Exempt actions break positional continuity.  Keeping
                         # old route cells across hundreds of intentional hold or

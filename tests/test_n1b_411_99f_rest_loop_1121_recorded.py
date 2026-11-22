@@ -6,9 +6,10 @@ The 99F/100F battle held its stand at (8,76) (angband-finale:hold), left by Tele
 HP (angband-finale:teleport) and rested where it landed (angband-finale:rest, 'R&\\r'): at (7,20)
 and, after another Teleportation, at (3,75).  Every rest was cut short (no monster in view;
 the monsters sensed by telepathy moving), yet the HP rose 1041 -> 1111 of 1153 over 29 rests.
-The driver exempts a recovering rest from its cell window only under the reason "rest"; the
+The driver exempted a recovering rest from its cell window only under the reason "rest"; the
 battle's rest was counted, and the 40-decision window stopped the bot: loop-detected, confined
-to (3,75) (7,20) (8,76).
+to (3,75) (7,20) (8,76).  Since n1-c life-220 (2026-11-22) the driver reads the rest by its command
+(REST_MACRO), so the guard is fed the recorded key as cli.main feeds it the decided key.
 
 Pinned: a battle rest on the same cell that raised the HP is no confined decision, as the
 ordinary rest is not, so the recorded run is not stopped; the same rests with the HP held still
@@ -52,7 +53,7 @@ def first_stop(recorded, *, hold_hp=False) -> int | None:
     for index, row in enumerate(recorded):
         snapshot = board(row, recorded[0]["hp"] if hold_hp else None)
         applies = cli._cell_loop_guard_applies(
-            snapshot, row["reason"], previous_position, previous_player)
+            snapshot, row["reason"], previous_position, previous_player, row["key"])
         previous_position, previous_player = snapshot.player.position, snapshot.player
         if not applies:
             recent.clear()

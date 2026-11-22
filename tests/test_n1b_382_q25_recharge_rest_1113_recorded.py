@@ -47,7 +47,8 @@ def guard_stop(exempt=None):
             snapshot = parse_snapshot(copy.deepcopy(raw), q25.RACES)
             previous_position, last_position = last_position, snapshot.player.position
             previous_player, last_player = last_player, snapshot.player
-            if not cli._cell_loop_guard_applies(snapshot, row["reason"], previous_position, previous_player):
+            if not cli._cell_loop_guard_applies(snapshot, row["reason"], previous_position, previous_player,
+                                                row["key"]):
                 recent.clear()
                 continue
             position = snapshot.player.position
