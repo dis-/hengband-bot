@@ -3771,16 +3771,29 @@ class EquipmentMixin:
         08:17: a one-slot body swap at 19 of 23 carried, Home with room, no
         surplus to shelve or sell.
         """
+        return bool(
+            self._pack_space_only_without_home_relief(preparation)
+            and self._terminal_pack_space_signature == self._town_pack_space_signature(snapshot)
+            and not deep_climb.departure_gaps(self, snapshot, depth)
+        )
+
+    def _pack_space_only_without_home_relief(self, preparation) -> bool:
+        """Only the pack reserve refuses the swap, and Home is not where it is freed.
+
+        No session runs and the transaction puts nothing on the Home shelf
+        before the swap (no PHASE_HOME_PREPARE deposit: a full Home plans
+        none), so a Home entry does not serve pack-space-required; the town
+        pipeline's sales and deposits (free_pack_slots_ready) do, or nothing
+        does (_pack_space_unrelieved).
+        """
         blockers = getattr(preparation, "blockers", ())
         transaction = getattr(preparation, "transaction", None)
         return bool(
             blockers
             and all(blocker.startswith("pack-space-required:") for blocker in blockers)
             and self._equipment_transaction_session is None
-            and self._terminal_pack_space_signature == self._town_pack_space_signature(snapshot)
             and not any(action.phase == PHASE_HOME_PREPARE and action.kind == "deposit"
                         for action in getattr(transaction, "actions", ()))
-            and not deep_climb.departure_gaps(self, snapshot, depth)
         )
 
     def _suppression_waits_on_current_loadout(self, snapshot, preparation, depth) -> bool:

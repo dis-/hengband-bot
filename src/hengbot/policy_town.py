@@ -8,7 +8,7 @@ from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot import bm_destruction_fund, destruction_means
-from hengbot.town_pack_budget import native_travel_fits
+from hengbot.town_pack_budget import home_take_fits, native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import item_use_route
 from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
@@ -3390,8 +3390,16 @@ class TownMixin:
 
         curse_kind = self._required_remove_curse_kind(snapshot)
         if curse_kind is not None and self._usable_remove_curse_scroll(snapshot) is None:
-            if self._home_remove_curse_scroll(snapshot) is not None:
-                add(STORE_HOME, "home-star-remove-curse-use", "home-first")
+            home_reserve = self._home_remove_curse_scroll(snapshot)
+            if home_reserve is not None:
+                # Owner 2026-11-03 「取り置きを使ってよい・そのために売ったり仕舞ったり
+                # しない・それより詰まっていたら待つ」: Home is due only while the take
+                # fits (the binder, _bind_home_star_remove_curse_withdrawal, asks the
+                # same); until then the sales and deposits free the pack.  n1-a
+                # life-532 2026-11-22: registered at 22 of 23 carried, Home led
+                # every plan and the take never fitted.
+                if home_take_fits(snapshot, home_reserve, 1, policy=self):
+                    add(STORE_HOME, "home-star-remove-curse-use", "home-first")
             else:
                 status = self._supply_ledger(snapshot, self._planned_depth())[curse_kind]
                 for supplier in status.stores:

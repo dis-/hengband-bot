@@ -6,9 +6,9 @@ Source: tests/fixtures/death-n1b-306-1104.json.gz.  The recorded board's only hi
 Owner 2026-11-04: 「ダメージ量で判断し、通常加速や体力回復を使用する場面で使用。脅威度が
 低ければ歩いて離れる。」
 
-DECLARED CONSTRUCTED: the Cure Critical Wounds are taken out of the boards after the
-first cure (the recorded pack cures instead), and the heavy variants lower that one
-board's HP, which is the loss the policy observes.
+DECLARED CONSTRUCTED: the Cure Critical Wounds (and the Mushroom of Cure Serious Wounds,
+a cure since 2026-11-22) are taken out of the boards after the first cure (the
+recorded pack cures instead), and the heavy variants lower that one board's HP, which is the loss the policy observes.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 

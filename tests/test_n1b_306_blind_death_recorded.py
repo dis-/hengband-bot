@@ -16,7 +16,9 @@ Owner rules: 「回復後即盲目になった場合は戦闘による状況打�
 Curing blindness with Cure Critical Wounds is fine; it is no HP recovery.
 
 DECLARED CONSTRUCTED: SpeedBeforeStrikeRecordedTest takes the Cure Critical
-Wounds out of the boards after the first cure, so the lethal ladder reaches its
+Wounds out of the boards after the first cure, and the carried Mushroom of Cure
+Serious Wounds with them (a cure since 2026-11-22, status_cure.cure_mushroom; n1-a
+life-533), so the lethal ladder reaches its
 last answers on the recorded crush boards (what a biter still biting would do).
 Its strike at the remembered cell retires after 「何もない空中を攻撃した。」
 (blind_strike), so its boards past that are the recorded strikes' boards only.
@@ -29,7 +31,8 @@ import json
 import unittest
 from pathlib import Path
 
-from hengbot.model import Position
+from hengbot.model import TVAL_FOOD, Position
+from hengbot.status_cure import CURE_MUSHROOMS
 from tests import test_n1c_deaths_1101_recorded as d57
 
 
@@ -59,7 +62,9 @@ def boards(*, cures=True):
         for raw in rows:
             if raw["turn"] > CURE:
                 raw["inventory"] = [item for item in raw["inventory"]
-                                    if CURE_CRITICAL not in item["name"]]
+                                    if CURE_CRITICAL not in item["name"]
+                                    and not (item["tval"] == TVAL_FOOD
+                                             and item.get("sval") in CURE_MUSHROOMS)]
     return rows
 
 
