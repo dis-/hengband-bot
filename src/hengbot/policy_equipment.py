@@ -1343,6 +1343,9 @@ class EquipmentMixin:
                     self._equipped_weapon_high_grade(snapshot)
                     and self._weapon_is_inferior(item.item)
                 )
+                # The full-Home relief's taken ware is the relief's to sell or destroy:
+                # depositing it again was a take/deposit round trip (n1-a life-532).
+                or self._home_full_relief_holds_carried(snapshot, item.item)
                 )
             )
         )
@@ -1699,6 +1702,8 @@ class EquipmentMixin:
                     and self._weapon_is_inferior(owned.item)
                 ):
                     reasons.append("inferior-weapon")
+                if self._home_full_relief_holds_carried(snapshot, owned.item):
+                    reasons.append("home-full-relief-take")
                 preserve_reasons[owned.id] = reasons
             if owned.id in search_excluded:
                 reasons = []
