@@ -152,7 +152,7 @@ def hands_lent(policy, snapshot) -> bool:
     if mode in LENDING_MODES:
         return True
     # A scavenging set does not dig: its departure is no mining walk-in.
-    return mode is None and bool(getattr(policy, RETURN_STATE, False))
+    return mode is None and getattr(policy, RETURN_STATE, False) is True
 
 
 def departure_asks_weapon(policy, snapshot) -> bool:
@@ -161,8 +161,18 @@ def departure_asks_weapon(policy, snapshot) -> bool:
     decision for the town re-arm or the visit's swap to wear the target's weapon)."""
     lent = hands_lent(policy, snapshot) and getattr(policy, "_fundraising_mode", None) not in LENDING_MODES
     if lent:
-        end_lending(policy)
+        # Ended by this decision's departure question (``lending_ended_now``), not by the town
+        # left: the decision sequence is kept in place of True.
+        setattr(policy, RETURN_STATE, getattr(policy, "_decision_sequence", None))
     return lent
+
+
+def lending_ended_now(policy) -> bool:
+    """A departure question of this decision ended the lending: the hands' owners declined
+    this board's earlier rungs while the hands were lent (town_terminal ``town_end_key``)."""
+    ended = getattr(policy, RETURN_STATE, False)
+    return (ended is not True and ended is not False and ended is not None
+            and ended == getattr(policy, "_decision_sequence", None))
 
 
 def remember_combat_hands(policy, main_hand, sub_hand) -> None:
