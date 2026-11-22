@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hengbot import ability_sources
 from hengbot import equipment_target
-from hengbot import approach_answer, return_start
+from hengbot import approach_answer, mining_loadout, return_start
 from hengbot import guardian_rumor, heal_offset, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import alternate_dungeon_record, angband_cap, angband_hold, alternate_lease,destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
@@ -772,6 +772,8 @@ class ObservationMixin:
 
         if not snapshot.in_town:
             self._startup_town_recall = False
+            # The hands a mining run's return lent stay lent within that town visit only.
+            mining_loadout.end_lending(self)
             # Left town for the dungeon: re-arm the pre-dive character dump so the
             # next town departure writes a fresh sheet, and clear the shopping-stuck
             # latch so a fresh town visit re-tries the stores.
@@ -828,6 +830,9 @@ class ObservationMixin:
         if snapshot.in_town:
             self._mining_abort_floor = None
         if returned_from_fundraising:
+            # The run's digger stays in hand through this visit until it opens the next
+            # mining set or asks for an ordinary departure (mining_loadout.hands_lent).
+            mining_loadout.note_run_return(self, snapshot)
             if (getattr(self, "_supply_stockout_gold_target", None) is not None
                     and not aborted_run):
                 self._supply_stockout_cycles = getattr(self, "_supply_stockout_cycles", 0) + 1

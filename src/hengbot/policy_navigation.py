@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import destruction_means, means_spent_loop, return_start
+from hengbot import destruction_means, means_spent_loop, mining_loadout, return_start
 from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -1053,6 +1053,11 @@ class NavigationMixin:
                     self._descent_refusal_reason = "fundraising-departure-not-ready"
                     return True
             else:
+                # An ordinary walk-in with the mining run's digger still in hand: the lending
+                # ends and the town re-arm wears the weapon first (mining_loadout.hands_lent).
+                if mining_loadout.departure_asks_weapon(self, snapshot):
+                    self._descent_refusal_reason = "hands-lent-to-mining"
+                    return True
                 # A departure-only visit may waive preferred procurement, but
                 # never expose the dungeon entrance when it would be dark.
                 if (

@@ -308,6 +308,8 @@ REGISTRY = (
     S("_dive_start_units", "dive_haul", LIFE,
       "dive_haul: carried units by kind at the dive's start"),
     # equipment_visit_journal
+    S("_equipment_hand_trail", "equipment_visit_journal", LIFE,
+      "The combat hands' worn items on every board, in town and out, across the visits (the last few, with where each was seen); a hand worn A, B, A over the town's edge writes equipment-hand-roundtrip:<slot>, record only (n1-c life-220 2026-11-22)."),
     S("_equipment_visit_journal", "equipment_visit_journal", LIFE,
       "The town visit's loadout searches, wears/take-offs and slot trails; a slot worn A, B, A is a named stop (review 2026-11-22 E0). Renewed by the module itself on a new town visit epoch."),
     # equipment_pack_loss
@@ -1069,6 +1071,8 @@ REGISTRY = (
     S("_unseen_recall_damage_streak", "policy_combat", LIFE,
       "policy_combat: unseen recall damage streak (no comment at its definition)"),
     # policy_equipment
+    S("_mining_hands_returned", "mining_loadout", LIFE,
+      "mining_loadout: a mining run came back to this town visit with a digger in a hand; the hands stay lent (hands_lent: no town re-arm, no swap) until a mining set opens or an ordinary departure asks for the weapon (departure_asks_weapon), cleared on leaving town (n1-c life-220 2026-11-22)"),
     S("_digger_swap", "mining_loadout", LIFE,
       "mining_loadout: (floor, asker's reason) of the digger swap whose combat hand is off and whose digger is not worn yet (swap_in_progress); cleared by the digger worn, the floor left or the swap's abort"),
     S("_digger_wield_attempts", "policy_equipment", LIFE,

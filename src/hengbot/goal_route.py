@@ -118,6 +118,26 @@ def nearest_goal_path(policy, snapshot, predicate, entrance_cells):
     return None
 
 
+def reach(policy, snapshot) -> frozenset[Position]:
+    """Every cell ``nearest_goal_path`` can reach on this board, whatever the goal: the BFS of
+    its loosest pass (SEARCH_PASSES' last: no store entrance blocked, damaging and trap cells
+    allowed), whose admitted steps include every other pass's (the goal predicate only lets a
+    stricter pass onto a hazardous goal cell, which the loosest pass enters anyway).  A goal no
+    cell of it satisfies (the start excepted) has no route in any pass."""
+    start = snapshot.player.position
+    veto = policy._walk_veto(snapshot)
+    allow_damaging = SEARCH_PASSES[-1][1]
+    seen = {start}
+    queue: deque[Position] = deque([start])
+    while queue:
+        position = queue.popleft()
+        for neighbor in _admitted_steps(policy, snapshot, position, None, (), allow_damaging, veto):
+            if neighbor not in seen:
+                seen.add(neighbor)
+                queue.append(neighbor)
+    return frozenset(seen)
+
+
 def _remaining(commitment, snapshot) -> tuple[Position, ...] | None:
     here = snapshot.player.position
     if commitment.floor_key != snapshot.floor_key:

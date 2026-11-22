@@ -83,6 +83,19 @@ def departure_admits(policy, snapshot, depth: int, *, dungeon_id: int | None = N
     return admits(missing, dungeon, depth)
 
 
+def departure_gaps(policy, snapshot, depth: int) -> frozenset:
+    """The worn kit's gaps at the departure's landing ``depth``, none for the held Castle's 50F
+    landing whose only gaps are the 50F row (``departure_admits``).  The town's readers of the
+    worn kit at the landing ask it: the departure minimum's ``depth_abilities`` leaf (n1-a
+    life-531 2026-11-22 08:25: the Mountain's 50F switch, every other gate admitting it, stopped
+    the town end as town:blocked:survival:depth_abilities) and the equipment departure's
+    worn-loadout checks."""
+    missing = frozenset(policy._missing_required_abilities(snapshot, depth))
+    if missing and departure_admits(policy, snapshot, depth, missing=missing):
+        return frozenset()
+    return missing
+
+
 def on_floor(policy, snapshot) -> bool:
     """A floor of the held Castle at 50F or deeper (no quest floor)."""
     from hengbot import dive_floor
@@ -133,7 +146,10 @@ def key(policy, snapshot):
 
 def observe(policy, snapshot) -> None:
     """Every board: a new floor of 50F or deeper entered from a shallower floor of the same
-    dungeon, with no *Destruction* means and no quest, is remembered for ``stop_key``."""
+    dungeon, with no *Destruction* means and no quest, is remembered for ``stop_key``.  A
+    shallower 50F+ floor counts too: n1-a life-531 2026-11-22 08:04, on the Castle's 50F climb,
+    fell through two trap doors (50F -> 52F -> 54F); the Castle's recall depth became 54 and
+    the climb's landing was lost.  A floor deeper than the last one is a new descent too."""
     from hengbot import destruction_use
 
     floor_key = tuple(getattr(snapshot, "floor_key", ()) or ())
@@ -143,7 +159,8 @@ def observe(policy, snapshot) -> None:
     if previous == floor_key:
         return
     if (previous is not None and floor_key and not snapshot.in_town
-            and previous[0] == floor_key[0] and 0 < previous[1] < LANDING <= floor_key[1]
+            and previous[0] == floor_key[0] and 0 < previous[1] < floor_key[1]
+            and floor_key[1] >= LANDING
             and floor_key[2] == 0 and previous[2] == 0
             and not destruction_use.holds_means(policy, snapshot)):
         stopped = floor_key

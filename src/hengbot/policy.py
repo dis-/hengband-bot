@@ -13153,6 +13153,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         (from the pack via _town_restore_weapon_key, or withdrawn from the Home — see
         _next_required_store_type routing). The streak backstop lets us dive anyway if we
         have been stuck in town this long unable to re-arm (we simply own no weapon)."""
+        # The departure's question ends the mining run's lending of the hands (the digger
+        # stays in hand through a visit a run came back to until the next set opens or a
+        # departure asks for the weapon: mining_loadout.hands_lent).
+        mining_loadout.departure_asks_weapon(self, snapshot)
         weapon = next(
             (item for item in snapshot.equipment if item.slot == "main_hand"), None
         )
