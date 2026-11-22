@@ -26,7 +26,10 @@ rows 0-28), decided through the public ``choose_key`` with the recorded keys pos
 DECLARED CONSTRUCTED: the character calibration adopted at row 7 (the dump the live bot read
 after row 6's ``C-f`` is not in the checkpoint): the arrival's own calibration with its pinned
 identity moved to the amulet as inscribed at row 5 (fixture
-``character-calibration-lv24-heavy-curse.json``).
+``character-calibration-lv24-heavy-curse.json``); the unaware ねばねばしたキノコ of slot a deferred
+(``_deferred_device_items``, as after a stalled identification) on every board: since 2026-11-22
+the identification flow takes it first (owner 「キノコも鑑定する」,
+tests/test_mushroom_identify_1122_recorded.py), which the record did not.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -37,7 +40,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot import equipment_target
-from hengbot.model import STORE_HOME
+from hengbot.model import STORE_HOME, TVAL_FOOD
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.policy_constants import TOWN_STOP_PASS_LIMIT
 from hengbot.town_pack_budget import home_take_fits
@@ -59,6 +62,14 @@ def _post(policy, key):
             policy.commit_staged_prompt_chain({"outcome": "released", "posted": key})
 
 
+def _defer_unaware_mushroom(policy, board):
+    """DECLARED CONSTRUCTED (module docstring): the unaware mushroom deferred on every board
+    (the town visit's start clears the set)."""
+    policy._deferred_device_items.update(
+        policy._item_signature(item) for item in board.inventory
+        if item.tval == TVAL_FOOD and not item.aware)
+
+
 def _decide(policy, board):
     with contextlib.redirect_stdout(io.StringIO()):
         return policy.choose_key(board)
@@ -74,6 +85,7 @@ class HomeCurseTakeWaitsRecordedTest(unittest.TestCase):
         cls.replayed = {}
         for recorded, supply in steps[:BOARD_ROW]:
             board = supply()
+            _defer_unaware_mushroom(policy, board)
             if recorded["row"] == CALIBRATION_ROW:
                 # DECLARED CONSTRUCTED (module docstring): row 6's dump, read live after its post.
                 adopt_calibration(
@@ -87,6 +99,7 @@ class HomeCurseTakeWaitsRecordedTest(unittest.TestCase):
             _post(policy, recorded["key"])
         cls.policy = policy
         cls.board = steps[BOARD_ROW][1]()
+        _defer_unaware_mushroom(policy, cls.board)
         cls.reserve = policy._home_remove_curse_scroll(cls.board)
         with contextlib.redirect_stdout(io.StringIO()):
             cls.needs = [(need.store_type, need.category)

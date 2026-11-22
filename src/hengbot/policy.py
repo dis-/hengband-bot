@@ -11053,7 +11053,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         Identify chooser's object_is_not_identified accepts it).  Where
         unaware consumables are sold as they are (``_find_low_level_sale``:
         shallower than 20F, or a scavenging run's haul) the sale keeps them.
+
+        Owner 2026-11-22 「キノコも鑑定する」: an unaware mushroom (the only food with a
+        flavour) is identified the same way, so a curing one is eaten when blind or confused
+        (status_cure.cure_mushroom).  The low-level sale never sells food, so the depth that
+        gives a potion or scroll to that sale does not hold a mushroom back: n1-a life-533
+        (2026-11-22, deepest 19F) died blind and confused on Orc Cave 19F with an unknown
+        Mushroom of Cure Serious Wounds and an Identify staff carried.
         """
+        if item.tval == TVAL_FOOD:
+            return not item.aware
         return (
             item.tval in {TVAL_POTION, TVAL_SCROLL}
             and not item.aware
