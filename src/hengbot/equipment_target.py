@@ -309,6 +309,30 @@ def last_visit_loadout(policy):
     return loadout if isinstance(loadout, Loadout) else None
 
 
+def compared_target_piece(policy, slot: str, candidate):
+    """The last fixed visit target's piece for ``slot`` when that target compared ``candidate``,
+    else None (no target, the target leaves the slot empty, or ``candidate`` was not among the
+    pieces it was decided on -- picked up or identified since: then no target has answered).
+
+    n1-a life-534 (2026-11-22 15:48, Lv20 warrior): the light slot had two owners.  The visit
+    target chose the 灼熱の真鍮のランタン over the identified 不朽の眼のフェアノールのランプ and its
+    transaction wore it; the light ranker (policy ``_light_to_wield``: torch < lantern < permanent
+    light) wore the lamp back on the next decision -- twice in one visit, three visits in a row
+    (``town:blocked:equipment-slot-flipflop:light``).  A light the target compared is the target's
+    answer; the ranker asks this reader first."""
+    held = getattr(policy, VISIT_TARGET_STATE, None)
+    if not isinstance(held, VisitTarget) or candidate is None:
+        return None
+    loadout = getattr(getattr(held.result, "best", None), "loadout", None)
+    if not isinstance(loadout, Loadout):
+        return None
+    identity = equipment_move_identity(candidate)
+    if not any(key[0] == identity for key, _carried, _home in held.candidates):
+        return None
+    piece = loadout.item_at(slot)
+    return piece.item if piece is not None else None
+
+
 def fix_visit_target(policy, epoch, candidates: tuple, context: tuple, result,
                      pieces: tuple = ()) -> None:
     """The search decided the visit's target (its first decision, or a named event)."""
