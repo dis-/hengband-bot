@@ -386,11 +386,24 @@ _RESTORES = (("restore_exp", lambda player: player.exp_drained),
 
 
 def _restore(policy, snapshot) -> str | None:
-    """A quiet board: what the drains took, by the potions the plan carries for them."""
+    """A quiet board: what the drains took, by the potions the plan carries for them, then any other
+    drained ability by its own carried restore potion.
+
+    QUEST_25 「経験値復活の薬と腕力復活の薬を2本ずつ持参し、敵がいない時に下がっていれば飲む」 names the
+    potions the plan brings; the town's rule (``_stat_restore_quaff_key``: a drained ability, its potion
+    carried, no hostile) drinks every one.  n1-c life-221 (2026-11-23 05:00-05:03, Q25): a shadow demon
+    drained INT 18→17 (and WIS); the rest of the quest was fought on the raised absorbed-power fail
+    rates, and the Restore Intelligence it picked up at the closing sweep was drunk only in town.  A
+    carried restore potion of a drained ability is drunk here on the same quiet board."""
     for name, drained in _RESTORES:
         if drained(snapshot.player):
             potion = quest_room_light.carried_potion(policy, snapshot, name)
             if potion is not None:
                 policy.last_reason = RESTORE_REASON
                 return reserved_item_command(policy, snapshot, "quaff", potion)
+    for stat in snapshot.player.drained_stats:
+        potion = policy._carried_restore_potion(snapshot, stat)
+        if potion is not None:
+            policy.last_reason = RESTORE_REASON
+            return reserved_item_command(policy, snapshot, "quaff", potion)
     return None
