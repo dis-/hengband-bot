@@ -3,8 +3,9 @@
 Owner 2026-11-22 (verbatim): 「鉄獄50Fのとき、城は45Fまでにする。ギリギリを攻めない。」 (dive_floor
 ``CLIMB_BAND_DEEPEST``).  The band stays 38-42 for n1-a (its fallback depth floor is shallower);
 however deep that floor, no stair goes below 45F and every floor below it is climbed.  Word of
-Recall read on a band floor answers the game's reset-recall question y, so the next visit lands
-in the band instead of on the 50F landing the climb starts from.
+Recall read on a band floor (since 2026-11-22's climb fix, a climb floor below it too) answers the
+game's reset-recall question y, so the next visit lands in the band (or on the floor the climb had
+reached) instead of on the 50F landing the climb starts from.
 
 Recorded: the 08:25:05 town-arrival checkpoint of n1-a life-531
 (tests/fixtures/n1a-531-mountain-climb-1122-survival): the policy holding the unsafe-recall
@@ -40,6 +41,21 @@ from town_work_corpus import replay_window
 FIXTURES = Path(__file__).with_name("fixtures")
 ANGBAND, MOUNTAIN = 1, 14
 RESET_PROMPT = "ここは最深到達階より浅い階です。この階に戻って来ますか？ [y/n]"
+
+# DECLARED CONSTRUCTED: the visits replay under the Teleport Other carry rule they were recorded
+# with.  Since 2026-11-22 an empty Wand of Teleport Other the Tower recharges is a device to take
+# out (teleport_away_carry.rechargeable; n1-a life-531's Home held twelve or thirteen of them), so
+# the replayed Home visits would take one where the recording did not
+# (tests/test_n1a_531_away_wand_recharge_1122_recorded.py).
+_RECORDED_CARRY_RULE = mock.patch("hengbot.teleport_away_carry.rechargeable", return_value=False)
+
+
+def setUpModule():
+    _RECORDED_CARRY_RULE.start()
+
+
+def tearDownModule():
+    _RECORDED_CARRY_RULE.stop()
 
 
 class Castle45Test(executor_pins.ProductionHarness):
@@ -112,7 +128,9 @@ class Castle45Test(executor_pins.ProductionHarness):
         policy = self.policy
         cases = (
             ((MOUNTAIN, 40, 0), "y"),   # in the band: the next visit lands on 40
-            ((MOUNTAIN, 46, 0), "n"),   # read on the climb: the band's floor is kept for later
+            # read on the climb: y since owner 2026-11-22 「すぐ38〜42Fへ登る」 (n1-a life-531's
+            # 47F/45F n re-landed it on 50F, tests/test_n1a_531_climb_fix_1122_recorded.py)
+            ((MOUNTAIN, 46, 0), "y"),
             ((ANGBAND, 40, 0), "n"),    # no climb switch there
         )
         for floor_key, expected in cases:

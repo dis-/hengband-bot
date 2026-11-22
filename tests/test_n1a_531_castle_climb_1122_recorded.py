@@ -26,6 +26,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import contextlib
 import io
 import unittest
+from unittest import mock
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -36,6 +37,21 @@ from town_work_corpus import replay_window
 FIXTURES = Path(__file__).with_name("fixtures")
 CASTLE, MOUNTAIN, ANGBAND = 12, 14, 1
 BLOCKED = "town:blocked:depth-gate:destination-50:missing-destruction,telepathy"
+
+# DECLARED CONSTRUCTED: the visits replay under the Teleport Other carry rule they were recorded
+# with.  Since 2026-11-22 an empty Wand of Teleport Other the Tower recharges is a device to take
+# out (teleport_away_carry.rechargeable; n1-a life-531's Home held twelve or thirteen of them), so
+# the replayed Home visits would take one where the recording did not
+# (tests/test_n1a_531_away_wand_recharge_1122_recorded.py).
+_RECORDED_CARRY_RULE = mock.patch("hengbot.teleport_away_carry.rechargeable", return_value=False)
+
+
+def setUpModule():
+    _RECORDED_CARRY_RULE.start()
+
+
+def tearDownModule():
+    _RECORDED_CARRY_RULE.stop()
 
 
 def _arrival(name, scratch):

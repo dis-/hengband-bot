@@ -27,6 +27,7 @@ import contextlib
 import io
 import json
 import unittest
+from unittest import mock
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -42,6 +43,21 @@ ANGBAND, CASTLE, MOUNTAIN = 1, 12, 14
 TVAL_STAFF, SV_STAFF_DETECT_TRAP = 55, 12
 TVAL_SCROLL, SV_SCROLL_TELEPORT_LEVEL = 70, 10
 TVAL_ROD, SV_ROD_DETECT_TRAP = 66, 0
+
+# DECLARED CONSTRUCTED: the visits replay under the Teleport Other carry rule they were recorded
+# with.  Since 2026-11-22 an empty Wand of Teleport Other the Tower recharges is a device to take
+# out (teleport_away_carry.rechargeable; n1-a life-531's Home held twelve or thirteen of them), so
+# the replayed Home visits would take one where the recording did not
+# (tests/test_n1a_531_away_wand_recharge_1122_recorded.py).
+_RECORDED_CARRY_RULE = mock.patch("hengbot.teleport_away_carry.rechargeable", return_value=False)
+
+
+def setUpModule():
+    _RECORDED_CARRY_RULE.start()
+
+
+def tearDownModule():
+    _RECORDED_CARRY_RULE.stop()
 
 
 class NoDeepArrivalTest(executor_pins.ProductionHarness):

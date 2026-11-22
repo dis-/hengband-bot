@@ -7,7 +7,10 @@ cell, four to eight against an animal pack; no wand is bought for it.
 Who: a character that is not a Magic-Eater (its staff sequence already charges a carried
 Stone to Mud wand to its maximum and absorbs it, me_staff_sequence "Extras"), carrying an
 identified Stone to Mud wand that the Tower's recharge-all would fill (``short``:
-morivant_tower.charges_after_recharge above the shown charges).  The Q2 Tower trip
+morivant_tower.charges_after_recharge above the shown charges), or carrying as its one Teleport
+Other device an empty Wand of Teleport Other (teleport_away_carry.recharge_due, owner 2026-11-14
+「1本持ち歩く」 and 2026-11-16 「実際の成功率が高い方」: n1-a life-531's thirteen empty wands, 91%
+once recharged against its rod's 26%).  The Q2 Tower trip
 (q2_tower_recharge) keeps its own errand while it applies.
 
 「資金に余裕」: after the trip -- the inn's fares to Morivant and back and the Tower's
@@ -30,7 +33,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hengbot import armor_smith, morivant_tower
+from hengbot import armor_smith, morivant_tower, teleport_away_carry
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND
 from hengbot.policy_constants import MORIVANT_TOWN_ID, TOWN_TELEPORT_COST
@@ -72,10 +75,13 @@ def observe(policy, snapshot) -> None:
 
 
 def short(snapshot) -> list:
-    """The identified Stone to Mud wands the Tower's recharge-all would fill."""
-    return [item for item in snapshot.inventory
-            if item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD and item.aware
-            and item.known and morivant_tower.charges_after_recharge(item) > item.charges]
+    """The identified Stone to Mud wands the Tower's recharge-all would fill, and the carried
+    Teleport Other wand with no charge (teleport_away_carry.recharge_due)."""
+    wands = [item for item in snapshot.inventory
+             if item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD and item.aware
+             and item.known and morivant_tower.charges_after_recharge(item) > item.charges]
+    away = teleport_away_carry.recharge_due(snapshot)
+    return wands + [away] if away is not None else wands
 
 
 def applies(policy, snapshot) -> bool:

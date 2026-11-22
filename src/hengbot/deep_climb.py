@@ -24,8 +24,10 @@ This one case is the exception to owner 2026-11-18 「破壊を持っていな�
   row's gaps start no return (the resist-gap return, destruction_use.means_spent) and ``key``
   (the objectives layer's first rung) climbs: the up stairs underfoot, else the nearest known
   one, else a carried 周辺感知 (area_mapping), else the exploration step toward the stairs --
-  never the loot.  Every rung above (the emergency ladder, combat) is kept.  Once on 49F or
-  above, the ordinary rules (dive_floor's climb to the band) play.
+  never the loot.  Every rung above (the emergency ladder, combat) is kept.  ``key`` climbs the
+  same way on every floor of that dungeon below the band (``climb_floor``: 49F up to the band's
+  deepest floor + 1, owner 2026-11-22 「すぐ38〜42Fへ登る」); the row's gaps are the 50F+
+  floors' only.
 
 The net under the rule (the same owner words): a floor of 50F or deeper entered from a
 shallower floor of the same dungeon without the means, outside a quest floor, stops the bot
@@ -43,6 +45,8 @@ from hengbot.policy_constants import (
 LANDING = DEEP_FLOOR_DEPTH
 ROW_GAPS = required_depth_gates(DEEP_FLOOR_DEPTH) - required_depth_gates(DEEP_FLOOR_DEPTH - 1)
 REASON = "castle-climb-landing-50"
+# The climb floors below 50F: ladder_descent's climb rung's reasons (``key``).
+CLIMB_REASON = "castle-climb"
 STOP_REASON = "dungeon:blocked:deep-arrival-without-destruction"
 STOP_MESSAGE = ("a floor of 50F or deeper was entered from a shallower floor of the same "
                 "dungeon without the *Destruction* means")
@@ -112,23 +116,45 @@ def floor_gaps(policy, snapshot, gaps) -> frozenset:
     return gaps - ROW_GAPS if on_floor(policy, snapshot) else gaps
 
 
+def climb_floor(policy, snapshot) -> bool:
+    """A floor ``key`` climbs from at once: a 50F+ floor of the held Castle (``on_floor``), or
+    one of its floors below the band (dive_floor.climb_switch_floor), no quest floor."""
+    from hengbot import dive_floor
+
+    floor_key = getattr(snapshot, "floor_key", None)
+    if getattr(snapshot, "in_town", False) or not floor_key or floor_key[2] != 0:
+        return False
+    return on_floor(policy, snapshot) or dive_floor.climb_switch_floor(policy, snapshot, floor_key)
+
+
 def key(policy, snapshot):
-    """The climb off a 50F+ floor of the held Castle, before any loot or objective."""
+    """The climb off a climb floor of the held Castle (``climb_floor``), before any loot or
+    objective.
+
+    Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: every floor below the band, not the 50F+
+    ones only.  n1-a life-531 (13:38-13:40) walked Mountain 47F and 49F after loot and the
+    exploration's frontier (ladder_descent's climb rung, below the loot, acts only once an up
+    staircase is known).  Below 50F the reasons are the climb rung's ``castle-climb:*``; a fled
+    breeder floor's walk-out keeps its place there as it had over that rung."""
     from hengbot import area_mapping
 
-    if not on_floor(policy, snapshot) or policy._floor_navigation_exit_locked(snapshot):
+    if not climb_floor(policy, snapshot) or policy._floor_navigation_exit_locked(snapshot):
         return None
+    landing = on_floor(policy, snapshot)
+    if not landing and policy._breeder_walkout_active(snapshot):
+        return None
+    family = REASON if landing else CLIMB_REASON
     here = snapshot.grid_at(snapshot.player.position)
     if here is not None and policy._is_upstairs_target(here):
         if snapshot.player.hp_ratio < DESCEND_MIN_HP_RATIO:
             return None
-        policy.last_reason = f"{REASON}:ascend"
+        policy.last_reason = f"{family}:ascend"
         return UP_STAIRS_KEY
     step = policy._nearest_goal_step(snapshot, policy._is_upstairs_target)
     if step is not None:
         move = policy._step_toward(snapshot, step)
         if move is not None:
-            policy.last_reason = f"{REASON}:seek-upstairs"
+            policy.last_reason = f"{family}:seek-upstairs"
             return move
     mapped = area_mapping.deep_climb_key(policy, snapshot)
     if mapped is not None:
@@ -138,7 +164,7 @@ def key(policy, snapshot):
         return None
     move = policy._step_toward(snapshot, goal)
     if move is not None:
-        policy.last_reason = f"{REASON}:search-upstairs"
+        policy.last_reason = f"{family}:search-upstairs"
     return move
 
 

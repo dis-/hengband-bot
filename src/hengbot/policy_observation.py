@@ -515,7 +515,10 @@ class ObservationMixin:
                 # evidence (dive_floor.climbing_floor, owner 2026-11-17).
                 escape_count.count(self, judged=not dive_floor.climbing_floor(
                     self, snapshot, previous_floor))
-                if self._dive_emergencies >= EMERGENCY_RETURN_COUNT:
+                # Owner 2026-11-22 「上りの間は即死以外でもテレポートを許すが」: not on a climb
+                # floor (escape_count.returns_on).
+                if (self._dive_emergencies >= EMERGENCY_RETURN_COUNT
+                        and escape_count.returns_on(self, snapshot, previous_floor)):
                     return_start.start(self, "emergency-repeat")
             # Owner 2026-11-11 「逃げは階が変わればリセット。」: the escape that left a floor
             # was counted for it above; the new floor starts at 0 (escape_count).
