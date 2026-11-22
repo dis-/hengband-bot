@@ -1,0 +1,1001 @@
+{
+ "angband:48:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ]
+ },
+ "angband:49:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ]
+ },
+ "angband:50:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "angband:50:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "angband:51:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "angband:51:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "angband:52:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "angband:52:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "castle:48:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ]
+ },
+ "castle:49:no-means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused"
+  ]
+ },
+ "castle:49:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ]
+ },
+ "castle:50:means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "means_spent_loop.looping"
+  ]
+ },
+ "castle:50:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "castle:50:no-means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "castle:50:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb._standing_without_means",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "castle:51:means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "castle:51:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "castle:51:no-means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "castle:51:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb._standing_without_means",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "castle:52:means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "castle:52:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "castle:52:no-means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "castle:52:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb._standing_without_means",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "mountain:48:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ]
+ },
+ "mountain:49:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.descent_refused",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ]
+ },
+ "mountain:50:means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "means_spent_loop.looping"
+  ]
+ },
+ "mountain:50:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "mountain:50:no-means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_helpers._fallback_landing_allowed"
+  ],
+  "refuse": [
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "mountain:50:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb._standing_without_means",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "mountain:51:means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "mountain:51:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "mountain:51:no-means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "mountain:51:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb._standing_without_means",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "mountain:52:means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "mountain:52:means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ],
+  "refuse": [
+   "deep_fall_guard.sanctioned",
+   "means_spent_loop.looping"
+  ]
+ },
+ "mountain:52:no-means:climbing": {
+  "admit": [
+   "deep_climb._standing_without_means",
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_use.means_spent",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ },
+ "mountain:52:no-means:no-climb": {
+  "admit": [
+   "deep_climb._standing_without_means@quest",
+   "deep_climb.observe@quest",
+   "deep_fall_guard.descent_refused",
+   "destruction_use.means_spent@quest"
+  ],
+  "refuse": [
+   "deep_climb._standing_without_means",
+   "deep_climb.departure_gaps",
+   "deep_climb.observe",
+   "deep_fall_guard.sanctioned",
+   "destruction_means.departure_carried",
+   "destruction_use.means_spent",
+   "equipment_optimizer._meets_static_requirements",
+   "equipment_optimizer.divable_depth",
+   "means_spent_loop.looping",
+   "policy._deep_stair_refused",
+   "policy._destination_depth_allowed",
+   "policy._recall_destination_safe",
+   "policy_constants.destruction_dive_permitted",
+   "policy_constants.permitted_dive_depth",
+   "policy_helpers._fallback_landing_allowed",
+   "policy_observation._missing_required_abilities",
+   "policy_supply._intended_dive_depth"
+  ]
+ }
+}

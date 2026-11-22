@@ -18,7 +18,7 @@ from math import isfinite
 from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
-from hengbot import me_power_success, torch_release
+from hengbot import deep_admission, me_power_success, torch_release
 from hengbot.item_identity import without_player_inscription
 from hengbot.model import (
     ARMOUR_TVALS,
@@ -53,7 +53,6 @@ from hengbot.speed_valuation import (
     weighted_margin,
 )
 from hengbot.policy_constants import (
-    DEEP_FLOOR_DEPTH,
     SPEED_GATE_DEPTH,
 )
 from hengbot.equipment_rules import (
@@ -312,8 +311,8 @@ def divable_depth(
     for depth, next_band in zip(bands, (*bands[1:], SPEED_GATE_DEPTH + 1)):
         if not required_abilities(depth).issubset(abilities):
             break
-        if depth >= DEEP_FLOOR_DEPTH and not destruction_means(
-                loadout, has_destruction, staff_gate):
+        if not deep_admission.verdict(None, depth, "loadout", lambda: destruction_means(
+                loadout, has_destruction, staff_gate)).admitted:
             break
         if depth >= SPEED_GATE_DEPTH and not meets_speed_gate(player_speed):
             break
@@ -1283,8 +1282,9 @@ def _meets_static_requirements(
             abilities.add(name)
     if depth is not None and not required_abilities(depth).issubset(abilities):
         return False
-    if (depth is not None and depth >= DEEP_FLOOR_DEPTH
-            and not destruction_means(loadout, has_destruction, staff_gate)):
+    if depth is not None and not deep_admission.verdict(
+            None, depth, "loadout",
+            lambda: destruction_means(loadout, has_destruction, staff_gate)).admitted:
         return False
     return True
 

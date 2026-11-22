@@ -48,12 +48,14 @@ reach, dive_floor.reaches_band) does an arrival from a shallower floor stop the 
 """
 from __future__ import annotations
 
+from hengbot import deep_admission
 from hengbot.policy_constants import (
-    DEEP_FLOOR_DEPTH, DESCEND_MIN_HP_RATIO, UP_STAIRS_KEY, WAIT_KEY, required_depth_gates,
+    DESCEND_MIN_HP_RATIO, UP_STAIRS_KEY, WAIT_KEY, required_depth_gates,
 )
 
-LANDING = DEEP_FLOOR_DEPTH
-ROW_GAPS = required_depth_gates(DEEP_FLOOR_DEPTH) - required_depth_gates(DEEP_FLOOR_DEPTH - 1)
+LANDING = deep_admission.LANDING
+ROW_GAPS = (required_depth_gates(LANDING)
+            - required_depth_gates(deep_admission.DEEPEST_WITHOUT_MEANS))
 REASON = "castle-climb-landing-50"
 # The climb floors below 50F: ladder_descent's climb rung's reasons (``key``).
 CLIMB_REASON = "castle-climb"
@@ -105,7 +107,10 @@ def departure_gaps(policy, snapshot, depth: int) -> frozenset:
     the town end as town:blocked:survival:depth_abilities) and the equipment departure's
     worn-loadout checks."""
     missing = frozenset(policy._missing_required_abilities(snapshot, depth))
-    if missing and departure_admits(policy, snapshot, depth, missing=missing):
+    # The worn kit's gaps already read the means: the climb alone is asked (deep_admission).
+    if missing and deep_admission.verdict(
+            policy._target_dungeon_id, depth, "recall",
+            climbing=lambda: departure_admits(policy, snapshot, depth, missing=missing)).climb:
         return frozenset()
     return missing
 
@@ -117,7 +122,9 @@ def on_floor(policy, snapshot) -> bool:
     floor_key = getattr(snapshot, "floor_key", None)
     if getattr(snapshot, "in_town", False) or not floor_key or floor_key[2] != 0:
         return False
-    return (floor_key[1] >= LANDING and dive_floor.climb_dungeon(policy) == floor_key[0])
+    return deep_admission.verdict(
+        floor_key[0], floor_key[1], "stand",
+        climbing=lambda: dive_floor.climb_dungeon(policy) == floor_key[0]).climb
 
 
 def floor_gaps(policy, snapshot, gaps) -> frozenset:
@@ -205,10 +212,12 @@ def _standing_without_means(policy, snapshot, floor_key) -> bool:
     means and no climb held there: the climb is held (``_hold_climb``)."""
     from hengbot import destruction_use, dive_floor
 
-    return (len(floor_key) == 3 and not snapshot.in_town and floor_key[2] == 0
-            and floor_key[1] >= LANDING and floor_key[0] in dive_floor.DIVE_FLOOR_DUNGEONS
-            and dive_floor.climb_dungeon(policy) != floor_key[0]
-            and not destruction_use.holds_means(policy, snapshot))
+    return (len(floor_key) == 3 and not snapshot.in_town
+            and floor_key[0] in dive_floor.DIVE_FLOOR_DUNGEONS
+            and not deep_admission.verdict(
+                floor_key[0], floor_key[1], "quest" if floor_key[2] != 0 else "stand",
+                lambda: destruction_use.holds_means(policy, snapshot),
+                lambda: dive_floor.climb_dungeon(policy) == floor_key[0]).admitted)
 
 
 def observe(policy, snapshot) -> None:
@@ -232,10 +241,11 @@ def observe(policy, snapshot) -> None:
         return
     if (previous is not None and floor_key and not snapshot.in_town
             and previous[0] == floor_key[0] and 0 < previous[1] < floor_key[1]
-            and floor_key[1] >= LANDING
-            and floor_key[2] == 0 and previous[2] == 0
-            and not deep_fall_guard.sanctioned(policy, floor_key[0], floor_key[1])
-            and not destruction_use.holds_means(policy, snapshot)):
+            and not deep_admission.verdict(
+                floor_key[0], floor_key[1],
+                "quest" if floor_key[2] != 0 or previous[2] != 0 else "trapdoor",
+                lambda: destruction_use.holds_means(policy, snapshot),
+                lambda: deep_fall_guard.climbing(policy, floor_key[0])).admitted):
         stopped = None if _hold_climb(policy, snapshot, floor_key[0]) else floor_key
     elif not (stopped is not None and stopped == floor_key):
         stopped = None

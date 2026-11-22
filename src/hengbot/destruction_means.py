@@ -43,7 +43,8 @@ from functools import cached_property
 
 from hengbot.model import SV_SCROLL_STAR_DESTRUCTION, SV_STAFF_DESTRUCTION, TVAL_SCROLL, TVAL_STAFF
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.policy_constants import DEEP_FLOOR_DEPTH, DESTRUCTION_USES_PER_STEP, PLAYER_CLASS_BERSERKER
+from hengbot import deep_admission
+from hengbot.policy_constants import DESTRUCTION_USES_PER_STEP, PLAYER_CLASS_BERSERKER
 
 SCROLL = (TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)
 STAFF = (TVAL_STAFF, SV_STAFF_DESTRUCTION)
@@ -325,8 +326,9 @@ def departure_carried(policy, snapshot, depth: int) -> bool:
 
     # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the held Castle's 50F landing is
     # climbed from at once without the means (deep_climb).
-    return (depth < DEEP_FLOOR_DEPTH or Means(policy, snapshot).carried()
-            or deep_climb.departure_admits(policy, snapshot, depth))
+    return deep_admission.verdict(
+        policy._target_dungeon_id, depth, "recall", Means(policy, snapshot).carried,
+        lambda: deep_climb.departure_admits(policy, snapshot, depth)).admitted
 
 
 def answers(policy, snapshot) -> tuple:

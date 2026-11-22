@@ -14,7 +14,7 @@ from hengbot.item_reservation import (
 from hengbot.town_work import town_work_decision
 from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
-from hengbot import cross_rules, deep_climb, deep_fall_guard, dive_floor, escape_count, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
+from hengbot import cross_rules, deep_admission, deep_climb, deep_fall_guard, dive_floor, escape_count, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
 from hengbot.dungeon_ladder import PASS
 from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, heroism_potion, engagement_avoid_seal, lamp_fuel, left_cells, line_of_fire, mining_loadout, mining_oil_sale, oneshot_breath, paralyzer_contact, pingpong_guard, random_quest_hold, retreat_enclosure, retreat_veto_life, return_yield, sent_away_t1, sleeper_reach_memory, slot_lending, town_pack_headroom, walkout_dig
@@ -9423,7 +9423,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return True
         # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the held Castle's 50F landing,
         # its only gaps the 50F row, is recalled to and climbed from at once (deep_climb).
-        if deep_climb.departure_admits(self, snapshot, destination_depth, missing=missing):
+        if deep_admission.verdict(
+                self._target_dungeon_id, destination_depth, "recall",
+                climbing=lambda: deep_climb.departure_admits(
+                    self, snapshot, destination_depth, missing=missing)).climb:
             return True
         self.last_reason = (
             f"depth-gate:destination-{destination_depth}:missing-"
@@ -9615,8 +9618,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # A destination gate (equipment review E4, owner Q3): the target's Home piece counts.
         missing = self._missing_required_abilities(snapshot, depth, owned=True)
         # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」 (deep_climb).
-        if missing and not deep_climb.departure_admits(
-                self, snapshot, depth, dungeon_id=dungeon_id, missing=missing):
+        if missing and not deep_admission.verdict(
+                dungeon_id, depth, "recall",
+                climbing=lambda: deep_climb.departure_admits(
+                    self, snapshot, depth, dungeon_id=dungeon_id, missing=missing)).climb:
             return False
         # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: no recall onto a floor whose
         # trap door may land on 50F+ and which the deep fall guard leaves at once (n1-a life-535:
@@ -15914,6 +15919,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         fled_floor_stairs.note_flight(self, snapshot)
 
 
+    def _deep_stair_refused(self, snapshot: Snapshot, destination: int) -> bool:
+        """A stair down from a dungeon floor onto ``destination`` of 50F+ without the means
+        (deep_admission's ``stairs``; the means read as the depth gate's label)."""
+        return (snapshot.dungeon_level > 0 and not deep_admission.verdict(
+            snapshot.floor_key[0], destination, "stairs",
+            lambda: DESTRUCTION_GATE_LABEL not in self._missing_required_abilities(
+                snapshot, destination)).admitted)
+
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
             return False
@@ -15969,9 +15982,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         # Owner 2026-11-18 「破壊を持っていないのに50F以降にいるのが不具合」 (the 2026-11-22 net,
         # deep_climb): no stair into 50F+ without the means, before any quest-depth steering.
-        if (snapshot.dungeon_level > 0 and destination >= DEEP_FLOOR_DEPTH
-                and DESTRUCTION_GATE_LABEL in self._missing_required_abilities(
-                    snapshot, destination)):
+        if self._deep_stair_refused(snapshot, destination):
             return False
         # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: no stair onto a floor whose
         # trap door would land on 50F+ without the means, unless the traps can be detected there

@@ -1829,6 +1829,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "deep_admission.py:verdict": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "deep_climb.py:_held_dungeon": {
     "classification": "data",
     "rows": [
@@ -2119,13 +2126,6 @@
       "loot-exploration"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "destruction_means.py:Means.carried": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
   },
   "destruction_means.py:Means.carry_uses": {
     "classification": "data",
