@@ -118,6 +118,9 @@ READERS = {
         "the recall wait's 「射線の通る T1」 (owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
     ("amberite_curse", "struck", "danger"):
         "an Amberite the shot may hit (owner 2026-11-17 Q5 「危険の判定は危険用に揃える」)",
+    ("me_powers", "_sensed_unbeatable_in_fire", "danger"):
+        "the T1 known only by detection the Recall wait sends away (owner 2026-11-22 「撃つ」: "
+        "「射線が通っている」 is what may hurt the player)",
     # projectable: the game's projectable() with the unknown grids open, awake or asleep.
     ("line_of_fire", "danger", "projectable"):
         "the danger reading's awake half",

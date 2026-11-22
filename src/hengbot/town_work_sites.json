@@ -5892,6 +5892,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:beam_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powers.py:beam_direction": {
     "classification": "data",
     "rows": [
@@ -5933,6 +5940,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:sensed_threat_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_powers.py:threat_key": {
     "classification": "dungeon-only",

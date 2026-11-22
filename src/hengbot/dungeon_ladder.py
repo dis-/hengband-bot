@@ -105,6 +105,8 @@ LADDER = (
         # leave's *Destruction* before the THREAT powers and every layer below.
         *D("threat_tiers.sensed_t1_destruction_key", exempt=ANSWERS_DANGER),
         *D("me_powers.threat_key", exempt=ANSWERS_DANGER),
+        # Owner 2026-11-22 「撃つ」: a sensed T1 in fire while the Recall is awaited, *Destruction* spent.
+        *D("me_powers.sensed_threat_key", exempt=ANSWERS_DANGER),
         *E("_item_destroying_breeder_leave_key", "_mana_food_survival_override_key",
            "_paralyzer_prevention_key", exempt=ANSWERS_DANGER),
         # Owner 2026-11-14 「混乱する前に離れるだけ」 (n1-b life-392): above the summoner shots.
@@ -586,6 +588,8 @@ OWNER_RULES = (
                                                       "removes the summons (owner 2026-11-09 B "
                                                       "「即死でない強敵は *破壊* 優先」)",
             "me_powers.threat_key": "sends away what cannot be beaten: survival",
+            "me_powers.sensed_threat_key": "sends away a T1 in fire known only by detection while "
+                                           "the Recall is awaited (owner 2026-11-22 「撃つ」): survival",
             "_item_destroying_breeder_leave_key": "leaves a breeder that destroys the kit: survival",
             "_mana_food_survival_override_key": "starvation: survival",
             "_paralyzer_prevention_key": "the blow that ends the game: survival",

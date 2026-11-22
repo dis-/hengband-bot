@@ -37,9 +37,10 @@ import pickle
 import unittest
 from pathlib import Path
 
-from hengbot import destruction_use, threat_tiers
+from hengbot import destruction_use, me_powers, threat_tiers
 from hengbot.latch_onset_capture import restore_checkpoint_bytes
-from hengbot.model import parse_snapshot
+from hengbot.me_device_attacks_input import compile_device
+from hengbot.model import Position, parse_snapshot
 from hengbot.policy import HengbotPolicy
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -48,8 +49,10 @@ with gzip.open(FIXTURES / "n1c-219-recall-wait-1122.jsonl.gz", "rt", encoding="u
     BOARDS = {raw["turn"]: raw for raw in map(json.loads, _stream)}
 UNMAKER, DEBBY = 815, 1032
 MET, FIRST_USE, SECOND_USE = 2751340, 2751382, 2751421
+LANDING, DEBBY_IN_FIRE, DEBBY_LAST = 2751660, 2751714, 2751726
 DESTRUCTION = ("mA3", "emergency:destruction:absorbed-power")
 COMEBACK = "breeder-comeback:recall"
+SENT_AWAY = "me-power:sensed-t1-in-line:teleport-away"
 
 
 def restored(*, destruction_spent=False):
@@ -109,6 +112,40 @@ class BreederComebackRecallTest(unittest.TestCase):
         self.assertEqual(destruction_use.comeback_races(self.policy, board), frozenset({UNMAKER}))
         _, strong = threat_tiers._sensed_strong(self.policy, board)
         self.assertFalse([monster for monster in strong if monster.race_id == UNMAKER])
+
+
+class SensedT1TeleportAwayTest(unittest.TestCase):
+    def decide(self, turn):
+        policy = restored(destruction_spent=True)
+        return policy, drive(policy, LANDING, turn)[-1]
+
+    def test_debby_in_fire_is_sent_away(self):
+        for turn in (DEBBY_IN_FIRE, DEBBY_LAST):
+            with self.subTest(turn=turn):
+                policy, (_, key, reason) = self.decide(turn)
+                # Recorded: return:wait-recall '5' (14439), return:wait-recall '5' (14443).
+                self.assertEqual((key, reason), ("mCn@34,26", SENT_AWAY))
+                # The production executor port: the rod of Teleport Away, the cursor to (34,26).
+                _, (step,) = compile_device(key, reason)
+                self.assertEqual((step.kind, step.sval, step.goal), ("rod", 13, (34, 26)))
+                board = parse_snapshot(copy.deepcopy(BOARDS[turn]), policy._monrace_knowledge)
+                self.assertTrue(destruction_use.means_spent(policy, board))
+                self.assertTrue(board.player.recalling)
+                debby = next(m for m in board.detected_monsters if m.race_id == DEBBY)
+                self.assertEqual(debby.position, Position(34, 27))
+                self.assertFalse(board.visible_monsters)
+
+    def test_the_aimed_cell_beam_passes_her(self):
+        policy = restored(destruction_spent=True)
+        board = parse_snapshot(copy.deepcopy(BOARDS[DEBBY_IN_FIRE]), policy._monrace_knowledge)
+        here, there = board.player.position, Position(34, 27)
+        self.assertIsNone(me_powers.beam_direction(policy, board, here, there))
+        self.assertEqual(me_powers.beam_cell(policy, board, here, there), Position(34, 26))
+
+    def test_control_with_the_means_held_no_teleport_away(self):
+        policy = restored()
+        _, key, reason = drive(policy, LANDING, DEBBY_IN_FIRE)[-1]
+        self.assertNotEqual(reason, SENT_AWAY)
 
 
 if __name__ == "__main__":
