@@ -151,6 +151,8 @@ READERS = {
         "a spell crossing glass: the line with the map memory through it",
     ("policy_combat", "_immobile_summoner_key", "straight_line"):
         "the grids a remembered immobile summoner's line reaches (avoided)",
+    ("policy_combat", "_immobile_summoner_zone_key", "straight_line"):
+        "whether a remembered status breeder's zone line (the same as the zone's) covers the player",
     ("policy_combat", "_ranged_scroll_lock_threats", "straight_line"):
         "a caster's line for the scroll lock (the board's line, no map memory)",
     ("policy", "exposed_to", "straight_line"):

@@ -5,7 +5,7 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import ESP_THREAT_HEAL_REASON, ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
 from hengbot import deep_fall_guard, escape_count, return_start
-from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_breeder_avoid, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
@@ -362,14 +362,18 @@ class CombatMixin:
         perceived = self._perceived_hostiles(snapshot)
         if (
             not remembered
-            and not any(self._summoner_never_approaches(snapshot, m) for m in perceived)
+            and not any(self._summoner_never_approaches(snapshot, m)
+                        or status_breeder_avoid.kept_away(self, snapshot, m) for m in perceived)
             and not getattr(self, "_immobile_summoner_avoid_cells", set())
         ):
             return None
         for monster in perceived:
-            # One killed safely from range is shot, not avoided (owner 11-02).
-            if (self._summoner_never_approaches(snapshot, monster)
-                    and not immobile_ranged_kill.killable(self, snapshot, monster)):
+            # One killed safely from range is shot, not avoided (owner 11-02).  A never-moving
+            # breeder that blinds and confuses the unresisting player is walked away from, not
+            # shot (owner 2026-11-22 「撃たずに射線の外へ離れる」, status_breeder_avoid).
+            if ((self._summoner_never_approaches(snapshot, monster)
+                    and not immobile_ranged_kill.killable(self, snapshot, monster))
+                    or status_breeder_avoid.kept_away(self, snapshot, monster)):
                 remembered[monster.position] = monster.race_id
             else:
                 remembered.pop(monster.position, None)
@@ -509,9 +513,15 @@ class CombatMixin:
         if answer is not None:
             return answer.key
         self._refresh_warning_avoidance(snapshot, released_cells=cells)
+        _floor, sources = getattr(self, "_immobile_summoner_memory", (None, {}))
+        here = snapshot.player.position
+        reason = (status_breeder_avoid.STEP_OUT_REASON if any(
+            status_breeder_avoid.race_kept_away(self, snapshot, race_id)
+            and self._monster_cast_distance(source, here) <= MONSTER_SPELL_MAX_RANGE
+            and line_of_fire.straight_line(self, snapshot, source, here)
+            for source, race_id in sources.items()) else IMMOBILE_SUMMONER_AVOID_REASON)
         try:
-            step = immobile_threat_memory.step_out_of(
-                self, snapshot, cells, IMMOBILE_SUMMONER_AVOID_REASON)
+            step = immobile_threat_memory.step_out_of(self, snapshot, cells, reason)
         finally:
             self._refresh_warning_avoidance(snapshot, added_cells=cells)
         if step is not None:
