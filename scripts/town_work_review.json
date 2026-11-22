@@ -15978,7 +15978,7 @@
       "equipment-transaction"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-11-08 「旅の後に付け直す」: after the trip, in a town other than Zul, the remembered ring the levitation ring replaced goes back in its slot (the wield and the replace-ring chooser); the memory ends once it is worn or no longer carried.",
+    "evidence": "Owner 2026-11-08 「旅の後に付け直す」 and 2026-11-22 Q6 (equipment review E5): after the trip, in a town other than Zul, the ring slot the levitation ring borrowed (slot_lending zul-levitation) returns to the target loadout's ring for it through slot_lending.wield_back (the wield and the replace-ring chooser); the lending ends once that ring is worn, not carried, or the target names none for the slot.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"

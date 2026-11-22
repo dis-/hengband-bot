@@ -28,9 +28,12 @@ The borrowers, each with the slots it borrows and where its lending ends:
   (``_town_restore_weapon_key``), the Home's withdrawal (``_home_rearm_key``) or the visit's swap.
 - ``q2-breach-digger``: Q2's breach wields a strong digger in the main hand
   (policy_quest ``q2-breach-loadout``); a digger in a hand, so the ``mining-digger`` ends serve it.
+- ``zul-levitation``: the Zul trip puts a Ring of Levitation on a ring slot (zul_trip
+  ``_wear_key``); the record of :func:`lend` names the slot, the target's ring for it stays
+  carried through the trip (:func:`retains`) and zul_trip ``rewear_key`` returns it after the trip.
 
-The weapon hand comes first (owner Q6 names the weapon); the Zul trip's ring and the Q25 druj
-piece still remember what they displaced until the next steps move them here.
+The weapon hand came first (owner Q6 names the weapon); the Q25 druj piece still remembers what
+it displaced until the next step moves it here.
 
 Not borrowers: the 99F/100F preparation (finale_prep) swaps to its own loadout by deciding the
 target itself (equipment_target ``finale-phase``), so its end is the target's; the light slot's
@@ -52,6 +55,13 @@ from hengbot.policy_constants import EQUIPMENT_SLOT_KEY
 MAIN_HAND = "main_hand"
 SUB_HAND = "sub_hand"
 HANDS = (MAIN_HAND, SUB_HAND)
+
+# The recorded borrowers (``lend``) and the slots each may borrow: a board does not tell which
+# slot they lent (a digger in a hand does: the hands' lending is read from the board).
+ZUL_LEVITATION = "zul-levitation"
+RECORDED_BORROWERS = {ZUL_LEVITATION: ("main_ring", "sub_ring")}
+# The policy attribute of the recorded lendings: {slot: borrower} (a row of state_registry).
+LENDING_STATE = "_slot_lending"
 
 # --- the target the slot returns to -----------------------------------------------------
 
@@ -125,6 +135,46 @@ def return_home_item(policy, items, slot: str):
         return None
     identity = equipment_identity(piece)
     return next((item for item in items if equipment_identity(item) == identity), None)
+
+
+def is_target_piece(policy, item, slot: str) -> bool:
+    """``item`` is the target's piece for ``slot`` (the identity a move keeps)."""
+    piece = target_piece(policy, slot)
+    return piece is not None and equipment_identity(item) == equipment_identity(piece)
+
+
+# --- the recorded lendings ----------------------------------------------------------------
+
+def _record(policy) -> dict:
+    record = getattr(policy, LENDING_STATE, None)
+    return record if isinstance(record, dict) else {}
+
+
+def lend(policy, slot: str, borrower: str) -> None:
+    """``borrower`` took ``slot`` for its temporary piece; nothing it displaced is remembered."""
+    assert slot in RECORDED_BORROWERS[borrower], (borrower, slot)
+    record = dict(_record(policy))
+    record[slot] = borrower
+    setattr(policy, LENDING_STATE, record)
+
+
+def lent_slots(policy, borrower: str) -> tuple:
+    """The slots ``borrower`` holds, in slot order."""
+    record = _record(policy)
+    return tuple(slot for slot in EQUIPMENT_SLOT_KEY if record.get(slot) == borrower)
+
+
+def end(policy, slot: str) -> None:
+    """The lending of ``slot`` ended: the slot is the target's again."""
+    record = dict(_record(policy))
+    if record.pop(slot, None) is not None:
+        setattr(policy, LENDING_STATE, record)
+
+
+def retains(policy, item, borrower: str) -> bool:
+    """While ``borrower`` holds a slot, the target's piece for it stays carried (no sale, deposit
+    or destruction): the slot's return wears it."""
+    return any(is_target_piece(policy, item, slot) for slot in lent_slots(policy, borrower))
 
 
 # --- the return exits -------------------------------------------------------------------

@@ -1982,9 +1982,12 @@ REGISTRY = (
       "warning_cell_record: warning cell record (no comment at its definition)"),
     S("_warning_cell_record_read", "warning_cell_record", LIFE,
       "warning_cell_record: warning cell record read (no comment at its definition)"),
+    # slot_lending
+    S("_slot_lending", "slot_lending", LIFE,
+      "slot_lending: the recorded lendings {slot: borrower} of the temporary swaps a board does "
+      "not tell (the Zul trip's ring slot): each slot returns to the target loadout's piece "
+      "(equipment review E5, owner 2026-11-22 Q6), nothing displaced is remembered"),
     # zul_trip
-    S("_zul_replaced_ring", "zul_trip", LIFE,
-      "zul_trip: zul replaced ring (no comment at its definition)"),
     S("_zul_trip", "zul_trip", LIFE,
       "zul_trip: zul trip (no comment at its definition)"),
 )

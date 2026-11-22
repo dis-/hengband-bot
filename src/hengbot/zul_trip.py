@@ -57,7 +57,7 @@ from heapq import heappop, heappush
 from math import ceil
 
 from hengbot import ability_sources
-from hengbot import morivant_tower, town_travel
+from hengbot import morivant_tower, slot_lending, town_travel
 from hengbot.model import STORE_BLACK, STORE_MAGIC, Position
 from hengbot.policy_constants import (
     DOWN_STAIRS_KEY, LEAVE_STORE_KEY, STORE_STUCK_LIMIT, TOWN_TELEPORT_BUILDING_TYPES,
@@ -108,7 +108,6 @@ LEAVE_SIGHT_REASON = REASON + "leave-sight"
 WAIT_REFUSED_REASON = REASON + "wait-refused"
 LEAVE_RANGE_REASON = REASON + "leave-range"
 REWEAR_REASON = REASON + "rewear-ring"
-REPLACED_RING_ATTR = "_zul_replaced_ring"
 HOME_PURPOSE = "zul-levitation"
 CURE_KEY_PATTERN = rf"[1-9](?:{CURE_KEY})+\x1b"
 BUY_RUNG = "zul:levitation"
@@ -481,39 +480,30 @@ def _wear_key(policy, snapshot, item) -> str | None:
     slot = next((slot for slot in RING_SLOTS if slot not in worn), RING_SLOTS[-1])
     key = policy._equipment_wield(snapshot, "zul-levitation", item, slot)
     if key is not None:
-        _remember_replaced(policy, snapshot, slot)
+        slot_lending.lend(policy, slot, slot_lending.ZUL_LEVITATION)
         policy.last_reason = WEAR_REASON
     return key
 
 
-# -- the replaced ring (owner 2026-11-08 「旅の後に付け直す」) -------------------
+# -- the lent ring slot (owner 2026-11-08 「旅の後に付け直す」) ------------------
 #
 # 「外した指輪は旅の間持ち歩き、ズルで治療を終えて町に戻ったら付け直す（浮遊の指輪は外す）。」
-# The memory is a policy attribute read with a default, outside the trip record
-# (which a dungeon floor or the trip's end replaces): a checkpoint restored from
-# before it simply has none.
+# Equipment review E5 (owner 2026-11-22 Q6 「一時的な付け替え（採掘・クエスト・ズル等）の後は
+# いつも目指す装備の武器に戻す。各系統で元の武器を覚えるのをやめる」): the levitation ring
+# borrows its ring slot (slot_lending ``zul-levitation``) and the trip's end returns the slot to
+# the target loadout's ring for it -- carried through the trip (``retains_returning_ring``) --
+# not to a ring remembered when the levitation ring went on (the retired ``_zul_replaced_ring``).
 
-def replaced_ring(policy):
-    """(item signature, ring slot) of the ring the levitation ring replaced, or None."""
-    return getattr(policy, REPLACED_RING_ATTR, None)
-
-
-def _remember_replaced(policy, snapshot, slot: str) -> None:
-    worn = next((piece for piece in snapshot.equipment if piece.slot == slot), None)
-    if worn is not None and not is_levitation_item(worn):
-        setattr(policy, REPLACED_RING_ATTR, (policy._item_signature(worn), slot))
-
-
-def retains_replaced_ring(policy, item) -> bool:
-    """The replaced ring is carried through the trip: no sale, deposit or destruction."""
-    memory = replaced_ring(policy)
-    return memory is not None and policy._item_signature(item) == memory[0]
+def retains_returning_ring(policy, item) -> bool:
+    """The target's ring for the lent slot is carried through the trip: no sale, deposit or
+    destruction."""
+    return slot_lending.retains(policy, item, slot_lending.ZUL_LEVITATION)
 
 
 def rewear_key(policy, snapshot) -> str | None:
-    """After the trip, in a town other than Zul: the replaced ring back in its slot."""
-    memory = replaced_ring(policy)
-    if memory is None or not snapshot.in_town or snapshot.store is not None:
+    """After the trip, in a town other than Zul: the lent ring slot back to the target's ring."""
+    lent = slot_lending.lent_slots(policy, slot_lending.ZUL_LEVITATION)
+    if not lent or not snapshot.in_town or snapshot.store is not None:
         return None
     record = getattr(policy, "_zul_trip", None)
     if trip_active(policy) or policy._effective_town_id(snapshot) == ZUL_TOWN_ID:
@@ -521,21 +511,25 @@ def rewear_key(policy, snapshot) -> str | None:
     if wanted(policy, snapshot) and not (
             record is not None and record.closed_epoch == policy._town_visit_epoch):
         return None  # the trip is still due this stay: the levitation ring stays on
-    signature, slot = memory
-    if any(policy._item_signature(piece) == signature for piece in snapshot.equipment):
-        setattr(policy, REPLACED_RING_ATTR, None)  # back on: the memory ends
-        return None
-    ring = next((item for item in snapshot.inventory
-                 if policy._item_signature(item) == signature), None)
-    if ring is None:
-        setattr(policy, REPLACED_RING_ATTR, None)  # no longer carried: nothing to put back
-        return None
-    if not _board_allows(policy, snapshot):
-        return None
-    key = policy._equipment_wield(snapshot, "zul-ring-restore", ring, slot)
-    if key is not None:
-        policy.last_reason = REWEAR_REASON
-    return key
+    for slot in lent:
+        if slot_lending.target_piece(policy, slot) is None:
+            # The target leaves the slot empty or has no ring for it: the visit's swap decides.
+            slot_lending.end(policy, slot)
+            continue
+        if any(slot_lending.is_target_piece(policy, piece, slot) for piece in snapshot.equipment):
+            slot_lending.end(policy, slot)  # back on: the lending ends
+            continue
+        ring = slot_lending.return_item(policy, snapshot, slot)
+        if ring is None:
+            slot_lending.end(policy, slot)  # not carried: nothing to put back
+            continue
+        if not _board_allows(policy, snapshot):
+            return None
+        key = slot_lending.wield_back(policy, snapshot, "zul-ring-restore", ring, slot)
+        if key is not None:
+            policy.last_reason = REWEAR_REASON
+        return key
+    return None
 
 
 def _levitation_key(policy, snapshot, record) -> str | None:

@@ -315,6 +315,12 @@ def normalize_policy_state(restored, *, restart=False):
     current_ledger = restored.__dict__.get("_town_visit_ledger")
     for name in _RETIRED_CLAIM_RECORD_NAMES + _RETIRED_SLOT_MEMORY_NAMES:
         restored.__dict__.pop(name, None)
+    # E5: the Zul trip's remembered ring (signature, slot) is now the lending of its slot.
+    replaced_ring = restored.__dict__.pop("_zul_replaced_ring", None)
+    if replaced_ring is not None:
+        lending = dict(restored.__dict__.get("_slot_lending") or {})
+        lending.setdefault(replaced_ring[1], "zul-levitation")
+        restored.__dict__["_slot_lending"] = lending
     restored.__dict__.setdefault("_trap_warning_cells", {})
     # The warning cells' restart record (warning_cell_record) postdates them.
     restored.__dict__.setdefault("_warning_cell_record_path", None)
