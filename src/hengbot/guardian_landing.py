@@ -27,16 +27,21 @@ from hengbot.item_reservation import decision_memo
 from hengbot.model import GridState, MonsterState, Position
 
 
-def _duel(policy, snapshot, info):
-    knowledge = policy._monrace_knowledge.get(info.guardian_id)
+def race_duel(policy, snapshot, race_id: int, label: str):
+    """(the duel board, the stand-in) of ``race_id`` alone: the race's static data
+    (MonraceDefinitions, fair play), adjacent, at its average HP, against the player at full HP
+    with the pack as it is; None for a race the knowledge lacks.  ``label`` names the stand-in
+    (``label:race``).  The guardian's landing (``guardian_tier``) and the random-quest target
+    judged on arrival (hunt_target ``_judge_quest_race``) read it."""
+    knowledge = policy._monrace_knowledge.get(race_id)
     if knowledge is None:
         return None
     hp = knowledge.average_hp or knowledge.max_hp
     player_position, target_position = Position(10, 10), Position(10, 11)
-    guardian = MonsterState(
-        index=-info.guardian_id, position=target_position, hp=hp, max_hp=hp, distance=1,
+    monster = MonsterState(
+        index=-race_id, position=target_position, hp=hp, max_hp=hp, distance=1,
         friendly=knowledge.friendly, pet=False, speed=knowledge.speed,
-        name=f"guardian:{info.guardian_id}", race_id=info.guardian_id,
+        name=f"{label}:{race_id}", race_id=race_id,
         can_summon=knowledge.can_summon, level=knowledge.level,
         max_melee_damage=knowledge.max_melee_damage,
         max_ranged_damage=knowledge.max_ranged_damage, can_multiply=knowledge.can_multiply)
@@ -46,8 +51,12 @@ def _duel(policy, snapshot, info):
     }
     board = replace(snapshot, player=replace(snapshot.player, position=player_position,
                                              hp=snapshot.player.max_hp),
-                    grids=grids, visible_monsters=[guardian], detected_monsters=[], store=None)
-    return board, guardian
+                    grids=grids, visible_monsters=[monster], detected_monsters=[], store=None)
+    return board, monster
+
+
+def _duel(policy, snapshot, info):
+    return race_duel(policy, snapshot, info.guardian_id, "guardian")
 
 
 def guardian_tier(policy, snapshot, info) -> str | None:

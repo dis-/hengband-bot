@@ -117,11 +117,15 @@ class RqT1TargetRecordedTest(unittest.TestCase):
 
     # ------------------------------------------------------------------ A and B
 
-    def test_the_t1_target_is_given_up_when_first_shown(self):
-        """Live 2451: search, then the walk toward it; now Word of Recall on that board."""
+    def test_the_t1_target_is_given_up_before_it_is_shown(self):
+        """Live 2451: search, then the walk toward it.  Now Word of Recall on decision 2450's
+        board already, before the target is shown: the quest list's race is judged (hunt_target
+        ``_judge_quest_race``, n1-b life-415 2026-11-22)."""
         policy, decided = self.replay()
-        self.assertEqual(decided[FIRST_SHOWN], ("rh", "return:recall"))
-        board = parse_snapshot(self.row(FIRST_SHOWN), self.races)
+        first = self.rows[0]["turn"]
+        self.assertNotIn(KANTORAS, [m["race_id"] for m in self.row(first)["detected_monsters"]])
+        self.assertEqual(decided[first], ("rh", "return:recall"))
+        board = parse_snapshot(self.row(first), self.races)
         self.assertEqual(policy._unviable_quest_floor, board.floor_key)
         self.assertFalse([turn for turn, (_, reason) in decided.items()
                           if reason.startswith("hunt:")])
@@ -159,12 +163,12 @@ class RqT1TargetRecordedTest(unittest.TestCase):
 
     def test_a_beatable_detected_target_is_still_hunted(self):
         """CONSTRUCTED: the quest's target and the detected monster made a 醜い浮浪者 (Lv0)."""
-        raw = self.row(FIRST_SHOWN)
-        next(q for q in raw["progress"]["quests"] if q["id"] == QUEST)["r_idx"] = BEGGAR
+        raw = self.beatable_quest(self.row(FIRST_SHOWN))
         target = next(m for m in raw["detected_monsters"] if m["race_id"] == KANTORAS)
         target.update(race_id=BEGGAR, level=0)
-        policy = self.policy(self.rows[0])
-        self.decide(policy, self.row(self.rows[0]["turn"]))
+        first = self.beatable_quest(self.row(self.rows[0]["turn"]))
+        policy = self.policy(first)
+        self.decide(policy, first)
         board, _, reason = self.decide(policy, raw)
         self.assertEqual(reason, "explore")  # live 2451 searched on the first sight as well
         raw["turn"] += 4  # CONSTRUCTED: the same board one decision later
@@ -177,9 +181,11 @@ class RqT1TargetRecordedTest(unittest.TestCase):
 
     def test_no_hunt_step_where_instant_death_holds(self):
         """CONSTRUCTED: the target's verdict left out (``_judge_quest_target`` a no-op: as a
-        T2/T3 target it is hunted), so the walk runs on the recorded boards; on decision 2467's
-        board 即死 holds and the walk takes no step (live: '1' toward it, then 67 HP)."""
-        with mock.patch.object(hunt_target, "_judge_quest_target", lambda *_: None):
+        T2/T3 target it is hunted; the arrival's verdict from the quest list's race,
+        ``_judge_quest_race``, left out as well), so the walk runs on the recorded boards; on
+        decision 2467's board 即死 holds and the walk takes no step (live: '1' toward it, then
+        67 HP)."""
+        with mock.patch.object(hunt_target, "_judge_quest_target", lambda *_: None),                 mock.patch.object(hunt_target, "_judge_quest_race", lambda *_: None):
             _, decided = self.replay()
             policy = self.policy(self.rows[0])
             for raw in self.rows:
@@ -193,10 +199,18 @@ class RqT1TargetRecordedTest(unittest.TestCase):
 
     # ------------------------------------------------------------------ D
 
+    @staticmethod
+    def beatable_quest(raw):
+        """CONSTRUCTED: the quest list's target race made a 醜い浮浪者 (Lv0), so the floor is not
+        given up from it on arrival (hunt_target ``_judge_quest_race``)."""
+        next(q for q in raw["progress"]["quests"] if q["id"] == QUEST)["r_idx"] = BEGGAR
+        return raw
+
     def titan_board(self, dy, dx):
         """CONSTRUCTED: decision 2450's board (14,132; no target shown) with one awake タイタン
-        detected at the offset, its only detected monster; the absorbed *破壊* staff row."""
-        raw = self.row(self.rows[0]["turn"])
+        detected at the offset, its only detected monster; the absorbed *破壊* staff row; the
+        quest's target a beatable race (``beatable_quest``: the exit lock holds)."""
+        raw = self.beatable_quest(self.row(self.rows[0]["turn"]))
         raw["messages"] = []
         template = raw["detected_monsters"][0]
         raw["detected_monsters"] = [dict(template, index=900, race_id=TITAN, asleep=False,

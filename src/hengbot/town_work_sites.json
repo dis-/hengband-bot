@@ -17727,6 +17727,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "threat_tiers.py:given_up_stairs": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "threat_tiers.py:instant_death_key": {
     "classification": "producer",
     "rows": [

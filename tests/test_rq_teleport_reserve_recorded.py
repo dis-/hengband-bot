@@ -35,6 +35,11 @@ from tests.test_town_decision_speed_caches import EDIT
 FIXTURE = Path(__file__).with_name("fixtures") / "rq-teleport-reserve-1101.json.gz"
 QUEST_ID = 45
 QUEST_TARGET_RACE = 1347
+# DECLARED CONSTRUCTED (the reserve pins): the quest list's race made race 85 (Lv4), so the
+# arrival's T1 verdict from the race (hunt_target ``_judge_quest_race``, n1-b life-415
+# 2026-11-22: the Killer Rabbit, speed +25, reads T1 for this Lv38 warrior and gives the floor
+# up at once) does not decide these floors; the scroll reserve does.
+BEATABLE_QUEST_RACE = 85
 
 
 class RandomQuestTeleportReserveRecordedTest(_dungeon_support.RecordedHarness):
@@ -44,9 +49,14 @@ class RandomQuestTeleportReserveRecordedTest(_dungeon_support.RecordedHarness):
             cls.cases = json.load(stream)
         cls.monraces = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
-    def replay(self, name):
-        """Decide every board but the last; return the policy and that board."""
+    def replay(self, name, *, quest_race=None):
+        """Decide every board but the last; return the policy and that board.  ``quest_race``
+        replaces the quest list's target race on every board (DECLARED CONSTRUCTED)."""
         boards = self.boards(name)
+        if quest_race is not None:
+            boards = copy.deepcopy(boards)
+            for raw in boards:
+                next(q for q in raw["progress"]["quests"] if q["id"] == QUEST_ID)["r_idx"] = quest_race
         policy = HengbotPolicy(monrace_knowledge=dict(self.monraces))
         policy.prime(parse_snapshot(copy.deepcopy(boards[0]), policy._monrace_knowledge))
         for raw in boards[:-1]:
@@ -65,7 +75,7 @@ class RandomQuestTeleportReserveRecordedTest(_dungeon_support.RecordedHarness):
                 self.assertNotIn(QUEST_TARGET_RACE, [m.get("race_id") for m in seen])
 
     def test_below_the_reserve_the_return_reads_recall(self):
-        policy, raw = self.replay("reserve-reached")
+        policy, raw = self.replay("reserve-reached", quest_race=BEATABLE_QUEST_RACE)
         board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertEqual(policy._active_kill_quest_id(board), QUEST_ID)
         self.assertEqual(policy._count_teleport_scrolls(board),
@@ -81,7 +91,7 @@ class RandomQuestTeleportReserveRecordedTest(_dungeon_support.RecordedHarness):
                                    self.later(raw)), ["r", recall.slot])
 
     def test_at_the_reserve_the_quest_floor_stays_locked(self):
-        policy, raw = self.replay("reserve-held")
+        policy, raw = self.replay("reserve-held", quest_race=BEATABLE_QUEST_RACE)
         board = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         self.assertEqual(policy._count_teleport_scrolls(board), RANDOM_QUEST_TELEPORT_RESERVE)
         decide(policy, copy.deepcopy(raw))

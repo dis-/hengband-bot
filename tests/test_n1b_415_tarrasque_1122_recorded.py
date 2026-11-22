@@ -11,9 +11,15 @@ waited 13 turns (return:wait-recall) while the target closed from 20 to 6; *Dest
 withheld for it (destruction_use spares the quest target).  Two breaths (about 1,040) killed it
 on 8037.
 
-Pinned here (owner 2026-11-22 「帰還すると決めたら標的を破壊に巻き込んで良い」): once the Recall away
-from the target is decided, *Destruction* is no longer withheld for the target in its radius
-(destruction_use ``_target_race``); before that decision the target is still spared.
+Pinned here:
+
+ A (the defect, owner 2026-11-13 「T1 の標的と分かったら追わずに帰還を読み、クエストは失敗にする。
+   標的が近づく前に離れる。」): the arrival judges the target from the quest list's race
+   (hunt_target ``_judge_quest_race``), gives the floor up at once, and leaves by the up staircase
+   underfoot before any approach steps off it (threat_tiers ``given_up_stairs``).
+ B (owner 2026-11-22 「帰還すると決めたら標的を破壊に巻き込んで良い」): once the Recall away from
+   the target is decided, *Destruction* is no longer withheld for the target in its radius
+   (destruction_use ``_target_race``); before that decision the target is still spared.
 
 Every decision is the public ``choose_key`` of a fresh fully loaded policy fed the recorded
 boards in order (tests/support/recorded ``_policy``).  DECLARED CONSTRUCTED: the absorbed staff
@@ -34,7 +40,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import destruction_use, threat_tiers
+from hengbot import destruction_use, hunt_target, threat_tiers
 from hengbot.me_device_attacks import observe_lists
 from hengbot.model import game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -48,6 +54,7 @@ ARRIVAL = 2124039                      # decision 8018, on the up staircase (24,
 FIRST_SHOWN = 2124052                  # decision 8021's board: Detect Evil shows it, 20 off
 IN_REACH = 2124076                     # decision 8029's board: the target 12 cells off
 DEATH = 2124107                        # decision 8037
+BEGGAR = 10                            # 醜い浮浪者 (Lv0), a beatable stand-in
 STAFF = (row("テレポート", 3, current=15, count=15), row("邪悪存在感知", 1, current=25, count=25),
          row("スピード", 5, current=11, count=11), row("*破壊*", 10, current=7, count=7))
 DESTRUCTION_REASONS = ("emergency:destruction:absorbed-power",
@@ -134,6 +141,58 @@ class N1b415Tarrasque1122RecordedTest(unittest.TestCase):
         self.assertEqual([m.race_id for m in (*reach.visible_monsters, *reach.detected_monsters)
                           if destruction_use.in_sure_radius(reach, m)], [TARRASQUE])
         self.assertTrue(reach.player.recalling)
+
+    # ------------------------------------------------------------------ A: the arrival
+
+    def test_the_arrival_gives_the_floor_up_and_takes_the_stair_underfoot(self):
+        """Live 8018-8019: Speed, then a step off the up staircase toward a sleeping T1; now '<'
+        on the arrival board, the floor given up from the quest list's race."""
+        policy, decided = self.replay()
+        self.assertEqual(decided[ARRIVAL], ("<", "sensed-t1:stairs"))
+        board = parse_snapshot(self.row(ARRIVAL), self.races)
+        self.assertEqual(policy._unviable_quest_floor, board.floor_key)
+
+    def test_the_quest_list_race_is_judged_on_arrival(self):
+        raw = self.row(ARRIVAL)
+        policy = self.policy(raw)
+        board = parse_snapshot(raw, self.races)
+        key = policy.choose_key(board)
+        visit = hunt_target._visit(policy, board)
+        self.assertTrue(visit.quest_race_judged)
+        self.assertTrue(visit.quest_unbeatable)
+        self.assertTrue(hunt_target.quest_target_unbeatable(policy, board))
+        self.assertFalse(policy._quest_floor_exit_locked(board))
+        self.assertEqual((key, policy.last_reason), ("<", "sensed-t1:stairs"))
+
+    def test_a_beatable_quest_race_does_not_give_the_floor_up(self):
+        """CONSTRUCTED: the quest list's race made a 醜い浮浪者 (Lv0): no verdict gives the floor
+        up, its exit lock holds and no stair is taken."""
+        raw = self.row(ARRIVAL)
+        next(q for q in raw["progress"]["quests"] if q["id"] == QUEST)["r_idx"] = BEGGAR
+        policy = self.policy(raw)
+        board = parse_snapshot(raw, self.races)
+        key = policy.choose_key(board)
+        self.assertTrue(hunt_target._visit(policy, board).quest_race_judged)
+        self.assertFalse(hunt_target.quest_target_unbeatable(policy, board))
+        self.assertIsNone(policy._unviable_quest_floor)
+        self.assertTrue(policy._quest_floor_exit_locked(board))
+        self.assertNotEqual(key, "<")
+
+    def test_a_sleeping_t1_in_reach_does_not_keep_the_player_on_the_given_up_floor(self):
+        """CONSTRUCTED: the arrival board with the sleeping スカイ・ドレイク (race 793, the T1 the
+        approach went to, 14 cells off) moved to (22,113), 12 off: the use could be cast from the
+        staircase, and the emergency layer's sensed T1 *Destruction* declines for the staircase
+        underfoot (threat_tiers ``sensed_t1_destruction_key``), as it does where no approach
+        owns the board."""
+        raw = self.row(ARRIVAL)
+        drake = next(m for m in raw["detected_monsters"] if m["race_id"] == 793)
+        drake["x"] = 113
+        policy = self.policy(raw)
+        board = parse_snapshot(raw, self.races)
+        moved = next(m for m in board.detected_monsters if m.race_id == 793)
+        self.assertEqual(game_distance(board.player.position, moved.position), 12)
+        key = policy.choose_key(board)
+        self.assertEqual((key, policy.last_reason), ("<", "sensed-t1:stairs"))
 
     # ------------------------------------------------------------------ B: after the decision
 

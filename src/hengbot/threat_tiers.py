@@ -519,6 +519,12 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
     # a walk, stays the 2026-11-08 rule's (「感知で起きている倒しきれない敵が見えている時に休むか」→
     # 「その敵の感知範囲内なら早急に離脱する」): the awake T1s with the player inside their sensing
     # radius (``_sensed_strong`` ``leave``).
+    # The floor given up for its quest target (``given_up_stairs``): the up staircase underfoot
+    # first, before any walk off it toward a T1 (n1-b life-415).
+    if (stairs := given_up_stairs(policy, snapshot)) is not None:
+        note_line_of_fire(policy, snapshot, strong)
+        policy.last_reason = SENSED_LEAVE_PREFIX + "stairs"
+        return stairs
     # Owner 2026-11-10 (the n1-b life-367 report's P2, verbatim 「積極的に*破壊*で消しにいく」):
     # a T1 known only by detection is gone to and destroyed, not left (``approach_key``).
     if approach_owns(policy, snapshot, strong):
@@ -696,6 +702,22 @@ def _upstairs_underfoot(policy, snapshot) -> bool:
             and not policy._quest_floor_exit_locked(snapshot))
 
 
+def given_up_stairs(policy, snapshot) -> str | None:
+    """The up staircase underfoot (``_escape_by_stairs``) on a floor given up for its quest target
+    (destruction_use ``target_given_up``: the Recall away from it decided), else None.  Asked by
+    the sensed T1 rungs before the approach to *Destruction* steps off it.
+
+    Owner 2026-11-13 (the n1-c life-205 question, 「T1 の標的と分かったら追わずに帰還を読み、
+    クエストは失敗にする。標的が近づく前に離れる。」).  n1-b life-415 (Angband 76F, RANDOM quest
+    42, 2026-11-22 17:08): arrived on the up staircase (24,102), the approach stepped off it
+    toward a sleeping T1 for *Destruction* (decision 8019) while the quest list already named the
+    T1 target 『タラスク』; the Recall read four decisions later was awaited 13 turns until its
+    breaths killed the player."""
+    if not destruction_use.target_given_up(policy, snapshot) or not _upstairs_underfoot(policy, snapshot):
+        return None
+    return policy._escape_by_stairs(snapshot)
+
+
 def sensed_t1_destruction_key(policy, snapshot) -> str | None:
     """The sensed T1 leave's *Destruction* alone, asked in the emergency layer directly above
     the Magic-Eater's THREAT powers (dungeon_ladder); else None and the leave stays where it
@@ -717,6 +739,10 @@ def sensed_t1_destruction_key(policy, snapshot) -> str | None:
         return None
     _, strong = _sensed_strong(policy, snapshot)
     if not strong:
+        return None
+    if destruction_use.target_given_up(policy, snapshot) and _upstairs_underfoot(policy, snapshot):
+        # The floor given up for its quest target: the leave's up staircase first
+        # (``given_up_stairs``), before an approach's use as well.
         return None
     approaching = approach_owns(policy, snapshot, strong)
     if approaching:
