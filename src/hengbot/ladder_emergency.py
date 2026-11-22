@@ -60,6 +60,11 @@ def key(policy, snapshot, *, emergency_hostiles, paralyzers, physical_hostiles, 
         # Owner 2026-11-09 E: a T1 sent away is remembered; its vanishing returns to town.
         sent_away_t1.note(policy, snapshot)
         return threat_power
+    # Owner 2026-11-22 「撃つ」: awaiting the Recall on a 50F+ floor whose *Destruction* is spent,
+    # a T1 known only by detection with a line of fire is sent away too (me_powers SENSED_THREAT).
+    sensed_threat_power = me_powers.sensed_threat_key(policy, snapshot)
+    if sensed_threat_power is not None:
+        return sensed_threat_power
 
     item_destroying_breeder_exit = policy._town_producer_entry(
         "_item_destroying_breeder_leave_key",

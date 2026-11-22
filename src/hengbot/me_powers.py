@@ -43,7 +43,13 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    THREAT occasion once per visible hostile, nearest first, from the dungeon
    ladder after the emergency consumables.  Owner 2026-11-02 「テレポート
    アウェイがあるなら初手でフォルンをどかす。」: the QUEST_OPENING occasion is
-   asked with a quest plan's opening target (quest_opening_away).
+   asked with a quest plan's opening target (quest_opening_away).  Owner 2026-11-22 「撃つ」
+   (the 11-01 words take a monster known only by detection with a line of fire): on a 50F+
+   floor whose *Destruction* is spent, while the Recall is awaited, the SENSED_THREAT occasion
+   is asked with each awake detected hostile (``sensed_threat_key``), aimed at its cell
+   (``@y,x``: the executor moves the target cursor there in the free mode; project_hook adds
+   PROJECT_THRU, so the beam runs the line through the cell, spells-launcher.cpp:262-267, and
+   AWAY_ALL takes any monster on it, seen or not).
  - 全感知 (rod 6): detect_all(detect_rad) (cmd-item/cmd-zaprod.cpp:107,
    spell-kind/spells-detection.cpp:622): traps, doors, stairs, gold, objects,
    invisible and normal monsters, a superset of detect_monsters_evil.  Owner
@@ -136,6 +142,9 @@ SECRET_SEARCH = "secret-search"
 TRAP = "trap"            # asked with the trap the bot would disarm
 TRAP_CELL = "trap-cell"  # asked by quest25_battle for a map trap cell not yet settled
 THREAT = "threat"        # asked with each visible hostile (threat_key)
+# Asked with each awake hostile known only by detection while the Recall is awaited on a 50F+
+# floor whose *Destruction* is spent (sensed_threat_key, owner 2026-11-22 「撃つ」).
+SENSED_THREAT = "sensed-threat"
 QUEST_OPENING = "quest-opening"  # asked with a quest plan's opening target (quest_opening_away)
 FIGHT = "fight"          # asked in place of a decided attack (fight_key)
 # Asked by a quest plan missing the cells of remaining enemies (quest_detect_remaining, owner
@@ -262,11 +271,11 @@ POWERS = (
     # The rod is ready again sooner than the wand (both refill, me_device_attacks'
     # regenmagic note), so it comes before the wand.
     Power("rod", SV_ROD_TELEPORT_AWAY, devices()[(TVAL_ROD, SV_ROD_TELEPORT_AWAY)].names,
-          "teleport-away", 0, 70, ("unbeatable-in-range", "quest-opening-target"),
+          "teleport-away", 0, 70, ("unbeatable-in-range", "sensed-t1-in-line", "quest-opening-target"),
           darkness_scaled=False,
           aimed=True, against_hostile=True),
     Power("wand", SV_WAND_TELEPORT_AWAY, devices()[(TVAL_WAND, SV_WAND_TELEPORT_AWAY)].names,
-          "teleport-away", 0, 71, ("unbeatable-in-range", "quest-opening-target"),
+          "teleport-away", 0, 71, ("unbeatable-in-range", "sensed-t1-in-line", "quest-opening-target"),
           darkness_scaled=False,
           aimed=True, against_hostile=True),
     Power("staff", SV_STAFF_SPEED, me_capability.names("staff", SV_STAFF_SPEED),
@@ -334,15 +343,22 @@ class Context:
 
     @property
     def aim(self) -> str | None:
-        """The direction key of a beam that reaches ``target``, else None."""
-        return None if self.target is None else beam_direction(
-            self.policy, self.snapshot, self.position, self.target)
+        """The direction key of a beam that reaches ``target``, else None; for SENSED_THREAT
+        the target cell (``@y,x``) when a projection reaches it."""
+        if self.target is None:
+            return None
+        if self.occasion == SENSED_THREAT:
+            cell = beam_cell(self.policy, self.snapshot, self.position, self.target)
+            return None if cell is None else f"@{cell.y},{cell.x}"
+        return beam_direction(self.policy, self.snapshot, self.position, self.target)
 
     @cached_property
     def target_hostile(self):
-        """The visible hostile on ``target``, else None."""
-        return next((monster for monster in self.policy._physical_hostiles(self.snapshot)
-                     if monster.position == self.target), None)
+        """The visible hostile on ``target`` (for SENSED_THREAT the detected one), else None."""
+        shown = (self.snapshot.detected_monsters if self.occasion == SENSED_THREAT
+                 else self.policy._physical_hostiles(self.snapshot))
+        return next((monster for monster in shown
+                     if monster.hostile and monster.position == self.target), None)
 
     @cached_property
     def hostile_visible(self) -> bool:
@@ -351,6 +367,33 @@ class Context:
     @cached_property
     def threat_visible(self) -> bool:
         return visible_threat(self.policy, self.snapshot)
+
+
+def beam_cell(policy, snapshot, origin: Position, target: Position) -> Position | None:
+    """The cell to aim a beam at (the target cursor's free mode) so that it passes ``target``,
+    the nearest such cell to ``target`` first, else None.
+
+    project_hook adds PROJECT_THRU (spell-kind/spells-launcher.cpp:262-267): the beam runs the
+    line from the player through the aimed cell up to get_max_range().  The line toward the
+    target itself may meet a wall the target's own line to the player passes (the path is not
+    symmetric): n1-c life-219 (2026-11-22 05:56:12) 『マダム・デビ』 at (34,27) breathed at the
+    player at (37,17) along (35,22)-(36,21), while the player's line to (34,27) stops at the
+    wall (36,22); aimed at (34,26) it passes her.  A known grid that stops the player's
+    projection ends the beam (policy._stops_player_projection, glass too, as beam_direction);
+    an unknown grid does not, as the monster's own line reads it (line_of_fire ``danger``):
+    telepathy shows it through grids never seen."""
+    cells = [Position(y, x)
+             for y in range(origin.y - MONSTER_SPELL_MAX_RANGE, origin.y + MONSTER_SPELL_MAX_RANGE + 1)
+             for x in range(origin.x - MONSTER_SPELL_MAX_RANGE, origin.x + MONSTER_SPELL_MAX_RANGE + 1)
+             if (y, x) != (origin.y, origin.x)]
+    cells.sort(key=lambda cell: (max(abs(cell.y - target.y), abs(cell.x - target.x)),
+                                 cell.y, cell.x))
+    for cell in cells:
+        if target in projection_path(
+                origin, cell, MONSTER_SPELL_MAX_RANGE,
+                lambda position: policy._stops_player_projection(snapshot, position), through=True):
+            return cell
+    return None
 
 
 def beam_direction(policy, snapshot, origin: Position, target: Position) -> str | None:
@@ -704,6 +747,24 @@ def _unbeatable_in_range(ctx, power):
         damage_against=lambda each: me_ranged_first.best_expected(policy, ctx.snapshot, each))
 
 
+def _sensed_unbeatable_in_fire(ctx, power):
+    """Owner 2026-11-22 「撃つ」: the SENSED_THREAT target (an awake hostile known only by
+    detection) cannot be beaten alone (threat_tiers ``alone_t1``, judged from contact as the
+    sensed T1 rules read one), has a line of fire to the player (line_of_fire ``danger``), the
+    player's beam reaches its cell (``aim``), and it does not surely resist (RES_TELE with
+    UNIQUE or RES_ALL).  n1-c life-219 (Angband 80F, 2026-11-22 05:56:12, decisions 14437-14443):
+    the *Destruction* spent, the Recall awaited, 『マダム・デビ』 awake 10 off behind the
+    telepathy alone; the bot waited ('5') through her confusion, nether and chaos breaths and
+    died to 混沌 after the Teleportation."""
+    from hengbot import line_of_fire, threat_tiers  # import cycle
+
+    monster = ctx.target_hostile
+    return (monster is not None and not monster.asleep and ctx.aim is not None
+            and not _resists_teleport_surely(ctx, monster)
+            and line_of_fire.danger(ctx.policy, ctx.snapshot, monster)
+            and threat_tiers.alone_t1(ctx.policy, ctx.snapshot, monster, contact=True))
+
+
 def _deep_floor(ctx) -> bool:
     return ctx.snapshot.dungeon_level >= DEEP_FLOOR_DEPTH
 
@@ -764,6 +825,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     # Owner 2026-11-09 「罠探知があるなら使用することで確定」: the caller asks once per cell.
     Trigger("trap-cell-unsettled", frozenset({TRAP_CELL}), lambda ctx, power: True),
     Trigger("unbeatable-in-range", frozenset({THREAT}), _unbeatable_in_range),
+    Trigger("sensed-t1-in-line", frozenset({SENSED_THREAT}), _sensed_unbeatable_in_fire),
     Trigger("quest-opening-target", frozenset({QUEST_OPENING}), _quest_opening_target),
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
     Trigger("quest-remaining-unseen", frozenset({QUEST_REMAINING}), _quest_remaining_unseen),
@@ -972,6 +1034,23 @@ def threat_key(policy, snapshot) -> str | None:
     """The THREAT occasion aimed at each visible hostile, nearest first."""
     for monster in sorted(policy._physical_hostiles(snapshot), key=lambda each: each.distance):
         if (key := power_key(policy, snapshot, THREAT, monster.position)) is not None:
+            return key
+    return None
+
+
+def sensed_threat_key(policy, snapshot) -> str | None:
+    """The SENSED_THREAT occasion aimed at each awake hostile known only by detection, nearest
+    first, on a 50F+ floor whose *Destruction* is spent (destruction_use ``means_spent``) while
+    the Recall is awaited; else None (owner 2026-11-22 「撃つ」, ``_sensed_unbeatable_in_fire``)."""
+    from hengbot import destruction_use  # import cycle
+
+    if not snapshot.player.recalling or not destruction_use.means_spent(policy, snapshot):
+        return None
+    here = snapshot.player.position
+    sensed = [monster for monster in snapshot.detected_monsters
+              if monster.hostile and not monster.asleep]
+    for monster in sorted(sensed, key=lambda each: game_distance(here, each.position)):
+        if (key := power_key(policy, snapshot, SENSED_THREAT, monster.position)) is not None:
             return key
     return None
 

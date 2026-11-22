@@ -11569,6 +11569,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:beam_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Pure geometry: the cell nearest a target whose PROJECT_THRU beam (project_hook, spells-launcher.cpp:262-267) from the player passes the target over the known map, a known grid stopping the player's projection ending it and the unknown grids open (policy._stops_player_projection), else None; no command.",
+    "delegation": "selected child; no independent success"
+  },
   "me_powers.py:beam_direction": {
     "classification": "data",
     "rows": [
@@ -11874,6 +11885,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-04 「魔道具術師　取り込んだスピードが残10回以上なら、特にピンチでなくても戦闘時加速する」「成功率8割以上のときに限定して」: me_powers.power_key's FIGHT occasion (the Speed row) in place of a decided attack on an awake hostile (attack_answer); me_powers._gate refuses the town, the wilderness and a store first, so no town key is replaced: in town it returns the key it was given, so it cannot name the decision's producer (a dungeon-only return here took the work record, the route and the effect credit, of every town decision: 11-05 owner-retired-burst on plain walks).",
     "delegation": "selected child; no independent success"
+  },
+  "me_powers.py:sensed_threat_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "evidence": "Owner 2026-11-22 「撃つ」: while Word of Recall counts down on a floor destruction_use.means_spent holds (50F+, *Destruction* spent), me_powers.power_key's SENSED_THREAT occasion asked with each awake hostile known only by detection, nearest first (the Teleport Away rows aimed at a beam_cell whose beam passes a T1 alone with a line of fire that does not surely resist); None otherwise. Called once from the emergency layer after threat_key; power_key's gate keeps it out of town and the wilderness.",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "me_powers.py:threat_key": {
     "classification": "dungeon-only",
@@ -19565,6 +19587,17 @@
     ],
     "context": "Dungeon only: deep_teleport.applies holds (dungeon_level >= 50 where threat_tiers.acts_here holds: not town, store or arena, no approved quest plan).",
     "evidence": "substitute for a read of Teleportation or Phase Door only (asked from _read_key, _issue_emergency_consumable, the breeders' read and the enclosure's read); None for any other item; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "destruction_use.py:breeder_comeback_recall_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: destruction_use.comeback_races is non-empty (a 50F+ floor where threat_tiers.acts_here holds, not a quest floor, a landed *Destruction* among ranged breeders that are shown again), not while Recall counts down, blind or confused.",
+    "evidence": "Owner 2026-11-22 「群れの数に関わらず破壊対象とする。1度で消しきれないなら帰還を読む。」: latches the town return (return_start.start) and reads Word of Recall (breeder-comeback:recall) in the above-emergency layer; None on the 50F+ instant-death board (deep_teleport.allows) or without a read; no independent progress.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
