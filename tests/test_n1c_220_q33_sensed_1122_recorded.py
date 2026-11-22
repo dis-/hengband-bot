@@ -53,6 +53,11 @@ HOLD_CELL = Position(1, 27)
 # bot's reach for a shot (RANGED_MAX_DISTANCE 10), as [1,27] (14 grids) is not.
 SHOT_CELL = Position(3, 33)
 SHIP_CELLS = {"@4,41", "@5,41"}
+# Within the 船幽霊's vision (20) and with no line of fire from them: they act on the player there
+# (quest_summon_answer.acting_around) and never come (AQUATIC, in deep water).
+ACTED_ON_CELL = Position(1, 22)
+LIST_READ_REASON = "periodic:magic-eater-powers"
+HASTED_BOARDS = 13  # the boards before the haste ran out at 19:35:56 (HP 682 to 634)
 PHANTOM_SHIP = 1389
 INSTANT_DEATH_TURN = 3211903  # HP 119, the capture's 即死 (p95 164)
 ABSORBED = {me_capability.record_key("staff", SV_STAFF_TELEPORTATION): 20,
@@ -89,13 +94,17 @@ class N1c220SensedChooseKeyTest(unittest.TestCase):
         snapshot = parse_snapshot(raw, self.policy._monrace_knowledge)
         return replace(snapshot, player=replace(snapshot.player, two_weapon_skill=0, shield_skill=0))
 
-    def answers(self, *, at=None, boards=None, disengaged=True):
+    def answers(self, *, at=None, boards=None, disengaged=True, full_hp=False, kinds=None):
         """choose_key over the recorded boards (the first ``boards``), the player on ``at`` if given;
-        ``disengaged``: the plan in the summon answer's steps after a disengage (else its own fight)."""
+        ``disengaged``: the plan in the summon answer's steps after a disengage (else its own fight);
+        ``full_hp``: the HP at its maximum; ``kinds``: the displayed power lists kept (None: all)."""
         out = []
+        lists = {kind: rows for kind, rows in self.lists.items() if kinds is None or kind in kinds}
         for raw in load("boards.json.xz")[:boards]:
             if at is not None:
                 raw = {**raw, "player": {**raw["player"], "y": at.y, "x": at.x}}
+            if full_hp:
+                raw = {**raw, "player": {**raw["player"], "hp": raw["player"]["max_hp"]}}
             snapshot = self.snapshot(raw)
             navigator = _navigator(self.policy, snapshot, QUEST)
             if not disengaged:
@@ -104,7 +113,7 @@ class N1c220SensedChooseKeyTest(unittest.TestCase):
                 navigator.summon_state = quest_summon_answer.DISENGAGED
             if snapshot.turn == INSTANT_DEATH_TURN:
                 navigator.sweep_heal_next = False
-            self.policy._me_device_lists = dict(self.lists)
+            self.policy._me_device_lists = dict(lists)
             self.policy._me_staff_sequence.absorbed.update(ABSORBED)
             key = str(self.policy.choose_key(snapshot))
             out.append((snapshot, self.policy.last_reason, key))
@@ -157,6 +166,41 @@ class N1c220SensedChooseKeyTest(unittest.TestCase):
                     self.assertEqual(snapshot.player.position, SHOT_CELL)
                     self.assertEqual(reason, "ranged:magic-eater-device", snapshot.turn)
                     self.assertIn(key[key.index("@"):], SHIP_CELLS)
+
+    def assert_no_hold(self, answers):
+        for snapshot, reason, key in answers:
+            self.assertNotEqual((reason, key), (quest_room_sweep.HOLD_REASON, WAIT_KEY), snapshot.turn)
+
+    def test_casters_out_of_reach_are_closed_on(self):
+        # The recorded boards while the haste lasted: 14 grids off, beyond the bot's shot, the player
+        # walks toward a cell the shot is taken from instead of holding in their line.
+        for disengaged in (True, False):
+            with self.subTest(disengaged=disengaged):
+                answers = self.answers(boards=HASTED_BOARDS, disengaged=disengaged)
+                self.assert_no_hold(answers)
+                self.assertEqual({reason for _snapshot, reason, _key in answers},
+                                 {quest_summon_answer.FIRE_APPROACH_REASON})
+
+    def test_without_a_shot_the_line_is_left(self):
+        # DECLARED CONSTRUCTED: only the staff list displayed (no absorbed attack power; life-220
+        # carried no rounds for its launcher): no shot reaches the casters from anywhere.
+        for disengaged in (True, False):
+            with self.subTest(disengaged=disengaged):
+                answers = self.answers(boards=HASTED_BOARDS, disengaged=disengaged, kinds={"staff"})
+                self.assert_no_hold(answers)
+                # Between the walks the policy asks for the power lists it does not hold
+                # (me_powers_refresh), as the rest-loop replay of this life does.
+                reasons = [reason for _snapshot, reason, _key in answers]
+                self.assertLessEqual(set(reasons), {quest_summon_answer.FIRE_WALK_REASON, LIST_READ_REASON})
+                self.assertIn(quest_summon_answer.FIRE_WALK_REASON, reasons)
+
+    def test_a_caster_that_never_comes_is_not_waited_for(self):
+        # DECLARED CONSTRUCTED: the player on ACTED_ON_CELL at full HP.  The AQUATIC casters act on
+        # him there and never come: the plan closes on them (the lure's walk to a cell they would be
+        # seen from), not holds for the plan's 200-hold wait.
+        answers = self.answers(at=ACTED_ON_CELL, boards=8, full_hp=True)
+        self.assert_no_hold(answers)
+        self.assertIn(quest_summon_answer.LURE_WALK_REASON, {reason for _snapshot, reason, _key in answers})
 
 
 class Q18SensedFireTest(unittest.TestCase):

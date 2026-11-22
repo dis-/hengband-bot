@@ -192,8 +192,13 @@ def holds(policy, snapshot) -> bool:
 
 
 def planned_step(policy, snapshot) -> bool:
-    """This board's step is the plan's own: the low-HP walk gate does not rewrite it."""
-    return (policy.last_reason in {WALK_REASON, EXIT_WALK_REASON, COVER_REASON, CLOSE_REASON}
+    """This board's step is the plan's own: the low-HP walk gate does not rewrite it.  The steps
+    toward a shot at what fires at the player, or out of its line (quest_summon_answer
+    ``fire_answer_key``), are the plan's answer to that fire; its heal line (50% on QUEST_33) and
+    withdrawal line answer the HP on the way."""
+    return (policy.last_reason in {WALK_REASON, EXIT_WALK_REASON, COVER_REASON, CLOSE_REASON,
+                                   quest_summon_answer.FIRE_APPROACH_REASON,
+                                   quest_summon_answer.FIRE_WALK_REASON}
             and _plan(policy, snapshot) is not None)
 
 
@@ -659,6 +664,11 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
         navigator.sweep_enemy_turns += 1
         policy.last_reason = HOLD_REASON
         return WAIT_KEY
+    # What fires at the player from out of view and no shot above reached (it stays and casts,
+    # quest_wait_placement): closed on to be shot, or left (owner 2026-11-19 「有効な場所で待つ」).
+    if board.firing and (answered := quest_summon_answer.fire_answer_key(
+            policy, snapshot, navigator, plan, board, board.firing)) is not None:
+        return answered
     if not board.in_view and (unseen := _unseen_key(policy, snapshot, navigator, plan, board)) is not None:
         return unseen
     if not board.in_view and not board.left_alone:

@@ -233,6 +233,18 @@ _rows(EXCLUDED, "quest_summon_answer", _RULE_PLAN + " (QUEST_33's answer to a su
       "quest-strategy:summoned-teleport-staff", "quest-strategy:summoned-disengage-teleport-staff")
 _rows(WALK, "quest_summon_answer", "a walk out of the summoner's lines (owner 2026-11-09 「歩いての後退は数えない」)",
       "quest-strategy:summoned-disengage-walk")
+# A room-sweep plan's answer to a hostile out of view that fires at the player and no shot reaches
+# (quest_summon_answer.fire_answer_key; owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な
+# 場所で待つ」, n1-c life-220 2026-11-22): the step toward a cell it is shot from, else out of its line,
+# else the teleport (the absorbed Teleportation first on Quest 33).
+_rows(EXCLUDED, "quest_summon_answer", _RULE_PLAN + " (a room sweep's leave of a line of fire)",
+      "quest-strategy:fire-disengage-teleport", "quest-strategy:fire-disengage-teleport:absorbed-power",
+      # teleport_follower.device_teleport_key's carried-staff reason, never sent here.
+      "quest-strategy:fire-disengage-teleport-staff")
+_rows(WALK, "quest_summon_answer", "a walk out of a line of fire (owner 2026-11-09 「歩いての後退は数えない」)",
+      "quest-strategy:fire-disengage-walk")
+_rows(NOT_ESCAPE, "quest_summon_answer", "a room sweep's step toward a cell it shoots a firing hostile from",
+      "quest-strategy:fire-approach")
 # Owner 2026-11-19 「安全になったら休息してから召還主や召還されたモンスターを少しずつ釣りだして数を減らす」:
 # the walk to the pulling cell of a member of the group, and the rest before it.
 _rows(NOT_ESCAPE, "reset_recall", "a town read of the Scroll of Reset Recall that sets Angband's "
