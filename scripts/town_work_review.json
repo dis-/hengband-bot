@@ -1,4 +1,15 @@
 {
+  "arena_fight_chain.py:_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The arena chain's figure of the opponent's distance after one move; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "quest_find_exit.py:_least_exposed.walk": {
     "classification": "data",
     "rows": [
@@ -22730,6 +22741,28 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "The shared retention/procurement target of capped potions (the finale's carry, the Heroism carry, the strategy's Speed and Healing); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_pocket.py:_fires_from": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Q25's sealed pocket: the cell a planned shot leaves from (n1-b life-416); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest25_pocket.py:fire_cell": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Q25's sealed pocket: the cell a planned shot leaves from (n1-b life-416); no command.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

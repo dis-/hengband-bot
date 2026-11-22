@@ -2456,7 +2456,14 @@ def _sweep_reachable(ctx: _Ctx, cell) -> bool:
     n1-c life-211 (2026-11-15 09:25): the sweep's detection showed the two Nexus quylthulgs on
     [7,4] -- the sealed pocket of the map's 『Z』 (rows 6-9, columns 2-5: permanent walls and the
     granite [9,3]) -- and on [1,15].  The sweep walked toward [7,4] only, the first one shown, found
-    no way and held for eleven minutes; the quylthulg on [1,15] was never gone for."""
+    no way and held for eleven minutes; the quylthulg on [1,15] was never gone for.
+
+    The cell the pocket's plan is opening (``battle.pocket``, quest25_pocket) is no reach: once its
+    granite is melted a walk would reach it, and the sweep would walk beside it and look again
+    while the shot is the plan's (n1-b life-416 2026-11-23: the quylthulg on [8,3], shot from the
+    melted [9,3] beside it)."""
+    if ctx.battle.pocket is not None and tuple(cell) == tuple(ctx.battle.pocket[0]):
+        return False
     if quest_exposure.game_distance(ctx.here, cell) <= 1:
         return True
     return len(_path(ctx, _around(cell) - {ctx.here})) >= 2
@@ -2490,13 +2497,17 @@ def _sweep(ctx: _Ctx, *, patrol: bool = False) -> str | None:
                            key=lambda cell: quest_exposure.game_distance(ctx.here, cell))
         if not reachable:
             # Only sealed cells are left (n1-c life-211, 2026-11-15: [7,4]): the owner's
-            # 「溶かして撃つ・無ければ帰還」 (quest25_pocket); a cell no melt opens, the hold.  A
+            # 「溶かして撃つ・無ければ帰還」 (quest25_pocket); a cell no melt opens, a named stop.  A
             # cell the pocket's shots say is empty is forgotten, and the detection comes next.
             from hengbot import quest25_pocket
 
             key = quest25_pocket.key(ctx, battle.detected)
             if key is not None:
                 return key
+            if battle.detected and all(quest25_pocket.plan(ctx, cell) is None for cell in battle.detected):
+                # n1-b life-416 (2026-11-23): no wall of the map opens a line to any of them --
+                # the hold had no end (owner 2026-11-19 「来ないなら待ち続けない」): a named stop.
+                return quest25_pocket.no_line_key(ctx)
             if battle.detected:
                 return _hold(ctx)
         else:

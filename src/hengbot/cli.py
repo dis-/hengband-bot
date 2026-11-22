@@ -783,6 +783,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "quest:blocked:sweep-nothing-left": "a room-sweep plan walked its max_rounds with the quest still open; inspect the floor's remaining monsters",
         "quest:blocked:quest-patrol-rounds": "a KILL_ALL quest floor stayed unwon after the patrol's rounds (kill_all_patrol.ROUNDS); inspect the floor's remaining monsters",
         "quest:blocked:fixed-target-not-visible": "the fixed target cannot be confirmed from its approved throwing point",
+        "quest:blocked:quest25-sealed-pocket-no-line": "Quest 25's sweep remembers only sealed cells and no melted granite wall of the map opens a line of fire to any of them (quest25_pocket NO_LINE_REASON); inspect battle.detected in q25-battle.json",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
         deep_climb.STOP_REASON: deep_climb.STOP_MESSAGE,
         **torch_release.HALT_MESSAGES,
