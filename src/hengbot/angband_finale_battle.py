@@ -53,8 +53,8 @@ The per-board order (``key``), the first that answers wins:
     rocket can take a potion's refill, then the heal (``_heal``: the absorbed Healing, else a
     Potion of Healing) for a deficit of a potion's 300 or more, never a rest (owner 2026-11-21
     「99F 100Fでの休憩は許可していない」); then on to the last-seen cell;
- 6. the battle: *Destruction* (powered when only it reaches) on the other monsters while the
-    target is outside its worst circle; haste and the Resistance potion; the powered Rocket when
+ 6. the battle: the ordinary *Destruction* on the other monsters while the target is shown
+    nowhere (owner 2026-11-23 「テレパシーに映らなければ破壊を使って良い」「普通の *破壊* だけにする」); haste and the Resistance potion; the powered Rocket when
     a line projects and HP - cost >= 800; else the stand on one of the eight rays of the target
     (its row or column first), as far as the Rocket reaches, opened with Stone to Mud; a wall
     whose melting would open the line on the target where it stands is never melted: it is kept
@@ -134,8 +134,13 @@ SWEEP_REFUSALS = 3
 # (and never rested off: ``_recover_key``).
 HEAL_DEFICIT = 300
 ROCKET = ("wand", 29)
+# Powerful Activation's *Destruction* radius 18 + randint0(5): no rung of the battle casts it at
+# the other monsters any more (``_clear_key``, owner 2026-11-23 「普通の *破壊* だけにする」).
 POWERED_SURE = 18
 POWERED_WORST = 22
+# Telepathy's reach: MAX_PLAYER_SIGHT 20 (monster-update.cpp:433; halved only in a DARKNESS
+# dungeon, which Angband is not).
+TELEPATHY_RANGE = 20
 # The boards a wall whose melting would open the line on the target is kept (the target's own move
 # opens it); past them the stand is given up, never opened (``_stand_key``).
 LAST_WALL_HOLD = 10
@@ -545,26 +550,28 @@ def _sweep_key(policy, snapshot, held: Battle) -> str | None:
 
 
 def _clear_key(policy, snapshot, held: Battle) -> str | None:
-    """「対象が破壊範囲内にいないとき、対象以外のあらゆるモンスターを破壊で排除する。必要なら強力発動で
-    範囲を広げる。」  The target's cell is where it is seen, else where it was last seen."""
+    """「対象が破壊範囲内にいないとき、対象以外のあらゆるモンスターを破壊で排除する。」 under the owner's
+    2026-11-23 answers (verbatim): 「テレパシーに映らなければ破壊を使って良い」 and 「普通の *破壊* だけ
+    にする — 標的がテレパシーに映らない時は普通の *破壊* だけを撃ち、強力発動は使わない。即死の時の逃げは
+    今までどおり。」
+
+    The target within telepathy's reach on this board (shown, ``TELEPATHY_RANGE`` or nearer: what
+    telepathy or sight shows): no *Destruction* at the others.  Otherwise (shown nowhere, or only by
+    a detection farther than that): the ordinary *Destruction* only, radius 13 + randint0(5) <= 17
+    (cmd-usestaff.cpp:282), inside telepathy's 20 (MAX_PLAYER_SIGHT, monster-update.cpp:433;
+    Angband has no DARKNESS flag), so the target cannot be in the circle (a QUESTOR in it is healed
+    to full and teleported away, spells-floor.cpp:284-287).  Never Powerful Activation's
+    18 + randint0(5) <= 22 here: n1-b life-416 (Angband 99F, 2026-11-23) cast it 66 times with Oberon
+    unshown, three of them with Oberon shown 21-22 cells from the cast within the next 15 boards.
+    The 即死 escapes (threat_tiers, deep_teleport) are not this rung and are unchanged."""
     rest = others(snapshot)
-    if not rest:
-        return None
-    here = snapshot.player.position
     target = target_monster(snapshot)
-    aim = target.position if target is not None else (
-        Position(*held.last_seen) if held.last_seen is not None else None)
-    distance = game_distance(here, aim) if aim is not None else None
-    if distance is None or distance > destruction_use.WORST_RADIUS:
-        near = _within(snapshot, rest, destruction_use.GUARANTEED_RADIUS)
-        if near:
-            used = _destroy(policy, snapshot, near, CLEAR_SUFFIX)
-            if used is not None:
-                return used
-    if distance is None or distance > POWERED_WORST:
-        reach = _within(snapshot, rest, POWERED_SURE)
-        if reach:
-            return _destroy(policy, snapshot, reach, CLEAR_SUFFIX, powerful=True)
+    if not rest or (target is not None
+                    and game_distance(snapshot.player.position, target.position) <= TELEPATHY_RANGE):
+        return None
+    near = _within(snapshot, rest, destruction_use.GUARANTEED_RADIUS)
+    if near:
+        return _destroy(policy, snapshot, near, CLEAR_SUFFIX)
     return None
 
 

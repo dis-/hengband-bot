@@ -198,26 +198,28 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         decide(self.policy, board)
         self.assertEqual(battle.battle(self.policy, board).phase, battle.BATTLE)
 
-    # -- 「対象が破壊範囲内にいないとき、対象以外のあらゆるモンスターを破壊で排除する。必要なら強力発動で範囲を広げる。」
+    # -- 「対象が破壊範囲内にいないとき、対象以外のあらゆるモンスターを破壊で排除する。」 under the owner's
+    # 2026-11-23 answers 「テレパシーに映らなければ破壊を使って良い」「普通の *破壊* だけにする」.
 
-    def test_clear_only_with_the_target_outside(self):
+    def test_clear_only_with_the_target_beyond_telepathy(self):
         self.in_battle()
-        far = self.board(oberon=self.at(0, 20), others=[self.at(0, 5)])
+        far = self.board(oberon=self.at(0, 25), others=[self.at(0, 5)])
         key, reason = decide(self.policy, far)
         self.assertTrue(reason.startswith(destruction_use.REASON + battle.CLEAR_SUFFIX), reason)
-        self.setUp()
-        self.in_battle()
-        near = self.board(oberon=self.at(0, 10), others=[self.at(0, 5)])
-        key, reason = decide(self.policy, near)
-        self.assertFalse(reason.startswith(destruction_use.REASON), reason)
+        self.assertFalse(reason.endswith(destruction_use.POWERED_SUFFIX), reason)
+        for distance in (10, 20):
+            self.setUp()
+            self.in_battle()
+            shown = self.board(oberon=self.at(0, distance), others=[self.at(0, 5)])
+            key, reason = decide(self.policy, shown)
+            self.assertFalse(reason.startswith(destruction_use.REASON), reason)
 
-    def test_clear_powered_when_only_it_reaches(self):
+    def test_no_powered_clear_when_only_it_reaches(self):
         self.in_battle()
         board = self.board(oberon=self.at(0, 25), others=[self.at(0, 16)])
         key, reason = decide(self.policy, board)
-        self.assertEqual(reason, destruction_use.REASON + battle.CLEAR_SUFFIX
-                         + destruction_use.POWERED_SUFFIX)
-        self.assertTrue(key.startswith("U"), key)
+        self.assertFalse(reason.startswith(destruction_use.REASON + battle.CLEAR_SUFFIX), reason)
+        self.assertFalse(key.startswith("U"), key)
 
     # -- 「加速し耐性の薬を飲み」 / 「コストを払った後にHPが800ポイント残ることを確認して強力発動ロケットで攻撃する。」
 
