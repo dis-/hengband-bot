@@ -228,6 +228,28 @@ def keeps_scrolls(policy, snapshot) -> bool:
             and getattr(policy, "_quest_regen_phase", None) in ("ascend", "descend"))
 
 
+def report(policy) -> dict | None:
+    """The decision record's ``angband_finale`` field: the finale's state (angband_finale
+    ``describe``: finale_prep's step, ``lifted`` and ``stopped`` among it) and this battle's
+    (phase, last-seen cell, the stand, the last given-up last-seen cell); None before the finale.
+    Record only: no decision reads it."""
+    finale = angband_finale.describe(policy)
+    held = getattr(policy, MEMORY, None)
+    if finale is None and held is None:
+        return None
+    entry = {"finale": finale}
+    if held is not None:
+        entry["battle"] = {
+            "floor": list(held.floor) if held.floor is not None else None,
+            "phase": held.phase,
+            "last_seen": list(held.last_seen) if held.last_seen is not None else None,
+            "stand": list(held.stand.cell) if held.stand is not None else None,
+            "detect_due": held.detect_due,
+            "dropped": list(held.dropped) if held.dropped is not None else None,
+        }
+    return entry
+
+
 def _known_hostiles(snapshot) -> list:
     seen = {}
     for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters):

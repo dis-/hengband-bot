@@ -18,6 +18,7 @@ from typing import Iterable, Mapping
 
 from hengbot import ability_sources
 from hengbot import angband_finale
+from hengbot import angband_finale_battle
 from hengbot import __version__ as HENGBOT_VERSION
 from hengbot import deep_climb, dive_floor, means_spent_loop, spare_gear, torch_release
 
@@ -2335,6 +2336,10 @@ def _write_decision(
                 record["pingpong"] = pingpong
             if policy is not None and (deep := deep_teleport.report(policy)) is not None:
                 record["deep_teleport"] = deep
+            # The 99F/100F finale's state (finale_prep's step, lifted, stopped; the battle's
+            # phase and last-seen cell): record only (angband_finale_battle ``report``).
+            if policy is not None and (finale := angband_finale_battle.report(policy)) is not None:
+                record["angband_finale"] = finale
             if policy is not None and (spent := destruction_use.unsafe_report(policy)) is not None:
                 record["means_spent"] = spent  # record only (destruction_use, owner 2026-11-16)
             if policy is not None and (used := destruction_use.use_report(policy)) is not None:
