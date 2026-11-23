@@ -24,7 +24,10 @@ This one case is the exception to owner 2026-11-18 「破壊を持っていな�
   row's gaps start no return (the resist-gap return, destruction_use.means_spent) and ``key``
   (the objectives layer's first rung) climbs: the up stairs underfoot, else the nearest known
   one, else a carried 周辺感知 (area_mapping), else the exploration step toward the stairs --
-  never the loot.  Every rung above (the emergency ladder, combat) is kept.  ``key`` climbs the
+  never a walk to the loot.  The pile on the cell stood on is the one exception
+  (``underfoot_key``): owner 2026-11-23 (verbatim choice) 「足元の品だけ1手で拾う — 登りの途中でも、
+  立ったマスの品は1手で拾う。品の方へ寄り道はしない。敵が隣にいる・見えている召喚の敵がいるなどの時は
+  今までどおり拾わない。」  Every rung above (the emergency ladder, combat) is kept.  ``key`` climbs the
   same way on every floor of that dungeon below the band (``climb_floor``: 49F up to the band's
   deepest floor + 1, owner 2026-11-22 「すぐ38〜42Fへ登る」); the row's gaps are the 50F+
   floors' only.
@@ -169,6 +172,9 @@ def key(policy, snapshot):
     if not landing and policy._breeder_walkout_active(snapshot):
         return None
     family = REASON if landing else CLIMB_REASON
+    underfoot = underfoot_key(policy, snapshot, family)
+    if underfoot is not None:
+        return underfoot
     here = snapshot.grid_at(snapshot.player.position)
     if here is not None and policy._is_upstairs_target(here):
         if snapshot.player.hp_ratio < DESCEND_MIN_HP_RATIO:
@@ -191,6 +197,35 @@ def key(policy, snapshot):
     if move is not None:
         policy.last_reason = f"{family}:search-upstairs"
     return move
+
+
+def underfoot_key(policy, snapshot, family: str):
+    """The pile on the cell the climb stands on, taken with one action, else None.
+
+    Owner 2026-11-23 (verbatim choice) 「足元の品だけ1手で拾う — 登りの途中でも、立ったマスの品は1手
+    で拾う。品の方へ寄り道はしない。敵が隣にいる・見えている召喚の敵がいるなどの時は今までどおり拾わな
+    い。」  n1-a life-535 (the Castle's climb, 43-45F, 2026-11-23) left the items of the cells it
+    stood on (unidentified rings of Strength, Resist Poison and Sustain Intelligence, a Staff of
+    Healing; 16:47:59 a Potion of Restore Intelligence at (1,44)): ``key`` answered the climb's
+    step before any loot.
+
+    The loot owner's gates as they stand (policy ``_loot_block_reason``: a full pack, an adjacent
+    hostile, a visible or remembered summoner or breeder, the material threat, the sleepers that
+    were the threat, the paralyzer ring) and its action on the pile underfoot (policy
+    ``_current_floor_item_key``: the capped staff destroyed where it lies, the plain unidentified
+    weapon or armour identified on the floor, else the pickup, the pile's chooser answered on its
+    observed prompts, cli ``_floor_pile_pickup_continuations``), with no step off the cell
+    (``step_off`` False): no walk is taken for the loot.  A full pack exchanges nothing here (the
+    exchange is more than one action).  A pickup the game did not take defers the cell
+    (policy_observation ``_pending_loot_pickup``), so it is not asked again."""
+    here = snapshot.grid_at(snapshot.player.position)
+    if here is None or here.object_count <= 0:
+        return None
+    if policy._loot_block_reason(snapshot, policy._strategic_hostiles(snapshot)) is not None:
+        return None
+    return policy._current_floor_item_key(
+        snapshot, pickup_reason=f"{family}:pickup",
+        trigger_reason=f"{family}:trigger-autodestroy", step_off=False)
 
 
 # --- an arrival at 50F+ by a descent without the means: the climb, else the named stop -------

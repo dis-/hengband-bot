@@ -300,6 +300,11 @@ _RULE_DEEP_CLIMB = ("the Castle's 50F landing and every climb floor below the ba
 _rows(EXCLUDED, "deep_climb", _RULE_DEEP_CLIMB, "castle-climb-landing-50:ascend")
 _rows(WALK, "deep_climb", _RULE_DEEP_CLIMB, "castle-climb-landing-50:seek-upstairs",
       "castle-climb-landing-50:search-upstairs", "castle-climb:search-upstairs")
+_rows(NOT_ESCAPE, "deep_climb",
+      "the pile on the cell the climb stands on, one action, no walk to the loot (owner 2026-11-23 "
+      "「足元の品だけ1手で拾う」, deep_climb.underfoot_key): no escape",
+      "castle-climb-landing-50:pickup", "castle-climb:pickup",
+      "castle-climb-landing-50:trigger-autodestroy", "castle-climb:trigger-autodestroy")
 _RULE_DEEP_FALL = ("a floor whose trap door would newly reach 50F, without a trap detection, is left by "
                    "the up stairs or Recall: no enemy prompted it (owner 2026-11-22 「そもそも50Fに降りない"
                    "方をしっかり作ること」, deep_fall_guard)")

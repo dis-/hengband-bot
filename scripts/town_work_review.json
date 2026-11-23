@@ -23324,6 +23324,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-22 (n1-a life-531) 「城の50Fに帰還してすぐ38〜42Fへ登る」: off the Castle's 50F+ floor before any loot or objective -- '<' underfoot while healthy (castle-climb-landing-50:ascend), else a step toward the nearest known up staircase (castle-climb-landing-50:seek-upstairs), else a carried 周辺感知 (area_mapping.deep_climb_key), else the exploration step (castle-climb-landing-50:search-upstairs); None otherwise."
   },
+  "deep_climb.py:underfoot_key": {
+    "classification": "producer",
+    "rows": [
+      "loot-exploration"
+    ],
+    "context": "Dungeon objectives layer only, asked by deep_climb.key on a climb floor of the held Castle (deep_climb.climb_floor); never reached in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-23 (n1-a life-535) 「足元の品だけ1手で拾う」: the pile on the cell the climb stands on, through _loot_block_reason's gates and _current_floor_item_key with no step off the cell (castle-climb:pickup / castle-climb-landing-50:pickup); None otherwise and the climb goes on."
+  },
   "deep_climb.py:stop_key": {
     "classification": "producer",
     "rows": [

@@ -13398,7 +13398,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         *,
         pickup_reason: str,
         trigger_reason: str,
+        step_off: bool = True,
     ) -> str | None:
+        """The action on the pile underfoot, else None.  ``step_off`` False: no step off the cell
+        when the player has not moved (the climb's one action on the cell, deep_climb
+        ``underfoot_key``, owner 2026-11-23 「品の方へ寄り道はしない」)."""
         # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
         walk_veto = self._walk_veto(snapshot)
         # Owner 2026-11-16 「取り込み回数99なら杖を拾わず壊す」: no pack slot is needed.
@@ -13421,7 +13425,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return None
         if here.position in self._deferred_loot:
             return None
-        if not self._position_changed:
+        if not self._position_changed and step_off:
             # Avoided cells (latched warning grids, engagement retreats) are
             # excluded up front: this static wiggle re-picks the same
             # min-visit neighbour every decision, so an avoided pick would
