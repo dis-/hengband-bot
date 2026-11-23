@@ -2952,9 +2952,10 @@ class ShopMixin(InStoreMixin):
             and item.count > 0
             and snapshot.player.gold - item.price >= reserve
         ]
-        if optional and finale_bm_tour.restore_mana_first(self, snapshot):
+        if optional and finale_bm_tour.supplies_first(self, snapshot):
             # Owner 2026-11-23 「目標に届くまで99Fへは行かない」 with 2026-11-18 「必要なものは
-            # 買う」: while the finale's Restore Mana is short, the gold is the shortfall's.
+            # 買う」: while a finale supply only the Black Market sells is short (the Restore
+            # Mana, the Healing: 2026-11-24), the gold is the shortfall's.
             optional = [item for item in optional
                         if never_disposed(snapshot, item)
                         or angband_finale.black_market_wanted(self, snapshot, item)
@@ -4333,8 +4334,8 @@ class ShopMixin(InStoreMixin):
         elif heroism_potion.is_heroism(item):
             needed = heroism_potion.carry_shortage(snapshot)
         elif angband_finale.black_market_wanted(self, snapshot, item):
-            needed = (angband_finale.shortage(self, snapshot, angband_finale.STAR_HEALING)
-                      if (item.tval, item.sval) == angband_finale.STAR_HEALING else 1)
+            needed = (angband_finale.shortage(self, snapshot, (item.tval, item.sval))
+                      if (item.tval, item.sval) in angband_finale.BLACK_MARKET_KINDS else 1)
         else:
             needed = 1
         needed = max(needed, quest_needed)

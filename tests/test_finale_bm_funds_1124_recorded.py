@@ -73,7 +73,7 @@ class FinaleBlackMarketFunds1124RecordedTest(unittest.TestCase):
         # Recorded: ('pt\r', 'shop:in-store-buy'), the Potion of Resistance for 3,930.
         self.assertNotEqual(key, "pt\r")
         self.assertIsNone(policy._black_market_optional_purchase(board))
-        self.assertTrue(finale_bm_tour.restore_mana_first(policy, board))
+        self.assertTrue(finale_bm_tour.supplies_first(policy, board))
 
     def test_short_of_gold_the_fundraising_run_is_handed_over(self):
         policy, board = self.replay(FUNDS_ROW)

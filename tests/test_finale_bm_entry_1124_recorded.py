@@ -13,8 +13,9 @@ Scroll of Reset Recall set Angband's recall depth to 95 at 02:21:00, so the 96F+
 supply owned.  Rows before the one decided are replayed through the public ``choose_key`` and post
 the recorded key.
 
-DECLARED CONSTRUCTED: ``test_another_short_row_keeps_the_95f_exploration`` reads the Healing row
-short beside the Restore Mana for the whole replay (``finale_hold.short_rows``).
+DECLARED CONSTRUCTED: ``test_another_short_row_keeps_the_95f_exploration`` reads the absorbed Stone
+to Mud row short beside the Restore Mana for the whole replay (``finale_hold.short_rows``; the
+Healing is the circuit's since 2026-11-24, tests/test_finale_bm_supplies_1124_recorded.py).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -103,9 +104,9 @@ class FinaleBlackMarketEntry1124RecordedTest(unittest.TestCase):
         self.assertTrue(reason.startswith("depart:inn-refill:finale-bm:"), reason)
 
     def test_another_short_row_keeps_the_95f_exploration(self):
-        # DECLARED CONSTRUCTED (module docstring): the Healing short as well.
+        # DECLARED CONSTRUCTED (module docstring): the absorbed Stone to Mud short as well.
         with mock.patch.object(finale_hold, "short_rows",
-                               return_value=["restore_mana", "healing"]):
+                               return_value=["restore_mana", "stone_to_mud"]):
             policy, _recorded, board = self.replay(RECALL_ROW)
             self.assertFalse(finale_hold.black_market_due(policy, board))
             key, reason = self.decide(policy, board)

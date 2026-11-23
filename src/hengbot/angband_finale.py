@@ -84,6 +84,11 @@ RESTORING_CARRY = 99  # 「あるだけ」: every one (a stack's limit)
 CARRY = {HEALING: 30, STAR_HEALING: 15, RESISTANCE: 20, TELEPORT: 40}
 SUPPLY_NAMES = {HEALING: "healing", STAR_HEALING: "star_healing", RESISTANCE: "resistance",
                 TELEPORT: "teleport", RESTORE_MANA: "restore_mana"}
+# The supplies no town store sells (store/articles-on-sale.cpp lists none of the four potions;
+# the Alchemist sells the Teleportation): the Black Markets' circuit buys them (finale_bm_tour,
+# owner 2026-11-23 for the Restore Mana, 2026-11-24 「闇市を巡回して買い足す」 for the Healing).
+BLACK_MARKET_KINDS = (HEALING, STAR_HEALING, RESISTANCE, RESTORE_MANA)
+BLACK_MARKET_SUPPLIES = frozenset(SUPPLY_NAMES[kind] for kind in BLACK_MARKET_KINDS)
 RESIST_CURSE = "resist_curse"  # bot-json-output.cpp, TR_RES_CURSE
 # Owner 2026-11-20 Q6: either one keeps *Destruction*'s flash from blinding.
 BLIND_OR_LITE = ("resist_blind", "resist_lite")
@@ -521,13 +526,17 @@ def stone_to_mud_wanted(policy, snapshot, row) -> bool:
 
 
 def black_market_wanted(policy, snapshot, item) -> bool:
-    """A Black Market *Healing* toward the carry (the table buys none otherwise), or a Scroll of
-    Reset Recall while Angband's recall depth is refused and none is carried (reset_recall, owner
-    2026-11-21 「闇市に並んだフロア・リセットの巻物があれば使って95Fに戻す」)."""
+    """A Black Market ware of a finale supply no town store sells (``BLACK_MARKET_KINDS``) while
+    its carry is short (owner 2026-11-24 「闇市を巡回して買い足す」: the Healing, the *Healing*,
+    the Resistance and the Restore Mana, whatever the consumable table buys otherwise), or a
+    Scroll of Reset Recall while Angband's recall depth is refused and none is carried
+    (reset_recall, owner 2026-11-21 「闇市に並んだフロア・リセットの巻物があれば使って95Fに戻す」)."""
     from hengbot import reset_recall  # import cycle
     if reset_recall.is_reset_recall(item):
         return reset_recall.wanted(policy, snapshot) and reset_recall.carried(snapshot) is None
-    return _kind(item) == STAR_HEALING and shortage(policy, snapshot, STAR_HEALING) > 0
+    kind = _kind(item)
+    return (kind in BLACK_MARKET_KINDS and getattr(item, "aware", True)
+            and shortage(policy, snapshot, kind) > 0)
 
 
 # -- the weight ---------------------------------------------------------------------

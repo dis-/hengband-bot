@@ -1,4 +1,4 @@
-"""The 99F/100F Restore Mana bought in the four towns' Black Markets (owner 2026-11-23).
+"""The 99F/100F supplies only the Black Markets sell, bought in the four towns' (owner 2026-11-23).
 
 Owner 2026-11-23, verbatim (the question 「99Fへの準備で、魔力復活の薬だけが目標に少し足りない時は
 どうしますか？」): 「闇市を回って買い足す — 4つの町の闇市を巡回して買い足し、目標に届くまで99Fへは
@@ -10,7 +10,8 @@ sells the potion (store/articles-on-sale.cpp); the Black Market's are bought by 
 purchase (policy_shop ``_black_market_optional_purchase``, ``restore_mana_target.wanted``) under
 its reserve, and never sold (owner 2026-11-20 「魔力復活の薬は絶対に売らない」, never_dispose).
 
-While Restore Mana is the only supply short (finale_hold), the town's departure is this circuit
+While Restore Mana is the only supply short (finale_hold; every supply only the Black Market
+sells since 2026-11-24, below), the town's departure is this circuit
 (``town_key``):
 
 * the towns are this one and the visited inn towns but Zul (``_cross_town_candidate_order``,
@@ -46,6 +47,18 @@ refused or no town to visit end it (``closed``): the town stops by name
 (``town:blocked:finale-bm-tour-closed:<why>``, a final stop of the driver, policy_constants
 FINALE_BM_CLOSED_STOP_PREFIX).  A dungeon board forgets the circuit (angband_finale
 ``observe``).
+
+**Every supply only the Black Market sells** (owner 2026-11-24, the question 「99Fへの準備で、
+体力回復の薬が足りない時はどうしますか？」, verbatim: 「闇市を巡回して買い足す — 魔力復活の薬と同じく、
+4つの町の闇市を巡回して買い足し、一周ごとに宿で一泊する。お金が足りなければ自宅の品を売り、資金集め
+をする。目標に届くまで99Fへは行かない。」).  n1-c life-221 (2026-11-24 03:01:20, 2 of the 30 Potions
+of Healing owned) stopped under ``town:blocked:finale-not-in-town:healing`` and spun on '5' until
+the loop detector.  The circuit is the same for every finale supply no town store sells
+(angband_finale ``BLACK_MARKET_KINDS``: the Healing, the *Healing*, the Resistance and the Restore
+Mana; store/articles-on-sale.cpp lists none of them): ``shortage`` is their sum, each Black Market
+visit buys every one still short (angband_finale ``black_market_wanted``), the optional purchases
+wait while any is short (``supplies_first``), and the gold one leg needs counts one unit of the
+dearest short supply at the price last seen (``_supply_price``).
 """
 from __future__ import annotations
 
@@ -59,7 +72,6 @@ from hengbot.model import STORE_BLACK
 from hengbot.policy_constants import CROSS_TOWN_SHOPPING_RESERVE, WAIT_KEY
 from hengbot.recall_stockout_travel import fare
 
-SUPPLY = "restore_mana"  # angband_finale SUPPLY_NAMES' row
 # The town stages the circuit's decisions belong to (town_visit_plan): the market's page and its
 # leave (store-router: buy) and the night's stay (departure).  The circuit owns its time: a
 # market of a town not yet seen in the lap, or a new lap, restarts their deadlines
@@ -84,7 +96,8 @@ class Tour:
     target: int | None = None  # the town the inn leg goes to
     short_at_lap: int | None = None  # the potions short when this lap began
     laps: list[dict] = field(default_factory=list)  # each finished lap's record
-    price: int | None = None  # the lowest Restore Mana price last seen on a Black Market shelf
+    # The lowest price last seen on a Black Market shelf of each supply (``_prices``).
+    prices: dict = field(default_factory=dict)
     night: Night = field(default_factory=Night)
     closed: str | None = None
     # The gold the next leg needs while short (``_funds_key``), the waits for Home's cash sale
@@ -103,14 +116,22 @@ def forget_trip(policy: Any) -> None:
     setattr(policy, STATE, None)
 
 
+def short_kinds(policy: Any, snapshot: Any) -> list:
+    """The supplies only the Black Market sells whose carry is short (pack and Home)."""
+    return [kind for kind in angband_finale.BLACK_MARKET_KINDS
+            if angband_finale.shortage(policy, snapshot, kind) > 0]
+
+
 def shortage(policy: Any, snapshot: Any) -> int:
-    """The carry's Restore Mana still to buy (pack and Home)."""
-    return angband_finale.shortage(policy, snapshot, angband_finale.RESTORE_MANA)
+    """The carries still to buy of the supplies only the Black Market sells (pack and Home)."""
+    return sum(angband_finale.shortage(policy, snapshot, kind)
+               for kind in angband_finale.BLACK_MARKET_KINDS)
 
 
-def restore_mana_first(policy: Any, snapshot: Any) -> bool:
-    """In town preparing the 99F/100F finale with the Restore Mana carry short: the gold goes to
-    the shortfall first.  The optional purchases buy nothing else (policy_shop
+def supplies_first(policy: Any, snapshot: Any) -> bool:
+    """In town preparing the 99F/100F finale with a carry short that only the Black Market sells
+    (the Restore Mana, owner 2026-11-23; the Healing and every other such supply, 2026-11-24): the
+    gold goes to the shortfall first.  The optional purchases buy nothing else (policy_shop
     ``_black_market_optional_purchase``, me_device_policy ``purchase_wanted``) but the finale's
     own supplies still short (angband_finale ``black_market_wanted``) and the owner's first-priority
     wares (the *Destruction* staff, bm_destruction_fund's priority rows).  n1-b life-416
@@ -141,10 +162,12 @@ def observe(policy: Any, snapshot: Any) -> None:
     if town not in tour.seen:
         tour.seen.append(town)
         town_visit_plan.restart_stages(policy, STAGES)
-    prices = [item.price for item in store.items
-              if (item.tval, item.sval) == angband_finale.RESTORE_MANA and item.count > 0]
-    if prices:
-        tour.price = min(prices)
+    seen = _prices(tour)
+    for kind in angband_finale.BLACK_MARKET_KINDS:
+        prices = [item.price for item in store.items
+                  if (item.tval, item.sval) == kind and item.count > 0 and item.price > 0]
+        if prices:
+            seen[kind] = min(prices)
 
 
 def _start(policy: Any, snapshot: Any) -> Tour:
@@ -162,16 +185,30 @@ def _close(tour: Tour, why: str) -> None:
     tour.target = None
 
 
-def _potion_price(policy: Any, tour: Tour) -> int:
-    if tour.price is not None:
-        return tour.price
-    return policy._baseitem_costs.get(angband_finale.RESTORE_MANA, 0)
+def _prices(tour: Tour) -> dict:
+    """The prices seen; a circuit pickled before the 2026-11-24 generalisation held one Restore
+    Mana ``price`` instead."""
+    held = tour.__dict__.get("prices")
+    if held is None:
+        old = tour.__dict__.pop("price", None)
+        held = {} if old is None else {angband_finale.RESTORE_MANA: old}
+        tour.prices = held
+    return held
+
+
+def _supply_price(policy: Any, snapshot: Any, tour: Tour) -> int:
+    """One unit of the dearest supply still short: the price last seen on a Black Market shelf,
+    else the base price."""
+    seen = _prices(tour)
+    kinds = short_kinds(policy, snapshot) or [angband_finale.RESTORE_MANA]
+    return max(seen.get(kind, policy._baseitem_costs.get(kind, 0)) for kind in kinds)
 
 
 def _funds_needed(policy: Any, snapshot: Any, tour: Tour, destination: int) -> int:
-    """The next leg's fare, the reserve and one potion at the price last seen."""
+    """The next leg's fare, the reserve and one unit of the dearest short supply."""
     reserve = policy._full_departure_resupply_reserve(snapshot) or 0
-    return max(reserve, CROSS_TOWN_SHOPPING_RESERVE) + _potion_price(policy, tour) + fare(destination)
+    return (max(reserve, CROSS_TOWN_SHOPPING_RESERVE) + _supply_price(policy, snapshot, tour)
+            + fare(destination))
 
 
 def funds_short(policy: Any, snapshot: Any) -> bool:
@@ -323,7 +360,9 @@ def facts(policy: Any) -> dict | None:
     if tour is None:
         return None
     return {"lap": tour.lap, "seen": list(tour.seen), "target": tour.target,
-            "short_at_lap": tour.short_at_lap, "laps": list(tour.laps), "price": tour.price,
+            "short_at_lap": tour.short_at_lap, "laps": list(tour.laps),
+            "prices": {angband_finale.SUPPLY_NAMES[kind]: price
+                       for kind, price in _prices(tour).items()},
             "nights": tour.night.nights, "night_due": tour.night.due, "closed": tour.closed,
             "funds_needed": tour.funds_needed, "funds_waits": tour.funds_waits,
             "fundraise_target": tour.fundraise_target}

@@ -63,10 +63,14 @@ class DeathVisitRecordedTest(unittest.TestCase):
         self.assertNotIn("town:recall-to-angband", reasons)
         # Owner 2026-11-19 「鉄獄50F以降は浅い階層へのフォールバックをやめる」 with the 96F+ refusal
         # (finale_hold, 2026-11-23): no other dungeon either; the finale's preparation lacks the
-        # *Healing* only the dungeon and the Black Market give, so the visit stops for the owner.
+        # *Healing* (the Black Markets' circuit's since 2026-11-24, finale_bm_tour) and the
+        # Teleportation the town sells: the Teleportation's own line first (finale_hold
+        # ``town_key``), so the visit stops for the owner under it, never not-in-town.
         self.assertFalse(any(reason.startswith("town:recall-to-") for reason in reasons))
         self.assertNotIn("town:unsafe-recall-fallback", reasons)
-        self.assertIn("town:blocked:finale-not-in-town:star_healing", reasons)
+        self.assertFalse(any(reason.startswith("town:blocked:finale-not-in-town:")
+                             for reason in reasons), reasons)
+        self.assertIn("town:blocked:finale-supplies-short:star_healing,teleport:not-due:8", reasons)
         self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
 
 
