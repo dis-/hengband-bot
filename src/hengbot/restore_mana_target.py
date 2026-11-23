@@ -19,6 +19,13 @@ HP総量の1.5倍を目標値として魔力復活の薬を集める必要があ
 * Uses restored per potion: spells-status.cpp restore_mana(magic_eater=true): a wand power gains
   3 uses below 10 absorbed, else count / 3 uses, never past the count.  The CURRENT rocket count
   (me_capability.count), so the target shrinks as more rockets are absorbed.
+* A killed target leaves the sum (owner 2026-11-24, verbatim: 「サーペントだけで計算し直す — 倒した
+  標的のHPは目標から外す。オベロンを倒した後の100Fの目標は、サーペントだけの計算の2倍（今は62本）に
+  する。」): a target whose quest is COMPLETED or later (angband_finale DONE_STATUSES, the status the
+  board's quest list reads) adds neither its HP nor its rocket damage.  After Oberon the plan is the
+  Serpent's alone, and every reader follows it: the carry (twice it), the finale readiness and the
+  Black Markets' shortage, the purchase (``wanted``), and the recall rule's "plan"
+  (angband_finale restore_mana_overspent).
 
 Record and purchase only: no battle rule reads it (the owner instructs the 99F/100F tactics
 separately).
@@ -30,6 +37,9 @@ from typing import Any
 
 from hengbot import me_capability
 from hengbot.model import SV_POTION_RESTORE_MANA, TVAL_POTION
+from hengbot.policy_constants import (
+    QUEST_STATUS_COMPLETED, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED,
+)
 
 # Owner 2026-11-20 「専用の装備を組ませるので、ロケットの成功率は90%で試算して良い」.
 ROCKET_SUCCESS = 0.9
@@ -37,6 +47,10 @@ ROCKET_SUCCESS = 0.9
 TARGET_HP_SHARE = 1.5
 # lib/edit/quests 008_Oberon (99F) and 009_SerpentOfChaos (100F).
 TARGET_RACES = (860, 862)
+# Each target's quest (angband_finale FINALE: 99F quest 8, 100F quest 9).
+TARGET_QUESTS = {860: 8, 862: 9}
+# The target was killed (angband_finale DONE_STATUSES).
+KILLED_STATUSES = frozenset({QUEST_STATUS_COMPLETED, QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED})
 ROCKET = ("wand", 29)
 # spells-status.cpp restore_mana: below this count a wand power gains a fixed 3 uses.
 FIXED_REFILL_BELOW = 10
@@ -65,20 +79,40 @@ def rocket_damage(policy: Any, snapshot: Any, race_id: int) -> float:
 CARRY_FACTOR = 2
 
 
+def killed(snapshot: Any, race_id: int) -> bool:
+    """The target's quest is COMPLETED or later on the board's quest list."""
+    quest = (getattr(snapshot, "quests", None) or {}).get(TARGET_QUESTS[race_id])
+    return quest is not None and quest.status in KILLED_STATUSES
+
+
+def remaining_targets(snapshot: Any) -> tuple[int, ...]:
+    """The targets not killed yet (owner 2026-11-24 「倒した標的のHPは目標から外す」)."""
+    return tuple(race_id for race_id in TARGET_RACES if not killed(snapshot, race_id))
+
+
 def plan(policy: Any, snapshot: Any) -> dict | None:
     """The collection target and its figures for a Magic-Eater, else None."""
     if snapshot.player.class_id != me_capability.PLAYER_CLASS_MAGIC_EATER:
         return None
     count = me_capability.count(policy, snapshot, *ROCKET)
+    targets = remaining_targets(snapshot)
     hp = {race_id: getattr(policy._monrace_knowledge.get(race_id), "max_hp", 0)
-          for race_id in TARGET_RACES}
+          for race_id in targets}
     needed = TARGET_HP_SHARE * sum(hp.values())
     uses = uses_per_potion(count)
-    # The weaker of the two targets' damage per rocket decides (both take full ROCKET today).
-    damage = min(rocket_damage(policy, snapshot, race_id) for race_id in TARGET_RACES)
+    if not targets:
+        # Both killed: nothing left to collect for.
+        return {"rockets": count, "target_hp": hp, "killed": list(TARGET_RACES),
+                "needed_damage": 0.0, "rocket_damage": None, "uses_per_potion": uses,
+                "damage_per_potion": None, "target": 0, "carry": 0,
+                "held": held(policy, snapshot)}
+    # The weaker remaining target's damage per rocket decides (both take full ROCKET today).
+    damage = min(rocket_damage(policy, snapshot, race_id) for race_id in targets)
     per_potion = uses * ROCKET_SUCCESS * damage
     target = math.ceil(needed / per_potion) if per_potion > 0 else None
-    return {"rockets": count, "target_hp": hp, "needed_damage": needed,
+    return {"rockets": count, "target_hp": hp,
+            "killed": [race_id for race_id in TARGET_RACES if race_id not in targets],
+            "needed_damage": needed,
             "rocket_damage": damage, "uses_per_potion": uses,
             "damage_per_potion": per_potion, "target": target,
             "carry": None if target is None else CARRY_FACTOR * target,
