@@ -901,6 +901,28 @@ class HomeMixin:
             return False
         return bool(self._departure_blocking_page_operation(snapshot))
 
+    def _home_full_relief_yields_to_page_purchase(self, snapshot: Snapshot) -> bool:
+        """A store page's departure-blocking purchase comes before the relief's next take.
+
+        The relief (the cap tidy, the full-Home relief, its retry) leaves a store page to fetch
+        its next ware from Home.  On a page that sells a departure minimum the visit still lacks
+        (``_departure_blocking_page_operation``), that leave took the page away before its buy,
+        and the store then counted as tried: n1-a life-535 2026-11-23 13:12:30-41 (Lv48), the
+        Alchemist's re-entry for 2 Teleportation scrolls (27 on the shelf at 56 gold, 41,580
+        gold carried) was left by the cap tidy's first take (home:cap-tidy-withdraw), and the
+        visit stopped as town:blocked:survival:teleport_ready.  The relief resumes on the next
+        board once the page's purchase is made (or the entry leaves without it).  A ware the
+        relief has already taken out keeps its own sale (it is not yielded).
+        """
+        store = snapshot.store
+        relief = self._home_full_relief
+        if (store is None or store.store_type == STORE_HOME
+                or (relief is not None and (relief.withdrawn or relief.pack_only
+                                            or relief.carried))):
+            return False
+        operation = self._departure_blocking_page_operation(snapshot)
+        return operation is not None and operation.get("op") == "buy"
+
     def _home_full_relief_take_filed(self) -> bool:
         """The relief's filed Home take of its chosen sale/destroy ware.
 
@@ -971,6 +993,8 @@ class HomeMixin:
         # Physical restoration remains the admitted owner's work. Resume this
         # errand only after it releases the character; do not freeze restoration.
         if self._equipment_transaction_owned_items:
+            return None
+        if self._home_full_relief_yields_to_page_purchase(snapshot):
             return None
         retry = getattr(self, "_home_full_retry_deposits", None)
         if retry is not None:
