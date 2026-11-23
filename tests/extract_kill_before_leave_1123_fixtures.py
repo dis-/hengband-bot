@@ -7,6 +7,9 @@ only):
 - snapshots-20261123-164646-9c6c76.jsonl.gz, player turns 4201590-4201633: 光なき闇の大蜘蛛
   『ウンゴリアント』 (DROP_GOOD, UNIQUE, a summoner; T2 alone, nothing else in view) erased by
   *Destruction* at 4201633 (decision 12817, ``emergency:destruction:before-teleport-away``).
+- snapshots-20261123-152342-3fe812.jsonl.gz, player turns 4077000-4077044: 陰謀家『ケイン』
+  (AMBERITE, resist curse worn) erased by *Destruction* at 4077044 (decision 2435) right after the
+  absorbed Speed and a Potion of Resistance (``amberite:quaff-resistance``).
 
 The copies (``SOURCE``, ``<name>.jsonl.gz``, wider windows) are kept beside the worktree that made
 the fix; only this tool reads them, the committed test reads the fixtures.
@@ -22,6 +25,7 @@ SOURCE = Path(__file__).resolve().parents[1] / ".scratch"
 FIXTURES = Path(__file__).with_name("fixtures")
 WINDOWS = (
     ("ungo2.jsonl.gz", "kill-before-leave-1123-ungoliant-n1b-416.jsonl.gz", 4201590, 4201633),
+    ("caine.jsonl.gz", "kill-before-leave-1123-caine-n1b-416.jsonl.gz", 4077000, 4077044),
 )
 
 

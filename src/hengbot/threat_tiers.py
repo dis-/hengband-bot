@@ -1166,7 +1166,8 @@ def _worsens_leave(policy, snapshot, hostiles, raw, entries) -> set:
         return set()
     from hengbot import worsens_kill
 
-    # Owner 2026-11-23 (``kill_before_leave``): the lone T2 good-drop unique is killed, not left; a hold of an earlier board does not keep them left either.
+    # Owner 2026-11-23 (``kill_before_leave``): the lone T2 good-drop unique and the prepared
+    # Amberite are killed, not left; a hold of an earlier board does not keep them left either.
     kept = kill_before_leave(policy, snapshot, hostiles, raw)
 
     # The more specific owner rules keep their monsters (4.4 step 1): a paralyser is left by
@@ -1218,7 +1219,7 @@ def lone_good_drop_t2(policy, snapshot, hostiles, raw: Assessment | None = None)
     ``on_the_way`` reads a 強敵), with no other monster of the engagement T1 or T2 on its own (「他の
     強敵」), on an engagement the supplies win (T2, or T3) and no 即死 (``raw.instant_death``), where
     the tiers decide leaving.  An Amberite keeps its own rule (amberite_curse: T1 until its kill's
-    conditions hold)."""
+    conditions hold, then ``kill_before_leave``)."""
     if not hostiles or not leave_decided_here(policy, snapshot):
         return None
     goods = [monster for monster in hostiles if good_drop_unique(policy, monster)]
@@ -1249,16 +1250,27 @@ def kill_before_leave(policy, snapshot, hostiles, raw: Assessment | None = None)
     """The indices of ``hostiles`` whose kill goes before the 11-09 worsening leave
     (``_worsens_leave``, which otherwise reads them left as a T1 is: the escapes and their
     *Destruction*), else an empty set.  On a 即死 board (``raw.instant_death``) none: the escape
-    answers as before; below the low-HP line ``_worsens_leave`` leaves the 11-06 escape to answer.
+    answers as before; below the low-HP line ``_worsens_leave`` leaves the 11-06 escape to answer
+    and the Amberite's kill is refused (amberite_curse ``HP_LOW``).
 
-    - Owner 2026-11-23 Decision 1: the lone T2 good-drop unique (``lone_good_drop_t2``)."""
+    - Owner 2026-11-23 Decision 1: the lone T2 good-drop unique (``lone_good_drop_t2``).
+    - Owner 2026-11-23 Decision 2 (the question 「アンバーの王族を倒す条件がそろい、加速と耐性の薬まで
+      済ませた後に、「召喚で時間とともに悪くなる敵からは離れる」決まりが働いた時」, the chosen answer,
+      verbatim): 「倒すことを先にする — 倒す準備（加速と耐性の薬）が済んだ王族には、離れる決まりより
+      倒すことを先にする。即死の見込みや HP の線を割った時は今までどおり逃げる。」  The Amberite whose
+      kill's conditions hold, hasted and covered by Resistance (amberite_curse ``prepared``).  n1-b
+      life-416 (Angband 95F, turns 4077036-4077044): after the absorbed Speed and a Potion of
+      Resistance against 陰謀家『ケイン』, the worsening leave held him left and the emergency
+      ladder's *Destruction* erased him."""
     if not hostiles or not leave_decided_here(policy, snapshot):
         return frozenset()
     if raw is None:
         raw = tiered(policy, snapshot, hostiles)
     if raw.instant_death:
         return frozenset()
-    kept = set()
+    from hengbot import amberite_curse  # import cycle
+
+    kept = {monster.index for monster in hostiles if amberite_curse.prepared(policy, snapshot, monster)}
     if (target := lone_good_drop_t2(policy, snapshot, hostiles, raw)) is not None:
         kept.add(target.index)
     return frozenset(kept)

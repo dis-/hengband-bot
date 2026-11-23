@@ -186,6 +186,17 @@ def _refusal(policy, snapshot, amberites) -> str | None:
     return None
 
 
+def prepared(policy, snapshot, monster) -> bool:
+    """``monster`` is an Amberite whose kill is ready (rule 3): its conditions hold (``refusal``),
+    the player is hasted and covered by a Potion of Resistance.  Owner 2026-11-23 (threat_tiers
+    ``kill_before_leave``): such a one is killed before the leave rules leave it."""
+    if not is_amberite(policy, monster) or refusal(policy, snapshot, [monster]) is not None:
+        return False
+    from hengbot import resist_potion  # import cycle (destruction_use's sight trigger)
+
+    return haste_read.hasted(policy, snapshot) and resist_potion.covered(snapshot.player)
+
+
 def _others_awake_rows(policy, snapshot, amberites) -> list:
     """Record only: the other awake hostiles ``_others_awake`` counts (index, race, name, game
     distance, in view), nearest first."""
