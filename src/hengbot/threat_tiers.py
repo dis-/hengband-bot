@@ -1166,6 +1166,9 @@ def _worsens_leave(policy, snapshot, hostiles, raw, entries) -> set:
         return set()
     from hengbot import worsens_kill
 
+    # Owner 2026-11-23 (``kill_before_leave``): the lone T2 good-drop unique is killed, not left; a hold of an earlier board does not keep them left either.
+    kept = kill_before_leave(policy, snapshot, hostiles, raw)
+
     # The more specific owner rules keep their monsters (4.4 step 1): a paralyser is left by
     # the 09-18 / 11-09 E rules, a summoner that never approaches (NEVER_MOVE, or its choke wait
     # expired) by the immobile-summoner rules (owner 2026-10-27 「動かない召喚の敵は近づかずに避ける」).
@@ -1173,6 +1176,8 @@ def _worsens_leave(policy, snapshot, hostiles, raw, entries) -> set:
     left = set()
     for monster, entry in zip(hostiles, entries):
         key = (monster.index, monster.race_id)
+        if monster.index in kept:
+            continue
         if entry is not None and getattr(entry, "worsens", False):
             left.add(key)  # held: 「一度離れると決めたら境に余裕を持って保つ」
             continue
@@ -1185,6 +1190,78 @@ def _worsens_leave(policy, snapshot, hostiles, raw, entries) -> set:
         if not worsens_kill.harmless(policy, snapshot, monster):
             left.add(key)
     return left
+
+
+# ---------------------------------------------------------------- the kill before the leave
+
+def good_drop_unique(policy, monster) -> bool:
+    """A UNIQUE race whose drops are good (DROP_GOOD or DROP_GREAT, MonraceDefinitions.jsonc;
+    monster-death.cpp:217-224 makes every drop of the kill good / great).  *Destruction* deletes
+    it with no death processing (spells-floor.cpp destroy_area ``delete_monster``), so no drop."""
+    knowledge = policy._monrace_knowledge.get(monster.race_id)
+    return (knowledge is not None and "UNIQUE" in knowledge.flags
+            and bool({"DROP_GOOD", "DROP_GREAT"} & knowledge.flags))
+
+
+def lone_good_drop_t2(policy, snapshot, hostiles, raw: Assessment | None = None):
+    """The good-drop unique fought with supplies before *Destruction*, else None.
+
+    Owner 2026-11-23 (the question 「良い品を落とすユニーク（DROP_GOOD か DROP_GREAT を持つもの）が
+    1体だけで脅威度が T2（物資を使えば勝てる）の時、*破壊* より先に、物資を使って倒しますか？」, the
+    chosen answer, verbatim): 「T2 なら物資を使って倒す — 単独で T2 の良い品を落とすユニークは、加速・
+    耐性の薬などの物資を使って倒す。即死の見込みや他の強敵がいれば今までどおり *破壊*。T1 なら今まで
+    どおり。」  n1-b life-416 (Angband 80-95F): such uniques were killed 32 times and erased by
+    *Destruction* 619 times; ドリードロード『ツエラクス』 (T2, a summoner: the 11-09 worsening leave)
+    was erased at decision 957 (turn 4261811) beside one 半魔のオーク.
+
+    The one good-drop unique of the engagement ``hostiles``, T2 on its own from contact (as
+    ``on_the_way`` reads a 強敵), with no other monster of the engagement T1 or T2 on its own (「他の
+    強敵」), on an engagement the supplies win (T2, or T3) and no 即死 (``raw.instant_death``), where
+    the tiers decide leaving.  An Amberite keeps its own rule (amberite_curse: T1 until its kill's
+    conditions hold)."""
+    if not hostiles or not leave_decided_here(policy, snapshot):
+        return None
+    goods = [monster for monster in hostiles if good_drop_unique(policy, monster)]
+    if len(goods) != 1:
+        return None
+    target = goods[0]
+    from hengbot import amberite_curse  # import cycle
+
+    if amberite_curse.is_amberite(policy, target):
+        return None
+    if raw is None:
+        raw = tiered(policy, snapshot, hostiles)
+    if raw.tier not in (T2, T3) or raw.instant_death:
+        return None
+    if tiered(policy, snapshot, [target], contact=True).tier != T2:
+        return None
+    hp = snapshot.player.hp
+    for other in hostiles:
+        if other.index == target.index:
+            continue
+        reading = tiered(policy, snapshot, [other], contact=True)
+        if reading.tier in STRONG_ON_THE_WAY or cannot_win(reading, hp):
+            return None
+    return target
+
+
+def kill_before_leave(policy, snapshot, hostiles, raw: Assessment | None = None) -> frozenset:
+    """The indices of ``hostiles`` whose kill goes before the 11-09 worsening leave
+    (``_worsens_leave``, which otherwise reads them left as a T1 is: the escapes and their
+    *Destruction*), else an empty set.  On a 即死 board (``raw.instant_death``) none: the escape
+    answers as before; below the low-HP line ``_worsens_leave`` leaves the 11-06 escape to answer.
+
+    - Owner 2026-11-23 Decision 1: the lone T2 good-drop unique (``lone_good_drop_t2``)."""
+    if not hostiles or not leave_decided_here(policy, snapshot):
+        return frozenset()
+    if raw is None:
+        raw = tiered(policy, snapshot, hostiles)
+    if raw.instant_death:
+        return frozenset()
+    kept = set()
+    if (target := lone_good_drop_t2(policy, snapshot, hostiles, raw)) is not None:
+        kept.add(target.index)
+    return frozenset(kept)
 
 
 def tier_of(policy, snapshot, hostiles) -> str | None:
