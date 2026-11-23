@@ -8712,6 +8712,31 @@ class TownMixin:
             return True
         return self._returning_to_town and not self._return_exit_locked(snapshot)
 
+    def _recall_wait_collect_key(self, snapshot: Snapshot) -> str | None:
+        """The calm recall wait's pickup (loot-before-recall, user 2026-09-23; owner 2026-11-17
+        「待ちの残りで届く所まで」, recall_wait_reach; owner 2026-11-18 「見える敵がいなければ拾う」,
+        ``_loot_before_recall_calm``), else None.  The return owner's wait asks it, and so does
+        deep_recall_loot before the emergency ladder in the wait of deep_teleport's Recall
+        (owner 2026-11-23)."""
+        if not self._loot_before_recall_calm(snapshot):
+            return None
+        self._rearm_navigation_ledger_loot()
+        collecting = self._normal_loot_key(
+            snapshot,
+            self._strategic_hostiles(snapshot),
+            max_path_distance=recall_wait_reach.max_path_distance(self, snapshot),
+            seek_reason="return:seek-loot",
+        )
+        if collecting is not None:
+            self._offer_execution(
+                collecting, producer="departure",
+                work_id="return:collect-before-recall",
+                next_step="return.collect-visible-loot",
+                expected_effect="visible-loot-collected",
+                continuation="recall.observe-arrival",
+            )
+        return collecting
+
     @claims(ClaimOwner.DEPARTURE)
     def _return_to_town_key(
         self,
@@ -8792,23 +8817,9 @@ class TownMixin:
             # is abandoned, exactly as before.  Owner 2026-11-17 「待ちの残りで
             # 届く所まで」: only the items the rest of the countdown surely
             # reaches (recall_wait_reach); none to walk back to.
-            if self._loot_before_recall_calm(snapshot):
-                self._rearm_navigation_ledger_loot()
-                collecting = self._normal_loot_key(
-                    snapshot,
-                    self._strategic_hostiles(snapshot),
-                    max_path_distance=recall_wait_reach.max_path_distance(self, snapshot),
-                    seek_reason="return:seek-loot",
-                )
-                if collecting is not None:
-                    self._offer_execution(
-                        collecting, producer="departure",
-                        work_id="return:collect-before-recall",
-                        next_step="return.collect-visible-loot",
-                        expected_effect="visible-loot-collected",
-                        continuation="recall.observe-arrival",
-                    )
-                    return collecting
+            collecting = self._recall_wait_collect_key(snapshot)
+            if collecting is not None:
+                return collecting
             self.last_reason = "return:wait-recall"
             self._offer_execution(
                 WAIT_KEY, producer="departure", work_id="return:recall-wait",

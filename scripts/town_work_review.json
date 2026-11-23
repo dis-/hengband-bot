@@ -7441,6 +7441,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_town.py:TownMixin._recall_wait_collect_key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Dungeon only: the recall countdown (the return owner's wait, _return_to_town_key; deep_recall_loot.key in the wait of deep_teleport's Recall); never reached in town (_loot_before_recall_calm refuses in town).",
+    "evidence": "loot-before-recall (user 2026-09-23), owner 2026-11-17 「待ちの残りで届く所まで」, 2026-11-18 「見える敵がいなければ拾う」: the calm wait's pickup (return:seek-loot / pickup) within recall_wait_reach, offered as return:collect-before-recall; None otherwise. Moved out of _return_to_town_key unchanged (owner 2026-11-23).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._return_to_town_key": {
     "classification": "producer",
     "rows": [
@@ -23312,6 +23323,17 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "deep_recall_loot.py:key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Dungeon only: asked at the top of destruction_use.key and destruction_use.loot_then_use while the Recall deep_teleport read in the teleport's place counts down; never reached in town.",
+    "evidence": "Owner 2026-11-23 「見える敵がいなければ拾いを先に」 / 「眠っていても止める」: with no hostile in view, the calm recall wait's pickup (_recall_wait_collect_key) in place of a use of *Destruction* or a walk waiting on one; None otherwise.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "deep_climb.py:key": {
     "classification": "producer",
