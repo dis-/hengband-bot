@@ -16580,6 +16580,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Teleportation below landed beside a dragon pit).
         if deep_teleport.movement_refused(self, snapshot):
             return deep_teleport.stuck_key(self, snapshot)
+        # The 99F/100F battle's floors (and the regeneration's relay floor): no generic
+        # Teleportation or Recall; the walk or Stone to Mud toward a frontier or stair only
+        # (angband_finale_battle ``keeps_scrolls``; n1-b life-416, Angband 99F 2026-11-23:
+        # 15 of the 39 scrolls went to the stuck escapes).
+        from hengbot import angband_finale_battle  # import cycle
+        if angband_finale_battle.keeps_scrolls(self, snapshot):
+            return deep_teleport.stuck_key(self, snapshot, recall=False)
         # After the player's own *Destruction* on this floor, Teleportation comes
         # before Recall (owner 2026-11-04 「治して階の探索を続ける」; n1-b life-367
         # recalled at full HP from 17 of 41 dives from 46F on, 2026-11-10).

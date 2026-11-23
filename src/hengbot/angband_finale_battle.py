@@ -209,6 +209,25 @@ def applies(policy, snapshot) -> bool:
     return not battle(policy, snapshot).done_on_arrival
 
 
+def keeps_scrolls(policy, snapshot) -> bool:
+    """A floor whose Teleportation scrolls are the battle's alone: one the battle holds
+    (``applies``), or the relay floor above it while the stairs regenerate it (policy
+    ``_quest_regen_phase``, the 98F above 99F and the 99F above 100F).  The owner's 2026-11-20
+    directive reads the scroll on its own cases only (「召喚または攻撃を受けてHPが800を下回ったとき、
+    または対象が距離2より近づいたとき」), and 2026-11-21 「巻物が尽きたら取り込んだテレポートの杖、杖も
+    尽きたら帰還して補給」: the generic stuck escapes (sealed_pocket ``destroyed_leave_key``, policy
+    ``_stuck_escape_key``) read none here.  n1-b life-416 (Angband 99F, 2026-11-23 18:30-18:46):
+    11 stuck:destroyed-circle-teleport and 4 stuck:teleport-escape reads of the 39 scrolls; the
+    empty pack recalled the character with Oberon alive."""
+    if applies(policy, snapshot):
+        return True
+    return (not snapshot.in_town and angband_finale.magic_eater(snapshot)
+            and angband_finale.lifted(policy)
+            and snapshot.floor_key[0] == angband_finale.DUNGEON_ANGBAND
+            and snapshot.dungeon_level + 1 in angband_finale.FINALE
+            and getattr(policy, "_quest_regen_phase", None) in ("ascend", "descend"))
+
+
 def _known_hostiles(snapshot) -> list:
     seen = {}
     for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters):
