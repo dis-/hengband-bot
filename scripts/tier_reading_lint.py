@@ -43,6 +43,9 @@ OWNERS = frozenset({"threat_tiers", "threat_projection", "threat_tier_memory"})
 # through alone_t1 / cannot_win would change its answer on the cost-capped reading.
 # key -> (count, why)
 BASELINE = {
+    "angband_finale_battle.py:shunned.compute: reading.tier in threat_tiers.STRONG_ON_THE_WAY": (
+        1, "the 99F/100F walks' strong non-targets (owner 2026-11-24 「射線を通さないように近づく」): "
+           "strong alone from contact, T1 or T2, as _sensed_strong's group members are read"),
     "guardian_landing.py:t1_landing: guardian_tier(policy, snapshot, info) == threat_tiers.T1": (
         1, "the dungeon guardian's own tier from contact (memoised per guardian, decision_memo) "
            "on its unconquered last floor; cannot_win would add the cost-capped reading"),

@@ -43,6 +43,8 @@ be the only one).  The readings, by name:
 - ``player_reaches``: ``player_projectable`` to a monster; to one in the player's view, a grid
   only the map memory shows does not stop it (the view is the line of sight: a wall only the
   memory keeps on it is stale, as ``danger`` reads a monster in view).
+- ``cell_exposed``: a monster's line of fire to a cell the player may stand on (the
+  ``player_reaches`` reading for a monster in view, else ``danger``'s), for the 99F/100F walks.
 - ``player_path``: the player's own bolt path itself (``player_projectable``'s), for an aim
   that must pass a monster on its way to another grid (policy ``_offset_fire_aim``).
 - ``own_stop`` (not a reading of this module): a ``projection_path`` given a stop of its own
@@ -184,6 +186,13 @@ READERS = {
         "the 99F/100F powered Rocket at the target's grid: a ball aimed at a grid flies the bolt "
         "path to it (owner 2026-11-20 「岩石溶解を使って射線を通す」); a target in view has the line "
         "whatever the map memory says (n1-b life-416 100F, 2026-11-24 05:24)",
+    ("angband_finale_battle", "_exposed", "cell_exposed"):
+        "the 99F/100F battle's walks and melts keep out of a strong non-target's line of fire "
+        "(owner 2026-11-24 「射線を通さないように近づくないし待つのがただしい」; the target's own "
+        "line stays the tactic's: 「サーペントには射線を通さなければならない」)",
+    ("line_of_fire", "cell_exposed", "straight_line"):
+        "a monster known by telepathy or detection: the danger reading's remembered line, to the "
+        "cell the player may stand on",
     ("line_of_fire", "player_reaches", "player_projectable"):
         "a monster out of the player's view: the player's own projection over the board",
     ("line_of_fire", "player_projectable", "player_path"):
@@ -402,6 +411,43 @@ def _memory_only(policy, snapshot, position: Position) -> bool:
     remembered grids under the board's): the board this decision reads does not show it."""
     grid = snapshot.grids.get(position)
     return grid is not None and grid is getattr(policy, "_remembered_grids", {}).get(position)
+
+
+def cell_exposed(policy, snapshot, monster, cell: Position, opened: tuple = ()) -> bool:
+    """``monster`` would have a line of fire to the player standing on ``cell`` (a cell the
+    player may walk to, or stand on with ``opened`` melted).
+
+    Within the spell range (``_monster_cast_distance`` <= get_max_range() = 18), the bolt path
+    from the monster to ``cell``: for a monster in the player's view, a grid only the map memory
+    shows does not stop it (``player_reaches``' reading of the view); for one known otherwise
+    (telepathy, detection), the ``danger`` reading -- the remembered straight line, else, awake,
+    projectable() with the unknown grids open.  ``opened``: grids read as open (a wall about to be
+    melted).
+
+    Owner 2026-11-24 (verbatim) 「射線を通す近づき方をしたのが悪い。射線を通さないように近づくないし
+    待つのがただしい」: n1-b life-416 (Angband 100F, 05:24:27, seq 1214) walked east along row 9
+    toward the Serpent's last-seen cell into the line of the Tarrasque (in view at (9,40), 15
+    away); its breaths took 999 HP to 83."""
+    if policy._monster_cast_distance(monster.position, cell) > MONSTER_SPELL_MAX_RANGE:
+        return False
+    if monster.position == cell:
+        return True
+    if _in_view(snapshot, monster):
+        path = projection_path(
+            monster.position, cell, MONSTER_SPELL_MAX_RANGE,
+            lambda position: position not in opened
+            and not _memory_only(policy, snapshot, position)
+            and policy._may_block_projection(snapshot, position))
+        return bool(path) and path[-1] == cell
+    if not opened and straight_line(policy, snapshot, monster.position, cell,
+                                    remembered=policy._remembered_grids):
+        return True
+    if monster.asleep:
+        return False
+    path = projection_path(
+        monster.position, cell, MONSTER_SPELL_MAX_RANGE,
+        lambda position: position not in opened and policy._may_block_projection(snapshot, position))
+    return bool(path) and path[-1] == cell
 
 
 def player_path(policy, snapshot, source: Position, target: Position, max_range: int,

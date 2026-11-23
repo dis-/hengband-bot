@@ -1,4 +1,5 @@
-"""The last boards of n1-b life-416's death on Angband 100F choose the teleport (2026-11-24 05:24).
+"""The last boards of n1-b life-416's death on Angband 100F choose the teleport (2026-11-24 05:24),
+and the walk before them keeps out of the Tarrasque's line of fire (owner 2026-11-24).
 
 Owner 2026-11-20 (verbatim) 「召喚または攻撃を受けてHPが800を下回ったとき、または対象が距離2より近づいた
 ときテレポートの巻物で離脱する。」 and (verbatim) 「ターゲットとターゲット以外が同時に射線に入っているときは
@@ -29,6 +30,7 @@ from tests.support import finale_416
 from tests.support.recorded import EDIT
 
 FIXTURE = "finale-serpent-death-n1b-416-1124.jsonl.gz"
+INTO_LINE = 4781288  # seq 1214: at (9,25), the Serpent unseen, the Tarrasque in view at (9,40)
 FIRST_HEAL = 4781291
 IN_VIEW = 4781293   # HP 1078, both in view on row 9, a stale remembered wall at (9,38)-(9,39)
 REHEALED = 4781302   # HP 537 after *Healing* at 210 and the Tarrasque's breath in that turn
@@ -51,6 +53,15 @@ class FinaleSerpentDeathRecordedTest(unittest.TestCase):
 
         rows = finale_416.drive(finale_416.boards(FIXTURE), monrace, prepare=prepare)
         cls.rows = {row[0]: row for row in rows if row[0] >= FIRST_HEAL - 20}
+
+    def test_the_approach_does_not_step_into_the_tarrasque_line(self):
+        # Owner 2026-11-24 (verbatim) 「射線を通す近づき方をしたのが悪い。射線を通さないように近づくないし
+        # 待つのがただしい」: the recorded walk stepped '6' along row 9 into the Tarrasque's line (its
+        # breaths: 999 -> 83).  The walk keeps out of it (here (9,25) is in it: out of the line).
+        row = self.rows[INTO_LINE]
+        self.assertEqual(row[1], (9, 25), self.rows)
+        self.assertNotEqual(row[2], "6", self.rows)
+        self.assertEqual(row[3], angband_finale_battle.OUT_OF_LINE_REASON, self.rows)
 
     def test_the_first_star_healing_is_kept(self):
         # HP 83 after a hit: the *Healing* line (below 400) answers first, as recorded.
