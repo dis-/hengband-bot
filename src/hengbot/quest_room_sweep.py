@@ -466,9 +466,13 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
                                          _Board(policy, snapshot, policy.approved_quest_strategy(
                                              navigator.quest_id), navigator, plan))) is not None:
         return phase
-    # Standing where both sides' summoners act (a teleport's landing): out of it first.
+    # Standing where both sides' summoners act (a teleport's landing): out of it first, by the
+    # shortest way out, over the cells where both act if they are all round him (n1-c life-221,
+    # Quest 33, 2026-11-23 12:59:54: landed on [7,72] inside such a pocket, every walk refused its
+    # cells and the sweep stopped by name, quest:blocked:sweep-nothing-comes).
     if (out := quest_alignment_split.leave_goals(policy, snapshot, navigator, plan)):
-        stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, out, blocked), WALK_REASON)
+        stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, out, blocked, split=False),
+                        WALK_REASON)
         if stepped is not None:
             return stepped
     if (sought := _to_last_seen(policy, snapshot, navigator, plan, blocked)) is not None:
