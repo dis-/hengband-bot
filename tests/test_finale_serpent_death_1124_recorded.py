@@ -30,6 +30,7 @@ from tests.support.recorded import EDIT
 
 FIXTURE = "finale-serpent-death-n1b-416-1124.jsonl.gz"
 FIRST_HEAL = 4781291
+IN_VIEW = 4781293   # HP 1078, both in view on row 9, a stale remembered wall at (9,38)-(9,39)
 REHEALED = 4781302   # HP 537 after *Healing* at 210 and the Tarrasque's breath in that turn
 END = 4781304
 
@@ -61,6 +62,17 @@ class FinaleSerpentDeathRecordedTest(unittest.TestCase):
         row = self.rows[REHEALED]
         self.assertFalse(self.attacked[REHEALED], self.rows)
         self.assertTrue(row[3].startswith(angband_finale_battle.TELEPORT_REASON), self.rows)
+
+    def test_target_and_another_in_view_on_the_line_teleport(self):
+        # 「ターゲットとターゲット以外が同時に射線に入っているとき」: the Serpent and the Tarrasque in
+        # view on row 9 (the game's line of sight); the memory's walls between are stale.
+        self.assertTrue(self.rows[IN_VIEW][3].startswith(angband_finale_battle.TELEPORT_REASON),
+                        self.rows)
+
+    def test_no_stone_to_mud_while_both_breathe_on_the_line(self):
+        melts = [row for turn, row in self.rows.items() if IN_VIEW <= turn <= END
+                 and row[3].startswith(angband_finale_battle.MELT_REASON)]
+        self.assertEqual(melts, [], self.rows)
 
 
 if __name__ == "__main__":

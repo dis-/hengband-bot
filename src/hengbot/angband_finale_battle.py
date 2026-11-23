@@ -279,13 +279,13 @@ def others(snapshot) -> list:
 
 def crowded(policy, snapshot, target) -> bool:
     """「ターゲットとターゲット以外が同時に射線に入っているとき」: a line projects from the player to
-    the target and to another known monster on this board."""
+    the target and to another known monster on this board (line_of_fire ``player_reaches``: to a
+    monster in view, a wall only the map memory keeps does not stop it)."""
     from hengbot import line_of_fire
     if target is None:
         return False
-    here = snapshot.player.position
-    return (line_of_fire.player_projectable(policy, snapshot, here, target.position)
-            and any(line_of_fire.player_projectable(policy, snapshot, here, monster.position)
+    return (line_of_fire.player_reaches(policy, snapshot, target)
+            and any(line_of_fire.player_reaches(policy, snapshot, monster)
                     for monster in others(snapshot)))
 
 
@@ -988,8 +988,7 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
         drink = resist_potion.quaff_key(policy, snapshot, RESIST_REASON)
         if drink is not None:
             return drink
-    here = snapshot.player.position
-    if line_of_fire.player_projectable(policy, snapshot, here, target.position):
+    if line_of_fire.player_reaches(policy, snapshot, target):
         if rocket_charges(policy, snapshot) <= 0:
             return _restore_mana(policy, snapshot, empty=True)
         if not fire_hp_holds(snapshot):
