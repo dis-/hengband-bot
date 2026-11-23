@@ -38,12 +38,14 @@ departure stage deadlines (``STAGES``, town_visit_plan ``restart_stages``; the s
 under town:blocked:stage-deadline:buy in its sixth lap); a circuit stuck in one town still spends
 them.
 
-Only the funds end it (``closed``): the gold below the next leg's fare, the reserve and one
-potion at the price last seen on a Black Market shelf (the base price before one is seen), or an
-inn the walk cannot reach, or a leg refused.  The town then stops by name
-(``town:blocked:finale-not-in-town:restore_mana:<why>``); the gold line of the ordinary visit
-(``_start_fundraising``: Home's cash wares first, owner 2026-11-18) is the ordinary flow's own.
-A dungeon board forgets the circuit (angband_finale ``observe``).
+The gold is no end (``_funds_key``, owner 2026-11-18 「必要なものは買う」): below the next leg's
+fare, the reserve and one potion at the price last seen on a Black Market shelf (the base price
+before one is seen), Home's cash wares are sold first and then one fundraising run brings the
+gold; the circuit starts again on the next town board.  Only an inn the walk cannot reach, a leg
+refused or no town to visit end it (``closed``): the town stops by name
+(``town:blocked:finale-bm-tour-closed:<why>``, a final stop of the driver, policy_constants
+FINALE_BM_CLOSED_STOP_PREFIX).  A dungeon board forgets the circuit (angband_finale
+``observe``).
 """
 from __future__ import annotations
 
@@ -54,7 +56,7 @@ from hengbot import angband_finale, bm_tour, town_visit_plan
 from hengbot.finale_teleport_tour import Night
 from hengbot.me_inn_refill import InnRefillStay
 from hengbot.model import STORE_BLACK
-from hengbot.policy_constants import CROSS_TOWN_SHOPPING_RESERVE
+from hengbot.policy_constants import CROSS_TOWN_SHOPPING_RESERVE, WAIT_KEY
 from hengbot.recall_stockout_travel import fare
 
 SUPPLY = "restore_mana"  # angband_finale SUPPLY_NAMES' row
@@ -64,6 +66,13 @@ SUPPLY = "restore_mana"  # angband_finale SUPPLY_NAMES' row
 # (``observe``, ``_next_lap``); a circuit making no such progress still spends them.
 STAGES = ("buy", "departure")
 STATE = "_finale_bm_tour"
+# The circuit's waits while the gold is short (``_funds_key``): Home's cash sale, then the
+# fundraising run handed over.  Each wait is one decision; the sale's own owner acts between.
+FUNDS_SALE_REASON = "town:finale-hold:bm-funds-sale"
+FUNDRAISE_REASON = "town:finale-hold:bm-funds-fundraise"
+# Waits at one gold for the cash sale to begin before the fundraising run (a sale that cannot
+# start within them is no sale: its sweep's own gates hold, home_cash_sale ``pending``).
+FUNDS_SALE_WAITS = 20
 APPROACH_REASON = "shop:travel"  # the store router's own reason
 
 
@@ -78,6 +87,11 @@ class Tour:
     price: int | None = None  # the lowest Restore Mana price last seen on a Black Market shelf
     night: Night = field(default_factory=Night)
     closed: str | None = None
+    # The gold the next leg needs while short (``_funds_key``), the waits for Home's cash sale
+    # at the gold they began on, and the fundraising run's target once one was handed over.
+    funds_needed: int | None = None
+    funds_waits: tuple[int, int] | None = None
+    fundraise_target: int | None = None
 
 
 def record(policy: Any) -> Tour | None:
@@ -92,6 +106,18 @@ def forget_trip(policy: Any) -> None:
 def shortage(policy: Any, snapshot: Any) -> int:
     """The carry's Restore Mana still to buy (pack and Home)."""
     return angband_finale.shortage(policy, snapshot, angband_finale.RESTORE_MANA)
+
+
+def restore_mana_first(policy: Any, snapshot: Any) -> bool:
+    """In town preparing the 99F/100F finale with the Restore Mana carry short: the gold goes to
+    the shortfall first.  The optional purchases buy nothing else (policy_shop
+    ``_black_market_optional_purchase``, me_device_policy ``purchase_wanted``) but the finale's
+    own supplies still short (angband_finale ``black_market_wanted``) and the owner's first-priority
+    wares (the *Destruction* staff, bm_destruction_fund's priority rows).  n1-b life-416
+    2026-11-24 00:49:31 bought a Potion of Resistance for 3,930 (94 owned, the finale's 20) right
+    after a Restore Mana, and the circuit's next leg was then short of gold."""
+    return bool(snapshot.in_town and angband_finale.preparing(snapshot)
+                and shortage(policy, snapshot) > 0)
 
 
 def holds_town(policy: Any, snapshot: Any) -> bool:
@@ -142,10 +168,48 @@ def _potion_price(policy: Any, tour: Tour) -> int:
     return policy._baseitem_costs.get(angband_finale.RESTORE_MANA, 0)
 
 
-def _funded(policy: Any, snapshot: Any, tour: Tour, destination: int) -> bool:
+def _funds_needed(policy: Any, snapshot: Any, tour: Tour, destination: int) -> int:
+    """The next leg's fare, the reserve and one potion at the price last seen."""
     reserve = policy._full_departure_resupply_reserve(snapshot) or 0
-    needed = max(reserve, CROSS_TOWN_SHOPPING_RESERVE) + _potion_price(policy, tour)
-    return snapshot.player.gold >= needed + fare(destination)
+    return max(reserve, CROSS_TOWN_SHOPPING_RESERVE) + _potion_price(policy, tour) + fare(destination)
+
+
+def funds_short(policy: Any, snapshot: Any) -> bool:
+    """The circuit waits for gold: the fundraising line of Home's cash sale (home_cash_sale
+    ``due``) while the gold is below what the next leg needs."""
+    tour = record(policy)
+    return bool(tour is not None and tour.closed is None and snapshot.in_town
+                and tour.funds_needed is not None
+                and snapshot.player.gold < tour.funds_needed)
+
+
+def _funds_key(policy: Any, snapshot: Any, tour: Tour, needed: int) -> str:
+    """Owner 2026-11-18 「必要な物は買う。本当に資金枯渇したら採掘で良いが、自宅に大量の換金用アイテムが
+    あるので先に売る。」: below what the next leg needs, Home's cash wares are sold first (home_cash_sale,
+    its line read through ``funds_short``: the existing Home junk sweep, never a finale supply or
+    a never-sold ware, item_fate); with none left (or the sale making no progress), one
+    fundraising run to the gold needed (morivant_tower ``start_fundraising_run``, the mining set's
+    gold end); its dungeon board forgets the circuit, which starts again on the next town board.
+    n1-b life-416 2026-11-24 00:49: 20,149 gold of 21,235 named a stop and spun on it."""
+    from hengbot import home_cash_sale, morivant_tower
+    tour.funds_needed = needed
+    gold = snapshot.player.gold
+    waits = tour.funds_waits[1] + 1 if tour.funds_waits and tour.funds_waits[0] == gold else 1
+    tour.funds_waits = (gold, waits)
+    if home_cash_sale.pending(policy, snapshot) and waits <= FUNDS_SALE_WAITS:
+        return _wait(policy, FUNDS_SALE_REASON, FUNDS_SALE_REASON)
+    if policy._fundraising_mode not in home_cash_sale.MINING_MODES:
+        tour.fundraise_target = needed
+        morivant_tower.start_fundraising_run(policy, snapshot, needed)
+    return _wait(policy, f"{FUNDRAISE_REASON}:{needed}", FUNDRAISE_REASON)
+
+
+def _wait(policy: Any, reason: str, work_id: str) -> str:
+    policy.last_reason = reason
+    policy._offer_execution(
+        WAIT_KEY, producer="departure", work_id=work_id,
+        next_step="finale.black-market-funds", expected_effect="gold-raised")
+    return WAIT_KEY
 
 
 def _next_lap(policy: Any, snapshot: Any, tour: Tour) -> None:
@@ -230,15 +294,22 @@ def town_key(policy: Any, snapshot: Any) -> str | None:
         # Owner 2026-11-20 「一周する毎に宿屋で一泊する」: the lap is done.
         tour.night.due, tour.night.stay = True, InnRefillStay()
         return _night_key(policy, snapshot, tour)
-    if not _funded(policy, snapshot, tour, following):
-        _close(tour, "funds")
-        return None
+    needed = _funds_needed(policy, snapshot, tour, following)
+    if snapshot.player.gold < needed:
+        return _funds_key(policy, snapshot, tour, needed)
+    tour.funds_needed, tour.funds_waits = None, None
     key = bm_tour._leg_key(policy, snapshot, following)
     if key is None:
         _close(tour, f"travel-refused-{following}")
         return None
     tour.target = following
     return key
+
+
+def closed(policy: Any) -> bool:
+    """The circuit ended (an inn, a leg, no town): the town's final stop (finale_hold)."""
+    tour = record(policy)
+    return tour is not None and tour.closed is not None
 
 
 def why(policy: Any) -> str:
@@ -253,4 +324,6 @@ def facts(policy: Any) -> dict | None:
         return None
     return {"lap": tour.lap, "seen": list(tour.seen), "target": tour.target,
             "short_at_lap": tour.short_at_lap, "laps": list(tour.laps), "price": tour.price,
-            "nights": tour.night.nights, "night_due": tour.night.due, "closed": tour.closed}
+            "nights": tour.night.nights, "night_due": tour.night.due, "closed": tour.closed,
+            "funds_needed": tour.funds_needed, "funds_waits": tour.funds_waits,
+            "fundraise_target": tour.fundraise_target}

@@ -104,13 +104,16 @@ class FinaleBlackMarketTour1123RecordedTest(unittest.TestCase):
         # The next lap begins with this town's Black Market again.
         self.assertTrue(policy.last_reason.startswith("shop:travel"), policy.last_reason)
 
-    def test_funds_short_stops_by_name(self):
+    def test_funds_short_raises_the_gold(self):
         policy, board = self.replay()
         # DECLARED CONSTRUCTED (module docstring): 500 gold.
         poor = replace(board, player=replace(board.player, gold=500))
         key, reason = self.decide(policy, poor)
-        self.assertEqual(reason, "town:blocked:finale-not-in-town:restore_mana:funds")
-        self.assertEqual(finale_bm_tour.facts(policy)["closed"], "funds")
+        # Owner 2026-11-18 「必要なものは買う」: no stop; the gold is raised (finale_bm_tour
+        # ``_funds_key``; tests/test_finale_bm_funds_1124_recorded.py).
+        self.assertFalse(reason.startswith("town:blocked:"), reason)
+        self.assertIsNone(finale_bm_tour.facts(policy)["closed"])
+        self.assertEqual(policy._fundraising_mode, "prepare")
 
 
 if __name__ == "__main__":

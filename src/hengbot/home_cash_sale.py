@@ -77,10 +77,19 @@ def ware(policy: Any, snapshot: Any, item: Any) -> bool:
     return bool(policy._is_high_value_book(item) or unneeded_jewelry(policy, snapshot, item))
 
 
+def under_line(policy: Any, snapshot: Any) -> bool:
+    """The gold under the fundraising line: the poverty line, or what the 99F/100F Restore
+    Mana circuit's next leg needs (finale_bm_tour ``funds_short``, owner 2026-11-18
+    「必要なものは買う」)."""
+    from hengbot import finale_bm_tour  # import cycle
+    return (snapshot.player.gold < FUNDRAISING_START_GOLD
+            or finale_bm_tour.funds_short(policy, snapshot))
+
+
 def due(policy: Any, snapshot: Any) -> bool:
-    """Poverty in town with no mining set open, the sale not ended this stay."""
+    """Gold under the line in town with no mining set open, the sale not ended this stay."""
     return bool(snapshot.in_town and snapshot.player.class_id >= 0
-                and snapshot.player.gold < FUNDRAISING_START_GOLD
+                and under_line(policy, snapshot)
                 and policy._fundraising_mode not in MINING_MODES
                 and _state(policy)["ended"] != policy._town_visit_epoch)
 
@@ -152,6 +161,8 @@ def end(policy: Any) -> None:
 
 def observe(policy: Any, snapshot: Any) -> None:
     """Remember whether the current census holds a cash ware (read while it is stale)."""
-    if (snapshot.in_town and policy._home_knowledge_current
-            and snapshot.player.gold < FUNDRAISING_START_GOLD):
+    # Read whatever the gold: a line raised later (the Restore Mana circuit's next leg,
+    # finale_bm_tour) finds the census stale after the visit's last Home page, and only this
+    # mark lets it ask for the census its sale needs (``census_wanted``).
+    if snapshot.in_town and policy._home_knowledge_current:
         _state(policy)["seen"] = _shelf_has_ware(policy, snapshot)

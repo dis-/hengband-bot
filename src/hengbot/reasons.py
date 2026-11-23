@@ -814,6 +814,13 @@ _stationary(EXEMPT, "stationary_bounds.FINALE_HOLD_MAX_DECISIONS (STAND_ROUTE_TR
 # town then stops as town:blocked:finale-prep-stopped:<reason>.
 _stationary(EXEMPT, "finale_prep.STEP_LIMIT per step (the phase stops by name, then the town)",
             "town:finale-hold:phase")
+# The Black Markets' Restore Mana circuit short of gold (finale_bm_tour._funds_key, owner
+# 2026-11-18 「必要なものは買う」): Home's cash sale acts between the waits, at most
+# FUNDS_SALE_WAITS at one gold; the fundraising run handed over leaves town on its own.
+_stationary(EXEMPT, "finale_bm_tour.FUNDS_SALE_WAITS at one gold, then the fundraising run",
+            "town:finale-hold:bm-funds-sale")
+_stationary(HOLD, "one wait: the fundraising run handed over takes the town (morivant_tower)",
+            "town:finale-hold:bm-funds-fundraise")
 _stationary(EXEMPT, "stationary_bounds.AMBERITE_HOLD_MAX_GAME_TURNS (no natural end)", "amberite:hold")
 _stationary(EXEMPT, "stationary_bounds.THREAT_WAIT_MAX_GAME_TURNS (no natural end)", "threat:wait")
 _stationary(EXEMPT, "stationary_bounds.QUEST25_FIRE_HOLD_MAX_GAME_TURNS (no natural end)",
