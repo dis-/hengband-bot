@@ -2334,8 +2334,12 @@ def _write_decision(
                 record["deep_teleport"] = deep
             if policy is not None and (spent := destruction_use.unsafe_report(policy)) is not None:
                 record["means_spent"] = spent  # record only (destruction_use, owner 2026-11-16)
+            if policy is not None and (used := destruction_use.use_report(policy)) is not None:
+                record["destruction"] = used  # record only (destruction_use, 2026-11-23 loot yield)
             if policy is not None and (amberite := amberite_curse.report(policy)) is not None:
                 record["amberite"] = amberite  # record only (amberite_curse, owner 2026-11-17)
+            if policy is not None and (readings := amberite_curse.readings_report(policy)) is not None:
+                record["amberite_readings"] = readings  # record only (amberite_curse, 2026-11-23)
             if policy is not None and (yielded := approach_answer.report(policy)) is not None:
                 record["approach_yielded"] = yielded  # record only (approach_answer, review 11-18 S2)
             if policy is not None and (crossing := cross_rules.report(policy)) is not None:

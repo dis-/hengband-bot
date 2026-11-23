@@ -89,17 +89,31 @@ def explore_path(policy, snapshot, avoided) -> list:
     if tried is None or tried[0] != snapshot.floor_key:
         tried = (snapshot.floor_key, {})
     counts = tried[1]
-    start = snapshot.player.position
     closed = set(avoided) | set(policy._walk_veto(snapshot))
     candidates = candidates - _hazard_closed(policy, snapshot, candidates, closed)
     if not candidates:
         return []
+    path = frontier_path(policy, snapshot, candidates, closed=closed,
+                         spent={cell for cell, times in counts.items() if times >= FRONTIER_TRIES})
+    if not path:
+        return []
+    goal = path[-1]
+    counts[goal] = counts.get(goal, 0) + 1
+    setattr(policy, TRIED, tried)
+    return path
+
+
+def frontier_path(policy, snapshot, candidates, *, closed=(), spent=()) -> list:
+    """[first step, ..., frontier]: the walk to the reachable remembered frontier nearest
+    ``candidates`` (ties by cell), none of ``spent``, off ``closed``; [] with none.  The plan of
+    ``explore_path``, shared with destruction_loot's fetch of a pile no known way leads to."""
+    start = snapshot.player.position
     parent = {start: None}
     queue = deque([start])
     frontiers = []
     while queue:
         position = queue.popleft()
-        if (position != start and counts.get(position, 0) < FRONTIER_TRIES
+        if (position != start and position not in spent
                 and policy._is_remembered_frontier(snapshot, position)):
             frontiers.append(position)
         for neighbor in policy._walkable_neighbors(snapshot, position):
@@ -111,8 +125,6 @@ def explore_path(policy, snapshot, avoided) -> list:
         return []
     goal = min(frontiers, key=lambda cell: (
         min(game_distance(cell, loot) for loot in candidates), cell.y, cell.x))
-    counts[goal] = counts.get(goal, 0) + 1
-    setattr(policy, TRIED, tried)
     path = []
     cell = goal
     while cell != start:

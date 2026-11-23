@@ -85,6 +85,9 @@ HASTE_REASON = "amberite:haste"
 RESIST_REASON = "amberite:quaff-resistance"
 HOLD_REASON = "amberite:hold"
 NOTE = "_amberite_curse_note"          # (decision sequence, record); record only
+# (decision sequence, {indices: reading}): every ``refusal`` read on that decision (the tiers' T1
+# reading ``t1_amberites`` and the gate's), record only (``report`` "readings", 2026-11-23).
+READINGS = "_amberite_curse_readings"
 
 # Verdicts (the record's ``verdict``).
 PERMITTED = "permitted"
@@ -167,6 +170,12 @@ def _others_awake(policy, snapshot, amberites) -> bool:
 def refusal(policy, snapshot, amberites) -> str | None:
     """Why a strike that can kill ``amberites`` may not be sent now, else None (rule 3); the one
     reader of the kill's conditions, the tiers' T1 reading too (``t1_amberites``)."""
+    verdict = _refusal(policy, snapshot, amberites)
+    _note_reading(policy, snapshot, amberites, verdict)
+    return verdict
+
+
+def _refusal(policy, snapshot, amberites) -> str | None:
     if not resists_curse(snapshot):
         return NO_RESIST_CURSE
     if len(amberites) > 1 or _others_awake(policy, snapshot, amberites):
@@ -175,6 +184,44 @@ def refusal(policy, snapshot, amberites) -> str | None:
     if player.hp < policy._low_hp_walk_threshold(player.max_hp):
         return HP_LOW
     return None
+
+
+def _others_awake_rows(policy, snapshot, amberites) -> list:
+    """Record only: the other awake hostiles ``_others_awake`` counts (index, race, name, game
+    distance, in view), nearest first."""
+    from hengbot import threat_tiers  # import cycle
+    from hengbot.model import game_distance
+
+    here = snapshot.player.position
+    struck_indices = {monster.index for monster in amberites}
+    shown = {monster.index for monster in snapshot.visible_monsters}
+    others = [monster for monster in threat_tiers.engagement(policy, snapshot)
+              if not monster.asleep and monster.index not in struck_indices]
+    others.sort(key=lambda monster: game_distance(here, monster.position))
+    return [[monster.index, monster.race_id, monster.name, game_distance(here, monster.position),
+             monster.index in shown] for monster in others[:6]]
+
+
+def _note_reading(policy, snapshot, amberites, verdict) -> None:
+    sequence = getattr(policy, "_decision_sequence", None)
+    note = getattr(policy, READINGS, None)
+    if note is None or note[0] != sequence:
+        note = (sequence, {})
+        setattr(policy, READINGS, note)
+    indices = tuple(sorted(monster.index for monster in amberites))
+    if indices in note[1]:
+        return
+    from hengbot.model import game_distance
+    here = snapshot.player.position
+    note[1][indices] = {
+        "amberites": [[monster.index, monster.race_id, monster.name, bool(monster.asleep),
+                       game_distance(here, monster.position)] for monster in amberites],
+        "verdict": verdict,
+        "others_awake": (_others_awake_rows(policy, snapshot, amberites)
+                         if verdict == OTHER_AWAKE else []),
+        "unseen_attack": getattr(policy, "_unseen_attack_evidence", None) is not None,
+        "hp": [snapshot.player.hp, policy._low_hp_walk_threshold(snapshot.player.max_hp)],
+    }
 
 
 def after_ladder(policy, snapshot, key):
@@ -246,3 +293,15 @@ def report(policy) -> dict | None:
     if note is None or note[0] != getattr(policy, "_decision_sequence", None):
         return None
     return note[1]
+
+
+def readings_report(policy) -> list | None:
+    """The decision log's ``amberite_readings`` field: every kill-condition reading of this
+    decision (``READINGS``: the tiers' T1 reading ``t1_amberites`` and the gate's), with the
+    verdict and, for ``OTHER_AWAKE``, the awake hostiles it counted; else None (2026-11-23, the
+    loot yield study: n1-b life-416 erased Amberites with resist curse and never killed one)."""
+    readings = getattr(policy, READINGS, None)
+    if (readings is None or readings[0] != getattr(policy, "_decision_sequence", None)
+            or not readings[1]):
+        return None
+    return list(readings[1].values())
