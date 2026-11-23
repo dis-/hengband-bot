@@ -40,6 +40,9 @@ be the only one).  The readings, by name:
 - ``straight_line``: the board's straight line of sight, a known glass grid stopping it
   (``remembered``: the map memory read for a grid the board does not know).
 - ``player_projectable``: projectable() for the player's own bolt (glass stops it).
+- ``player_reaches``: ``player_projectable`` to a monster; to one in the player's view, a grid
+  only the map memory shows does not stop it (the view is the line of sight: a wall only the
+  memory keeps on it is stale, as ``danger`` reads a monster in view).
 - ``player_path``: the player's own bolt path itself (``player_projectable``'s), for an aim
   that must pass a monster on its way to another grid (policy ``_offset_fire_aim``).
 - ``own_stop`` (not a reading of this module): a ``projection_path`` given a stop of its own
@@ -168,7 +171,7 @@ READERS = {
     # player_projectable: the player's own bolt (glass stops it).
     ("immobile_ranged_kill", "_shooting_cell", "player_projectable"):
         "a grid the player's shot reaches an immobile summoner from",
-    ("angband_finale_battle", "crowded", "player_projectable"):
+    ("angband_finale_battle", "crowded", "player_reaches"):
         "the 99F/100F battle's leave when the target and another monster are both in the player's "
         "line of fire (owner 2026-11-20 「ターゲットとターゲット以外が同時に射線に入っているときは"
         "召喚直後でなくとも離脱する」)",
@@ -177,9 +180,12 @@ READERS = {
         "line of fire to the target where it stands: that melt is never made, the target would act "
         "first on the open line (owner 2026-11-21 「溶かした時に先手を取られて何も出来ず離脱している"
         "場面が問題」)",
-    ("angband_finale_battle", "_fight_key", "player_projectable"):
+    ("angband_finale_battle", "_fight_key", "player_reaches"):
         "the 99F/100F powered Rocket at the target's grid: a ball aimed at a grid flies the bolt "
-        "path to it (owner 2026-11-20 「岩石溶解を使って射線を通す」)",
+        "path to it (owner 2026-11-20 「岩石溶解を使って射線を通す」); a target in view has the line "
+        "whatever the map memory says (n1-b life-416 100F, 2026-11-24 05:24)",
+    ("line_of_fire", "player_reaches", "player_projectable"):
+        "a monster out of the player's view: the player's own projection over the board",
     ("line_of_fire", "player_projectable", "player_path"):
         "the player's bolt path ends on the target",
     # player_path: the grids the player's own bolt passes (glass stops it).
@@ -361,6 +367,41 @@ def player_projectable(policy, snapshot, source: Position, target: Position,
         return True
     path = player_path(policy, snapshot, source, target, MONSTER_SPELL_MAX_RANGE, opened)
     return bool(path) and path[-1] == target
+
+
+def player_reaches(policy, snapshot, monster) -> bool:
+    """The player's own bolt reaches ``monster``'s grid: ``player_projectable``, but for a monster
+    in the player's view (the board's ``visible_monsters``) a grid the board does not show now,
+    read from the map memory alone (``_with_grid_memory``), does not stop the path: the view is
+    the game's line of sight now, so a wall only the memory keeps on that path is stale, as
+    ``danger`` reads a monster in view (``_in_view_reaches``).  A grid the board shows stops it as
+    ``player_projectable`` reads it.
+
+    n1-b life-416 (Angband 100F, 2026-11-24 05:24:27-28, turns 4781293-4781304): at (9,26) the
+    Serpent of Chaos (9,42-44) and the Tarrasque (9,39-40) were both in view on row 9, and the
+    memory still held walls at (9,38) and (9,39) the board no longer showed (the game had
+    forgotten them; the Tarrasque stood on (9,39)).  The line read closed: no leave on the
+    target and another monster both in the line of fire (``angband_finale_battle.crowded``), no
+    Rocket, and the stand's Stone to Mud east was cast six times, its beam reaching both
+    (「『タラスク』はダメージを受けていない。」「『混沌のサーペント』はダメージを受けていない。」)
+    while their breaths took 999 HP to 83, then 1078 to 210, then killed."""
+    here = snapshot.player.position
+    if not _in_view(snapshot, monster):
+        return player_projectable(policy, snapshot, here, monster.position)
+    if monster.position == here:
+        return True
+    path = projection_path(
+        here, monster.position, MONSTER_SPELL_MAX_RANGE,
+        lambda position: not _memory_only(policy, snapshot, position)
+        and policy._stops_player_projection(snapshot, position))
+    return bool(path) and path[-1] == monster.position
+
+
+def _memory_only(policy, snapshot, position: Position) -> bool:
+    """The board's grid at ``position`` is the map memory's own (``_with_grid_memory`` merges the
+    remembered grids under the board's): the board this decision reads does not show it."""
+    grid = snapshot.grids.get(position)
+    return grid is not None and grid is getattr(policy, "_remembered_grids", {}).get(position)
 
 
 def player_path(policy, snapshot, source: Position, target: Position, max_range: int,

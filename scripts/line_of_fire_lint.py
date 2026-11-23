@@ -4,7 +4,7 @@ Whole-bot maintainability review 2026-11-17 (N4 / 5(a)-7): the line of fire was 
 seven names in two places, the counting reading (line_of_fire, an unknown grid a wall) and the
 danger reading (policy ``_monster_in_line_of_fire``, an awake monster's unknown grids open), each
 calling itself the only one.  Every reading now lives in line_of_fire under its own name
-(``counting``, ``danger``, ``projectable``, ``straight_line``, ``player_projectable``,
+(``counting``, ``danger``, ``projectable``, ``straight_line``, ``player_projectable``, ``player_reaches``,
 ``fire_reaches``), and ``line_of_fire.READERS`` lists which caller reads which and why.
 
 Findings:
@@ -40,7 +40,7 @@ POLICY_ROOT = ROOT / "src" / "hengbot"
 TEST_ROOT = ROOT / "tests"
 MODULE = "line_of_fire"
 READINGS = frozenset({"counting", "counting_reaches", "danger", "projectable", "straight_line",
-                      "player_projectable", "player_path", "fire_reaches"})
+                      "player_projectable", "player_reaches", "player_path", "fire_reaches"})
 # counting_reaches is the counting reading from a cell; the table names ``counting`` for it.
 TABLE_NAME = {"counting_reaches": "counting"}
 # A projection_path given a stop of its own outside line_of_fire: READERS lists each with why.
