@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import angband_finale_battle
-from hengbot import return_start
+from hengbot import return_start, search_ban
 from hengbot import angband_cap, attack_expectation, quest_optional_carry, quest_supply_gate
 from hengbot import spare_gear
 from hengbot.stair_destination import down_destination
@@ -3478,7 +3478,7 @@ class QuestMixin(OpeningRouteMixin):
                     return self._step_toward(snapshot, step)
                 if door_grid is None or not door_grid.known:
                     self.last_reason = "quest-strategy:search-opening-door"
-                    return SEARCH_KEY
+                    return search_ban.wait_key(snapshot)
                 # Lock-pick attempts are exempt from the cell-loop guard (each
                 # one spends game time), so bound them here instead.
                 attempts = getattr(self, "_q34_opening_door_attempts", 0)
@@ -4267,7 +4267,7 @@ class QuestMixin(OpeningRouteMixin):
                         and target_grid.currently_observed
                     ):
                         self.last_reason = "quest-strategy:survey-target-unconfirmed"
-                        return SEARCH_KEY
+                        return search_ban.wait_key(snapshot)
 
         if profile.quest_id == 2:
             navigator = self._quest_navigators.setdefault(

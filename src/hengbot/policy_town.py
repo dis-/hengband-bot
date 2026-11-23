@@ -14,7 +14,7 @@ from hengbot import destruction_use, ability_gear, consumable_policy, me_capabil
 from hengbot import item_use_route
 from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
 from hengbot import recall_wait_reach, status_cure, unseen_strike, walkout_dig
-from hengbot import random_quest_reserve
+from hengbot import random_quest_reserve, search_ban
 from hengbot import town_visit_plan
 from hengbot.town_visit_plan import (
     CONTINUE_OBSERVED_SHOP_REASON, CYCLE_BREAK_REASON, PROGRESS_APPROACH_REASON, PROGRESS_DEFECT_PREFIX, STAY,
@@ -8996,7 +8996,12 @@ class TownMixin:
                 and not player.blind
                 and not player.confused
             ):
-                if self._undersearched_walls(player.position):
+                if search_ban.banned(snapshot):
+                    # 99F/100F (search_ban): a door detection instead, never the search.
+                    detected = search_ban.detect_key(self, snapshot)
+                    if detected is not None:
+                        return detected
+                elif self._undersearched_walls(player.position):
                     self._record_wall_search(player.position)
                     self.last_reason = "return:search-upstairs"
                     return self._return_route_key(
@@ -9051,6 +9056,7 @@ class TownMixin:
                 and not player.blind
                 and not player.confused
                 and self._undersearched_walls(player.position)
+                and not search_ban.banned(snapshot)
             ):
                 self._record_wall_search(player.position)
                 self._clear_explore_path(ExplorationPathOutcome.PAUSE)
@@ -9117,7 +9123,12 @@ class TownMixin:
             and not player.blind
             and not player.confused
         ):
-            if self._undersearched_walls(player.position):
+            if search_ban.banned(snapshot):
+                # 99F/100F (search_ban): a door detection instead, never the search.
+                detected = search_ban.detect_key(self, snapshot)
+                if detected is not None:
+                    return detected
+            elif self._undersearched_walls(player.position):
                 self._record_wall_search(player.position)
                 self.last_reason = "return:search-upstairs"
                 return self._return_route_key(

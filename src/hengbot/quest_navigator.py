@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
-from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup
+from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup, search_ban
 from hengbot.item_identity import unidentified_identity
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
@@ -611,7 +611,8 @@ class QuestFloorNavigator:
         grid = snapshot.grid_at(nxt)
         if kind == "door" and (grid is None or not grid.enterable):
             door = (nxt.y, nxt.x)
-            if self.door_searches[door] >= DOOR_SEARCH_BUDGET:
+            if (self.door_searches[door] >= DOOR_SEARCH_BUDGET
+                    or search_ban.banned(snapshot)):
                 owner.last_reason = "quest:blocked:exit"
                 return "5"
             self.door_searches[door] += 1

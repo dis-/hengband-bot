@@ -146,7 +146,7 @@ from dataclasses import dataclass, field
 
 from hengbot import (
     area_mapping, hunt_target, left_cells, locked_doors, me_capability, me_powers, retreat_enclosure,
-    search_coverage, walk_vetoes,
+    search_ban, search_coverage, walk_vetoes,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -738,8 +738,16 @@ def door_means_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> 
     return None
 
 
+def door_detection_key(policy, snapshot: Snapshot) -> str | None:
+    """``door_means_key`` off the lap: search_ban's door detection on Angband 99F/100F, with this
+    floor visit's memory of the covered places (owner 2026-11-23 「サーチ禁止。必要なら感知」)."""
+    return door_means_key(policy, snapshot, _memory(policy, snapshot), _routes(policy, snapshot))
+
+
 def _door_search_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> str | None:
     """This decision's part of the secret door search (the module docstring), else None."""
+    if search_ban.banned(snapshot):
+        return None  # 99F/100F: the door detections of door_means_key only (search_ban)
     ends = _dead_ends(policy, snapshot, routes)
     spots, uncovered = [], set()
     if not door_means_held(policy, snapshot):

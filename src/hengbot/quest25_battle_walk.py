@@ -12,6 +12,7 @@ Split from quest25_battle.py (maintainability review 2026-11-23 (a)-8, behaviour
 
 from __future__ import annotations
 
+from hengbot import search_ban
 from hengbot import (
     left_cells, me_powers, quest25_geometry as geo, quest_exposure, quest_plan_base, threat_tiers,
     trap_warning,
@@ -400,7 +401,7 @@ def _trap_key(ctx: _Ctx, cell) -> str | None:
             return detect
     searched = battle.searches.get(cell, 0)
     limit = ctx.values.maybe_trap_searches if maybe and not always else ctx.values.trap_searches
-    if searched >= limit:
+    if searched >= limit or search_ban.banned(ctx.snapshot):
         battle.cleared = battle.cleared | {cell}   # 「罠は無いとみなして通る」
         return None
     battle.searches = {**battle.searches, cell: searched + 1}

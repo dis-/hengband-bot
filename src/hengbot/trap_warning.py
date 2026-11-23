@@ -33,6 +33,7 @@ from __future__ import annotations
 from collections import deque
 
 from hengbot import quest_room_sweep
+from hengbot import search_ban
 from hengbot.model import Position
 from hengbot.policy_constants import NEIGHBOR_OFFSETS
 from hengbot.policy_constants import SEARCH_KEY, SEARCH_LIMIT
@@ -90,7 +91,8 @@ def search_key(policy, snapshot, step: Position, *, last_way: bool = False) -> s
         return None
     grid = snapshot.grids.get(step)
     searches = policy._trap_warning_cells[step]
-    if (searches >= SEARCH_LIMIT or (grid is not None and grid.trap) or snapshot.player.blind
+    if (searches >= SEARCH_LIMIT or search_ban.banned(snapshot)
+            or (grid is not None and grid.trap) or snapshot.player.blind
             or _awake_hostiles(snapshot)):
         return None
     policy._trap_warning_cells[step] = searches + 1

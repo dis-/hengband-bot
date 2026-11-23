@@ -365,7 +365,7 @@ def _reveal_key(policy, snapshot, wall: Position) -> str | None:
     (policy ``_undersearched_walls``) before the digger is wielded or Stone to Mud is spent.
     A MAZE dungeon's floor (cave-generator.cpp switch_making_floor -> build_maze_vault) is walls
     and floor only, so there no wall is a door."""
-    from hengbot import immobile_ranged_kill, me_powers
+    from hengbot import immobile_ranged_kill, me_powers, search_ban
     from hengbot.policy_constants import SEARCH_KEY
 
     if immobile_ranged_kill._in_maze(policy, snapshot):
@@ -382,6 +382,9 @@ def _reveal_key(policy, snapshot, wall: Position) -> str | None:
         return beam
     if (wall.y, wall.x) not in policy._undersearched_walls(here):
         return None
+    if search_ban.banned(snapshot):
+        # 99F/100F: a door detection, else the opener (search_ban, owner 2026-11-23 「サーチ禁止」).
+        return search_ban.detect_key(policy, snapshot)
     policy._record_wall_search(here)
     policy.last_reason = REVEAL_REASON
     return SEARCH_KEY
