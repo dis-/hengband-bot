@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.home_full_relief import relief_of
 from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_prep, finale_teleport_tour
@@ -300,7 +301,7 @@ class TownMixin:
             or STORE_HOME in self._town_visit_ledger.nonhome_attempted_without_effect
             or self._store_entry_failed_owner == STORE_HOME
         )
-        relief = getattr(self, "_home_full_relief", None)
+        relief = relief_of(self)
         # The pack returns to the same state after each surplus sale, and gold
         # deliberately cannot prove progress. Remaining decreases only after
         # an observed withdrawal and its disposal effect (policy_home.py).
@@ -3540,7 +3541,7 @@ class TownMixin:
                          if self._inventory_overweight(snapshot) else None)
         self._release_home_full_relief_for_weight(snapshot, weight_relief)
         if (self._overweight_surplus_disposal is None
-                and self._home_full_relief is None
+                and relief_of(self) is None
                 and weight_relief is not None
                 and weight_relief.route == "sell-or-destroy"):
             self._overweight_surplus_disposal = {

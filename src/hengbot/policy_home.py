@@ -23,7 +23,7 @@ from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
 from hengbot import home_identification, home_pass_charge, me_deep_launcher, sale_progress
 from hengbot.home_full_relief import (
-    DESTROY_FIELDS, SALE_DESTROY_FIELDS, SKIP_FIELDS, HomeFullRelief, ReliefAttribute,
+    DESTROY_FIELDS, SALE_DESTROY_FIELDS, SKIP_FIELDS, HomeFullRelief, ReliefAttribute, relief_of,
 )
 from hengbot.town_pack_budget import home_take_fits, round_trip_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
@@ -38,7 +38,7 @@ from hengbot.policy_types import StoreVisit, StoreVisitPhase, ProcurementHomeGat
 from hengbot.latch_onset_capture import assignment_provenance
 from hengbot.equipment_optimizer import AMMUNITION_TVALS, awaits_identification, equipment_identity, equipment_move_identity
 from hengbot.equipment_transaction_session import observe_equipment_transactions
-from dataclasses import fields, replace
+from dataclasses import dataclass, fields, replace
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.store_sale import known_sale_value
 from hengbot.policy_supply import supply_ledger_observer_memo
@@ -48,7 +48,8 @@ from hengbot.town_hold import hold_claims, standing_claim
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import NamedTuple
+from enum import Enum
+from typing import Any, NamedTuple
 
 class WeightRelief(NamedTuple):
     """The one answer to "what is shed to get under the departure weight limit".
@@ -70,6 +71,44 @@ class WeightRelief(NamedTuple):
     home_room: bool
     route: str
     retained: tuple
+
+
+class _ReliefStep(Enum):
+    """A relief stage that decides no key (``HomeMixin._home_full_relief_key``'s stages)."""
+    # The next stage runs.
+    GO_ON = "go-on"
+    # The current ware's removal ended it: the relief chooses its next ware.
+    WARE_DONE = "ware-done"
+
+
+@dataclass
+class _ReliefWares:
+    """One census's wares the relief may choose from (``_home_full_relief_wares``), for one decision."""
+    # The Home's counts by signature.
+    counts: dict
+    # The pack cannot take a shelf ware: a carried stack goes first.
+    pack_bound: bool
+    # The carried stacks the relief may dispose of.
+    carried_stock: tuple
+    # The ids of the pack's rows among the wares.
+    pack_ids: set
+    # The shelf wares before the pack bound chose the carried stock.
+    shelf_stock: tuple
+    # The wares the relief chooses from (after the identify-cap skips).
+    stock: tuple
+    # The wares it may sell.
+    sale_stock: tuple
+    # Each ware's board without it (a pack row) or the board itself (a shelf ware), by id.
+    probes: dict
+    # The chosen sale ware is taken only to be sold at once (item_fate.relief_round_trip).
+    round_trip: bool
+
+
+class _ReliefChoice(NamedTuple):
+    """The relief's next ware: the ware, its source row, and the store it goes to."""
+    item: Any
+    source: Any
+    store_type: int
 
 
 class HomeMixin:
@@ -252,7 +291,7 @@ class HomeMixin:
             # 15:52: the shelf's ring for the Magic shop, every decision
             # town:blocked:home-full-surplus-store-unreachable).
             exhausted = (state.get("home_relief_exhausted")
-                         and self._home_full_relief is None)
+                         and relief_of(self) is None)
             if ((relief.route == "home-relief" and sum(shed.values()) >= relief.excess
                     and not exhausted)
                     # The owners still taking held items out of the pack go
@@ -382,7 +421,7 @@ class HomeMixin:
         self, snapshot: Snapshot, entries: tuple, *, refused: bool = False,
     ) -> None:
         """Bind the blocked deposit batch; reclaim no more than its stack slots."""
-        if self._home_full_relief is not None or (not entries and not self._inventory_overweight(snapshot)):
+        if relief_of(self) is not None or (not entries and not self._inventory_overweight(snapshot)):
             return
         if refused or self._home_is_full(snapshot):
             self._home_full_relief = HomeFullRelief(
@@ -425,7 +464,7 @@ class HomeMixin:
                 or self._home_errand.active
                 or self._home_pending_item is not None
                 or self._home_pending_batch
-                or self._home_full_relief is not None
+                or relief_of(self) is not None
                 or getattr(self, "_home_full_retry_deposits", None) is not None
                 or self._equipment_transaction_session is not None
                 or self._find_home_deposit(snapshot) is not None
@@ -455,7 +494,7 @@ class HomeMixin:
 
     def _end_home_junk_sweep(self) -> None:
         """Retain the sweep's ware and end the sweep for this town stay."""
-        relief = self._home_full_relief
+        relief = relief_of(self)
         sale = relief.sale if relief is not None else None
         if sale is not None and same_memory(self._home_pending_item, sale[0]):
             self._home_pending_item = None
@@ -475,7 +514,7 @@ class HomeMixin:
 
     def _revalidate_home_full_destroy_after_restore(self, snapshot: Snapshot) -> None:
         """A checkpoint cannot prove its pending destroy was posted this run."""
-        relief = getattr(self, "_home_full_relief", None)
+        relief = relief_of(self)
         if relief is None or not relief.destroy_posted:
             return
         sale = relief.sale
@@ -494,7 +533,7 @@ class HomeMixin:
     @claims(ClaimOwner.HOME_VISIT)
     def _defer_home_full_deposit(self, snapshot: Snapshot) -> None:
         """Carry an unserviceable Home deposit beyond this town visit."""
-        relief = self._home_full_relief
+        relief = relief_of(self)
         if relief is None:
             return
         if self._inventory_overweight(snapshot):
@@ -641,7 +680,7 @@ class HomeMixin:
             if carried.inscription and item.inscription and carried.inscription != item.inscription:
                 continue
             sig = self._item_signature(carried)
-            relief = self._home_full_relief
+            relief = relief_of(self)
             skipped = relief.skipped if relief is not None else {}
             deposits = relief.deposits if relief is not None else ()
             if (item_fate.held(self, snapshot, carried, "home-visit",
@@ -750,7 +789,7 @@ class HomeMixin:
 
     def _observe_home_full_identification(self, snapshot: Snapshot) -> None:
         """Settle the ID owner from item evidence before declaration dispatch."""
-        relief = self._home_full_relief
+        relief = relief_of(self)
         identifying = relief.identifying if relief is not None else None
         if identifying is None or relief.sale is None or snapshot.store is not None:
             return
@@ -811,7 +850,7 @@ class HomeMixin:
         destroy and deposit rules; the sweep's count of the stay already holds
         this take, so a later Home page may take the next unaware ware.
         """
-        relief = self._home_full_relief
+        relief = relief_of(self)
         signature = relief.sale[0] if relief.sale is not None else None
         self._release_claim_goal(
             "sweep-ware-identified", owners=("identification",), kinds=("Observe",),
@@ -830,7 +869,7 @@ class HomeMixin:
     @claims(ClaimOwner.HOME_VISIT)
     def _home_full_skip_key(self, reason: str) -> str:
         """Retain an unresolved/protected take and select other stock next."""
-        relief = self._home_full_relief
+        relief = relief_of(self)
         signature = relief.sale[0]
         relief.skipped[signature] = reason
         if not relief.pack_only and relief.stock_count is not None:
@@ -862,7 +901,7 @@ class HomeMixin:
 
     def _home_full_record_identify_cap_skip(self, snapshot: Snapshot, item, count: int) -> None:
         """Remember a charged Identify relief rejection without emitting WAIT."""
-        relief = self._home_full_relief
+        relief = relief_of(self)
         if relief is None:
             return
         signature = self._item_signature(item)
@@ -915,7 +954,7 @@ class HomeMixin:
         relief has already taken out keeps its own sale (it is not yielded).
         """
         store = snapshot.store
-        relief = self._home_full_relief
+        relief = relief_of(self)
         if (store is None or store.store_type == STORE_HOME
                 or (relief is not None and (relief.withdrawn or relief.pack_only
                                             or relief.carried))):
@@ -936,7 +975,7 @@ class HomeMixin:
         home:junk-sweep-withdraw -> shop:approach '9' '1' x4 ->
         owner-retired-burst.
         """
-        relief = self._home_full_relief
+        relief = relief_of(self)
         request = self._home_errand.request
         return bool(relief is not None and relief.sale is not None
                     and not relief.withdrawn
@@ -963,7 +1002,7 @@ class HomeMixin:
         broadsword the sweep destroyed just before escaped only because the transaction
         preserved it as an inferior weapon.
         """
-        relief = self._home_full_relief
+        relief = relief_of(self)
         if relief is None or not item.is_equipment:
             return False
         identity = self._sale_item_identity(item)
@@ -988,6 +1027,17 @@ class HomeMixin:
 
     @claims(ClaimOwner.HOME_VISIT)
     def _home_full_relief_key(self, snapshot: Snapshot) -> str | None:
+        """The full-Home relief's next key: its stages in order, each one function.
+
+        Maintainability review 2026-11-23 (a)-9 split the one 878-line function by stage without
+        changing a key or a reason: the blocked deposits' retry (``_home_full_retry_key``), the
+        relief's start (``_home_full_relief_begins``) and its waits (``_home_full_relief_waits``),
+        the current ware (``_home_full_current_ware_key``: taken, put back, removed, its take filed
+        again, its take failed), the cap tidy's batch (``_home_cap_tidy_batch_key``), the choice of
+        the next ware (``_home_full_relief_choose_key``) and the walk to its store or to Home
+        (``_home_full_relief_route_key``).  A stage that decides no key answers
+        ``_ReliefStep.GO_ON`` and the next stage runs.
+        """
         if not snapshot.in_town:
             return None
         # Physical restoration remains the admitted owner's work. Resume this
@@ -998,68 +1048,102 @@ class HomeMixin:
             return None
         retry = getattr(self, "_home_full_retry_deposits", None)
         if retry is not None:
-            if self._town_store_blocked_under_applicable_bound(
-                    STORE_HOME, need="weight-overload" if self._inventory_overweight(snapshot) else "deposit"):
-                # A no-legal-relief result defers this batch until a later
-                # town visit. Keep it carried while the current plan continues.
-                return None
-            if self._home_is_full(snapshot):
-                self._home_full_retry_deposits = None
-                self._begin_home_full_relief(snapshot, retry)
-                return self._home_full_relief_key(snapshot)
-            holder = standing_claim(self)
-            if (not self._home_knowledge_current
-                    and not (self._equipment_transaction_session is not None
-                             and holder is not None and holder.is_open
-                             and holder.owner.value == "equipment-txn"
-                             and holder.goal.source == "transaction")):
-                return self._town_producer_entry(
-                    "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
-                    family="home-scan")
-            if self._equipment_transaction_session is not None:
-                # Space relief owns surplus stock, not this session's item
-                # effects. Return the relieved deposit to its original owner;
-                # keep any unrelated Home batch entries for after the session.
-                reserved = {self._item_signature(item) for item in snapshot.inventory
-                            if self._equipment_transaction_reclaims_retry(item)}
-                self._home_full_retry_deposits = tuple(
-                    entry for entry in retry if entry[0] not in reserved) or None
-                return self._town_producer_entry(
-                    "_equipment_transaction_home_key" if snapshot.store is not None
-                    and snapshot.store.store_type == STORE_HOME
-                    else "_equipment_transaction_town_key",
-                    lambda: (self._equipment_transaction_home_key(snapshot)
-                             if snapshot.store is not None
-                             and snapshot.store.store_type == STORE_HOME
-                             else self._equipment_transaction_town_key(snapshot)),
-                    family="equipment-txn")
-            if self._find_home_deposit(snapshot) is None:
-                self._home_full_retry_deposits = None
-                return None
-            if snapshot.store is not None:
-                if snapshot.store.store_type == STORE_HOME:
-                    return self._open_home_deposit_key(snapshot)
-                return self._home_full_leave_key("home:full-space-ready")
-            if self._town_store_blocked_under_applicable_bound(
-                    STORE_HOME, need="weight-overload" if self._inventory_overweight(snapshot) else "deposit"):
-                # This visit already recorded Home as unavailable (e.g. a
-                # refused deposit into a full Home). The retry cannot reach
-                # it either: drop it and keep the items for the next visit
-                # instead of holding the town plan on an unreachable Home.
-                self._home_full_retry_deposits = None
-                return None
-            self._rearm_town_store_for_new_work(STORE_HOME)
-            if not self._ensure_home_visit_request(snapshot):
-                return None
-            step = self._shopping_approach_step(snapshot, STORE_HOME, requester="home-visit")
-            if step is None:
-                # The retry is the relief's optional last step. An unreachable
-                # Home (whatever the cause) must not hold the town plan:
-                # keep the items for the next visit (2026-10-07 13:02).
-                self._home_full_retry_deposits = None
-                return None
-            return self._shopping_approach_key(snapshot, step, "shop:travel")
-        if self._home_full_relief is None and self._home_is_full(snapshot):
+            return self._home_full_retry_key(snapshot, retry)
+        if not self._home_full_relief_begins(snapshot):
+            return None
+        relief = relief_of(self)
+        if self._home_full_relief_waits(snapshot, relief):
+            return None
+        sale = relief.sale
+        if sale is not None:
+            step = self._home_full_current_ware_key(snapshot, relief, sale)
+            if step is _ReliefStep.WARE_DONE:
+                sale = None
+            elif step is not _ReliefStep.GO_ON:
+                return step
+        if self._home_full_relief_yields_to_store_operation(snapshot):
+            return None
+        if sale is None and relief.cap:
+            step = self._home_cap_tidy_batch_key(snapshot, relief)
+            if step is not _ReliefStep.GO_ON:
+                return step
+        if sale is None:
+            step = self._home_full_relief_choose_key(snapshot, relief)
+            if step is not _ReliefStep.GO_ON:
+                return step
+            sale = relief.sale
+        return self._home_full_relief_route_key(snapshot, relief, sale)
+
+    def _home_full_retry_key(self, snapshot: Snapshot, retry: tuple) -> str | None:
+        """The blocked deposit batch an ended relief made room for (``_home_full_retry_deposits``)."""
+        if self._town_store_blocked_under_applicable_bound(
+                STORE_HOME, need="weight-overload" if self._inventory_overweight(snapshot) else "deposit"):
+            # A no-legal-relief result defers this batch until a later
+            # town visit. Keep it carried while the current plan continues.
+            return None
+        if self._home_is_full(snapshot):
+            self._home_full_retry_deposits = None
+            self._begin_home_full_relief(snapshot, retry)
+            return self._home_full_relief_key(snapshot)
+        holder = standing_claim(self)
+        if (not self._home_knowledge_current
+                and not (self._equipment_transaction_session is not None
+                         and holder is not None and holder.is_open
+                         and holder.owner.value == "equipment-txn"
+                         and holder.goal.source == "transaction")):
+            return self._town_producer_entry(
+                "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                family="home-scan")
+        if self._equipment_transaction_session is not None:
+            # Space relief owns surplus stock, not this session's item
+            # effects. Return the relieved deposit to its original owner;
+            # keep any unrelated Home batch entries for after the session.
+            reserved = {self._item_signature(item) for item in snapshot.inventory
+                        if self._equipment_transaction_reclaims_retry(item)}
+            self._home_full_retry_deposits = tuple(
+                entry for entry in retry if entry[0] not in reserved) or None
+            return self._town_producer_entry(
+                "_equipment_transaction_home_key" if snapshot.store is not None
+                and snapshot.store.store_type == STORE_HOME
+                else "_equipment_transaction_town_key",
+                lambda: (self._equipment_transaction_home_key(snapshot)
+                         if snapshot.store is not None
+                         and snapshot.store.store_type == STORE_HOME
+                         else self._equipment_transaction_town_key(snapshot)),
+                family="equipment-txn")
+        if self._find_home_deposit(snapshot) is None:
+            self._home_full_retry_deposits = None
+            return None
+        if snapshot.store is not None:
+            if snapshot.store.store_type == STORE_HOME:
+                return self._open_home_deposit_key(snapshot)
+            return self._home_full_leave_key("home:full-space-ready")
+        if self._town_store_blocked_under_applicable_bound(
+                STORE_HOME, need="weight-overload" if self._inventory_overweight(snapshot) else "deposit"):
+            # This visit already recorded Home as unavailable (e.g. a
+            # refused deposit into a full Home). The retry cannot reach
+            # it either: drop it and keep the items for the next visit
+            # instead of holding the town plan on an unreachable Home.
+            self._home_full_retry_deposits = None
+            return None
+        self._rearm_town_store_for_new_work(STORE_HOME)
+        if not self._ensure_home_visit_request(snapshot):
+            return None
+        step = self._shopping_approach_step(snapshot, STORE_HOME, requester="home-visit")
+        if step is None:
+            # The retry is the relief's optional last step. An unreachable
+            # Home (whatever the cause) must not hold the town plan:
+            # keep the items for the next visit (2026-10-07 13:02).
+            self._home_full_retry_deposits = None
+            return None
+        return self._shopping_approach_key(snapshot, step, "shop:travel")
+
+    def _home_full_relief_begins(self, snapshot: Snapshot) -> bool:
+        """Begin a relief a full Home (or the Home cap) calls for; False: none runs now.
+
+        The weight release (``_release_home_full_relief_for_weight``) may take the relief at once.
+        """
+        if relief_of(self) is None and self._home_is_full(snapshot):
             first = self._find_home_deposit(snapshot)
             if first is not None:
                 entries = tuple((self._item_signature(item), item.count, count)
@@ -1075,22 +1159,23 @@ class HomeMixin:
                 entries = ()
             if entries or self._inventory_overweight(snapshot):
                 self._begin_home_full_relief(snapshot, entries)
-        if self._home_full_relief is None:
+        if relief_of(self) is None:
             # Owner 2026-11-19 「200件（空き40）」: a Home past its cap is tidied first.
             self._begin_home_cap_tidy(snapshot)
         if self._release_home_full_relief_for_weight(
                 snapshot, self._weight_relief_selection(snapshot)
-                if self._home_full_relief is not None
+                if relief_of(self) is not None
                 and self._inventory_overweight(snapshot) else None):
-            return None
-        relief = self._home_full_relief
-        if relief is None:
-            return None
+            return False
+        return relief_of(self) is not None
+
+    def _home_full_relief_waits(self, snapshot: Snapshot, relief: HomeFullRelief) -> bool:
+        """The relief waits: for an identification source, or for its own town."""
         if relief.awaiting_identification_source:
             if not self._home_full_has_normal_identification_source(snapshot):
                 # Keep identify-first stock and the blocked deposit pending,
                 # while town procurement tries its existing source owners.
-                return None
+                return True
             relief.reset("awaiting_identification_source")
         if self._town_blocked_reason in {
                 "home-full-surplus-store-unreachable", "home-full-no-sellable-surplus",
@@ -1103,747 +1188,884 @@ class HomeMixin:
             # first and the relief waits for its own town: its sale and its
             # shop are that town's.  Blocking here held the trip until the
             # burst (n1-a life-487 20:04, n1-c life-145 23:18).
+            return True
+        return False
+
+    def _home_full_current_ware_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, sale: tuple,
+    ) -> str | None | _ReliefStep:
+        """The ware the relief handles now (``relief.sale``), by what the board shows of it.
+
+        Taken (the carried count past the count before the take), put back on the Home page,
+        removed (sold or destroyed), its take filed again on the Home page, or its take failed.
+        ``WARE_DONE``: the removal ended the ware and the relief chooses its next one;
+        ``GO_ON``: the ware's walk goes on (``_home_full_relief_route_key``).
+        """
+        signature, store_type, before_count = sale
+        sale_identity = self._sale_signature_identity(signature)
+        target = item_fate.relief_ware(self, snapshot)
+        count = sum(item.count for item in snapshot.inventory
+                    if self._sale_item_identity(item) == sale_identity)
+        identifying = relief.identifying
+        if identifying is not None:
+            # Only a normal outside board settles a posted ID. Never send
+            # it again or reinterpret disappearance as a renamed target.
+            if snapshot.store is not None:
+                return self._home_full_leave_key("home:full-leave-for-identification-effect")
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("identification-effect-unresolved"))
+        if count > before_count:
+            return self._home_full_taken_ware_key(
+                snapshot, relief, sale, sale_identity, target, count)
+        if (relief.withdrawn and relief.mode == "sale"
+                and snapshot.store is not None
+                and snapshot.store.store_type == STORE_HOME):
+            # The taken ware left the pack on the Home page: only a deposit
+            # removes it there, never its sale.  Another owner shelved it
+            # again (n1-a life-492 2026-11-07 12:33:11: the equipment
+            # transaction put the taken (トランプ)首切りソード back), so this
+            # entry ends retained, without counting a freed slot, and the
+            # shelf ware is not taken out again this relief.
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("surplus-put-back"))
+        if relief.withdrawn:
+            return self._home_full_removed_ware_key(snapshot, relief, signature)
+        if (snapshot.store is not None
+                and snapshot.store.store_type == STORE_HOME
+                and not relief.withdrawn
+                and self._home_errand.state.value not in {"failed", "stopped"}):
+            return self._home_full_refile_take_key(
+                snapshot, relief, signature, store_type, before_count, sale_identity)
+        if self._home_errand.state.value in {"failed", "stopped"}:
+            # A failed/stopped take is an observed address miss, not a
+            # reason to hold the whole full-Home relief loop.  Retain this
+            # candidate with a visible reason and refresh the catalogue
+            # before choosing another shelf item.
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("surplus-withdraw-failed"))
+        return _ReliefStep.GO_ON
+
+    def _home_full_taken_ware_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, sale: tuple, sale_identity: Any,
+        target: InventoryItem, count: int,
+    ) -> str | None | _ReliefStep:
+        """The ware's take is observed: batch it (cap tidy), destroy or identify it, or sell it."""
+        signature, store_type, before_count = sale
+        relief.withdrawn = True
+        if (relief.taken[0] if relief.taken is not None else None) != signature:
+            relief.taken = (signature, count - before_count)
+        if same_memory(self._home_pending_item, signature):
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_pending_take_confirmed = None
+        if (relief.cap and relief.mode == "sale" and not relief.pack_only
+                and snapshot.store is None):
+            # Owner 2026-11-19 「一気に片づける」: the taken ware waits in the pack
+            # while the next one is taken; the batch is sold in one trip.  The take
+            # that fills the pack (its reserve or its weight) joins the batch too and
+            # ends it: the selection then sells the whole batch (home_cap.drain).
+            # Sold alone, it left the batch carried and each later trip moved one
+            # light ware (n1-c life-217 2026-11-19 16:15, six weapons held the pack
+            # at 164.6 of 165.0 lb).
+            home_cap.take_done(self, relief, signature, store_type)
+            self.last_reason = "home:cap-tidy-batch-take"
+            return self._town_producer_entry("_home_full_relief_key",
+                lambda: self._home_full_relief_key(snapshot))
+        if relief.mode in {"destroy", "identify"}:
+            return self._home_full_dispose_taken_key(
+                snapshot, relief, sale, sale_identity, target, count)
+        return self._home_full_sell_taken_key(snapshot, relief, sale, sale_identity, target)
+
+    def _home_full_dispose_taken_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, sale: tuple, sale_identity: Any,
+        target: InventoryItem, count: int,
+    ) -> str | None:
+        """Identify the taken ware (identify mode, or not known yet), then destroy it unless sold."""
+        signature, _store_type, before_count = sale
+        if snapshot.store is not None:
+            return self._home_full_leave_key("home:full-leave-with-surplus")
+        if not target.known or self._disposal_protected_by_identification(target):
+            return self._home_full_identify_taken_key(snapshot, relief, target)
+        if relief.mode == "identify":
+            if relief.sweep:
+                # The sweep's unaware potion or scroll is now known:
+                # the existing rules keep, sell or destroy it as any
+                # carried stock (owner 2026-11-15); the sweep goes on.
+                return self._end_home_sweep_identification()
+            candidate = self._home_full_sale_candidate(
+                replace(snapshot, inventory=tuple(
+                    carried for carried in snapshot.inventory
+                    if self._sale_item_identity(carried) != sale_identity)), target)
+            if candidate is not None:
+                relief.sale = (signature, candidate[1], before_count)
+                relief.mode = "sale"
+                return self._home_full_relief_key(snapshot)
+            relief.mode = "destroy"
+        return self._home_full_destroy_taken_key(
+            snapshot, relief, signature, before_count, sale_identity, target, count)
+
+    def _home_full_identify_taken_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, target: InventoryItem,
+    ) -> str | None:
+        """Identify the taken ware before its disposal (its known counts armed for the watch)."""
+        # Identification retains its normal source, full-ID,
+        # and verification rules; relief resumes from the
+        # observed item, never a guessed identification result.
+        key = self._town_producer_entry(
+            "home-full-identification",
+            lambda: self._home_full_identify_carried_key(snapshot, target),
+            family="identification")
+        if key is None:
+            if (not target.known
+                    and not self._identify_staff_ready(snapshot)):
+                relief.awaiting_identification_source = True
+                return None
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("identification-source-unavailable"))
+        counts = {}
+        for carried in snapshot.inventory:
+            if carried.fully_known if target.known else carried.known:
+                kind = (carried.tval, carried.sval)
+                counts[kind] = counts.get(kind, 0) + carried.count
+        # Only an actually posted ID may be awaited, as with the
+        # destroy below: confirm_key_posted arms the watch.  A
+        # second reader of the same board (the closing-equipment
+        # weight transition) found the offered, unposted ID
+        # "unresolved" and replaced it with a skip, for every
+        # carried ware in turn, until the relief gave up (n1-b
+        # life-411 2026-11-18 15:52, rows 22-30).
+        relief.identify_pending = (key, (target.tval, target.count,
+            frozenset(self._item_signature(item) for item in snapshot.inventory),
+            target.known, target.fully_known), counts)
+        return key
+
+    def _home_full_destroy_taken_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, signature: str, before_count: int,
+        sale_identity: Any, target: InventoryItem, count: int,
+    ) -> str | None:
+        """Destroy the taken ware: unless identification protects it or a store buys it."""
+        probe = replace(snapshot, inventory=tuple(
+            carried for carried in snapshot.inventory
+            if self._sale_item_identity(carried) != sale_identity))
+        if (self._home_full_discard_candidate(probe, target) is None
+                or not self._carried_disposal_preserves_departure(snapshot, target, target.count)):
+            # Identification can reveal an artifact or departure
+            # candidate. Retain it and choose other shelf stock;
+            # neither its take nor its identification is disposal.
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("identified-item-protected"))
+        buyer = None if relief.destroy_posted else self._home_full_buyer(target)
+        if buyer is not None:
+            # Owner 2026-11-22 「売れる品は売り、壊すのは売れない品だけ」: the ware the
+            # tidy judged unneeded goes to the store that pays for it, by the relief's
+            # own sale (the cap tidy's batch, the round trip of the surplus bolts);
+            # only a ware no store buys is destroyed here.  n1-c life-217's finale
+            # visit (2026-11-21): the cap tidy took the Gold Dragon Scale Mail
+            # [40,+14] out to destroy it as plain gear the loadout outdoes.  A store
+            # refusing the sale (store full, unsellable) falls back to the destroy
+            # below once no store is left that buys it.
+            relief.reset(*DESTROY_FIELDS)
+            relief.sale = (signature, buyer, before_count)
+            relief.mode = "sale"
+            return self._town_producer_entry("_home_full_relief_key",
+                lambda: self._home_full_relief_key(snapshot))
+        posted = relief.destroy_posted
+        if posted and count < (relief.destroy_before_count
+                               if relief.destroy_before_count is not None
+                               else count):
+            # Several physical stacks can share the sale identity.
+            # Consume this observed removal before sending another
+            # destroy for the still-carried surplus, never wait for
+            # all copies to vanish from one stack's command.
+            self._complete_claim_goal(
+                "home-full-destroy-stack-observed", owners=("home-visit",),
+                kinds=("Observe",), sources=("effect",))
+            posted = False
+        key = WAIT_KEY if posted else self._destroy_item_key(target, snapshot, "home-visit", policy=self)
+        if key is None:
             return None
-        sale = relief.sale
-        if sale is not None:
-            signature, store_type, before_count = sale
-            sale_identity = self._sale_signature_identity(signature)
-            target = item_fate.relief_ware(self, snapshot)
-            count = sum(item.count for item in snapshot.inventory
-                        if self._sale_item_identity(item) == sale_identity)
-            identifying = relief.identifying
-            if identifying is not None:
-                # Only a normal outside board settles a posted ID. Never send
-                # it again or reinterpret disappearance as a renamed target.
-                if snapshot.store is not None:
-                    return self._home_full_leave_key("home:full-leave-for-identification-effect")
-                return self._town_producer_entry("_home_full_skip_key",
-                    lambda: self._home_full_skip_key("identification-effect-unresolved"))
-            if count > before_count:
-                relief.withdrawn = True
-                if (relief.taken[0] if relief.taken is not None else None) != signature:
-                    relief.taken = (signature, count - before_count)
-                if same_memory(self._home_pending_item, signature):
-                    self._home_pending_item = None
-                    self._home_pending_slot = None
-                    self._home_pending_quantity = None
-                    self._home_pending_take_confirmed = None
-                if (relief.cap and relief.mode == "sale" and not relief.pack_only
-                        and snapshot.store is None):
-                    # Owner 2026-11-19 「一気に片づける」: the taken ware waits in the pack
-                    # while the next one is taken; the batch is sold in one trip.  The take
-                    # that fills the pack (its reserve or its weight) joins the batch too and
-                    # ends it: the selection then sells the whole batch (home_cap.drain).
-                    # Sold alone, it left the batch carried and each later trip moved one
-                    # light ware (n1-c life-217 2026-11-19 16:15, six weapons held the pack
-                    # at 164.6 of 165.0 lb).
-                    home_cap.take_done(self, relief, signature, store_type)
-                    self.last_reason = "home:cap-tidy-batch-take"
-                    return self._town_producer_entry("_home_full_relief_key",
-                        lambda: self._home_full_relief_key(snapshot))
-                if relief.mode in {"destroy", "identify"}:
-                    if snapshot.store is not None:
-                        return self._home_full_leave_key("home:full-leave-with-surplus")
-                    if not target.known or self._disposal_protected_by_identification(target):
-                        # Identification retains its normal source, full-ID,
-                        # and verification rules; relief resumes from the
-                        # observed item, never a guessed identification result.
-                        key = self._town_producer_entry(
-                            "home-full-identification",
-                            lambda: self._home_full_identify_carried_key(snapshot, target),
-                            family="identification")
-                        if key is None:
-                            if (not target.known
-                                    and not self._identify_staff_ready(snapshot)):
-                                relief.awaiting_identification_source = True
-                                return None
-                            return self._town_producer_entry("_home_full_skip_key",
-                                lambda: self._home_full_skip_key("identification-source-unavailable"))
-                        counts = {}
-                        for carried in snapshot.inventory:
-                            if carried.fully_known if target.known else carried.known:
-                                kind = (carried.tval, carried.sval)
-                                counts[kind] = counts.get(kind, 0) + carried.count
-                        # Only an actually posted ID may be awaited, as with the
-                        # destroy below: confirm_key_posted arms the watch.  A
-                        # second reader of the same board (the closing-equipment
-                        # weight transition) found the offered, unposted ID
-                        # "unresolved" and replaced it with a skip, for every
-                        # carried ware in turn, until the relief gave up (n1-b
-                        # life-411 2026-11-18 15:52, rows 22-30).
-                        relief.identify_pending = (key, (target.tval, target.count,
-                            frozenset(self._item_signature(item) for item in snapshot.inventory),
-                            target.known, target.fully_known), counts)
-                        return key
-                    if relief.mode == "identify":
-                        if relief.sweep:
-                            # The sweep's unaware potion or scroll is now known:
-                            # the existing rules keep, sell or destroy it as any
-                            # carried stock (owner 2026-11-15); the sweep goes on.
-                            return self._end_home_sweep_identification()
-                        candidate = self._home_full_sale_candidate(
+        self.last_reason = ("home:full-destroy-await-effect" if posted
+                            else f"home:junk-sweep:{relief.sweep_class}"
+                            if relief.sweep
+                            else "home:full-destroy-surplus")
+        if not posted:
+            relief.destroy_work_id = (
+                f"home-full-destroy:{sale_identity}:{self._decision_sequence}")
+        self._offer_execution(
+            key, producer="home-visit", work_id=relief.destroy_work_id,
+            next_step="home.full-destroy.observe" if posted else "inventory.destroy.send",
+            arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
+            continuation="home.full-destroy.observe",
+            budget_ref="home-visit-existing-budget")
+        if posted:
+            relief.reset("destroy_pending_key")
+        else:
+            # Only an actually posted destroy may be awaited: a
+            # later rewrite (entrance step-off, exits) can replace
+            # this key, and confirm_key_posted commits it.
+            relief.destroy_pending_key = key
+            relief.destroy_before_count = count
+        return key
+
+    def _home_full_sell_taken_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, sale: tuple, sale_identity: Any,
+        target: InventoryItem,
+    ) -> str | None | _ReliefStep:
+        """Sell the taken ware at its store; ``GO_ON``: walk there (``_home_full_relief_route_key``)."""
+        signature, store_type, before_count = sale
+        if (signature in self._unsellable_items
+                or store_type in self._store_sale_refused):
+            probe = replace(snapshot, inventory=tuple(
+                carried for carried in snapshot.inventory
+                if self._sale_item_identity(carried) != sale_identity))
+            other = (None if signature in self._unsellable_items
+                     else self._home_full_sale_candidate(probe, target))
+            if other is not None and other[1] not in self._store_sale_refused:
+                # A full store (store/sell-order.cpp, 「店にはもう置く場所が
+                # ありません」) refused it: another store that buys the ware takes
+                # it, the Black Market last (it buys every kind, service-checker.cpp).
+                relief.sale = (signature, other[1], before_count)
+                self.last_reason = "home:full-sale-other-store"
+                return self._town_producer_entry("_home_full_relief_key",
+                    lambda: self._home_full_relief_key(snapshot))
+            if (self._home_full_discard_candidate(probe, target) is not None
+                    # The cap tidy destroys only what its fate destroys: a
+                    # ware no store takes is kept (owner 2026-11-19).
+                    and (not relief.cap or item_fate.fate(
+                        self, snapshot, target, item_fate.PACK) == item_fate.DESTROY)):
+                relief.mode = "destroy"
+                return self._town_producer_entry("_home_full_relief_key",
+                    lambda: self._home_full_relief_key(snapshot))
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("sale-refused-item-protected"))
+        if not item_available(self, snapshot, target, "home-visit", "home-full-sale"):
+            # Another owner holds the taken ware (n1-a life-492
+            # 2026-11-07 12:33:10: the random-teleport inscription of
+            # the taken (トランプ)首切りソード, then its equipment deposit).
+            # The entry ends retained and skipped: re-selecting at
+            # once took the next Trump weapon to the same fate.
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("sale-item-held"))
+        if (not target.known or self._disposal_protected_by_identification(target)
+                or self._retention_reservation(snapshot, target) > 0
+                ):
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("sale-item-now-reserved"))
+        if snapshot.store is not None:
+            if snapshot.store.store_type != store_type:
+                return self._home_full_leave_key("home:full-leave-with-surplus")
+            key = self._store_sale_entry_key(snapshot, target,
+                "shop:sell-home-full-surplus",
+                rejected_reason="shop:unsellable-home-full-surplus-sale-refused")
+            if (key and key.startswith(("d", "{"))
+                    and self._in_store_ops_active()
+                    and self._store_visit is not None):
+                return self._in_store_commit_operation(snapshot, key)
+            return key
+        return _ReliefStep.GO_ON
+
+    def _home_full_removed_ware_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, signature: str,
+    ) -> str | None | _ReliefStep:
+        """The carried ware left the pack (sold or destroyed): count the freed slot, end the ware.
+
+        ``WARE_DONE``: the relief goes on to its next ware.
+        """
+        if relief.mode == "destroy":
+            self._complete_claim_goal(
+                "home-full-destroy-observed", owners=("home-visit",),
+                kinds=("Observe",), sources=("effect",))
+            if relief.destroy_posted:
+                self._offer_execution_done(
+                    producer="home-visit",
+                    work_id=relief.destroy_work_id,
+                    evidence="surplus-stack-removal-observed",
+                )
+        # Stock space is earned by the take, but the next take/deposit
+        # starts only after the sale's inventory effect is observed.
+        pack_only = relief.consume("pack_only")
+        if not pack_only:
+            relief.remaining -= 1
+        taken = relief.consume("taken")
+        if (not pack_only and relief.mode == "sale"
+                and taken is not None and taken[0] == signature
+                and relief.stock_count is not None):
+            # Off the Home page the departure reads as the sale.  The
+            # next census tells a deposit from it: the shelf count
+            # must stay below its count before the take.
+            relief.settled_home_counts[signature] = max(
+                0, relief.stock_count - taken[1])
+        if relief.mode == "sale":
+            # The observed sale ends its store attempts, as the
+            # overweight-surplus sale's does (_observe_overweight_surplus_effect).
+            # Left counting, the next stack of the same name was
+            # refused unsent as a third failed attempt: n1-a life-530
+            # 2026-11-18 03:53, the third round trip of 99 {@1} bolts
+            # (rows 44, 71, 84) was held unsellable until
+            # town:blocked:stage-deadline:sell.
+            sale_progress.end(self, attempt=True)
+        relief.end_sale(*SALE_DESTROY_FIELDS)
+        self._home_errand.finish()
+        self._invalidate_home_observation()
+        if relief.cap:
+            # The cap tidy frees no deposit: it ends at the cap, its batch sold.
+            if relief.remaining <= 0 and not relief.carried:
+                home_cap.end(self)
+                self.last_reason = "home:cap-tidy-done"
+            elif relief.carried:
+                # The next carried ware's store, without a census between sales.
+                return self._town_producer_entry("_home_full_relief_key",
+                lambda: self._home_full_relief_key(snapshot))
+        elif relief.remaining == 0 and relief.sweep:
+            # The sweep freed no deposit: no retry batch, no release
+            # of the visit bound.
+            self._home_full_relief = None
+        elif relief.remaining == 0:
+            self._home_rejected_deposits.difference_update(
+                entry[0] for entry in relief.deposits)
+            self._home_deposit_abandoned = False
+            self._home_capacity_observation = None
+            self._home_full_refused = False
+            self._home_full_retry_deposits = relief.deposits
+            self._home_full_relief = None
+            self._invalidate_home_observation()
+            self._rearm_town_store_for_new_work(STORE_HOME,
+                                               release_visit_bound=True)
+        if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
+            # The observed sale completes the store operation. Exit its
+            # foreign visit before starting the next Home census.
+            return self._town_producer_entry(
+                "home-full-knowledge",
+                lambda: self._home_full_knowledge_key(
+                    snapshot, leave_foreign_store=True), family="home-scan")
+        if relief_of(self) is None:
+            return self._home_full_relief_key(snapshot)
+        return _ReliefStep.WARE_DONE
+
+    def _home_full_refile_take_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, signature: str, store_type: int,
+        before_count: int, sale_identity: Any,
+    ) -> str | None:
+        """On the Home page with the ware's take pending: file the take again from what is seen."""
+        # A pending relief take can outlive its errand (for example,
+        # after recovery from a stopped unaddressed entry). Do not
+        # leave Home and route back without changing that owner state.
+        # Re-file only from current catalogue or page evidence; an
+        # absent target is an observed candidate miss and uses the
+        # same skip path as other unresolved relief items.
+        request = self._home_errand.request
+        if (self._home_errand.state.value == "done" and request is not None
+                and request.purpose in {"full-home-sale", "full-home-discard"}
+                and request.signature == signature):
+            # The take was done, yet the ware is not carried: another
+            # owner put it back on the shelf before the relief saw it
+            # taken (the equipment transaction's deposit of the unworn
+            # piece).  As when the relief sees the ware held
+            # (sale-item-held below), the entry ends retained and
+            # skipped; re-filing the take alternated it with the
+            # deposit: n1-c life-214 2026-11-15 18:03, 麻痺知らずの指輪
+            # {麻} taken and deposited for 67 rows until
+            # town:blocked:stage-deadline:equipment.
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("sale-item-held"))
+        observed = next((item for item in self._home_knowledge_items
+            if self._home_knowledge_current
+            and self._sale_item_identity(item) == sale_identity), None)
+        if observed is None:
+            observed = next((self._inventory_item_from_store_item(item)
+                for item in snapshot.store.items
+                if self._sale_item_identity(
+                    self._inventory_item_from_store_item(item)
+                ) == sale_identity), None)
+        if observed is None:
+            return self._town_producer_entry("_home_full_skip_key",
+                lambda: self._home_full_skip_key("surplus-target-unobserved"))
+        errand_was_active = self._home_errand.active
+        if (self._home_errand.active
+                and self._home_errand.request is not None
+                and self._home_errand.request.signature != self._item_signature(observed)):
+            # Let a different admitted Home errand finish first. The
+            # pending relief remains intact and is retried in place.
+            return None
+        if (self._home_full_relief_take_blocks_identify(
+                snapshot, observed, observed.count)):
+            relief.stock_count = observed.count
+            self._home_full_record_identify_cap_skip(
+                snapshot, observed, observed.count)
+            relief.identify_cap_skip_fingerprint[
+                self._item_signature(observed)] = (
+                    sum(staff.count for staff in
+                        self._carried_identify_staves(snapshot)),
+                    bool(self._identify_staff_ready(snapshot)),
+                    observed.count,
+                )
+            relief.end_sale()
+            self._home_errand.finish()
+            self._home_pending_item = None
+            self._home_pending_slot = None
+            self._home_pending_quantity = None
+            self._home_pending_take_confirmed = None
+            getattr(self, "_home_pending_quantities", {}).pop(
+                self._item_signature(observed), None)
+            self._home_withdrawal_queued = False
+            # The capacity rejection is durable for this carry/readiness
+            # fingerprint. Resume the relief scan on the next decision;
+            # do not recursively reenter this claims producer.
+            return None
+        if not self._home_errand.active:
+            relief.sale = (self._item_signature(observed), store_type,
+                              before_count)
+            signature = relief.sale[0]
+            if not self._file_home_errand(snapshot, HomeErrandRequest(
+                    signature, observed.count, "home-catalog",
+                    "full-home-sale" if relief.mode == "sale"
+                    else "full-home-discard"),
+                    knowledge_current=self._home_knowledge_current):
+                return None
+        self._home_pending_item = relief.sale[0]
+        self._home_pending_quantity = observed.count
+        return (self._home_full_leave_key(
+            "home:junk-sweep-withdraw" if relief.sweep
+            else "home:cap-tidy-withdraw" if relief.cap
+            else "home:full-queue-surplus-withdraw")
+            if errand_was_active else None)
+
+    def _home_cap_tidy_batch_key(self, snapshot: Snapshot, relief: HomeFullRelief) -> str | None | _ReliefStep:
+        """The cap tidy between wares: sell its carried batch, or end at the cap or the pack bound."""
+        if not relief.carried:
+            # The batch is sold: the next one is taken from a fresh census.
+            relief.draining = False
+        if relief.carried and (relief.draining
+                               or not home_cap.batch_grows(self, snapshot, relief)):
+            # The batch is sold store by store before the next take.
+            if home_cap.drain(self, snapshot, relief):
+                self.last_reason = "home:cap-tidy-sell-batch"
+                return self._town_producer_entry("_home_full_relief_key",
+                    lambda: self._home_full_relief_key(snapshot))
+        if not relief.carried and not home_cap.batch_grows(self, snapshot, relief):
+            # At the cap, or the pack keeps its reserve: the tidy ends this visit.
+            home_cap.end(self)
+            self.last_reason = ("home:cap-tidy-done" if relief.remaining <= 0
+                                else "home:cap-tidy-pack-bound")
+            return None
+        return _ReliefStep.GO_ON
+
+    def _home_full_relief_choose_key(self, snapshot: Snapshot, relief: HomeFullRelief) -> str | None | _ReliefStep:
+        """Choose the relief's next ware from a current census and file its take.
+
+        ``GO_ON``: the take is filed (``relief.sale``) and the walk to Home begins.
+        """
+        if not self._home_knowledge_current:
+            return self._town_producer_entry(
+                "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
+                family="home-scan")
+        counts = self._home_full_relief_census(snapshot, relief)
+        wares = self._home_full_relief_wares(snapshot, relief, counts)
+        choice = self._home_full_relief_choice(snapshot, relief, wares)
+        if not isinstance(choice, _ReliefChoice):
+            return choice
+        return self._home_full_relief_file_take(snapshot, relief, wares, choice)
+
+    def _home_full_relief_census(self, snapshot: Snapshot, relief: HomeFullRelief) -> dict:
+        """The Home's counts by signature; lift the put-back and stale identify-cap skips."""
+        counts = {}
+        for item in self._home_knowledge_items:
+            sig = self._item_signature(item)
+            counts[sig] = counts.get(sig, 0) + item.count
+        settled = relief.settled_home_counts
+        for sig, expected in tuple(settled.items()):
+            if counts.get(sig, 0) > expected:
+                # Taken and then shelved again by another owner (a weight
+                # or equipment deposit off the Home page), not sold: the
+                # entry freed no slot and the ware stays on the shelf.
+                settled.pop(sig)
+                relief.remaining += 1
+                relief.skipped[sig] = "surplus-put-back"
+                relief.skipped_home_counts[sig] = counts[sig]
+        carry_count = sum(staff.count for staff in
+                          self._carried_identify_staves(snapshot))
+        ready = bool(self._identify_staff_ready(snapshot))
+        cap_skips = relief.identify_cap_skip_fingerprint
+        for signature, fingerprint in tuple(cap_skips.items()):
+            if fingerprint[:2] != (carry_count, ready):
+                cap_skips.pop(signature, None)
+                if relief.skipped.get(signature) == "identify-cap-reserved":
+                    relief.skipped.pop(signature, None)
+                    relief.skipped_home_counts.pop(signature, None)
+        return counts
+
+    def _home_full_relief_wares(
+        self, snapshot: Snapshot, relief: HomeFullRelief, counts: dict,
+    ) -> _ReliefWares:
+        """The shelf and pack wares the relief may choose from."""
+        stock = tuple(item for item in self._home_knowledge_items
+                      if self._item_signature(item) not in relief.skipped
+                      or counts[self._item_signature(item)] < relief.skipped_home_counts.get(
+                          self._item_signature(item), 0))
+        # A full pack cannot take shelf surplus. Free a carried surplus
+        # stack first under the same sale-first retention authority.
+        # So does a pack at the reserve floor, whose take the composer refuses
+        # (n1-c life-134 11-04 21:46, 19 of 23: the errand never filed and the
+        # stop followed).  There a planned deposit may be sold from the pack:
+        # the owner's ranking already calls it surplus.
+        pack_bound = item_fate.home_take_blocked(snapshot)
+        full_pack = len(snapshot.inventory) >= PACK_CAPACITY
+        carried_stock = tuple(item for item in snapshot.inventory
+                             if self._item_signature(item) not in relief.skipped
+                             and (not full_pack or self._item_signature(item) not in {
+                                 entry[0] for entry in relief.deposits})
+                             and self._retention_reservation(snapshot, item) == 0
+                             and not self._home_full_equipment_reserved(snapshot, item)
+                             and self._carried_disposal_preserves_departure(snapshot, item, item.count)
+                             ) if pack_bound else ()
+        pack_ids = {id(item) for item in carried_stock}
+        shelf_stock = stock
+        round_trip = False
+        stock = carried_stock if pack_bound else stock
+        # Charged Identify transport may not fill the final required
+        # capacity while readiness is false. Empty staves remain ordinary
+        # surplus and pass through this list unchanged.
+        carry_count = sum(staff.count for staff in
+                          self._carried_identify_staves(snapshot))
+        ready = self._identify_staff_ready(snapshot)
+        skipped = relief.identify_cap_skip_fingerprint
+        kept_stock = []
+        for candidate in stock:
+            if id(candidate) in pack_ids:
+                kept_stock.append(candidate)
+                continue
+            count = candidate.count
+            fingerprint = (carry_count, bool(ready), count)
+            sig = self._item_signature(candidate)
+            if (self._home_full_relief_take_blocks_identify(
+                    snapshot, candidate, count)
+                    and skipped.get(sig) == fingerprint):
+                continue
+            if self._home_full_relief_take_blocks_identify(
+                    snapshot, candidate, count):
+                relief.stock_count = counts.get(sig, candidate.count)
+                self._home_full_record_identify_cap_skip(snapshot, candidate, count)
+                skipped[sig] = fingerprint
+                continue
+            if sig in skipped:
+                skipped.pop(sig, None)
+            kept_stock.append(candidate)
+        stock = tuple(kept_stock)
+        sale_stock = (carried_stock if pack_bound
+                      else tuple(item for item in stock if id(item) not in pack_ids))
+        probes = {id(item): (replace(snapshot, inventory=tuple(
+                carried for carried in snapshot.inventory if carried is not item))
+                if id(item) in pack_ids else snapshot) for item in stock}
+        return _ReliefWares(counts=counts, pack_bound=pack_bound, carried_stock=carried_stock,
+                            pack_ids=pack_ids, shelf_stock=shelf_stock, stock=stock,
+                            sale_stock=sale_stock, probes=probes, round_trip=round_trip)
+
+    def _home_full_relief_junk(self, snapshot: Snapshot, wares: _ReliefWares) -> list:
+        """The junk ware destroyed first: [(the ware, its source row)], or []."""
+        stock, pack_ids, pack_bound, probes = wares.stock, wares.pack_ids, wares.pack_bound, wares.probes
+        # Junk on the shelf or pack is destroyed before any sale of other
+        # stock (#70; owner 2026-10-04 auto-destroy target).  The board
+        # carries the character-dependent junk classes (2026-10-20).
+        self._junk_board = snapshot
+        # A read-only scan: each board's supply ledger is computed once
+        # for the purchase ladders it asks per ware (#95).
+        # The retention gate runs in the rank order of the destruction it
+        # feeds and only up to the first junk ware that passes it (#95
+        # section 5): the pick below is the least-ranked passing entry, a
+        # shelf entry first while the pack has room.
+        with supply_ledger_observer_memo():
+            classed = []
+            for item in stock:
+                taken = (item if isinstance(item, InventoryItem)
+                         else self._inventory_item_from_store_item(item))
+                if self._is_worthless_junk(taken):
+                    classed.append((self._home_full_discard_rank(
+                        snapshot, replace(taken, slot="home-surplus")), item))
+            classed.sort(key=lambda entry: entry[0])
+            groups = ([[item for _, item in classed if id(item) not in pack_ids],
+                       [item for _, item in classed if id(item) in pack_ids]]
+                      if not pack_bound
+                      else [[item for _, item in classed]])
+            junk = []
+            for group in groups:
+                junk = next(([(candidate, item)] for item in group
+                             if (candidate := self._home_full_discard_candidate(
+                                 probes[id(item)], item))), [])
+                if junk:
+                    break
+        del self._junk_board
+        return junk
+
+    def _home_full_relief_choice(
+        self, snapshot: Snapshot, relief: HomeFullRelief, wares: _ReliefWares,
+    ) -> _ReliefChoice | str | None:
+        """The next ware and what happens to it (``relief.mode``), or the key that ends the choice."""
+        stock, pack_ids, pack_bound, probes = wares.stock, wares.pack_ids, wares.pack_bound, wares.probes
+        sale_stock, shelf_stock, round_trip = wares.sale_stock, wares.shelf_stock, wares.round_trip
+        junk = self._home_full_relief_junk(snapshot, wares)
+        # Owner 2026-11-19 「12件を超えたら先に鑑定」: past CAP_IDENTIFY_FIRST unidentified
+        # Home stacks, the cap tidy identifies one a carried means identifies now first.
+        cap_identify = [] if junk or not relief.cap else self._home_cap_identify_first(
+            snapshot, stock, probes)
+        candidates = [] if junk or relief.sweep or cap_identify else [
+            (result, item) for item in sale_stock
+            # The cap tidy sells only what the fate moves (home_cap.sheds: never the
+            # supplies' spares, owner 2026-11-19 「上限を置かない」), a ware the pack can carry.
+            if (not relief.cap or (home_cap.sheds(self, snapshot, item)
+                                   and self._can_add_item_without_overweight(snapshot, item)))
+            and (result := self._home_full_sale_candidate(probes[id(item)], item))]
+        if junk:
+            discard, unidentified = junk, []
+        elif relief.cap:
+            discard, unidentified = [], cap_identify
+        elif not candidates:
+            discard = [(candidate, item) for item in stock
+                       if (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
+            unidentified = [(candidate, item) for item in stock
+                            if (candidate := self._home_full_discard_candidate(
+                                probes[id(item)], item, identify=True))
+                            and (id(item) in pack_ids
+                                 or item_fate.can_identify_now(self, snapshot, candidate))]
+            if (pack_bound and not discard and not relief.sweep
+                    and not any(item_fate.can_identify_now(self, snapshot, candidate)
+                                for candidate, _ in unidentified)):
+                # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを
+                # 作れる」: no carried stack can go, so the clearly useless shelf
+                # stock is taken to be sold at once, in any free pack slot
+                # (town_pack_budget.round_trip_fits).  n1-a life-530 2026-11-18
+                # 03:06: 20 of 23 slots carried, the carried gear waiting on
+                # *Identify* no source here gives, 27 stacks of surplus bolts
+                # on the full shelf, and the visit stopped over the weight limit.
+                # Every shelf ware the relief sells leaves the pack at the
+                # next store, so each sale candidate makes the round trip,
+                # clearly useless stock first (item_fate.relief_order).  n1-a
+                # life-531 2026-11-19 03:27: 19 of 23 slots, the carried gear
+                # waiting on *Identify*, no clearly useless stock, and 136
+                # rank 21+ wares on the full shelf the reserve kept in place.
+                candidates = [
+                    (result, item) for item in shelf_stock
+                    if (result := self._home_full_sale_candidate(snapshot, item))
+                    and round_trip_fits(snapshot, item, item.count)]
+                if candidates:
+                    unidentified = []
+                    round_trip = True
+        else:
+            discard = unidentified = []
+        wares.round_trip = round_trip
+        if relief.sweep:
+            sweep = self._home_full_sweep_choice(snapshot, relief, sale_stock, junk, discard, unidentified, candidates)
+            if sweep is None:
+                return None
+            discard, unidentified, candidates = sweep
+        carried_sale = []
+        if not candidates:
+            if not pack_bound and not relief.cap:
+                # Free a shelf, not more pack space, whenever a Home
+                # auto-destroy candidate exists. If every shelf target
+                # is protected, a genuinely unneeded carried stack can
+                # be destroyed before the overweight-surplus producer.
+                shelf_discard = [entry for entry in discard if id(entry[1]) not in pack_ids]
+                shelf_unidentified = [entry for entry in unidentified if id(entry[1]) not in pack_ids]
+                if shelf_discard or shelf_unidentified:
+                    discard, unidentified = shelf_discard, shelf_unidentified
+                else:
+                    # With a free slot, only unneeded carried junk may
+                    # fall back to Home relief. Equipment and Identify
+                    # staves stay under their optimizer and supply owners;
+                    # neither is the 10-04 "cheapest unneeded" target.
+                    carried_junk = tuple(item for item in snapshot.inventory
+                        if not item.is_equipment
+                        and not (item.tval == TVAL_STAFF
+                                 and item.sval == SV_STAFF_IDENTIFY)
+                        and self._item_signature(item) not in relief.skipped
+                        and self._item_signature(item) not in {
+                            entry[0] for entry in relief.deposits}
+                        and self._retention_reservation(snapshot, item) == 0
+                        and not self._home_full_equipment_reserved(snapshot, item)
+                        and self._carried_disposal_preserves_departure(
+                            snapshot, item, item.count))
+                    wares.carried_stock = carried_junk
+                    pack_ids.update(id(item) for item in carried_junk)
+                    # What a store buys is sold; destruction is for the rest
+                    # (owner 10-04; n1-c life-134 21:46 destroyed a potion).
+                    carried_sale = [
+                        (result, item) for item in carried_junk
+                        if (result := self._home_full_sale_candidate(replace(
+                            snapshot, inventory=tuple(
+                                carried for carried in snapshot.inventory
+                                if carried is not item)), item))]
+                    carried_discard = [
+                        (candidate, item) for item in carried_junk
+                        if (candidate := self._home_full_discard_candidate(
                             replace(snapshot, inventory=tuple(
                                 carried for carried in snapshot.inventory
-                                if self._sale_item_identity(carried) != sale_identity)), target)
-                        if candidate is not None:
-                            relief.sale = (signature, candidate[1], before_count)
-                            relief.mode = "sale"
-                            return self._home_full_relief_key(snapshot)
-                        relief.mode = "destroy"
-                    probe = replace(snapshot, inventory=tuple(
-                        carried for carried in snapshot.inventory
-                        if self._sale_item_identity(carried) != sale_identity))
-                    if (self._home_full_discard_candidate(probe, target) is None
-                            or not self._carried_disposal_preserves_departure(snapshot, target, target.count)):
-                        # Identification can reveal an artifact or departure
-                        # candidate. Retain it and choose other shelf stock;
-                        # neither its take nor its identification is disposal.
-                        return self._town_producer_entry("_home_full_skip_key",
-                            lambda: self._home_full_skip_key("identified-item-protected"))
-                    buyer = None if relief.destroy_posted else self._home_full_buyer(target)
-                    if buyer is not None:
-                        # Owner 2026-11-22 「売れる品は売り、壊すのは売れない品だけ」: the ware the
-                        # tidy judged unneeded goes to the store that pays for it, by the relief's
-                        # own sale (the cap tidy's batch, the round trip of the surplus bolts);
-                        # only a ware no store buys is destroyed here.  n1-c life-217's finale
-                        # visit (2026-11-21): the cap tidy took the Gold Dragon Scale Mail
-                        # [40,+14] out to destroy it as plain gear the loadout outdoes.  A store
-                        # refusing the sale (store full, unsellable) falls back to the destroy
-                        # below once no store is left that buys it.
-                        relief.reset(*DESTROY_FIELDS)
-                        relief.sale = (signature, buyer, before_count)
-                        relief.mode = "sale"
-                        return self._town_producer_entry("_home_full_relief_key",
-                            lambda: self._home_full_relief_key(snapshot))
-                    posted = relief.destroy_posted
-                    if posted and count < (relief.destroy_before_count
-                                           if relief.destroy_before_count is not None
-                                           else count):
-                        # Several physical stacks can share the sale identity.
-                        # Consume this observed removal before sending another
-                        # destroy for the still-carried surplus, never wait for
-                        # all copies to vanish from one stack's command.
-                        self._complete_claim_goal(
-                            "home-full-destroy-stack-observed", owners=("home-visit",),
-                            kinds=("Observe",), sources=("effect",))
-                        posted = False
-                    key = WAIT_KEY if posted else self._destroy_item_key(target, snapshot, "home-visit", policy=self)
-                    if key is None:
-                        return None
-                    self.last_reason = ("home:full-destroy-await-effect" if posted
-                                        else f"home:junk-sweep:{relief.sweep_class}"
-                                        if relief.sweep
-                                        else "home:full-destroy-surplus")
-                    if not posted:
-                        relief.destroy_work_id = (
-                            f"home-full-destroy:{sale_identity}:{self._decision_sequence}")
-                    self._offer_execution(
-                        key, producer="home-visit", work_id=relief.destroy_work_id,
-                        next_step="home.full-destroy.observe" if posted else "inventory.destroy.send",
-                        arguments=(sale_identity, count), expected_effect="surplus-stack-removed",
-                        continuation="home.full-destroy.observe",
-                        budget_ref="home-visit-existing-budget")
-                    if posted:
-                        relief.reset("destroy_pending_key")
-                    else:
-                        # Only an actually posted destroy may be awaited: a
-                        # later rewrite (entrance step-off, exits) can replace
-                        # this key, and confirm_key_posted commits it.
-                        relief.destroy_pending_key = key
-                        relief.destroy_before_count = count
-                    return key
-                if (signature in self._unsellable_items
-                        or store_type in self._store_sale_refused):
-                    probe = replace(snapshot, inventory=tuple(
-                        carried for carried in snapshot.inventory
-                        if self._sale_item_identity(carried) != sale_identity))
-                    other = (None if signature in self._unsellable_items
-                             else self._home_full_sale_candidate(probe, target))
-                    if other is not None and other[1] not in self._store_sale_refused:
-                        # A full store (store/sell-order.cpp, 「店にはもう置く場所が
-                        # ありません」) refused it: another store that buys the ware takes
-                        # it, the Black Market last (it buys every kind, service-checker.cpp).
-                        relief.sale = (signature, other[1], before_count)
-                        self.last_reason = "home:full-sale-other-store"
-                        return self._town_producer_entry("_home_full_relief_key",
-                            lambda: self._home_full_relief_key(snapshot))
-                    if (self._home_full_discard_candidate(probe, target) is not None
-                            # The cap tidy destroys only what its fate destroys: a
-                            # ware no store takes is kept (owner 2026-11-19).
-                            and (not relief.cap or item_fate.fate(
-                                self, snapshot, target, item_fate.PACK) == item_fate.DESTROY)):
-                        relief.mode = "destroy"
-                        return self._town_producer_entry("_home_full_relief_key",
-                            lambda: self._home_full_relief_key(snapshot))
-                    return self._town_producer_entry("_home_full_skip_key",
-                        lambda: self._home_full_skip_key("sale-refused-item-protected"))
-                if not item_available(self, snapshot, target, "home-visit", "home-full-sale"):
-                    # Another owner holds the taken ware (n1-a life-492
-                    # 2026-11-07 12:33:10: the random-teleport inscription of
-                    # the taken (トランプ)首切りソード, then its equipment deposit).
-                    # The entry ends retained and skipped: re-selecting at
-                    # once took the next Trump weapon to the same fate.
-                    return self._town_producer_entry("_home_full_skip_key",
-                        lambda: self._home_full_skip_key("sale-item-held"))
-                if (not target.known or self._disposal_protected_by_identification(target)
-                        or self._retention_reservation(snapshot, target) > 0
-                        ):
-                    return self._town_producer_entry("_home_full_skip_key",
-                        lambda: self._home_full_skip_key("sale-item-now-reserved"))
-                if snapshot.store is not None:
-                    if snapshot.store.store_type != store_type:
-                        return self._home_full_leave_key("home:full-leave-with-surplus")
-                    key = self._store_sale_entry_key(snapshot, target,
-                        "shop:sell-home-full-surplus",
-                        rejected_reason="shop:unsellable-home-full-surplus-sale-refused")
-                    if (key and key.startswith(("d", "{"))
-                            and self._in_store_ops_active()
-                            and self._store_visit is not None):
-                        return self._in_store_commit_operation(snapshot, key)
-                    return key
-            elif (relief.withdrawn and relief.mode == "sale"
-                    and snapshot.store is not None
-                    and snapshot.store.store_type == STORE_HOME):
-                # The taken ware left the pack on the Home page: only a deposit
-                # removes it there, never its sale.  Another owner shelved it
-                # again (n1-a life-492 2026-11-07 12:33:11: the equipment
-                # transaction put the taken (トランプ)首切りソード back), so this
-                # entry ends retained, without counting a freed slot, and the
-                # shelf ware is not taken out again this relief.
-                return self._town_producer_entry("_home_full_skip_key",
-                    lambda: self._home_full_skip_key("surplus-put-back"))
-            elif relief.withdrawn:
-                if relief.mode == "destroy":
-                    self._complete_claim_goal(
-                        "home-full-destroy-observed", owners=("home-visit",),
-                        kinds=("Observe",), sources=("effect",))
-                    if relief.destroy_posted:
-                        self._offer_execution_done(
-                            producer="home-visit",
-                            work_id=relief.destroy_work_id,
-                            evidence="surplus-stack-removal-observed",
-                        )
-                # Stock space is earned by the take, but the next take/deposit
-                # starts only after the sale's inventory effect is observed.
-                pack_only = relief.consume("pack_only")
-                if not pack_only:
-                    relief.remaining -= 1
-                taken = relief.consume("taken")
-                if (not pack_only and relief.mode == "sale"
-                        and taken is not None and taken[0] == signature
-                        and relief.stock_count is not None):
-                    # Off the Home page the departure reads as the sale.  The
-                    # next census tells a deposit from it: the shelf count
-                    # must stay below its count before the take.
-                    relief.settled_home_counts[signature] = max(
-                        0, relief.stock_count - taken[1])
-                if relief.mode == "sale":
-                    # The observed sale ends its store attempts, as the
-                    # overweight-surplus sale's does (_observe_overweight_surplus_effect).
-                    # Left counting, the next stack of the same name was
-                    # refused unsent as a third failed attempt: n1-a life-530
-                    # 2026-11-18 03:53, the third round trip of 99 {@1} bolts
-                    # (rows 44, 71, 84) was held unsellable until
-                    # town:blocked:stage-deadline:sell.
-                    sale_progress.end(self, attempt=True)
-                relief.end_sale(*SALE_DESTROY_FIELDS)
-                self._home_errand.finish()
-                self._invalidate_home_observation()
-                if relief.cap:
-                    # The cap tidy frees no deposit: it ends at the cap, its batch sold.
-                    if relief.remaining <= 0 and not relief.carried:
-                        home_cap.end(self)
-                        self.last_reason = "home:cap-tidy-done"
-                    elif relief.carried:
-                        # The next carried ware's store, without a census between sales.
-                        return self._town_producer_entry("_home_full_relief_key",
-                        lambda: self._home_full_relief_key(snapshot))
-                elif relief.remaining == 0 and relief.sweep:
-                    # The sweep freed no deposit: no retry batch, no release
-                    # of the visit bound.
-                    self._home_full_relief = None
-                elif relief.remaining == 0:
-                    self._home_rejected_deposits.difference_update(
-                        entry[0] for entry in relief.deposits)
-                    self._home_deposit_abandoned = False
-                    self._home_capacity_observation = None
-                    self._home_full_refused = False
-                    self._home_full_retry_deposits = relief.deposits
-                    self._home_full_relief = None
-                    self._invalidate_home_observation()
-                    self._rearm_town_store_for_new_work(STORE_HOME,
-                                                       release_visit_bound=True)
-                if snapshot.store is not None and snapshot.store.store_type != STORE_HOME:
-                    # The observed sale completes the store operation. Exit its
-                    # foreign visit before starting the next Home census.
-                    return self._town_producer_entry(
-                        "home-full-knowledge",
-                        lambda: self._home_full_knowledge_key(
-                            snapshot, leave_foreign_store=True), family="home-scan")
-                if self._home_full_relief is None:
-                    return self._home_full_relief_key(snapshot)
-                sale = None
-            elif (snapshot.store is not None
-                    and snapshot.store.store_type == STORE_HOME
-                    and not relief.withdrawn
-                    and self._home_errand.state.value not in {"failed", "stopped"}):
-                # A pending relief take can outlive its errand (for example,
-                # after recovery from a stopped unaddressed entry). Do not
-                # leave Home and route back without changing that owner state.
-                # Re-file only from current catalogue or page evidence; an
-                # absent target is an observed candidate miss and uses the
-                # same skip path as other unresolved relief items.
-                request = self._home_errand.request
-                if (self._home_errand.state.value == "done" and request is not None
-                        and request.purpose in {"full-home-sale", "full-home-discard"}
-                        and request.signature == signature):
-                    # The take was done, yet the ware is not carried: another
-                    # owner put it back on the shelf before the relief saw it
-                    # taken (the equipment transaction's deposit of the unworn
-                    # piece).  As when the relief sees the ware held
-                    # (sale-item-held below), the entry ends retained and
-                    # skipped; re-filing the take alternated it with the
-                    # deposit: n1-c life-214 2026-11-15 18:03, 麻痺知らずの指輪
-                    # {麻} taken and deposited for 67 rows until
-                    # town:blocked:stage-deadline:equipment.
-                    return self._town_producer_entry("_home_full_skip_key",
-                        lambda: self._home_full_skip_key("sale-item-held"))
-                observed = next((item for item in self._home_knowledge_items
-                    if self._home_knowledge_current
-                    and self._sale_item_identity(item) == sale_identity), None)
-                if observed is None:
-                    observed = next((self._inventory_item_from_store_item(item)
-                        for item in snapshot.store.items
-                        if self._sale_item_identity(
-                            self._inventory_item_from_store_item(item)
-                        ) == sale_identity), None)
-                if observed is None:
-                    return self._town_producer_entry("_home_full_skip_key",
-                        lambda: self._home_full_skip_key("surplus-target-unobserved"))
-                errand_was_active = self._home_errand.active
-                if (self._home_errand.active
-                        and self._home_errand.request is not None
-                        and self._home_errand.request.signature != self._item_signature(observed)):
-                    # Let a different admitted Home errand finish first. The
-                    # pending relief remains intact and is retried in place.
+                                if carried is not item)), item))
+                    ]
+                    carried_unidentified = [
+                        (candidate, item) for item in carried_junk
+                        if (candidate := self._home_full_discard_candidate(
+                            replace(snapshot, inventory=tuple(
+                                carried for carried in snapshot.inventory
+                                if carried is not item)), item, identify=True))
+                    ]
+                    discard, unidentified = carried_discard, carried_unidentified
+            if carried_sale:
+                (item, store_type, _value), source = min(
+                    carried_sale, key=lambda entry: item_fate.relief_order(
+                        self, snapshot, entry[0][0], carried=True))
+                relief.mode = "sale"
+            elif discard:
+                item, source = min(discard, key=lambda entry:
+                                   self._home_full_discard_rank(snapshot, entry[0]))
+                relief.mode = "destroy"
+            elif unidentified:
+                item, source = min(unidentified, key=lambda entry: self._item_signature(entry[0]))
+                if (not relief.cap
+                        and not self._home_full_has_normal_identification_source(snapshot)
+                        and not self._identify_staff_ready(snapshot)):
+                    relief.awaiting_identification_source = True
                     return None
-                if (self._home_full_relief_take_blocks_identify(
-                        snapshot, observed, observed.count)):
-                    relief.stock_count = observed.count
-                    self._home_full_record_identify_cap_skip(
-                        snapshot, observed, observed.count)
-                    relief.identify_cap_skip_fingerprint[
-                        self._item_signature(observed)] = (
-                            sum(staff.count for staff in
-                                self._carried_identify_staves(snapshot)),
-                            bool(self._identify_staff_ready(snapshot)),
-                            observed.count,
-                        )
-                    relief.end_sale()
-                    self._home_errand.finish()
-                    self._home_pending_item = None
-                    self._home_pending_slot = None
-                    self._home_pending_quantity = None
-                    self._home_pending_take_confirmed = None
-                    getattr(self, "_home_pending_quantities", {}).pop(
-                        self._item_signature(observed), None)
-                    self._home_withdrawal_queued = False
-                    # The capacity rejection is durable for this carry/readiness
-                    # fingerprint. Resume the relief scan on the next decision;
-                    # do not recursively reenter this claims producer.
-                    return None
-                if not self._home_errand.active:
-                    relief.sale = (self._item_signature(observed), store_type,
-                                      before_count)
-                    signature = relief.sale[0]
-                    if not self._file_home_errand(snapshot, HomeErrandRequest(
-                            signature, observed.count, "home-catalog",
-                            "full-home-sale" if relief.mode == "sale"
-                            else "full-home-discard"),
-                            knowledge_current=self._home_knowledge_current):
-                        return None
-                self._home_pending_item = relief.sale[0]
-                self._home_pending_quantity = observed.count
-                return (self._home_full_leave_key(
-                    "home:junk-sweep-withdraw" if relief.sweep
-                    else "home:cap-tidy-withdraw" if relief.cap
-                    else "home:full-queue-surplus-withdraw")
-                    if errand_was_active else None)
-            elif self._home_errand.state.value in {"failed", "stopped"}:
-                # A failed/stopped take is an observed address miss, not a
-                # reason to hold the whole full-Home relief loop.  Retain this
-                # candidate with a visible reason and refresh the catalogue
-                # before choosing another shelf item.
-                return self._town_producer_entry("_home_full_skip_key",
-                    lambda: self._home_full_skip_key("surplus-withdraw-failed"))
-        if self._home_full_relief_yields_to_store_operation(snapshot):
-            return None
-        if sale is None and relief.cap:
-            if not relief.carried:
-                # The batch is sold: the next one is taken from a fresh census.
-                relief.draining = False
-            if relief.carried and (relief.draining
-                                   or not home_cap.batch_grows(self, snapshot, relief)):
-                # The batch is sold store by store before the next take.
+                relief.mode = "identify"
+            elif relief.cap:
+                # Nothing more to shed: sell the batch, then the tidy ends this visit
+                # (a Home of kept stock stays over the cap, owner 2026-11-19).
                 if home_cap.drain(self, snapshot, relief):
                     self.last_reason = "home:cap-tidy-sell-batch"
                     return self._town_producer_entry("_home_full_relief_key",
-                        lambda: self._home_full_relief_key(snapshot))
-            if not relief.carried and not home_cap.batch_grows(self, snapshot, relief):
-                # At the cap, or the pack keeps its reserve: the tidy ends this visit.
+                    lambda: self._home_full_relief_key(snapshot))
                 home_cap.end(self)
-                self.last_reason = ("home:cap-tidy-done" if relief.remaining <= 0
-                                    else "home:cap-tidy-pack-bound")
+                self.last_reason = "home:cap-tidy-nothing-to-shed"
                 return None
-        if sale is None:
-            if not self._home_knowledge_current:
-                return self._town_producer_entry(
-                    "home-full-knowledge", lambda: self._home_full_knowledge_key(snapshot),
-                    family="home-scan")
-            counts = {}
-            for item in self._home_knowledge_items:
-                sig = self._item_signature(item)
-                counts[sig] = counts.get(sig, 0) + item.count
-            settled = relief.settled_home_counts
-            for sig, expected in tuple(settled.items()):
-                if counts.get(sig, 0) > expected:
-                    # Taken and then shelved again by another owner (a weight
-                    # or equipment deposit off the Home page), not sold: the
-                    # entry freed no slot and the ware stays on the shelf.
-                    settled.pop(sig)
-                    relief.remaining += 1
-                    relief.skipped[sig] = "surplus-put-back"
-                    relief.skipped_home_counts[sig] = counts[sig]
-            carry_count = sum(staff.count for staff in
-                              self._carried_identify_staves(snapshot))
-            ready = bool(self._identify_staff_ready(snapshot))
-            cap_skips = relief.identify_cap_skip_fingerprint
-            for signature, fingerprint in tuple(cap_skips.items()):
-                if fingerprint[:2] != (carry_count, ready):
-                    cap_skips.pop(signature, None)
-                    if relief.skipped.get(signature) == "identify-cap-reserved":
-                        relief.skipped.pop(signature, None)
-                        relief.skipped_home_counts.pop(signature, None)
-            stock = tuple(item for item in self._home_knowledge_items
-                          if self._item_signature(item) not in relief.skipped
-                          or counts[self._item_signature(item)] < relief.get(
-                              "skipped_home_counts", {}).get(self._item_signature(item), 0))
-            # A full pack cannot take shelf surplus. Free a carried surplus
-            # stack first under the same sale-first retention authority.
-            # So does a pack at the reserve floor, whose take the composer refuses
-            # (n1-c life-134 11-04 21:46, 19 of 23: the errand never filed and the
-            # stop followed).  There a planned deposit may be sold from the pack:
-            # the owner's ranking already calls it surplus.
-            pack_bound = item_fate.home_take_blocked(snapshot)
-            full_pack = len(snapshot.inventory) >= PACK_CAPACITY
-            carried_stock = tuple(item for item in snapshot.inventory
-                                 if self._item_signature(item) not in relief.skipped
-                                 and (not full_pack or self._item_signature(item) not in {
-                                     entry[0] for entry in relief.deposits})
-                                 and self._retention_reservation(snapshot, item) == 0
-                                 and not self._home_full_equipment_reserved(snapshot, item)
-                                 and self._carried_disposal_preserves_departure(snapshot, item, item.count)
-                                 ) if pack_bound else ()
-            pack_ids = {id(item) for item in carried_stock}
-            shelf_stock = stock
-            round_trip = False
-            stock = carried_stock if pack_bound else stock
-            # Charged Identify transport may not fill the final required
-            # capacity while readiness is false. Empty staves remain ordinary
-            # surplus and pass through this list unchanged.
-            carry_count = sum(staff.count for staff in
-                              self._carried_identify_staves(snapshot))
-            ready = self._identify_staff_ready(snapshot)
-            skipped = relief.identify_cap_skip_fingerprint
-            kept_stock = []
-            for candidate in stock:
-                if id(candidate) in pack_ids:
-                    kept_stock.append(candidate)
-                    continue
-                count = candidate.count
-                fingerprint = (carry_count, bool(ready), count)
-                sig = self._item_signature(candidate)
-                if (self._home_full_relief_take_blocks_identify(
-                        snapshot, candidate, count)
-                        and skipped.get(sig) == fingerprint):
-                    continue
-                if self._home_full_relief_take_blocks_identify(
-                        snapshot, candidate, count):
-                    relief.stock_count = counts.get(sig, candidate.count)
-                    self._home_full_record_identify_cap_skip(snapshot, candidate, count)
-                    skipped[sig] = fingerprint
-                    continue
-                if sig in skipped:
-                    skipped.pop(sig, None)
-                kept_stock.append(candidate)
-            stock = tuple(kept_stock)
-            sale_stock = (carried_stock if pack_bound
-                          else tuple(item for item in stock if id(item) not in pack_ids))
-            probes = {id(item): (replace(snapshot, inventory=tuple(
-                    carried for carried in snapshot.inventory if carried is not item))
-                    if id(item) in pack_ids else snapshot) for item in stock}
-            # Junk on the shelf or pack is destroyed before any sale of other
-            # stock (#70; owner 2026-10-04 auto-destroy target).  The board
-            # carries the character-dependent junk classes (2026-10-20).
-            self._junk_board = snapshot
-            # A read-only scan: each board's supply ledger is computed once
-            # for the purchase ladders it asks per ware (#95).
-            # The retention gate runs in the rank order of the destruction it
-            # feeds and only up to the first junk ware that passes it (#95
-            # section 5): the pick below is the least-ranked passing entry, a
-            # shelf entry first while the pack has room.
-            with supply_ledger_observer_memo():
-                classed = []
-                for item in stock:
-                    taken = (item if isinstance(item, InventoryItem)
-                             else self._inventory_item_from_store_item(item))
-                    if self._is_worthless_junk(taken):
-                        classed.append((self._home_full_discard_rank(
-                            snapshot, replace(taken, slot="home-surplus")), item))
-                classed.sort(key=lambda entry: entry[0])
-                groups = ([[item for _, item in classed if id(item) not in pack_ids],
-                           [item for _, item in classed if id(item) in pack_ids]]
-                          if not pack_bound
-                          else [[item for _, item in classed]])
-                junk = []
-                for group in groups:
-                    junk = next(([(candidate, item)] for item in group
-                                 if (candidate := self._home_full_discard_candidate(
-                                     probes[id(item)], item))), [])
-                    if junk:
-                        break
-            del self._junk_board
-            # Owner 2026-11-19 「12件を超えたら先に鑑定」: past CAP_IDENTIFY_FIRST unidentified
-            # Home stacks, the cap tidy identifies one a carried means identifies now first.
-            cap_identify = [] if junk or not relief.cap else self._home_cap_identify_first(
-                snapshot, stock, probes)
-            candidates = [] if junk or relief.sweep or cap_identify else [
-                (result, item) for item in sale_stock
-                # The cap tidy sells only what the fate moves (home_cap.sheds: never the
-                # supplies' spares, owner 2026-11-19 「上限を置かない」), a ware the pack can carry.
-                if (not relief.cap or (home_cap.sheds(self, snapshot, item)
-                                       and self._can_add_item_without_overweight(snapshot, item)))
-                and (result := self._home_full_sale_candidate(probes[id(item)], item))]
-            if junk:
-                discard, unidentified = junk, []
-            elif relief.cap:
-                discard, unidentified = [], cap_identify
-            elif not candidates:
-                discard = [(candidate, item) for item in stock
-                           if (candidate := self._home_full_discard_candidate(probes[id(item)], item))]
-                unidentified = [(candidate, item) for item in stock
-                                if (candidate := self._home_full_discard_candidate(
-                                    probes[id(item)], item, identify=True))
-                                and (id(item) in pack_ids
-                                     or item_fate.can_identify_now(self, snapshot, candidate))]
-                if (pack_bound and not discard and not relief.sweep
-                        and not any(item_fate.can_identify_now(self, snapshot, candidate)
-                                    for candidate, _ in unidentified)):
-                    # Owner 2026-11-17 「自宅は明確に無駄な採掘道具や矢を売却すれば空きを
-                    # 作れる」: no carried stack can go, so the clearly useless shelf
-                    # stock is taken to be sold at once, in any free pack slot
-                    # (town_pack_budget.round_trip_fits).  n1-a life-530 2026-11-18
-                    # 03:06: 20 of 23 slots carried, the carried gear waiting on
-                    # *Identify* no source here gives, 27 stacks of surplus bolts
-                    # on the full shelf, and the visit stopped over the weight limit.
-                    # Every shelf ware the relief sells leaves the pack at the
-                    # next store, so each sale candidate makes the round trip,
-                    # clearly useless stock first (item_fate.relief_order).  n1-a
-                    # life-531 2026-11-19 03:27: 19 of 23 slots, the carried gear
-                    # waiting on *Identify*, no clearly useless stock, and 136
-                    # rank 21+ wares on the full shelf the reserve kept in place.
-                    candidates = [
-                        (result, item) for item in shelf_stock
-                        if (result := self._home_full_sale_candidate(snapshot, item))
-                        and round_trip_fits(snapshot, item, item.count)]
-                    if candidates:
-                        unidentified = []
-                        round_trip = True
             else:
-                discard = unidentified = []
-            if relief.sweep:
-                # The sweep destroys junk only, a ware the pack can carry.
-                if junk and self._can_add_item_without_overweight(snapshot, junk[0][1]):
-                    relief.sweep_class = self._junk_class(replace(
-                        snapshot, inventory=(*snapshot.inventory, junk[0][0])),
-                        junk[0][0])
-                else:
-                    # Owner 2026-11-15 「鑑定の手段で調べる」: an unaware potion
-                    # or scroll a carried means identifies now comes before
-                    # a sale ware (a sale ware the sweep cannot finish ends
-                    # the sweep for the stay); the relief's identify mode
-                    # takes and identifies it.
-                    identify_ware = (None if junk
-                                     else item_fate.sweep_identify_ware(self, snapshot, sale_stock))
-                    ware = (None if junk or identify_ware is not None
-                            else item_fate.sweep_ware(self, snapshot, sale_stock))
-                    if identify_ware is not None:
-                        discard, unidentified = [], [identify_ware]
-                        relief.sweep_class = "identified"
-                    elif ware is None:
-                        self._end_home_junk_sweep()
-                        return None
-                    else:
-                        candidates = [ware]
-                        signature = self._item_signature(ware[0][0])
-                        if home_cash_sale.ware(self, snapshot, ware[0][0]) and home_cash_sale.due(self, snapshot):
-                            relief.cash = signature
-                        if signature in bm_destruction_fund.plan(self, snapshot):
-                            # Its take and sale keep the fund's exception after
-                            # the census that chose it is gone.
-                            relief.fund = signature
-            carried_sale = []
-            if not candidates:
-                if not pack_bound and not relief.cap:
-                    # Free a shelf, not more pack space, whenever a Home
-                    # auto-destroy candidate exists. If every shelf target
-                    # is protected, a genuinely unneeded carried stack can
-                    # be destroyed before the overweight-surplus producer.
-                    shelf_discard = [entry for entry in discard if id(entry[1]) not in pack_ids]
-                    shelf_unidentified = [entry for entry in unidentified if id(entry[1]) not in pack_ids]
-                    if shelf_discard or shelf_unidentified:
-                        discard, unidentified = shelf_discard, shelf_unidentified
-                    else:
-                        # With a free slot, only unneeded carried junk may
-                        # fall back to Home relief. Equipment and Identify
-                        # staves stay under their optimizer and supply owners;
-                        # neither is the 10-04 "cheapest unneeded" target.
-                        carried_junk = tuple(item for item in snapshot.inventory
-                            if not item.is_equipment
-                            and not (item.tval == TVAL_STAFF
-                                     and item.sval == SV_STAFF_IDENTIFY)
-                            and self._item_signature(item) not in relief.skipped
-                            and self._item_signature(item) not in {
-                                entry[0] for entry in relief.deposits}
-                            and self._retention_reservation(snapshot, item) == 0
-                            and not self._home_full_equipment_reserved(snapshot, item)
-                            and self._carried_disposal_preserves_departure(
-                                snapshot, item, item.count))
-                        carried_stock = carried_junk
-                        pack_ids.update(id(item) for item in carried_junk)
-                        # What a store buys is sold; destruction is for the rest
-                        # (owner 10-04; n1-c life-134 21:46 destroyed a potion).
-                        carried_sale = [
-                            (result, item) for item in carried_junk
-                            if (result := self._home_full_sale_candidate(replace(
-                                snapshot, inventory=tuple(
-                                    carried for carried in snapshot.inventory
-                                    if carried is not item)), item))]
-                        carried_discard = [
-                            (candidate, item) for item in carried_junk
-                            if (candidate := self._home_full_discard_candidate(
-                                replace(snapshot, inventory=tuple(
-                                    carried for carried in snapshot.inventory
-                                    if carried is not item)), item))
-                        ]
-                        carried_unidentified = [
-                            (candidate, item) for item in carried_junk
-                            if (candidate := self._home_full_discard_candidate(
-                                replace(snapshot, inventory=tuple(
-                                    carried for carried in snapshot.inventory
-                                    if carried is not item)), item, identify=True))
-                        ]
-                        discard, unidentified = carried_discard, carried_unidentified
-                if carried_sale:
-                    (item, store_type, _value), source = min(
-                        carried_sale, key=lambda entry: item_fate.relief_order(
-                            self, snapshot, entry[0][0], carried=True))
-                    relief.mode = "sale"
-                elif discard:
-                    item, source = min(discard, key=lambda entry:
-                                       self._home_full_discard_rank(snapshot, entry[0]))
-                    relief.mode = "destroy"
-                elif unidentified:
-                    item, source = min(unidentified, key=lambda entry: self._item_signature(entry[0]))
-                    if (not relief.cap
-                            and not self._home_full_has_normal_identification_source(snapshot)
-                            and not self._identify_staff_ready(snapshot)):
-                        relief.awaiting_identification_source = True
-                        return None
-                    relief.mode = "identify"
-                elif relief.cap:
-                    # Nothing more to shed: sell the batch, then the tidy ends this visit
-                    # (a Home of kept stock stays over the cap, owner 2026-11-19).
-                    if home_cap.drain(self, snapshot, relief):
-                        self.last_reason = "home:cap-tidy-sell-batch"
-                        return self._town_producer_entry("_home_full_relief_key",
-                        lambda: self._home_full_relief_key(snapshot))
-                    home_cap.end(self)
-                    self.last_reason = "home:cap-tidy-nothing-to-shed"
-                    return None
-                else:
-                    self._town_producer_entry(
-                        "_defer_home_full_deposit",
-                        lambda: self._defer_home_full_deposit(snapshot),
-                        family="home-visit")
-                    if self._overweight_surplus_disposal is not None:
-                        return self._town_producer_entry(
-                            "_overweight_surplus_sale_key",
-                            lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
-                    return None
-                if not carried_sale:
-                    store_type = STORE_HOME
-            elif relief.cap:
-                # The wares the cap sheds are the first ``remaining`` by fate (sold before
-                # ranks 11-20, home_cap.shed_rank), then in the relief's order, cheapest first
-                # (owner 2026-11-19 「安い順に売ってよい」); of them the last on the shelf is
-                # taken first, so a take leaves the batch's other addresses valid and the
-                # batch needs no census between its takes (_confirm_home_withdrawal_address).
-                shelf_index = {id(stock_item): index for index, stock_item
-                               in enumerate(self._home_knowledge_items)}
-                planned = sorted(candidates, key=lambda entry: (
-                    home_cap.shed_rank(self, snapshot, entry[1]),
-                    item_fate.relief_order(self, snapshot, entry[0][0])))[:max(1, relief.remaining)]
-                (item, store_type, _value), source = max(
-                    planned, key=lambda entry: shelf_index.get(id(entry[1]), -1))
-                relief.mode = "sale"
-            else:
-                (item, store_type, _value), source = min(
-                    candidates, key=lambda entry: item_fate.relief_order(
-                        self, snapshot, entry[0][0], carried=id(entry[1]) in pack_ids))
-                relief.mode = "sale"
-            signature = self._item_signature(item)
-            if relief.mode != "identify":
-                relief.rank_released = signature
-            # The clearly useless ware keeps that verdict off the shelf (item_fate.relief_useless).
-            if (relief.mode == "sale"
-                    and item_fate.clearly_useless(
-                        self, snapshot, item, carried=id(source) in pack_ids) is not None):
-                relief.useless = signature
-            else:
-                relief.reset("useless")
-            # A ware the reserve-bound pack takes only to sell at once
-            # (item_fate.relief_round_trip).
-            if round_trip and relief.mode == "sale":
-                relief.round_trip = signature
-            else:
-                relief.reset("round_trip")
-            # Retain the physical source row even when a shelf and pack stack
-            # share the same signature. A shelf take earns a shelf slot.
-            pack_only = id(source) in pack_ids
-            if pack_only:
-                first = next(source for source in carried_stock
-                             if self._sale_item_identity(source) == self._sale_item_identity(item))
-                count = sum(source.count for source in snapshot.inventory
-                            if self._sale_item_identity(source) == self._sale_item_identity(item))
-                relief.sale = (signature, store_type, count - first.count)
-                relief.withdrawn = True
-                relief.pack_only = True
-                return self._home_full_relief_key(snapshot)
-            relief.stock_count = counts[signature]
-            if not self._file_home_errand(snapshot, HomeErrandRequest(
-                    signature, item.count, "home-catalog",
-                    "full-home-sale" if relief.mode == "sale" else "full-home-discard"),
-                    knowledge_current=True):
+                self._town_producer_entry(
+                    "_defer_home_full_deposit",
+                    lambda: self._defer_home_full_deposit(snapshot),
+                    family="home-visit")
+                if self._overweight_surplus_disposal is not None:
+                    return self._town_producer_entry(
+                        "_overweight_surplus_sale_key",
+                        lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
                 return None
-            relief.sale = (signature, store_type,
-                sum(carried.count for carried in snapshot.inventory
-                    if self._sale_item_identity(carried) == self._sale_item_identity(item)))
-            self._home_pending_item = signature
-            self._home_pending_quantity = item.count
-            self._rearm_town_store_for_new_work(
-                STORE_HOME, release_visit_bound=not relief.sweep)
-            sale = relief.sale
+            if not carried_sale:
+                store_type = STORE_HOME
+        elif relief.cap:
+            # The wares the cap sheds are the first ``remaining`` by fate (sold before
+            # ranks 11-20, home_cap.shed_rank), then in the relief's order, cheapest first
+            # (owner 2026-11-19 「安い順に売ってよい」); of them the last on the shelf is
+            # taken first, so a take leaves the batch's other addresses valid and the
+            # batch needs no census between its takes (_confirm_home_withdrawal_address).
+            shelf_index = {id(stock_item): index for index, stock_item
+                           in enumerate(self._home_knowledge_items)}
+            planned = sorted(candidates, key=lambda entry: (
+                home_cap.shed_rank(self, snapshot, entry[1]),
+                item_fate.relief_order(self, snapshot, entry[0][0])))[:max(1, relief.remaining)]
+            (item, store_type, _value), source = max(
+                planned, key=lambda entry: shelf_index.get(id(entry[1]), -1))
+            relief.mode = "sale"
+        else:
+            (item, store_type, _value), source = min(
+                candidates, key=lambda entry: item_fate.relief_order(
+                    self, snapshot, entry[0][0], carried=id(entry[1]) in pack_ids))
+            relief.mode = "sale"
+        return _ReliefChoice(item, source, store_type)
+
+    def _home_full_sweep_choice(
+        self, snapshot: Snapshot, relief: HomeFullRelief, sale_stock: tuple, junk: list,
+        discard: list, unidentified: list, candidates: list,
+    ) -> tuple[list, list, list] | None:
+        """The junk sweep's ware: its junk, an unaware ware to identify, or a sale ware.
+
+        None: no ware is left and the sweep ended.
+        """
+        # The sweep destroys junk only, a ware the pack can carry.
+        if junk and self._can_add_item_without_overweight(snapshot, junk[0][1]):
+            relief.sweep_class = self._junk_class(replace(
+                snapshot, inventory=(*snapshot.inventory, junk[0][0])),
+                junk[0][0])
+        else:
+            # Owner 2026-11-15 「鑑定の手段で調べる」: an unaware potion
+            # or scroll a carried means identifies now comes before
+            # a sale ware (a sale ware the sweep cannot finish ends
+            # the sweep for the stay); the relief's identify mode
+            # takes and identifies it.
+            identify_ware = (None if junk
+                             else item_fate.sweep_identify_ware(self, snapshot, sale_stock))
+            ware = (None if junk or identify_ware is not None
+                    else item_fate.sweep_ware(self, snapshot, sale_stock))
+            if identify_ware is not None:
+                discard, unidentified = [], [identify_ware]
+                relief.sweep_class = "identified"
+            elif ware is None:
+                self._end_home_junk_sweep()
+                return None
+            else:
+                candidates = [ware]
+                signature = self._item_signature(ware[0][0])
+                if home_cash_sale.ware(self, snapshot, ware[0][0]) and home_cash_sale.due(self, snapshot):
+                    relief.cash = signature
+                if signature in bm_destruction_fund.plan(self, snapshot):
+                    # Its take and sale keep the fund's exception after
+                    # the census that chose it is gone.
+                    relief.fund = signature
+        return discard, unidentified, candidates
+
+    def _home_full_relief_file_take(
+        self, snapshot: Snapshot, relief: HomeFullRelief, wares: _ReliefWares, choice: _ReliefChoice,
+    ) -> str | None | _ReliefStep:
+        """Mark the chosen ware and file its take (a pack ware is the relief's at once).
+
+        ``GO_ON``: the shelf take is filed and the walk to Home begins.
+        """
+        item, source, store_type = choice
+        pack_ids, carried_stock, counts = wares.pack_ids, wares.carried_stock, wares.counts
+        signature = self._item_signature(item)
+        if relief.mode != "identify":
+            relief.rank_released = signature
+        # The clearly useless ware keeps that verdict off the shelf (item_fate.relief_useless).
+        if (relief.mode == "sale"
+                and item_fate.clearly_useless(
+                    self, snapshot, item, carried=id(source) in pack_ids) is not None):
+            relief.useless = signature
+        else:
+            relief.reset("useless")
+        # A ware the reserve-bound pack takes only to sell at once
+        # (item_fate.relief_round_trip).
+        if wares.round_trip and relief.mode == "sale":
+            relief.round_trip = signature
+        else:
+            relief.reset("round_trip")
+        # Retain the physical source row even when a shelf and pack stack
+        # share the same signature. A shelf take earns a shelf slot.
+        pack_only = id(source) in pack_ids
+        if pack_only:
+            first = next(source for source in carried_stock
+                         if self._sale_item_identity(source) == self._sale_item_identity(item))
+            count = sum(source.count for source in snapshot.inventory
+                        if self._sale_item_identity(source) == self._sale_item_identity(item))
+            relief.sale = (signature, store_type, count - first.count)
+            relief.withdrawn = True
+            relief.pack_only = True
+            return self._home_full_relief_key(snapshot)
+        relief.stock_count = counts[signature]
+        if not self._file_home_errand(snapshot, HomeErrandRequest(
+                signature, item.count, "home-catalog",
+                "full-home-sale" if relief.mode == "sale" else "full-home-discard"),
+                knowledge_current=True):
+            return None
+        relief.sale = (signature, store_type,
+            sum(carried.count for carried in snapshot.inventory
+                if self._sale_item_identity(carried) == self._sale_item_identity(item)))
+        self._home_pending_item = signature
+        self._home_pending_quantity = item.count
+        self._rearm_town_store_for_new_work(
+            STORE_HOME, release_visit_bound=not relief.sweep)
+        return _ReliefStep.GO_ON
+
+    def _home_full_relief_route_key(
+        self, snapshot: Snapshot, relief: HomeFullRelief, sale: tuple,
+    ) -> str | None:
+        """Walk the ware to its store (taken) or to Home (its take filed)."""
         store_type = sale[1] if relief.withdrawn else STORE_HOME
         if snapshot.store is not None:
             # The sweep's leave never says "full": the Home is not full.
@@ -1954,7 +2176,7 @@ class HomeMixin:
             return self._town_blocked_key(snapshot)
         self.last_reason = (self._home_errand.reason("await-fresh-knowledge")
                             if producer == "home-errand" else "home:scan-await-observation")
-        key = WAIT_KEY if (self._home_full_relief is not None
+        key = WAIT_KEY if (relief_of(self) is not None
                            or self._home_full_retry_deposits is not None
                            or (producer == "home-errand" and self._home_errand.request is not None
                                and self._home_errand.request.purpose == "full-home-sale")) else ""
@@ -2470,7 +2692,7 @@ class HomeMixin:
         retry (``_home_full_retry_deposits``) and is left alone.
         """
         pending = getattr(self, "_home_full_rejected_deposits", None)
-        if not pending or getattr(self, "_home_full_relief", None) is not None:
+        if not pending or relief_of(self) is not None:
             return
         self._home_rejected_deposits.difference_update(pending)
         pending.clear()
@@ -3710,7 +3932,7 @@ class HomeMixin:
             route = "deposit"
         elif owner_pending:
             route = "owner-pending"
-        elif deposits and home and not home_capacity_known and self._home_full_relief is None:
+        elif deposits and home and not home_capacity_known and relief_of(self) is None:
             # Observe unknown capacity before opening another route. A pending
             # full-Home relief already owns that observation and stays intact.
             route = "home-relief"
@@ -3762,7 +3984,7 @@ class HomeMixin:
         limit).  A relief with a ware in flight keeps it (C4-A 2026-10-20
         one-shot sale).
         """
-        relief = self._home_full_relief
+        relief = relief_of(self)
         if (weight_relief is None or weight_relief.route != "deposit"
                 or relief is None or relief.sale is not None
                 or relief.withdrawn
@@ -4222,7 +4444,7 @@ class HomeMixin:
         taken = None if survival else getattr(self, "_home_pending_take_confirmed", None)
         if taken is not None and not same_memory(taken, self._home_pending_item):
             taken = self._home_pending_take_confirmed = None
-        session = (None if (survival or self._home_full_relief is not None
+        session = (None if (survival or relief_of(self) is not None
                            or getattr(self, "_home_full_retry_deposits", None) is not None)
                    else self._equipment_transaction_session)
         action = session.current_action if session is not None else None
@@ -4465,7 +4687,7 @@ class HomeMixin:
                          if relief_request else (self._home_pending_quantity or item.count))
         if (relief_request and self._home_full_relief_take_blocks_identify(
                 snapshot, item, take_quantity)):
-            relief = self._home_full_relief
+            relief = relief_of(self)
             if relief is not None:
                 if relief.stock_count is None:
                     relief.stock_count = item.count
@@ -4982,7 +5204,7 @@ class HomeMixin:
                 # Filed outside the stores, never over a Home deposit in flight, a
                 # full Home (its relief and refused-deposit settlement) or an
                 # overweight pack's shedding (a take adds what they shed).
-                or snapshot.store is not None or self._home_full_relief is not None
+                or snapshot.store is not None or relief_of(self) is not None
                 or self._home_atomic_deposit_pending is not None
                 or self._home_is_full(snapshot)
                 or self._inventory_overweight(snapshot)):
@@ -5017,7 +5239,7 @@ class HomeMixin:
              and here is not None and here.is_store)
                 or self._home_pending_item is not None or self._home_pending_batch
                 or self._home_errand.active
-                or snapshot.store is not None or self._home_full_relief is not None
+                or snapshot.store is not None or relief_of(self) is not None
                 or self._home_atomic_deposit_pending is not None
                 or self._home_is_full(snapshot)
                 or self._inventory_overweight(snapshot)):
@@ -5052,7 +5274,7 @@ class HomeMixin:
              and here is not None and here.is_store)
                 or self._home_pending_item is not None or self._home_pending_batch
                 or self._home_errand.active
-                or snapshot.store is not None or self._home_full_relief is not None
+                or snapshot.store is not None or relief_of(self) is not None
                 or self._home_atomic_deposit_pending is not None
                 or self._home_is_full(snapshot)
                 or self._inventory_overweight(snapshot)):
@@ -5263,7 +5485,7 @@ class HomeMixin:
         ):
             self._offer_home_atomic_no_step("deposit", "wrong-surface-or-pending")
             return None
-        if self._home_full_relief is not None:
+        if relief_of(self) is not None:
             self._offer_home_atomic_no_step("deposit", "home-full-sale-pending")
             return None
         entrance = snapshot.grid_at(snapshot.player.position)
@@ -5492,7 +5714,7 @@ class HomeMixin:
         open_page_full = bool(store is not None and store.store_type == STORE_HOME
             and isinstance(store.stock_num, int) and isinstance(store.capacity, int)
             and store.capacity > 0 and store.stock_num >= store.capacity)
-        if open_page_full or self._home_is_full(snapshot) or self._home_full_relief is not None:
+        if open_page_full or self._home_is_full(snapshot) or relief_of(self) is not None:
             relief_key = self._home_full_relief_key(snapshot)
             if relief_key is not None:
                 return relief_key
@@ -5686,7 +5908,7 @@ class HomeMixin:
         return True
 
     def _find_home_deposit(self, snapshot: Snapshot) -> InventoryItem | None:
-        if self._home_full_relief is not None:
+        if relief_of(self) is not None:
             return None
         retry = getattr(self, "_home_full_retry_deposits", None)
         if retry is not None:

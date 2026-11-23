@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.home_full_relief import relief_of
 from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
 from hengbot.item_identity import same_memory
@@ -4602,7 +4603,7 @@ class ShopMixin(InStoreMixin):
             # the batch seller and the page's sales read this list (_store_sell_key
             # refuses the single sale, _town_organization_sale_store the route).
             return []
-        relief = self._home_full_relief
+        relief = relief_of(self)
         if relief is not None and relief.sale is not None:
             signature, store_type, _before = relief.sale
             identity = sale_identity_of_signature(signature)
@@ -5051,7 +5052,7 @@ class ShopMixin(InStoreMixin):
                 lambda: self._overweight_surplus_sale_key(snapshot), family="shop-sell")
             if surplus_key is not None:
                 return surplus_key
-        if (self._home_full_relief is not None and not snapshot.player.hungry
+        if (relief_of(self) is not None and not snapshot.player.hungry
                 and self._home_atomic_withdraw_pending is None):
             relief_key = self._home_full_relief_key(snapshot)
             if relief_key is not None:
@@ -6472,7 +6473,7 @@ class ShopMixin(InStoreMixin):
                      and arbiter is not None
                      and arbiter.owner_for_reason(self.last_reason) == "misc")
         return (writer_family == "store-router" and travel_reason.startswith("shop:")
-                and (self._home_full_relief is not None or self._home_full_retry_deposits is not None)
+                and (relief_of(self) is not None or self._home_full_retry_deposits is not None)
                 and (not self.last_reason or inherited
                      or not self._home_knowledge_scan_requested))
 
@@ -6545,7 +6546,7 @@ class ShopMixin(InStoreMixin):
             writer_family != "survival"
             and self._equipment_transaction_owns_town_relocation(snapshot)
             and refuses_route(self, self._shopping_approach_store_type)
-            and self._home_full_relief is None
+            and relief_of(self) is None
         ):
             # The owner refusing relocation must execute its own local work;
             # earlier identification and Home dispatch keep their priority.

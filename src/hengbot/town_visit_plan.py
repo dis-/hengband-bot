@@ -25,6 +25,7 @@ stale row, or a stage outside ``STAGES`` (0 gaps).
 """
 from __future__ import annotations
 
+from hengbot.home_full_relief import relief_of
 from typing import Any
 
 # The visit's stages, in the order a visit flows through them.
@@ -277,7 +278,7 @@ def note_observed_progress(policy: Any, snapshot: Any) -> None:
     visit.observed_work_states.add(state)
     if visit.previous_decision_stage in visit.stage_decisions:
         visit.stage_decisions[visit.previous_decision_stage] = 0
-    relief = getattr(policy, "_home_full_relief", None)
+    relief = relief_of(policy)
     if relief is not None and relief.cap:
         # The Home cap tidy's unit of work (a take, a sale) spans the Home, the store
         # router and the sale: each one observed restarts all of their counts, so a tidy

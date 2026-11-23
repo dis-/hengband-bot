@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import Any
 
 from hengbot import item_fate, town_pack_budget
-from hengbot.home_full_relief import SALE_DESTROY_FIELDS, HomeFullRelief
+from hengbot.home_full_relief import SALE_DESTROY_FIELDS, HomeFullRelief, relief_of
 from hengbot.home_ledger import HOME_DEPOSIT_ROOM, HOME_KEEP_CAP, SHED_ORDER
 from hengbot.item_identity import same_memory
 from hengbot.model import STORE_HOME
@@ -96,7 +96,7 @@ def begin(policy: Any, snapshot: Any) -> bool:
             or not snapshot.in_town or snapshot.player.recalling
             or not policy._home_knowledge_current
             or not policy._home_available(snapshot)
-            or policy._home_full_relief is not None
+            or relief_of(policy) is not None
             or getattr(policy, "_home_full_retry_deposits", None) is not None
             or policy._home_errand.active
             or policy._home_pending_item is not None
@@ -159,7 +159,7 @@ def drain(policy: Any, snapshot: Any, relief: Any) -> bool:
 
 def end(policy: Any) -> None:
     """End the cap tidy for this town visit."""
-    relief = policy._home_full_relief
+    relief = relief_of(policy)
     if (relief is not None and relief.sale is not None
             and same_memory(policy._home_pending_item, relief.sale[0])):
         policy._home_pending_item = None

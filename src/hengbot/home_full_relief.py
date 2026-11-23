@@ -202,6 +202,18 @@ def _default(name: str) -> Any:
     return entry.default_factory() if entry.default_factory is not MISSING else entry.default
 
 
+def relief_of(policy: Any) -> HomeFullRelief | None:
+    """The policy's running relief, or None: the one way the bot reads the relief.
+
+    Maintainability review 2026-11-23 (a)-9: the relief was read as ``policy._home_full_relief``
+    or ``getattr(policy, "_home_full_relief", None)`` in ten modules.  Every read now goes
+    through here (``scripts/home_relief_read_lint.py``); writes stay assignments to the attribute
+    (``ReliefAttribute``), which reads an old dict into the container.  A policy without the
+    attribute (a bare test double) reads as no relief, as the ``getattr`` readers did.
+    """
+    return getattr(policy, RELIEF_ATTRIBUTE, None)
+
+
 def adopt(value: Any) -> Any:
     """``value`` as the relief attribute holds it: a dict becomes a ``HomeFullRelief``."""
     if isinstance(value, dict):

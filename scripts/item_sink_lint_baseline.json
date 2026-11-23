@@ -50,8 +50,6 @@
     "policy_fundraising.py:FundraisingMixin._tunnel_step_toward: _tunnel_step_toward calls a claims producer outside its entry/adapter": 1,
     "policy_fundraising.py:_leave_fundraising_floor: pinned adapter call site changed or disappeared": 1,
     "policy_fundraising.py:_tunnel_step_toward: pinned adapter call site changed or disappeared": 1,
-    "policy_home.py:HomeMixin._home_full_relief_key: _home_full_relief_key calls a claims producer outside its entry/adapter": 1,
-    "policy_home.py:_home_full_relief_key: pinned adapter call site changed or disappeared": 1,
     "policy_opening.py:OpeningRouteMixin._opening_q1_town_key: _opening_q1_town_key calls a claims producer outside its entry/adapter": 1,
     "policy_opening.py:_opening_q1_town_key: pinned adapter call site changed or disappeared": 1,
     "policy_shop.py:_shop_core: pinned adapter call site changed or disappeared": 1,

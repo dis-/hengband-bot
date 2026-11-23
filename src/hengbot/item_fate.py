@@ -14,6 +14,7 @@ keep their own modules.
 """
 from __future__ import annotations
 
+from hengbot.home_full_relief import relief_of
 from dataclasses import replace
 from typing import Any
 
@@ -92,7 +93,7 @@ def gear_tier(policy: Any, snapshot: Any, item: Any, ranks: dict | None = None) 
         return ANY
     if not policy._home_knowledge_current:
         # The relief's chosen ware, and the cap tidy's batch taken out on this trip.
-        relief = policy._home_full_relief
+        relief = relief_of(policy)
         released = ({relief.rank_released, *(entry[0] for entry in relief.carried)}
                     if relief is not None else ())
         return ROOM if policy._item_signature(item) in released else KEEP
@@ -486,7 +487,7 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
         # Owner 2026-11-19 「アーティファクトであっても明確な下位互換は売る」.
         if _dominated(policy, snapshot, item):
             return "dominated"
-    relief = getattr(policy, "_home_full_relief", None)
+    relief = relief_of(policy)
     if not always and (relief is None or relief.sweep):
         # Only a full Home's relief (a deposit refused or met by a full Home) makes room.
         return None
@@ -508,7 +509,7 @@ def relief_ware(policy: Any, snapshot: Any) -> Any:
     sale's in-store ``@1`` tag renames the ware (n1-a life-530 2026-11-18 01:28
     town:blocked:stage-deadline:sell).
     """
-    relief = getattr(policy, "_home_full_relief", None)
+    relief = relief_of(policy)
     sale = relief.sale if relief is not None else None
     if sale is None:
         return None
@@ -527,7 +528,7 @@ def relief_useless(policy: Any, snapshot: Any, item: Any) -> bool:
     The relief's choice holds until its sale is observed (policy_home ``relief.useless``).
     The ware is the stack ``relief_ware`` names.
     """
-    relief = getattr(policy, "_home_full_relief", None)
+    relief = relief_of(policy)
     if relief is None:
         return False
     sale = relief.sale
@@ -547,7 +548,7 @@ def relief_round_trip(policy: Any, item: Any) -> bool:
     (``town_pack_budget.round_trip_fits``); once taken (``withdrawn``) it is a pack
     stack like any other.
     """
-    relief = getattr(policy, "_home_full_relief", None)
+    relief = relief_of(policy)
     if relief is None:
         return False
     sale = relief.sale

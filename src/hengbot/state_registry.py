@@ -1232,7 +1232,8 @@ REGISTRY = (
       "policy_home: home disposal seen pages (no comment at its definition)"),
     S("_home_full_relief", "policy_home", LIFE,
       "the full-Home relief running, or None: home_full_relief.HomeFullRelief, its fields "
-      "documented there (review 2026-11-18 (a)-7; an old checkpoint's dict is read into it)"),
+      "documented there (review 2026-11-18 (a)-7; an old checkpoint's dict is read into it); "
+      "read only through home_full_relief.relief_of (review 2026-11-23 (a)-9)"),
     S("_home_full_retry_deposits", "policy_home", LIFE,
       "policy_home: home full retry deposits (no comment at its definition)"),
     S("_home_gate_telemetry", "policy_home", LIFE,
@@ -1285,7 +1286,7 @@ REGISTRY = (
       "policy_home: home withdrawal queued (no comment at its definition)"),
     S("_junk_board", "policy_home", DECISION,
       "the board whose character-dependent junk classes _is_worthless_junk reads while "
-      "_home_full_relief_key ranks the junk (set and deleted within that one call)"),
+      "_home_full_relief_junk ranks the junk (set and deleted within that one call)"),
     S("_latch_capture_assignment", "policy_home", LIFE,
       "policy_home: latch capture assignment (no comment at its definition)", saved=False),
     S("_ordinary_weight_relief_surplus_active", "policy_home", LIFE,
@@ -2172,7 +2173,7 @@ RESET_BY = {
     "_home_full_retry_deposits": Reset((
         "policy._observe_home_atomic_deposit_outside",
         "policy_home._defer_home_full_deposit",
-        "policy_home._home_full_relief_key",
+        "policy_home._home_full_retry_key",
         "policy_home._release_home_full_relief_for_weight",
     )),
     "_home_junk_sweep_count": Reset(note=(

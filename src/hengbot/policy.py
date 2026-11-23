@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, item_need
 from hengbot import equipment_target
 from hengbot import angband_finale
@@ -2709,7 +2710,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         safety_watch.begin(self)  # record only: the safe-now gates' answers (owner 2026-11-15 Q9)
         # Recorded checkpoints predating full-Home recovery lack these fields.
         self._home_capacity_observation = getattr(self, "_home_capacity_observation", None)
-        self._home_full_relief = getattr(self, "_home_full_relief", None)
+        self._home_full_relief = relief_of(self)
         self._home_full_refused = getattr(self, "_home_full_refused", False)
         self._home_full_retry_deposits = getattr(self, "_home_full_retry_deposits", None)
         from hengbot.policy_state import normalize_policy_state
@@ -4126,7 +4127,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._town_store_blocked_under_applicable_bound(STORE_HOME, need="equipment-work")
             or self._equipment_transaction_visit_closure is not None
             or self._equipment_home_full_refused_this_visit()
-            or self._home_full_relief is not None
+            or relief_of(self) is not None
             or self._home_full_retry_deposits is not None
             or self._home_pending_item is not None
             or self._home_pending_batch
@@ -4967,7 +4968,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 return self._home_catalogue_work_key(snapshot)
         if (snapshot.in_town and self._home_knowledge_scan_inflight
                 and not self._home_knowledge_current
-                and (self._home_full_relief is not None
+                and (relief_of(self) is not None
                      or self._home_full_retry_deposits is not None)):
             # A posted surplus-sale census keeps its observed scan owner even
             # when the unchanged board still shows the selling store.
@@ -5002,7 +5003,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not (self._home_errand.needs_knowledge
                      and knowledge_exit is not None
                      and knowledge_exit.continuation == "home.knowledge.request")
-            and self._home_full_relief is None
+            and relief_of(self) is None
             and self._home_full_retry_deposits is None
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
@@ -5055,7 +5056,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and knowledge_exit is not None
                 and knowledge_exit.expected_effect == "outside-store"
                 and knowledge_exit.continuation == "home.knowledge.request"
-                and (self._home_full_relief is not None
+                and (relief_of(self) is not None
                      or self._home_full_retry_deposits is not None
                      or self._home_errand.needs_knowledge
                      or ((not self._home_knowledge_current or self._home_knowledge_invalidated)
@@ -5971,7 +5972,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         elif (
             snapshot.store is not None
             and snapshot.store.store_type == STORE_HOME
-            and (self._home_full_relief is not None
+            and (relief_of(self) is not None
                  or (self._home_full_retry_deposits is not None
                      and self._equipment_transaction_session is None))
             and not self._equipment_transaction_owned_items
@@ -5984,7 +5985,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # handler records the existing visit-local deferral and leaves.
             equipment_home = (
                 self._equipment_transaction_session is not None
-                and not (self._home_full_relief is not None
+                and not (relief_of(self) is not None
                          and self._home_errand.active)
             )
             if equipment_home:
@@ -7607,7 +7608,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and self._home_atomic_withdraw_pending is None
                 and self._store_buy_inflight is None
                 and self._batch_sell_pending is None
-                and self._home_full_relief is None
+                and relief_of(self) is None
                 and self._equipment_transaction_session is None
                 and (self._inventory_overweight(snapshot)
                      or self._town_pack_space_shortage(snapshot))):
@@ -7639,7 +7640,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and self._store_buy_inflight is None
                 and self._batch_sell_pending is None)
         if (relief_ready
-                and (self._home_full_relief is not None
+                and (relief_of(self) is not None
                      or self._home_full_retry_deposits is not None
                      # Owner 2026-11-19 「200件（空き40）」: a Home past its cap first.
                      or self._begin_home_cap_tidy(snapshot)
@@ -7649,7 +7650,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 lambda: self._home_full_relief_key(snapshot))
             if relief_key is not None:
                 return relief_key
-        if (relief_ready and self._home_full_relief is None
+        if (relief_ready and relief_of(self) is None
                 and home_cap.census_wanted(self, snapshot)):
             # The Home stood over its cap (owner 2026-11-19 「200件（空き40）」): one census
             # per visit lets its tidy begin.
@@ -7659,7 +7660,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if census_key is not None:
                 home_cap.census_requested(self)
                 return census_key
-        if (relief_ready and self._home_full_relief is None
+        if (relief_ready and relief_of(self) is None
                 and home_cash_sale.census_wanted(self, snapshot)):
             # Home's cash wares wait on a current census (owner 2026-11-18).
             census_key = self._town_producer_entry(
@@ -7668,7 +7669,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if census_key is not None:
                 home_cash_sale.census_requested(self, snapshot)
                 return census_key
-        if (relief_ready and self._home_full_relief is None
+        if (relief_ready and relief_of(self) is None
                 and bm_destruction_fund.census_wanted(self, snapshot)):
             # The Black Market's *Destruction* staff is short (owner 2026-11-07):
             # its fund reads Home's spares from a current census.
@@ -10206,7 +10207,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             pending_disposal["posted"] = True
             self._overweight_surplus_ledger["pending"] = dict(pending_disposal)
             self._save_overweight_surplus_ledger()
-        relief = getattr(self, "_home_full_relief", None)
+        relief = relief_of(self)
         if relief is not None and relief.destroy_pending_key is not None:
             if relief.consume("destroy_pending_key") == key:
                 relief.destroy_posted = True
