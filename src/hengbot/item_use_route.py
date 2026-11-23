@@ -128,14 +128,7 @@ def _magic_eater_absorbs(policy, snapshot, item) -> bool:
     Owner 2026-11-13 「99回なら必ず拾わない」: at the cap (mind-magic-eater.cpp keeps no count past
     99) a copy adds nothing.  The first copy of a stage staff counts too (me_device_policy).
     """
-    row = me_device_policy.device(item)
-    if row is None or row.never or not (row.absorb_now or row.absorb_after_charge or row.stage):
-        return False
-    if me_device_policy.empty_unabsorbed(policy, snapshot, item):
-        # Owner 2026-11-19: an empty copy of a kind not yet absorbed adds nothing; it is sold.
-        return False
-    return (me_capability.count(policy, snapshot, row.kind, row.sval)
-            < me_device_policy.POWER_COUNT_CAP)
+    return me_device_policy.copy_raises_power(policy, snapshot, item)
 
 
 def _mana_food(policy, snapshot, item) -> bool:

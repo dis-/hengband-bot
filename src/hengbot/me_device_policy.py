@@ -167,6 +167,25 @@ def empty_unabsorbed(policy, snapshot, item) -> bool:
                 and _absorbed_count(policy, snapshot, row) <= 0)
 
 
+def copy_raises_power(policy, snapshot, item) -> bool:
+    """Another copy of the kind serves the absorption: the one verdict the keep, the sale and the
+    purchase read (item_use_route ``magic-eater-absorbs``, ``purchase_wanted``).
+
+    The table absorbs the kind (``absorb_now``, ``absorb_after_charge`` or a ``stage``) and the
+    power's count is below the cap: owner 2026-11-13 「99回なら必ず拾わない」 (mind-magic-eater.cpp
+    keeps no count past 99, so a copy then adds nothing).  An empty copy of a kind not yet
+    absorbed adds nothing either (``empty_unabsorbed``, owner 2026-11-19: sold).
+    n1-b life-416 2026-11-23 23:39:36: the purchase read ``buy_more`` alone and bought a Staff of
+    Speed (5 charges) at 21,292 with the power at 99; the sale read this verdict and sold it for
+    2,764 two seconds later."""
+    row = device(item)
+    if row is None or row.never or not (row.absorb_now or row.absorb_after_charge or row.stage):
+        return False
+    if empty_unabsorbed(policy, snapshot, item):
+        return False
+    return _below_cap(policy, snapshot, row)
+
+
 def absorb_candidate(policy, snapshot, *, only=None):
     """The first carried device to absorb on the spot (of the (tval, sval)
     kinds ``only`` names, when given), or None."""
@@ -208,6 +227,10 @@ def purchase_wanted(policy, snapshot, item) -> bool:
     if (row is None or row.stage is not None or not (row.buy_first or row.buy_more)
             or not _magic_eater(snapshot) or not item.aware
             or _held_copy(policy, snapshot, row)):
+        return False
+    # The bought copy must have the use the sale reads (``copy_raises_power``): a kind at the
+    # count cap is sold as soon as it is carried (item_use_route ``surplus``).
+    if not copy_raises_power(policy, snapshot, item):
         return False
     if not _purchase_count_allows(policy, snapshot, row):
         return False
