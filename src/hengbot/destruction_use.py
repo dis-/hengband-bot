@@ -62,6 +62,7 @@ into the map memory, so a cell the game still shows comes back from the board.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
@@ -152,6 +153,10 @@ class Memory:
     # this floor (``comeback_races``, owner 2026-11-22).  A class default: restored checkpoints
     # predate it.
     breeder_landed: tuple | None = None
+    # (decision sequence, record): the use ``key`` answered on that decision, record only
+    # (``use_report``: the reason, the asking rung, the hostiles it leaves and the floor items'
+    # answer, owner 2026-11-23 loot yield).  A class default: restored checkpoints predate it.
+    note: tuple | None = None
 
 
 def _memory(policy) -> Memory:
@@ -644,13 +649,25 @@ def in_sure_radius(snapshot, subject, *, centre=None) -> bool:
     return game_distance(origin, getattr(subject, "position", subject)) <= GUARANTEED_RADIUS
 
 
-def in_worst_radius(snapshot, subject, *, centre=None) -> bool:
-    """``subject`` (a monster or a Position) is within WORST_RADIUS of ``centre`` (the player's
+def in_worst_radius(snapshot, subject, *, centre=None, radius=WORST_RADIUS) -> bool:
+    """``subject`` (a monster or a Position) is within ``radius`` of ``centre`` (the player's
     cell by default): a cell some use destroys (13 + randint0(5), cmd-usestaff.cpp:282; the
-    Powerful Activation's 18 is never cast here).  destruction_loot keeps the floor items out of
-    it (owner 2026-11-17)."""
+    Powerful Activation's 18 + randint0(5) where ``worst_radius`` says the use is powered).
+    destruction_loot keeps the floor items out of it (owner 2026-11-17)."""
     origin = snapshot.player.position if centre is None else centre
-    return game_distance(origin, getattr(subject, "position", subject)) <= WORST_RADIUS
+    return game_distance(origin, getattr(subject, "position", subject)) <= radius
+
+
+def worst_radius(policy, snapshot, leaving) -> int:
+    """The worst radius of the use ``key`` would make leaving ``leaving``: POWERED_WORST_RADIUS
+    where it goes through Powerful Activation (``_powered_scene``: the given-up quest target
+    beyond the sure radius, owner 2026-11-22), else WORST_RADIUS.  destruction_loot reads it for
+    the floor items the use deletes (until 11-23 it read 17 for the powered use too)."""
+    leaving = list(leaving or ())
+    in_range = partial(_threat_in_reach, hostiles=leaving)
+    if not _scene_holds(policy, snapshot, in_range) and _powered_scene(policy, snapshot, leaving):
+        return POWERED_WORST_RADIUS
+    return WORST_RADIUS
 
 
 def walk_step(policy, snapshot, subject):
@@ -828,11 +845,54 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None,
         policy.last_reason = REASON + suffix + (substitutes.CAST_SUFFIX if cast else "")
     memory = _memory(policy)
     memory.powerful = bool(powerful)
+    _note_use(policy, snapshot, memory, leaving)
     memory.pending = (snapshot.floor_key, snapshot.turn, snapshot.player.position)
     memory.pending_monsters = tuple(
         (monster.index, monster.race_id, monster.position.y, monster.position.x, monster.name)
         for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters) if monster.hostile)
     return used
+
+
+def _asking_rung() -> str:
+    """The first function outside this module and destruction_loot on the stack: the rung that
+    asked the use (record only)."""
+    frame = sys._getframe(2)
+    while frame is not None:
+        module = frame.f_globals.get("__name__", "")
+        if module not in (__name__, "hengbot.destruction_loot"):
+            return f"{module.rsplit('.', 1)[-1]}.{frame.f_code.co_name}"
+        frame = frame.f_back
+    return "?"
+
+
+def _note_use(policy, snapshot, memory, leaving) -> None:
+    """Record only: the use answered on this decision (``use_report``)."""
+    here = snapshot.player.position
+
+    def row(monster):
+        return [monster.index, monster.race_id, monster.name, bool(monster.asleep),
+                game_distance(here, monster.position)]
+
+    shown = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+             if monster.hostile and game_distance(here, monster.position) <= WORST_RADIUS]
+    memory.note = (getattr(policy, "_decision_sequence", None), {
+        "reason": policy.last_reason,
+        "rung": _asking_rung(),
+        "leaving": None if leaving is None else [row(monster) for monster in list(leaving)[:8]],
+        "in_circle": [row(monster) for monster in sorted(
+            shown, key=lambda monster: game_distance(here, monster.position))[:12]],
+    })
+
+
+def use_report(policy) -> dict | None:
+    """The decision log's ``destruction`` field: the use ``key`` answered on this decision (its
+    reason, the rung that asked it, the hostiles it leaves, the known hostiles in its worst
+    circle, and the floor items' answer when ``loot_then_use`` asked them), else None."""
+    memory = getattr(policy, MEMORY, None)
+    note = getattr(memory, "note", None)
+    if note is None or note[0] != getattr(policy, "_decision_sequence", None):
+        return None
+    return note[1]
 
 
 @dataclass(frozen=True)
@@ -849,7 +909,7 @@ def loot_then_use(policy, snapshot, leaving, *, loot=True, use=True, suffix="") 
 
     The callers: threat_tiers' sensed T1 leave on a T1 it does not leave, its emergency-layer
     *Destruction*, the approach and the remembered approach; retreat_enclosure's sealers of a
-    route veto.  ``loot`` False skips the items (the T1 the 11-08 rule leaves: a leave, not a
+    route veto; the sight triggers (``sight_trigger_key``, 2026-11-23).  ``loot`` False skips the items (the T1 the 11-08 rule leaves: a leave, not a
     use that waits); ``use`` False asks the items alone (the remembered approach with no target
     shown).  The answer says which it was, for the callers' own bookkeeping after a use."""
     from hengbot import destruction_loot  # import cycle
@@ -857,6 +917,10 @@ def loot_then_use(policy, snapshot, leaving, *, loot=True, use=True, suffix="") 
     if loot and (kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
         return LootThenUse(kept, False)
     if use and (used := key(policy, snapshot, leaving=leaving, suffix=suffix)) is not None:
+        record = use_report(policy)
+        if record is not None:
+            record["loot"] = {"asked": bool(loot),
+                              "declined": destruction_loot.declined(policy, snapshot) if loot else None}
         return LootThenUse(used, True)
     return LootThenUse(None, False)
 
@@ -917,19 +981,22 @@ def before_teleport_away(policy, snapshot, target) -> str | None:
 def sight_trigger_key(policy, snapshot) -> str | None:
     """The use on a SIGHT_TRIGGERS race in view in the guaranteed radius, awake or asleep
     (owner 2026-11-17), else None.
-    A board with none does not ask ``key``, so it leaves a failed use's fallback alone."""
-    for suffix, applies in SIGHT_TRIGGERS:
-        in_range = partial(_race_in_range, applies=applies)
-        if in_range(policy, snapshot, _target_race(policy, snapshot)):
-            return key(policy, snapshot, in_range=in_range, suffix=suffix)
+    A board with none does not ask ``key``, so it leaves a failed use's fallback alone.
+
+    It waits for no blow, so it goes through ``loot_then_use`` leaving those monsters (the same
+    scene: ``_threat_in_reach`` asks them shown in the sure radius, as its own test did):
+    with every one of them asleep the clean place is walked to first, and with none in view the
+    valuables are fetched (destruction_loot, owner 2026-11-17 「価値の高い品は先に拾ってから撃つ」);
+    an awake one in view leaves both to the use, as before.  Until 2026-11-23 it asked ``key``
+    alone (the loot yield study: n1-b life-416's sleeping disenchanters at 95F took the scrolls
+    and rods beside them)."""
+    target = _target_race(policy, snapshot)
+    for suffix, sight_test in SIGHT_TRIGGERS:
+        triggers = [monster for monster in _visible_hostiles_except_target(policy, snapshot, target)
+                    if _within(snapshot, monster) and sight_test(policy, snapshot, monster)]
+        if triggers:
+            return loot_then_use(policy, snapshot, triggers, suffix=suffix).key
     return None
-
-
-def _race_in_range(policy, snapshot, target, *, applies) -> bool:
-    here = snapshot.player.position
-    return any(game_distance(here, m.position) <= GUARANTEED_RADIUS
-               and applies(policy, snapshot, m)
-               for m in _visible_hostiles_except_target(policy, snapshot, target))
 
 
 # -- after the use --------------------------------------------------------------

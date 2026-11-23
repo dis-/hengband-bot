@@ -9,8 +9,11 @@ Recorded (tests/fixtures/deep-efficiency-1117-destruction-loot.jsonl.gz, see
 tests/extract_deep_efficiency_1117_fixtures.py): n1-b life-411 (Magic-Eater), the Castle's 64F,
 turns 5162650-5162719: ``sensed-t1:approach-destruction`` toward the sensed T1s (a 火龍 13 cells
 off, awake), then on turn 5162719 the use ``mA3``.  Fifteen detected items lay within 17 of it, every
-one on ground the map did not show: no clean place within reach and no walk to them, so the use is
-made as recorded (the realistic case of the study's 64F approaches).  DECLARED RECONSTRUCTED: the
+one on ground the map did not show: no clean place within reach and no known walk to them, so the
+use was made as recorded (the realistic case of the study's 64F approaches).  Since 2026-11-23 (the
+loot yield study, C:/hengband-backups/pdca/loot-yield-1123: such piles were most of the valuables
+the non-urgent uses deleted) the fetch walks toward them by the reachable remembered frontier
+nearest them (destruction_loot ``_frontier_step``), with no hostile in view.  DECLARED RECONSTRUCTED: the
 absorbed *Destruction* list row (22 charges at 95%).  DECLARED CONSTRUCTED: on the use's board, the
 found items replaced by one potion pile on mapped floor -- 2 cells off (45,86) (no clean place can
 exist within 8: the fetch), or 17 cells north (30,86) (a step south clears it: the place).
@@ -24,7 +27,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import me_capability
+from hengbot import destruction_loot, me_capability
 from hengbot.model import SV_STAFF_DESTRUCTION, TVAL_POTION, Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
@@ -72,10 +75,10 @@ class DestructionLootRecordedTest(unittest.TestCase):
                 policy.confirm_key_posted(key)
         raise AssertionError("no use board")
 
-    def test_the_recorded_use_with_no_way_to_its_items_is_made(self):
+    def test_the_recorded_use_with_no_known_way_to_its_items_walks_toward_them(self):
         board, key, reason = self.replay()
-        self.assertEqual(key, "mA3", reason)
-        self.assertTrue(reason.startswith("emergency:destruction"), reason)
+        self.assertEqual(reason, destruction_loot.FRONTIER_REASON, key)
+        self.assertNotEqual(key, "mA3")
 
     def test_a_valuable_pile_beside_is_fetched_first(self):
         board, key, reason = self.replay(NEAR_PILE)

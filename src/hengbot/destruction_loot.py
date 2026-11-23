@@ -13,9 +13,10 @@ uses at 50F+ deleted 2,771 remembered floor items, 652 of them worth taking (Hea
 Resistance potions, Stone to Mud wands).
 
 Game (C:/hengband/src): spell-kind/spells-floor.cpp destroy_area deletes every item in its
-circle, of radius 13 + randint0(5) for the staff and the absorbed power (cmd-usestaff.cpp:282;
-the Powerful Activation's 18 + randint0(5) is never cast here), so an item 17 or nearer may go
-(destruction_use ``in_worst_radius``).  The remembered items are the loot memory and the
+circle, of radius 13 + randint0(5) for the staff and the absorbed power (cmd-usestaff.cpp:282),
+so an item 17 or nearer may go (destruction_use ``in_worst_radius``); 22 or nearer where the use
+goes through Powerful Activation, 18 + randint0(5) (destruction_use ``worst_radius``: the given-up
+quest target beyond the sure radius, owner 2026-11-22; until 2026-11-23 this read 17 there too).  The remembered items are the loot memory and the
 game's found items (``remembered_piles``: the detected piles too, n1-b life-411's 64F use at
 turn 5161935 had sixteen of them within 17 and no known grid under any); a pile's classes are
 the found items' (grid_map ``found_items``: y, x, count, tval...).
@@ -27,7 +28,10 @@ The order, asked where the use is due (``key``, before destruction_use ``key``):
 2. Else the nearest such place within ``PLACE_MAX_DISTANCE`` of the player, with no awake hostile
    in view: committed and walked to.
 3. Else, with no hostile in view, the nearest valuable pile (``VALUABLE_TVALS``) inside the worst
-   radius: walked to and picked up, the cell committed (``MEMORY`` "fetch").
+   radius: walked to and picked up, the cell committed (``MEMORY`` "fetch").  A pile no known way
+   leads to (shown by detection on a floor the map does not hold) is walked toward by the
+   reachable remembered frontier nearest it (``_frontier_step``, 2026-11-23; until then the use
+   was made at once, and such piles were most of the valuables the non-urgent uses deleted).
 4. Else None: the use is made as before.
 
 The fetch goes on where the use is not due as well (``_committed``): the piles a use at the
@@ -67,7 +71,7 @@ destruction_use ``loot_then_use`` (the maintainability review 1118 (a)-6).
 
 from __future__ import annotations
 
-from hengbot import destruction_use
+from hengbot import destruction_use, loot_frontier
 from hengbot.unwanted_kinds import UNWANTED_TVALS
 from hengbot.model import (
     Position, TVAL_AMULET, TVAL_POTION, TVAL_RING, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND,
@@ -76,6 +80,7 @@ from hengbot.model import (
 
 PLACE_REASON = "destruction-loot:place"
 FETCH_REASON = "destruction-loot:fetch"
+FRONTIER_REASON = "destruction-loot:fetch-frontier"
 PICKUP_REASON = "destruction-loot:pickup"
 TRIGGER_REASON = "destruction-loot:trigger-autodestroy"
 # Owner 2026-11-17 「薬・巻物・魔法道具・指輪・首飾り」.
@@ -91,7 +96,10 @@ PLACE_MAX_DISTANCE = 8
 DECISIONS_MAX = 40
 # {"floor": floor_key, "place": Position | None, "fetch": Position | None (the cell the fetch
 #  began on, where the use was due), "withheld": bool (a hostile was in view: no fetch until the
-#  flash), "decisions": int, "tried": set of Position}
+#  flash), "decisions": int, "tried": set of Position, "radius": int (the worst radius of the use
+#  due, destruction_use ``worst_radius``), "frontier": Position | None (the frontier the fetch walks
+#  to, ``_frontier_step``), "frontiers": set of Position (the ones reached or given up),
+#  "declined": (game turn, cause) record only (``declined``)}
 MEMORY = "_destruction_loot_memory"
 
 
@@ -99,7 +107,8 @@ def _memory(policy, snapshot) -> dict:
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.get("floor") != snapshot.floor_key:
         memory = {"floor": snapshot.floor_key, "place": None, "fetch": None, "withheld": False,
-                  "decisions": 0, "tried": set()}
+                  "decisions": 0, "tried": set(), "radius": destruction_use.WORST_RADIUS,
+                  "frontier": None, "frontiers": set(), "declined": (None, None)}
         setattr(policy, MEMORY, memory)
     return memory
 
@@ -112,6 +121,7 @@ def observe(policy, snapshot) -> None:
         memory["fetch"] = None
         memory["withheld"] = False
         memory["decisions"] = 0
+        memory["frontier"] = None
 
 
 def remembered_piles(policy, snapshot) -> set:
@@ -124,10 +134,17 @@ def remembered_piles(policy, snapshot) -> set:
     return piles
 
 
-def exposed(policy, snapshot, centre=None) -> list:
-    """The remembered floor piles a use made at ``centre`` (the player's cell) may delete."""
+def exposed(policy, snapshot, centre=None, radius=None) -> list:
+    """The remembered floor piles a use made at ``centre`` (the player's cell) may delete:
+    within ``radius`` (by default the worst radius of the use due, ``MEMORY`` "radius", 17 or the
+    powered 22)."""
+    if radius is None:
+        memory = getattr(policy, MEMORY, None)
+        radius = (memory.get("radius", destruction_use.WORST_RADIUS)
+                  if memory is not None and memory.get("floor") == snapshot.floor_key
+                  else destruction_use.WORST_RADIUS)
     return [position for position in remembered_piles(policy, snapshot)
-            if destruction_use.in_worst_radius(snapshot, position, centre=centre)]
+            if destruction_use.in_worst_radius(snapshot, position, centre=centre, radius=radius)]
 
 
 def _valuable(snapshot, position) -> bool:
@@ -158,11 +175,16 @@ def key(policy, snapshot, leaving) -> str | None:
     leaving = list(leaving or ())
     if not leaving or not destruction_use.usable(policy, snapshot, leaving=leaving):
         return _committed(policy, snapshot, leaving)
-    if not exposed(policy, snapshot):
-        _memory(policy, snapshot)["place"] = None
-        return None
+    # The real circle of the use due (the powered one reaches 22, owner 2026-11-23 loot yield).
     memory = _memory(policy, snapshot)
+    memory["radius"] = destruction_use.worst_radius(policy, snapshot, leaving)
+    memory["declined"] = (snapshot.turn, None)
+    if not exposed(policy, snapshot):
+        memory["place"] = None
+        _decline(memory, snapshot, "nothing-exposed")
+        return None
     if memory["decisions"] >= DECISIONS_MAX:
+        _decline(memory, snapshot, "bound")
         return None
     # A committed fetch's step counts itself (``continue_fetch``, which the ordinary walk asks
     # too): counted once here it went to the bound at half its decisions.  The committed place's
@@ -178,6 +200,25 @@ def key(policy, snapshot, leaving) -> str | None:
     if answer is not None:
         memory["decisions"] += 1
     return answer
+
+
+def _decline(memory, snapshot, cause) -> None:
+    """Record only: why no step or pickup came before the use on this board (``declined``)."""
+    turn, earlier = memory.get("declined") or (None, None)
+    if turn != snapshot.turn or earlier is None:
+        memory["declined"] = (snapshot.turn, cause)
+
+
+def declined(policy, snapshot) -> str | None:
+    """Record only (destruction_use ``use_report``): why ``key`` answered None on this board --
+    "nothing-exposed", "bound" (``DECISIONS_MAX``), "withheld" (a hostile in view), "no-valuable"
+    (no untried valuable pile in the circle), "no-way" (none reachable, no frontier toward them)
+    -- else None."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.get("floor") != snapshot.floor_key:
+        return None
+    turn, cause = memory.get("declined") or (None, None)
+    return cause if turn == snapshot.turn else None
 
 
 def _committed(policy, snapshot, leaving) -> str | None:
@@ -290,13 +331,16 @@ def _fetch(policy, snapshot, centre=None, *, begin=False) -> str | None:
     centre = here if centre is None else centre
     memory["fetch"] = None
     if memory.get("withheld"):
+        _decline(memory, snapshot, "withheld")
         return None
     if _in_view(snapshot, awake_only=False):
         memory["withheld"] = True
+        _decline(memory, snapshot, "withheld")
         return None
     piles = {position for position in exposed(policy, snapshot, centre)
              if position not in memory["tried"] and _valuable(snapshot, position)}
     if not piles:
+        _decline(memory, snapshot, "no-valuable")
         return None
     if here in piles:
         if begin:
@@ -313,14 +357,56 @@ def _fetch(policy, snapshot, centre=None, *, begin=False) -> str | None:
             return pickup
         piles.discard(here)
         if not piles:
+            _decline(memory, snapshot, "no-valuable")
             return None
     found = policy._nearest_goal_and_step(snapshot, lambda grid: grid.position in piles)
-    if found is None:
-        return None
+    reason = FETCH_REASON
+    if found is not None:
+        step = found[1]
+        memory["frontier"] = None
+    else:
+        step = _frontier_step(policy, snapshot, piles, memory)
+        reason = FRONTIER_REASON
+        if step is None:
+            _decline(memory, snapshot, "no-way")
+            return None
     if begin:
         held = _yield_to_walk(policy, snapshot)
         if held is not None:
             return held
     memory["fetch"] = centre
-    policy.last_reason = FETCH_REASON
-    return policy._step_toward(snapshot, found[1])
+    policy.last_reason = reason
+    return policy._step_toward(snapshot, step)
+
+
+def _frontier_step(policy, snapshot, piles, memory):
+    """No known way leads to the ``piles``: the step toward the reachable remembered frontier
+    nearest them (loot_frontier ``frontier_path``, owner 2026-11-13 「その品の方へ探索を寄せる」),
+    kept as ``MEMORY`` "frontier" until it is stood on (then spent, ``MEMORY`` "frontiers") or
+    no longer reachable; None with none.  Within the scene's bound (``DECISIONS_MAX``).
+
+    The 2026-11-23 loot yield study (C:/hengband-backups/pdca/loot-yield-1123): of the uses with no
+    hostile in view in the scene that deleted valuables known to the bot, every one replayed had
+    refused the fetch here for want of a known way (the piles the absorbed detection showed in a
+    room whose floor the map did not hold): n1-c life-221 (Angband 80F, turn 4392698) at (49,88),
+    the potions and scrolls six cells west on unknown floor; n1-b life-416 (Angband 95F, turn
+    4038441) at (20,11), two Speed rings and a potion in a walled room five cells off."""
+    here = snapshot.player.position
+    spent = memory["frontiers"]
+    goal = memory.get("frontier")
+    if goal == here:
+        spent.add(goal)
+        goal = None
+    path = []
+    if goal is not None and goal not in spent:
+        path = loot_frontier.frontier_path(policy, snapshot, [goal], spent=spent)
+        if not path or path[-1] != goal:
+            spent.add(goal)
+            path = []
+    if not path:
+        path = loot_frontier.frontier_path(policy, snapshot, piles, spent=spent)
+    if not path:
+        memory["frontier"] = None
+        return None
+    memory["frontier"] = path[-1]
+    return path[0]

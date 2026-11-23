@@ -23911,5 +23911,71 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The assault on the EVIL side of QUEST_33 once the sides are mixed and summoning at each other (quest_mixed_assault, owner 2026-11-23): the haste, a blow, a shot or a step; no independent progress."
+  },
+  "destruction_loot.py:_frontier_step": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: destruction_loot's fetch before a non-urgent *Destruction*, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. The step toward the reachable remembered frontier nearest the valuable piles no known way leads to (loot_frontier.frontier_path); _fetch sends it as destruction-loot:fetch-frontier."
+  },
+  "destruction_loot.py:_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: destruction_loot's fetch before a non-urgent *Destruction*, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. The floor's destruction_loot memory dict, created afresh on a new floor."
+  },
+  "loot_frontier.py:_fresh": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: destruction_loot's fetch before a non-urgent *Destruction*, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the loot walk's fresh unreachable note."
+  },
+  "policy.py:HengbotPolicy._walk_veto": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: destruction_loot's fetch before a non-urgent *Destruction*, never in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cells every walker refuses."
+  },
+  "destruction_loot.py:declined": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon only: destruction_loot's record of the fetch before a non-urgent *Destruction*, never in town.",
+    "evidence": "Data/selector result; no independent command or effect credit. Record only: why no step or pickup came before the use on this board."
+  },
+  "destruction_use.py:_asking_rung": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon only: the record of a *Destruction* use, never in town.",
+    "evidence": "Data/selector result; no independent command or effect credit. Record only: the rung on the stack that asked the use."
   }
 }

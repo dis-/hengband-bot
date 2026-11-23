@@ -404,7 +404,8 @@ _rows(NOT_ESCAPE, "destruction_loot",
       "the steps and pickups before a non-urgent *Destruction* (owner 2026-11-17 「価値の高い品は先に拾って"
       "から撃つ」; a begun fetch is walked to its end, owner 2026-11-18 Q3 「命の危険が無ければ取り終える」): "
       "a walk to loot, no escape",
-      "destruction-loot:place", "destruction-loot:fetch", "destruction-loot:pickup",
+      "destruction-loot:place", "destruction-loot:fetch", "destruction-loot:fetch-frontier",
+      "destruction-loot:pickup",
       "destruction-loot:trigger-autodestroy")
 _rows(NOT_ESCAPE, "item_use_route",
       "a retention label naming why a kind is kept (item_use_route.RETENTION_KINDS, the item-use-route "
