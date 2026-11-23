@@ -1,11 +1,15 @@
-"""The dedicated 99F/100F loadout order (equipment_optimizer ``finale``, owner 2026-11-20).
+"""The dedicated 99F/100F loadout order (equipment_optimizer ``finale``, owner 2026-11-20, 11-24).
 
 Owner, verbatim: 「装備は加速耐性テレパシーー知力耐久力を優先。ACや近接攻撃力は求めない。」,
-「呪力耐性も要求する。これはオベロンの血の呪い、サーペントの破滅の手が致死的であるためである。」 and
-「耐盲目か耐閃光を条件に入れる」.
-``finale_rank``: resist curse, resist blindness or light, then the permanent speed, the resisted elements, telepathy, INT,
-CON; AC and melee only between loadouts it holds equal; the band descent's half-melee limit is
-not asked.
+「呪力耐性も要求する。これはオベロンの血の呪い、サーペントの破滅の手が致死的であるためである。」,
+「耐盲目か耐閃光を条件に入れる」, then (2026-11-24) 「加速+25 知力18/150 耐久18/200 閃光轟音時間以外の
+耐性を必須とする。それ以降は加点式。」 and 「ほぼ推奨案で良いが、閃光と時間の耐性は1% 轟音は5% 成功率は
+不足1%につき5%」.
+``finale_rank``: the gates (resist curse, resist blindness or light, telepathy, speed +25, INT
+18/150, CON 18/200, every element but light, sound and time) and the number met, then the score
+(HP times the energy per game turn, the optional resistances' shares, the Rockets' shortfall);
+AC and melee only between loadouts it holds equal; the band descent's half-melee limit is not
+asked.
 
 DECLARED CONSTRUCTED: the catalog items (one light, rings of the flags each test names) and the
 evaluator's metrics (the combat margin standing in for AC and melee).
@@ -15,8 +19,8 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import unittest
 
 from hengbot.equipment_optimizer import (
-    SLOT_HEAD, SLOT_MAIN_RING, EvaluatedLoadout, Loadout, LoadoutMetrics, OwnedEquipment, finale_rank,
-    optimize_loadout, required_abilities,
+    FINALE_REQUIRED_RESISTANCES, SLOT_HEAD, SLOT_MAIN_RING, EvaluatedLoadout, FinaleReading,
+    Loadout, LoadoutMetrics, OwnedEquipment, finale_rank, optimize_loadout, required_abilities,
 )
 from hengbot.model import InventoryItem
 
@@ -32,9 +36,16 @@ def gear(item_id, tval, flags=(), pval=0):
     return OwnedEquipment(item_id, item, "home")
 
 
-def metrics(margin, *, speed=140, dps=None):
+TR_RES_SOUND, TR_RES_TIME = 58, 143
+# Every gate but the stats: the rings of the score's cases carry them.
+GATES = frozenset({TR_RES_CURSE, TR_TELEPATHY}) | FINALE_REQUIRED_RESISTANCES
+
+
+def metrics(margin, *, speed=140, dps=None, hp=1000, intelligence=200, constitution=220,
+            success=100):
     return LoadoutMetrics(expected_dps=margin if dps is None else dps, survival_turns=margin,
-                          combat_margin=margin, player_speed=speed)
+                          combat_margin=margin, player_speed=speed, finale_power_success=success,
+                          finale_reading=FinaleReading(hp, intelligence, constitution))
 
 
 class FinaleLoadoutTest(unittest.TestCase):
@@ -60,23 +71,29 @@ class FinaleLoadoutTest(unittest.TestCase):
 
     def test_the_order(self):
         cases = (
-            # resist blindness or light (owner 2026-11-20 Q6) over speed, either one
+            # a gate met over speed: resist blindness or light (owner 2026-11-20 Q6), either one
             ((gear("blind", 45, (TR_RES_BLIND,)), metrics(10, speed=140)),
              (gear("fast", 45), metrics(10, speed=150)), "blind"),
             ((gear("lite", 45, (TR_RES_LITE,)), metrics(10, speed=140)),
              (gear("fast", 45), metrics(10, speed=150)), "lite"),
-            # speed over the resistances
-            ((gear("fast", 45), metrics(10, speed=150)),
-             (gear("resists", 45, (TR_RES_FIRE, TR_RES_COLD)), metrics(10, speed=140)), "fast"),
-            # the resistances over telepathy (an immunity counts as its element)
-            ((gear("immune", 45, (TR_IM_FIRE, TR_RES_NETHER)), metrics(10)),
-             (gear("esp", 45, (TR_TELEPATHY, TR_RES_FIRE)), metrics(10)), "immune"),
-            # telepathy over INT
-            ((gear("esp", 45, (TR_TELEPATHY,)), metrics(10)),
-             (gear("int", 45, (TR_INT,), pval=5), metrics(10)), "esp"),
-            # INT over CON
-            ((gear("int", 45, (TR_INT,), pval=2), metrics(10)),
-             (gear("con", 45, (TR_CON,), pval=5), metrics(10)), "int"),
+            # a required element over speed (an immunity counts as its element)
+            ((gear("immune", 45, (TR_IM_FIRE,)), metrics(10, speed=140)),
+             (gear("fast", 45), metrics(10, speed=150)), "immune"),
+            # CON 18/200 over HP and speed
+            ((gear("con", 45, GATES), metrics(10, speed=135, hp=900, constitution=218)),
+             (gear("weak", 45, GATES), metrics(10, speed=150, hp=1500, constitution=217)), "con"),
+            # INT 18/150 likewise
+            ((gear("int", 45, GATES), metrics(10, speed=135, intelligence=168)),
+             (gear("dull", 45, GATES), metrics(10, speed=150, intelligence=167)), "int"),
+            # the score: HP times the energy (HP 1100 at +25, 35, over HP 1000 at +28, 37)
+            ((gear("hp", 45, GATES), metrics(10, speed=135, hp=1100)),
+             (gear("speed", 45, GATES), metrics(10, speed=138, hp=1000)), "hp"),
+            # resist sound 5%, resist light 1%
+            ((gear("sound", 45, GATES | {TR_RES_SOUND}), metrics(10)),
+             (gear("light", 45, GATES | {TR_RES_LITE, TR_RES_TIME}), metrics(10)), "sound"),
+            # each percent of the Rockets' success short of 100 takes 5% (99%: 0.95 < 1.04)
+            ((gear("sure", 45, GATES), metrics(10, hp=1000)),
+             (gear("bigger", 45, GATES), metrics(10, hp=1040, success=99)), "sure"),
         )
         for (first, first_score), (second, second_score), winner in cases:
             with self.subTest(winner=winner):
@@ -103,7 +120,7 @@ class FinaleLoadoutTest(unittest.TestCase):
         """n1-c life-221 2026-11-23 (owner 「★賢者マーリンの魔法の鏡を使用して条件を満たす装備を作れる」):
         the finale's conditions are requirements of its search, so a set meeting them is not
         dropped for one filling more armour slots (the fill tier); the ordinary search keeps it."""
-        guard = gear("guard", 45, (TR_RES_CURSE, TR_RES_BLIND))
+        guard = gear("guard", 45, GATES)
         plain, helm = gear("plain", 45), gear("helm", 32)
         bare = Loadout((("light", self.light), (SLOT_MAIN_RING, guard)), "empty")
         helmed = Loadout((("light", self.light), (SLOT_MAIN_RING, plain), (SLOT_HEAD, helm)),

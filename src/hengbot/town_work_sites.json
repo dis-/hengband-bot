@@ -2837,6 +2837,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:_finale_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:_meets_requirements": {
     "classification": "data",
     "rows": [
@@ -2845,6 +2852,13 @@
     "delegation": "selected child; no independent success"
   },
   "equipment_optimizer.py:_stable_operational_best": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:_stat_bonus": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2915,6 +2929,48 @@
     "delegation": "selected child; no independent success"
   },
   "equipment_optimizer.py:equipment_move_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_elements": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_gate_failures": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_missing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_rank": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_score": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

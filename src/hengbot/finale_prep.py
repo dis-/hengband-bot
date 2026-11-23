@@ -271,7 +271,7 @@ def set_missing(policy, snapshot, loadout, metrics) -> list:
     and the board's intrinsic abilities, its speed after the weight, and its *Destruction* means
     (the absorbed power unless the set wears a NO_MAGIC, else a staff the board makes reliable)."""
     from hengbot import angband_finale, destruction_means, destruction_use
-    from hengbot.equipment_optimizer import ABILITY_FLAG
+    from hengbot.equipment_optimizer import ABILITY_FLAG, EvaluatedLoadout, finale_missing
     from hengbot.me_power_success import TR_NO_MAGIC
     from hengbot.speed_valuation import loadout_speed, meets_speed_gate
     flags = loadout.flags
@@ -282,9 +282,13 @@ def set_missing(policy, snapshot, loadout, metrics) -> list:
                   if set(sources) & angband_finale.INTRINSIC_SOURCES}
     absorbed = (destruction_means.Means(policy, snapshot).optimizer_without_gear()
                 and TR_NO_MAGIC not in flags)
-    return angband_finale._missing(
+    missing = angband_finale._missing(
         policy, snapshot, frozenset(abilities), speed_met=meets_speed_gate(loadout_speed(metrics)),
         means_held=absorbed or destruction_use.holds_means(policy, snapshot))
+    # The finale rank's gates the set misses (owner 2026-11-24 「加速+25 知力18/150 耐久18/200
+    # 閃光轟音時間以外の耐性を必須とする」): INT, CON and every required element, by name.
+    gates = finale_missing(EvaluatedLoadout(loadout, metrics))
+    return sorted(set(missing) | {gate for gate in gates if gate not in abilities})
 
 
 def _best(preparation):
