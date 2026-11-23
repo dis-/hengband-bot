@@ -5,7 +5,7 @@ from hengbot import equipment_target
 from hengbot import angband_finale
 from hengbot import approach_answer, return_start
 from hengbot import me_power_success, safety_watch
-from hengbot import angband_cap, equipment_rules, item_identity
+from hengbot import angband_cap, angband_hold, equipment_rules, item_identity
 from hengbot.item_identity import MemorySignatureList, MemorySignatures, same_memory
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
@@ -10753,7 +10753,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             )
             # Owner 2026-11-19, the one exception to angband_hold for a refused Angband landing
             # (survival items or abilities missing): 「この場合だけ城40F付近を許す」.
-            if alternate is None:
+            # Not for Angband refused for its 96F+ recall depth (angband_hold ``deep_refused``):
+            # no landing at all, the town prepares the finale (finale_hold).
+            if (alternate is None
+                    and not (self._target_dungeon_id == DUNGEON_ANGBAND
+                             and angband_hold.deep_refused(self, snapshot))):
                 # Owner 2026-11-17 (n1-b life-411) 「想定は城の20Fから潜り城40F付近を探索」, (n1-a
                 # life-530) 「49Fに帰還して上り階段を探して適正階層まで行く」: no landing fits, so
                 # the Castle (else the Mountain) is explored around 40F wherever it lands.

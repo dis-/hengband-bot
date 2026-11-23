@@ -1,4 +1,6 @@
-"""The 99F/100F finale's own line where the ordinary one took over (n1-b life-416, 2026-11-23).
+"""The 99F/100F finale's own lines where the ordinary ones took over (n1-b life-416, 2026-11-23).
+
+Two places left the finale to the ordinary play, and each broke an owner rule:
 
 **The relay floor.**  Owner 2026-11-21: a lap of 99F/100F that finds nothing regenerates the floor
 (the stairs up, then straight down again: policy ``_start_kill_quest_regeneration``, the
@@ -11,12 +13,41 @@ with no scroll but the absorbed Staff of Teleportation charged and recalled at o
 ``teleport-low``.  On the relay floor (``relay_floor``) the return check now asks the finale's line
 instead of the supply ledger (``return_due``: no scroll and no staff charge, or the Restore Mana
 overspent; policy_town ``_should_start_town_return``).
+
+**The town while Angband is refused for its depth.**  Owner 2026-11-21 (LOCKED)
+「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」 and owner 2026-11-19 「鉄獄50F以降は浅い階層への
+フォールバックをやめる。行き先を変えるのはダンジョンの主討伐のみとする。」 together leave one way out of
+town for a character whose Angband recall depth is 96F or deeper: the finale's expedition.  The
+town fell back instead (policy_town ``town:unsafe-recall-fallback``): angband_hold ``held`` was false
+while the recall was refused, so the 50F+ rule was skipped and the deepest entered landing, the
+Castle 64F, was taken (n1-b life-416 21:10:03, 21:13:51, 21:16:23).  While the refusal holds for a
+character preparing the finale (``applies``), the town's departure is this module's
+(``town_key``), never a fallback:
+
+* the preparation phase running (finale_prep): wait for it; its steps and their limits are its own,
+  and once it lifts the cap the refusal ends and the ordinary departure reads the recall;
+* the Teleportation scrolls short (the only supply the town's shops sell,
+  store/articles-on-sale.cpp): the other towns' circuit and its night at the inn
+  (finale_teleport_tour, owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す」
+  「一周する毎に宿屋で一泊する」);
+* anything else short (a supply only the dungeon or the Black Market gives: n1-b's 21:13 board
+  owned 79 of the 84 Restore Mana), the circuit ended, or the phase stopped (an equipment
+  condition the owned gear does not meet stops it at its check step): a named stop
+  (``town:blocked:...``) for the owner, no destination picked.
 """
 from __future__ import annotations
 
 from hengbot.model import DUNGEON_ANGBAND
+from hengbot.policy_constants import WAIT_KEY
 
 RETURN_TRIGGER = "angband-finale:relay"
+# The supply rows the town's shops can fill (angband_finale ``SUPPLY_NAMES``).
+TOWN_SUPPLIES = frozenset({"teleport"})
+WAIT_REASON = "town:finale-hold:phase"
+STOPPED = "finale-prep-stopped"
+NOT_IN_TOWN = "finale-not-in-town"
+SHORT = "finale-supplies-short"
+NOT_ENTERED = "finale-prep-not-entered"
 
 
 # -- the relay floor ---------------------------------------------------------------------
@@ -46,3 +77,74 @@ def return_due(policy, snapshot) -> bool:
     from hengbot import angband_finale, angband_finale_battle  # import cycle
     return (angband_finale_battle.teleports_out(policy, snapshot)
             or angband_finale.restore_mana_overspent(policy, snapshot))
+
+
+# -- the town ----------------------------------------------------------------------------
+
+def applies(policy, snapshot) -> bool:
+    """In town, preparing the finale, the target Angband and its recall refused for its depth
+    outside the expedition (angband_cap ``deep_recall_refused``)."""
+    from hengbot import angband_cap, angband_finale  # import cycle
+    return (snapshot.in_town and angband_finale.preparing(snapshot)
+            and policy._target_dungeon_id == DUNGEON_ANGBAND
+            and angband_cap.deep_recall_refused(snapshot, DUNGEON_ANGBAND, policy))
+
+
+def _wait(policy, reason: str, work_id: str) -> str:
+    policy.last_reason = reason
+    policy._offer_execution(
+        WAIT_KEY, producer="departure", work_id=work_id,
+        next_step="finale.prepare", expected_effect="finale-preparation-progress")
+    return WAIT_KEY
+
+
+def _stop(policy, snapshot, reason: str) -> str | None:
+    policy._town_blocked_reason = reason
+    return policy._town_blocked_key(snapshot)
+
+
+def short_rows(policy) -> list:
+    """The names of the finale's supplies not owned (pack and Home: the readiness angband_finale
+    measured on this town board).  The equipment conditions are the phase's check step's (its
+    search over the owned gear, Home included; a set short of them stops the phase by name): the
+    worn gear of an ordinary visit is no measure of them."""
+    from hengbot import angband_finale  # import cycle
+    rows = angband_finale.memory(policy).report or {}
+    return [name for name, row in (rows.get("owned") or {}).items() if not row["ready"]]
+
+
+def town_key(policy, snapshot) -> str | None:
+    """The town's departure while ``applies``: the preparation, the circuit, or a named stop."""
+    from hengbot import angband_finale, finale_prep, finale_teleport_tour  # import cycle
+    held = finale_prep.phase(policy)
+    if held.step == finale_prep.STOPPED:
+        return _stop(policy, snapshot, f"{STOPPED}:{held.stopped}")
+    if held.step in finale_prep.STEPS:
+        # Bounded by the step's own limit (finale_prep.STEP_LIMIT): past it the phase stops by
+        # name and the branch above stops the town (reasons.STATIONARY_ROWS).
+        return _wait(policy, WAIT_REASON, f"finale-hold:{held.step}")
+    short = short_rows(policy)
+    outside = [name for name in short if name not in TOWN_SUPPLIES]
+    if outside:
+        return _stop(policy, snapshot, f"{NOT_IN_TOWN}:{','.join(outside)}")
+    if not short:
+        # Everything owned and the phase idle: it did not enter (a census unknown, a swap or a
+        # recall under way) though the town has nothing left to do.
+        return _stop(policy, snapshot, NOT_ENTERED)
+    night = finale_teleport_tour.night_key(policy, snapshot)
+    if night is not None:
+        return night
+    if finale_teleport_tour.due(policy, snapshot) and finale_teleport_tour.start(policy, snapshot):
+        travel = policy._town_producer_entry(
+            "_cross_town_shopping_key", lambda: policy._cross_town_shopping_key(snapshot),
+            family="cross-town")
+        if travel is not None:
+            return travel
+        return _stop(policy, snapshot, f"{SHORT}:{','.join(short)}:no-leg")
+    night = finale_teleport_tour.night_key(policy, snapshot)
+    if night is not None:
+        return night
+    funds = getattr(policy, "_cross_town_shopping_funds", None) or {}
+    why = funds.get("why") if angband_finale.memory(policy).teleport_tour_done else "not-due"
+    return _stop(policy, snapshot,
+                 f"{SHORT}:{','.join(short)}:{why}:{finale_teleport_tour.shortage(policy, snapshot)}")

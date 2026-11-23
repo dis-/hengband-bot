@@ -41,7 +41,7 @@ class DeathVisitRecordedTest(unittest.TestCase):
     def tearDown(self):
         self.scratch.cleanup()
 
-    def test_the_departure_takes_another_dungeon(self):
+    def test_the_departure_takes_no_dungeon_and_stops_for_the_owner(self):
         policy, _journal, steps = load(DEATH_VISIT, Path(self.scratch.name) / "fixture")
         self.addCleanup(policy._home_disposal.history_path.unlink, missing_ok=True)
         policy._me_power_resume_reads = True  # the live CLI's
@@ -61,8 +61,13 @@ class DeathVisitRecordedTest(unittest.TestCase):
         self.assertFalse(finale_prep.lifted(policy))
         reasons = [reason for _key, reason in decided.values()]
         self.assertNotIn("town:recall-to-angband", reasons)
-        self.assertEqual(decided[RECALL_ROW][1], "town:recall-to-alt-dungeon")
-        self.assertNotIn("town:blocked:no-safe-recall-destination", reasons)
+        # Owner 2026-11-19 「鉄獄50F以降は浅い階層へのフォールバックをやめる」 with the 96F+ refusal
+        # (finale_hold, 2026-11-23): no other dungeon either; the finale's preparation lacks the
+        # *Healing* only the dungeon and the Black Market give, so the visit stops for the owner.
+        self.assertFalse(any(reason.startswith("town:recall-to-") for reason in reasons))
+        self.assertNotIn("town:unsafe-recall-fallback", reasons)
+        self.assertIn("town:blocked:finale-not-in-town:star_healing", reasons)
+        self.assertEqual(policy._target_dungeon_id, DUNGEON_ANGBAND)
 
 
 class NoDeepAngbandRecallRecordedTest(unittest.TestCase):

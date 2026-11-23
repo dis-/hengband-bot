@@ -7899,6 +7899,11 @@ class TownMixin:
             not guardian_blocked
             and not self._recall_destination_safe(snapshot, unsafe_target_id)
         ):
+            # Owner 2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」 with 2026-11-19
+            # 「鉄獄50F以降は浅い階層へのフォールバックをやめる」: no fallback, the finale's preparation
+            # (n1-b life-416 2026-11-23 21:10-21:16 fell back to the Castle 64F; finale_hold).
+            if finale_hold.applies(self, snapshot):
+                return finale_hold.town_key(self, snapshot)
             destination_depth = self._dungeon_entry_depth(
                 snapshot, unsafe_target_id, via_recall=True
             )
