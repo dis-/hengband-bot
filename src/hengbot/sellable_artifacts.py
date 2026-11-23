@@ -207,10 +207,6 @@ def _reward_cells(snapshot: Any) -> frozenset:
                      if snapshot.town_id in {-1, town_id} for position in positions)
 
 
-def _near(position: Any, other: Any) -> bool:
-    return (position.y - other.y) ** 2 + (position.x - other.x) ** 2 <= DROP_SPREAD ** 2 + 1
-
-
 def _sites(policy: Any, snapshot: Any) -> frozenset:
     """The cells a drop may be made on: a plain empty floor whose whole drop_near reach
     (d^2 <= 10, src/floor/floor-object.cpp) holds no watched cell, so wherever the game puts

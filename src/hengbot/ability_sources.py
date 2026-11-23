@@ -112,14 +112,6 @@ def _catalog_ability_source(item) -> str | None:
     return _CATALOG_SOURCE.get(item.origin)
 
 
-def ability_sources_of(policy: Any, snapshot, ability: str) -> frozenset[str]:
-    """Where ``ability`` comes from now: WORN when the character has it, PACK / HOME for an
-    owned piece there granting it."""
-    found = {WORN} if has_ability(snapshot.player, ability) else set()
-    found |= {_catalog_ability_source(item) for item in owned_ability_items(policy, ability)} - {None, WORN}
-    return frozenset(found)
-
-
 # --- the visit's target (stage E4) -----------------------------------------------------------
 
 def target_abilities(policy: Any, snapshot) -> frozenset[str]:

@@ -114,18 +114,6 @@ TR_TELEPORT = 90
 # The exploration ban is equipment_rules.EXPLORATION_FORBIDDEN_FLAGS (the one table of the
 # owner's equipment rules).
 
-# These flags have no selection or disposal value under the agreed policy.
-IGNORED_DOMINANCE_FLAGS = frozenset(
-    {
-        9,  # SEARCH
-        38,  # RIDING (the bot does not ride)
-        72,  # WARNING
-        80,  # SLOW_DIGEST
-        81,  # REGEN
-        84, 85, 86, 87,  # item elemental durability
-    }
-)
-
 ABILITY_FLAG = {
     "free_action": TR_FREE_ACT,
     "resist_acid": TR_RES_ACID,

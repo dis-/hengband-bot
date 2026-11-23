@@ -195,11 +195,6 @@ def max_charges(sval: int) -> int:
     return _base_definitions()[sval][0]
 
 
-def recharge_price_per_charge(item) -> int:
-    """building-recharger.cpp: max(10, base cost / 10 * number) per charge."""
-    return max(10, _base_definitions()[item.sval][1] // 10 * max(1, item.count))
-
-
 def _recharge_all_price(item, definitions: dict) -> int:
     """building_recharge_all's price of one pack item (an upper bound)."""
     return morivant_tower.recharge_all_price(item, definitions, _FALLBACK_KINDS)

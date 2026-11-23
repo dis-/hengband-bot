@@ -57,10 +57,6 @@ def send_key_to_window(
         raise WindowInputError(f"PostMessageW failed with Windows error {error}")
 
 
-def find_window_by_title(title: str, *, contains: bool = False) -> int | None:
-    return find_window(title=title, contains=contains)
-
-
 def find_window(
     *,
     title: str | None = None,

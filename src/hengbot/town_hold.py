@@ -2015,7 +2015,6 @@ def _ranked(rungs: tuple[Rung, ...]) -> tuple[tuple[Rung, ...], int]:
 
 
 CLAIM_LADDER, TOWN_RANK = _ranked(_RUNGS)
-FALLBACK_RANK = TOWN_RANK + 1
 
 _RUNGS_BY_FAMILY: dict[str, tuple[Rung, ...]] = {}
 _RUNG_BY_NAME: dict[str, Rung] = {}

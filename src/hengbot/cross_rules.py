@@ -41,8 +41,6 @@ ESCAPE_LINE_OF_FIRE = "escape-line-of-fire"
 DESTRUCTION_FORGET = "destruction-forget"
 DEEP_TELEPORT = "deep-teleport"
 DESTRUCTION_MEANS = "destruction-means"
-RULES = (LEFT_CELLS, UNCURSE_BEFORE_REST, ESCAPE_LINE_OF_FIRE, DESTRUCTION_FORGET, DEEP_TELEPORT,
-         DESTRUCTION_MEANS)
 
 CONSULTED = "consulted"
 NOT_CONSULTED = "not-consulted"

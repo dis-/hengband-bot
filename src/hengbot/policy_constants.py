@@ -959,7 +959,6 @@ def required_depth_gates(depth: int) -> frozenset:
         gates.add(SPEED_GATE_LABEL)
     return frozenset(gates)
 
-AMMO_CARRY_STACK_LIMIT = 2
 
 WEAPON_BLOCK_LIMIT = 400
 

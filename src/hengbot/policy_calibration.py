@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from hengbot import equipment_target
-from hengbot.model import Snapshot, InventoryItem, RESTORE_POTION_SVAL_BY_STAT, STORE_ALCHEMIST
+from hengbot.model import Snapshot, InventoryItem, RESTORE_POTION_SVAL_BY_STAT
 from hengbot.warrior_optimization import CharacterCalibration, load_character_calibration
 
 
@@ -283,37 +283,6 @@ class CalibrationMixin:
             if candidate is not None:
                 return candidate
         return None
-
-
-    def _stat_restore_purchase_actionable(
-        self, snapshot: Snapshot, stat: str
-    ) -> bool:
-        """Return whether the ordinary Alchemist route can restore ``stat``."""
-        if snapshot.player.gold <= 0:
-            return False
-        category = f"stat-restore:{stat}"
-        observed = self._town_visit_ledger.shelf_observations.get(
-            (STORE_ALCHEMIST, category)
-        )
-        if observed is not None:
-            return any(
-                price <= snapshot.player.gold for price, _units in observed
-            )
-        if (
-            STORE_ALCHEMIST in self._town_store_attempted
-            or STORE_ALCHEMIST in self._town_visit_ledger.blocked_stores
-        ):
-            return False
-        if (
-            self._town_map_active(snapshot)
-            and self._town_map.store_position(STORE_ALCHEMIST) is None
-        ):
-            return False
-        # The existing stat-restore NeedSpec owns one exploratory Alchemist
-        # visit.  Until that visit supplies negative shelf evidence, it is an
-        # actionable route; the observed branch above retires it immediately
-        # on stock-out or unaffordability.
-        return True
 
 
     def _queue_home_stat_restore(self, snapshot: Snapshot) -> None:

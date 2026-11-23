@@ -1614,8 +1614,6 @@ REGISTRY = (
       "policy_observation: yeek conquest processed (no comment at its definition)"),
     S("_yeek_victory_loot", "policy_observation", VISIT,
       "policy_observation: yeek victory loot (no comment at its definition)"),
-    S("town_visit_report", "policy_observation", FLOOR,
-      "The visit's purchases and sales (a sell-then-rebuy is churn;"),
     # policy_opening
     S("_fixed_quest_readiness", "policy_opening", LIFE,
       "policy_opening: fixed quest readiness (no comment at its definition)"),

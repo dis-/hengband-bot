@@ -113,7 +113,6 @@ ADJ_CON_HP = (
     5, 6, 7, 8, 9, 10, 11, 12, 14, 17, 20, 23, 26, 29, 32, 35,
     38, 40, 42, 44, 46, 48,
 )
-MASTER_WEAPON_EXP = 8000
 
 
 @dataclass(frozen=True)
