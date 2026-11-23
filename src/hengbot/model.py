@@ -567,6 +567,24 @@ class PlayerState:
 _EMPTY_FEELING = re.compile(r"\{(?:空|empty)[,}]")
 
 
+def launcher_ammo_tval(tval: int, sval: int) -> int | None:
+    """The ammo tval a launcher fires (do_cmd_fire's tval_ammo).
+
+    Mirrors get_arrow_kind(): sling -> TV_SHOT, short/long bow -> TV_ARROW,
+    crossbows -> TV_BOLT (sv-bow-types.h: SLING=2, SHORT=12, LONG=13,
+    LIGHT_XBOW=23, HEAVY_XBOW=24).
+    """
+    if tval != TVAL_BOW:
+        return None
+    if sval == SV_BOW_SLING:
+        return TVAL_SHOT
+    if sval in (SV_BOW_SHORT, SV_BOW_LONG):
+        return TVAL_ARROW
+    if sval in (SV_BOW_LIGHT_XBOW, SV_BOW_HEAVY_XBOW):
+        return TVAL_BOLT
+    return None
+
+
 @dataclass(frozen=True)
 class InventoryItem:
     slot: str  # inventory letter, e.g. "a"
@@ -715,21 +733,8 @@ class InventoryItem:
 
     @property
     def ammo_tval(self) -> int | None:
-        """The ammo tval this launcher fires (do_cmd_fire's tval_ammo).
-
-        Mirrors get_arrow_kind(): sling -> TV_SHOT, short/long bow -> TV_ARROW,
-        crossbows -> TV_BOLT (sv-bow-types.h: SLING=2, SHORT=12, LONG=13,
-        LIGHT_XBOW=23, HEAVY_XBOW=24).
-        """
-        if self.tval != TVAL_BOW:
-            return None
-        if self.sval == SV_BOW_SLING:
-            return TVAL_SHOT
-        if self.sval in (SV_BOW_SHORT, SV_BOW_LONG):
-            return TVAL_ARROW
-        if self.sval in (SV_BOW_LIGHT_XBOW, SV_BOW_HEAVY_XBOW):
-            return TVAL_BOLT
-        return None
+        """The ammo tval this launcher fires (``launcher_ammo_tval``)."""
+        return launcher_ammo_tval(self.tval, self.sval)
 
     @property
     def is_ammo(self) -> bool:
@@ -753,15 +758,7 @@ class StoreItem:
 
     @property
     def ammo_tval(self) -> int | None:
-        if self.tval != TVAL_BOW:
-            return None
-        if self.sval == SV_BOW_SLING:
-            return TVAL_SHOT
-        if self.sval in (SV_BOW_SHORT, SV_BOW_LONG):
-            return TVAL_ARROW
-        if self.sval in (SV_BOW_LIGHT_XBOW, SV_BOW_HEAVY_XBOW):
-            return TVAL_BOLT
-        return None
+        return launcher_ammo_tval(self.tval, self.sval)
     fully_known: bool = True
     is_equipment: bool = False
     is_ego: bool = False
@@ -872,6 +869,18 @@ def lights_nothing(item: "InventoryItem | StoreItem") -> bool:
         and (TR_DARK_SOURCE in flags
              or any(flag in flags for flag, _ in DARKNESS_RADIUS_BY_FLAG))
         and flag_light_radius(flags) <= 0
+    )
+
+
+def observed_item_state(item: object) -> tuple[object, ...]:
+    """The observable fields of a pack, equipment or store item: a change in any of them shows
+    that a posted operation took effect (cli's posting effect, the town workflow progress)."""
+    return tuple(
+        getattr(item, field, None)
+        for field in (
+            "slot", "tval", "sval", "name", "count", "charges",
+            "inscription", "known", "fully_known", "is_equipment",
+        )
     )
 
 

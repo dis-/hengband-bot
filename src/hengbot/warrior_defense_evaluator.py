@@ -7,12 +7,12 @@ activate equipment changes until both that set and ranged threats are complete.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_optimizer import Loadout, SLOT_MAIN_HAND, SLOT_SUB_HAND
 from hengbot.equipment_rules import TR_LOW_AC, TR_NO_AC
 from hengbot.monrace_knowledge import NON_HP_DAMAGE_BLOW_EFFECTS, MonsterBlow
+from hengbot.monster_ranged_evaluator import _dice_distribution
 from hengbot.policy_constants import speed_energy
 from hengbot.warrior_equipment_evaluator import modify_stat_value, stat_index
 
@@ -228,20 +228,6 @@ def blow_scroll_lock_probability(
     if stunned:
         hit *= 0.5
     return hit * landing
-
-
-@lru_cache(maxsize=None)
-def _dice_distribution(number: int, sides: int) -> tuple[tuple[int, int], ...]:
-    if number <= 0 or sides <= 0:
-        return ((0, 1),)
-    distribution = {0: 1}
-    for _ in range(number):
-        following: dict[int, int] = {}
-        for subtotal, count in distribution.items():
-            for roll in range(1, sides + 1):
-                following[subtotal + roll] = following.get(subtotal + roll, 0) + count
-        distribution = following
-    return tuple(distribution.items())
 
 
 def _element_rate(flags: frozenset[int], effect: str) -> int:

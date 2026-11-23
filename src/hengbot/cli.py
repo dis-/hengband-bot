@@ -30,6 +30,7 @@ from hengbot.model import (
     TVAL_WAND,
     MissingMonraceKnowledgeError,
     _parse_items,
+    observed_item_state,
     parse_snapshot,
 )
 from hengbot.protocol import NON_BOARD_SNAPSHOT_TYPES, snapshot_protocol_version
@@ -2471,15 +2472,7 @@ def _posting_effect_signature(snapshot, owner: str, key: str) -> tuple:
     if "recall" in owner and key.startswith("r"):
         return (recalling,)
 
-    def item_state(item):
-        return tuple(
-            getattr(item, field, None)
-            for field in (
-                "slot", "tval", "sval", "name", "count", "charges",
-                "inscription", "known", "fully_known", "is_equipment",
-            )
-        )
-
+    item_state = observed_item_state
     store = snapshot.store
     store_state = None if store is None else (
         getattr(store, "store_type", None),
