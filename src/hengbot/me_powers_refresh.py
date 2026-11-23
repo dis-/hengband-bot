@@ -49,8 +49,8 @@ def request_refresh(policy) -> None:
 
 def list_pending(policy, snapshot, kind: str) -> bool:
     """A restarted process has not read ``kind``'s list yet and ``resume_read_key`` will still
-    ask for it (a dungeon board, a Magic-Eater, attempts left): the absorbed powers of the kind
-    are unknown, not absent.
+    ask for it (a Magic-Eater, attempts left; in the dungeon and in town): the absorbed powers of
+    the kind are unknown, not absent.
 
     n1-c life-221 2026-11-23 15:17:39: the bot restarted on the Mountain's 50F, the first board
     (before ``bA``) read the absorbed *Destruction* as no means (me_capability.reliable reads the
@@ -58,7 +58,7 @@ def list_pending(policy, snapshot, kind: str) -> bool:
     「破壊の手段は十分にあるが？」).  A rule that reads "no means" as a reason to act waits for
     this read; it takes no game time."""
     if (not getattr(policy, "_me_power_resume_reads", False)
-            or snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER or snapshot.in_town):
+            or snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER):
         return False
     if kind in (getattr(policy, "_me_device_lists", None) or {}):
         return False
@@ -70,7 +70,14 @@ def list_pending(policy, snapshot, kind: str) -> bool:
 
 
 def resume_read_key(policy, snapshot):
-    """The first read of each list this process lacks, in the dungeon, on any board.
+    """The first read of each list this process lacks, on any board, in the dungeon and in town.
+
+    In town too (n1-c life-221 2026-11-24 04:55, a process started in town): the visit's first
+    loadout search read the absorbed *Destruction* as no means (me_capability ``reliable`` reads
+    the displayed list), the periodic browse came after it, and the visit decided again on
+    ``destruction-means-gained`` -- the light and a ring swapped and swapped back, and with the
+    finale's own swap the light stopped as ``equipment-slot-flipflop``.  Owner 2026-11-22 Q1
+    「鑑定するイベントは1回なのに往復するほうがおかしい」: the lists are read before the visit decides.
 
     The lists live in the process only (me_device_attacks.observe_lists); the
     periodic refresh above is the spectator's and waits for a safe filler, so a
@@ -95,7 +102,7 @@ def resume_read_key(policy, snapshot):
     """
     player = snapshot.player
     if (not getattr(policy, "_me_power_resume_reads", False)
-            or player.class_id != PLAYER_CLASS_MAGIC_EATER or snapshot.in_town):
+            or player.class_id != PLAYER_CLASS_MAGIC_EATER):
         return None
     from hengbot.me_device_attacks import observe_lists
     observe_lists(policy, snapshot)
