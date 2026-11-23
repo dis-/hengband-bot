@@ -3,7 +3,8 @@
 Owner rules: 2026-11-21 (LOCKED) 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」; 2026-11-19
 「鉄獄50F以降は浅い階層へのフォールバックをやめる。行き先を変えるのはダンジョンの主討伐のみとする。」;
 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す」 「一周する毎に宿屋で一泊する」 (finale_hold
-``applies`` / ``town_key``, angband_hold ``held`` / ``deep_refused``).
+``applies`` / ``town_key``, angband_hold ``held`` / ``deep_refused``); 2026-11-23 「闇市を回って
+買い足す」 (finale_bm_tour).
 
 Recorded (tests/extract_finale_town_1123_fixture.py, ``n1b-416-finale-town-1123``): the
 town-arrival checkpoint of 21:13:45 (turn 4308361, back from the Castle 64F).  Rows 0-18 are
@@ -61,7 +62,7 @@ class FinaleTownHold1123RecordedTest(unittest.TestCase):
             key = policy.choose_key(board)
         return key, policy.last_reason
 
-    def test_no_fallback_and_the_restore_mana_short_is_asked(self):
+    def test_no_fallback_and_the_restore_mana_short_tours_the_markets(self):
         policy, board, replayed = self.replay()
         for row, (decided, recorded) in enumerate(replayed):
             self.assertEqual(decided, recorded, row)
@@ -71,7 +72,9 @@ class FinaleTownHold1123RecordedTest(unittest.TestCase):
         key, reason = self.decide(policy, board)
 
         # Recorded: ('1', 'town:entrance-step-off:town:unsafe-recall-fallback'), the Castle 64F.
-        self.assertEqual(reason, "town:blocked:finale-not-in-town:restore_mana")
+        # Owner 2026-11-23 「闇市を回って買い足す」: the Restore Mana short alone takes the Black
+        # Markets' circuit (finale_bm_tour; tests/test_finale_bm_tour_1123_recorded.py).
+        self.assertEqual(reason, "town:cross-town-bm-tour:travel-1")
         self.assertEqual((policy._target_dungeon_id, policy._alternate_dungeon), (DUNGEON_ANGBAND, None))
         owned = angband_finale.memory(policy).report["owned"]
         self.assertEqual((owned["restore_mana"]["measured"], owned["restore_mana"]["required"]), (79, 84))

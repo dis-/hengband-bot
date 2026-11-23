@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.home_full_relief import relief_of
 from hengbot import equipment_target
 from hengbot.item_identity import same_memory
-from hengbot import equipment_rules, finale_hold, finale_prep, finale_teleport_tour
+from hengbot import equipment_rules, finale_bm_tour, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import deep_climb, return_start
 from hengbot import recall_wait_unknown_path
@@ -5293,7 +5293,8 @@ class TownMixin:
         """
         return (recall_stockout_travel.circuit(self) is not None
                 or finale_teleport_tour.circuit(self) is not None
-                or bm_tour.holds_town(self, snapshot))
+                or bm_tour.holds_town(self, snapshot)
+                or finale_bm_tour.holds_town(self, snapshot))
 
     def _cross_town_candidate_order(self, snapshot: Snapshot) -> tuple[int, ...]:
         """The visited inn towns other than this one, cheapest fare first.

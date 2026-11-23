@@ -56,8 +56,14 @@ DESTRUCTION_REST_REASON = DESTRUCTION_REASON + "rest"
 FINALE_TELEPORT_REASON = "depart:inn-refill:finale-teleport:"
 FINALE_TELEPORT_APPROACH_REASON = FINALE_TELEPORT_REASON + "approach"
 FINALE_TELEPORT_REST_REASON = FINALE_TELEPORT_REASON + "rest"
+# The night between two laps of the 99F/100F Restore Mana circuit of the Black Markets
+# (finale_bm_tour, owner 2026-11-23 「闇市に無ければ巡回をくり返す」): a step of the departure too.
+FINALE_BM_REASON = "depart:inn-refill:finale-bm:"
+FINALE_BM_APPROACH_REASON = FINALE_BM_REASON + "approach"
+FINALE_BM_REST_REASON = FINALE_BM_REASON + "rest"
 # Every reason that posts the stay (observed_input answers its building menu).
-REST_REASONS = (REST_REASON, DESTRUCTION_REST_REASON, FINALE_TELEPORT_REST_REASON)
+REST_REASONS = (REST_REASON, DESTRUCTION_REST_REASON, FINALE_TELEPORT_REST_REASON,
+                FINALE_BM_REST_REASON)
 
 
 @dataclass
