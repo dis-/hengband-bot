@@ -382,7 +382,6 @@ def _out_of_line_key(policy, snapshot, held: Battle) -> str | None:
     2026-11-21 「99F 100Fでの休憩は許可していない」), the full detection asked again every
     ``SHUN_DETECT_EVERY`` boards.  None while no such monster is known (the walks' own answers
     stand)."""
-    from hengbot.policy_constants import WAIT_KEY
     if not shunned(policy, snapshot):
         return None
     here = snapshot.player.position
@@ -404,8 +403,116 @@ def _out_of_line_key(policy, snapshot, held: Battle) -> str | None:
                     parent[neighbour] = position
                     queue.append(neighbour)
         return None
+    return _wait_key(policy, snapshot, held)
+
+
+AROUND_MELT_COST = 3  # a wall to melt (or an unknown grid) on the way around, against a step's 1
+
+
+def _around_way(policy, snapshot, goals) -> tuple | None:
+    """(goal, first cell) of the cheapest way to one of ``goals`` (Positions) over the floor: a
+    step costs 1, a wall Stone to Mud melts (or a grid the board does not know)
+    ``AROUND_MELT_COST``; a permanent wall, which no melt opens (effect-feature.cpp KILL_WALL: STONE
+    terrain only), and the outer wall are never crossed, nor (with a strong non-target known) a
+    cell in its line of fire.  None when no way is left.
+
+    Owner 2026-11-24 (verbatim) 「周辺感知で状況を確認する。今回の場合は永久岩に阻まれていたので回り
+    込む必要があった。」: n1-c life-221 (Angband 100F, 2026-11-24 07:18) stood inside a vault of
+    permanent rock, the Serpent 3 cells west beyond its wall; every stand of its rays lay outside,
+    no walk reached one, and the battle answered None."""
+    import heapq
+    from hengbot import retreat_enclosure  # import cycle
+    here = snapshot.player.position
+    goals = set(goals)
+    if not goals or here in goals:
+        return None
+    guarded = bool(shunned(policy, snapshot))
+    veto = policy._walk_veto(snapshot)
+    best = {here: 0}
+    parent = {}
+    heap = [(0, here.y, here.x)]
+    while heap:
+        cost, y, x = heapq.heappop(heap)
+        position = Position(y, x)
+        if cost > best.get(position, cost):
+            continue
+        if position in goals:
+            first = position
+            while parent[first] != here:
+                first = parent[first]
+            return position, first
+        for dy, dx in DIRECTIONS:
+            cell = Position(y + dy, x + dx)
+            if (cell in veto or not 0 < cell.y < snapshot.height - 1
+                    or not 0 < cell.x < snapshot.width - 1):
+                continue  # the outer wall is permanent
+            grid = snapshot.grids.get(cell)
+            if grid is not None and grid.known and getattr(grid, "permanent", False):
+                continue
+            if grid is not None and _open(grid):
+                step = 1
+            elif (grid is None or not grid.known
+                  or retreat_enclosure.meltable(policy, snapshot, grid)):
+                step = AROUND_MELT_COST
+            else:
+                continue
+            if guarded and _exposed(policy, snapshot, cell):
+                continue
+            if cost + step < best.get(cell, cost + step + 1):
+                best[cell] = cost + step
+                parent[cell] = position
+                heapq.heappush(heap, (cost + step, cell.y, cell.x))
+    return None
+
+
+def _around_move(policy, snapshot, first: Position, target) -> str | None:
+    """The first move of a way around (``_around_way``): the step onto ``first``, else the melt of
+    it -- never one that would open the target's line where it stands (``_opens_line``, 先手) or a
+    strong non-target's line on the player (``_melt_exposes``)."""
+    from hengbot import sealed_pocket  # import cycle
+    here = snapshot.player.position
+    if first in set(policy._walkable_neighbors(snapshot, here, allow_damaging=False)):
+        policy.last_reason = STAND_WALK_REASON
+        return policy._step_toward(snapshot, first)
+    grid = snapshot.grids.get(first)
+    if grid is not None and _open(grid):
+        # An open cell no walk enters (a monster, a refused step) is no wall: a beam aimed at it
+        # flies on to the first wall beyond, which may be the one the 先手 rule keeps.
+        return None
+    if (_opens_line(policy, snapshot, here, first, target.position)
+            or _melt_exposes(policy, snapshot, first)):
+        return None
+    return sealed_pocket.melt_at_key(policy, snapshot, first, MELT_REASON)
+
+
+def _survey_key(policy, snapshot) -> str | None:
+    """周辺感知 (area_mapping ``sealed_key``: the absorbed map power, else a carried staff, rod or
+    Scroll of Magic Mapping) where no map of this floor covers the player; None when one does or
+    none is in hand.  The map (spells-floor.cpp map_area, radius 30) marks every REMEMBER grid,
+    the permanent walls among them, which Stone to Mud never melts (effect-feature.cpp KILL_WALL:
+    only STONE terrain)."""
+    from hengbot import area_mapping
+    return area_mapping.sealed_key(policy, snapshot)
+
+
+def _wait_key(policy, snapshot, held: Battle) -> str:
+    """The battle keeps the board when none of its moves answers: a wait (never a rest, owner
+    2026-11-21 「99F 100Fでの休憩は許可していない」), the full detection asked again every
+    ``SHUN_DETECT_EVERY`` boards while the target is shown nowhere.  The tactic's own rules (the
+    teleport within distance 2 or below 800 after a hit, the Rocket once a line opens) answer
+    above it on every board, so the wait lasts until the target's or another's move changes the
+    board (owner 2026-11-21 「可能なら相手の移動後に射線が通るようにして、先手を取ること」).
+
+    Never handed to the generic explore, search or wander (owner 2026-11-23 「99F 100Fはサーチ禁止」,
+    「長期戦になる99F 100Fにおいて無駄な行動は許されない」).  n1-c life-221 (Angband 100F,
+    2026-11-24 07:18, owner-halt loop-detected): the Serpent shown by telepathy 3 cells away
+    fighting Yog-Sothoth, no stand open and no nearer cell to close in to (STAND_MIN_DISTANCE),
+    the battle answered None; the generic explore, breakout:seek-frontier and
+    livelock:stone-to-mud answered and alternated with the battle's own approach between (40,52)
+    and (41,51) until the loop detector stopped the run."""
+    from hengbot.policy_constants import WAIT_KEY
     held.shun_held += 1
-    if held.shun_held % SHUN_DETECT_EVERY == 0:
+    if held.shun_held % SHUN_DETECT_EVERY == 0 and target_monster(snapshot) is None:
         held.detect_due = True
         detected = _detect_key(policy, snapshot, held)
         if detected is not None:
@@ -822,15 +929,44 @@ def _choose_stand(policy, snapshot, aim) -> Stand | None:
         # Owner 2026-11-24 「射線を通さないように近づく」: no stand in a strong non-target's line.
         candidates = [stand for stand in candidates
                       if not _exposed(policy, snapshot, Position(*stand.cell))]
-    for tried, stand in enumerate(candidates):
-        if tried >= STAND_ROUTE_TRIES:
-            break
-        if stand.cell == here:
+    # Every candidate the walk reaches, best first: one search of the reachable cells, not a route
+    # per candidate.  Owner 2026-11-24 (verbatim) 「周辺感知で状況を確認する。今回の場合は永久岩に
+    # 阻まれていたので回り込む必要があった。」: the best rays may run into permanent rock (no melt
+    # opens it, ``_walls_between``) or stand behind it; a stand around it is taken (n1-c life-221
+    # Angband 100F 2026-11-24 07:18: only the six best were tried, none reached, and the battle
+    # answered None beside the Serpent).
+    reach = _reach(policy, snapshot)
+    for stand in candidates:
+        if stand.cell == here or Position(*stand.cell) in reach:
             return stand
-        target = Position(*stand.cell)
-        if _route_step(policy, snapshot, lambda position, goal=target: position == goal) is not None:
-            return stand
-    return None
+    # None a walk reaches: the stand the cheapest way around reaches (``_around_way``).
+    by_cell = {Position(*stand.cell): stand for stand in candidates}
+    way = _around_way(policy, snapshot, by_cell)
+    return by_cell[way[0]] if way is not None else None
+
+
+def _reach(policy, snapshot) -> frozenset:
+    """The cells the battle's walks reach on this board (``_route_step``'s walk: every walker's
+    veto, and with a strong non-target known no cell in its line of fire)."""
+    from collections import deque
+    from hengbot.item_reservation import decision_memo
+
+    def compute():
+        start = snapshot.player.position
+        veto = policy._walk_veto(snapshot)
+        guarded = bool(shunned(policy, snapshot))
+        seen = {start}
+        queue = deque([start])
+        while queue:
+            position = queue.popleft()
+            for neighbour in policy._walkable_neighbors(snapshot, position, allow_damaging=False):
+                if (neighbour in seen or neighbour in veto
+                        or (guarded and _exposed(policy, snapshot, neighbour))):
+                    continue
+                seen.add(neighbour)
+                queue.append(neighbour)
+        return frozenset(seen)
+    return decision_memo(policy, "angband_finale_battle.reach", snapshot, None, compute)
 
 
 def _opens_line(policy, snapshot, stand: Position, wall: Position, target: Position) -> bool:
@@ -860,8 +996,12 @@ def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
         goal = Position(*stand.cell)
         step = _route_step(policy, snapshot, lambda position: position == goal)
         if step is None:
-            held.stand = None
-            return None
+            # No walk reaches the stand: the way around it (permanent rock never crossed).
+            way = _around_way(policy, snapshot, {goal})
+            moved = _around_move(policy, snapshot, way[1], target) if way is not None else None
+            if moved is None:
+                held.stand = None
+            return moved
         key = policy._step_toward(snapshot, step)
         policy.last_reason = STAND_WALK_REASON
         return key
@@ -1174,9 +1314,19 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
     if stood is not None:
         return stood
     closed = _close_in_key(policy, snapshot, target)
-    if closed is not None or not guarded:
+    if closed is not None:
         return closed
-    return _out_of_line_key(policy, snapshot, held)
+    # Owner 2026-11-24 「周辺感知で状況を確認する」: no stand and no nearer cell -- map the ground
+    # around (the absorbed map, else a carried device or scroll) where no map of this floor covers
+    # the player yet; the stand is chosen again on the mapped board.
+    surveyed = _survey_key(policy, snapshot)
+    if surveyed is not None:
+        return surveyed
+    if guarded:
+        out = _out_of_line_key(policy, snapshot, held)
+        if out is not None:
+            return out
+    return _wait_key(policy, snapshot, held)
 
 
 def _close_in_key(policy, snapshot, target) -> str | None:
@@ -1263,7 +1413,11 @@ def key(policy, snapshot) -> str | None:
     approach = _approach_key(policy, snapshot, held)
     if approach is not None:
         return approach
-    return _lost_key(policy, snapshot)
+    searched = _lost_key(policy, snapshot)
+    if searched is not None:
+        return searched
+    # The battle keeps the board (``_wait_key``): no generic rung answers on its floor.
+    return _wait_key(policy, snapshot, held)
 
 
 def _small_floor(policy, snapshot) -> str | None:

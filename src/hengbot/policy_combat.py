@@ -781,6 +781,15 @@ class CombatMixin:
         if (quest_find_exit.holds_choke(self, snapshot) or quest_room_sweep.holds(self, snapshot)
                 or quest25_battle.holds(self, snapshot)):
             return key
+        # The 99F/100F battle's wait (angband_finale_battle ``_wait_key``) answers survival itself
+        # (its teleport below 800 after a hit, within distance 2, on a summon or a crowded line):
+        # a hit does not turn it into a wander.  n1-c life-221 (Angband 100F, 2026-11-24 07:18):
+        # struck by the rock of the Serpent's fight with Yog-Sothoth, the hold became
+        # no-wait:least-visited and the generic rungs alternated with the battle.
+        from hengbot import angband_finale_battle  # import cycle
+        if reason == angband_finale_battle.HOLD_REASON and angband_finale_battle.applies(
+                self, snapshot):
+            return key
 
         under_fire = self._took_damage or any(
             line_of_fire.fire_reaches(self, snapshot, monster, snapshot.player.position)
