@@ -53,6 +53,9 @@ ROD_ROWS = (("u", "アシッド・ボルト", 10), ("v", "サンダー・ボル�
 SWARM_CENTRE = (38, 57)
 LIGHTNING_BALL_CENTRE = "mCz@38,57"
 TARGET_GUIDE = "q止 t決 p自 o現 +次 -前"        # target-setter.cpp:221 (monster mode)
+# target-getter.cpp get_aim_dir: the carried wand's and the launcher's direction question, where
+# observed_input releases their direction (owner answer (b)-5, 2026-11-23).
+AIM_QUESTION = "方向 ('*'でターゲット選択, ESCで中断)? "
 FREE_GUIDE = "q止 t決 p自 m近 +次 -前"          # target-setter.cpp:470 (free mode)
 WONDER_SLOT = "k"
 
@@ -131,7 +134,8 @@ class BreederAreaAttackRecordedTest(nokey.PostedKey):
         policy, key = self.decide(raw)
         self.assertEqual((key, policy.last_reason),
                          ("a" + WONDER_SLOT + "4", breeder_area_attack.REASON + ":wand"))
-        self.post(policy, raw, key)   # the carried-wand macro (me_ranged_first.WAND_REASON's)
+        # the carried-wand macro (me_ranged_first.WAND_REASON's); the direction at its question
+        self.post(policy, raw, key, [prompt(AIM_QUESTION, "direction", can_choose_target=True)])
 
     def test_without_breeders_the_recorded_shot_is_kept(self):
         monraces = copy.deepcopy(CASE["monraces"])
@@ -141,7 +145,7 @@ class BreederAreaAttackRecordedTest(nokey.PostedKey):
         raw = with_rods(recorded_board())
         policy, key = self.decide(raw, monraces)
         self.assertEqual((policy.last_reason, key), RECORDED)
-        self.post(policy, raw, key)
+        self.post(policy, raw, key, [prompt(AIM_QUESTION, "direction", can_choose_target=True)])
 
     def post_power(self, policy, raw, key, aim_screens=()):
         """The absorbed rod through the executor's prompts (cmd-magiceat.cpp)."""

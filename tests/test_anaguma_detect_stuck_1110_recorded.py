@@ -61,7 +61,7 @@ DETECTION = "全感知"
 AIM_PROMPT = "(持ち物:a-z, ESCで中断) どの魔法棒で狙いますか? "
 ZAP_PROMPT = "(持ち物:a-z, ESCで中断) どのロッドを振りますか? "
 USE_PROMPT = "(持ち物:a-z, ESCで中断) どの杖を使いますか? "
-DIRECTION_PROMPT = "方向 ('*'でターゲット選択, ESCで中止)? "
+DIRECTION_PROMPT = "方向 ('*'でターゲット選択, ESCで中断)? "   # target-getter.cpp get_aim_dir
 ANAGUMA_REASONS = ("anaguma:", "melee:anaguma", "ranged:anaguma")
 TVAL_ROD, TVAL_STAFF = 66, 55
 SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL = 6, 15
@@ -169,12 +169,15 @@ class AnagumaDetectStuckRecordedTest(harness.ProductionHarness):
         self.assertNotEqual(policy.last_reason.split(":")[:2], ["anaguma", "detect"], key)
 
     def test_the_recorded_melt_with_the_carried_wand_is_accepted(self):
-        """The warrior's path: the carried Stone to Mud wand, an item command and its direction."""
+        """The warrior's path: the carried Stone to Mud wand, an item command and its direction.
+
+        Owner answer (b)-5 (2026-11-23 「問いが出た時だけ方向を送る」): the wand and its letter
+        go together (the chooser 「どの魔法棒で狙いますか?」 takes the letter), the direction only
+        at the observed get_aim_dir question."""
         policy, raw, decided = self.replay(until=FIRST_DIG_TURN)
         self.assertEqual(decided[-1], (FIRST_DIG_TURN, "anaguma:dig", "ah2"))
-        accepted = self.post(policy, raw, "ah2", [
-            harness.prompt_screen(AIM_PROMPT), harness.prompt_screen(DIRECTION_PROMPT)])
-        self.assertEqual("".join(accepted), "ah2")
+        accepted = self.post(policy, raw, "ah2", [harness.prompt_screen(DIRECTION_PROMPT)])
+        self.assertEqual(accepted, ["ah", "2"])
 
     def carried(self, raw, tval, sval, slot, name):
         """DECLARED CONSTRUCTED: a known, ready device in the pack."""

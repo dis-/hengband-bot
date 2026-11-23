@@ -44,7 +44,8 @@ _PRICE = (r"\s*買値 \$\d+ で買いますか？\[Y/n\]",)
 _ATTACK_FRIEND = (r"\s*(?:本当に攻撃しますか？|Really hit it\? )\s*\[[Yy]/[Nn]\]\s*",)
 
 
-# Whole-bot maintainability review 2026-11-23 K4, (a)-3 (record only; nothing sent changes).
+# Whole-bot maintainability review 2026-11-23 K4, (a)-3 (record only); the aimed item commands
+# are observed since the owner answer (b)-5 (AIMED_ITEM_COMMANDS below).
 # The questions a command asks after its key, in order, as the game source asks them.  A
 # composed key (command + item letter + direction, ...) that this entry passes through whole
 # relies on every non-optional question appearing; when one does not (a rod that does not aim,
@@ -151,17 +152,47 @@ COMPOSED_APPEND_SITES: dict[tuple[str, str], tuple[int, str]] = {
     ("me_ranged_first", "_fire_missile"): (1, "observed"),     # 'mBp'
     ("policy_fundraising", "_mining_tunnel_key"): (1, "passthrough"),  # 'T'
     ("policy_identification", "_chest_processing_key"): (2, "observed"),  # 'D' / 'o'
-    ("policy_quest", "_q2_ranged_core_key"): (1, "passthrough"),  # '*p' walk (fire suffix)
+    ("policy_quest", "_q2_ranged_core_key"): (1, "observed"),   # '*p' walk (fire suffix, (b)-5)
     ("policy_quest", "_q2_breach_key"): (1, "passthrough"),     # 'T'
     ("policy_quest", "_quest_sequence_door_key"): (1, "observed"),  # 'o'
     ("policy_quest", "_quest_execute_key"): (1, "observed"),    # 'o'
     ("policy_town", "_town_kill_mob_key"): (1, "passthrough"),  # '+' dir 'y'
-    ("quest25_battle", "_cursor_suffix"): (1, "passthrough"),   # '*p' walk (fire/device suffix)
+    ("quest25_battle", "_cursor_suffix"): (1, "observed"),      # '*p' walk (fire/device, (b)-5)
     ("quest25_battle", "_ambush"): (1, "observed"),             # 'c'
     ("quest_find_exit", "_dig"): (1, "passthrough"),            # 'T'
-    ("quest_lure_approach", "_fire_key"): (1, "passthrough"),   # '*p' walk (device suffix)
+    ("quest_lure_approach", "_fire_key"): (1, "observed"),      # '*p' walk (device, (b)-5)
     ("unseen_strike", "key"): (1, "observed"),                  # '+'
 }
+
+# Owner answer (b)-5, 2026-11-23 「問いが出た時だけ方向を送る」: the aimed item commands (wand
+# 'a', rod 'z', fire 'f', throw 'v') send the command and the item letter, and their direction or
+# target walk only at the observed direction question (the easy_open fix 6bef1941c0 did the same
+# for 'o'/'c'/'D').  get_aim_dir (target/target-getter.cpp) asks nothing with use_old_target and
+# a valid target, a non-aiming known rod (zaprod-execution.cpp) asks nothing, and no launcher /
+# no item prints a message instead; the trailing keys then fell to the command loop (a step, or
+# '5' -> ',' stay still, lib/pref/pref-key.prf).  Suffix kinds "direction" and "target-cursor" of
+# COMPOSED_SUFFIX_SITES go this way (scripts/composed_key_lint.py checks it).
+AIMED_ITEM_COMMANDS = "azfv"
+# target/target-setter.cpp: at get_aim_dir's question '*' opens target_set (TARGET_KILL); 'p'
+# puts the cursor on the player (free mode) and a direction moves it; 't' sets the target and
+# ends the mode (switch_target_input / switch_next_grid_command), so get_aim_dir returns at once.
+# The composers' trailing ``5\x1b`` is read only while target_set still waits ('t' refused:
+# can_target_monster_at_cursor false): '5' tries again, ESC leaves.  After a set target they were
+# read as commands ('5' = ',' stay still, a game turn).  So each is released only on the
+# observed target screen (ScreenKind.LOOK, the key guide on row 0).
+_TARGET_WALK = re.compile(r"\*(?:p[1-9]*)?t")
+_TARGET_RETRY = "5\x1b"
+
+
+def aim_steps(suffix: str) -> list[Continuation] | None:
+    """The observed answers of an aimed item command's ``suffix`` (a direction digit or a
+    ``*t5\\x1b`` / ``*p<moves>t5\\x1b`` target walk), or None for another suffix."""
+    if re.fullmatch(r"[1-9]", suffix):
+        return [_answer(ScreenKind.DIRECTION, suffix, optional=True)]
+    if suffix.endswith(_TARGET_RETRY) and _TARGET_WALK.fullmatch(suffix[:-len(_TARGET_RETRY)]):
+        return [_answer(ScreenKind.DIRECTION, suffix[:-len(_TARGET_RETRY)], optional=True),
+                *(_answer(ScreenKind.LOOK, retry, optional=True) for retry in _TARGET_RETRY)]
+    return None
 
 
 def _suffix_kind(command: str, tail: str) -> str:
@@ -439,6 +470,16 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
             (r"(?:Rest|休憩) \(0-9999, .+\):(?: .*)?",),
             exact_feature=True, feature_pattern=True), *continuations]
 
+    if command in AIMED_ITEM_COMMANDS and not (command == "z" and kind is ScreenKind.COMMAND) \
+            and kind in (None, ScreenKind.COMMAND) and re.fullmatch(r"[a-z-]", tail[:1]):
+        # Owner answer (b)-5 (AIMED_ITEM_COMMANDS): the command and the item letter go together
+        # (the wand, launcher and throw choosers are not classified screens); the direction or
+        # the target walk only at the observed question.  A rod on the command screen has its
+        # observed chooser (below).
+        aim = aim_steps(tail[1:])
+        if aim is not None:
+            return key[:2], [*aim, *continuations]
+
     if command in "qruz" and kind is ScreenKind.COMMAND:
         if not re.fullmatch(r"[a-z]", tail[:1]):
             raise ValueError("invalid item source address")
@@ -456,6 +497,11 @@ def compile_observed_input(key: str, kind: ScreenKind | None,
                                      RECALL_DUNGEON_PROMPTS))
             return command, [*steps, *continuations]
         if suffix:
+            aim = aim_steps(suffix) if command == "z" else None
+            if aim is not None:
+                # Owner answer (b)-5: an aiming (or unaware) rod asks the direction
+                # (zaprod-execution.cpp get_aim_dir), a known non-aiming one does not.
+                return command, [*steps, *aim, *continuations]
             if not (owner.startswith("identify:") or owner == "loot:identify-floor-item"):
                 return key, continuations
             if owner.startswith("identify:full"):

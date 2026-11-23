@@ -14,7 +14,10 @@ move).  Each such composer is listed in ``observed_input`` so the set is known; 
   ``COMPOSED_APPEND_SITES`` does not list, or a listed count that differs,
 - a target-mode literal (``*t...`` / ``*p...`` / one holding ``t5\\x1b``) in a function that is in
   neither table (target walks belong to a listed composer),
-- a listed site the source no longer has, or a suffix kind the table does not define.
+- a listed site the source no longer has, or a suffix kind the table does not define,
+- an aimed item command (``observed_input.AIMED_ITEM_COMMANDS``: wand, rod, fire, throw) whose
+  direction or target walk the entry would send with the command instead of at the observed
+  question (owner answer (b)-5, 2026-11-23 「問いが出た時だけ方向を送る」).
 
 A new composer: list it in ``hengbot/observed_input.py`` (and say what the suffix answers).
 
@@ -152,12 +155,41 @@ def findings(sources: Mapping[str, str], suffix_sites: Mapping, append_sites: Ma
     return lines
 
 
+# Owner answer (b)-5 (2026-11-23 「問いが出た時だけ方向を送る」): the aimed item commands'
+# direction and target walks are released only at the observed question.  One sample suffix per
+# kind (the shapes the listed composers write).
+AIMED_SAMPLES = {"direction": ("6",), "target-cursor": ("*t5\x1b", "*p966t5\x1b")}
+
+
+def gate_findings(compile_observed_input, commands: str, screen_kinds) -> list[str]:
+    """A sample aimed key that ``compile_observed_input`` still sends whole (or with the
+    suffix inside its first segment) on the command screen, or with no screen."""
+    lines = []
+    for command in commands:
+        for kind in screen_kinds:
+            for suffix_kind, samples in sorted(AIMED_SAMPLES.items()):
+                for suffix in samples:
+                    key = command + "b" + suffix
+                    prefix, steps = compile_observed_input(key, kind, None, "lint:aimed", [])
+                    released = "".join(step.keys for step in steps)
+                    if prefix not in (key[:1], key[:2]) or not released.endswith(suffix):
+                        lines.append(f"{key!r} ({suffix_kind}, screen {kind}) is sent as "
+                                     f"{prefix!r} + {released!r}: observed_input must release the "
+                                     "suffix only at its observed question (owner answer (b)-5)")
+    return lines
+
+
 def main() -> int:
-    from hengbot.observed_input import COMPOSED_APPEND_SITES, COMPOSED_SUFFIX_SITES
+    from hengbot.input_executor import ScreenKind
+    from hengbot.observed_input import (
+        AIMED_ITEM_COMMANDS, COMPOSED_APPEND_SITES, COMPOSED_SUFFIX_SITES, compile_observed_input,
+    )
 
     sources = {path.stem: path.read_text(encoding="utf-8")
                for path in sorted(POLICY_ROOT.glob("*.py"))}
     lines = findings(sources, COMPOSED_SUFFIX_SITES, COMPOSED_APPEND_SITES)
+    lines += gate_findings(compile_observed_input, AIMED_ITEM_COMMANDS,
+                           (ScreenKind.COMMAND, None))
     for line in lines:
         print(line)
     print(f"composed_key_lint: {len(lines)} finding(s)")

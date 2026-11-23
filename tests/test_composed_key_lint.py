@@ -53,6 +53,15 @@ class ComposedKeyLintTest(unittest.TestCase):
         self.assertEqual(len(walk), 3)   # the append, '*p' and the 't5\x1b' literal
         self.assertEqual(_findings({"m": WALK}, append={("m", "walk"): (1, "passthrough")}), [])
 
+    def test_an_aimed_suffix_sent_with_the_command_fails(self):
+        """Owner answer (b)-5: the wand/rod/fire/throw suffix waits for its observed question."""
+        whole = composed_key_lint.gate_findings(lambda key, *_a: (key, []), "a", (None,))
+        self.assertEqual(len(whole), 3)          # the direction and both target walks
+        from hengbot.input_executor import ScreenKind
+        from hengbot.observed_input import AIMED_ITEM_COMMANDS, compile_observed_input
+        self.assertEqual(composed_key_lint.gate_findings(
+            compile_observed_input, AIMED_ITEM_COMMANDS, (ScreenKind.COMMAND, None)), [])
+
     def test_the_input_entry_is_exempt(self):
         self.assertEqual(_findings({"observed_input": SUFFIX + APPEND + TARGET}), [])
 

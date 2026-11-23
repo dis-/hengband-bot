@@ -1,8 +1,10 @@
 """Composed keys sent whole are counted, and still sent as before (review 2026-11-23 K4, (a)-3).
 
-observed_input.COMMAND_PROMPTS holds the questions an item command asks; a key such as a wand
-letter + direction that compile_observed_input passes through whole is recorded in the
-input-context log (``composed-passthrough``) without changing what goes to the game.
+observed_input.COMMAND_PROMPTS holds the questions a command asks; a key such as a tunnel +
+direction that compile_observed_input passes through whole is recorded in the input-context log
+(``composed-passthrough``) without changing what goes to the game.  The aimed item commands (wand
+/ rod / fire / throw + direction or target walk) are released at the observed question since the
+owner answer (b)-5 (tests/test_aimed_item_direction_1123_recorded.py), so they are not recorded.
 """
 
 import tests  # noqa: F401
@@ -20,10 +22,8 @@ from tests.test_classA_observed_input import board
 
 
 class ComposedPassthroughRecordTest(unittest.TestCase):
-    def test_item_commands_with_a_direction_pass_through_and_are_named(self):
-        for key, suffix in (("ab6", "direction"), ("zc4", "direction"), ("vd2", "direction"),
-                            ("fa*t5\x1b", "target-cursor"), ("fa*p66t5\x1b", "target-cursor"),
-                            ("T6", "direction"), ("+6y", "direction")):
+    def test_commands_with_a_direction_pass_through_and_are_named(self):
+        for key, suffix in (("T6", "direction"), ("+6y", "direction")):
             with self.subTest(key=key):
                 prefix, steps = compile_observed_input(key, ScreenKind.COMMAND, {}, "melee", [])
                 self.assertEqual((prefix, steps), (key, []))
@@ -35,10 +35,11 @@ class ComposedPassthroughRecordTest(unittest.TestCase):
     def test_gated_and_single_keys_are_not_recorded(self):
         # 'o' + direction is released only at the observed question (6bef1941c0); a quaff's
         # item letter at its observed chooser; a bare move has no table row.
-        for key in ("o6", "qc"):
+        # An aimed item command's direction or target walk at its observed question (b)-5.
+        for key in ("o6", "qc", "ab6", "zc4", "vd2", "fa*t5\x1b", "fa*p66t5\x1b"):
             with self.subTest(key=key):
                 prefix, _steps = compile_observed_input(key, ScreenKind.COMMAND, {}, "melee", [])
-                self.assertEqual(prefix, key[0])
+                self.assertIn(prefix, (key[0], key[:2]))
                 self.assertIsNone(composed_passthrough(key, prefix))
         self.assertIsNone(composed_passthrough("6", "6"))
         self.assertIsNone(composed_passthrough("R&\r", "R&\r"))
@@ -80,9 +81,9 @@ class ComposedPassthroughPortTest(executor_harness.ProductionHarness):
         executor.input_context_shadow = shadow
         self.assertEqual(executor.observe_boundary(deadline=time.monotonic() + 1).outcome, "ready")
         port = _ExecutorInputPort(executor, tunnel_macros_ready=False, request_budget=0.2)
-        port.submit_operation("ab6", decision={"sequence": 1, "reason": "melee"})
-        self.assertEqual(game.accepted, ["ab6"])
-        self.assertEqual(shadow.composed_passthroughs, {"a:direction": 1})
+        port.submit_operation("T6", decision={"sequence": 1, "reason": "dig"})
+        self.assertEqual(game.accepted, ["T6"])
+        self.assertEqual(shadow.composed_passthroughs, {"T:direction": 1})
 
 
 if __name__ == "__main__":
