@@ -2239,7 +2239,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The visit's purchases and sales (a sell-then-rebuy is churn; the
         # 2026-10-03 Identify staff swap sells the emptiest staff for a fuller
         # one, an upgrade) live in town_visit.FloorHolds (stage 3-2b).
-        self.town_visit_report: str | None = None
         # Prices are learned only from shelves actually shown by the emitter.
         # Values are (unit price, units supplied); no guessed/default shopping
         # price is permitted for the cross-town funds gate.

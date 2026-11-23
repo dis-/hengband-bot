@@ -926,7 +926,6 @@ class ObservationMixin:
             floor_holds(self).release()
             self._town_visit_ledger.purchase_churn_exclusions.clear()
             self._town_visit_ledger.purchase_churn_class_exclusions.clear()
-            self.town_visit_report = None
             self._quest_light_attempted.clear()
             self._q2_phase_light_attempted.clear()
             self._quest_light_areas_read.clear()

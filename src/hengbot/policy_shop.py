@@ -2592,11 +2592,6 @@ class ShopMixin(InStoreMixin):
                             f"sell-rebuy-churn-skipped:{store.store_type}:{signature}"
                         )
                     ledger.purchase_churn_class_exclusions.add(cls)
-                if rejected_rows:
-                    self.town_visit_report = (
-                        f"town-visit:sell-rebuy-churn:"
-                        f"{rejected_rows[0].tval}:{rejected_rows[0].sval}"
-                    )
         else:
             item = self._next_purchase_unreserved(
                 snapshot, commit_state=commit_churn

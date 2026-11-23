@@ -967,10 +967,6 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._fundraising_mode = "prepare"
         self.assertEqual(policy._shop(rebuy), LEAVE_STORE_KEY)
         self.assertEqual(policy.last_reason, "shop:sell-rebuy-churn-defect")
-        self.assertEqual(
-            policy.town_visit_report,
-            f"town-visit:sell-rebuy-churn:{TVAL_DIGGING}:{sold.sval}",
-        )
 
     def test_confirmed_sale_allows_a_different_sval_with_the_same_tval(self):
         policy = HengbotPolicy()
