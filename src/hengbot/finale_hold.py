@@ -40,6 +40,14 @@ character preparing the finale (``applies``), the town's departure is this modul
 * anything else short (a supply only the dungeon gives), or the phase stopped (an equipment
   condition the owned gear does not meet stops it at its check step): a named stop
   (``town:blocked:...``) for the owner, no destination picked.
+
+**The Restore Mana whatever the recall depth.**  The Black Markets' circuit is the owner's line
+for the Restore Mana short alone, not for the 96F+ refusal: a Scroll of Reset Recall (reset_recall)
+sets Angband back to 95F and ``applies`` no longer holds (n1-b life-416 2026-11-24 02:21:00, after
+Oberon; five recalls to 95F followed at 75-79 of the 84).  So the departure toward Angband asks
+``black_market_due`` first (policy_town ``_town_special_key``, before the recall is read): the
+preparation phase idle and the Restore Mana the only finale supply short, the circuit
+(``black_market_key``); any other row short keeps the owner's 2026-11-19 95F exploration.
 """
 from __future__ import annotations
 
@@ -122,9 +130,47 @@ def short_rows(policy) -> list:
     return [name for name, row in (rows.get("owned") or {}).items() if not row["ready"]]
 
 
+def _black_market_key(policy, snapshot, short: list) -> str | None:
+    """The Black Markets' circuit (finale_bm_tour), or the town's named stop when it closed."""
+    from hengbot import finale_bm_tour  # import cycle
+    circuit = finale_bm_tour.town_key(policy, snapshot)
+    if circuit is not None:
+        return circuit
+    if finale_bm_tour.closed(policy):
+        # A final stop of the driver (policy_constants FINALE_BM_CLOSED_STOP_PREFIX).
+        return _stop(policy, snapshot, f"{BM_CLOSED}:{finale_bm_tour.why(policy)}")
+    return _stop(policy, snapshot,
+                 f"{NOT_IN_TOWN}:{','.join(short)}:{finale_bm_tour.why(policy)}")
+
+
+def black_market_due(policy, snapshot) -> bool:
+    """The departure toward Angband while the Restore Mana is the finale's only supply short,
+    whatever Angband's recall depth (owner 2026-11-23 「目標に届くまで99Fへは行かない。闇市に無ければ
+    巡回をくり返す。」).  ``applies`` covers a recall depth of 96F or deeper only; a Scroll of Reset
+    Recall (reset_recall, owner 2026-11-21) sets it back to 95F, and the ordinary departure then
+    went to the 95F exploration with the carry short: n1-b life-416 2026-11-24 02:21:00 read it
+    after Oberon (99F), and from 02:21:46 to 02:45:18 recalled to 95F five times at 75-79 of the
+    84 without a lap of the circuit.  Any other row short, or the preparation phase not idle,
+    leaves the departure to the owner's 2026-11-19 rule (the 95F exploration until the
+    preparation is complete) and the phase's own steps."""
+    from hengbot import angband_finale, finale_prep  # import cycle
+    if (not snapshot.in_town or snapshot.player.recalling
+            or not angband_finale.preparing(snapshot)
+            or policy._target_dungeon_id != DUNGEON_ANGBAND
+            or finale_prep.phase(policy).step != finale_prep.IDLE):
+        return False
+    short = short_rows(policy)
+    return bool(short) and frozenset(short) <= BLACK_MARKET_SUPPLIES
+
+
+def black_market_key(policy, snapshot) -> str | None:
+    """The departure's key while ``black_market_due``: the circuit, else a named stop."""
+    return _black_market_key(policy, snapshot, short_rows(policy))
+
+
 def town_key(policy, snapshot) -> str | None:
     """The town's departure while ``applies``: the preparation, the circuit, or a named stop."""
-    from hengbot import angband_finale, finale_bm_tour, finale_prep, finale_teleport_tour  # import cycle
+    from hengbot import angband_finale, finale_prep, finale_teleport_tour  # import cycle
     held = finale_prep.phase(policy)
     if held.step == finale_prep.STOPPED:
         return _stop(policy, snapshot, f"{STOPPED}:{held.stopped}")
@@ -138,14 +184,7 @@ def town_key(policy, snapshot) -> str | None:
         return _stop(policy, snapshot, f"{NOT_IN_TOWN}:{','.join(outside)}")
     if short and all(name in BLACK_MARKET_SUPPLIES for name in short):
         # Owner 2026-11-23 「闇市を回って買い足す」: the Teleportation owned, the Black Markets.
-        circuit = finale_bm_tour.town_key(policy, snapshot)
-        if circuit is not None:
-            return circuit
-        if finale_bm_tour.closed(policy):
-            # A final stop of the driver (policy_constants FINALE_BM_CLOSED_STOP_PREFIX).
-            return _stop(policy, snapshot, f"{BM_CLOSED}:{finale_bm_tour.why(policy)}")
-        return _stop(policy, snapshot,
-                     f"{NOT_IN_TOWN}:{','.join(short)}:{finale_bm_tour.why(policy)}")
+        return _black_market_key(policy, snapshot, short)
     if not short:
         # Everything owned and the phase idle: it did not enter (a census unknown, a swap or a
         # recall under way) though the town has nothing left to do.

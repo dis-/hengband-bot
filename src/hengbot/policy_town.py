@@ -7539,6 +7539,16 @@ class TownMixin:
             # wait for turnover instead of falling through to dungeon-style
             # town exploration while carrying an unreachable objective.
             return self._recall_restock_key(snapshot)
+        if (
+            recall_dest is not None and departure_ok
+            and recall_dungeon_id == DUNGEON_ANGBAND
+            and self._town_recall_issue_watch is None
+            and finale_hold.black_market_due(self, snapshot)
+        ):
+            # Owner 2026-11-23 「4つの町の闇市を巡回して買い足し、目標に届くまで99Fへは行かない。」:
+            # the Restore Mana the finale's only supply short, whatever the recall depth (a
+            # Reset Recall's 95F took the ordinary departure, n1-b life-416 2026-11-24 02:21).
+            return finale_hold.black_market_key(self, snapshot)
         if recall_dest is not None and departure_ok:
             if not snapshot.player.recalling and getattr(
                 self, "_town_visit_unready_recall_cancelled", False
