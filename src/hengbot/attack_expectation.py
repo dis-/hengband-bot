@@ -570,8 +570,14 @@ def shot_chance(snapshot, launcher, ammo, distance: int) -> int:
 
 
 def launcher_usable(policy, snapshot):
-    """The worn launcher while the shot can be aimed (not blind or confused), else None."""
+    """The worn launcher while the shot can be aimed (not blind or confused), else None.
+
+    None in the finale (owner 2026-11-23 「魔道具術師は決戦で矢は撃たない。」, angband_finale
+    ``no_ammunition``): no shot is weighed against the devices there."""
     if snapshot.player.blind or snapshot.player.confused:
+        return None
+    from hengbot import angband_finale  # import cycle
+    if not snapshot.in_town and angband_finale.no_ammunition(policy, snapshot):
         return None
     return policy._equipped_launcher(snapshot)
 

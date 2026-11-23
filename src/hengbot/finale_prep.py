@@ -26,6 +26,12 @@ keys come from ``town_key`` (the objectives ladder, before the ordinary town wor
               equipment condition (``set_missing``: speed after the weight, the resistances,
               telepathy, resist curse, resist blindness or light, the *Destruction* means of that
               set: the absorbed power unless the set wears a NO_MAGIC).
+``ammo``      owner 2026-11-23 「魔道具術師は決戦で矢は撃たない。全て自宅に預ける。」: every carried
+              ammunition stack is deposited at the Home through the ordinary deposit route (the
+              carry target is 0 from here: angband_finale ``no_ammunition``; the town need
+              ``deposit`` routes the visit there while this step runs: ``ammo_routed``).  Done when
+              the pack holds no ammunition; a deposit the Home refused stops the phase as
+              ``ammo:deposit-refused``.
 ``supplies``  takes the finale's counts out of the Home, one stack at a time (a Home errand of the
               phase's own purpose, routed by the need ``CATEGORY``; a census another Home take or
               deposit dropped is read again first, and a stack whose slot that take left
@@ -58,6 +64,7 @@ from hengbot import ability_sources
 IDLE = "idle"
 HOME = "home"
 CHECK = "check"
+AMMO = "ammo"
 SUPPLIES = "supplies"
 FOOD = "food"
 LOADOUT = "loadout"
@@ -65,11 +72,12 @@ SWAP = "swap"
 RECALL = "recall"
 DONE = "done"
 STOPPED = "stopped"
-STEPS = (HOME, CHECK, SUPPLIES, FOOD, LOADOUT, SWAP, RECALL)
+STEPS = (HOME, CHECK, AMMO, SUPPLIES, FOOD, LOADOUT, SWAP, RECALL)
 
 # Decisions a step may take before it stops the phase (a step that makes no progress for this
 # long will not finish this visit).
-STEP_LIMIT = {HOME: 60, CHECK: 80, SUPPLIES: 400, FOOD: 200, LOADOUT: 80, SWAP: 600, RECALL: 300}
+STEP_LIMIT = {HOME: 60, CHECK: 80, AMMO: 300, SUPPLIES: 400, FOOD: 200, LOADOUT: 80, SWAP: 600,
+              RECALL: 300}
 
 # Owner 2026-11-21 (verbatim, LOCKED) 「99F 100Fでは謎の魔法棒を銘を分けて3本持って食料とする」: a MANA
 # race (the Zombie: wand and staff charges are its food, cmd-item/cmd-eat.cpp:153) carries three
@@ -156,6 +164,38 @@ def carrying(policy) -> bool:
     held = getattr(policy, STATE, None)
     return bool(held is not None and (held.lifted or held.step in (SUPPLIES, FOOD, LOADOUT, SWAP,
                                                                    RECALL, DONE)))
+
+
+# The steps from the ammunition's deposit on (with the expedition's mark): no ammunition is carried.
+AMMO_BARRED_STEPS = (AMMO, SUPPLIES, FOOD, LOADOUT, SWAP, RECALL, DONE)
+
+
+def ammo_barred(policy) -> bool:
+    """Owner 2026-11-23 「魔道具術師は決戦で矢は撃たない。全て自宅に預ける。」: the phase reached its
+    ammunition step, or the cap is lifted for the expedition (angband_finale ``no_ammunition``)."""
+    held = getattr(policy, STATE, None)
+    return bool(held is not None and (held.lifted or held.step in AMMO_BARRED_STEPS))
+
+
+def carried_ammo(snapshot) -> list:
+    """The pack's ammunition stacks (shots, arrows, bolts), whatever launcher they fit."""
+    return [item for item in snapshot.inventory if item.is_ammo and item.count > 0]
+
+
+def ammo_refused(policy, snapshot) -> bool:
+    """The Home refused a carried ammunition stack's deposit this visit (policy_home
+    ``_home_deposit_key``: ``_home_rejected_deposits``, ``_home_deposit_abandoned``)."""
+    rejected = policy._home_rejected_deposits
+    return bool(policy._home_deposit_abandoned or any(
+        policy._item_signature(item) in rejected for item in carried_ammo(snapshot)))
+
+
+def ammo_routed(policy, snapshot) -> bool:
+    """The ammunition step's deposit is owed: the town need ``deposit`` routes the visit to the
+    Home (policy_town), whose page deposits the stacks (``_find_home_deposit``)."""
+    held = getattr(policy, STATE, None)
+    return bool(held is not None and held.step == AMMO and snapshot.in_town
+                and carried_ammo(snapshot) and not ammo_refused(policy, snapshot))
 
 
 def dedicated_order(policy) -> bool:
@@ -280,7 +320,7 @@ def departure_reached(policy, snapshot) -> None:
     """The town's Word of Recall read while a step before ``recall`` runs: the town had nothing
     left to do for that step, so the phase stops and the 95F departure goes on."""
     held = getattr(policy, STATE, None)
-    if held is not None and held.step in (HOME, CHECK, SUPPLIES, LOADOUT, SWAP):
+    if held is not None and held.step in (HOME, CHECK, AMMO, SUPPLIES, LOADOUT, SWAP):
         _stop(policy, held, f"{held.step}:unfinished-at-departure")
 
 
@@ -347,7 +387,14 @@ def observe(policy, snapshot, rows: dict | None) -> None:
         if missing:
             _stop(policy, held, "check:" + ",".join(missing))
         else:
+            _go(policy, held, AMMO)
+        return
+    if held.step == AMMO:
+        stacks = carried_ammo(snapshot)
+        if not stacks:
             _go(policy, held, SUPPLIES)
+        elif ammo_refused(policy, snapshot):
+            _stop(policy, held, "ammo:deposit-refused")
         return
     if held.step == SUPPLIES:
         errand = policy._home_errand
@@ -373,6 +420,11 @@ def observe(policy, snapshot, rows: dict | None) -> None:
         missing = angband_finale.board_missing(policy, snapshot)
         if missing:
             _stop(policy, held, "swap:" + ",".join(missing))
+            return
+        if carried_ammo(snapshot):
+            # Owner 2026-11-23 「全て自宅に預ける」: no expedition with a round in the pack (the
+            # ammunition step deposited them; nothing takes them out again: ``no_ammunition``).
+            _stop(policy, held, "swap:ammo-carried")
             return
         if policy._find_edible(snapshot) is None:
             # Owner 2026-11-21 (LOCKED) 「空腹で死ぬ前に帰還するように修正」: no expedition without

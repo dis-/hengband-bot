@@ -8331,6 +8331,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         launcher = self._equipped_launcher(snapshot)
         if launcher is None:
             return None
+        if not snapshot.in_town and angband_finale.no_ammunition(self, snapshot):
+            # Owner 2026-11-23 「魔道具術師は決戦で矢は撃たない。」: no round is fired.
+            return None
         return next(
             (it for it in snapshot.inventory if it.tval == launcher.ammo_tval),
             None,
