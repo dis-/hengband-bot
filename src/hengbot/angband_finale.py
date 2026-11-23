@@ -130,6 +130,14 @@ class Memory:
     # The other towns' Teleportation circuit (finale_teleport_tour) ended on this trip: no new
     # one until a dungeon board.  A class default: restored checkpoints predate it.
     teleport_tour_done: bool = False
+    # The owned gear's best set in the finale's rank (equipment_optimizer EvaluatedLoadout), from
+    # the read-only search policy_equipment runs once a town visit while the character prepares
+    # (``owned_report_due``), kept across the trip; the readiness's ``equipment_owned`` reads it
+    # (n1-c life-221 2026-11-23: with the phase idle no search ran and the report showed the worn
+    # set's resist curse and blindness missing, ★賢者マーリンの魔法の鏡 at Home).  Class defaults:
+    # restored checkpoints predate them.
+    owned_best: object | None = None
+    owned_searched: bool = False      # searched on this town visit
 
 
 def memory(policy) -> Memory:
@@ -264,14 +272,44 @@ def board_missing(policy, snapshot) -> list:
 
 def owned_missing(policy, snapshot) -> list | None:
     """The equipment conditions the set the read-only search chose from the owned gear does not
-    meet (owner 2026-11-20 Q9 「現在の装備と自宅の品で満たせるか」; finale_prep's check step runs that
-    search), else None (no chosen set)."""
+    meet (owner 2026-11-20 Q9 「現在の装備と自宅の品で満たせるか」): finale_prep's check step's search,
+    else the visit's search kept for the report (``owned_best``), else None (no chosen set)."""
     from hengbot import finale_prep
     best = getattr(getattr(getattr(policy, "_angband_finale_feasibility", None), "result", None),
                    "best", None)
     if best is None:
+        best = getattr(getattr(policy, MEMORY, None), "owned_best", None)
+    if best is None:
         return None
     return finale_prep.set_missing(policy, snapshot, best.loadout, best.metrics)
+
+
+def owned_report_due(policy, snapshot, catalog) -> bool:
+    """policy_equipment's read-only search over the owned gear in the finale's rank, for the
+    report (``owned_best``): in town while the character prepares, once a visit, again when a
+    piece of the kept set is no longer owned (``catalog``: the search's owned pieces).  Not while
+    the worn loadout's own search is in the finale's rank (``keep_owned_best`` takes its set) nor
+    in the check step (its own search)."""
+    from hengbot import finale_prep  # import cycle
+    if (not snapshot.in_town or not preparing(snapshot) or finale_prep.dedicated_order(policy)
+            or finale_prep.owned_search_due(policy)):
+        return False
+    held = memory(policy)
+    if not held.owned_searched or held.owned_best is None:
+        return True
+    owned_now = {finale_prep._signature(owned.id) for owned in catalog}
+    return any(finale_prep._signature(item.id) not in owned_now
+               for _, item in held.owned_best.loadout.slots)
+
+
+def keep_owned_best(policy, snapshot, preparation) -> None:
+    """Keep the set a search in the finale's rank chose from the owned gear (the report's
+    ``owned_best``); a search that chose none (a blocked or incomplete one) keeps the old one."""
+    best = getattr(getattr(preparation, "result", None), "best", None)
+    if best is None or not snapshot.in_town:
+        return
+    held = memory(policy)
+    held.owned_best, held.owned_searched = best, True
 
 
 def readiness(policy, snapshot) -> dict:
@@ -282,7 +320,8 @@ def readiness(policy, snapshot) -> dict:
     owned_gear = worn if chosen is None else chosen
     return {"owned": supply_rows(policy, snapshot, lambda kind: owned(policy, snapshot, kind)),
             "carried": supply_rows(policy, snapshot, lambda kind: carried(snapshot, kind)),
-            "equipment_owned": {"missing": owned_gear, "ready": not owned_gear},
+            "equipment_owned": {"missing": owned_gear, "ready": not owned_gear,
+                                "judged": "worn" if chosen is None else "owned-search"},
             "equipment_worn": {"missing": worn, "ready": not worn}}
 
 
@@ -300,6 +339,8 @@ def observe(policy, snapshot) -> None:
         held.small_floor_set = True
         held.small_floor_pending = None
     if snapshot.in_town:
+        if held.in_town is False:
+            held.owned_searched = False  # a new visit: the owned gear is searched again
         held.in_town = True
         held.restore_mana_used = 0
         held.restore_mana_seen = None

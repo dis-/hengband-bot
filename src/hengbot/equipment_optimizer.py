@@ -1380,6 +1380,14 @@ def finale_rank(entry: EvaluatedLoadout) -> tuple:
             _stat_bonus(entry.loadout, TR_CON))
 
 
+def finale_conditions_met(entry: EvaluatedLoadout) -> bool:
+    """The finale's equipment conditions ``finale_rank`` leads with: resist curse, resist
+    blindness or light, and the speed gate (+25 after the weight).  The finale's search takes
+    them as requirements: a set meeting them competes alone when any owned set does (n1-c
+    life-221 2026-11-23, owner 「★賢者マーリンの魔法の鏡を使用して条件を満たす装備を作れる」)."""
+    return all(finale_rank(entry)[:3])
+
+
 def _prefer(
     candidate: EvaluatedLoadout,
     incumbent: EvaluatedLoadout,
@@ -1927,6 +1935,10 @@ def optimize_loadout(
         tier = sum(
             loadout.item_at(slot) is not None for slot in require_armor_slots
         )
+        if finale:
+            # The finale's conditions are requirements, ahead of the armour fill: a set meeting
+            # them is never dropped for one that fills more armour slots (``finale_conditions_met``).
+            tier += (len(require_armor_slots) + 1) * finale_conditions_met(entry)
         evaluated_count_by_tier[tier] = evaluated_count_by_tier.get(tier, 0) + 1
         evaluated_by_metrics = evaluated_by_tier.setdefault(tier, {})
         equivalence_key = _selection_equivalence_key(entry, current_item_ids)

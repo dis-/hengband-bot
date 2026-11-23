@@ -1946,6 +1946,18 @@ class EquipmentMixin:
                 finale=True, cap_lifted=True)
             if angband_finale.feasibility_due(self, snapshot) else None
         )
+        # The report's owned set (angband_finale ``owned_best``): the check step's search, the
+        # worn loadout's own search once it is in the finale's rank, else a read-only search of
+        # its own once a visit while the character prepares.
+        if self._angband_finale_feasibility is not None:
+            angband_finale.keep_owned_best(self, snapshot, self._angband_finale_feasibility)
+        elif self._angband_finale_order():
+            angband_finale.keep_owned_best(self, snapshot, preparation)
+        elif angband_finale.owned_report_due(self, snapshot, search_catalog):
+            angband_finale.keep_owned_best(self, snapshot, prepare_warrior_optimization(
+                snapshot, search_catalog, self._monrace_knowledge,
+                **{**optimizer_inputs, "loadout_report_path": None},
+                finale=True, cap_lifted=True))
         # The phase's loadout step: this search (in the finale's rank) chooses its fixed target.
         finale_prep.fix_target(self, snapshot, preparation)
         return preparation

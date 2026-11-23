@@ -15,7 +15,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import unittest
 
 from hengbot.equipment_optimizer import (
-    SLOT_MAIN_RING, EvaluatedLoadout, Loadout, LoadoutMetrics, OwnedEquipment, finale_rank,
+    SLOT_HEAD, SLOT_MAIN_RING, EvaluatedLoadout, Loadout, LoadoutMetrics, OwnedEquipment, finale_rank,
     optimize_loadout, required_abilities,
 )
 from hengbot.model import InventoryItem
@@ -98,6 +98,28 @@ class FinaleLoadoutTest(unittest.TestCase):
         options = dict(depth=None, intrinsic_abilities=everything, has_destruction=True)
         self.assertEqual(self.best((curse, strong), scores, finale=False, **options), "strong")
         self.assertEqual(self.best((curse, strong), scores, finale=True, **options), "curse")
+
+    def test_the_conditions_come_before_the_armour_fill(self):
+        """n1-c life-221 2026-11-23 (owner 「★賢者マーリンの魔法の鏡を使用して条件を満たす装備を作れる」):
+        the finale's conditions are requirements of its search, so a set meeting them is not
+        dropped for one filling more armour slots (the fill tier); the ordinary search keeps it."""
+        guard = gear("guard", 45, (TR_RES_CURSE, TR_RES_BLIND))
+        plain, helm = gear("plain", 45), gear("helm", 32)
+        bare = Loadout((("light", self.light), (SLOT_MAIN_RING, guard)), "empty")
+        helmed = Loadout((("light", self.light), (SLOT_MAIN_RING, plain), (SLOT_HEAD, helm)),
+                         "empty")
+        scores = {guard.id: metrics(10), plain.id: metrics(500)}
+
+        def best(finale):
+            result = optimize_loadout(
+                (self.light, guard, plain, helm),
+                lambda loadout: scores[loadout.item_at(SLOT_MAIN_RING).id],
+                depth=1, candidate_loadouts=(bare, helmed), finale=finale,
+                require_armor_slots=frozenset({SLOT_HEAD}))
+            return result.best.loadout.item_at(SLOT_MAIN_RING).id
+
+        self.assertEqual(best(False), "plain")
+        self.assertEqual(best(True), "guard")
 
 
 if __name__ == "__main__":
