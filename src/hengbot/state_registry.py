@@ -109,7 +109,9 @@ REGISTRY = (
       "a stop's named reason and the visit's step log"),
     S("_angband_finale", "angband_finale", LIFE,
       "angband_finale: the 99F/100F readiness latched on the last town board (the 95F cap's lift, "
-      "owner 2026-11-20), the small-floor option's state and the expedition's Restore Mana uses"),
+      "owner 2026-11-20), the small-floor option's state, the expedition's Restore Mana uses and "
+      "the owned gear's best set in the finale's rank searched once a town visit for the "
+      "readiness report (owned_best)"),
     # angband_finale_battle
     S("_angband_finale_battle", "angband_finale_battle", FLOOR,
       "angband_finale_battle: the 99F/100F battle of the floor it names (phase, last-seen target "

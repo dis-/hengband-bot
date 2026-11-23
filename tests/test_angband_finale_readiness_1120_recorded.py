@@ -164,7 +164,7 @@ class AngbandFinaleReadinessRecordedTest(unittest.TestCase):
                           "resistance": (368, True), "teleport": (15, False), "stone_to_mud": (99, True)})
         self.assertEqual(rows["carried"]["healing"]["measured"], 9)
         self.assertEqual((rows["equipment_owned"], rows["equipment_worn"]),
-                         ({"missing": [], "ready": True}, {"missing": [], "ready": True}))
+                         ({"missing": [], "ready": True, "judged": "worn"}, {"missing": [], "ready": True}))
         self.assertEqual(self.latch(board), (False, False, False))
         self.assertEqual(angband_cap.cap(DUNGEON_ANGBAND, policy), 95)
         self.assertTrue(angband_cap.capped_at(DUNGEON_ANGBAND, 96, policy))
