@@ -24682,5 +24682,71 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_around_move": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The first move of the way around permanent rock to a stand: the step, else the melt of a wall (never one that opens the target's line where it stands or a strong non-target's line on the player) (owner 2026-11-24 「永久岩に阻まれていたので回り込む必要があった」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_around_way": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The cheapest way to a stand over the floor, permanent walls never crossed, walls to melt and unknown grids at a higher cost (owner 2026-11-24 「回り込む」); a reading, no key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_candidates": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The stands on the target's eight rays within the Rocket's reach, row and column first, then the farthest (owner 2026-11-20 「なるべく距離をとって相対するように岩石溶解を使って射線を通す」); a reading, no key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_reach.compute": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The cells the finale's walks reach on this board (every walker's veto, the strong non-targets' lines kept out of); a reading, no key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_survey_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "周辺感知 where no map of this floor covers the player, when the battle has no stand and no nearer cell (owner 2026-11-24 「周辺感知で状況を確認する」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_wait_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The battle keeps the board with a wait (never a rest), the detection again every 10 boards while the target is shown nowhere; no generic explore/search/wander on 99F/100F (owner 2026-11-23 「99F 100Fはサーチ禁止」, 2026-11-21 「99F 100Fでの休憩は許可していない」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }
