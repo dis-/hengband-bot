@@ -480,6 +480,40 @@ def obtainable_ammunition_signature(ammunition) -> tuple:
     return (LAUNCHER_BASIS, tuple(sorted({item.tval for item in ammunition if item.count > 0})))
 
 
+# The stage helpers of ``_prepare_equipment_optimization`` return this when the decision goes on
+# to the next stage (``None`` is a result of its own: no search in this context).
+_SEARCH_PROCEEDS = object()
+
+
+@dataclass(frozen=True)
+class EquipmentSearchCandidates:
+    """One decision's search candidates and the rules applied to them.
+
+    ``_collect_equipment_candidates`` builds it from the owned catalogue (worn / pack / Home):
+    the quarantine's release and readmission, what the transaction preserves and what the
+    search leaves out.  The search memo's signature, the optimizer's inputs (also read by the
+    shelf evaluation, ``_shelf_candidate_worn``) and the publication read it."""
+
+    operational_catalog: tuple
+    catalog: tuple
+    search_catalog: tuple
+    # ``max(1, depth_override)``; None for the town search (its destination floor instead).
+    optimization_depth: int | None
+    curse_pinned: frozenset
+    me_powers: tuple
+    # The stored target's blockers, read before this decision writes the target.
+    cached_blockers: object
+    has_destruction: bool
+    staff_gate: object
+    required_launcher_ammo: object
+    required_launcher_available: bool
+    destination_floor: int | None
+    preserve: frozenset
+    search_excluded: frozenset
+    identification_exempt: frozenset
+    finale_key: tuple | None
+
+
 class EquipmentMixin:
     def _equipment_transaction_owns_town_relocation(
         self, snapshot: Snapshot
@@ -1021,7 +1055,63 @@ class EquipmentMixin:
     def _prepare_equipment_optimization(
         self, snapshot: Snapshot, *, depth_override: int | None = None
     ) -> WarriorOptimizationPreparation | None:
+        """The loadout target of this decision, in stages (maintainability review 11-23 (a)-10).
+
+        1. no search here: ``_equipment_optimization_unavailable`` (no class profile or out of
+           town, a running session, a closed visit), ``_calibration_required_preparation`` and
+           ``_retired_worn_loadout_preparation``;
+        2. the candidates and the rules applied to them: ``_collect_equipment_candidates``;
+        3. the search memo's key: ``_equipment_search_signature`` (equipment_rules.RULES_VERSION)
+           and the optimizer's inputs ``_equipment_optimizer_inputs`` (also the shelf's);
+        4. a memo hit, the visit's timeout, an observer: ``_equipment_search_memo_return``;
+        5. the visit's fixed target (equipment review E3) or a fresh search:
+           ``_equipment_visit_redecision``, ``_run_equipment_search``;
+        6. the publication: ``_publish_equipment_search`` (the target's writers, the visit's
+           target, the journal of why the search ran)."""
         release_unaffordable_session(self, snapshot)
+        unavailable = self._equipment_optimization_unavailable(snapshot)
+        if unavailable is not _SEARCH_PROCEEDS:
+            return unavailable
+        # Missing observations skip optimization. The existing periodic dump
+        # path refreshes equipped constants without owning movement or gear.
+        calibration = self._validated_character_calibration(snapshot)
+        if calibration is None:
+            return self._calibration_required_preparation(snapshot)
+        live_current = current_loadout(self._equipment_catalog.items)
+        retired = self._retired_worn_loadout_preparation(live_current)
+        if retired is not None:
+            return retired
+        candidates = self._collect_equipment_candidates(
+            snapshot, depth_override, calibration, live_current)
+        signature = self._equipment_search_signature(snapshot, candidates)
+        # The search's inputs, read by the fresh search below and by the read-only shelf
+        # evaluation (``_shelf_candidate_worn``, equipment review E4b) of this decision.
+        optimizer_inputs = self._equipment_optimizer_inputs(snapshot, candidates, calibration)
+        self._equipment_shelf_search = (
+            self._decision_sequence, snapshot, signature, candidates.search_catalog,
+            {**optimizer_inputs, "loadout_report_path": None},
+            self._angband_finale_order(), angband_finale.lifted(self))
+        memo = self._equipment_search_memo_return(
+            snapshot, candidates, signature, calibration, depth_override)
+        if memo is not _SEARCH_PROCEEDS:
+            return memo
+        self._record_equipment_optimizer_input_key(snapshot, candidates, calibration)
+        visit_census, redecide, held_preparation = self._equipment_visit_redecision(
+            snapshot, candidates, calibration)
+        self._record_equipment_search_telemetry(snapshot, candidates, held_preparation)
+        if held_preparation is not None:
+            preparation = held_preparation
+        else:
+            preparation = self._run_equipment_search(snapshot, candidates, optimizer_inputs)
+        return self._publish_equipment_search(
+            snapshot, candidates, signature, calibration, depth_override, preparation,
+            held_preparation, visit_census, redecide)
+
+    def _equipment_optimization_unavailable(self, snapshot: Snapshot):
+        """The target without a search (``_SEARCH_PROCEEDS`` when the search goes on).
+
+        No class profile or out of town (None), a session still running (its target), a visit
+        whose Home work closed (the closure's failure)."""
         if snapshot.player.class_id not in EQUIPMENT_CLASS_PROFILES or not snapshot.in_town:
             self._equipment_optimization_telemetry[
                 "search_telemetry_freshness"
@@ -1075,36 +1165,42 @@ class EquipmentMixin:
                 cause=str(closure.get("reason", "home-work-unexecutable")),
             )
             return self._closed_visit_failure_preparation()
-        # Missing observations skip optimization. The existing periodic dump
-        # path refreshes equipped constants without owning movement or gear.
-        calibration = self._validated_character_calibration(snapshot)
-        if calibration is None:
-            # Owner Q7 2026-11-22 「先に外してから探索する」: a worn banned piece comes off before the
-            # search that cannot run now (the departure no longer waits on the worn kit for it).
-            takeoff = self._banned_gear_takeoff_preparation(snapshot)
-            if takeoff is not None:
-                return takeoff
-            self._equipment_optimization_telemetry = {
-                "result_source": "calibration-required-return",
-                "search_telemetry_freshness": "current-inputs",
-            }
-            self._equipment_optimization_search_surviving_ids = frozenset()
-            preparation = WarriorOptimizationPreparation(
-                current_loadout(self._equipment_catalog.items),
-                None,
-                None,
-                ("calibration-required",),
-            )
-            equipment_target.set_unsearched_loadout_target(self, preparation)
-            self._offer_execution(
-                None, producer="equipment-opt",
-                work_id="equipment:optimizer:calibration",
-                next_step="calibration.acquire",
-                expected_effect="character-calibration-valid",
-                continuation="equipment.optimize",
-            )
-            return preparation
-        live_current = current_loadout(self._equipment_catalog.items)
+        return _SEARCH_PROCEEDS
+
+    def _calibration_required_preparation(
+        self, snapshot: Snapshot
+    ) -> WarriorOptimizationPreparation:
+        """The unsearched target of a character without a valid calibration (or a take-off)."""
+        # Owner Q7 2026-11-22 「先に外してから探索する」: a worn banned piece comes off before the
+        # search that cannot run now (the departure no longer waits on the worn kit for it).
+        takeoff = self._banned_gear_takeoff_preparation(snapshot)
+        if takeoff is not None:
+            return takeoff
+        self._equipment_optimization_telemetry = {
+            "result_source": "calibration-required-return",
+            "search_telemetry_freshness": "current-inputs",
+        }
+        self._equipment_optimization_search_surviving_ids = frozenset()
+        preparation = WarriorOptimizationPreparation(
+            current_loadout(self._equipment_catalog.items),
+            None,
+            None,
+            ("calibration-required",),
+        )
+        equipment_target.set_unsearched_loadout_target(self, preparation)
+        self._offer_execution(
+            None, producer="equipment-opt",
+            work_id="equipment:optimizer:calibration",
+            next_step="calibration.acquire",
+            expected_effect="character-calibration-valid",
+            continuation="equipment.optimize",
+        )
+        return preparation
+
+    def _retired_worn_loadout_preparation(
+        self, live_current: Loadout
+    ) -> WarriorOptimizationPreparation | None:
+        """The prior target on the worn set a retired session left (None: search as usual)."""
         retired_worn_item_ids = getattr(
             self, "_equipment_retired_worn_item_ids", frozenset()
         )
@@ -1131,6 +1227,103 @@ class EquipmentMixin:
                     preparation, source="retired-worn-loadout",
                 )
                 return preparation
+        return None
+
+    def _collect_equipment_candidates(
+        self, snapshot: Snapshot, depth_override: int | None, calibration,
+        live_current: Loadout,
+    ) -> EquipmentSearchCandidates:
+        """The owned candidates (worn / pack / Home) and the rules applied to them.
+
+        The quarantine's release and readmission (``_quarantine_filtered_catalog``), the 50F+
+        means, the quest's launcher, what the transaction preserves
+        (``_equipment_preserved_ids``) and what the search leaves out
+        (``_equipment_search_excluded_ids``)."""
+        operational_catalog, catalog, curse_pinned, me_powers = (
+            self._quarantine_filtered_catalog(snapshot, depth_override, live_current))
+        cached_blockers = equipment_target.loadout_target_blockers(self)
+        has_destruction, staff_gate = self._optimizer_destruction_means(
+            snapshot, catalog, calibration)
+        quest_strategy = (
+            self._carry_procurement_strategy(snapshot)
+            or self._quest_strategy_for_errand_or_floor(snapshot)
+        )
+        # Owner 2026-11-18: the launcher the device charges leave the quest (quest_ranged_force).
+        quest_force = quest_ranged_force.settled_force(
+            self, snapshot, getattr(quest_strategy, "required_force", {}))
+        required_launcher_ammo = (
+            self._quest_launcher_ammo(snapshot, quest_force)
+            if isinstance(quest_force, dict)
+            else None
+        )
+        required_launcher_available = (
+            not self._quest_uses_selected_launcher(quest_force)
+            and
+            required_launcher_ammo is not None
+            and any(
+                item.item.tval == TVAL_BOW
+                and item.item.ammo_tval == required_launcher_ammo
+                for item in catalog
+            )
+        )
+        optimization_depth = max(1, depth_override) if depth_override is not None else None
+        # The town search knows the destination: its band is the free descent's floor
+        # (destination_band_floor; equipment review E4, owner Q4).
+        destination_floor = (destination_band_floor.floor(self, snapshot)
+                             if optimization_depth is None else None)
+        preserve = self._equipment_preserved_ids(snapshot, catalog)
+        search_excluded = self._equipment_search_excluded_ids(
+            snapshot, catalog, optimization_depth, required_launcher_ammo,
+            required_launcher_available)
+        search_catalog = tuple(
+            replace(item, random_teleport_suppressed=True)
+            if (
+                item.evaluable
+                and not item.item.fully_known
+                and item_requires_full_identification(item.item)
+            )
+            else item
+            for item in catalog
+        )
+        identification_exempt = frozenset(
+            item.id
+            for item in search_catalog
+            if item.identification_incomplete
+            or self._item_signature(item.item)
+            in self._town_unidentifiable_carried_sigs
+        )
+        # The preparation phase (finale_prep): the finale's order of the worn loadout's search,
+        # the read-only search of its check step and the swap's fixed target; the search memo's
+        # signature and the visit's target (equipment_target, ``finale-phase``) read it.
+        finale_key = (
+            (finale_prep.dedicated_order(self), angband_finale.lifted(self),
+             angband_finale.feasibility_due(self, snapshot),
+             tuple(sorted(finale_prep.phase(self).target or ())))
+            if angband_finale.preparing(snapshot) else None)
+        return EquipmentSearchCandidates(
+            operational_catalog=operational_catalog,
+            catalog=catalog,
+            search_catalog=search_catalog,
+            optimization_depth=optimization_depth,
+            curse_pinned=curse_pinned,
+            me_powers=me_powers,
+            cached_blockers=cached_blockers,
+            has_destruction=has_destruction,
+            staff_gate=staff_gate,
+            required_launcher_ammo=required_launcher_ammo,
+            required_launcher_available=required_launcher_available,
+            destination_floor=destination_floor,
+            preserve=preserve,
+            search_excluded=search_excluded,
+            identification_exempt=identification_exempt,
+            finale_key=finale_key,
+        )
+
+    def _quarantine_filtered_catalog(
+        self, snapshot: Snapshot, depth_override: int | None, live_current: Loadout,
+    ) -> tuple[tuple, tuple, frozenset, tuple]:
+        """(the operational catalogue, the search's catalogue, the curse-pinned ids, the
+        Magic-Eater's powers): the visit's quarantine applied, its last sources released."""
         optimization_depth = depth_override
         operational_catalog = self._operational_equipment_catalog(snapshot)
         eligible_catalog = tuple(
@@ -1273,36 +1466,10 @@ class EquipmentMixin:
             # target can be applied; they must never choose a different target.
             catalog = operational_catalog
             self._equipment_quarantine_readmitted_ids = ()
-        cached_blockers = equipment_target.loadout_target_blockers(self)
-        has_destruction, staff_gate = self._optimizer_destruction_means(
-            snapshot, catalog, calibration)
-        quest_strategy = (
-            self._carry_procurement_strategy(snapshot)
-            or self._quest_strategy_for_errand_or_floor(snapshot)
-        )
-        # Owner 2026-11-18: the launcher the device charges leave the quest (quest_ranged_force).
-        quest_force = quest_ranged_force.settled_force(
-            self, snapshot, getattr(quest_strategy, "required_force", {}))
-        required_launcher_ammo = (
-            self._quest_launcher_ammo(snapshot, quest_force)
-            if isinstance(quest_force, dict)
-            else None
-        )
-        required_launcher_available = (
-            not self._quest_uses_selected_launcher(quest_force)
-            and
-            required_launcher_ammo is not None
-            and any(
-                item.item.tval == TVAL_BOW
-                and item.item.ammo_tval == required_launcher_ammo
-                for item in catalog
-            )
-        )
-        optimization_depth = max(1, depth_override) if depth_override is not None else None
-        # The town search knows the destination: its band is the free descent's floor
-        # (destination_band_floor; equipment review E4, owner Q4).
-        destination_floor = (destination_band_floor.floor(self, snapshot)
-                             if optimization_depth is None else None)
+        return operational_catalog, catalog, curse_pinned, me_powers
+
+    def _equipment_preserved_ids(self, snapshot: Snapshot, catalog: tuple) -> frozenset:
+        """The ids the transaction keeps where they are (worn by a restoration, pack holds)."""
         # Keep pack weapons that the ordinary town policy has already classified
         # as sale loot out of the optimizer's Home staging deposits.  Otherwise
         # the optimizer stores them, Home processing immediately withdraws them
@@ -1349,6 +1516,13 @@ class EquipmentMixin:
                 )
             )
         )
+        return preserve
+
+    def _equipment_search_excluded_ids(
+        self, snapshot: Snapshot, catalog: tuple, optimization_depth: int | None,
+        required_launcher_ammo, required_launcher_available: bool,
+    ) -> frozenset:
+        """The ids the search leaves out (quest reservations at a fixed depth, the finale's swap)."""
         # Quest replenishment is a pack-supply count target, not equipment
         # search input. Lit throwing torches happen to have an equipment tval;
         # exclude their reserved physical stacks from loadout candidacy while
@@ -1376,45 +1550,29 @@ class EquipmentMixin:
         # The preparation phase's swap: every owned piece but its fixed target's is out of the
         # search, so the transaction composes the keys toward that set only (finale_prep).
         search_excluded |= finale_prep.excluded_ids(self, catalog)
-        search_catalog = tuple(
-            replace(item, random_teleport_suppressed=True)
-            if (
-                item.evaluable
-                and not item.item.fully_known
-                and item_requires_full_identification(item.item)
-            )
-            else item
-            for item in catalog
-        )
-        identification_exempt = frozenset(
-            item.id
-            for item in search_catalog
-            if item.identification_incomplete
-            or self._item_signature(item.item)
-            in self._town_unidentifiable_carried_sigs
-        )
-        # The preparation phase (finale_prep): the finale's order of the worn loadout's search,
-        # the read-only search of its check step and the swap's fixed target; the search memo's
-        # signature and the visit's target (equipment_target, ``finale-phase``) read it.
-        finale_key = (
-            (finale_prep.dedicated_order(self), angband_finale.lifted(self),
-             angband_finale.feasibility_due(self, snapshot),
-             tuple(sorted(finale_prep.phase(self).target or ())))
-            if angband_finale.preparing(snapshot) else None)
-        # The selector memo is the owned equipment multiset plus knowledge
-        # completeness. Origin and worn slot are transport state, so strip them
-        # from the normal projection; gold, pack occupancy, recall progress and
-        # town intent never enter this key.
+        return search_excluded
+
+    def _equipment_search_signature(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates
+    ) -> tuple:
+        """The search memo's key (equipment_target ``loadout_search_signature``).
+
+        The selector memo is the owned equipment multiset plus knowledge completeness. Origin
+        and worn slot are transport state, so they are stripped from the normal projection;
+        gold, pack occupancy, recall progress and town intent never enter this key."""
+        curse_pinned, me_powers = candidates.curse_pinned, candidates.me_powers
+        staff_gate, finale_key = candidates.staff_gate, candidates.finale_key
+        destination_floor = candidates.destination_floor
         signature = (
             tuple(sorted(
                 (
                     (projection[0], *projection[3:])
-                    for item in search_catalog
+                    for item in candidates.search_catalog
                     for projection in (optimizer_item_projection(item),)
                 ),
                 key=lambda projection: projection[0],
             )),
-            tuple(sorted(identification_exempt)),
+            tuple(sorted(candidates.identification_exempt)),
             self._equipment_catalog.home_scan_complete,
             # Worn state is an optimizer input even though moving an item
             # between equipment and pack does not change the owned multiset.
@@ -1438,7 +1596,8 @@ class EquipmentMixin:
             # '.' was inscribed (n1-b life-356 2026-11-09 04:41,
             # town:blocked:unmet:equipment_departure_ready).
             ("random-teleport-suppressed", tuple(sorted(
-                item.id for item in catalog if item.random_teleport_suppressed))),) + (
+                item.id for item in candidates.catalog
+                if item.random_teleport_suppressed))),) + (
             # The preparation phase (finale_prep): the finale's order of the worn loadout's
             # search, the read-only search of its check step and the swap's fixed target are
             # inputs too: a hit kept the ordinary result across the switch.
@@ -1455,32 +1614,71 @@ class EquipmentMixin:
         # visit's target itself is not decided again: equipment_target, no named event).
         if mining_loadout.hands_lent(self, snapshot):
             signature += (("hands-lent", True),)
-        # The search's inputs, read by the fresh search below and by the read-only shelf
-        # evaluation (``_shelf_candidate_worn``, equipment review E4b) of this decision.
-        optimizer_inputs = dict(
-            depth=optimization_depth,
+        return signature
+
+    def _equipment_optimizer_inputs(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates, calibration
+    ) -> dict:
+        """The keyword inputs of ``prepare_warrior_optimization`` (the search and the shelf's)."""
+        return dict(
+            depth=candidates.optimization_depth,
             home_scan_complete=self._equipment_catalog.home_scan_complete,
             # The 50F+ gate (_optimizer_destruction_means): the absorbed power,
             # or an owned staff in a loadout whose device skill makes it reliable.
             # A hard-coded False here rejected EVERY 50F+ loadout and blocked
             # departure even when the character already carried the means.
-            has_destruction=has_destruction,
-            staff_gate=staff_gate,
-            preserve_pack_item_ids=preserve,
-            search_excluded_item_ids=search_excluded,
-            identification_exempt_item_ids=identification_exempt,
+            has_destruction=candidates.has_destruction,
+            staff_gate=candidates.staff_gate,
+            preserve_pack_item_ids=candidates.preserve,
+            search_excluded_item_ids=candidates.search_excluded,
+            identification_exempt_item_ids=candidates.identification_exempt,
             loadout_report_path=self._loadout_report_path,
             evaluator_cache=self._warrior_evaluator_cache,
             calibration=calibration,
             obtainable_ammunition=self._obtainable_launcher_ammunition(snapshot),
-            curse_pinned_item_ids=curse_pinned,
-            magic_eater_powers=me_powers,
-            destination_floor=destination_floor,
+            curse_pinned_item_ids=candidates.curse_pinned,
+            magic_eater_powers=candidates.me_powers,
+            destination_floor=candidates.destination_floor,
         )
-        self._equipment_shelf_search = (
-            self._decision_sequence, snapshot, signature, search_catalog,
-            {**optimizer_inputs, "loadout_report_path": None},
-            self._angband_finale_order(), angband_finale.lifted(self))
+
+    def _record_equipment_optimizer_input_key(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates, calibration
+    ) -> None:
+        """``_equipment_optimizer_input_key`` of this decision's search inputs."""
+        if self._equipment_optimizer_knowledge_key is None:
+            self._equipment_optimizer_knowledge_key = warrior_optimizer_knowledge_key(
+                self._monrace_knowledge
+            )
+        self._equipment_optimizer_input_key = warrior_optimizer_input_key(
+            snapshot,
+            candidates.search_catalog,
+            self._monrace_knowledge,
+            depth=candidates.optimization_depth,
+            home_scan_complete=self._equipment_catalog.home_scan_complete,
+            has_destruction=candidates.has_destruction,
+            preserve_pack_item_ids=candidates.preserve,
+            search_excluded_item_ids=candidates.search_excluded,
+            identification_exempt_item_ids=candidates.identification_exempt,
+            calibration=calibration,
+            knowledge_key=self._equipment_optimizer_knowledge_key,
+            curse_pinned_item_ids=candidates.curse_pinned,
+            magic_eater_powers=candidates.me_powers,
+            staff_gate=candidates.staff_gate,
+            finale=self._angband_finale_order(),
+            cap_lifted=angband_finale.lifted(self),
+            destination_floor=candidates.destination_floor,
+        )
+
+    def _equipment_search_memo_return(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates, signature: tuple,
+        calibration, depth_override: int | None,
+    ):
+        """The stored target without a search (``_SEARCH_PROCEEDS`` when the search goes on).
+
+        A memo hit (re-planned when the pack's size moved), the visit's search timeout, a pure
+        observer's deferred search."""
+        has_destruction, staff_gate = candidates.has_destruction, candidates.staff_gate
+        catalog, curse_pinned = candidates.catalog, candidates.curse_pinned
         if (
             signature == equipment_target.loadout_search_signature(self)
             and self._equipment_optimization_pack_items == len(snapshot.inventory)
@@ -1521,6 +1719,7 @@ class EquipmentMixin:
                 source="signature-cache-hit",
             )
             return equipment_target.loadout_target(self)
+        cached_blockers = candidates.cached_blockers
         if (
             depth_override is None
             and self._equipment_optimization_timed_out_this_visit
@@ -1566,7 +1765,7 @@ class EquipmentMixin:
                     ),
                     current_pack_items=len(snapshot.inventory),
                     home_scan_complete=self._equipment_catalog.home_scan_complete,
-                    preserve_pack_item_ids=preserve,
+                    preserve_pack_item_ids=candidates.preserve,
                     home_deposit_available=not self._home_is_full(snapshot),
                     retain_item_identities=self._transaction_retain_identities(
                         snapshot,
@@ -1589,29 +1788,7 @@ class EquipmentMixin:
                     else self._equipment_transaction_session_for_preparation(preparation)
                 )
             self._equipment_optimization_pack_items = len(snapshot.inventory)
-            if self._equipment_optimizer_knowledge_key is None:
-                self._equipment_optimizer_knowledge_key = (
-                    warrior_optimizer_knowledge_key(self._monrace_knowledge)
-                )
-            self._equipment_optimizer_input_key = warrior_optimizer_input_key(
-                snapshot,
-                search_catalog,
-                self._monrace_knowledge,
-                depth=optimization_depth,
-                home_scan_complete=self._equipment_catalog.home_scan_complete,
-                has_destruction=has_destruction,
-                preserve_pack_item_ids=preserve,
-                search_excluded_item_ids=search_excluded,
-                identification_exempt_item_ids=identification_exempt,
-                calibration=calibration,
-                knowledge_key=self._equipment_optimizer_knowledge_key,
-                curse_pinned_item_ids=curse_pinned,
-                magic_eater_powers=me_powers,
-                staff_gate=staff_gate,
-                finale=self._angband_finale_order(),
-                cap_lifted=angband_finale.lifted(self),
-                destination_floor=destination_floor,
-            )
+            self._record_equipment_optimizer_input_key(snapshot, candidates, calibration)
             self._offer_optimizer_result(
                 equipment_target.loadout_target(self),
                 source="signature-cache-replanned",
@@ -1631,36 +1808,24 @@ class EquipmentMixin:
                 source="observer-search-deferred",
             )
             return equipment_target.loadout_target(self)
-        if self._equipment_optimizer_knowledge_key is None:
-            self._equipment_optimizer_knowledge_key = warrior_optimizer_knowledge_key(
-                self._monrace_knowledge
-            )
-        self._equipment_optimizer_input_key = warrior_optimizer_input_key(
-            snapshot,
-            search_catalog,
-            self._monrace_knowledge,
-            depth=optimization_depth,
-            home_scan_complete=self._equipment_catalog.home_scan_complete,
-            has_destruction=has_destruction,
-            preserve_pack_item_ids=preserve,
-            search_excluded_item_ids=search_excluded,
-            identification_exempt_item_ids=identification_exempt,
-            calibration=calibration,
-            knowledge_key=self._equipment_optimizer_knowledge_key,
-            curse_pinned_item_ids=curse_pinned,
-            magic_eater_powers=me_powers,
-            staff_gate=staff_gate,
-            finale=self._angband_finale_order(),
-            cap_lifted=angband_finale.lifted(self),
-            destination_floor=destination_floor,
-        )
-        # Equipment review E3 (owner Q1 2026-11-22 「基本的にはそれで良い。99F100Fもそれでバグらず
-        # 行けるか確認」): the visit decides its target once; a changed signature searches again
-        # only on a named event (equipment_target.REDECIDE_EVENTS), else the visit's target is
-        # read again on this board's ids and its transaction planned below as a search's is.
+        return _SEARCH_PROCEEDS
+
+    def _equipment_visit_redecision(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates, calibration
+    ) -> tuple[tuple, tuple, WarriorOptimizationPreparation | None]:
+        """(the visit's census, the re-decide events, the held preparation or None).
+
+        Equipment review E3 (owner Q1 2026-11-22 「基本的にはそれで良い。99F100Fもそれでバグらず
+        行けるか確認」): the visit decides its target once; a changed signature searches again
+        only on a named event (equipment_target.REDECIDE_EVENTS), else the visit's target is
+        read again on this board's ids and its transaction planned as a search's is.  The
+        census is (candidates, pieces, context) for ``fix_visit_target``."""
+        search_catalog = candidates.search_catalog
         visit_candidates, visit_pieces = self._visit_candidate_census(search_catalog)
-        visit_context = (finale_key, destination_floor, equipment_rules.RULES_VERSION,
-                         equipment_target.destruction_means_key(has_destruction, staff_gate))
+        visit_context = (candidates.finale_key, candidates.destination_floor,
+                         equipment_rules.RULES_VERSION,
+                         equipment_target.destruction_means_key(
+                             candidates.has_destruction, candidates.staff_gate))
         held_target = equipment_target.visit_target(self, self._town_visit_epoch)
         redecide = (
             (equipment_target.VISIT_START,) if held_target is None
@@ -1679,11 +1844,20 @@ class EquipmentMixin:
                     current_loadout(search_catalog), None, None, refused)
             else:
                 held_result, redecide = equipment_target.mapped_visit_target(
-                    held_target, search_catalog, curse_pinned)
+                    held_target, search_catalog, candidates.curse_pinned)
                 if held_result is not None:
                     held_preparation = WarriorOptimizationPreparation(
                         current_loadout(search_catalog), held_result,
                         EquipmentTransactionPlan((), (), 0), ())
+        return (visit_candidates, visit_pieces, visit_context), redecide, held_preparation
+
+    def _record_equipment_search_telemetry(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates,
+        held_preparation: WarriorOptimizationPreparation | None,
+    ) -> None:
+        """The search's telemetry (why each item was preserved or left out) and survivors."""
+        catalog, search_catalog = candidates.catalog, candidates.search_catalog
+        preserve, search_excluded = candidates.preserve, candidates.search_excluded
         preserve_reasons: dict[str, list[str]] = {}
         search_excluded_reasons: dict[str, list[str]] = {}
         for owned in catalog:
@@ -1716,9 +1890,9 @@ class EquipmentMixin:
                 ):
                     reasons.append("torch-retention-reservation")
                 if (
-                    required_launcher_available
+                    candidates.required_launcher_available
                     and owned.item.tval == TVAL_BOW
-                    and owned.item.ammo_tval != required_launcher_ammo
+                    and owned.item.ammo_tval != candidates.required_launcher_ammo
                 ):
                     reasons.append("launcher-ammo-mismatch")
                 search_excluded_reasons[owned.id] = reasons
@@ -1745,33 +1919,44 @@ class EquipmentMixin:
             for item in search_catalog
             if item.exploration_legal and item.id not in search_excluded
         )
-        if held_preparation is not None:
-            preparation = held_preparation
-        else:
-            # Score safe partial-ID candidates as they will exist after `{.}` is
-            # applied. If one wins, the pending blocker below prevents transaction
-            # creation until the town suppression step has changed the real item
-            # (``optimizer_inputs``: built above, before the search memo's check).
-            # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's loadout order only on
-            # the visit that switches to 99F/100F (angband_finale ``switching``).
-            preparation = prepare_warrior_optimization(
-                snapshot, search_catalog, self._monrace_knowledge, **optimizer_inputs,
-                finale=self._angband_finale_order(),
-                cap_lifted=angband_finale.lifted(self),
-            )
-            # Before that visit, whether the owned gear CAN meet the finale's conditions: the same
-            # search in the finale's order, its result only read (no report, no transaction).
-            self._angband_finale_feasibility = (
-                prepare_warrior_optimization(
-                    snapshot, search_catalog, self._monrace_knowledge,
-                    **{**optimizer_inputs, "loadout_report_path": None},
-                    finale=True, cap_lifted=True)
-                if angband_finale.feasibility_due(self, snapshot) else None
-            )
-            # The phase's loadout step: this search (in the finale's rank) chooses its fixed target.
-            finale_prep.fix_target(self, snapshot, preparation)
-        result = getattr(preparation, "result", None)
+
+    def _run_equipment_search(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates, optimizer_inputs: dict
+    ) -> WarriorOptimizationPreparation:
+        """A fresh search (and the finale's read-only feasibility search, its phase's target)."""
+        search_catalog = candidates.search_catalog
+        # Score safe partial-ID candidates as they will exist after `{.}` is
+        # applied. If one wins, the pending blocker below prevents transaction
+        # creation until the town suppression step has changed the real item
+        # (``optimizer_inputs``: built above, before the search memo's check).
+        # Owner 2026-11-20 「上限を外す時に初めて着け替える」: the finale's loadout order only on
+        # the visit that switches to 99F/100F (angband_finale ``switching``).
+        preparation = prepare_warrior_optimization(
+            snapshot, search_catalog, self._monrace_knowledge, **optimizer_inputs,
+            finale=self._angband_finale_order(),
+            cap_lifted=angband_finale.lifted(self),
+        )
+        # Before that visit, whether the owned gear CAN meet the finale's conditions: the same
+        # search in the finale's order, its result only read (no report, no transaction).
+        self._angband_finale_feasibility = (
+            prepare_warrior_optimization(
+                snapshot, search_catalog, self._monrace_knowledge,
+                **{**optimizer_inputs, "loadout_report_path": None},
+                finale=True, cap_lifted=True)
+            if angband_finale.feasibility_due(self, snapshot) else None
+        )
+        # The phase's loadout step: this search (in the finale's rank) chooses its fixed target.
+        finale_prep.fix_target(self, snapshot, preparation)
+        return preparation
+
+    def _note_equipment_search_result(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates, calibration,
+        result,
+    ) -> None:
+        """The result's telemetry (the search strategy, the band descent) and its depth."""
+        chosen_depth = None
         if result is not None:
+            search_catalog = candidates.search_catalog
             # Observation-only mirror of warrior_optimization's search-factory
             # selection.  A coupling test patches the real factories and pins
             # these names to the factory that was actually called.
@@ -1827,16 +2012,21 @@ class EquipmentMixin:
                     snapshot,
                     best.loadout,
                     calibration,
-                    has_destruction=has_destruction,
+                    has_destruction=candidates.has_destruction,
                     player_speed=loadout_speed(best.metrics),
-                    staff_gate=staff_gate,
+                    staff_gate=candidates.staff_gate,
                 )
             )
-        loadout = getattr(best, "loadout", None)
-        selected_ids = getattr(loadout, "item_ids", frozenset())
-        if not isinstance(selected_ids, (set, frozenset)):
-            selected_ids = frozenset()
-        selected_ids = frozenset(selected_ids)
+
+    def _apply_selection_blockers(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates,
+        preparation: WarriorOptimizationPreparation, loadout, selected_ids: frozenset,
+    ) -> WarriorOptimizationPreparation:
+        """The selected target's transaction and what blocks it on this visit.
+
+        A pending random-teleport suppression of a selected piece, a selected piece of a failed
+        transaction, a Home deposit this visit already found unavailable."""
+        catalog = candidates.catalog
         if (
             isinstance(loadout, Loadout)
             and isinstance(preparation.current, Loadout)
@@ -1850,12 +2040,12 @@ class EquipmentMixin:
                 ),
                 current_pack_items=len(snapshot.inventory),
                 home_scan_complete=self._equipment_catalog.home_scan_complete,
-                preserve_pack_item_ids=preserve,
+                preserve_pack_item_ids=candidates.preserve,
                 home_deposit_available=not self._home_is_full(snapshot),
                 retain_item_identities=self._transaction_retain_identities(
                     snapshot, preparation.current, loadout
                 ),
-                curse_pinned_item_ids=curse_pinned,
+                curse_pinned_item_ids=candidates.curse_pinned,
             )
             preparation = replace(
                 preparation, transaction=transaction, blockers=transaction.blockers
@@ -1914,6 +2104,30 @@ class EquipmentMixin:
                 transaction=None,
                 blockers=("equipment-transaction-failed",),
             )
+        return preparation
+
+    def _publish_equipment_search(
+        self, snapshot: Snapshot, candidates: EquipmentSearchCandidates, signature: tuple,
+        calibration, depth_override: int | None,
+        preparation: WarriorOptimizationPreparation,
+        held_preparation: WarriorOptimizationPreparation | None,
+        visit_census: tuple, redecide: tuple,
+    ) -> WarriorOptimizationPreparation:
+        """The searched (or held) target published: its writers, the visit's target, the journal.
+
+        ``record_loadout_search`` stores the target and the memo's signature; a fresh search
+        that chose a loadout is the visit's target (``fix_visit_target``, equipment review E3)
+        until a named event; the visit's journal (E0) records why the search ran."""
+        result = getattr(preparation, "result", None)
+        self._note_equipment_search_result(snapshot, candidates, calibration, result)
+        best = getattr(result, "best", None)
+        loadout = getattr(best, "loadout", None)
+        selected_ids = getattr(loadout, "item_ids", frozenset())
+        if not isinstance(selected_ids, (set, frozenset)):
+            selected_ids = frozenset()
+        selected_ids = frozenset(selected_ids)
+        preparation = self._apply_selection_blockers(
+            snapshot, candidates, preparation, loadout, selected_ids)
         previous_signature = equipment_target.loadout_search_signature(self)
         self._equipment_optimization_pack_items = len(snapshot.inventory)
         equipment_target.record_loadout_search(self, signature, preparation)
@@ -1940,6 +2154,7 @@ class EquipmentMixin:
             and "optimization-timeout" not in (preparation_blockers or ())
         ):
             # This search is the visit's target until a named event (equipment_target).
+            visit_candidates, visit_pieces, visit_context = visit_census
             equipment_target.fix_visit_target(
                 self, self._town_visit_epoch, visit_candidates, visit_context, result,
                 visit_pieces)

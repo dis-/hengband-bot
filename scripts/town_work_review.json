@@ -23522,17 +23522,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "policy_equipment.py:EquipmentMixin._operational_equipment_catalog": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _operational_equipment_catalog returns the owned pieces (tuple of OwnedEquipment) the town search may wear (operational_equipment_candidate, the unidentified lantern seen out without oil left out), read by _prepare_equipment_optimization and _unstarted_session_yields; no key, no send seam, no store or town action (n1-c life-220 2026-11-22).",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "deep_fall_guard.py:_detection_key": {
     "classification": "data",
     "rows": [
@@ -23911,5 +23900,159 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The assault on the EVIL side of QUEST_33 once the sides are mixed and summoning at each other (quest_mixed_assault, owner 2026-11-23): the haste, a blow, a shot or a step; no independent progress."
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_optimization_unavailable": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the target without a search (no class profile or out of town, a running session, a closed visit) or the _SEARCH_PROCEEDS sentinel, read by _prepare_equipment_optimization; the offers it makes are the parent's no-step observations (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._calibration_required_preparation": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the unsearched calibration-required WarriorOptimizationPreparation (or the banned piece's take-off), stored through equipment_target.set_unsearched_loadout_target; returned by _prepare_equipment_optimization (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._retired_worn_loadout_preparation": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the prior target re-read on the worn set a retired session left (WarriorOptimizationPreparation | None), returned by _prepare_equipment_optimization (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._collect_equipment_candidates": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: EquipmentSearchCandidates: the owned catalogue (worn / pack / Home) with the quarantine, preservation and search exclusions applied, read by _prepare_equipment_optimization's signature, inputs and publication (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_preserved_ids": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the frozenset of catalogue ids the equipment transaction keeps in place, read by _collect_equipment_candidates (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_search_excluded_ids": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the frozenset of catalogue ids the loadout search leaves out, read by _collect_equipment_candidates (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_search_signature": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the search memo's key (tuple; equipment_rules.RULES_VERSION), read by _prepare_equipment_optimization and stored by equipment_target.record_loadout_search (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_search_memo_return": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the stored target on a memo hit, the visit's timeout or an observer's deferred search (or _SEARCH_PROCEEDS), returned by _prepare_equipment_optimization (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._run_equipment_search": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: a fresh prepare_warrior_optimization result (WarriorOptimizationPreparation) and the finale's read-only feasibility search, read by _prepare_equipment_optimization (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._apply_selection_blockers": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: the selected target's planned transaction and this visit's blockers (WarriorOptimizationPreparation), read by _publish_equipment_search (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._publish_equipment_search": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: stores the searched or held target (equipment_target.record_loadout_search, fix_visit_target), its session and the visit journal; returns the WarriorOptimizationPreparation of _prepare_equipment_optimization (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_target.py:loadout_target_blockers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: loadout_target_blockers returns the stored target's blockers, read by _collect_equipment_candidates for the visit's timeout check; no key, no send seam, no store or town action (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:phase": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: phase returns the 99F/100F preparation phase's state (its fixed target), read by _collect_equipment_candidates for the search memo's finale key; no key, no send seam, no store or town action (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._quest_launcher_ammo": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. Consumers/delegations and return expressions are listed in the generated manifest. pure helper: _quest_launcher_ammo returns the quest's required launcher ammunition tval (or None), read by _collect_equipment_candidates to leave other launchers out of a fixed-depth search; no key, no send seam, no store or town action (maintainability review 11-23 (a)-10 split _prepare_equipment_optimization into stages; behavior unchanged (equipment replay set: keys and reasons identical)).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }
