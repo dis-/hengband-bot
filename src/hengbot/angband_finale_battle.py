@@ -183,6 +183,9 @@ class Battle:
     # (set by a teleport and by reaching the last-seen cell; ``_detect_key``).  A class default:
     # restored checkpoints predate it.
     detect_due: bool = False
+    # (game turn, last-seen cell, why) of the last last-seen cell given up because no step of
+    # ``_line_key`` was left (``_approach_key``); the decision record reports it.  A class default.
+    dropped: tuple | None = None
 
 
 def battle(policy, snapshot) -> Battle:
@@ -748,8 +751,8 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
     *Destruction* forgot it: n1-b life-416 Angband 99F 2026-11-23 18:3x, Oberon last seen at
     (11,106) and the teleport's landing (6,46) on the far side of forgotten ground), else opened
     toward (the openers: the digger's route, else Stone to Mud, retreat_enclosure
-    ``open_toward_key``); with neither it is given up (the target is then ``lost`` and the floor
-    searched)."""
+    ``open_toward_key``), else along the line by walking and Stone to Mud (``_line_key``); only
+    with none of these is it given up (the target is then ``lost`` and the floor searched)."""
     if held.last_seen is None:
         return None
     goal = Position(*held.last_seen)
@@ -773,7 +776,70 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
         policy, snapshot, quest_target_search.walkable_cells(policy, snapshot), {goal})
     if opened is not None:
         return opened
+    # The openers' routes run over known grids only; a last-seen cell in forgotten ground is
+    # reached along the line instead (``_line_key``; owner 2026-11-21 「岩石溶解の消費量は問題では
+    # ない」).  n1-b life-416 (Angband 99F, 2026-11-23 21:08, seq 204): at (3,62), Oberon last seen
+    # at (11,120) beyond ground the *Destruction*s had forgotten, the cell was dropped and the floor
+    # searched from x 16-63 until it was regenerated without him.
+    line = _line_key(policy, snapshot, goal)
+    if line is not None:
+        return line
+    # Only with no way at all (no melt in hand, blind or confused, every nearer neighbour a
+    # permanent or worn-out wall) is the cell given up; the case is kept for the decision record.
+    held.dropped = (snapshot.turn, held.last_seen, _line_refusal(policy, snapshot))
     held.last_seen = None
+    return None
+
+
+def _line_refusal(policy, snapshot) -> str:
+    """Why ``_line_key`` found no step (the decision record's ``dropped``)."""
+    from hengbot import sealed_pocket  # import cycle
+    player = snapshot.player
+    if player.blind or player.confused:
+        return "blind-or-confused"
+    if not sealed_pocket.can_melt(policy, snapshot):
+        return "no-melt"
+    return "no-nearer-cell"
+
+
+def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None) -> str | None:
+    """One step along the line toward ``goal`` where no walk reaches it: the walkable neighbour
+    nearest to it, else Stone to Mud aimed at the nearest known wall (a beam melts the adjacent
+    wall), each strictly nearer to ``goal`` than the player and no nearer than ``keep`` (the
+    target's teleport distance stays outside it).  With ``target``, a melt that would open the line
+    of fire on it where it stands is not made (``_opens_line``, owner 2026-11-21 LOCKED
+    「溶かした時に先手を取られて何も出来ず離脱している場面が問題」).  Every step is nearer, so the
+    approach never turns back on itself; None when no neighbour qualifies."""
+    from hengbot import retreat_enclosure, sealed_pocket  # import cycle
+    here = snapshot.player.position
+    distance = game_distance(here, goal)
+    if distance <= keep:
+        return None
+    walkable = set(policy._walkable_neighbors(snapshot, here, allow_damaging=False))
+    options = []
+    for dy, dx in DIRECTIONS:
+        cell = Position(here.y + dy, here.x + dx)
+        nearer = game_distance(cell, goal)
+        if nearer >= distance or nearer < keep:
+            continue
+        # Equal game distances (its halved minor axis) are told apart by the straight line.
+        line = (goal.y - cell.y) ** 2 + (goal.x - cell.x) ** 2
+        if cell in walkable:
+            options.append((nearer, line, 0, cell.y, cell.x))
+            continue
+        grid = snapshot.grids.get(cell)
+        if grid is not None and grid.known and retreat_enclosure.meltable(policy, snapshot, grid):
+            options.append((nearer, line, 1, cell.y, cell.x))
+    for _nearer, _line, melt, y, x in sorted(options):
+        cell = Position(y, x)
+        if not melt:
+            policy.last_reason = APPROACH_REASON
+            return policy._step_toward(snapshot, cell)
+        if target is not None and _opens_line(policy, snapshot, here, cell, target.position):
+            continue
+        key = sealed_pocket.melt_at_key(policy, snapshot, cell, MELT_REASON)
+        if key is not None:
+            return key
     return None
 
 
