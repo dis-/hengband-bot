@@ -17,6 +17,9 @@
   "equipment_route_handoff.py:equipment_route_key": {
     "policy._equipment_transaction_town_key(snapshot) @ If:body:session is not None and (not session.complete) and (session.required_context != 'home' or withdraws_first(session))": 1
   },
+  "finale_bm_tour.py:_market_key": {
+    "policy._shopping_approach_key(snapshot, step, APPROACH_REASON) @ ": 1
+  },
   "home_identification.py:rearmed_home_route_key": {
     "policy._shopping_approach_key(board, step, 'shop:travel') @ ": 1
   },

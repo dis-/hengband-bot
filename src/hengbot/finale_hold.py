@@ -30,10 +30,14 @@ character preparing the finale (``applies``), the town's departure is this modul
   store/articles-on-sale.cpp): the other towns' circuit and its night at the inn
   (finale_teleport_tour, owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す」
   「一周する毎に宿屋で一泊する」);
-* anything else short (a supply only the dungeon or the Black Market gives: n1-b's 21:13 board
-  owned 79 of the 84 Restore Mana), the circuit ended, or the phase stopped (an equipment
-  condition the owned gear does not meet stops it at its check step): a named stop
-  (``town:blocked:...``) for the owner, no destination picked.
+* the Restore Mana the only other row short (n1-b's 21:13 board owned 79 of the 84 and every
+  other supply): once the Teleportation is owned, the four towns' Black Markets lap after lap
+  with a night at the inn between laps until the carry is owned (finale_bm_tour, owner
+  2026-11-23 「4つの町の闇市を巡回して買い足し、目標に届くまで99Fへは行かない。闇市に無ければ
+  巡回をくり返す。」);
+* anything else short (a supply only the dungeon gives), a circuit ended (its funds), or the
+  phase stopped (an equipment condition the owned gear does not meet stops it at its check
+  step): a named stop (``town:blocked:...``) for the owner, no destination picked.
 """
 from __future__ import annotations
 
@@ -43,6 +47,8 @@ from hengbot.policy_constants import WAIT_KEY
 RETURN_TRIGGER = "angband-finale:relay"
 # The supply rows the town's shops can fill (angband_finale ``SUPPLY_NAMES``).
 TOWN_SUPPLIES = frozenset({"teleport"})
+# The row the Black Markets' circuit fills (finale_bm_tour, owner 2026-11-23).
+BLACK_MARKET_SUPPLIES = frozenset({"restore_mana"})
 WAIT_REASON = "town:finale-hold:phase"
 STOPPED = "finale-prep-stopped"
 NOT_IN_TOWN = "finale-not-in-town"
@@ -115,7 +121,7 @@ def short_rows(policy) -> list:
 
 def town_key(policy, snapshot) -> str | None:
     """The town's departure while ``applies``: the preparation, the circuit, or a named stop."""
-    from hengbot import angband_finale, finale_prep, finale_teleport_tour  # import cycle
+    from hengbot import angband_finale, finale_bm_tour, finale_prep, finale_teleport_tour  # import cycle
     held = finale_prep.phase(policy)
     if held.step == finale_prep.STOPPED:
         return _stop(policy, snapshot, f"{STOPPED}:{held.stopped}")
@@ -125,8 +131,15 @@ def town_key(policy, snapshot) -> str | None:
         return _wait(policy, WAIT_REASON, f"finale-hold:{held.step}")
     short = short_rows(policy)
     outside = [name for name in short if name not in TOWN_SUPPLIES]
-    if outside:
+    if any(name not in BLACK_MARKET_SUPPLIES for name in outside):
         return _stop(policy, snapshot, f"{NOT_IN_TOWN}:{','.join(outside)}")
+    if short and all(name in BLACK_MARKET_SUPPLIES for name in short):
+        # Owner 2026-11-23 「闇市を回って買い足す」: the Teleportation owned, the Black Markets.
+        circuit = finale_bm_tour.town_key(policy, snapshot)
+        if circuit is not None:
+            return circuit
+        return _stop(policy, snapshot,
+                     f"{NOT_IN_TOWN}:{','.join(short)}:{finale_bm_tour.why(policy)}")
     if not short:
         # Everything owned and the phase idle: it did not enter (a census unknown, a swap or a
         # recall under way) though the town has nothing left to do.

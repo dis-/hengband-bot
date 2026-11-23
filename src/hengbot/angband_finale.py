@@ -315,8 +315,9 @@ def observe(policy, snapshot) -> None:
         return
     held.in_town = False
     held.teleport_tour_done = False
-    from hengbot import finale_teleport_tour  # import cycle
+    from hengbot import finale_bm_tour, finale_teleport_tour  # import cycle
     finale_teleport_tour.forget_trip(policy)
+    finale_bm_tour.forget_trip(policy)
     finale_prep.observe(policy, snapshot, None)
     now = carried(snapshot, RESTORE_MANA)
     if (held.restore_mana_seen is not None and now < held.restore_mana_seen

@@ -1741,7 +1741,11 @@ class ShopMixin(InStoreMixin):
     def cross_town_shopping_state(self) -> dict[str, object]:
         state = self._cross_town_shopping_state()
         tour = bm_tour.facts(self)
-        return state if tour is None else {**state, "bm_tour": tour}
+        if tour is not None:
+            state = {**state, "bm_tour": tour}
+        from hengbot import finale_bm_tour  # import cycle
+        circuit = finale_bm_tour.facts(self)
+        return state if circuit is None else {**state, "finale_bm_tour": circuit}
 
     def _cross_town_shopping_state(self) -> dict[str, object]:
         expedition = self._cross_town_shopping

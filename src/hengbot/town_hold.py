@@ -1123,6 +1123,9 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         # Owner 2026-11-20 「一周する毎に宿屋で一泊する」 (finale_teleport_tour.night_key).
         ("depart:inn-refill:finale-teleport:approach", R, ENTRANCE),
         ("depart:inn-refill:finale-teleport:rest", T, EFFECT),
+        # Owner 2026-11-23 「闇市に無ければ巡回をくり返す」 (finale_bm_tour, a lap's night).
+        ("depart:inn-refill:finale-bm:approach", R, ENTRANCE),
+        ("depart:inn-refill:finale-bm:rest", T, EFFECT),
         ("town:cancel-", T, EFFECT),
         ("town:unsafe-recall-fallback", T, EFFECT),
         # The finale's preparation while Angband's 96F+ recall is refused (finale_hold.town_key).

@@ -257,6 +257,10 @@ _rows(NOT_ESCAPE, ("finale_teleport_tour", "me_inn_refill"),
       "the inn's night between two loops of the 99F/100F Teleportation circuit, a town walk and a "
       "stay (owner 2026-11-20 「一周する毎に宿屋で一泊する」); \"teleport\" names the scrolls bought",
       "depart:inn-refill:finale-teleport:approach", "depart:inn-refill:finale-teleport:rest")
+_rows(NOT_ESCAPE, ("finale_bm_tour", "me_inn_refill"),
+      "the inn's night between two laps of the 99F/100F Restore Mana circuit of the Black Markets, "
+      "a town walk and a stay (owner 2026-11-23 「闇市に無ければ巡回をくり返す」)",
+      "depart:inn-refill:finale-bm:approach", "depart:inn-refill:finale-bm:rest")
 _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's chase of a summoner: a step toward it",
       "quest-strategy:summoned-approach")
 # Owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」: the step toward the EVIL side once mixed.

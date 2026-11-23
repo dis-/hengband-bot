@@ -91,6 +91,12 @@ REGISTRY = (
       "finale_teleport_tour: the cross-town expedition under way is the 99F/100F Teleportation "
       "circuit (owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す処理をつけて」); "
       "cleared on a dungeon board"),
+    # finale_bm_tour
+    S("_finale_bm_tour", "finale_bm_tour", LIFE,
+      "finale_bm_tour: the 99F/100F Restore Mana circuit of the four towns' Black Markets (owner "
+      "2026-11-23 「4つの町の闇市を巡回して買い足し、目標に届くまで99Fへは行かない」): the lap, the "
+      "towns seen in it, the leg's target, each lap's purchases, the night between laps, why it "
+      "closed; cleared on a dungeon board"),
     # angband_finale
     S("_angband_finale_feasibility", "policy_equipment", LIFE,
       "angband_finale: the read-only optimizer search over the owned gear in the finale's rank, "
