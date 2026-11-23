@@ -29,6 +29,15 @@ While Restore Mana is the only supply short (finale_hold), the town's departure 
 * the laps repeat until the carry is owned (owner 「闇市に無ければ巡回をくり返す」); then finale_hold
   no longer sees the row short and the preparation phase enters as before.
 
+The night is over only on a board of another game turn than the one its stay's key was chosen
+on; on the same turn the key never reached the game and the stay is asked again (n1-b life-416
+2026-11-23 23:40:05: the stay's own refresh request replaced its key, me_inn_refill ``_stay_key``,
+and five laps went on without a night, so no market restocked).  The circuit owns its time: a
+Black Market of a town not yet seen in the lap, or a new lap, restarts the visit's buy and
+departure stage deadlines (``STAGES``, town_visit_plan ``restart_stages``; the same visit stopped
+under town:blocked:stage-deadline:buy in its sixth lap); a circuit stuck in one town still spends
+them.
+
 Only the funds end it (``closed``): the gold below the next leg's fare, the reserve and one
 potion at the price last seen on a Black Market shelf (the base price before one is seen), or an
 inn the walk cannot reach, or a leg refused.  The town then stops by name
@@ -41,7 +50,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from hengbot import angband_finale, bm_tour
+from hengbot import angband_finale, bm_tour, town_visit_plan
 from hengbot.finale_teleport_tour import Night
 from hengbot.me_inn_refill import InnRefillStay
 from hengbot.model import STORE_BLACK
@@ -49,6 +58,11 @@ from hengbot.policy_constants import CROSS_TOWN_SHOPPING_RESERVE
 from hengbot.recall_stockout_travel import fare
 
 SUPPLY = "restore_mana"  # angband_finale SUPPLY_NAMES' row
+# The town stages the circuit's decisions belong to (town_visit_plan): the market's page and its
+# leave (store-router: buy) and the night's stay (departure).  The circuit owns its time: a
+# market of a town not yet seen in the lap, or a new lap, restarts their deadlines
+# (``observe``, ``_next_lap``); a circuit making no such progress still spends them.
+STAGES = ("buy", "departure")
 STATE = "_finale_bm_tour"
 APPROACH_REASON = "shop:travel"  # the store router's own reason
 
@@ -100,6 +114,7 @@ def observe(policy: Any, snapshot: Any) -> None:
         return
     if town not in tour.seen:
         tour.seen.append(town)
+        town_visit_plan.restart_stages(policy, STAGES)
     prices = [item.price for item in store.items
               if (item.tval, item.sval) == angband_finale.RESTORE_MANA and item.count > 0]
     if prices:
@@ -143,7 +158,9 @@ def _next_lap(policy: Any, snapshot: Any, tour: Tour) -> None:
     tour.short_at_lap = now
     tour.night.due = False
     tour.night.nights += 1
+    tour.night.stay = InnRefillStay()
     policy._town_store_attempted.pop(STORE_BLACK, None)
+    town_visit_plan.restart_stages(policy, STAGES)
 
 
 def _night_key(policy: Any, snapshot: Any, tour: Tour) -> str | None:
@@ -151,11 +168,16 @@ def _night_key(policy: Any, snapshot: Any, tour: Tour) -> str | None:
     from hengbot import me_inn_refill
     stay = tour.night.stay
     if stay.posted_turn is not None:
-        # The stay went out.  A board on its own turn is a stay the inn refused (cmd-inn.cpp
-        # is_healthy_stay: poisoned or cut); the next lap goes on without it, the legs' game
-        # turns restocking the markets more slowly.
-        _next_lap(policy, snapshot, tour)
-        return None
+        if snapshot.turn != stay.posted_turn:
+            # The night passed (world.cpp pass_game_turn_by_stay moved the game turn on).
+            _next_lap(policy, snapshot, tour)
+            return None
+        # Still the turn the stay's key was chosen on: the key never reached the game (another
+        # owner's decision, a periodic browse, took the board: n1-b life-416 2026-11-23
+        # 23:40:05, and every lap after it went on without the night) or the inn refused it
+        # (cmd-inn.cpp is_healthy_stay).  The stay is asked again; a walk that makes no
+        # progress closes it (armor_smith.no_progress) and the circuit stops by name.
+        stay.posted_turn = None
     key = me_inn_refill._stay_key(
         policy, snapshot, me_inn_refill.DESTRUCTION_PRODUCER,
         me_inn_refill.FINALE_BM_APPROACH_REASON, me_inn_refill.FINALE_BM_REST_REASON,
