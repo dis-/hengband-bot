@@ -48,6 +48,7 @@ from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, equipment_visit_journal, home_ledger, pingpong_guard, safety_watch
 from hengbot import recall_wait_reach
+from hengbot import stationary_bounds
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
@@ -82,6 +83,7 @@ from hengbot.policy_constants import (
     OWNER_RETIRED_BURST_AFTER_PREFIX,
     POLICY_FINAL_STOP_REASONS,
     POLICY_FINAL_STOP_PREFIXES,
+    UNPROFITABLE_UNIQUE_FRUITLESS_REASON,
     REST_MACRO,
     STAGE_DEADLINE_STOP_PREFIX,
     TOWN_END_SURVIVAL_STOP_PREFIX,
@@ -730,6 +732,8 @@ def _policy_final_stop_banner(reason: str) -> str:
                 "stopping the bot for investigation")
     if equipment_visit_journal.is_stop(reason):
         return equipment_visit_journal.stop_message(reason)
+    if stationary_bounds.is_stop(reason):
+        return stationary_bounds.stop_message(reason)
     if reason.startswith(STAGE_DEADLINE_STOP_PREFIX):
         return (f"<{reason}> this town visit spent the stage's deadline of decisions "
                 "(twice the measured per-visit maximum); stopping the bot for investigation")
@@ -786,6 +790,7 @@ def _policy_final_stop_banner(reason: str) -> str:
         "quest:blocked:quest25-sealed-pocket-no-line": "Quest 25's sweep remembers only sealed cells and no melted granite wall of the map opens a line of fire to any of them (quest25_pocket NO_LINE_REASON); inspect battle.detected in q25-battle.json",
         "wilderness:no-safe-route": "global-map route to town is unavailable",
         deep_climb.STOP_REASON: deep_climb.STOP_MESSAGE,
+        UNPROFITABLE_UNIQUE_FRUITLESS_REASON: "the disengage from an unprofitable unique spent FRUITLESS_DISENGAGE_LIMIT decisions without leaving the floor (policy._unprofitable_unique_disengage_key)",
         **torch_release.HALT_MESSAGES,
     }
     return f"<{reason}> {messages[reason]}; stopping the bot for investigation"

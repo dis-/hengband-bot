@@ -784,6 +784,28 @@ _stationary(EXEMPT, "the once-quest floor's rest (policy_constants.ONCE_QUEST_TI
 _stationary(EXEMPT, "policy.ESCAPE_BUDGETED_WAIT_LIMITS",
             "status-threat:wait", "flee:wait", "return:wait", "combat:disengage-wait", "emergency:wait",
             "town:blocked:repetition")
+# The waits the loop guard did not know, given a bound and taken out of it (whole-bot review
+# 2026-11-23 K3, owner (b)-1 「上限を付けて見張りから外す」): each hold episode on one cell that
+# outlasts its bound stops as ``stationary:exhausted:<reason>`` (stationary_bounds, which says
+# where each value comes from).
+_stationary(EXEMPT, "stationary_bounds.BLIND_MAX_GAME_TURNS (the longest blindness onset)",
+            "blind:wait-sight", "fundraise:wait-sight", "return:wait-sight")
+_stationary(EXEMPT, "stationary_bounds.RECALL_MAX_GAME_TURNS (emitted only while the recall counts down)",
+            "combat:disengage-hold", "combat:avoid-unprofitable-unique-hold")
+_stationary(EXEMPT, "stationary_bounds.UNPROFITABLE_UNIQUE_WAIT_MAX_DECISIONS (FRUITLESS_DISENGAGE_LIMIT)",
+            "combat:avoid-unprofitable-unique-wait")
+_stationary(EXEMPT, "stationary_bounds.FINALE_HOLD_MAX_DECISIONS (STAND_ROUTE_TRIES x OPEN_STAND_WAIT)",
+            "angband-finale:hold")
+_stationary(EXEMPT, "stationary_bounds.AMBERITE_HOLD_MAX_GAME_TURNS (no natural end)", "amberite:hold")
+_stationary(EXEMPT, "stationary_bounds.THREAT_WAIT_MAX_GAME_TURNS (no natural end)", "threat:wait")
+_stationary(EXEMPT, "stationary_bounds.QUEST25_FIRE_HOLD_MAX_GAME_TURNS (no natural end)",
+            "quest25:hold-out-of-fire")
+_stationary(EXEMPT, "stationary_bounds.QUEST_HOLD_UNREACHABLE_MAX_GAME_TURNS (no natural end)",
+            "quest-strategy:hold-unreachable")
+_stationary(EXEMPT, "stationary_bounds.QUEST_BLOCKED_HOLD_MAX_GAME_TURNS (after the plan's hold_budget)",
+            "quest:blocked:hold")
+_stationary(EXEMPT, "stationary_bounds.IDLE_WAIT_MAX_GAME_TURNS (no natural end)", "wait")
+_stationary(EXEMPT, "stationary_bounds.NONE_WAIT_MAX_GAME_TURNS (no natural end)", "policy:none-wait")
 
 # ======================================== QUEST_COMBAT: every reason starting with it
 # Fixed-quest combat is productive even when a strategy deliberately fights from one post for an

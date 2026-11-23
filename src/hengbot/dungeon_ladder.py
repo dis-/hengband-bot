@@ -398,6 +398,9 @@ AFTER_DECIDE = (
     # in place of a key that is not a survival rung's, on the escalation board only.
     "pingpong_guard.after_ladder",
     "_break_positional_oscillation", "_break_livelock", "_bound_escape_wait",
+    # The stationary waits taken out of the loop guard stop by name past their bound (owner
+    # 2026-11-23 (b)-1); never in town, where the wait leaves the key as it is.
+    "stationary_bounds.bound",
     "_forbid_wait_on_town_entrance", "_suppress_pending_stair_command",
 )
 
