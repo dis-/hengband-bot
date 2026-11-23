@@ -33,7 +33,7 @@ ALLOWED = {
     ("me_inn_refill", "destruction_short"): (1, "the absorbed power's list row against its count "
                                                  "(the inn's refill, not whether a means is held)"),
     ("policy_home", "_retention_reservation_baseline_detail"): (1, "a Home row's kind (retention)"),
-    ("policy_shop", "_black_market_optional_purchase"): (3, "Black market rows' kinds (a purchase)"),
+    ("policy_shop", "_black_market_optional_purchase"): (4, "Black market rows' kinds (a purchase)"),
     ("policy_shop", "held"): (1, "a Black market row's kind (a purchase's order)"),
     ("policy_shop", "_purchase_rungs"): (2, "shop rows' kinds (the purchase ladder)"),
     ("policy_shop", "_purchase_quantity"): (2, "a purchase row's kind (its quantity)"),

@@ -49,7 +49,7 @@ from hengbot import finale_prep, quest_optional_carry
 from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_answer, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
 from hengbot.never_dispose import never_disposed
-from hengbot import restore_mana_target
+from hengbot import finale_bm_tour, restore_mana_target
 from hengbot import item_fate, item_use_route
 from hengbot import fundraising_survival, mining_loadout, mining_oil_sale, slot_lending
 from hengbot.magic_eater_devices import is_mana_food_ware
@@ -2952,6 +2952,13 @@ class ShopMixin(InStoreMixin):
             and item.count > 0
             and snapshot.player.gold - item.price >= reserve
         ]
+        if optional and finale_bm_tour.restore_mana_first(self, snapshot):
+            # Owner 2026-11-23 「目標に届くまで99Fへは行かない」 with 2026-11-18 「必要なものは
+            # 買う」: while the finale's Restore Mana is short, the gold is the shortfall's.
+            optional = [item for item in optional
+                        if never_disposed(snapshot, item)
+                        or angband_finale.black_market_wanted(self, snapshot, item)
+                        or self._is_destruction_staff(item)]
         if not optional:
             return None
         if bm_destruction_fund.staff_pending(self, snapshot):

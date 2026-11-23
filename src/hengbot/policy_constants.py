@@ -448,13 +448,18 @@ STATIONARY_EXHAUSTED_STOP_PREFIX = 'stationary:exhausted:'
 # PLAN_GENERIC_REFUSED_STOP_PREFIX: on a quest plan's floor a generic walk, pickup or exploration the
 # plan does not name (plan_generic_gate, owner 2026-11-23 (b)-3), named after the generic reason.
 PLAN_GENERIC_REFUSED_STOP_PREFIX = 'quest-plan:generic-refused:'
+# FINALE_BM_CLOSED_STOP_PREFIX: the 99F/100F Restore Mana circuit of the Black Markets closed (an
+# inn the walk cannot reach, a leg refused, no town to visit; finale_bm_tour), named after why.  A
+# stop for the owner, not a wait: n1-b life-416 2026-11-24 00:49 repeated its funds stop until the
+# loop detector.
+FINALE_BM_CLOSED_STOP_PREFIX = 'town:blocked:finale-bm-tour-closed:'
 # EQUIPMENT_FLIPFLOP_STOP_PREFIX: a slot worn A, B, A in one town visit (owner 2026-11-22,
 # equipment_visit_journal), named after the slot.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
                               OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX,
                               APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX,
                               BANNED_GEAR_STUCK_STOP_PREFIX, STATIONARY_EXHAUSTED_STOP_PREFIX,
-                              PLAN_GENERIC_REFUSED_STOP_PREFIX)
+                              PLAN_GENERIC_REFUSED_STOP_PREFIX, FINALE_BM_CLOSED_STOP_PREFIX)
 
 TUNNEL_KEY = "T"
 
