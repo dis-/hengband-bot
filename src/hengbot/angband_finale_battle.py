@@ -247,6 +247,10 @@ def _observe(policy, snapshot, held: Battle) -> None:
     target = target_monster(snapshot)
     if target is not None:
         held.last_seen = (target.position.y, target.position.x)
+        # 「感知で回る」 counts a lap only after the target is lost (quest_target_search
+        # ``restart_finale_lap``): the coverage made before this sighting is spent.
+        from hengbot import quest_target_search  # import cycle
+        quest_target_search.restart_finale_lap(policy, snapshot)
     elif held.last_seen is not None and snapshot.player.position == Position(*held.last_seen):
         # 「最後に対象をみた座標に向かって移動」 done and the target not there: detect again here
         # (owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」), then it is lost, and
