@@ -401,6 +401,9 @@ AFTER_DECIDE = (
     # The stationary waits taken out of the loop guard stop by name past their bound (owner
     # 2026-11-23 (b)-1); never in town, where the wait leaves the key as it is.
     "stationary_bounds.bound",
+    # Owner 2026-11-23 (b)-3 「作戦が名指しで許した時だけ」: on a quest plan's floor a generic walk, pickup
+    # or exploration the plan does not name stops by name (plan_generic_gate).
+    "plan_generic_gate.after_ladder",
     "_forbid_wait_on_town_entrance", "_suppress_pending_stair_command",
 )
 

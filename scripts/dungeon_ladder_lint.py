@@ -12,6 +12,8 @@ them, for writing the table's diff.
 from __future__ import annotations
 
 import ast
+from fnmatch import fnmatchcase
+from functools import lru_cache
 from pathlib import Path
 import sys
 from typing import NamedTuple
@@ -343,6 +345,50 @@ def walk_findings(sources: dict[str, str]) -> list[str]:
     return findings
 
 
+@lru_cache(maxsize=None)
+def _literals(source: str) -> frozenset[str]:
+    """The string constants of ``source``; an f-string as its constant head and ``*``."""
+    found = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            found.add(node.value)
+        elif isinstance(node, ast.JoinedStr) and node.values and isinstance(node.values[0], ast.Constant):
+            found.add(f'{node.values[0].value}*')
+    return frozenset(found)
+
+
+def _sent(pattern: str, literals) -> bool:
+    return any(fnmatchcase(literal.rstrip('*'), pattern) or fnmatchcase(literal, pattern)
+               for literal in literals)
+
+
+def gate_findings(sources: dict[str, str]) -> list[str]:
+    """plan_generic_gate's tables against the source (owner 2026-11-23 (b)-3): every allowance names a
+    reason its producer sends on the floor of a plan of FLOOR_PLANS, every generic pattern a reason the
+    source sends, and a plan module sends no generic reason its floor does not allow."""
+    from hengbot import plan_generic_gate as gate
+
+    findings = []
+    every = set().union(*(_literals(source) for source in sources.values()))
+    plans = {plan.module for plan in ladder.FLOOR_PLANS}
+    for row in gate.ALLOWED:
+        if not set(row.plans) <= plans:
+            findings.append(f'plan_generic_gate.ALLOWED {row.pattern}: {set(row.plans) - plans} is no FLOOR_PLANS plan')
+        producer = sources.get(row.producer)
+        if producer is None or not _sent(row.pattern, _literals(producer)):
+            findings.append(f'plan_generic_gate.ALLOWED {row.pattern}: {row.producer} sends no such reason')
+    for pattern in gate.GENERIC:
+        if not _sent(pattern, every):
+            findings.append(f'plan_generic_gate.GENERIC {pattern}: no reason of the source matches it')
+    for module in ladder.PLAN_WALK_MODULES:
+        floors = [plan for plan in plans if plan == module] or sorted(plans)
+        for literal in sorted(_literals(sources[module])):
+            if gate.generic(literal) and not all(gate.allowed(literal, plan) for plan in floors):
+                findings.append(f'{module}: the generic reason {literal!r} is sent on a plan floor '
+                                'and plan_generic_gate.ALLOWED does not name it')
+    return findings
+
+
 def _rule_findings(names) -> list[str]:
     findings = []
     for rule in ladder.OWNER_RULES:
@@ -426,6 +472,7 @@ def analyze(policy_source: str, plan_sources: dict[str, str]) -> list[str]:
     if all(module in plan_sources for module in (*ladder.PLAN_WALK_MODULES, 'quest_plan_base')):
         findings.extend(board_findings(plan_sources))
         findings.extend(walk_findings(plan_sources))
+        findings.extend(gate_findings(plan_sources))
     return findings
 
 
@@ -435,6 +482,8 @@ def repository_sources() -> tuple[str, dict[str, str]]:
     modules = list(dict.fromkeys([plan.module for plan in ladder.FLOOR_PLANS]
                                  + list(ladder.LAYER_MODULES.values())
                                  + list(ladder.PLAN_WALK_MODULES) + ['quest_plan_base']))
+    # Every module of the package: the generic gate's tables are checked against all it sends.
+    modules += sorted(path.stem for path in POLICY_ROOT.glob('*.py') if path.stem not in modules)
     return read('policy'), {module: read(module) for module in modules}
 
 

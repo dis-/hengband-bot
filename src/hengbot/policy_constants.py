@@ -445,12 +445,16 @@ OWNER_RETIRED_BURST_AFTER_PREFIX = 'town:blocked:owner-retired-burst:after:'
 # STATIONARY_EXHAUSTED_STOP_PREFIX: a stationary wait taken out of the loop guard held one cell past
 # its bound (stationary_bounds, owner 2026-11-23 (b)-1), named after the wait's reason.
 STATIONARY_EXHAUSTED_STOP_PREFIX = 'stationary:exhausted:'
+# PLAN_GENERIC_REFUSED_STOP_PREFIX: on a quest plan's floor a generic walk, pickup or exploration the
+# plan does not name (plan_generic_gate, owner 2026-11-23 (b)-3), named after the generic reason.
+PLAN_GENERIC_REFUSED_STOP_PREFIX = 'quest-plan:generic-refused:'
 # EQUIPMENT_FLIPFLOP_STOP_PREFIX: a slot worn A, B, A in one town visit (owner 2026-11-22,
 # equipment_visit_journal), named after the slot.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
                               OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX,
                               APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX,
-                              BANNED_GEAR_STUCK_STOP_PREFIX, STATIONARY_EXHAUSTED_STOP_PREFIX)
+                              BANNED_GEAR_STUCK_STOP_PREFIX, STATIONARY_EXHAUSTED_STOP_PREFIX,
+                              PLAN_GENERIC_REFUSED_STOP_PREFIX)
 
 TUNNEL_KEY = "T"
 

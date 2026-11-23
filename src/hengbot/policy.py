@@ -6645,6 +6645,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # (owner 2026-11-23 (b)-1, stationary_bounds).
         from hengbot import stationary_bounds  # import cycle (angband_finale_battle)
         key = stationary_bounds.bound(self, snapshot, key)
+        # On a quest plan's floor the generic walk, pickup and exploration only by the plan's name
+        # (owner 2026-11-23 (b)-3 「作戦が名指しで許した時だけ」, plan_generic_gate).
+        from hengbot import plan_generic_gate  # import cycle (the plans import the policy's modules)
+        key = plan_generic_gate.after_ladder(self, snapshot, key)
         if (
             key == WAIT_KEY
             and snapshot.store is None

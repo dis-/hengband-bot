@@ -49,6 +49,7 @@ from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, equipment_visit_journal, home_ledger, pingpong_guard, purchase_source_journal, safety_watch
 from hengbot import recall_wait_reach
 from hengbot import stationary_bounds
+from hengbot import plan_generic_gate
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy import (
     ESCAPE_BUDGETED_WAIT_LIMITS,
@@ -734,6 +735,8 @@ def _policy_final_stop_banner(reason: str) -> str:
         return equipment_visit_journal.stop_message(reason)
     if stationary_bounds.is_stop(reason):
         return stationary_bounds.stop_message(reason)
+    if reason.startswith(plan_generic_gate.STOP_PREFIX):
+        return plan_generic_gate.stop_message(reason)
     if reason.startswith(STAGE_DEADLINE_STOP_PREFIX):
         return (f"<{reason}> this town visit spent the stage's deadline of decisions "
                 "(twice the measured per-visit maximum); stopping the bot for investigation")

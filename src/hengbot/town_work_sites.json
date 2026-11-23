@@ -6994,6 +6994,27 @@
     ],
     "delegation": "no independent success"
   },
+  "plan_generic_gate.py:after_ladder": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "plan_generic_gate.py:running_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "plan_generic_gate.py:stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy._activate_safe_recall_fallback": {
     "classification": "data",
     "rows": [
