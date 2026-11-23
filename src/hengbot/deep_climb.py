@@ -41,7 +41,10 @@ policy takes into 50F+ is refused by the depth gate (``_is_descent_target`` /
 floor or two, deep_fall_guard; a Scroll of Teleport Level read as an escape).
 
 Standing on such a floor is enough (``_standing_without_means``): the first board after a
-restart has no previous floor, and n1-a life-535 is resumed on the Castle's 50F.  Only where no
+restart has no previous floor, and n1-a life-535 is resumed on the Castle's 50F.  Means not read
+yet are not "no means" (``_means_unread``: a restarted Magic-Eater's absorbed-power list), and a
+held climb is dropped on a floor of its dungeon once the kit admits the 50F landing
+(``_release_climb``, n1-c life-221 2026-11-23, owner 「破壊の手段は十分にあるが？」).  Only where no
 climb can be held (a dungeon other than the Castle and the Mountain, or a band the kit cannot
 reach, dive_floor.reaches_band) does an arrival from a shallower floor stop the bot under
 ``STOP_REASON`` (``stop_key``).
@@ -122,9 +125,14 @@ def on_floor(policy, snapshot) -> bool:
     floor_key = getattr(snapshot, "floor_key", None)
     if getattr(snapshot, "in_town", False) or not floor_key or floor_key[2] != 0:
         return False
+    from hengbot import destruction_use
+
+    # The means read as depth_safety reads it (policy._missing_required_abilities): a floor the
+    # means admits is no climb floor (n1-c life-221 2026-11-23, owner 「破壊の手段は十分にあるが？」).
     return deep_admission.verdict(
         floor_key[0], floor_key[1], "stand",
-        climbing=lambda: dive_floor.climb_dungeon(policy) == floor_key[0]).climb
+        lambda: destruction_use.holds_means(policy, snapshot),
+        lambda: dive_floor.climb_dungeon(policy) == floor_key[0]).climb
 
 
 def floor_gaps(policy, snapshot, gaps) -> frozenset:
@@ -207,17 +215,54 @@ def _hold_climb(policy, snapshot, dungeon_id: int) -> bool:
     return dive_floor.climb_dungeon(policy) == dungeon_id
 
 
+def _means_unread(policy, snapshot) -> bool:
+    """The absorbed *Destruction* is not known yet: a restarted Magic-Eater's staff list is still
+    to be read (me_powers_refresh.list_pending; the read takes no game time).  Unknown is not
+    "no means": n1-c life-221 2026-11-23 15:17:39, restarted on the Mountain's 50F with the
+    absorbed *Destruction*, held the climb on the board before ``bA`` and climbed 50F -> 46F
+    (owner 「n1-cはなぜ山を登っている？」「破壊の手段は十分にあるが？」)."""
+    from hengbot import me_powers_refresh
+
+    return me_powers_refresh.list_pending(policy, snapshot, "staff")
+
+
 def _standing_without_means(policy, snapshot, floor_key) -> bool:
     """A 50F+ floor, no quest floor, without the *Destruction* means and no climb held there:
     the climb is held where it can be (``_hold_climb``: the Castle or the Mountain; Angband has
-    none and its means-spent return leaves the floor, destruction_use.means_spent)."""
+    none and its means-spent return leaves the floor, destruction_use.means_spent).  Means not
+    yet read (``_means_unread``) are not a floor without them."""
     from hengbot import destruction_use, dive_floor
 
     return (len(floor_key) == 3 and not snapshot.in_town
+            and not _means_unread(policy, snapshot)
             and not deep_admission.verdict(
                 floor_key[0], floor_key[1], "quest" if floor_key[2] != 0 else "stand",
                 lambda: destruction_use.holds_means(policy, snapshot),
                 lambda: dive_floor.climb_dungeon(policy) == floor_key[0]).admitted)
+
+
+def _release_climb(policy, snapshot, floor_key) -> bool:
+    """Drop the held climb switch on a floor of its dungeon once the kit admits its 50F landing
+    (the depth table's 50F row, the *Destruction* means included, as depth_safety reads it:
+    policy._missing_required_abilities): the climb is the exception for a character without
+    them only.  The band's reset-recall answer goes with it (dive_floor.RECALL_RESET), so the
+    dungeon's recall depth is kept.  True when dropped.
+
+    n1-c life-221 2026-11-23: a climb held on a means read too early (``_means_unread``) kept
+    climbing with depth_safety's missing [] (owner 「破壊の手段は十分にあるが？」)."""
+    from hengbot import alternate_lease, dive_floor
+
+    dungeon = dive_floor.climb_dungeon(policy)
+    if (dungeon is None or snapshot.in_town or len(floor_key) != 3 or floor_key[0] != dungeon
+            or floor_key[2] != 0 or _means_unread(policy, snapshot)
+            or policy._missing_required_abilities(snapshot, LANDING)):
+        return False
+    policy._alternate_dungeon = None
+    policy._alternate_dungeon_reason = None
+    alternate_lease.forget(policy)
+    setattr(policy, dive_floor.STATE, None)
+    setattr(policy, dive_floor.RECALL_RESET, None)
+    return True
 
 
 def observe(policy, snapshot) -> None:
@@ -233,6 +278,7 @@ def observe(policy, snapshot) -> None:
     record = getattr(policy, MEMORY, None)
     previous = record[0] if record else None
     stopped = record[1] if record else None
+    _release_climb(policy, snapshot, floor_key)
     if _standing_without_means(policy, snapshot, floor_key):
         # Standing there is enough, whatever the board before (the first board after a restart
         # has no previous floor: n1-a life-535 is resumed on the Castle's 50F).
