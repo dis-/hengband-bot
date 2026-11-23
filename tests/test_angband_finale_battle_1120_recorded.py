@@ -311,8 +311,19 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         decide(self.policy, self.board(oberon=oberon, pack=[("x", "star")]))
         key, reason = decide(self.policy, self.board(oberon=oberon, hp=399, pack=[("x", "star")]))
         self.assertEqual(reason, battle.STAR_HEAL_REASON)
-        # No hit (the same HP as the board before): neither.
+        # No hit on this board (the same HP as the board before): no *Healing*, but the attack
+        # that took the HP below 800 still holds until the HP is back at 800 (Battle.hit_below,
+        # n1-b life-416 Angband 100F 2026-11-24: 210 -> *Healing* -> 537 read no drop).
         key, reason = decide(self.policy, self.board(oberon=oberon, hp=399, pack=[("x", "star")]))
+        self.assertEqual(reason, battle.TELEPORT_REASON)
+        # Back at 800 or more, no hit: neither.
+        self.setUp()
+        self.in_battle()
+        decide(self.policy, self.board(oberon=oberon))
+        key, reason = decide(self.policy, self.board(oberon=oberon, hp=700))
+        self.assertEqual(reason, battle.TELEPORT_REASON)
+        decide(self.policy, self.board(oberon=oberon, hp=900))
+        key, reason = decide(self.policy, self.board(oberon=oberon, hp=900))
         self.assertNotIn(reason, {battle.STAR_HEAL_REASON, battle.TELEPORT_REASON})
 
     # -- 「テレポートによる離脱後、安全が確保できたらHPや取り込み魔法道具回数を必要に応じて回復。」

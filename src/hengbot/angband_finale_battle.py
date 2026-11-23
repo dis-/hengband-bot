@@ -42,7 +42,8 @@ The per-board order (``key``), the first that answers wins:
     ように修正」), and nowhere else; after the escapes below, a hungry character eats
     (``_eat_key``);
  2. *Healing* below 400 HP after a hit;
- 3. the Teleportation scroll (none left: the absorbed Staff of Teleportation): on a summon, below 800 HP after a hit, the target within
+ 3. the Teleportation scroll (none left: the absorbed Staff of Teleportation): on a summon, below 800 HP after a hit (kept
+    until the HP is back at 800, a *Healing* between included: ``Battle.hit_below``), the target within
     distance 2, or the target and another monster both in the line of fire (``crowded``); the
     next boards recover (``RECOVER``);
  4. the arrival sweep (``SWEEP``): *Destruction* over the whole floor, the target allowed: cast on
@@ -190,6 +191,10 @@ class Battle:
     # no step of that walk enters one again.  Class defaults.
     trail_goal: tuple | None = None
     trail: set = field(default_factory=set)
+    # 「攻撃を受けてHPが800を下回ったとき」 still holds (``_observe``): an attack took the HP below
+    # TELEPORT_BELOW and no board since showed it at TELEPORT_BELOW or more; cleared by the teleport.
+    # A class default: restored checkpoints predate it.
+    hit_below: bool = False
 
 
 def battle(policy, snapshot) -> Battle:
@@ -291,6 +296,16 @@ def _observe(policy, snapshot, held: Battle) -> None:
     held.attacked = (held.prev_hp is not None and hp < held.prev_hp
                      and not me_powerful_activation.own_cost(policy, snapshot))
     held.prev_hp = hp
+    # 「攻撃を受けてHPが800を下回ったとき」 is a state, not one board's HP drop: a *Healing* quaffed
+    # below 400 (the rule above it) raises the HP on the next board while the same turn's breaths
+    # take it down again, and that board reads no drop.  n1-b life-416 (Angband 100F, 2026-11-24
+    # 05:24:27-28, turns 4781299-4781302): HP 210 after the breaths, *Healing*, then 537 with the
+    # Tarrasque's cold breath in that turn's messages; ``attacked`` read False (210 -> 537), no
+    # teleport, Stone to Mud, and the next breaths killed.  Kept until the HP is back at 800.
+    if hp >= TELEPORT_BELOW:
+        held.hit_below = False
+    elif held.attacked:
+        held.hit_below = True
     held.summoned = any(summon_response.summons_of(message) for message in snapshot.messages)
     target = target_monster(snapshot)
     if target is not None:
@@ -1032,12 +1047,13 @@ def key(policy, snapshot) -> str | None:
         healed = _quaff(policy, snapshot, angband_finale.STAR_HEALING, STAR_HEAL_REASON)
         if healed is not None:
             return healed
-    if (held.summoned or (player.hp < TELEPORT_BELOW and held.attacked)
+    if (held.summoned or (player.hp < TELEPORT_BELOW and (held.attacked or held.hit_below))
             or (distance is not None and distance <= TELEPORT_WITHIN)
             or crowded(policy, snapshot, target)):
         away = _teleport(policy, snapshot)
         if away is not None:
             held.phase, held.stand = RECOVER, None
+            held.hit_below = False
             held.refused.clear()
             held.detect_due = True
             held.trail_goal = None  # the walk from the landing starts a new trail (``_left_cells``)
