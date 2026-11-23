@@ -183,9 +183,9 @@ class QuestTravelProgressPins(QuestTravelFixtureMixin, unittest.TestCase):
             route_declaration=key.route_declaration,
         )
         self.assertNotEqual(id(key), id(collision))
-        self.assertTrue(policy._valid_q22_travel_declaration(snapshot, key, key.reason))
+        self.assertTrue(policy._valid_quest_travel_declaration(snapshot, key, key.reason))
         self.assertFalse(
-            policy._valid_q22_travel_declaration(snapshot, collision, collision.reason)
+            policy._valid_quest_travel_declaration(snapshot, collision, collision.reason)
         )
         # Without the declaration's authority the vector holds the durable
         # parts and the travel's declared walk to the inn's side (the

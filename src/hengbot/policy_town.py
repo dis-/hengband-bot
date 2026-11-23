@@ -933,12 +933,6 @@ class TownMixin:
             abs(position.y - goal.y) + abs(position.x - goal.x),
         )
 
-    def _valid_q22_travel_declaration(
-        self, snapshot: Snapshot, candidate: DecisionCandidate | None,
-        reason: str | None = None,
-    ) -> bool:
-        return self._valid_quest_travel_declaration(snapshot, candidate, reason)
-
     def _valid_quest_travel_declaration(
         self, snapshot: Snapshot, candidate: DecisionCandidate | None,
         reason: str | None = None,

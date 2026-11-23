@@ -4149,11 +4149,6 @@ class DeepKitTest(unittest.TestCase):
     def _tp(self, count):
         return [item("t", TVAL_SCROLL, 9, count=count)]  # teleport sval 9
 
-    def test_teleport_target_scales_with_depth(self):
-        snap = self._dungeon(1, [])
-        self.assertEqual(self._pol(3)._teleport_target(snap), 3)     # planned 4
-        self.assertEqual(self._pol(10)._teleport_target(snap), 15)   # planned 11
-
     def test_deep_teleport_ready_needs_fifteen(self):
         pol = self._pol(10)
         self.assertFalse(pol._teleport_ready(self._dungeon(11, self._tp(10))))

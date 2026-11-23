@@ -52,8 +52,8 @@ class IdentifyStaffPlanEndsWithVisitTest(idstaff_run.IdstaffStockoutRunRecordedT
     885635) is followed by the recorded stop board (886291: 16 of 20
     charges, Magic sold out).  DECLARED CONSTRUCTED: the plan outlived the
     set that opened it, as a set end that does not clear it leaves it (the
-    conquest supersession in policy_observation, the detection-stockout exit
-    _try_normal_expedition_after_detection_stockout: fundraising mode None).
+    conquest supersession in policy_observation, the former detection-stockout
+    exit: fundraising mode None).
     Before slice 3-2 the left plan kept the next stockout run from being
     installed (_identify_staff_procurement_impossible and the departure
     gate's own check read it), so the stop board had no owner for the
