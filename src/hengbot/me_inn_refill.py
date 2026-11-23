@@ -82,10 +82,18 @@ def state(policy) -> InnRefillStay:
     return record
 
 
+REFRESH_AFTER = "_me_inn_refresh_turn"
+
+
 def observe(policy, snapshot) -> None:
-    """Every decision: a dungeon floor ends the stay."""
+    """Every decision: a dungeon floor ends the stay; the board after a night asks the absorbed
+    lists again (``_stay_key``)."""
     if snapshot.floor_key[1] > 0 or snapshot.floor_key[2] > 0:
         policy._me_inn_refill_stay = None
+    chosen = getattr(policy, REFRESH_AFTER, None)
+    if chosen is not None and snapshot.turn != chosen:
+        setattr(policy, REFRESH_AFTER, None)
+        me_powers_refresh.request_refresh(policy)
 
 
 def _ranged(policy, snapshot, quest_id: int) -> dict | None:
@@ -200,6 +208,10 @@ def _stay_key(policy, snapshot, family: str, approach_reason: str, rest_reason: 
     if key is None:
         return _close(record)
     record.posted_turn = snapshot.turn
-    # The lists the fight reads show the refill only once displayed again.
-    me_powers_refresh.request_refresh(policy)
+    # The lists the fight reads show the refill only once displayed again: asked on the board
+    # after the night (``observe``).  Asked here, the browse replaced this very key in the same
+    # decision (policy ``periodic_magic_eater_powers_key`` takes a safe filler while a refresh is
+    # pending) and the stay never reached the game (n1-b life-416 2026-11-23 23:40:04, the Black
+    # Markets' circuit, finale_bm_tour, went on lap after lap without a night).
+    setattr(policy, REFRESH_AFTER, snapshot.turn)
     return key

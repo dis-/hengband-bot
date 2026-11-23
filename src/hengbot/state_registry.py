@@ -449,6 +449,9 @@ REGISTRY = (
     # me_inn_refill
     S("_me_inn_refill_stay", "me_inn_refill", LIFE,
       "me_inn_refill: me inn refill stay (no comment at its definition)"),
+    S("_me_inn_refresh_turn", "me_inn_refill", LIFE,
+      "me_inn_refill: the game turn an inn stay's key was chosen on; the first board on another "
+      "turn asks the absorbed-device lists again (me_powers_refresh.request_refresh)"),
     # me_power_success
     S("_me_device_list_boards", "me_power_success", LIFE,
       "me_power_success: me device list boards (no comment at its definition)"),

@@ -301,6 +301,19 @@ def note_observed_progress(policy: Any, snapshot: Any) -> None:
                 visit.stage_decisions[stage] = 0
 
 
+def restart_stages(policy: Any, stages: tuple[str, ...]) -> None:
+    """Restart the deadline counts of ``stages``: an owner's own unit of work, observed in the
+    game, that spans them (the 99F/100F Restore Mana circuit's next Black Market or next lap,
+    finale_bm_tour; n1-b life-416 2026-11-23 23:40:51 stopped under
+    town:blocked:stage-deadline:buy in its sixth lap, each market's leave counted to the buy
+    stage and never restarted, as the Home cap tidy's sales were)."""
+    from hengbot.town_visit import town_visit
+    counts = town_visit(policy).stage_decisions
+    for stage in stages:
+        if stage in counts:
+            counts[stage] = 0
+
+
 # A visit's trace keeps its newest segments only.
 SEGMENT_LIMIT = 200
 # A visit keeps its newest seam replacements and transitions only.
