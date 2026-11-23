@@ -43,6 +43,7 @@ ALLOWLIST_CONSTANTS = (
     ('scripts/item_sink_lint.py', 'NON_ITEM_COMPOSITIONS'),
     ('scripts/item_sink_lint.py', 'STANDALONE_ADAPTERS'),
     ('scripts/melee_site_lint.py', 'GUARDED_ELSEWHERE'),
+    ('scripts/search_ban_lint.py', 'READERS'),
     ('scripts/step_gate_lint.py', 'MOVEMENT_BYPASSES'),
     ('scripts/step_gate_lint.py', 'WARNING_READ_BYPASSES'),
     ('scripts/tier_reading_lint.py', 'BASELINE'),

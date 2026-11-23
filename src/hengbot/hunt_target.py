@@ -69,9 +69,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot import angband_cap, retreat_enclosure
+from hengbot import angband_cap, retreat_enclosure, search_ban
 from hengbot.model import Position, game_distance
-from hengbot.policy_constants import HUNT_RANGE, SEARCH_KEY
+from hengbot.policy_constants import HUNT_RANGE
 from hengbot.quest_knowledge import QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_RANDOM
 
 MEMORY = "_hunt_target_memory"
@@ -418,7 +418,7 @@ def route_key(policy, snapshot, hostiles) -> str | None:
             return None
         visit.waited_beside = goal
         policy.last_reason = ARRIVED_REASON
-        return SEARCH_KEY
+        return search_ban.wait_key(snapshot)
     step = policy._nearest_goal_step(
         snapshot, lambda grid: grid.position.distance_to(goal) <= 1)
     if step is None:

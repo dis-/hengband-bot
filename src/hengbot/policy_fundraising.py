@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import return_start
+from hengbot import return_start, search_ban
 from hengbot import damaging_ground, locked_doors, me_capability, mining_loadout, status_cure, tunnel_feasibility, walkout_dig
 from hengbot.item_reservation import reserved_item_command
 
@@ -1038,7 +1038,8 @@ class FundraisingMixin:
                         work_id="fundraise:return:probe",
                     )
                 here_key = (snapshot.player.position.y, snapshot.player.position.x)
-                if self._search_counts[here_key] < SEARCH_LIMIT:
+                if (self._search_counts[here_key] < SEARCH_LIMIT
+                        and not search_ban.banned(snapshot)):
                     self._search_counts[here_key] += 1
                     self.last_reason = "fundraise:search"
                     return self._fundraising_return_route_key(
@@ -2416,6 +2417,12 @@ class FundraisingMixin:
         return True
 
     def _secret_wall_search_step(self, snapshot: Snapshot) -> Position | None:
+        if search_ban.banned(snapshot):
+            # 99F/100F: no walk to a wall to search it (search_ban, owner 2026-11-23 「サーチ禁止」).
+            capture = self.__dict__.get("_claim_target_capture")
+            if capture is not None:
+                capture.append(None)
+            return None
         # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
         walk_veto = self._walk_veto(snapshot)
         candidates = {

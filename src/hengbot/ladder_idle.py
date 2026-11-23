@@ -14,7 +14,7 @@ in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import damaging_ground, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket
+from hengbot import damaging_ground, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket, search_ban
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 from hengbot.town_terminal import town_end_key
@@ -90,10 +90,17 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
             and policy._search_counts[here_key] < SEARCH_LIMIT
             and not damaging_ground.hurts_here(policy, snapshot)
         ):
-            policy._search_counts[here_key] += 1
-            policy._release_explore_walk("explore-oscillating:search")
-            policy.last_reason = "search"
-            return SEARCH_KEY
+            # Owner 2026-11-23 「99F 100Fはサーチ禁止。必要なら感知すること。」 (search_ban).
+            if search_ban.banned(snapshot):
+                detected = search_ban.detect_key(policy, snapshot)
+                if detected is not None:
+                    policy._release_explore_walk("explore-oscillating:detect")
+                    return detected
+            else:
+                policy._search_counts[here_key] += 1
+                policy._release_explore_walk("explore-oscillating:search")
+                policy.last_reason = "search"
+                return SEARCH_KEY
         # Once local probes and searches are exhausted, resume the committed
         # exploration planner. It can route across remembered, off-screen
         # floor to an older reachable frontier; choosing a local least-visited
@@ -150,9 +157,16 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         and policy._undersearched_walls(player.position)
         and not damaging_ground.hurts_here(policy, snapshot)
     ):
-        policy._record_wall_search(player.position)
-        policy.last_reason = "search"
-        return SEARCH_KEY
+        # 99F/100F: a door detection where none has covered this dead end, else on to the
+        # exploration below (search_ban, owner 2026-11-23 「サーチ禁止。必要なら感知」).
+        if search_ban.banned(snapshot):
+            detected = search_ban.detect_key(policy, snapshot)
+            if detected is not None:
+                return detected
+        else:
+            policy._record_wall_search(player.position)
+            policy.last_reason = "search"
+            return SEARCH_KEY
 
     # A released immobile-breeder plan is only an exploration fallback.
     # Ordinary combat, threat, loot, descent, and hunting owners above must
@@ -220,9 +234,14 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
             and policy._search_counts[here_key] < SEARCH_LIMIT
             and not damaging_ground.hurts_here(policy, snapshot)
         ):
-            policy._search_counts[here_key] += 1
-            policy.last_reason = "search"
-            return SEARCH_KEY
+            if search_ban.banned(snapshot):
+                detected = search_ban.detect_key(policy, snapshot)
+                if detected is not None:
+                    return detected
+            else:
+                policy._search_counts[here_key] += 1
+                policy.last_reason = "search"
+                return SEARCH_KEY
 
     # Nothing is left to explore and a random quest's target is unfound: the floor is
     # circled for it, not walked cell by cell (quest_target_search).
@@ -240,7 +259,13 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         # A search on ground that hurts would only be replaced by the step off it
         # (damaging_ground.leave_first), uncounted rounds walked back to for ever:
         # n1-a life-492 (Orc cave 23F, 11-06 23:55), HEAVY_ELECTRICAL_ZONE.
-        if (policy._undersearched_walls(player.position)
+        if search_ban.banned(snapshot):
+            # No search and no walk to a wall to search on 99F/100F (search_ban): a door
+            # detection where one has not covered, else the stairs and the Recall rules below.
+            detected = search_ban.detect_key(policy, snapshot)
+            if detected is not None:
+                return detected
+        elif (policy._undersearched_walls(player.position)
                 and not damaging_ground.hurts_here(policy, snapshot)):
             policy._record_wall_search(player.position)
             policy.last_reason = "search"

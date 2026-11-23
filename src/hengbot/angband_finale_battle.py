@@ -53,8 +53,8 @@ The per-board order (``key``), the first that answers wins:
     rocket can take a potion's refill, then the heal (``_heal``: the absorbed Healing, else a
     Potion of Healing) for a deficit of a potion's 300 or more, never a rest (owner 2026-11-21
     「99F 100Fでの休憩は許可していない」); then on to the last-seen cell;
- 6. the battle: *Destruction* (powered when only it reaches) on the other monsters while the
-    target is outside its worst circle; haste and the Resistance potion; the powered Rocket when
+ 6. the battle: the ordinary *Destruction* on the other monsters while the target is shown
+    nowhere (owner 2026-11-23 「テレパシーに映らなければ破壊を使って良い」「普通の *破壊* だけにする」); haste and the Resistance potion; the powered Rocket when
     a line projects and HP - cost >= 800; else the stand on one of the eight rays of the target
     (its row or column first), as far as the Rocket reaches, opened with Stone to Mud; a wall
     whose melting would open the line on the target where it stands is never melted: it is kept
@@ -106,6 +106,9 @@ RESTORE_MANA_REASON = f"{REASON}:restore-mana"
 REST_REASON = f"{REASON}:rest"
 RESTORE_STATS_REASON = f"{REASON}:restore-stats"  # the drained stats after a teleport (2026-11-21)
 APPROACH_REASON = f"{REASON}:approach"
+# Owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」: the full detection on landing
+# after a teleport and on reaching the last-seen cell (``_detect_key``).
+DETECT_REASON = f"{REASON}:detect"
 STAND_WALK_REASON = f"{REASON}:stand-walk"
 MELT_REASON = f"{REASON}:melt"
 HOLD_REASON = f"{REASON}:hold"
@@ -131,8 +134,13 @@ SWEEP_REFUSALS = 3
 # (and never rested off: ``_recover_key``).
 HEAL_DEFICIT = 300
 ROCKET = ("wand", 29)
+# Powerful Activation's *Destruction* radius 18 + randint0(5): no rung of the battle casts it at
+# the other monsters any more (``_clear_key``, owner 2026-11-23 「普通の *破壊* だけにする」).
 POWERED_SURE = 18
 POWERED_WORST = 22
+# Telepathy's reach: MAX_PLAYER_SIGHT 20 (monster-update.cpp:433; halved only in a DARKNESS
+# dungeon, which Angband is not).
+TELEPATHY_RANGE = 20
 # The boards a wall whose melting would open the line on the target is kept (the target's own move
 # opens it); past them the stand is given up, never opened (``_stand_key``).
 LAST_WALL_HOLD = 10
@@ -171,6 +179,10 @@ class Battle:
     # (stand cell, target cell) given up because the stand's wall would open the line on the target
     # first (``_stand_key``): skipped while the target stays on that cell; cleared by a teleport.
     refused: set = field(default_factory=set)
+    # Owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」: the full detection is due here
+    # (set by a teleport and by reaching the last-seen cell; ``_detect_key``).  A class default:
+    # restored checkpoints predate it.
+    detect_due: bool = False
 
 
 def battle(policy, snapshot) -> Battle:
@@ -236,9 +248,11 @@ def _observe(policy, snapshot, held: Battle) -> None:
     if target is not None:
         held.last_seen = (target.position.y, target.position.x)
     elif held.last_seen is not None and snapshot.player.position == Position(*held.last_seen):
-        # 「最後に対象をみた座標に向かって移動」 done and the target not there: it is lost, and the
-        # floor is searched by detection (quest_target_search ``finale_searching``).
+        # 「最後に対象をみた座標に向かって移動」 done and the target not there: detect again here
+        # (owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」), then it is lost, and
+        # the floor is searched by detection (quest_target_search ``finale_searching``).
         held.last_seen = None
+        held.detect_due = True
 
 
 def lost(policy, snapshot) -> bool:
@@ -536,26 +550,28 @@ def _sweep_key(policy, snapshot, held: Battle) -> str | None:
 
 
 def _clear_key(policy, snapshot, held: Battle) -> str | None:
-    """「対象が破壊範囲内にいないとき、対象以外のあらゆるモンスターを破壊で排除する。必要なら強力発動で
-    範囲を広げる。」  The target's cell is where it is seen, else where it was last seen."""
+    """「対象が破壊範囲内にいないとき、対象以外のあらゆるモンスターを破壊で排除する。」 under the owner's
+    2026-11-23 answers (verbatim): 「テレパシーに映らなければ破壊を使って良い」 and 「普通の *破壊* だけ
+    にする — 標的がテレパシーに映らない時は普通の *破壊* だけを撃ち、強力発動は使わない。即死の時の逃げは
+    今までどおり。」
+
+    The target within telepathy's reach on this board (shown, ``TELEPATHY_RANGE`` or nearer: what
+    telepathy or sight shows): no *Destruction* at the others.  Otherwise (shown nowhere, or only by
+    a detection farther than that): the ordinary *Destruction* only, radius 13 + randint0(5) <= 17
+    (cmd-usestaff.cpp:282), inside telepathy's 20 (MAX_PLAYER_SIGHT, monster-update.cpp:433;
+    Angband has no DARKNESS flag), so the target cannot be in the circle (a QUESTOR in it is healed
+    to full and teleported away, spells-floor.cpp:284-287).  Never Powerful Activation's
+    18 + randint0(5) <= 22 here: n1-b life-416 (Angband 99F, 2026-11-23) cast it 66 times with Oberon
+    unshown, three of them with Oberon shown 21-22 cells from the cast within the next 15 boards.
+    The 即死 escapes (threat_tiers, deep_teleport) are not this rung and are unchanged."""
     rest = others(snapshot)
-    if not rest:
-        return None
-    here = snapshot.player.position
     target = target_monster(snapshot)
-    aim = target.position if target is not None else (
-        Position(*held.last_seen) if held.last_seen is not None else None)
-    distance = game_distance(here, aim) if aim is not None else None
-    if distance is None or distance > destruction_use.WORST_RADIUS:
-        near = _within(snapshot, rest, destruction_use.GUARANTEED_RADIUS)
-        if near:
-            used = _destroy(policy, snapshot, near, CLEAR_SUFFIX)
-            if used is not None:
-                return used
-    if distance is None or distance > POWERED_WORST:
-        reach = _within(snapshot, rest, POWERED_SURE)
-        if reach:
-            return _destroy(policy, snapshot, reach, CLEAR_SUFFIX, powerful=True)
+    if not rest or (target is not None
+                    and game_distance(snapshot.player.position, target.position) <= TELEPATHY_RANGE):
+        return None
+    near = _within(snapshot, rest, destruction_use.GUARANTEED_RADIUS)
+    if near:
+        return _destroy(policy, snapshot, near, CLEAR_SUFFIX)
     return None
 
 
@@ -723,18 +739,91 @@ def forbids_rest(policy, snapshot) -> bool:
 
 
 def _approach_key(policy, snapshot, held: Battle) -> str | None:
-    """「最後に対象をみた座標に向かって移動」."""
+    """「最後に対象をみた座標に向かって移動」.  A last-seen cell no walk reaches: toward the nearest
+    exploration frontier closer to it than the player (a cell the board no longer shows, as after a
+    *Destruction* forgot it: n1-b life-416 Angband 99F 2026-11-23 18:3x, Oberon last seen at
+    (11,106) and the teleport's landing (6,46) on the far side of forgotten ground), else opened
+    toward (the openers: the digger's route, else Stone to Mud, retreat_enclosure
+    ``open_toward_key``); with neither it is given up (the target is then ``lost`` and the floor
+    searched)."""
     if held.last_seen is None:
         return None
     goal = Position(*held.last_seen)
     if snapshot.player.position == goal:
         return None
     step = policy._nearest_goal_step(snapshot, lambda grid: grid.position == goal)
-    if step is None:
+    if step is not None:
+        key = policy._step_toward(snapshot, step)
+        policy.last_reason = APPROACH_REASON
+        return key
+    distance = game_distance(snapshot.player.position, goal)
+    route = policy._nearest_goal_route(
+        snapshot, lambda grid: game_distance(grid.position, goal) < distance
+        and policy._is_frontier(snapshot, grid))
+    if route is not None:
+        key = policy._step_toward(snapshot, route.first_step)
+        policy.last_reason = APPROACH_REASON
+        return key
+    from hengbot import quest_target_search, retreat_enclosure  # import cycle
+    opened = retreat_enclosure.open_toward_key(
+        policy, snapshot, quest_target_search.walkable_cells(policy, snapshot), {goal})
+    if opened is not None:
+        return opened
+    held.last_seen = None
+    return None
+
+
+def _detect_key(policy, snapshot, held: Battle) -> str | None:
+    """Owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」: once where a teleport landed
+    and once on reaching the last-seen cell, the full detection while the target is shown nowhere:
+    the absorbed Detection (else Detect Evil for an EVIL target), else a carried Rod of Detection or
+    Staff of Detect Evil.  With none to use the walk goes on."""
+    from hengbot import area_mapping, hunt_target, quest_target_search  # import cycle
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.me_absorbed_substitutes import DETECTION, cast
+    held.detect_due = False
+    race = angband_finale.target_race(snapshot)
+    flags = hunt_target.race_flags(policy, race) if race is not None else frozenset()
+    for ident, effect in zip(DETECTION, ("detect-all", "detect-evil")):
+        if not hunt_target.REVEALS[effect](flags):
+            continue
+        key = cast(policy, snapshot, ident, DETECT_REASON)
+        if key is not None:
+            return key
+    if not area_mapping.device_usable_now(policy, snapshot):
         return None
-    key = policy._step_toward(snapshot, step)
-    policy.last_reason = APPROACH_REASON
-    return key
+    for (tval, sval), (kind, effect) in quest_target_search.CARRIED_DETECTION.items():
+        item = next((each for each in snapshot.inventory
+                     if (each.tval, each.sval) == (tval, sval)), None)
+        if (item is None or not hunt_target.REVEALS[effect](flags)
+                or not area_mapping.device_ready(item, kind)):
+            continue
+        key = reserved_item_command(policy, snapshot, kind, item)
+        if key is not None:
+            policy.last_reason = DETECT_REASON
+            return key
+    return None
+
+
+def _lost_key(policy, snapshot) -> str | None:
+    """「感知で回る」 (owner 2026-11-21) inside the battle: the target shown nowhere and no last-seen
+    cell kept, the quest search's lap with its detections (the absorbed one at its spacing, me_powers
+    ``hunt-target-unseen``; a carried one, quest_target_search ``detection_key``), and once that lap
+    covered the floor without the target, the stairs that regenerate it.  Never the generic
+    exploration, search or wander (owner 2026-11-23, the 99F waste: 89% of the floor's time)."""
+    from hengbot import me_powers, quest_target_search  # import cycle
+    if not lost(policy, snapshot):
+        return None
+    if quest_target_search.finale_swept(policy, snapshot):
+        return policy._town_producer_entry(
+            "_start_kill_quest_regeneration", lambda: policy._start_kill_quest_regeneration(snapshot))
+    power = me_powers.power_key(policy, snapshot, me_powers.FLOOR, only="hunt-target-unseen")
+    if power is not None:
+        return power
+    carried = quest_target_search.detection_key(policy, snapshot)
+    if carried is not None:
+        return carried
+    return quest_target_search.loop_key(policy, snapshot)
 
 
 def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
@@ -787,6 +876,7 @@ def key(policy, snapshot) -> str | None:
         if away is not None:
             held.phase, held.stand = RECOVER, None
             held.refused.clear()
+            held.detect_due = True
             return away
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
@@ -799,6 +889,12 @@ def key(policy, snapshot) -> str | None:
         recovered = _recover_key(policy, snapshot, held)
         if recovered is not None:
             return recovered
+    # The full detection where the teleport landed (after the recovery's heal, which the
+    # owner's 2026-11-20 line puts first) and on the last-seen cell (owner 2026-11-23).
+    if held.detect_due and target is None and held.phase != SWEEP:
+        detected = _detect_key(policy, snapshot, held)
+        if detected is not None:
+            return detected
     mapped = _map_key(policy, snapshot)
     if mapped is not None:
         return mapped
@@ -807,7 +903,10 @@ def key(policy, snapshot) -> str | None:
         return cleared
     if target is not None:
         return _fight_key(policy, snapshot, held, target)
-    return _approach_key(policy, snapshot, held)
+    approach = _approach_key(policy, snapshot, held)
+    if approach is not None:
+        return approach
+    return _lost_key(policy, snapshot)
 
 
 def _small_floor(policy, snapshot) -> str | None:

@@ -24274,5 +24274,93 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Pure value: the expected damage of one use of an attack power (success x damage after the known resistance, capped by the target's HP); emits no key."
+  },
+  "quest_target_search.py:_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The floor visit's search memory (Memory), made anew on a floor change; dungeon floors only (loop_key, observe, door_detection_key); no command."
+  },
+  "quest_target_search.py:_routes": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Every walkable cell -> (distance, first step) from the player, breadth first under the walks' veto; a figure, no command."
+  },
+  "quest_target_search.py:door_detection_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-23 「99F 100Fはサーチ禁止。必要なら感知すること。」: door_means_key with the floor visit's memory and routes, reached only from search_ban.detect_key on Angband 99F/100F; dungeon only; posts through me_powers.power_key or the shared item and read composers."
+  },
+  "search_ban.py:detect_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-23 「99F 100Fはサーチ禁止。必要なら感知すること。」: None off Angband 99F/100F (never in town); there the door detection of quest_target_search.door_detection_key in place of a search; dungeon only."
+  },
+  "search_ban.py:wait_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The search key, or the wait key on Angband 99F/100F (owner 2026-11-23 「サーチ禁止」); a key constant returned to the sender that holds a turn, no command of its own."
+  },
+  "angband_finale_battle.py:_detect_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」: reached only from angband_finale_battle.key on an Angband 99F/100F floor of the finale's expedition (applies); dungeon only; casts the absorbed Detection / Detect Evil through me_absorbed_substitutes.cast, else a carried rod or staff through the shared item composer."
+  },
+  "angband_finale_battle.py:_lost_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-21 「感知で回る」 inside the battle: reached only from angband_finale_battle.key on an Angband 99F/100F floor of the finale's expedition while the target is lost; dungeon only; returns me_powers.power_key, quest_target_search.detection_key / loop_key or the kill-quest regeneration through _town_producer_entry."
+  },
+  "quest_target_search.py:walkable_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The cells the search's walks reach from the player (_routes' keys); a figure, no command."
   }
 }

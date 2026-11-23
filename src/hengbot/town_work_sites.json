@@ -559,6 +559,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_detect_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_finale_battle.py:_eat_key": {
     "classification": "data",
     "rows": [
@@ -581,6 +588,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "angband_finale_battle.py:_known_hostiles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale_battle.py:_lost_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16508,6 +16522,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_memory": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:_next_goal": {
     "classification": "data",
     "rows": [
@@ -16550,6 +16571,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_target_search.py:_routes": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_target_search.py:_sweep_goal": {
     "classification": "data",
     "rows": [
@@ -16572,6 +16600,13 @@
     "delegation": "selected child; no independent success"
   },
   "quest_target_search.py:detection_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:door_detection_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16605,6 +16640,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "no emission; observational data for the quest search's lap"
+  },
+  "quest_target_search.py:walkable_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_wait_placement.py:_Reader._blocked": {
     "classification": "data",
@@ -17245,6 +17287,20 @@
     "delegation": "selected child; no independent success"
   },
   "sealed_pocket.py:sealed_region": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "search_ban.py:detect_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "search_ban.py:wait_key": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

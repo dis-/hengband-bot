@@ -94,10 +94,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hengbot import return_start
-from hengbot import cross_rules, deep_recall_loot, line_of_fire, no_ac_recall, recall_wait_teleport
+from hengbot import cross_rules, deep_recall_loot, line_of_fire, no_ac_recall, recall_wait_teleport, search_ban
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL
-from hengbot.policy_constants import DEEP_FLOOR_DEPTH, SEARCH_KEY
+from hengbot.policy_constants import DEEP_FLOOR_DEPTH
 
 SCROLL_SVALS = frozenset({SV_SCROLL_TELEPORT, SV_SCROLL_PHASE_DOOR})
 DESTRUCTION_SUFFIX = ":deep-teleport"
@@ -397,7 +397,7 @@ def _refused_key(policy, snapshot) -> str | None:
         return recall
     setattr(policy, NO_MEANS_NOTE, snapshot.turn)
     policy.last_reason = HOLD_REASON
-    return SEARCH_KEY
+    return search_ban.wait_key(snapshot)
 
 
 def _stuck_goals(policy, snapshot) -> set:
@@ -462,7 +462,7 @@ def _substitute(policy, snapshot) -> str | None:
     if recall_wait_teleport.withheld(policy, snapshot):
         # While Recall counts down nothing is read in the refused teleport's place.
         policy.last_reason = recall_wait_teleport.HOLD_REASON
-        return SEARCH_KEY
+        return search_ban.wait_key(snapshot)
     if fire_p95(policy, snapshot) >= snapshot.player.hp:
         # The 即死 board refused only for the landing in fire: *Destruction*, else the teleport.
         return destruction_use.key(policy, snapshot, leaving=landed_threats(policy, snapshot),
