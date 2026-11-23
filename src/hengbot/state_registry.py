@@ -1883,6 +1883,9 @@ REGISTRY = (
     # recall_wait_reach
     S("_recall_wait_clock", "recall_wait_reach", FLOOR,
       "the running Recall countdown's read turn and the last board, for the wait's reach"),
+    # recall_wait_unknown_path
+    S("_recall_wait_unknown_step", "recall_wait_unknown_path", LIFE,
+      "(floor_key, game turn, cell stood on, unknown cell stepped into) of the 50F+ recall wait's last step over an unknown cell: a bump that left it unknown marks it blocked (owner 2026-11-23)."),
     # recall_wait_teleport
     S("_recall_wait_teleport_busy", "recall_wait_teleport", LIFE,
       "the predicate is being computed (re-entry)"),
