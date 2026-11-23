@@ -193,6 +193,17 @@ from hengbot.model import (
 )
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.town_hold import standing_claim
+from hengbot.item_reservation import decision_caches_enabled
+from weakref import WeakKeyDictionary
+
+# Maintainability review 2026-11-23 (a)-6: a decision built the grid index of one board twice
+# (the town entry and the main _decide), and its first pass over every cell is the cost.
+# policy -> (board, inputs, monster cells): the pass of the last build.  The pass only adds the
+# board's own cells to the remembered sets, so on the same board with the same ``inputs``
+# (_grid_index_pass_inputs: every policy collection the pass reads or writes, as the last pass
+# left it) it would change nothing; the rest of the build always runs.  Off under
+# decision_caches_disabled.  Not policy state.
+_grid_index_pass_memo: WeakKeyDictionary = WeakKeyDictionary()
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
     NAV_ESCAPE_STEP_LIMIT, OPEN_KEY, RUBBLE_DIG_LIMIT, RUBBLE_REJECT_LIMIT,
@@ -1158,19 +1169,59 @@ class NavigationMixin:
         self._town_visit_entrances.clear()
         self._town_entrance_cache = None
 
+    def _grid_index_pass_inputs(self) -> tuple:
+        """What the grid index's per-cell pass reads and writes besides the board.
+
+        The six remembered terrain sets change elsewhere only by removal (a floor reset,
+        *Destruction*'s forgetting), so the object and its size show any change (the object is
+        held, so its identity is not reused); the others are compared whole.
+        """
+        sized = (
+            self._remembered_floor_t, self._remembered_door_t, self._remembered_rubble_t,
+            self._remembered_wall_t, self._remembered_known_t, self._remembered_marked_t,
+        )
+        return (
+            tuple((each, len(each)) for each in sized),
+            frozenset(self._blocked_unknown),
+            frozenset(self._probe_counts),
+            frozenset(self._remembered_downstairs),
+            frozenset(self._remembered_upstairs),
+            frozenset(self._remembered_entrances),
+            self._nav_ledger,
+            self._nav_ledger.expired_state(),
+            frozenset(self._unverified_stairs),
+        )
+
     def _build_grid_index(self, snapshot: Snapshot) -> None:
+        memo = _grid_index_pass_memo.get(self) if decision_caches_enabled() else None
+        if memo is not None and memo[0] is snapshot and memo[1] == self._grid_index_pass_inputs():
+            monster_keys = memo[2]
+        else:
+            monster_keys = self._grid_index_cell_pass(snapshot)
+            if decision_caches_enabled():
+                _grid_index_pass_memo[self] = (
+                    snapshot, self._grid_index_pass_inputs(), monster_keys)
+            else:
+                _grid_index_pass_memo.pop(self, None)
+        self._build_grid_index_sets(snapshot, monster_keys)
+
+    def _grid_index_cell_pass(self, snapshot: Snapshot) -> list[tuple[int, int]]:
+        """Add the board's cells to the remembered sets; return its monster cells."""
         remembered_floor = self._remembered_floor_t
         remembered_door = self._remembered_door_t
         remembered_rubble = self._remembered_rubble_t
         remembered_wall = self._remembered_wall_t
         remembered_known = self._remembered_known_t
         remembered_marked = self._remembered_marked_t
-        blocked_doors = self._blocked_doors
-        blocked_rubble = self._blocked_rubble
         player = snapshot.player.position
         light_radius = snapshot.light_radius
+        shop_floor = dungeon_shop.board_has_entrances(snapshot)
+        player_y, player_x = player.y, player.x
+        monster_keys = []
         for pos, grid in snapshot.grids.items():
             key = (pos.y, pos.x)
+            if grid.has_monster:
+                monster_keys.append(key)
             if not grid.known:
                 continue
             if grid.has_down_stairs and not self._is_downstairs_expired(pos):
@@ -1184,8 +1235,12 @@ class NavigationMixin:
             # own light (update_lite, torch.cpp; distance as Grid::calc_distance)
             # has been seen and stays explored after the light moves on and the
             # game stops drawing it -- dark-room floor is never CAVE_MARK.
+            # The light's square bounds the distance (it is never below either axis'), so a
+            # cell outside it is not asked.
             if grid.marked or (
                 light_radius is not None
+                and abs(pos.y - player_y) <= light_radius
+                and abs(pos.x - player_x) <= light_radius
                 and self._monster_cast_distance(player, pos) <= light_radius
             ):
                 remembered_marked.add(key)
@@ -1206,12 +1261,26 @@ class NavigationMixin:
                 # Rubble is passed by tunnelling ('T'+dir) — treat it like a door
                 # the pathfinder may route through, until we give up on it.
                 remembered_rubble.add(key)
-            elif dungeon_shop.entrance(snapshot, grid):
-                pass  # no route, exploration or flight crosses it
+            elif shop_floor and grid.is_store:
+                pass  # dungeon_shop.entrance: no route, exploration or flight crosses it
             elif grid.passable:
                 remembered_floor.add(key)
             elif grid.wall:
                 remembered_wall.add(key)
+        return monster_keys
+
+    def _build_grid_index_sets(
+        self, snapshot: Snapshot, monster_keys: list[tuple[int, int]]
+    ) -> None:
+        """The routing sets of the board from the remembered ones (every build)."""
+        remembered_floor = self._remembered_floor_t
+        remembered_door = self._remembered_door_t
+        remembered_rubble = self._remembered_rubble_t
+        remembered_known = self._remembered_known_t
+        remembered_marked = self._remembered_marked_t
+        blocked_doors = self._blocked_doors
+        blocked_rubble = self._blocked_rubble
+        player = snapshot.player.position
         floor = set(remembered_floor)
         door = remembered_door - blocked_doors
         rubble = remembered_rubble - blocked_rubble
@@ -1224,10 +1293,7 @@ class NavigationMixin:
         if area is not None:
             floor |= area.walkable(remembered_known, self._blocked_unknown)
             marked |= area.explored(remembered_known)
-        for pos, grid in snapshot.grids.items():
-            if not grid.has_monster:
-                continue
-            key = (pos.y, pos.x)
+        for key in monster_keys:
             floor.discard(key)
             door.discard(key)
             rubble.discard(key)

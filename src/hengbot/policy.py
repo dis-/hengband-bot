@@ -12,7 +12,7 @@ from hengbot.item_reservation import (
     claim_candidate_memo, decision_memo, decision_caches_enabled,
 )
 from hengbot.town_work import town_work_decision
-from hengbot.town_pack_budget import floor_step_fits, note_reserve_swap, permits
+from hengbot.town_pack_budget import explicit_pickup_cells_now, floor_step_fits, note_reserve_swap, permits
 from hengbot import town_visit_plan
 from hengbot import cross_rules, deep_admission, deep_climb, deep_fall_guard, dive_floor, escape_count, fallback_depth_floor, fled_floor_stairs, material_threat, walk_vetoes
 from hengbot import ladder_above_emergency, ladder_combat, ladder_descent, ladder_emergency, ladder_floor_avoidance, ladder_global_map, ladder_idle, ladder_light, ladder_objectives, ladder_opening, ladder_plan_above_survival, ladder_plan_approved_quest, ladder_pre_combat, ladder_rest, ladder_safe_now, ladder_summoner_shots, warning_cell_record
@@ -41,6 +41,14 @@ from weakref import WeakKeyDictionary
 
 
 _map_offer_cache: WeakKeyDictionary = WeakKeyDictionary()
+# Maintainability review 2026-11-23 (a)-6: _walkable_neighbors asked floor_step_fits and
+# _on_town_border of the same cell ~1,600 times a decision; both read only the board asked and
+# the explicit pickup cells.  policy -> (decision board, {id(board): (board, {explicit pickup
+# cells: {Position: refused}})}): a fresh table at every _begin_map_predicate_cache, read only
+# while that decision board is the policy's (so nothing carries to another decision) and for
+# the very board asked (it is held, so its identity is not reused).  Off under
+# decision_caches_disabled.  Not policy state.
+_walk_step_memo: WeakKeyDictionary = WeakKeyDictionary()
 
 
 def _fixed_quest_offers_from_grids(grids):
@@ -2684,6 +2692,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             _map_offer_cache[self] = (map_key, self._fixed_quest_offers)
         self._hazard_cache.clear()
         self._town_border_cache.clear()
+        if decision_caches_enabled():
+            _walk_step_memo[self] = (snapshot, {})  # see _walk_step_memo
+        else:
+            _walk_step_memo.pop(self, None)
         self._refresh_town_facts(snapshot)
 
     @summoner_wait_decision
@@ -16790,8 +16802,21 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         floor = self._floor_t | through if through else self._floor_t
         door = self._door_t
         rubble = self._rubble_t
+        grids = snapshot.grids
         y = pos.y
         x = pos.x
+        # The board's step refusals (_walk_step_memo) and its hazard answers: the
+        # _is_avoidable_hazard_grid cache read in place, the method asked on a miss.
+        refusals = None
+        entry = _walk_step_memo.get(self)
+        if (entry is not None and entry[0] is self._map_predicate_snapshot
+                and decision_caches_enabled()):
+            board = entry[1].get(id(snapshot))
+            if board is None or board[0] is not snapshot:
+                board = (snapshot, {})
+                entry[1][id(snapshot)] = board
+            refusals = board[1].setdefault(explicit_pickup_cells_now(), {})
+        hazards = self._hazard_cache if self._map_predicate_snapshot is not None else None
         neighbors: list[Position] = []
         for dy, dx in NEIGHBOR_OFFSETS:
             ny = y + dy
@@ -16799,19 +16824,28 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             key = (ny, nx)
             if key in floor:
                 neighbor = Position(ny, nx)
-                grid = snapshot.grids.get(neighbor)
-                if not floor_step_fits(snapshot, neighbor):
+                grid = grids.get(neighbor)
+                refused = None if refusals is None else refusals.get(neighbor)
+                if refused is None:
+                    refused = not floor_step_fits(snapshot, neighbor) or (
+                        self._on_town_border(snapshot, neighbor)
+                        and not (grid is not None and grid.has_entrance)
+                    )
+                    if refusals is not None:
+                        refusals[neighbor] = refused
+                if refused:
                     continue
-                if self._on_town_border(snapshot, neighbor) and not (
-                    grid is not None and grid.has_entrance
-                ):
-                    continue
-                if (
-                    allow_damaging is False
-                    and self._is_avoidable_hazard_grid(grid)
-                    and not (grid is not None and goal is not None and goal(grid))
-                ):
-                    continue
+                if allow_damaging is False:
+                    hazard = (
+                        hazards.get(grid.position)
+                        if hazards is not None and grid is not None else None
+                    )
+                    if hazard is None:
+                        hazard = self._is_avoidable_hazard_grid(grid)
+                    if hazard and not (
+                        grid is not None and goal is not None and goal(grid)
+                    ):
+                        continue
                 neighbors.append(neighbor)
             elif key in door:
                 neighbors.append(Position(ny, nx))
@@ -16819,13 +16853,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # Rubble is tunnelled from an orthogonally adjacent tile.
                 neighbors.append(Position(ny, nx))
         if allow_damaging is None:
-            safe = [
-                neighbor
-                for neighbor in neighbors
-                if not self._is_avoidable_hazard_grid(
-                    snapshot.grids.get(neighbor)
+            safe = []
+            for neighbor in neighbors:
+                grid = grids.get(neighbor)
+                hazard = (
+                    hazards.get(grid.position)
+                    if hazards is not None and grid is not None else None
                 )
-            ]
+                if hazard is None:
+                    hazard = self._is_avoidable_hazard_grid(grid)
+                if not hazard:
+                    safe.append(neighbor)
             # Immediate movement selectors prefer every safe option, but retain
             # emergency/corridor progress when all available steps are harmful.
             return safe or neighbors
