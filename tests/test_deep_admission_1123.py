@@ -1,12 +1,21 @@
-"""The 50F+ admission gates answer through deep_admission.verdict as they did before (K2).
+"""The 50F+ admission gates answer the owner's one rule through deep_admission.verdict (K2).
 
 Whole-bot maintainability review 2026-11-23 K2: eleven gates of 「*破壊* なしで50F以降にいない」 asked
-it with three predicates of their own.  tests/extract_deep_admission_1123_fixture.py asked every
+it with three predicates of their own.  tests/extract_deep_admission_1123_fixture.py asks every
 gate over one table (dungeon x depth 44-52 x the means x the climb, tests/support
-/deep_admission_table) on main 5fe531c0a and wrote the answers (tests/fixtures
-/deep-admission-1123/answers.json); the gates routed through ``verdict`` give the same answers,
-and where they disagree with each other (disagreements.json) is the owner's question, kept as
-it is.
+/deep_admission_table) and writes the answers (tests/fixtures/deep-admission-1123/answers.json);
+the gates routed through ``verdict`` gave main 5fe531c0a's answers, 37 cells disagreeing.
+
+Owner 2026-11-23 (b)-2 「入らない・着いたら登る側にそろえる」: without the means no route enters 50F+,
+a 50F+ floor stood on anyway is climbed from, only the climb's 50F landing is arrived on.
+Every gate now gives that rule's answer (deep_admission_table.owner_answer, the rule written out
+per question); answers.json changed from main 57a80bc0a in 30 answers, all of them toward it:
+the stairs' two gates one answer (an exposed 48F/49F refused by both, 50F+ without the means
+refused by both), the trap door's landing admitted with the means, Angband's 50F+ floor stood on
+without the means refused.  disagreements.json keeps where the routes answer different
+questions of the rule (the climb's exception taken by the landing and the floor stood on, never
+by the intent or a stair; the quest floor; the means-spent loop's net; the means-only parts of
+the recall beside its landing gate).
 
 Recorded: n1-a life-535's town-arrival checkpoint (tests/fixtures/n1a-535-deep-arrival-1123):
 its policy, the departure board of row 122 and the first Castle 48F board of the capture.
@@ -41,8 +50,8 @@ def _verdict(cell, route, *, means=None, climbing=None):
 
 
 # The gates whose answer is ``verdict`` on the cell's own readings (the others add a context of
-# their own: the trap door's landing guard on a recall or a fallback landing, the fall from the
-# floor stood on, the standing hold that only the Castle and the Mountain have).
+# their own: the trap door's landing guard on a recall or a fallback landing and the stairs'
+# ``exposed`` floor, the fall from the floor stood on).
 PROJECTIONS = {
     "policy_constants.destruction_dive_permitted": lambda c: _verdict(c, "intent").admitted,
     "policy_constants.permitted_dive_depth": lambda c: _verdict(c, "intent").admitted,
@@ -51,10 +60,10 @@ PROJECTIONS = {
     "destruction_means.departure_carried": lambda c: _verdict(c, "recall").admitted,
     "deep_climb.departure_gaps": lambda c: _verdict(c, "recall").admitted,
     "policy._destination_depth_allowed": lambda c: _verdict(c, "recall").admitted,
-    "policy._deep_stair_refused": lambda c: _verdict(c, "stairs").admitted,
-    "deep_fall_guard.sanctioned": lambda c: _verdict(c, "trapdoor", means=False).admitted,
+    "deep_fall_guard.sanctioned": lambda c: _verdict(c, "trapdoor").admitted,
     "deep_climb.observe": lambda c: _verdict(c, "trapdoor").admitted,
     "destruction_use.means_spent": lambda c: _verdict(c, "stand").admitted,
+    "deep_climb._standing_without_means": lambda c: _verdict(c, "stand").admitted,
     "deep_climb._standing_without_means@quest": lambda c: _verdict(c, "quest").admitted,
     "destruction_use.means_spent@quest": lambda c: _verdict(c, "quest").admitted,
     "deep_climb.observe@quest": lambda c: _verdict(c, "quest").admitted,
@@ -81,7 +90,7 @@ class DeepAdmissionTest(unittest.TestCase):
         cls.policy._home_disposal.history_path.unlink(missing_ok=True)
         cls.scratch.cleanup()
 
-    def test_every_gate_keeps_its_answers_of_main(self):
+    def test_every_gate_keeps_its_recorded_answers(self):
         recorded = json.loads((RECORDED / "answers.json").read_text(encoding="utf-8"))
         self.assertEqual(set(recorded), set(table.GATES))
         for gate in table.GATES:
@@ -97,7 +106,60 @@ class DeepAdmissionTest(unittest.TestCase):
                                if projection(cell) != self.answers[gate][table.cell_name(cell)])
                 self.assertEqual(wrong, [])
 
-    def test_the_disagreements_are_the_owner_question_as_recorded(self):
+    def test_every_gate_gives_the_owner_rule_answer(self):
+        last = table.last_floors(self.policy)
+        for gate in table.GATES:
+            with self.subTest(gate=gate):
+                wrong = sorted(table.cell_name(cell) for cell in table.cells()
+                               if self.answers[gate][table.cell_name(cell)]
+                               != table.owner_answer(last, gate, cell))
+                self.assertEqual(wrong, [])
+
+    def test_the_owner_rule_on_the_five_shapes(self):
+        """The five shapes of main's 37 disagreeing cells, as the owner's rule answers them."""
+        answers = lambda cell: {gate: self.answers[gate][cell] for gate in table.GATES}
+        # 1. The climb's 50F landing: arrived on (recall, fallback, trap door) and stood on;
+        #    never a dive's intent nor a stair.
+        climb_50 = answers("castle:50:no-means:climbing")
+        self.assertTrue(climb_50["policy._recall_destination_safe"])
+        self.assertTrue(climb_50["deep_climb.observe"])
+        self.assertTrue(climb_50["destruction_use.means_spent"])
+        self.assertFalse(climb_50["policy._deep_stair_refused"])
+        self.assertFalse(climb_50["deep_fall_guard.descent_refused"])
+        self.assertFalse(climb_50["policy_constants.destruction_dive_permitted"])
+        # 2. The climb's 51F/52F: no route arrives there, the floor stood on is climbed from.
+        for cell in ("castle:51:no-means:climbing", "mountain:52:no-means:climbing"):
+            climb_deep = answers(cell)
+            self.assertFalse(climb_deep["deep_climb.observe"])
+            self.assertFalse(climb_deep["deep_fall_guard.sanctioned"])
+            self.assertFalse(climb_deep["policy._recall_destination_safe"])
+            self.assertFalse(climb_deep["deep_fall_guard.descent_refused"])
+            self.assertTrue(climb_deep["deep_climb._standing_without_means"])
+            self.assertTrue(climb_deep["destruction_use.means_spent"])
+        # 3. An exposed 48F/49F (its trap door onto 50F+, no detection): no landing, no stair.
+        for cell in ("angband:49:no-means:no-climb", "castle:48:no-means:no-climb",
+                     "mountain:49:no-means:no-climb"):
+            exposed = answers(cell)
+            for gate in ("policy._deep_stair_refused", "deep_fall_guard.descent_refused",
+                         "policy._recall_destination_safe",
+                         "policy_helpers._fallback_landing_allowed"):
+                self.assertFalse(exposed[gate], (cell, gate))
+        # 4. Angband 50F+ without the means: no climb, refused by every route; the floor stood
+        #    on is left (the means-spent return; an arrival from above, the named stop).
+        for depth in (50, 51, 52):
+            angband = answers(f"angband:{depth}:no-means:no-climb")
+            self.assertEqual(sorted(gate for gate, admitted in angband.items() if admitted),
+                             ["deep_climb._standing_without_means@quest",
+                              "deep_climb.observe@quest", "destruction_use.means_spent@quest",
+                              "me_inn_refill.dive_reaches_deep"])
+        # 5. With the means every route admits 50F+ but the means-spent loop's net.
+        for cell in ("angband:51:means:no-climb", "castle:50:means:no-climb",
+                     "mountain:52:means:climbing"):
+            means = answers(cell)
+            self.assertEqual(sorted(gate for gate, admitted in means.items() if not admitted),
+                             ["means_spent_loop.looping"])
+
+    def test_the_route_differences_are_as_recorded(self):
         recorded = json.loads((RECORDED / "disagreements.json").read_text(encoding="utf-8"))
         self.assertEqual(table.disagreements(self.answers), recorded)
 
