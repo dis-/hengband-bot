@@ -30,6 +30,7 @@ from tests.support import finale_416
 from tests.support.recorded import EDIT
 
 FIXTURE = "finale-serpent-death-n1b-416-1124.jsonl.gz"
+SENSED_LINE = 4781286  # seq 1212: at (10,24), the Tarrasque known by telepathy alone at (9,40)
 INTO_LINE = 4781288  # seq 1214: at (9,25), the Serpent unseen, the Tarrasque in view at (9,40)
 FIRST_HEAL = 4781291
 IN_VIEW = 4781293   # HP 1078, both in view on row 9, a stale remembered wall at (9,38)-(9,39)
@@ -53,6 +54,14 @@ class FinaleSerpentDeathRecordedTest(unittest.TestCase):
 
         rows = finale_416.drive(finale_416.boards(FIXTURE), monrace, prepare=prepare)
         cls.rows = {row[0]: row for row in rows if row[0] >= FIRST_HEAL - 20}
+
+    def test_the_approach_does_not_step_into_the_sensed_tarrasque_line(self):
+        # The same rule for the Tarrasque known by telepathy alone: the memory's stale walls at
+        # (9,38)-(9,39) (the board no longer shows them) do not close its line to (9,25), so the
+        # recorded '9' from (10,24) into it is not stepped.
+        row = self.rows[SENSED_LINE]
+        self.assertEqual(row[1], (10, 24), self.rows)
+        self.assertNotEqual(row[2], "9", self.rows)
 
     def test_the_approach_does_not_step_into_the_tarrasque_line(self):
         # Owner 2026-11-24 (verbatim) 「射線を通す近づき方をしたのが悪い。射線を通さないように近づくないし

@@ -418,10 +418,11 @@ def cell_exposed(policy, snapshot, monster, cell: Position, opened: tuple = ()) 
     player may walk to, or stand on with ``opened`` melted).
 
     Within the spell range (``_monster_cast_distance`` <= get_max_range() = 18), the bolt path
-    from the monster to ``cell``: for a monster in the player's view, a grid only the map memory
-    shows does not stop it (``player_reaches``' reading of the view); for one known otherwise
-    (telepathy, detection), the ``danger`` reading -- the remembered straight line, else, awake,
-    projectable() with the unknown grids open.  ``opened``: grids read as open (a wall about to be
+    from the monster to ``cell`` with the unknown grids open, a grid only the map memory shows not
+    stopping it, for a monster in the player's view (``player_reaches``' reading of the view) and
+    for an awake one known by telepathy or detection (the line may be open: the game forgets the
+    walls a KILL_WALL monster or a *Destruction* removes); a sleeping one known so: the remembered
+    straight line.  Not the ``danger`` reading, which keeps the memory's walls elsewhere.  ``opened``: grids read as open (a wall about to be
     melted).
 
     Owner 2026-11-24 (verbatim) 「射線を通す近づき方をしたのが悪い。射線を通さないように近づくないし
@@ -432,22 +433,21 @@ def cell_exposed(policy, snapshot, monster, cell: Position, opened: tuple = ()) 
         return False
     if monster.position == cell:
         return True
-    if _in_view(snapshot, monster):
+    if _in_view(snapshot, monster) or not monster.asleep:
+        # Owner 2026-11-24 「射線を通さないように近づく」, the conservative reading for the avoided set
+        # (coordinator 2026-11-24: assume the line may be open): a grid only the map memory shows
+        # does not stop it, for a monster in view and for an awake one known by telepathy or
+        # detection alike.  n1-b life-416 (Angband 100F, 05:24:26, seq 1212): the Tarrasque known
+        # by telepathy at (9,40), the memory's stale walls (9,38)-(9,39) read its line to (9,25)
+        # closed, and the walk stepped '9' from (10,24) into it; on the next board it was in view.
         path = projection_path(
             monster.position, cell, MONSTER_SPELL_MAX_RANGE,
             lambda position: position not in opened
             and not _memory_only(policy, snapshot, position)
             and policy._may_block_projection(snapshot, position))
         return bool(path) and path[-1] == cell
-    if not opened and straight_line(policy, snapshot, monster.position, cell,
-                                    remembered=policy._remembered_grids):
-        return True
-    if monster.asleep:
-        return False
-    path = projection_path(
-        monster.position, cell, MONSTER_SPELL_MAX_RANGE,
-        lambda position: position not in opened and policy._may_block_projection(snapshot, position))
-    return bool(path) and path[-1] == cell
+    return not opened and straight_line(policy, snapshot, monster.position, cell,
+                                        remembered=policy._remembered_grids)
 
 
 def player_path(policy, snapshot, source: Position, target: Position, max_range: int,
