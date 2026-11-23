@@ -47,7 +47,12 @@ the quest fails.  The count is summon_response's rule 3 number (owner 2026-11-04
 reading of an out-of-line cast as monster against monster is the owner's of 2026-11-16 (rule 3's
 「術者から射線が通る時だけ数える」 was decided on two casters fighting each other).  A summoned
 monster of a side-less race carries its summoner's side in the game but not on the board: the races
-of ``good_summons_symbols`` (S_ANT's 'a') count as GOOD for ``facing``.
+of ``good_summons_symbols`` (S_ANT's 'a') count as GOOD for ``facing``, those of
+``evil_summons_symbols`` (S_HYDRA's 'M', the Gachapins') as EVIL.
+
+Past the split (owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」, n1-c life-221): a plan naming
+``when_mixed`` answers the sides already mixed and summoning at each other by its assault
+(quest_mixed_assault).
 """
 
 from __future__ import annotations
@@ -75,6 +80,8 @@ def split_of(plan) -> dict | None:
 
 def valid(value) -> bool:
     """The schema (quest_strategies reads it at load)."""
+    from hengbot import quest_mixed_assault  # it reads this module's sides
+
     def integer(item) -> bool:
         return isinstance(item, int) and not isinstance(item, bool)
 
@@ -83,9 +90,10 @@ def valid(value) -> bool:
             and all(integer(item) and item > 0 for item in value["tracked_races"])
             and ("facing_casts_to_abort" not in value
                  or (integer(value["facing_casts_to_abort"]) and value["facing_casts_to_abort"] > 0))
-            and isinstance(value.get("good_summons_symbols", []), list)
-            and all(isinstance(item, str) and len(item) == 1
-                    for item in value.get("good_summons_symbols", [])))
+            and all(isinstance(value.get(field, []), list)
+                    and all(isinstance(item, str) and len(item) == 1 for item in value.get(field, []))
+                    for field in ("good_summons_symbols", "evil_summons_symbols"))
+            and ("when_mixed" not in value or quest_mixed_assault.valid(value["when_mixed"])))
 
 
 def valid_stops(plan) -> bool:
@@ -241,8 +249,11 @@ def leave_goals(policy, snapshot, navigator, plan) -> set[Position]:
 def _monster_side(policy, monster, split) -> str | None:
     knowledge = policy._monrace_knowledge.get(monster.race_id)
     mark = side(knowledge)
-    if mark is None and getattr(knowledge, "symbol", "") in split.get("good_summons_symbols", ()):
+    symbol = getattr(knowledge, "symbol", "")
+    if mark is None and symbol in split.get("good_summons_symbols", ()):
         return GOOD
+    if mark is None and symbol in split.get("evil_summons_symbols", ()):
+        return EVIL
     return mark
 
 

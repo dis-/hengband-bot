@@ -599,10 +599,16 @@ def _hunt_target_unseen(ctx, power):
 
 def _quest_remaining_unseen(ctx, power):
     """A quest plan misses the cells of a remaining race this row's effect reveals (owner 2026-11-20
-    「残りの敵を探す時は感知を使うこと」, quest_detect_remaining)."""
+    「残りの敵を探す時は感知を使うこと」, quest_detect_remaining), and the cast adds to what the fresh
+    detections cover at the radius of the power that serves the row (Powerful Activation's when it is
+    so cast)."""
     from hengbot import quest_detect_remaining
 
-    return quest_detect_remaining.trigger_due(ctx, power)
+    used = _serving(ctx, power, "quest-remaining-unseen")
+    if used is None:
+        return False
+    radius = ctx.radius(used)
+    return quest_detect_remaining.trigger_due(ctx, power, radius * 3 // 2 if _powerful(ctx, used) else radius)
 
 
 def _revealing_uses(ctx, flags) -> list:

@@ -23856,5 +23856,38 @@
     ],
     "context": "Dungeon only: bound returns the key it was given and leaves every town or store board untouched.",
     "evidence": "The name of the stationary bound's final stop (STOP_PREFIX + reason); no key, no work."
+  },
+  "quest_alignment_split.py:split_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "A room-sweep plan's alignment_split row (QUEST_33's split of the summoners); a dict, not a key; no command."
+  },
+  "quest_mixed_assault.py:_side": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The side a plan's when_mixed answer kills (QUEST_33: EVIL); a label, not a key; no command."
+  },
+  "quest_mixed_assault.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The assault on the EVIL side of QUEST_33 once the sides are mixed and summoning at each other (quest_mixed_assault, owner 2026-11-23): the haste, a blow, a shot or a step; no independent progress."
   }
 }

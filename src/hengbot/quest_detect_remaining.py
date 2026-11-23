@@ -57,6 +57,16 @@ cast that adds what the fresh detections leave (``walk_key``, the plan's own nam
 maint-all-1123 (b)-3) and casts there (``due``).  A board after the fresh detections covered the
 whole floor, with fewer members known than ``living``: the rest are dead, credited on the floor's
 kill count as the kill lines are (``observe``), so the restart record keeps them (quest_sweep_record).
+
+A cast that adds nothing is not made (n1-c life-221, Quest 33, 2026-11-23 13:57-13:58, loop-detected on
+[15,39]).  The floor's casts are planned at the widest radius a detection of the floor reached: the Rod
+of Detection's Powerful Activation, 45, from [7,72] at 4492322.  With the rod charging, the Staff of
+Detect Evil row served the trigger at its plain 30: cast on [15,39], its board still left the parts of
+that cell's 45 not covered, [15,39] stayed the next cast's cell, and the 30 was cast again there 33
+times (the It and the Bokrug the kill lines miss were looked for).  So ``due`` weighs the cast at the
+radius it is made with (``trigger_due``'s ``radius``: me_powers' served power, through Powerful
+Activation when it is so cast): a cast from where the fresh detections already cover all it reaches is
+not due; the plan goes on, and the rod's powered cast is due there again once it is charged and safe.
 """
 from __future__ import annotations
 
@@ -291,10 +301,11 @@ def _results_pending(snapshot, navigator) -> bool:
     return bool(casts) and max(cast[1] for cast in casts) >= snapshot.turn
 
 
-def due(policy, snapshot, navigator, plan, reveals) -> bool:
+def due(policy, snapshot, navigator, plan, reveals, radius: int = DETECT_RAD) -> bool:
     """A missing race this effect (``reveals``: flags -> bool) shows, the last detection's board read,
     and either no fresh detection of those races (cast where the player stands) or this cell is one
-    the floor's next cast is made from (module docstring)."""
+    the floor's next cast is made from and the cast, at the ``radius`` it is made with, adds to what
+    the fresh detections cover (module docstring)."""
     from hengbot import hunt_target
 
     races = tuple(race for race in missing(policy, snapshot, navigator, plan)
@@ -306,7 +317,11 @@ def due(policy, snapshot, navigator, plan, reveals) -> bool:
             and getattr(policy, "_decision_entry_reason", None) != WALK_REASON):
         return True  # as it lands; not on the walk to the next cast's cell (an earlier one gone stale)
     pending = _pending(policy, snapshot, navigator, races)
-    return pending is not None and here in pending
+    if pending is None or here not in pending:
+        return False
+    cover = _cover(navigator)
+    covered = _union(cover, _fresh_casts(policy, snapshot, navigator, races))
+    return bool(cover.area(here, radius) & cover.targets & ~covered)
 
 
 def _note_cast(policy, snapshot, navigator, effect: str | None = None) -> None:
@@ -369,9 +384,10 @@ def key(policy, snapshot, navigator, plan) -> str | None:
     return walk_key(policy, snapshot, navigator, plan)
 
 
-def trigger_due(ctx, power) -> bool:
+def trigger_due(ctx, power, radius: int = DETECT_RAD) -> bool:
     """me_powers' ``quest-remaining-unseen`` trigger: the quest floor's plan misses a race this row's
-    effect reveals (``due``)."""
+    effect reveals (``due``); ``radius`` is the cast's (the power serving the row, through Powerful
+    Activation when it is cast so)."""
     from hengbot import hunt_target
 
     policy, snapshot = ctx.policy, ctx.snapshot
@@ -382,4 +398,4 @@ def trigger_due(ctx, power) -> bool:
     reveals = hunt_target.REVEALS.get(power.effect)
     if navigator is None or reveals is None:
         return False
-    return due(policy, snapshot, navigator, plan, reveals)
+    return due(policy, snapshot, navigator, plan, reveals, radius)

@@ -36,7 +36,10 @@ The data (QUEST_25 gives the reasons of its cells):
    summoner, else disengage -- and the floor is never left for summons (quest_summon_answer).  After
    the disengage the plan's fight and walk give way to its steps (``after_key``): what acts on the
    player is fought, summoners first; when safe, a rest; then the summoner and its summons are lured
-   out a few at a time until they are gone.
+   out a few at a time until they are gone;
+ * ``alignment_split.when_mixed`` (QUEST_33, owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」):
+   the sides seen already mixed and summoning at each other, the haste and the assault on the EVIL side
+   under the survival rungs, ahead of the plan's fight, lure and walk (quest_mixed_assault).
 
 Q25 owner 2026-11-04.  「手のドルジは最後に回して戻って撃つ」: everything else first, then the
 door and the shot; teleported away, the same stand is walked back to with no limit on
@@ -111,6 +114,7 @@ from hengbot import (
     quest_detect_remaining,
     quest_exposure,
     quest_lure_approach,
+    quest_mixed_assault,
     quest_plan_base,
     quest_room_light,
     quest_summon_answer,
@@ -455,6 +459,14 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
             return patrolled
         policy.last_reason = NOTHING_LEFT_REASON
         return WAIT_KEY
+    # QUEST_33 (owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」): the sides mixed, the assault
+    # on the side to kill where it is known (quest_mixed_assault).
+    mixed = quest_mixed_assault.active(policy, snapshot, navigator, plan)
+    if mixed and (assault := quest_mixed_assault.key(
+            policy, snapshot, navigator, plan,
+            _Board(policy, snapshot, policy.approved_quest_strategy(navigator.quest_id), navigator, plan),
+            quiet=True)) is not None:
+        return assault
     # Owner 2026-11-20 「残りの敵を探す時は感知を使うこと」: a tracked race's members not known, the
     # detection before the plan chooses where to wait or where to go (quest_detect_remaining).
     if (detected := quest_detect_remaining.key(policy, snapshot, navigator, plan)) is not None:
@@ -470,7 +482,8 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     # shortest way out, over the cells where both act if they are all round him (n1-c life-221,
     # Quest 33, 2026-11-23 12:59:54: landed on [7,72] inside such a pocket, every walk refused its
     # cells and the sweep stopped by name, quest:blocked:sweep-nothing-comes).
-    if (out := quest_alignment_split.leave_goals(policy, snapshot, navigator, plan)):
+    # Mixed, both sides act everywhere about them: no walk out (quest_mixed_assault).
+    if not mixed and (out := quest_alignment_split.leave_goals(policy, snapshot, navigator, plan)):
         stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, out, blocked, split=False),
                         WALK_REASON)
         if stepped is not None:
@@ -554,6 +567,7 @@ def walk_key(policy, snapshot) -> str | None:
     navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
     quest_detect_remaining.observe(policy, snapshot, navigator, plan)
+    quest_mixed_assault.observe(policy, snapshot, navigator, plan)
     if any(monster.hostile for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)):
         navigator.sweep_round_contact = True
     _note_gone(policy, snapshot, navigator, plan)
@@ -724,6 +738,7 @@ def key(policy, snapshot) -> str | None:
     navigator = _navigator(policy, snapshot, quest_id)
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
     quest_detect_remaining.observe(policy, snapshot, navigator, plan)
+    quest_mixed_assault.observe(policy, snapshot, navigator, plan)
     if any(monster.hostile for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)):
         navigator.sweep_round_contact = True
     _note_gone(policy, snapshot, navigator, plan)
@@ -744,6 +759,9 @@ def key(policy, snapshot) -> str | None:
             or quest_plan_base._restore(policy, snapshot)
             or quest_plan_base.floor_restore_key(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
+            # QUEST_33 (owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」): the sides mixed, the
+            # assault (the rest first below the plan's ratio).
+            or quest_mixed_assault.key(policy, snapshot, navigator, plan, board, quiet=True)
             # QUEST_33 (owner 2026-11-19 「安全になったら休息してから…少しずつ釣りだして数を減らす」):
             # after a disengage, the rest and the lure in the plan's walk's place.
             or quest_summon_answer.after_key(policy, snapshot, navigator, plan, board)
@@ -765,6 +783,9 @@ def key(policy, snapshot) -> str | None:
         or quest_plan_base._below_line(policy, snapshot, profile, navigator)
         or quest_plan_base._heal(policy, snapshot, profile)
         or quest_plan_base._speed(policy, snapshot, profile, board)
+        # QUEST_33 (owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」): the sides mixed and summoning
+        # at each other, the EVIL side killed by force under the survival rungs (quest_mixed_assault).
+        or quest_mixed_assault.key(policy, snapshot, navigator, plan, board)
         # QUEST_33 (owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」): the summoner gone
         # after on the boards after its summon, under the survival rungs.
         or quest_summon_answer.chase_key(policy, snapshot, navigator, plan, board)

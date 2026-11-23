@@ -14599,6 +14599,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_alignment_split.py:split_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_alignment_split.py:summoners": {
     "classification": "data",
     "rows": [
@@ -15209,6 +15216,20 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_lure_approach.py:key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_mixed_assault.py:_side": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_mixed_assault.py:key": {
     "classification": "producer",
     "rows": [
       "survival"
