@@ -1125,6 +1125,8 @@ GOAL_TYPING: tuple[GoalTypingRow, ...] = (
         ("depart:inn-refill:finale-teleport:rest", T, EFFECT),
         ("town:cancel-", T, EFFECT),
         ("town:unsafe-recall-fallback", T, EFFECT),
+        # The finale's preparation while Angband's 96F+ recall is refused (finale_hold.town_key).
+        ("town:finale-hold:", T, EFFECT),
         ("wilderness:no-safe-route", T, EFFECT),
         ("esp-threat:leave-", O, FLOOR_CHANGE),
         ("seek-downstairs", R, WALK_TARGET),

@@ -805,6 +805,11 @@ _stationary(EXEMPT, "stationary_bounds.UNPROFITABLE_UNIQUE_WAIT_MAX_DECISIONS (F
             "combat:avoid-unprofitable-unique-wait")
 _stationary(EXEMPT, "stationary_bounds.FINALE_HOLD_MAX_DECISIONS (STAND_ROUTE_TRIES x OPEN_STAND_WAIT)",
             "angband-finale:hold")
+# The town's wait for the 99F/100F preparation phase while Angband's 96F+ recall is refused
+# (finale_hold.town_key): each step stops the phase by name past finale_prep.STEP_LIMIT, and the
+# town then stops as town:blocked:finale-prep-stopped:<reason>.
+_stationary(EXEMPT, "finale_prep.STEP_LIMIT per step (the phase stops by name, then the town)",
+            "town:finale-hold:phase")
 _stationary(EXEMPT, "stationary_bounds.AMBERITE_HOLD_MAX_GAME_TURNS (no natural end)", "amberite:hold")
 _stationary(EXEMPT, "stationary_bounds.THREAT_WAIT_MAX_GAME_TURNS (no natural end)", "threat:wait")
 _stationary(EXEMPT, "stationary_bounds.QUEST25_FIRE_HOLD_MAX_GAME_TURNS (no natural end)",

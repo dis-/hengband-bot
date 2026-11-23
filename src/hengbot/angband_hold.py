@@ -22,6 +22,9 @@ its Angband recall landing -- the save's max level, never lowered by the bot exc
   resists: the depth gates of ``_activate_safe_recall_fallback``), the 11-17 Castle band (else the
   Mountain) is explored as before (dive_floor.pick_refused, 38-42) to gather the items and the money,
   and Angband is taken again once its landing qualifies (``settle`` below, alternate_lease.challenge).
+  Not for Angband refused for its 96F+ recall depth outside the finale's expedition
+  (``deep_refused``, owner 2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」): the town
+  prepares the expedition or stops by name (finale_hold), no dungeon is picked.
 - ``alternate_lease.deepest_destination`` takes Angband only.
 - ``settle``: on every town board a held switch other than Angband (one made before this rule, or
   restored from the alternate-dungeon record), or a leased Angband switch, is dropped; the ordinary
@@ -45,16 +48,23 @@ HOLD_DEPTH = 50
 def held(policy, snapshot) -> bool:
     """The character's Angband recall landing is at 50F or deeper and Angband may be entered.
 
-    Not while a recall toward Angband is refused for its depth outside the finale's expedition
-    (angband_cap ``deep_recall_refused``, owner 2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ
-    帰還しない」): Angband is then no destination, and the ordinary fallback picks another dungeon."""
-    from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
-    if angband_cap.deep_recall_refused(snapshot, DUNGEON_ANGBAND, policy):
-        return False
+    Also while a recall toward Angband is refused for its depth outside the finale's expedition
+    (``deep_refused``, owner 2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」): the 11-19
+    rule still allows no other dungeon (``pick`` answers nothing for the refused Angband), and the
+    town prepares the expedition instead (finale_hold).  This read was false then, and the ordinary
+    fallback took the Castle 64F (n1-b life-416 2026-11-23 21:10-21:16)."""
     return (bool(snapshot.angband_recall_unlocked)
             and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
             and policy._dungeon_entry_depth(snapshot, DUNGEON_ANGBAND, via_recall=True)
             >= HOLD_DEPTH)
+
+
+def deep_refused(policy, snapshot) -> bool:
+    """Angband's recall is refused for its depth outside the finale's expedition (angband_cap
+    ``deep_recall_refused``): not the survival exception's refusal (「この場合だけ城40F付近を許す」),
+    so no Castle band either."""
+    from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
+    return angband_cap.deep_recall_refused(snapshot, DUNGEON_ANGBAND, policy)
 
 
 def pick(*, left: int | None, valve: bool) -> int | None:
@@ -78,7 +88,9 @@ def settle(policy, snapshot) -> bool:
         return False
     # Owner 2026-11-19 「この場合だけ城40F付近を許す」: the refused landing's Castle band stays
     # until Angband's landing qualifies again.
+    # Not for the 96F+ refusal (``deep_refused``): no fallback at all there.
     if (dive_floor.refused_dive_held(policy, snapshot)
+            and not deep_refused(policy, snapshot)
             and not alternate_lease.angband_qualifies(policy, snapshot)):
         return False
     policy._alternate_dungeon = None
