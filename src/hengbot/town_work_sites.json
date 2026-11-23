@@ -1885,6 +1885,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "deep_climb.py:underfoot_key": {
+    "classification": "producer",
+    "rows": [
+      "loot-exploration"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "deep_fall_guard.py:_detection_key": {
     "classification": "data",
     "rows": [
