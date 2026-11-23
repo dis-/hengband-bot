@@ -67,6 +67,12 @@ def ammo_unneeded(policy: Any, snapshot: Any) -> bool:
     whether a fast Magic-Eater should then carry its arrows at 50F+, answered (verbatim)
     「矢の件だけ違う。魔法道具が充実してくるタイミングなので単に弱い矢はいらない」.  So the shot is
     weighed per action against the floor, and speed does not bring weak rounds back
-    (scripts/attack_time_lint_baseline.json records this comparison)."""
+    (scripts/attack_time_lint_baseline.json records this comparison).
+
+    The finale too (owner 2026-11-23 「魔道具術師は決戦で矢は撃たない。全て自宅に預ける。」,
+    angband_finale ``no_ammunition``): whatever the shot's power."""
+    from hengbot import angband_finale  # import cycle
+    if angband_finale.no_ammunition(policy, snapshot):
+        return True
     return (planned_unscored(policy, snapshot)
             and shot_power_per_turn(policy, snapshot) < SHOT_POWER_FLOOR)

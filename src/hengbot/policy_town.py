@@ -3619,6 +3619,12 @@ class TownMixin:
             add(STORE_TEMPLE, "experience-restore-check")
         if self._queue_home_experience_potion(snapshot):
             add(STORE_HOME, "experience-potion-home", "home-first")
+        # The 99F/100F preparation phase's ammunition step: every round to the Home (owner
+        # 2026-11-23 「全て自宅に預ける」), through the ordinary deposit (finale_prep).
+        if (finale_prep.ammo_routed(self, snapshot) and self._home_available(snapshot)
+                and not any(need.store_type == STORE_HOME and need.category == "deposit"
+                            for need in needs)):
+            add(STORE_HOME, "deposit", "home-first")
         # The 99F/100F preparation phase's supplies step: its Home withdrawal (finale_prep).
         if finale_prep.routed(self):
             add(STORE_HOME, finale_prep.CATEGORY, "home-first")

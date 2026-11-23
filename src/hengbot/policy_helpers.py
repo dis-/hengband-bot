@@ -5,7 +5,7 @@ from hengbot import item_need
 from hengbot import safety_watch
 from hengbot import spare_gear
 from hengbot import random_quest_hold
-from hengbot import angband_hold, deep_admission, deep_climb, deep_fall_guard, dive_floor, fallback_depth_floor
+from hengbot import angband_finale, angband_hold, deep_admission, deep_climb, deep_fall_guard, dive_floor, fallback_depth_floor
 from hengbot import me_capped_pickup, sellable_artifacts
 from hengbot import destruction_means
 from hengbot.dungeon_knowledge import exploration_destination_allowed
@@ -397,10 +397,13 @@ class PolicyHelpersMixin:
             junk = "no-use-route"
         # Supervisor Q7: only the launcher worn now counts; with none worn
         # every ammunition stays, and a quest reservation keeps its stack.
+        # Owner 2026-11-23 「全て自宅に預ける」: in the finale every round goes to the Home
+        # (angband_finale ``no_ammunition``), another launcher's too.
         elif (item.is_ammo
                 and (launcher := self._equipped_launcher(snapshot)) is not None
                 and item.tval != launcher.ammo_tval
-                and self._entire_stack_is_surplus(snapshot, item)):
+                and self._entire_stack_is_surplus(snapshot, item)
+                and not angband_finale.no_ammunition(self, snapshot)):
             junk = "unused-ammo"
         # Owner Q1 2026-10-20: plain gear that is not needed is destroyed
         # after identification (#95 slice 1b-1; owner Q-A 2026-10-22 adds
@@ -449,6 +452,13 @@ class PolicyHelpersMixin:
         # the one it destroys where it lies is walked to (me_capped_pickup.destroys).
         if (me_capped_pickup.capped_pile(self, snapshot, grid.position)
                 and not me_capped_pickup.destroys(self, snapshot, grid.position)):
+            return True
+        # Owner 2026-11-23 「魔道具術師は決戦で矢は撃たない。全て自宅に預ける。」: a pile of
+        # ammunition alone is not picked up in the finale (angband_finale ``no_ammunition``).
+        if (grid.object_tvals
+                and all(tval in {TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, 1, 3, 10}
+                        for tval in grid.object_tvals)
+                and angband_finale.no_ammunition(self, snapshot)):
             return True
         return bool(grid.object_tvals) and all(
             tval in UNWANTED_TVALS or tval in {1, 3, 10} or

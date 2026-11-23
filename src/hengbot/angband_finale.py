@@ -425,6 +425,30 @@ def restore_mana_overspent(policy, snapshot) -> bool:
     return goal is not None and memory(policy).restore_mana_used >= RESTORE_MANA_RECALL_SHARE * goal
 
 
+def no_ammunition(policy, snapshot) -> bool:
+    """Owner 2026-11-23 (verbatim) 「魔道具術師は決戦で矢は撃たない。全て自宅に預ける。」: a
+    Magic-Eater in the finale -- the preparation phase from its ammunition step on and the
+    expedition (finale_prep ``ammo_barred``: the lifted cap holds on the relay floors too), or
+    on 99F/100F -- carries no ammunition and fires none.
+
+    Readers: the carry target every purchase, Home withdrawal and retention reads
+    (me_deep_launcher ``ammo_unneeded``), so the stacks are deposited at the Home and none is
+    bought or taken out; the rounds the launcher fires (policy ``_matching_ammo``, out of town)
+    and the launcher's expected shot (attack_expectation ``launcher_usable``), so no attack
+    choice fires; the floor piles of ammunition alone (policy_helpers ``_floor_pile_is_junk``),
+    so none is picked up; the unused-ammo junk class (policy_helpers ``_junk_class``), so a stack
+    another launcher fires is deposited too, not destroyed.  The launcher itself stays worn for
+    its abilities (owner 2026-11-18 「弓枠は追加能力や耐性のみで評価する」)."""
+    player = getattr(snapshot, "player", None)
+    if getattr(player, "class_id", None) != PLAYER_CLASS_MAGIC_EATER:
+        return False
+    from hengbot import finale_prep  # import cycle
+    if finale_prep.ammo_barred(policy):
+        return True
+    return (not getattr(snapshot, "in_town", True) and hasattr(snapshot, "floor_key")
+            and on_finale_floor(snapshot))
+
+
 # -- the supplies ------------------------------------------------------------------
 
 def carry_target(policy, snapshot, item) -> int | None:
