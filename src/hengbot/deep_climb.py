@@ -208,12 +208,12 @@ def _hold_climb(policy, snapshot, dungeon_id: int) -> bool:
 
 
 def _standing_without_means(policy, snapshot, floor_key) -> bool:
-    """A 50F+ floor of the Castle or the Mountain, no quest floor, without the *Destruction*
-    means and no climb held there: the climb is held (``_hold_climb``)."""
+    """A 50F+ floor, no quest floor, without the *Destruction* means and no climb held there:
+    the climb is held where it can be (``_hold_climb``: the Castle or the Mountain; Angband has
+    none and its means-spent return leaves the floor, destruction_use.means_spent)."""
     from hengbot import destruction_use, dive_floor
 
     return (len(floor_key) == 3 and not snapshot.in_town
-            and floor_key[0] in dive_floor.DIVE_FLOOR_DUNGEONS
             and not deep_admission.verdict(
                 floor_key[0], floor_key[1], "quest" if floor_key[2] != 0 else "stand",
                 lambda: destruction_use.holds_means(policy, snapshot),

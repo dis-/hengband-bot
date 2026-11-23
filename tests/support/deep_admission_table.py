@@ -212,7 +212,7 @@ def ask(policy, town, board, gate, cell):
         return not deep_fall_guard.descent_refused(policy, _board(board, dungeon, depth - 1),
                                                    depth)
     if gate == "deep_fall_guard.sanctioned":
-        return deep_fall_guard.sanctioned(policy, dungeon, depth)
+        return deep_fall_guard.sanctioned(policy, dungeon, depth, means)
     if gate == "deep_climb.observe":
         return not _observe_acts(policy, board, dungeon, depth)
     if gate == "deep_fall_guard.at_risk":
@@ -277,3 +277,99 @@ def disagreements(table) -> dict:
         if len(by_answer) > 1:
             found[name] = {"admit": sorted(by_answer[True]), "refuse": sorted(by_answer[False])}
     return found
+
+
+# --- the owner's rule, written out (owner 2026-11-23 (b)-2 「入らない・着いたら登る側にそろえる」) -----
+#
+# Without the *Destruction* means no route enters 50F+ (nor a floor whose trap door, one floor
+# or two, lands there unadmitted, ``_exposed``); the held Castle/Mountain climb's 50F landing is
+# the one arrival admitted, and a 50F+ floor of the climb's dungeon is stood on only to climb.
+# Each gate answers one question of that rule (``QUESTIONS``):
+#
+# * ``means``: the 50F+ means alone, no climb (a dive's intent, a loadout's band: the climb
+#   goes up, never a chosen descent);
+# * ``recall-means``: the town's recall, its 50F+ means part: the climb's 50F landing admitted;
+# * ``recall-landing``: the recall's (and the fallback's) landing: ``recall-means`` and no
+#   exposed landing (the climb's own dungeon is climbed from at once);
+# * ``stairs``: a stair down: the means, and no exposed floor, the climb not excepted;
+# * ``trapdoor``: a floor change the policy did not choose (the means asked apart): the climb's
+#   50F landing only;
+# * ``fall``: the floor stood on, whose fall may land unadmitted (the means asked apart);
+# * ``stand``: the floor stood on: the means, else the climb on every 50F+ floor of its
+#   dungeon (a floor without either is left: the climb held, else the means-spent return);
+# * ``quest``: a quest floor keeps its own rules;
+# * ``inn``: the inn's refill reads whether the dive's first descent reaches 50F+;
+# * ``loop``: the means-spent loop's stop (its streak held) is a net on any 50F+ departure.
+
+QUESTIONS = {
+    "policy_constants.destruction_dive_permitted": "means",
+    "policy_constants.permitted_dive_depth": "means",
+    "policy_observation._missing_required_abilities": "means",
+    "policy_supply._intended_dive_depth": "means",
+    "equipment_optimizer.divable_depth": "means",
+    "equipment_optimizer._meets_static_requirements": "means",
+    "destruction_means.departure_carried": "recall-means",
+    "deep_climb.departure_gaps": "recall-means",
+    "policy._destination_depth_allowed": "recall-means",
+    "policy._recall_destination_safe": "recall-landing",
+    "policy_helpers._fallback_landing_allowed": "recall-landing",
+    "policy._deep_stair_refused": "stairs",
+    "deep_fall_guard.descent_refused": "stairs",
+    "deep_fall_guard.sanctioned": "trapdoor",
+    "deep_climb.observe": "trapdoor",
+    "deep_fall_guard.at_risk": "fall",
+    "deep_fall_guard.teleport_level_refused": "fall",
+    "deep_climb._standing_without_means": "stand",
+    "destruction_use.means_spent": "stand",
+    "deep_climb._standing_without_means@quest": "quest",
+    "destruction_use.means_spent@quest": "quest",
+    "deep_climb.observe@quest": "quest",
+    "me_inn_refill.dive_reaches_deep": "inn",
+    "means_spent_loop.looping": "loop",
+}
+DEEP = 50
+
+
+def _landing_admitted(depth, means, climbing) -> bool:
+    return depth < DEEP or means or (climbing and depth == DEEP)
+
+
+def _fall_unadmitted(last, depth, climbing) -> bool:
+    """A trap door (one floor or two, no deeper than the last floor) lands unadmitted, the
+    means not held."""
+    return depth < last and any(
+        not _landing_admitted(min(depth + drop, last), False, climbing) for drop in (1, 2))
+
+
+def owner_answer(last_floor, gate, cell) -> bool:
+    """The owner's answer of ``gate`` on ``cell`` (``last_floor``: the dungeon's last floor; the
+    cells' kit holds no trap detection nor levitation)."""
+    dungeon, depth, means, climbing = cell
+    last = last_floor[dungeon]
+    exposed = not means and _fall_unadmitted(last, depth, climbing)
+    question = QUESTIONS[gate]
+    if question == "means":
+        return depth < DEEP or means
+    if question == "recall-means":
+        return _landing_admitted(depth, means, climbing)
+    if question == "recall-landing":
+        return _landing_admitted(depth, means, climbing) and not (exposed and not climbing)
+    if question == "stairs":
+        return (depth < DEEP or means) and not exposed
+    if question == "trapdoor":
+        return _landing_admitted(depth, means, climbing)
+    if question == "fall":
+        return means or not _fall_unadmitted(last, depth, climbing)
+    if question == "stand":
+        return depth < DEEP or means or climbing
+    if question == "quest":
+        return True
+    if question == "inn":
+        return depth + 1 >= DEEP
+    if question == "loop":
+        return depth < DEEP
+    raise KeyError(question)
+
+
+def last_floors(policy) -> dict:
+    return {dungeon: policy._dungeon_knowledge[dungeon].max_depth for dungeon in DUNGEONS}

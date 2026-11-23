@@ -46,8 +46,8 @@ On a floor where a fall of one or two floors would land unsanctioned (``at_risk`
   whose trap door dropped it onto 50F.  A refused landing goes to the unsafe-recall fallback,
   whose Castle climb (dive_floor.pick_refused, its band at most 45F, owner 2026-11-22
   「城は45Fまでにする。ギリギリを攻めない。」) climbs from it at once;
-- no stair down is taken onto such a floor without a detection means (``descent_refused``,
-  asked by ``_is_descent_target``): the connected stairs put a descent on an up staircase
+- no stair down is taken onto such a floor without a detection means (``descent_exposed``,
+  read by deep_admission's ``stairs``: policy._deep_stair_refused, ``descent_refused``): the connected stairs put a descent on an up staircase
   (floor-changer.cpp set_stairs), so the leave and the descent would alternate.  The last
   escape down the stairs underfoot (``_down_stairs_underfoot_key``) is kept: the leave follows
   on the floor below;
@@ -97,11 +97,12 @@ FAILED = frozenset({
 })
 
 
-def sanctioned(policy, dungeon_id: int, depth: int) -> bool:
-    """A floor change landing on ``depth`` of ``dungeon_id`` needs no *Destruction* means: above
-    50F, or the held climb's 50F landing (deep_climb).  The means is the board's, asked apart
-    (``_exposed``, deep_climb.observe)."""
-    return deep_admission.verdict(dungeon_id, depth, "trapdoor",
+def sanctioned(policy, dungeon_id: int, depth: int, means=False) -> bool:
+    """A floor change landing on ``depth`` of ``dungeon_id`` is admitted: above 50F, with the
+    *Destruction* means (``means``, the caller's reading), or the held climb's 50F landing
+    (deep_climb).  The readers here ask the means apart (``_exposed``, ``_exposed_landing``) and
+    leave ``means`` False: the fall of a character without it."""
+    return deep_admission.verdict(dungeon_id, depth, "trapdoor", means,
                                   climbing=lambda: climbing(policy, dungeon_id)).admitted
 
 
@@ -172,6 +173,13 @@ def holds_detection(policy, snapshot) -> bool:
 
 
 def descent_refused(policy, snapshot, destination: int) -> bool:
+    """A stair down onto ``destination`` is refused (deep_admission's ``stairs``, one answer with
+    policy._deep_stair_refused, owner 2026-11-23 (b)-2 「入らない」): 50F+ without the means, or a
+    floor where a trap door lands unsanctioned without a trap detection (``descent_exposed``)."""
+    return policy._deep_stair_refused(snapshot, destination)
+
+
+def descent_exposed(policy, snapshot, destination: int) -> bool:
     """A stair down onto ``destination`` would put the character where a trap door lands
     unsanctioned, without a trap detection: the descent is not taken.  Without it the 49F
     floor's leave (``key``: the up stairs underfoot, where the connected stairs put a descent)

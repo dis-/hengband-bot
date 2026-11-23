@@ -15931,12 +15931,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _deep_stair_refused(self, snapshot: Snapshot, destination: int) -> bool:
-        """A stair down from a dungeon floor onto ``destination`` of 50F+ without the means
-        (deep_admission's ``stairs``; the means read as the depth gate's label)."""
+        """A stair down from a dungeon floor onto ``destination`` of 50F+ without the means, or
+        onto a floor whose trap door would land on 50F+ unadmitted without a trap detection
+        (deep_admission's ``stairs``; the means read as the depth gate's label, the fall as
+        deep_fall_guard.descent_exposed; owner 2026-11-23 (b)-2 「入らない」)."""
         return (snapshot.dungeon_level > 0 and not deep_admission.verdict(
             snapshot.floor_key[0], destination, "stairs",
             lambda: DESTRUCTION_GATE_LABEL not in self._missing_required_abilities(
-                snapshot, destination)).admitted)
+                snapshot, destination),
+            exposed=lambda: deep_fall_guard.descent_exposed(
+                self, snapshot, destination)).admitted)
 
     def _is_descent_target(self, snapshot: Snapshot, grid: GridState) -> bool:
         if not grid.is_descent:
@@ -15992,13 +15996,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if angband_cap.capped(snapshot, destination, self):
             return False
         # Owner 2026-11-18 「破壊を持っていないのに50F以降にいるのが不具合」 (the 2026-11-22 net,
-        # deep_climb): no stair into 50F+ without the means, before any quest-depth steering.
+        # deep_climb): no stair into 50F+ without the means, before any quest-depth steering;
+        # owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: nor onto a floor whose trap
+        # door would land on 50F+ without the means, unless the traps can be detected there
+        # (deep_fall_guard.descent_exposed).  One answer: deep_admission's ``stairs``.
         if self._deep_stair_refused(snapshot, destination):
-            return False
-        # Owner 2026-11-22 「そもそも50Fに降りない方をしっかり作ること」: no stair onto a floor whose
-        # trap door would land on 50F+ without the means, unless the traps can be detected there
-        # (deep_fall_guard).
-        if deep_fall_guard.descent_refused(self, snapshot, destination):
             return False
         # Preserve the pre-existing UNTAKEN quest-depth steering.  The TAKEN
         # overshoot invariant is owned solely by _kill_quest_descent_allowed.
