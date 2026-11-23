@@ -111,8 +111,10 @@ APPROACH_REASON = f"{REASON}:approach"
 # after a teleport and on reaching the last-seen cell (``_detect_key``).
 DETECT_REASON = f"{REASON}:detect"
 STAND_WALK_REASON = f"{REASON}:stand-walk"
+# The step out of a strong non-target's line of fire (``_out_of_line_key``).
+OUT_OF_LINE_REASON = f"{REASON}:out-of-line"
 MELT_REASON = f"{REASON}:melt"
-HOLD_REASON = f"{REASON}:hold"
+HOLD_REASON = f"{REASON}:hold"  # also the wait out of a strong non-target's line (``_out_of_line_key``)
 RECALL_TRIGGER = "angband-finale"
 AFTER_DESTRUCTION = "after-destruction"  # me_powers' trigger of the map after a *Destruction*
 
@@ -149,6 +151,9 @@ LAST_WALL_HOLD = 10
 OPEN_STAND_WAIT = 20
 # The stands tried for a route, best first (each one BFS).
 STAND_ROUTE_TRIES = 6
+# Owner 2026-11-24 「射線を通さないように近づくないし待つ」: the boards held out of a strong
+# non-target's line of fire before the full detection is asked again (``_out_of_line_key``).
+SHUN_DETECT_EVERY = 10
 DIRECTIONS = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
 
 SWEEP, BATTLE, RECOVER = "sweep", "battle", "recover"
@@ -195,6 +200,9 @@ class Battle:
     # TELEPORT_BELOW and no board since showed it at TELEPORT_BELOW or more; cleared by the teleport.
     # A class default: restored checkpoints predate it.
     hit_below: bool = False
+    # The boards held out of a strong non-target's line of fire in a row (``_out_of_line_key``);
+    # every ``SHUN_DETECT_EVERY``-th asks the full detection again.  A class default.
+    shun_held: int = 0
 
 
 def battle(policy, snapshot) -> Battle:
@@ -287,6 +295,123 @@ def crowded(policy, snapshot, target) -> bool:
     return (line_of_fire.player_reaches(policy, snapshot, target)
             and any(line_of_fire.player_reaches(policy, snapshot, monster)
                     for monster in others(snapshot)))
+
+
+# -- the strong non-targets' lines of fire -------------------------------------------------
+
+def shunned(policy, snapshot) -> list:
+    """The non-target monsters whose line of fire no walk or melt of the battle enters.
+
+    Owner 2026-11-24 (verbatim) 「射線を通す近づき方をしたのが悪い。射線を通さないように近づくないし待つ
+    のがただしい」 and 「サーペントには射線を通さなければならない。混同しないように注意」: the monsters
+    other than the floor's target by race (``others``: Oberon on 99F, the Serpent on 100F are never
+    in it; the target's line is the tactic's own, 先手 and the stand), known by sight, telepathy or
+    detection, with a ranged attack or a summon (what a line of fire carries), strong alone from
+    contact (threat_tiers ``STRONG_ON_THE_WAY``: T1, or T2 -- beaten only with supplies)."""
+    from hengbot import threat_tiers
+    from hengbot.item_reservation import decision_memo
+
+    def compute():
+        found = []
+        for monster in others(snapshot):
+            if monster.max_ranged_damage <= 0 and not monster.can_summon:
+                continue
+            reading = threat_tiers.tiered(policy, snapshot, [monster], contact=True)
+            if reading.tier in threat_tiers.STRONG_ON_THE_WAY:
+                found.append(monster)
+        return tuple(found)
+    return list(decision_memo(policy, "angband_finale_battle.shunned", snapshot, None, compute))
+
+
+def _exposed(policy, snapshot, cell: Position, opened: tuple = ()) -> bool:
+    """A monster of ``shunned`` would have a line of fire to the player on ``cell``
+    (line_of_fire ``cell_exposed``)."""
+    from hengbot import line_of_fire
+    from hengbot.item_reservation import decision_memo
+    memo = decision_memo(policy, "angband_finale_battle.exposed", snapshot, None, dict)
+    key = (cell, opened)
+    if key not in memo:
+        memo[key] = any(line_of_fire.cell_exposed(policy, snapshot, monster, cell, opened)
+                        for monster in shunned(policy, snapshot))
+    return memo[key]
+
+
+def _safe_step(policy, snapshot, is_goal, *, avoid=frozenset()) -> Position | None:
+    """The first step of the shortest walk to a cell ``is_goal`` accepts that enters no cell a
+    strong non-target has a line of fire to (``_exposed``), nor a cell of every walker's veto
+    (policy ``_walk_veto``) or of ``avoid``; None when no such walk exists."""
+    from collections import deque
+    start = snapshot.player.position
+    veto = policy._walk_veto(snapshot)
+    parent = {start: None}
+    queue = deque([start])
+    while queue:
+        position = queue.popleft()
+        if position != start and is_goal(position):
+            while parent[position] != start:
+                position = parent[position]
+            return position
+        for neighbour in policy._walkable_neighbors(snapshot, position, allow_damaging=False):
+            if (neighbour in parent or neighbour in veto or neighbour in avoid
+                    or _exposed(policy, snapshot, neighbour)):
+                continue
+            parent[neighbour] = position
+            queue.append(neighbour)
+    return None
+
+
+def _route_step(policy, snapshot, is_goal, *, avoid=frozenset()) -> Position | None:
+    """The battle's walks' first step to a cell ``is_goal`` (a Position predicate) accepts: with a
+    strong non-target known (``shunned``), the walk out of their lines of fire (``_safe_step``),
+    else the policy's goal walk as before, a step into ``avoid`` refused."""
+    if shunned(policy, snapshot):
+        return _safe_step(policy, snapshot, is_goal, avoid=avoid)
+    step = policy._nearest_goal_step(snapshot, lambda grid: is_goal(grid.position))
+    return None if step is None or step in avoid else step
+
+
+def _melt_exposes(policy, snapshot, wall: Position) -> bool:
+    """Melting ``wall`` would open a strong non-target's line of fire to where the player stands."""
+    return bool(shunned(policy, snapshot)) and _exposed(
+        policy, snapshot, snapshot.player.position, (wall,))
+
+
+def _out_of_line_key(policy, snapshot, held: Battle) -> str | None:
+    """No walk or melt is left that keeps out of the strong non-targets' lines of fire: step out
+    of their lines when standing in one, else wait where no line reaches (never a rest, owner
+    2026-11-21 「99F 100Fでの休憩は許可していない」), the full detection asked again every
+    ``SHUN_DETECT_EVERY`` boards.  None while no such monster is known (the walks' own answers
+    stand)."""
+    from hengbot.policy_constants import WAIT_KEY
+    if not shunned(policy, snapshot):
+        return None
+    here = snapshot.player.position
+    if _exposed(policy, snapshot, here):
+        from collections import deque
+        veto = policy._walk_veto(snapshot)
+        parent = {here: None}
+        queue = deque([here])
+        while queue:
+            position = queue.popleft()
+            if position != here and not _exposed(policy, snapshot, position):
+                while parent[position] != here:
+                    position = parent[position]
+                held.shun_held = 0
+                policy.last_reason = OUT_OF_LINE_REASON
+                return policy._step_toward(snapshot, position)
+            for neighbour in policy._walkable_neighbors(snapshot, position, allow_damaging=False):
+                if neighbour not in parent and neighbour not in veto:
+                    parent[neighbour] = position
+                    queue.append(neighbour)
+        return None
+    held.shun_held += 1
+    if held.shun_held % SHUN_DETECT_EVERY == 0:
+        held.detect_due = True
+        detected = _detect_key(policy, snapshot, held)
+        if detected is not None:
+            return detected
+    policy.last_reason = HOLD_REASON
+    return WAIT_KEY
 
 
 def _observe(policy, snapshot, held: Battle) -> None:
@@ -693,13 +818,17 @@ def _choose_stand(policy, snapshot, aim) -> Stand | None:
     held = battle(policy, snapshot)
     candidates = [stand for stand in _candidates(policy, snapshot, aim)
                   if (stand.cell, aim) not in held.refused]
+    if shunned(policy, snapshot):
+        # Owner 2026-11-24 「射線を通さないように近づく」: no stand in a strong non-target's line.
+        candidates = [stand for stand in candidates
+                      if not _exposed(policy, snapshot, Position(*stand.cell))]
     for tried, stand in enumerate(candidates):
         if tried >= STAND_ROUTE_TRIES:
             break
         if stand.cell == here:
             return stand
         target = Position(*stand.cell)
-        if policy._nearest_goal_step(snapshot, lambda grid, goal=target: grid.position == goal) is not None:
+        if _route_step(policy, snapshot, lambda position, goal=target: position == goal) is not None:
             return stand
     return None
 
@@ -729,7 +858,7 @@ def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
     here = (snapshot.player.position.y, snapshot.player.position.x)
     if here != stand.cell:
         goal = Position(*stand.cell)
-        step = policy._nearest_goal_step(snapshot, lambda grid: grid.position == goal)
+        step = _route_step(policy, snapshot, lambda position: position == goal)
         if step is None:
             held.stand = None
             return None
@@ -752,6 +881,11 @@ def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
                 stand.held += 1
                 policy.last_reason = HOLD_REASON
                 return WAIT_KEY
+            held.refused.add((stand.cell, aim))
+            held.stand = None
+            return _stand_key(policy, snapshot, held, target)
+        if _melt_exposes(policy, snapshot, Position(*walls[0])):
+            # Owner 2026-11-24 「射線を通さないように」: this melt opens a strong non-target's line.
             held.refused.add((stand.cell, aim))
             held.stand = None
             return _stand_key(policy, snapshot, held, target)
@@ -820,21 +954,43 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
     if here == goal:
         return None
     left = _left_cells(held, here)
-    step = policy._nearest_goal_step(snapshot, lambda grid: grid.position == goal)
-    if step is not None and step not in left:
+    # Owner 2026-11-24 (verbatim) 「射線を通す近づき方をしたのが悪い。射線を通さないように近づくないし
+    # 待つのがただしい」: with a strong non-target known (``shunned``) no step or melt of this walk
+    # enters its line of fire; standing in one, the walk first steps out of it.  n1-b life-416
+    # (Angband 100F, 05:24:27, seq 1214): at (9,25) the Serpent unseen (last seen (9,54)), the
+    # Tarrasque in view at (9,40), the walk stepped '6' along row 9 into its line; its cold and
+    # disenchantment breaths took 999 HP to 83.
+    guarded = bool(shunned(policy, snapshot))
+    if guarded and _exposed(policy, snapshot, here):
+        out = _out_of_line_key(policy, snapshot, held)
+        if out is not None:
+            return out
+    step = _route_step(policy, snapshot, lambda position: position == goal, avoid=left)
+    if step is not None:
         key = policy._step_toward(snapshot, step)
         policy.last_reason = APPROACH_REASON
         return key
     distance = game_distance(here, goal)
-    route = policy._nearest_goal_route(
-        snapshot, lambda grid: game_distance(grid.position, goal) < distance
-        and policy._is_frontier(snapshot, grid))
-    if route is not None and route.first_step not in left:
-        key = policy._step_toward(snapshot, route.first_step)
+
+    def frontier(position) -> bool:
+        grid = snapshot.grids.get(position)
+        return (grid is not None and game_distance(position, goal) < distance
+                and policy._is_frontier(snapshot, grid))
+    if guarded:
+        first = _safe_step(policy, snapshot, frontier, avoid=left)
+    else:
+        route = policy._nearest_goal_route(
+            snapshot, lambda grid: game_distance(grid.position, goal) < distance
+            and policy._is_frontier(snapshot, grid))
+        first = route.first_step if route is not None and route.first_step not in left else None
+    if first is not None:
+        key = policy._step_toward(snapshot, first)
         policy.last_reason = APPROACH_REASON
         return key
     from hengbot import quest_target_search, retreat_enclosure  # import cycle
-    opened = retreat_enclosure.open_toward_key(
+    # The openers walk and melt by routes of their own, which no line of fire is asked of: with
+    # a strong non-target known they are not asked (the line below asks each step and melt).
+    opened = None if guarded else retreat_enclosure.open_toward_key(
         policy, snapshot, quest_target_search.walkable_cells(policy, snapshot), {goal})
     if opened is not None:
         return opened
@@ -846,6 +1002,10 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
     line = _line_key(policy, snapshot, goal, avoid=left)
     if line is not None:
         return line
+    if guarded:
+        # No way that keeps out of the strong non-targets' lines: wait out of them (never given up
+        # for them: the cell is kept).
+        return _out_of_line_key(policy, snapshot, held)
     # Only with no way at all (no melt in hand, blind or confused, every nearer neighbour a
     # permanent or worn-out wall) is the cell given up; the case is kept for the decision record.
     held.dropped = (snapshot.turn, held.last_seen, _line_refusal(policy, snapshot))
@@ -897,6 +1057,7 @@ def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None,
     if distance <= keep:
         return None
     walkable = set(policy._walkable_neighbors(snapshot, here, allow_damaging=False))
+    guarded = bool(shunned(policy, snapshot))
     options = []
     for dy, dx in DIRECTIONS:
         cell = Position(here.y + dy, here.x + dx)
@@ -906,7 +1067,9 @@ def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None,
         # Equal game distances (its halved minor axis) are told apart by the straight line.
         line = (goal.y - cell.y) ** 2 + (goal.x - cell.x) ** 2
         if cell in walkable:
-            if cell not in avoid:  # a cell the walk left (``_left_cells``)
+            # A cell the walk left (``_left_cells``), or one in a strong non-target's line of fire
+            # (``_exposed``, owner 2026-11-24 「射線を通さないように近づく」).
+            if cell not in avoid and not (guarded and _exposed(policy, snapshot, cell)):
                 options.append((nearer, line, 0, cell.y, cell.x))
             continue
         grid = snapshot.grids.get(cell)
@@ -918,6 +1081,8 @@ def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None,
             policy.last_reason = APPROACH_REASON
             return policy._step_toward(snapshot, cell)
         if target is not None and _opens_line(policy, snapshot, here, cell, target.position):
+            continue
+        if guarded and _melt_exposes(policy, snapshot, cell):
             continue
         key = sealed_pocket.melt_at_key(policy, snapshot, cell, MELT_REASON)
         if key is not None:
@@ -997,10 +1162,21 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
             return _heal(policy, snapshot)
         held.stand = None
         return _rocket(policy, snapshot, target)
+    # The target's own line is the tactic's (the stand, 先手); a strong non-target's is never
+    # entered (owner 2026-11-24 「射線を通さないように近づくないし待つ」, 「サーペントには射線を通さなければ
+    # ならない。混同しないように注意」): standing in one, step out of it first.
+    guarded = bool(shunned(policy, snapshot))
+    if guarded and _exposed(policy, snapshot, snapshot.player.position):
+        out = _out_of_line_key(policy, snapshot, held)
+        if out is not None:
+            return out
     stood = _stand_key(policy, snapshot, held, target)
     if stood is not None:
         return stood
-    return _close_in_key(policy, snapshot, target)
+    closed = _close_in_key(policy, snapshot, target)
+    if closed is not None or not guarded:
+        return closed
+    return _out_of_line_key(policy, snapshot, held)
 
 
 def _close_in_key(policy, snapshot, target) -> str | None:
@@ -1016,11 +1192,13 @@ def _close_in_key(policy, snapshot, target) -> str | None:
     here = snapshot.player.position
     aim = target.position
     distance = game_distance(here, aim)
-    route = policy._nearest_goal_route(
-        snapshot, lambda grid: grid.known and grid.passable
-        and STAND_MIN_DISTANCE <= game_distance(grid.position, aim) < distance)
-    if route is not None:
-        key = policy._step_toward(snapshot, route.first_step)
+    def nearer(position) -> bool:
+        grid = snapshot.grids.get(position)
+        return (grid is not None and grid.known and grid.passable
+                and STAND_MIN_DISTANCE <= game_distance(position, aim) < distance)
+    step = _route_step(policy, snapshot, nearer)
+    if step is not None:
+        key = policy._step_toward(snapshot, step)
         policy.last_reason = APPROACH_REASON
         return key
     return _line_key(policy, snapshot, aim, keep=STAND_MIN_DISTANCE, target=target)

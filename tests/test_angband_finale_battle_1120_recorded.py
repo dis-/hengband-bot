@@ -285,6 +285,51 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         key, reason = decide(self.policy, self.board(oberon=oberon, hp=801))
         self.assertNotEqual(reason, battle.TELEPORT_REASON)
 
+    # -- Owner 2026-11-24 「射線を通さないように近づくないし待つのがただしい」 and
+    # -- 「サーペントには射線を通さなければならない。混同しないように注意」
+
+    def tarrasque(self, cell, index=950):
+        """DECLARED CONSTRUCTED: the recorded row as the Tarrasque (race 838) with its own
+        ranged reach and HP from the monster knowledge."""
+        knowledge = self.policy._monrace_knowledge.get(838)
+        return replace(self.monster(838, cell, index), name="『タラスク』",
+                       hp=knowledge.max_hp, max_hp=knowledge.max_hp,
+                       max_ranged_damage=knowledge.max_ranged_damage,
+                       max_melee_damage=knowledge.max_melee_damage,
+                       can_summon=knowledge.can_summon)
+
+    def test_the_avoided_set_is_the_strong_non_target_by_race(self):
+        self.in_battle()
+        oberon = self.at(0, 4)
+        board = self.board(oberon=oberon, box=10)
+        board = replace(board, visible_monsters=[*board.visible_monsters,
+                                                 self.tarrasque(self.at(0, -9))])
+        decide(self.policy, board)
+        races = {monster.race_id for monster in battle.shunned(self.policy, board)}
+        self.assertEqual(races, {838})
+
+    def test_the_target_line_is_used_while_a_strong_other_is_out_of_it(self):
+        """The target in the line, the Tarrasque behind rock out of it: the Rocket at the target
+        (the target's line is never avoided)."""
+        self.in_battle()
+        oberon = self.at(0, 4)
+        rock = [self.at(dy, -8) for dy in (-1, 0, 1)] + [self.at(dy, -7) for dy in (-1, 0, 1)]
+        board = self.board(oberon=oberon, walls=rock, box=10)
+        board = replace(board, visible_monsters=[*board.visible_monsters,
+                                                 self.tarrasque(self.at(0, -9))])
+        key, reason = decide(self.policy, board)
+        self.assertEqual(reason, POWERFUL_REASON)
+
+    def test_the_target_and_a_strong_other_on_one_line_leave(self):
+        """「ターゲットとターゲット以外が同時に射線に入っているときは召喚直後でなくとも離脱する。」"""
+        self.in_battle()
+        oberon = self.at(0, 4)
+        board = self.board(oberon=oberon, box=10)
+        board = replace(board, visible_monsters=[*board.visible_monsters,
+                                                 self.tarrasque(self.at(0, 8))])
+        key, reason = decide(self.policy, board)
+        self.assertEqual(reason, battle.TELEPORT_REASON)
+
     def test_target_and_another_in_the_line_of_fire(self):
         """「ターゲットとターゲット以外が同時に射線に入っているときは召喚直後でなくとも離脱する。」"""
         self.in_battle()
