@@ -131,9 +131,9 @@ COMPOSED_SUFFIX_SITES: dict[tuple[str, str], tuple[int, frozenset]] = {
     ("policy_quest", "_quest_execute_key"): (2, frozenset({"direction"})),
     ("policy_town", "_town_device_processing_key"): (1, frozenset({"item-target"})),
     ("policy_town", "_town_item_processing_dispatch_key"): (1, frozenset({"item-target"})),
-    ("quest25_battle", "_disarm_device_key"): (1, frozenset({"direction"})),
-    ("quest25_battle", "_carried_grid_key"): (1, frozenset({"target-cursor"})),
-    ("quest25_battle", "_launcher_grid_key"): (1, frozenset({"target-cursor"})),
+    ("quest25_battle_attack", "_carried_grid_key"): (1, frozenset({"target-cursor"})),
+    ("quest25_battle_attack", "_launcher_grid_key"): (1, frozenset({"target-cursor"})),
+    ("quest25_battle_walk", "_disarm_device_key"): (1, frozenset({"direction"})),
     ("quest_lure_approach", "_fire_key"): (1, frozenset({"target-cursor"})),
     ("quest_plan_base", "hall_away_key"): (1, frozenset({"direction"})),
     ("retreat_enclosure", "_door_beam_key"): (1, frozenset({"direction"})),
@@ -157,7 +157,7 @@ COMPOSED_APPEND_SITES: dict[tuple[str, str], tuple[int, str]] = {
     ("policy_quest", "_quest_sequence_door_key"): (1, "observed"),  # 'o'
     ("policy_quest", "_quest_execute_key"): (1, "observed"),    # 'o'
     ("policy_town", "_town_kill_mob_key"): (1, "passthrough"),  # '+' dir 'y'
-    ("quest25_battle", "_cursor_suffix"): (1, "observed"),      # '*p' walk (fire/device, (b)-5)
+    ("quest25_battle_attack", "_cursor_suffix"): (1, "observed"),  # '*p' walk (fire/device, (b)-5)
     ("quest_find_exit", "_dig"): (1, "passthrough"),            # 'T'
     ("quest_plan_base", "plan_door"): (1, "observed"),          # 'c' (the plans' one door entry)
     ("quest_lure_approach", "_fire_key"): (1, "observed"),      # '*p' walk (device, (b)-5)

@@ -38,7 +38,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import quest25_battle as battle
+from hengbot import quest25_battle as battle, quest25_battle_walk as walk
 from hengbot.model import Position, _parse_items, parse_snapshot
 from tests.support import q25_house as q25
 
@@ -161,7 +161,7 @@ class Q25CorridorTrapSearchTest(unittest.TestCase):
         # the board's unsafe flag, the items the fight left on [1,10] still answer it: a trap
         # terrain takes no item.
         with patch.object(battle, "_settle_beam", lambda ctx: None), \
-                patch.object(battle, "_settled_on_board", lambda ctx, grid: False):
+                patch.object(walk, "_settled_on_board", lambda ctx, grid: False):
             answers = replay()
         self.assertEqual(answers["second", SECOND_SEARCH], ("s", battle.SEARCH_REASON))
         self.assertEqual(answers["second", ITEMS_ON_CELL], ("4", battle.WALK_REASON))

@@ -41,7 +41,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import quest25_battle as battle, quest25_sealed_room, quest_no_teleport, warning_cell_record
+from hengbot import quest25_battle as battle, quest25_battle_walk, quest25_sealed_room, quest_no_teleport, warning_cell_record
 from hengbot.model import Position, parse_snapshot
 from tests.support import q25_house as q25
 
@@ -66,7 +66,7 @@ def capture_rules():
     with ExitStack() as stack:
         stack.enter_context(patch.object(quest_no_teleport, "q25_hall_forbids", lambda *_args: False))
         stack.enter_context(patch.object(quest25_sealed_room, "key", lambda _ctx: None))
-        stack.enter_context(patch.object(battle, "_shunned", lambda _ctx: []))
+        stack.enter_context(patch.object(quest25_battle_walk, "_shunned", lambda _ctx: []))
         yield
 
 

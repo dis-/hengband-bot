@@ -11,8 +11,8 @@
     "policy_combat.py:CombatMixin._fruitless_fight_is_winnable: per-action attack figure compared outside attack_expectation.per_10_game_turns: incoming < snapshot.player.hp": 1,
     "policy_quest.py:QuestMixin._unique_fight_projection: per-action attack figure compared outside attack_expectation.per_10_game_turns: attacks > UNIQUE_COMBAT_MAX_ATTACKS": 1,
     "policy_quest.py:QuestMixin._unique_fight_projection: per-action attack figure compared outside attack_expectation.per_10_game_turns: operational <= capacity - reserve": 1,
-    "quest25_battle.py:_tome: per-action attack figure compared outside attack_expectation.per_10_game_turns: near >= far": 1,
-    "quest25_battle.py:melee_is_fewer: per-action attack figure compared outside attack_expectation.per_10_game_turns: melee < ranged": 1,
+    "quest25_battle_board.py:melee_is_fewer: per-action attack figure compared outside attack_expectation.per_10_game_turns: melee < ranged": 1,
+    "quest25_battle_rooms.py:_tome: per-action attack figure compared outside attack_expectation.per_10_game_turns: near >= far": 1,
     "quest_summon_answer.py:next_action_kills: per-action attack figure compared outside attack_expectation.per_10_game_turns: figure >= max(target.hp, 1)": 1,
     "supply_fight.py:ranged_plan: per-action attack figure compared outside attack_expectation.per_10_game_turns: free > attack_expectation.melee(policy, snapshot, target)": 1,
     "threat_projection.py:free_attack: per-action attack figure compared outside attack_expectation.per_10_game_turns: melee > best": 1

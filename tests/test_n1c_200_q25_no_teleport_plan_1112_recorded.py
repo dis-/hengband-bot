@@ -13,7 +13,7 @@ Owner 2026-11-12 (strategy/quests/QUEST_25.jsonc ``hall_no_teleport``, ``sealed_
     段階3 「ラアルとクイルスルグを倒すまで」 (battle phases 0-5): quest_no_teleport.q25_hall_forbids,
     quest_plan_base._below_line's Teleport Away then the potion.
 (2) the sealed rooms (quest25_sealed_room): wait 100 actions intercepting, then by room.
-(3) 「召喚された強敵や T1 の敵の方へは歩かない」 in every phase (quest25_battle._shunned).
+(3) 「召喚された強敵や T1 の敵の方へは歩かない」 in every phase (quest25_battle_walk._shunned).
 
 Recorded: the boards of tests/fixtures/n1c-200-q25-warning-restart-1112.json.gz (all three
 processes; tests/extract_n1c_200_q25_warning_restart_1112_fixture.py), decided by a fresh policy
@@ -38,7 +38,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # noqa: F401 -- first: the plan modules import in a cycle alone
-from hengbot import me_capability, quest25_battle as battle, quest25_sealed_room as sealed_room
+from hengbot import me_capability, quest25_battle as battle, quest25_battle_walk, quest25_sealed_room as sealed_room
 from hengbot import quest_no_teleport, quest_plan_base
 from hengbot.model import (Position, SV_ROD_TELEPORT_AWAY, SV_WAND_STONE_TO_MUD,
                            SV_WAND_TELEPORT_AWAY, parse_snapshot)
@@ -104,7 +104,7 @@ class _patched:
 
 RULE_1_OFF = ((quest_no_teleport, "q25_hall_forbids", lambda *_args: False),)
 RULE_2_OFF = ((sealed_room, "key", lambda _ctx: None),)
-RULE_3_OFF = ((battle, "_shunned", lambda _ctx: []),)
+RULE_3_OFF = ((quest25_battle_walk, "_shunned", lambda _ctx: []),)
 ANSWERS = {}
 
 

@@ -20,12 +20,12 @@ race the board shows is gone, in every phase:
    within the detection the plan cast just before this board (its first board after the cast,
    the player still on the cell it was cast from; one that showed nothing counts) --
    that race is absent: none of it is left on the floor.  ``Battle.absent`` keeps it (race ->
-   game turn), and ``quest25_battle._Ctx.kills`` counts such a race as its whole roster, so every
+   game turn), and ``quest25_battle_board._Ctx.kills`` counts such a race as its whole roster, so every
    phase that waits for it, counts it, or shoots it is over for it.
  * ``presence_key`` (a waiting phase: ``Phase.waits_for``): the phase is ready, no hostile is in
    view, none of the races it waits for is shown, and the wait has run ``quiet_actions`` more
    quiet actions (the owner's 50-action measure of 「来ない」, wait_limits) since the last check:
-   the plan's detection (``quest25_battle._detect_key``: the absorbed Rod of Detection, else the
+   the plan's detection (``quest25_battle_rooms._detect_key``: the absorbed Rod of Detection, else the
    Staff of Detect Evil, else a carried one), cast where it reaches every cell those races could
    be on, else after a walk to the nearest such cell.  The ambush keeps its own wait otherwise:
    a race the detection shows is waited for as before.  A battle restored from an older save
@@ -132,7 +132,7 @@ def shown_by(effect: str, flags) -> bool:
 
 
 def note_cast(ctx, effect: str) -> None:
-    """``quest25_battle._detect_key`` keyed a detection of ``effect`` on this board."""
+    """``quest25_battle_rooms._detect_key`` keyed a detection of ``effect`` on this board."""
     battle = ctx.battle
     battle.cast = (int(ctx.snapshot.turn), ctx.here, effect, battle.presence_quiet, battle.recheck)
 
@@ -205,7 +205,7 @@ def note_absent(ctx) -> None:
 
 
 def detector_effect(found) -> str:
-    """The effect of a ``quest25_battle._detector`` answer."""
+    """The effect of a ``quest25_battle_rooms._detector`` answer."""
     if found[0] == "power":
         return found[1].effect
     return me_powers.BY_KEY[(found[1], found[2].sval)].effect
