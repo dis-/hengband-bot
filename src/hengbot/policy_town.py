@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.home_full_relief import relief_of
 from hengbot import equipment_target
 from hengbot.item_identity import same_memory
-from hengbot import equipment_rules, finale_prep, finale_teleport_tour
+from hengbot import equipment_rules, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import deep_climb, return_start
 from hengbot import recall_wait_unknown_path
@@ -8596,7 +8596,15 @@ class TownMixin:
                     destruction_use.MEANS_SPENT_TRIGGER
                     if gap == {DESTRUCTION_GATE_LABEL} else "resist-gap"))
                 return True
-            ledger_shortages = self._ledger_return_shortages(
+            # Owner 2026-11-21 「巻物が尽きたら取り込んだテレポートの杖、杖も尽きたら帰還して補給」: on the
+            # floor the finale's regeneration climbed to, its own line, not the supply ledger
+            # (n1-b life-416 2026-11-23 21:09:12 recalled from 98F under teleport-low with the
+            # absorbed staff charged; finale_hold).
+            relay = finale_hold.relay_floor(self, snapshot)
+            if relay and finale_hold.return_due(self, snapshot):
+                return_start.set_trigger(self, finale_hold.RETURN_TRIGGER)
+                return True
+            ledger_shortages = [] if relay else self._ledger_return_shortages(
                 ledger,
                 snapshot.dungeon_level,
             )
@@ -8631,7 +8639,8 @@ class TownMixin:
                 grid.known and grid.has_down_stairs
                 for grid in snapshot.grids.values()
             )
-            if knows_downstairs and self._next_depth_supply_shortage(snapshot):
+            if (knows_downstairs and not relay
+                    and self._next_depth_supply_shortage(snapshot)):
                 return_start.set_trigger(self, "next-depth-kit")
                 return True
         # Hunger-without-food already returned True above (it runs before the
