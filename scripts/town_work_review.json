@@ -22305,6 +22305,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_close_in_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "With the target shown and no stand open or reachable, the walk to a cell nearer the target (never within its teleport distance), else along the line with Stone to Mud, so the rays come into the board (owner 2026-11-20 「なるべく距離をとって相対するように岩石溶解を使って射線を通す」).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "angband_finale_battle.py:_destroy": {
     "classification": "dungeon-only",
     "rows": [

@@ -916,7 +916,33 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
             return _heal(policy, snapshot)
         held.stand = None
         return _rocket(policy, snapshot, target)
-    return _stand_key(policy, snapshot, held, target)
+    stood = _stand_key(policy, snapshot, held, target)
+    if stood is not None:
+        return stood
+    return _close_in_key(policy, snapshot, target)
+
+
+def _close_in_key(policy, snapshot, target) -> str | None:
+    """No stand on the target's rays is open or reachable yet (the rays run through ground the
+    board does not know): the battle closes in itself, never nearer than ``STAND_MIN_DISTANCE``,
+    so that the rays' cells come into the board and ``_stand_key`` takes over -- the walk to a
+    nearer cell, else along the line by walking and Stone to Mud (``_line_key``, a melt that would
+    open the line on the target where it stands not made).  n1-b life-416 (Angband 99F,
+    2026-11-23 21:08, seq 160-176): Oberon detected 19 cells away with every ray in forgotten
+    ground, the stand answered None and the generic hunt walked the player beside him; at
+    distance 1 the battle had to teleport (seq 177).  None only when neither has a step; the
+    ladder below answers then."""
+    here = snapshot.player.position
+    aim = target.position
+    distance = game_distance(here, aim)
+    route = policy._nearest_goal_route(
+        snapshot, lambda grid: grid.known and grid.passable
+        and STAND_MIN_DISTANCE <= game_distance(grid.position, aim) < distance)
+    if route is not None:
+        key = policy._step_toward(snapshot, route.first_step)
+        policy.last_reason = APPROACH_REASON
+        return key
+    return _line_key(policy, snapshot, aim, keep=STAND_MIN_DISTANCE, target=target)
 
 
 def key(policy, snapshot) -> str | None:
