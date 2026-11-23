@@ -31,22 +31,26 @@ character preparing the finale (``applies``), the town's departure is this modul
   (finale_teleport_tour, owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す」
   「一周する毎に宿屋で一泊する」);
 * the Restore Mana the only other row short (n1-b's 21:13 board owned 79 of the 84 and every
-  other supply): once the Teleportation is owned, the four towns' Black Markets lap after lap
+  other supply), or any supply only the Black Market sells (the Healing, the *Healing*, the
+  Resistance: owner 2026-11-24 「闇市を巡回して買い足す — 魔力復活の薬と同じく」, n1-c life-221
+  03:01:20 spun on ``finale-not-in-town:healing`` with 2 of the 30; angband_finale
+  ``BLACK_MARKET_SUPPLIES``): once the Teleportation is owned, the four towns' Black Markets lap after lap
   with a night at the inn between laps until the carry is owned (finale_bm_tour, owner
   2026-11-23 「4つの町の闇市を巡回して買い足し、目標に届くまで99Fへは行かない。闇市に無ければ
   巡回をくり返す。」); short of gold, Home's cash wares are sold and a fundraising run brings
   it (owner 2026-11-18 「必要なものは買う」); a circuit that closed (an inn, a leg, no town) is
   the driver's final stop ``town:blocked:finale-bm-tour-closed:<why>``;
-* anything else short (a supply only the dungeon gives), or the phase stopped (an equipment
-  condition the owned gear does not meet stops it at its check step): a named stop
-  (``town:blocked:...``) for the owner, no destination picked.
+* anything else short (a supply only the dungeon gives: the absorbed Stone to Mud), or the phase
+  stopped (an equipment condition the owned gear does not meet stops it at its check step): a
+  named stop (``town:blocked:...``) for the owner, no destination picked; the not-in-town one is a
+  final stop of the driver (policy_constants FINALE_NOT_IN_TOWN_STOP_PREFIX), never a wait.
 
 **The Restore Mana whatever the recall depth.**  The Black Markets' circuit is the owner's line
 for the Restore Mana short alone, not for the 96F+ refusal: a Scroll of Reset Recall (reset_recall)
 sets Angband back to 95F and ``applies`` no longer holds (n1-b life-416 2026-11-24 02:21:00, after
 Oberon; five recalls to 95F followed at 75-79 of the 84).  So the departure toward Angband asks
 ``black_market_due`` first (policy_town ``_town_special_key``, before the recall is read): the
-preparation phase idle and the Restore Mana the only finale supply short, the circuit
+preparation phase idle and only supplies the Black Market sells short, the circuit
 (``black_market_key``); any other row short keeps the owner's 2026-11-19 95F exploration.
 """
 from __future__ import annotations
@@ -57,11 +61,12 @@ from hengbot.policy_constants import WAIT_KEY
 RETURN_TRIGGER = "angband-finale:relay"
 # The supply rows the town's shops can fill (angband_finale ``SUPPLY_NAMES``).
 TOWN_SUPPLIES = frozenset({"teleport"})
-# The row the Black Markets' circuit fills (finale_bm_tour, owner 2026-11-23).
-BLACK_MARKET_SUPPLIES = frozenset({"restore_mana"})
+# The rows the Black Markets' circuit fills (finale_bm_tour, owner 2026-11-23 and 2026-11-24):
+# angband_finale BLACK_MARKET_SUPPLIES, the supplies no town store sells.
+BLACK_MARKET_SUPPLIES = frozenset({"healing", "star_healing", "resistance", "restore_mana"})
 WAIT_REASON = "town:finale-hold:phase"
 STOPPED = "finale-prep-stopped"
-NOT_IN_TOWN = "finale-not-in-town"
+NOT_IN_TOWN = "finale-not-in-town"  # policy_constants FINALE_NOT_IN_TOWN_STOP_PREFIX's
 BM_CLOSED = "finale-bm-tour-closed"  # policy_constants FINALE_BM_CLOSED_STOP_PREFIX's
 SHORT = "finale-supplies-short"
 NOT_ENTERED = "finale-prep-not-entered"
@@ -144,8 +149,9 @@ def _black_market_key(policy, snapshot, short: list) -> str | None:
 
 
 def black_market_due(policy, snapshot) -> bool:
-    """The departure toward Angband while the Restore Mana is the finale's only supply short,
-    whatever Angband's recall depth (owner 2026-11-23 「目標に届くまで99Fへは行かない。闇市に無ければ
+    """The departure toward Angband while only supplies the Black Market sells are short (the
+    Restore Mana, owner 2026-11-23; the Healing and the others, 2026-11-24), whatever Angband's
+    recall depth (owner 2026-11-23 「目標に届くまで99Fへは行かない。闇市に無ければ
     巡回をくり返す。」).  ``applies`` covers a recall depth of 96F or deeper only; a Scroll of Reset
     Recall (reset_recall, owner 2026-11-21) sets it back to 95F, and the ordinary departure then
     went to the 95F exploration with the carry short: n1-b life-416 2026-11-24 02:21:00 read it
@@ -183,7 +189,8 @@ def town_key(policy, snapshot) -> str | None:
     if any(name not in BLACK_MARKET_SUPPLIES for name in outside):
         return _stop(policy, snapshot, f"{NOT_IN_TOWN}:{','.join(outside)}")
     if short and all(name in BLACK_MARKET_SUPPLIES for name in short):
-        # Owner 2026-11-23 「闇市を回って買い足す」: the Teleportation owned, the Black Markets.
+        # Owner 2026-11-23 「闇市を回って買い足す」 and 2026-11-24 「闇市を巡回して買い足す — 魔力復活の
+        # 薬と同じく」: the Teleportation owned, the Black Markets.
         return _black_market_key(policy, snapshot, short)
     if not short:
         # Everything owned and the phase idle: it did not enter (a census unknown, a swap or a

@@ -3202,7 +3202,7 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "finale_bm_tour.py:_potion_price": {
+  "finale_bm_tour.py:_prices": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3210,6 +3210,13 @@
     "delegation": "selected child; no independent success"
   },
   "finale_bm_tour.py:_start": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_bm_tour.py:_supply_price": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3224,6 +3231,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "finale_bm_tour.py:record": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_bm_tour.py:short_kinds": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

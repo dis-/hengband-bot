@@ -22843,9 +22843,9 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
-    "evidence": "The next leg's fare, the reserve and one Restore Mana at the price last seen; no command."
+    "evidence": "The next leg's fare, the reserve and one unit of the dearest short finale supply at the price last seen; no command."
   },
-  "finale_bm_tour.py:_potion_price": {
+  "finale_bm_tour.py:_prices": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -22854,7 +22854,18 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
-    "evidence": "The Restore Mana price last seen on a Black Market shelf, else the base price; no command."
+    "evidence": "The lowest price last seen on a Black Market shelf of each finale supply (an older circuit's one Restore Mana price carried over); no command."
+  },
+  "finale_bm_tour.py:_supply_price": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "One unit of the dearest finale supply still short at the price last seen on a Black Market shelf, else the base price; no command."
   },
   "finale_bm_tour.py:_start": {
     "classification": "data",
@@ -22887,7 +22898,18 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
-    "evidence": "The carry's Restore Mana still to buy (angband_finale.shortage); no command."
+    "evidence": "The carries still to buy of the finale supplies only the Black Market sells (angband_finale.shortage summed); no command."
+  },
+  "finale_bm_tour.py:short_kinds": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The finale supplies only the Black Market sells whose carry is short (angband_finale.shortage); no command."
   },
   "finale_bm_tour.py:why": {
     "classification": "data",

@@ -80,7 +80,7 @@ class SpeedStaffBuySell1124RecordedTest(unittest.TestCase):
         policy, decided, steps = self.replay(BUY_ROW)
         # Rows 30-35 are the Potion of Resistance bought at 4,055 (94 owned, the finale's 20):
         # refused while the finale's Restore Mana is short (finale_bm_tour
-        # ``restore_mana_first``), so the visit goes on to the Black Markets' circuit instead.
+        # ``supplies_first``), so the visit goes on to the Black Markets' circuit instead.
         for row, recorded, mine in decided:
             if row not in (5, 7, 30, 31, 32, 33, 34, 35):
                 self.assertEqual(mine, recorded, row)

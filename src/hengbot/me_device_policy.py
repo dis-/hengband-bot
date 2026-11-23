@@ -235,8 +235,9 @@ def purchase_wanted(policy, snapshot, item) -> bool:
     if not _purchase_count_allows(policy, snapshot, row):
         return False
     from hengbot import finale_bm_tour  # import cycle
-    if finale_bm_tour.restore_mana_first(policy, snapshot):
-        # The finale's Restore Mana short: the gold is the shortfall's (finale_bm_tour).
+    if finale_bm_tour.supplies_first(policy, snapshot):
+        # A finale supply only the Black Market sells short: the gold is the shortfall's
+        # (finale_bm_tour).
         return False
     # Owner 2026-11-20 「取り込んだ岩石溶解を条件に入れる」: Stone to Mud up to the finale's
     # absorbed count while the 95F exploration lasts (angband_finale).

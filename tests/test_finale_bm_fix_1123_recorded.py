@@ -68,7 +68,7 @@ class FinaleBlackMarketFix1123RecordedTest(unittest.TestCase):
     def test_the_lap_waits_for_its_night(self):
         # The rows replayed are not compared with the record: a purchase rule changed since
         # (the optional purchases gated while the Restore Mana is short, finale_bm_tour
-        # ``restore_mana_first``) decides some of the circuit's market rows otherwise, while the
+        # ``supplies_first``) decides some of the circuit's market rows otherwise, while the
         # recorded keys keep the boards as they were.
         policy, _decided, steps = self.replay(PERIODIC_ROW)
         tour = finale_bm_tour.record(policy)

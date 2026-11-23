@@ -453,13 +453,20 @@ PLAN_GENERIC_REFUSED_STOP_PREFIX = 'quest-plan:generic-refused:'
 # stop for the owner, not a wait: n1-b life-416 2026-11-24 00:49 repeated its funds stop until the
 # loop detector.
 FINALE_BM_CLOSED_STOP_PREFIX = 'town:blocked:finale-bm-tour-closed:'
+# FINALE_NOT_IN_TOWN_STOP_PREFIX: a 99F/100F finale supply short that neither a town store nor the
+# Black Markets' circuit can buy (finale_hold ``town_key``: the absorbed Stone to Mud), named after
+# the rows.  A stop for the owner, not a wait: n1-c life-221 2026-11-24 03:01:20 repeated
+# ``finale-not-in-town:healing`` on '5' until the loop detector (the Healing is the circuit's
+# since then).
+FINALE_NOT_IN_TOWN_STOP_PREFIX = 'town:blocked:finale-not-in-town:'
 # EQUIPMENT_FLIPFLOP_STOP_PREFIX: a slot worn A, B, A in one town visit (owner 2026-11-22,
 # equipment_visit_journal), named after the slot.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
                               OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX,
                               APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX,
                               BANNED_GEAR_STUCK_STOP_PREFIX, STATIONARY_EXHAUSTED_STOP_PREFIX,
-                              PLAN_GENERIC_REFUSED_STOP_PREFIX, FINALE_BM_CLOSED_STOP_PREFIX)
+                              PLAN_GENERIC_REFUSED_STOP_PREFIX, FINALE_BM_CLOSED_STOP_PREFIX,
+                              FINALE_NOT_IN_TOWN_STOP_PREFIX)
 
 TUNNEL_KEY = "T"
 
