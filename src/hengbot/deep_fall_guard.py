@@ -337,6 +337,12 @@ def key(policy, snapshot):
             memory["pending"] = (snapshot.turn, here)
             policy.last_reason = DETECT_REASON
             return detect
+    from hengbot import destruction_use
+
+    if destruction_use.means_unread(policy, snapshot):
+        # A restarted Magic-Eater's absorbed *Destruction* not read yet is not "no means"
+        # (destruction_use.means_unread): the read comes first, then the leave if still none.
+        return None
     if deep_climb.climb_floor(policy, snapshot):
         # The owner's exception put the climb here (its 50F+ floors and its floors below the
         # band): it goes on to the up stairs (deep_climb.key); a fall onto 50F+ stops the bot
