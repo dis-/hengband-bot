@@ -188,9 +188,11 @@ class InputContextShadow:
 
     In memory: per published kind the agreements and disagreements, per source
     the classifications without a context, and per owner the operations whose
-    command/store barrier still held continuations (with the context kind).
+    command/store barrier still held continuations (with the context kind),
+    and per command and suffix kind the composed keys sent whole.
     On disk (only when ``path`` is set): one line per disagreement, per
-    screen/state context mismatch and per residual tail, and a ``counts`` line
+    screen/state context mismatch, per residual tail and per composed key sent
+    whole, and a ``counts`` line
     at every stop.  Every write failure is swallowed: recording never changes
     what the bot does.
     """
@@ -203,6 +205,9 @@ class InputContextShadow:
         self.disagreements: dict[str, int] = {}
         self.without_context: dict[str, int] = {}
         self.residual_continuations: dict[str, dict[str, int]] = {}
+        # Review 2026-11-23 K4 (a)-3: composed keys sent whole, per "command:suffix kind"
+        # (observed_input.composed_passthrough).  Record only.
+        self.composed_passthroughs: dict[str, int] = {}
         self.write_failures = 0
 
     @staticmethod
@@ -217,6 +222,7 @@ class InputContextShadow:
             "residual_continuations": {
                 owner: dict(kinds) for owner, kinds in self.residual_continuations.items()
             },
+            "composed_passthrough": dict(self.composed_passthroughs),
         }
 
     def observe(self, owner: str | None, observed: InputStateMatch,
@@ -255,6 +261,12 @@ class InputContextShadow:
         self._bump(kinds, reading.label)
         self._write({"event": "residual-continuations", "owner": owner,
                      "context": reading.as_dict(), "row0": _screen_row0(screen)})
+
+    def composed_passthrough(self, owner: str, record: Mapping[str, object]) -> None:
+        """A composed key went to the game whole: its questions (observed_input
+        ``COMMAND_PROMPTS``) were not observed before the rest of the key."""
+        self._bump(self.composed_passthroughs, f"{record.get('command')}:{record.get('suffix')}")
+        self._write({"event": "composed-passthrough", "owner": owner, **record})
 
     def stop(self, line: str) -> None:
         self._write({"event": "counts", "stop": line, "counts": self.counts()})
