@@ -218,6 +218,8 @@ REGISTRY = (
       "cli: latch capture rotate bytes (no comment at its definition)", saved=False),
     S("_equipment_journal_path", "cli", LIFE,
       "The equipment visit journal's jsonl beside the decision log (equipment_visit_journal.FILE_NAME)."),
+    S("_purchase_source_journal_path", "cli", LIFE,
+      "The purchase-source journal's jsonl beside the decision log (purchase_source_journal.FILE_NAME, review 2026-11-23 (b)-6)."),
     S("_loadout_report_path", "cli", LIFE,
       "cli: loadout report path (no comment at its definition)"),
     S("_me_power_resume_reads", "cli", LIFE,
@@ -1836,6 +1838,9 @@ REGISTRY = (
       "policy_town: town store positions (no comment at its definition)"),
     S("_town_visit_entrances", "policy_town", LIFE,
       "Shape metadata can flicker between interleaved surface snapshots."),
+    # purchase_source_journal
+    S("_purchase_source_branch", "purchase_source_journal", LIFE,
+      "Record only: the branch the last _next_purchase answered from (legacy order, an errand), read by _shop_purchase_key for the purchase-source journal (review 2026-11-23 (b)-6)."),
     # q2_kill_credit
     S("_q2_kill_credit", "q2_kill_credit", LIFE,
       "q2_kill_credit: q2 kill credit (no comment at its definition)"),

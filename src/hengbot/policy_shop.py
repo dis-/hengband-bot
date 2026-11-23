@@ -8,7 +8,7 @@ from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
 from hengbot import heroism_potion, torch_release, town_pack_headroom
-from hengbot import bm_destruction_fund, bm_tour
+from hengbot import bm_destruction_fund, bm_tour, purchase_source_journal
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -2541,6 +2541,7 @@ class ShopMixin(InStoreMixin):
         """Apply the cheap fundraising-kit reserve to the normal buy order."""
         staff_first = bm_destruction_fund.page_purchase(self, snapshot)
         if staff_first is not None:
+            purchase_source_journal.note_branch(self, purchase_source_journal.BM_PRIORITY)
             # Owner 2026-11-15 「破壊の杖は最優先で購入」: the shelved staff owns
             # the Black Market page (and holds the Magic-Eater staff buys) until
             # it is bought or its fund runs out (bm_destruction_fund.staff_pending).
@@ -2551,9 +2552,11 @@ class ShopMixin(InStoreMixin):
         if acquisition_waits(self, snapshot):
             return None
         if self._opening_q1_shopping(snapshot):
+            purchase_source_journal.note_branch(self, purchase_source_journal.OPENING_Q1)
             item = self._opening_q1_purchase(snapshot)
             return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
         if zul_trip.shopping(self, snapshot):
+            purchase_source_journal.note_branch(self, purchase_source_journal.ZUL_TRIP)
             # The Zul trip's Ring of Levitation (owner 2026-11-07 「無ければ指輪を買う」):
             # the trip walks to this shelf, so the page buys its ring.  Without this
             # row the selector saw nothing wanted and the walk re-entered the shop
@@ -2561,8 +2564,11 @@ class ShopMixin(InStoreMixin):
             item = zul_trip.purchase(self, snapshot)
             return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
         if me_staff_sequence.shopping(self, snapshot):
+            purchase_source_journal.note_branch(self, purchase_source_journal.ME_STAFF)
             item = me_staff_sequence.purchase(self, snapshot)
             return item if item is not None and self._store_purchase_fits_pack(snapshot, item) else None
+        # The ordinary order (review 2026-11-23 (b)-6: counted, purchase_source_journal).
+        purchase_source_journal.note_branch(self, purchase_source_journal.LEGACY)
         commit_churn = commit_churn or bool(
             getattr(self, "_shop_selection_commits", False)
         )
@@ -5188,8 +5194,12 @@ class ShopMixin(InStoreMixin):
             if food_item is not None:
                 quantity = self._purchase_quantity(snapshot, food_item)
                 self.last_reason = "survival:buy-food"
-                return store_item_key(self, snapshot, "buy", food_item, "survival",
-                                      quantity=quantity)
+                key = store_item_key(self, snapshot, "buy", food_item, "survival",
+                                     quantity=quantity)
+                purchase_source_journal.record(
+                    self, snapshot, food_item, key,
+                    source=purchase_source_journal.SURVIVAL, quantity=quantity)
+                return key
             self._set_town_store_attempted(store.store_type, snapshot.turn, "survival-food-unavailable")
             if snapshot.player.food_type == FOOD_TYPE_MANA:
                 prices = [
@@ -5266,7 +5276,8 @@ class ShopMixin(InStoreMixin):
                 )
                 if completed_disposal_successor is not None:
                     return self._shop_purchase_key(
-                        snapshot, completed_disposal_successor
+                        snapshot, completed_disposal_successor,
+                        source=purchase_source_journal.RUNGS,
                     )
                 else:
                     self.last_reason = "equipment:sale-complete"
@@ -5883,7 +5894,10 @@ class ShopMixin(InStoreMixin):
         return LEAVE_STORE_KEY
 
     @claims(ClaimOwner.SHOP_BUY)
-    def _shop_purchase_key(self, snapshot: Snapshot, selection: PurchaseSelection) -> str | None:
+    def _shop_purchase_key(self, snapshot: Snapshot, selection: PurchaseSelection,
+                           *, source: str | None = None) -> str | None:
+        """The buy key of ``selection``; ``source`` names the selector that chose it for the
+        purchase-source journal (None: the branch ``_next_purchase`` answered from)."""
         item = selection.item
         store = snapshot.store
         if store is None or selection.supplier != store.store_type:
@@ -6043,7 +6057,11 @@ class ShopMixin(InStoreMixin):
             )
         if item.is_digging_tool and fallback_purchase:
             self._digger_fallback_bought_this_visit = True
-        return store_item_key(self, snapshot, "buy", item, "shop-buy", quantity=quantity)
+        key = store_item_key(self, snapshot, "buy", item, "shop-buy", quantity=quantity)
+        # Review 2026-11-23 (b)-6 「数を見てから一本化する」: record only.
+        purchase_source_journal.record(self, snapshot, item, key, source=source,
+                                       match=selection.match, quantity=quantity)
+        return key
 
 
     def _router_plan_stop_families(
