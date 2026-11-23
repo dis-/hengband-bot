@@ -47,6 +47,28 @@ def request_refresh(policy) -> None:
     policy._me_power_refresh_pending = KINDS
 
 
+def list_pending(policy, snapshot, kind: str) -> bool:
+    """A restarted process has not read ``kind``'s list yet and ``resume_read_key`` will still
+    ask for it (a dungeon board, a Magic-Eater, attempts left): the absorbed powers of the kind
+    are unknown, not absent.
+
+    n1-c life-221 2026-11-23 15:17:39: the bot restarted on the Mountain's 50F, the first board
+    (before ``bA``) read the absorbed *Destruction* as no means (me_capability.reliable reads the
+    displayed list), and deep_climb held the climb on a character holding the means (owner
+    「破壊の手段は十分にあるが？」).  A rule that reads "no means" as a reason to act waits for
+    this read; it takes no game time."""
+    if (not getattr(policy, "_me_power_resume_reads", False)
+            or snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER or snapshot.in_town):
+        return False
+    if kind in (getattr(policy, "_me_device_lists", None) or {}):
+        return False
+    count, last = (getattr(policy, "_me_power_resume_attempts", None) or {}).get(kind, (0, None))
+    # The last read's answer is awaited as long as a retry would be (``RESUME_RETRY_DECISIONS``).
+    return count < RESUME_READ_ATTEMPTS or (
+        last is not None
+        and getattr(policy, "_decision_sequence", 0) - last < RESUME_RETRY_DECISIONS)
+
+
 def resume_read_key(policy, snapshot):
     """The first read of each list this process lacks, in the dungeon, on any board.
 
