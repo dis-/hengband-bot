@@ -419,6 +419,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "angband_finale.py:feasibility_due": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_finale.py:home_count": {
     "classification": "data",
     "rows": [
@@ -2971,7 +2978,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_target.py:loadout_target_blockers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_target.py:redecide_events": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_transaction_planner.py:EquipmentTransactionPlan.phase": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3160,6 +3181,20 @@
     "delegation": "selected child; no independent success"
   },
   "finale_prep.py:lifted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:owned_search_due": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_prep.py:phase": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9415,6 +9450,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._apply_selection_blockers": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._banned_gear_stuck": {
     "classification": "data",
     "rows": [
@@ -9436,10 +9478,24 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._calibration_required_preparation": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._closed_visit_failure_preparation": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._collect_equipment_candidates": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -9513,6 +9569,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._equipment_optimization_unavailable": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_optimizer_inputs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._equipment_preparation_selected_ids": {
     "classification": "data",
     "rows": [
@@ -9520,10 +9590,38 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_equipment.py:EquipmentMixin._equipment_preserved_ids": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._equipment_restore_refusals": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_search_excluded_ids": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_search_memo_return": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._equipment_search_signature": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -9646,13 +9744,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy_equipment.py:EquipmentMixin._operational_equipment_catalog": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_equipment.py:EquipmentMixin._optional_failure_current_loadout": {
     "classification": "data",
     "rows": [
@@ -9674,6 +9765,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_equipment.py:EquipmentMixin._publish_equipment_search": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._queue_standing_home_digger": {
     "classification": "producer",
     "rows": [
@@ -9693,6 +9791,20 @@
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._retired_worn_loadout_preparation": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:EquipmentMixin._run_equipment_search": {
+    "classification": "data",
+    "rows": [
+      "equipment-optimization"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -9739,6 +9851,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_equipment.py:EquipmentMixin._worn_banned_pieces": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_equipment.py:obtainable_ammunition_signature": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -11580,6 +11699,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_quest.py:QuestMixin._quest_final_target_position": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_quest.py:QuestMixin._quest_launcher_ammo": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

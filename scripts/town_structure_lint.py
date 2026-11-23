@@ -326,10 +326,15 @@ def intent_census(sources):
         if receiver is None:
             continue
         nodes = list(local_nodes(function))
+        # A parameter typed as an identity-bearing record taints like an item: the loadout
+        # search's candidates (policy_equipment.EquipmentSearchCandidates) carry the ids the
+        # transaction preserves (equipment_identity), as the search's locals did before its
+        # stages were split into helpers (maintainability review 11-23 (a)-10).
         tainted = {argument.arg for argument in (*function.args.args, *function.args.kwonlyargs)
                    if argument.arg in {'item', 'inventory_item', 'store_item'}
                    or argument.annotation is not None and any(
-                       kind in ast.unparse(argument.annotation) for kind in ('InventoryItem', 'StoreItem'))}
+                       kind in ast.unparse(argument.annotation)
+                       for kind in ('InventoryItem', 'StoreItem', 'EquipmentSearchCandidates'))}
         assignments = [node for node in nodes if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))]
         def sensitive(value):
             return any(isinstance(node, ast.Call) and name(node.func) in IDENTITIES | item_returns
