@@ -2568,6 +2568,12 @@ class ShopMixin(InStoreMixin):
         # mining set opened, the Alchemist skipped on its shelf evidence).
         rejected_rows = self._purchase_churn_rows(snapshot)
         exclusions = {(item.tval, item.sval) for item in rejected_rows}
+        # One verdict for the buy and the sale (item_use_route ``surplus``: 「no purchase rung
+        # buys it back」): the ordinary order never buys a kind the town's sale sells the moment
+        # it is carried.  n1-b life-416 2026-11-23 23:39:36-38 bought a Staff of Speed at 21,292
+        # and sold it for 2,764 (the power at 99).
+        surplus_classes = self._surplus_shelf_classes(snapshot)
+        exclusions |= surplus_classes
         if exclusions:
             attempted = set()
             while True:
@@ -2626,6 +2632,10 @@ class ShopMixin(InStoreMixin):
                 town_pack_headroom.make_room_for_refused_purchase(self, snapshot)
             return None
         item = self._tiered_purchase(snapshot, item, refused, commit_churn)
+        if item is not None and item_use_route.surplus(self, snapshot, item):
+            # A branch of the order that reads no exclusion: refused all the same.
+            self._shop_selector_diagnostics["surplus_refusal"] = item.name
+            return None
         if item is None or item.is_digging_tool or item.is_treasure_detection_scroll:
             return item
         curse_kind = self._required_remove_curse_kind(snapshot)
@@ -3217,6 +3227,19 @@ class ShopMixin(InStoreMixin):
             self._shop_selector_diagnostics["purchase_tier"] = (
                 f"short-money:{picks[0][2]}->{self._purchase_tier(snapshot, chosen)}")
         return chosen
+
+    def _surplus_shelf_classes(self, snapshot: Snapshot) -> set:
+        """The (tval, sval) classes of this page whose every ware is surplus (item_use_route): the
+        ordinary order's exclusions, as ``_matching_live_purchase_rungs`` refuses them to the
+        rungs."""
+        store = snapshot.store
+        if store is None:
+            return set()
+        verdicts: dict = {}
+        for ware in store.items:
+            cls = (ware.tval, ware.sval)
+            verdicts[cls] = verdicts.get(cls, True) and item_use_route.surplus(self, snapshot, ware)
+        return {cls for cls, surplus in verdicts.items() if surplus}
 
     def _matching_live_purchase_rungs(self, snapshot: Snapshot, item) -> tuple[PurchaseMatch, ...]:
         if (me_capability.replaced_by_absorbed(self, snapshot, item, me_capability.PURCHASE)
