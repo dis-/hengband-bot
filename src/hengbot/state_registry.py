@@ -240,6 +240,8 @@ REGISTRY = (
       "The Q25 phase battle's restart record (quest25_battle_record);"),
     S("_sweep_kill_record_path", "cli", LIFE,
       "The room sweep's kills' restart record (quest_sweep_record)"),
+    S("_quest_plan_record_path", "cli", LIFE,
+      "Every floor plan's state's restart record (quest_plan_record, review 2026-11-23 K1 (b)-4)"),
     S("_recorder_log_generations", "cli", LIFE,
       "cli: recorder log generations (no comment at its definition)"),
     S("_recorder_log_rotate_bytes", "cli", LIFE,
@@ -1863,6 +1865,11 @@ REGISTRY = (
       "the restart record was read by this process's first decision"),
     S("_sweep_kills_restored", "quest_sweep_record", LIFE,
       "(floor key, kills, board) the restart record restores into the floor's navigator"),
+    # quest_plan_record
+    S("_quest_plan_record", "quest_plan_record", LIFE,
+      "the digest of the floor plans' state last written to the restart record (a write cache)"),
+    S("_quest_plan_record_read", "quest_plan_record", LIFE,
+      "the restart record was read by this process's first observation"),
     # quest25_battle_record
     S("_q25_battle_record", "quest25_battle_record", LIFE,
       "quest25_battle_record: q25 battle record (no comment at its definition)"),

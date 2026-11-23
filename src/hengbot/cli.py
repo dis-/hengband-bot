@@ -47,7 +47,7 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
-from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, equipment_visit_journal, home_ledger, pingpong_guard, purchase_source_journal, safety_watch
+from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, equipment_visit_journal, home_ledger, pingpong_guard, purchase_source_journal, safety_watch, quest_plan_record
 from hengbot import recall_wait_reach
 from hengbot import stationary_bounds
 from hengbot import plan_generic_gate
@@ -4073,6 +4073,11 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     # (quest_sweep_record, n1-c life-217 2026-11-19).
     policy._sweep_kill_record_path = args.decision_log.with_name(
         "sweep-kills.json"
+    )
+    # Every floor plan's state on this floor, for a restart on the same floor
+    # (quest_plan_record, owner 2026-11-23 「保存して続きから始める」).
+    policy._quest_plan_record_path = args.decision_log.with_name(
+        quest_plan_record.FILE_NAME
     )
     # A restarted process reads the absorbed-power lists it lacks first
     # (me_powers_refresh.resume_read_key, n1-c life-178 2026-11-09).
