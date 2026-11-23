@@ -22217,6 +22217,39 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A quest plan's detection of its remaining enemies (quest_detect_remaining): an absorbed or carried detection; no independent progress."
   },
+  "quest_detect_remaining.py:_cover": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The quest map's cover by detections at one radius (quest_detect_remaining._Cover); emits no key."
+  },
+  "quest_detect_remaining.py:_pending": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The cast cells of the floor's next detection the fresh ones leave (quest_detect_remaining); emits no key."
+  },
+  "quest_detect_remaining.py:walk_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "A quest plan's walk to the cell of its next detection over the whole floor (quest_detect_remaining): a step; no independent progress."
+  },
   "sellable_artifacts.py:drop_key": {
     "classification": "dungeon-only",
     "rows": [
