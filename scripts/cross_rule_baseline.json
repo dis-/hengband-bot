@@ -5,6 +5,8 @@
   "policy_fundraising:_upstairs_door_route_key",
   "quest25_battle:_step",
   "quest_find_exit:_step_on_exit",
+  "quest_plan_base:plan_door",
+  "quest_plan_base:plan_walk",
   "quest_room_sweep:_last_target_key",
   "quest_target_search:_walk_key",
   "retreat_enclosure:_disarm_key",

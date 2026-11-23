@@ -132,7 +132,7 @@ from hengbot.model import (
     TVAL_POTION, TVAL_STAFF, TVAL_WAND, UNKNOWN_MONSTER_HP,
 )
 from hengbot.policy_constants import (
-    CLOSE_KEY, DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, RANGED_MAX_DISTANCE, REST_MACRO,
+    DIRECTION_KEYS, FIXED_QUEST_TOUGHEST_KILL_TURNS, RANGED_MAX_DISTANCE, REST_MACRO,
     SEARCH_KEY, UP_STAIRS_KEY, WAIT_KEY,
 )
 from hengbot.quest_plan_base import HOLD_REASON, MELEE_REASON
@@ -665,9 +665,22 @@ def _druj_shut(ctx: _Ctx) -> frozenset:
     return frozenset() if _druj_done(ctx) else frozenset({geo.DRUJ_DOOR})
 
 
+def _no_pass(ctx: _Ctx) -> frozenset:
+    """The plan's cells no walk passes (quest_plan_base ``Contract.no_pass``): the warning's refused
+    cells (``_refused``), the cells an owner left (left_cells), and the druj's door while it lives
+    (``_druj_shut``).  ``_path`` routes round them and ``_step`` steps onto none of them."""
+    return _refused(ctx) | left_cells.refused_yx(ctx.policy, ctx.snapshot) | _druj_shut(ctx)
+
+
+def contract(ctx: _Ctx, plan) -> quest_plan_base.Contract:
+    """The phase battle's contract: the owner's named stands, the cells no walk passes
+    (``_no_pass``), the room sweep plan's rest line."""
+    return quest_plan_base.Contract(stand_cells=geo.PLAN_STANDS, no_pass=_no_pass(ctx),
+                                    recovery_line=quest_plan_base.recovery_line_of(plan))
+
+
 def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
-    # The cells an owner left (left_cells) are refused as the warning's are.
-    refused = _refused(ctx) | left_cells.refused_yx(ctx.policy, ctx.snapshot) | _druj_shut(ctx)
+    refused = _no_pass(ctx)
     goals = {tuple(goal) for goal in goals} - refused
     if not goals:
         return []
@@ -680,13 +693,13 @@ def _path(ctx: _Ctx, goals, taken=frozenset()) -> list[tuple[int, int]]:
 
 
 def _step(ctx: _Ctx, cell, reason: str = WALK_REASON, *, guard: bool = True) -> str:
-    if tuple(cell) in _refused(ctx):
-        return _hold(ctx)   # the refused cell is not stepped onto: the plan holds where it is
+    no_pass = _no_pass(ctx)
+    if tuple(cell) in no_pass:
+        return _hold(ctx)   # a cell not to pass is not stepped onto: the plan holds where it is
     if guard and (held := _fire_guard(ctx, cell)) is not None:
         return held
     _unlatch_stale(ctx, cell)
-    ctx.policy.last_reason = reason
-    return ctx.policy._step_toward(ctx.snapshot, Position(*cell))
+    return quest_plan_base.plan_walk(ctx.policy, ctx.snapshot, cell, reason, no_pass=no_pass)
 
 
 # Owner 2026-11-12: a race this many strong among the awake movers is a pack the walk shuns.
@@ -887,9 +900,9 @@ def _direction(origin, cell) -> str:
                            (cell[1] > origin[1]) - (cell[1] < origin[1]))]
 
 
-def _open_key(ctx: _Ctx, key: str) -> str:
-    """The walk's ``key`` that opens a door beside the player (``_step_toward``: ``o`` + direction,
-    the lock and jam counts), under the open's reason.
+def _open_key(ctx: _Ctx, door) -> str:
+    """The key that opens ``door`` beside the player (quest_plan_base ``plan_door``: ``o`` +
+    direction, the lock and jam counts), under the open's reason.
 
     do_cmd_open (cmd-action/cmd-open-close.cpp) with easy_open takes the direction itself when the
     player has exactly one closed door around him, and the composed ``o`` + direction then left the
@@ -898,8 +911,7 @@ def _open_key(ctx: _Ctx, key: str) -> str:
     walked onto it, beside the stairway to hell [13,29] (owner 「[13,27] から階段までは距離2」).
     The key keeps its direction: observed_input sends the ``o`` alone and releases the direction
     only at the observed direction question, for every producer (EASY_DIRECTION_COMMANDS)."""
-    ctx.policy.last_reason = OPEN_REASON
-    return key
+    return quest_plan_base.plan_door(ctx.policy, ctx.snapshot, door, OPEN_REASON)
 
 
 # -- traps (phase4, phase5) -------------------------------------------------------------
@@ -938,7 +950,7 @@ def _trap_key(ctx: _Ctx, cell) -> str | None:
         battle.found = battle.found | {cell}
         _note_beam(ctx, cell)
         ctx.policy.last_reason = DISARM_REASON
-        return ctx.policy._step_toward(ctx.snapshot, Position(*cell))   # the disarm command
+        return quest_plan_base.plan_walk(ctx.policy, ctx.snapshot, cell)   # the disarm command
     if cell in battle.found:   # seen with its trap, now without: disarmed
         battle.cleared = battle.cleared | {cell}
         return None
@@ -1424,7 +1436,7 @@ def _ambush(ctx: _Ctx) -> str | None:
         if ctx.door_closed(door):
             if quest_exposure.game_distance(ctx.here, door) <= 1:
                 _unlatch_stale(ctx, door)
-                return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+                return _open_key(ctx, door)
             return _walk(ctx, {(door[0] + 1, door[1])})
         return _walk(ctx, {geo.MEET_RANGED}) or _hold(ctx)
     # Melee: the closed door, met the turn it opens (「相手が開けたターンに接敵」).
@@ -1439,10 +1451,9 @@ def _ambush(ctx: _Ctx) -> str | None:
         if coming:
             return _step(ctx, door, ENGAGE_REASON)
         if not targets and _door_to_close(ctx, door):
-            ctx.policy.last_reason = CLOSE_REASON
             # 'c' + direction: observed_input sends the 'c' alone and releases the direction only at
             # the observed question (easy_open closes the one open door beside, asking none).
-            return CLOSE_KEY + _direction(ctx.here, door)
+            return quest_plan_base.plan_door(ctx.policy, ctx.snapshot, door, CLOSE_REASON, close=True)
     return _hold(ctx)
 
 
@@ -2199,7 +2210,7 @@ def _masses(ctx: _Ctx) -> str | None:
         return _walk(ctx, {geo.MASS_STAND})
     if ctx.door_closed(geo.MASS_DOOR):
         door = geo.MASS_DOOR
-        return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+        return _open_key(ctx, door)
     if not ctx.battle.lit:
         ctx.battle.lit = True
         light = quest_room_light.light_room_key(
@@ -2604,14 +2615,14 @@ def _stairway(ctx: _Ctx) -> str | None:
     if ctx.here == stand and ctx.door_closed(door) and (haste := _haste(ctx)) is not None:
         return haste      # 「全快し、加速して階段の前の扉を開ける」
     if ctx.door_closed(door):
-        return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+        return _open_key(ctx, door)
     seen = [monster for monster in ctx.seen_hostiles() if monster.race_id == geo.STAIRWAY]
     if battle.style == "melee":
         if ctx.here != door:
             return _step(ctx, door, ENGAGE_REASON)
         if seen:
             return _engage(ctx, seen)
-        return ctx.policy._step_toward(ctx.snapshot, Position(*stairway))
+        return quest_plan_base.plan_walk(ctx.policy, ctx.snapshot, stairway)
     # Owner 2026-11-09 「Q25 の全部の段に広げる」 (``_unseen_fire``): unseen from [13,27], no arrow; the
     # door [13,28] beside it when nothing is aimed at the grid.
     if (rest := _stairway_spent(ctx, stairway, bool(seen))) is not None:
@@ -2699,7 +2710,7 @@ def _druj(ctx: _Ctx) -> str | None:
         return (_fire_at(ctx, door, geo.DRUJ, area_only=True) or _refill_key(ctx) or _hold(ctx))
     if ctx.door_closed(door):
         if quest_exposure.game_distance(ctx.here, door) <= 1:
-            return _open_key(ctx, ctx.policy._step_toward(ctx.snapshot, Position(*door)))
+            return _open_key(ctx, door)
         beside = {(door[0] + dy, door[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)}
         return _walk(ctx, {cell for cell in beside if ctx.terrain.get(cell) == "floor"})
     trapless = sorted(cell for cell in lines if ctx.terrain.get(cell) == "floor"
@@ -3018,13 +3029,15 @@ def key(policy, snapshot) -> str | None:
     profile, navigator = ctx.profile, ctx.navigator
     plan = profile.engagement_plan["room_sweep"]
     board = quest_room_sweep._Board(policy, snapshot, profile, navigator, {**plan, "left_alone_races": ()})
+    board.contract = contract(ctx, plan)
     if not board.enemy:
         return (
             _druj_retreat(policy, snapshot)
             or _leave_by_exit(policy, snapshot, board)
             or _summons(policy, snapshot)
             or resist_potion.drink_key(policy, snapshot)
-            or _restore(policy, snapshot)
+            # The shared survival stage of a quiet board: the plan's restore (``_restore``).
+            or quest_plan_base.survival_stage(policy, snapshot, profile, board, restore=_restore)
             or _out_of_fire_key(policy, snapshot)
             or _restock_recall(policy, snapshot)
             or _recall_wait(policy, snapshot)
@@ -3046,7 +3059,8 @@ def key(policy, snapshot) -> str | None:
         or _absorbed_heal(policy, snapshot, profile)
         or quest_plan_base._heal(policy, snapshot, profile)
         or _restock_recall(policy, snapshot)
-        or quest_plan_base._speed(policy, snapshot, profile, board)
+        # The shared survival stage: the cure and the Healing (asked above already), the haste.
+        or quest_plan_base.survival_stage(policy, snapshot, profile, board)
         or _summons(policy, snapshot)
         or resist_potion.drink_key(policy, snapshot)
         or _out_of_fire_key(policy, snapshot)

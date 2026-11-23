@@ -158,8 +158,8 @@ COMPOSED_APPEND_SITES: dict[tuple[str, str], tuple[int, str]] = {
     ("policy_quest", "_quest_execute_key"): (1, "observed"),    # 'o'
     ("policy_town", "_town_kill_mob_key"): (1, "passthrough"),  # '+' dir 'y'
     ("quest25_battle", "_cursor_suffix"): (1, "observed"),      # '*p' walk (fire/device, (b)-5)
-    ("quest25_battle", "_ambush"): (1, "observed"),             # 'c'
     ("quest_find_exit", "_dig"): (1, "passthrough"),            # 'T'
+    ("quest_plan_base", "plan_door"): (1, "observed"),          # 'c' (the plans' one door entry)
     ("quest_lure_approach", "_fire_key"): (1, "observed"),      # '*p' walk (device, (b)-5)
     ("unseen_strike", "key"): (1, "observed"),                  # '+'
 }

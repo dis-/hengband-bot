@@ -217,6 +217,16 @@ class _Board(quest_plan_base.Board):
 
     def __init__(self, policy, snapshot, profile, navigator, plan):
         super().__init__(policy, snapshot, profile, _left_alone_races(navigator, plan))
+        self.contract = contract(plan)
+
+
+def contract(plan) -> quest_plan_base.Contract:
+    """The room sweep's contract: its stops' stands, no cell refused outright (the walks keep off
+    the cells an owner left while a way off them leads on), the plan's ``rest_below_ratio``."""
+    stands = frozenset(tuple(stop.get("stand", stop.get("cell"))) for stop in _stops(plan)
+                       if stop.get("stand", stop.get("cell")) is not None)
+    return quest_plan_base.Contract(stand_cells=stands,
+                                    recovery_line=quest_plan_base.recovery_line_of(plan))
 
 
 # -- the way: terrain, lines, walks --------------------------------------------------
@@ -371,8 +381,7 @@ def _last_target_key(policy, snapshot, navigator, plan, stop) -> str | None:
     """On its stand: open the door; with the door open and nothing on the cell, it is done."""
     door = tuple(stop["door"])
     if _door_is_closed(snapshot, door):
-        policy.last_reason = OPEN_REASON
-        return policy._step_toward(snapshot, Position(*door))
+        return quest_plan_base.plan_door(policy, snapshot, door, OPEN_REASON)
     _next_stop(navigator, plan)
     return None
 
@@ -621,9 +630,7 @@ def _unseen_answer(policy, snapshot, navigator, plan, board) -> str | None:
             navigator.sweep_ambush = _cell(step)
             navigator.sweep_ambush_turns = 0
             policy._unseen_hit_pending_floor = None  # answered, as the shared retreat consumes it
-            policy.last_reason = COVER_REASON
-            policy._declare_reach(step)
-            return policy._step_toward(snapshot, step)
+            return quest_plan_base.plan_walk(policy, snapshot, step, COVER_REASON, reach=step)
     goals = {Position(*cell) for cell in cells}
     return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, goals, board.occupied), CLOSE_REASON)
 
@@ -756,7 +763,8 @@ def key(policy, snapshot) -> str | None:
             or quest_alignment_split.abort_key(policy, snapshot, plan)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
-            or quest_plan_base._restore(policy, snapshot)
+            # The shared survival stage of a quiet board: the drained abilities' restore.
+            or quest_plan_base.survival_stage(policy, snapshot, profile, board)
             or quest_plan_base.floor_restore_key(policy, snapshot)
             or _out_of_line(policy, snapshot, navigator, plan)
             # QUEST_33 (owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」): the sides mixed, the
@@ -781,8 +789,8 @@ def key(policy, snapshot) -> str | None:
         or _leave_by_exit(policy, snapshot, navigator, plan, board)
         or quest_plan_base._give_up(policy, snapshot, profile)
         or quest_plan_base._below_line(policy, snapshot, profile, navigator)
-        or quest_plan_base._heal(policy, snapshot, profile)
-        or quest_plan_base._speed(policy, snapshot, profile, board)
+        # The shared survival stage: the cure (asked above already), the Healing, the haste.
+        or quest_plan_base.survival_stage(policy, snapshot, profile, board)
         # QUEST_33 (owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」): the sides mixed and summoning
         # at each other, the EVIL side killed by force under the survival rungs (quest_mixed_assault).
         or quest_mixed_assault.key(policy, snapshot, navigator, plan, board)

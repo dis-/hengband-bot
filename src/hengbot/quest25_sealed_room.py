@@ -38,6 +38,7 @@ from __future__ import annotations
 
 from hengbot import quest25_battle as battle_mod
 from hengbot import quest25_geometry as geo
+from hengbot import quest_plan_base
 from hengbot.model import Position
 from hengbot.quest_exposure import game_distance, projectable
 
@@ -162,8 +163,7 @@ def _open_door(ctx, door, stand) -> str | None:
             return battle_mod._walk(ctx, {stand})
         return battle_mod._melt_key(ctx, door)
     if game_distance(ctx.here, door) <= 1:
-        ctx.policy.last_reason = battle_mod.OPEN_REASON
-        return ctx.policy._step_toward(ctx.snapshot, Position(*door))
+        return quest_plan_base.plan_door(ctx.policy, ctx.snapshot, door, battle_mod.OPEN_REASON)
     beside = {cell for cell in geo.room_cells(ctx.terrain, door) if game_distance(cell, door) == 1}
     return battle_mod._walk(ctx, beside)
 

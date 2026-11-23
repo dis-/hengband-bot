@@ -14100,17 +14100,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest_find_exit.py:_engaged_survival": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "context": "Dungeon quest floors only: quest_find_exit._plan requires the TAKEN fixed quest on this floor with a find_exit plan.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "The cure, heal, speed and fight order of a choke fight; no independent progress."
-  },
   "quest_room_light.py:_light_key": {
     "classification": "producer",
     "rows": [
@@ -24153,5 +24142,104 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "quest25_battle.py:_no_pass": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: called by the floor plans (quest_find_exit, quest25_battle, quest_room_sweep) on the TAKEN fixed quest's floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure set: the Q25 plan's cells no walk passes (the warning's refused cells, the left cells, the druj's door while it lives); emits no key."
+  },
+  "quest_plan_base.py:plan_walk": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called by the floor plans (quest_find_exit, quest25_battle, quest_room_sweep) on the TAKEN fixed quest's floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The one step of every floor plan's walk (quest_plan_base.plan_walk, 2026-11-23 (a)-4); a cell not to pass is refused; no independent progress."
+  },
+  "quest_plan_base.py:plan_door": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called by the floor plans (quest_find_exit, quest25_battle, quest_room_sweep) on the TAKEN fixed quest's floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The floor plans' one door entry: the open (step toward the door) or the close ('c' + direction); no independent progress."
+  },
+  "quest_plan_base.py:survival_stage": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called by the floor plans (quest_find_exit, quest25_battle, quest_room_sweep) on the TAKEN fixed quest's floor.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The shared survival stage of every floor plan branch: cure, Healing, haste on an enemy board, the restore on a quiet board; no independent progress."
+  },
+  "quest_plan_base.py:_direction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: called by quest_plan_base.plan_door.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure mapping: the direction key toward an adjacent cell; emits no key."
+  },
+  "plan_generic_gate.py:after_ladder": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: running_plan leaves every town or store board untouched; it returns the key it was given.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Owner 2026-11-23 (b)-3: after the ladder, on a quest plan's floor a generic walk, pickup or exploration reason the plan does not name is relabelled quest-plan:generic-refused:<reason> (a named final stop); the key is the one it was given, so it never names the decision's producer."
+  },
+  "plan_generic_gate.py:running_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: None on a town or store board.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure predicate: the module of the floor plan that runs this floor; emits no key."
+  },
+  "plan_generic_gate.py:stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure string: the named stop's reason; emits no key."
+  },
+  "me_device_attacks.py:use_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure value: the expected damage of one use of an attack power (success x damage after the known resistance, capped by the target's HP); emits no key."
   }
 }

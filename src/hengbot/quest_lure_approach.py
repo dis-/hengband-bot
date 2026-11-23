@@ -292,6 +292,10 @@ def _openings(policy, snapshot, navigator, read, row, spot, burn, melt):
     return None
 
 
+# One successful burn opens the tree: the expected value of a burning use is capped at this.
+TREE_BURN_HP = 1
+
+
 def _fire_key(policy, snapshot, cell) -> str | None:
     """A burning power or device aimed at ``cell`` (me_device_attacks ``device_target_key``; a carried
     wand or rod through get_aim_dir's free cursor, as quest25_battle aims at a grid)."""
@@ -303,9 +307,17 @@ def _fire_key(policy, snapshot, cell) -> str | None:
         return None
     best = None
     if me_device_attacks.can_use_powers(snapshot):
+        level = snapshot.player.level
         for power, success in me_device_attacks.attack_uses(policy, snapshot, powerful=False):
-            if power.element in BURNING_ELEMENTS and power.aimed and (best is None or success > best[0]):
-                best = (success, power)
+            if not (power.element in BURNING_ELEMENTS and power.aimed):
+                continue
+            # The shared expected value of one use (me_device_attacks ``use_value``, owner 2026-11-23
+            # 「期待値で攻撃手段を選ぶ」; whole-bot maintainability review 2026-11-23 K1, (a)-5): one
+            # successful burn opens the tree, so the value is capped at one hit point -- the success
+            # rate of a power that burns at all, as the choice by the success rate was.
+            value = me_device_attacks.use_value(power, success, level, frozenset(), TREE_BURN_HP)
+            if value > 0 and (best is None or value > best[0]):
+                best = (value, power)
     if best is not None:
         key = me_device_attacks.device_target_key(policy, best[1], Position(*cell), snapshot)
         policy.last_reason = OPEN_BURN_REASON

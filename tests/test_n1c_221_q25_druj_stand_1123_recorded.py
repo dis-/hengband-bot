@@ -41,7 +41,7 @@ from tempfile import TemporaryDirectory
 
 from hengbot.policy import ConservativePolicy  # noqa: F401 -- first: the plan modules import in a cycle alone
 from hengbot import quest25_battle as battle, quest25_battle_record
-from hengbot.model import Position, parse_snapshot
+from hengbot.model import parse_snapshot
 from tests.support import q25_house as q25
 from tests import test_n1c_208_q25_patrol_1115_recorded as life208
 
@@ -172,8 +172,8 @@ class TheStairwayStandTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             policy = new_policy(directory, raw, "stairway")
             ctx = ctx_of(policy, raw)
-            key = policy._step_toward(ctx.snapshot, Position(*geo.STAIRWAY_DOOR))
-            self.assertEqual(battle._open_key(ctx, key), "o3")
+            # The door's key through the plans' one door entry (quest_plan_base.plan_door, 2026-11-23 (a)-4).
+            self.assertEqual(battle._open_key(ctx, geo.STAIRWAY_DOOR), "o3")
             self.assertEqual(policy.last_reason, battle.OPEN_REASON)
 
 

@@ -390,6 +390,9 @@ AFTER_DECIDE = (
     # The stationary waits taken out of the loop guard stop by name past their bound (owner
     # 2026-11-23 (b)-1); never in town, where the wait leaves the key as it is.
     "stationary_bounds.bound",
+    # Owner 2026-11-23 (b)-3 「作戦が名指しで許した時だけ」: on a quest plan's floor a generic walk, pickup
+    # or exploration the plan does not name stops by name (plan_generic_gate).
+    "plan_generic_gate.after_ladder",
     "_forbid_wait_on_town_entrance", "_suppress_pending_stair_command",
 )
 
@@ -418,13 +421,47 @@ class FloorPlan(NamedTuple):
 # the FIRST rungs of a branch only (quest_find_exit's ``_step_on_exit`` is a branch of its own).
 INSTANT_DEATH = "threat_tiers.instant_death_key"
 
+# The survival stage every branch of every plan enters (quest_plan_base.survival_stage; whole-bot
+# maintainability review 2026-11-23 K1, (a)-4): on an enemy board the cure, the Healing and the haste
+# (a SURVIVAL rung, above the summons); on a quiet board the drained abilities' restore (an OWN rung
+# where it stood as the plan's restore, after the summons).  Sensed shooters are the board's
+# (``PLAN_BOARDS``: ``firing`` makes the board one with an enemy).
+SURVIVAL_STAGE = "quest_plan_base.survival_stage"
+
+# The quiet board's recovery of each plan, the rest below the contract's recovery line, and why
+# that rung is it (the lint asks one of them in every quiet branch).
+QUIET_RECOVERY = {
+    "quest_plan_base._rest": "the room sweep's rest below its rest_below_ratio, however low",
+    "_rest": "quest_find_exit's rest below its rest_below_ratio, off the shouted cells",
+    "_out_of_fire_key": "QUEST_25 「一歩で安全圏に移動して休息できる」 (owner 2026-11-09): damaged in the fire "
+                        "(below the room sweep plan's rest_below_ratio), one step out; the phases rest "
+                        "out of the fire (quest25_battle._rest_out_of_fire)",
+}
+
+# The board class each plan reads its board with (the lint asks it to count the sensed shooters,
+# ``firing``, and to carry the plan's contract, ``contract``).
+PLAN_BOARDS = {
+    "quest_find_exit": "quest_find_exit._Board",
+    "quest25_battle": "quest_room_sweep._Board",
+    "quest_room_sweep": "quest_room_sweep._Board",
+}
+
+# The modules of the floor plans' walks: none steps by ``_step_toward`` or a ``_walk*`` of the
+# policy, nor composes a door's key, itself; every step goes through quest_plan_base.plan_walk and
+# every door through quest_plan_base.plan_door (the lint).
+PLAN_WALK_MODULES = (
+    "quest_find_exit", "quest25_battle", "quest_room_sweep", "quest25_sealed_room", "quest25_pocket",
+    "quest25_presence", "quest_summon_answer", "quest_mixed_assault", "quest_detect_remaining",
+    "quest_lure_approach", "quest_alignment_split", "quest_room_light",
+)
+
 # A plan rung returns above the emergency ladder, so the owner's rules must be asked inside it.
 FLOOR_PLANS = (
     FloorPlan("quest_find_exit.key", "quest_find_exit", (
         # Leaving is the plan's end: "the quest is done and the danger behind".
         Branch("the exit is beside the player", (("_step_on_exit", FIRST),)),
         Branch("on a cell the casters reach", (
-            (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), ("_heal", SURVIVAL),
+            (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), (SURVIVAL_STAGE, SURVIVAL),
             # Owner 2026-11-22 「使う」: Teleport Away at what comes in the Recall's countdown.
             ("_recall_wait_away", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
@@ -436,11 +473,11 @@ FLOOR_PLANS = (
             # A walk to a choke under way goes on before the exit walk (owner 2026-11-06).
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
         Branch("no enemy for the line", (
-            ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_rest", OWN),
-            ("_to_choke", OWN),
+            ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), (SURVIVAL_STAGE, OWN),
+            ("_rest", OWN), ("_to_choke", OWN),
             ("_wait_after_fight", OWN), ("_advance", OWN)), enemy=False),
         Branch("an enemy for the line", (
-            (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), ("_engaged_survival", SURVIVAL),
+            (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), (SURVIVAL_STAGE, SURVIVAL),
             ("_recall_wait_away", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_fight", OWN),
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
@@ -455,7 +492,7 @@ FLOOR_PLANS = (
             ("_druj_retreat", SURVIVAL), ("_leave_by_exit", SURVIVAL), ("_summons", SUMMONS),
             # The plan's restore potions, not while a summons it teleported from is remembered
             # (owner 2026-11-09 「起きた敵も最後の位置を覚える」, n1-c life-195 2026-11-11).
-            ("resist_potion.drink_key", OWN), ("_restore", OWN),
+            ("resist_potion.drink_key", OWN), (SURVIVAL_STAGE, OWN),
             # Owner 2026-11-09 「一歩で安全圏に移動して休息できる」: damaged in the fire, one step out.
             ("_out_of_fire_key", OWN),
             # Owner 2026-11-16 「隘路で迎え撃ち尽きる前に帰還」: phase 2's restock leave, the plan's
@@ -475,7 +512,7 @@ FLOOR_PLANS = (
             # Owner 2026-11-16 「隘路で迎え撃ち尽きる前に帰還」: phase 2's restock leave, after the
             # heal of this board.
             ("_restock_recall", SURVIVAL),
-            ("quest_plan_base._speed", SURVIVAL), ("_summons", SUMMONS),
+            (SURVIVAL_STAGE, SURVIVAL), ("_summons", SUMMONS),
             # Owner 2026-11-07 「Q25内部でのテレポートの優先度を下げる」: the Resistance potion's
             # no-chance leave goes below the phase's own step; its drink stays.
             ("resist_potion.drink_key", OWN), ("_out_of_fire_key", OWN), ("_recall_wait", OWN),
@@ -490,7 +527,7 @@ FLOOR_PLANS = (
             # quest is given up before the summon rules answer a single cast.
             ("quest_alignment_split.abort_key", FIRST),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN),
-            ("quest_plan_base._restore", OWN),
+            (SURVIVAL_STAGE, OWN),
             # Owner 2026-11-23 「数マス以内なら拾って飲む」: a drained ability's floor restore potion.
             ("quest_plan_base.floor_restore_key", OWN), ("_out_of_line", OWN),
             # QUEST_33, owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」: the sides mixed, the
@@ -506,8 +543,7 @@ FLOOR_PLANS = (
             (INSTANT_DEATH, SURVIVAL),
             ("quest_plan_base._cure", SURVIVAL), ("_leave_by_exit", SURVIVAL),
             ("quest_plan_base._give_up", SURVIVAL), ("quest_plan_base._below_line", SURVIVAL),
-            ("quest_plan_base._heal", SURVIVAL),
-            ("quest_plan_base._speed", SURVIVAL),
+            (SURVIVAL_STAGE, SURVIVAL),
             # QUEST_33, owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」: the sides mixed and
             # summoning at each other, the EVIL side killed by force under the survival rungs, ahead of
             # the summon rules (their summoner shot first would turn the bot on the GOOD side).

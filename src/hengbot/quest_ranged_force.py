@@ -21,7 +21,7 @@ when its figure per shot meets ``shot_average``.
 
 A device, for a class in ``device_classes``: an absorbed attack power, or a carried attack
 wand or rod with a charge.  Its figure is the expected damage of one use against the
-reference race, success rate included (me_device_attacks.expected_damage and the game's
+reference race, success rate included (me_device_attacks.use_value of the game's
 rate of an absorbed power, me_power_success; attack_expectation's use chance of a carried
 one).  It takes one player turn, so that figure is both its per-use and its per-turn figure.
 It counts when it meets ``shot_average``, and then each charge is one shot: charges and
@@ -129,9 +129,12 @@ def _reference_flags(policy, ranged) -> tuple[frozenset, ...]:
     return tuple(found) or (frozenset(),)
 
 
-def _least_damage(power, level, flag_sets) -> float:
-    """One successful use's expected damage against the reference race it hurts least."""
-    return min(me_device_attacks.expected_damage(power, level, flags) for flags in flag_sets)
+def _least_value(power, success, level, flag_sets) -> float:
+    """One use's expected damage against the reference race it hurts least, by the shared expected
+    value of every chooser of an absorbed or carried attack (me_device_attacks ``use_value``: the
+    success times the damage after the known resistance; whole-bot maintainability review
+    2026-11-23 K1, (a)-5)."""
+    return min(me_device_attacks.use_value(power, success, level, flags) for flags in flag_sets)
 
 
 # The stun the gate scores an absorbed power under: none, the inn's stay ends it.
@@ -144,7 +147,7 @@ def _absorbed(policy, snapshot, flag_sets):
     for power, row in me_device_attacks.held_powers(policy):
         if not power.group_only:
             success = me_device_attacks.power_success(policy, snapshot, power, row, stun=GATE_STUN)
-            yield (success * _least_damage(power, level, flag_sets),
+            yield (_least_value(power, success, level, flag_sets),
                    me_capability.count(policy, snapshot, power.kind, power.sval))
 
 
@@ -163,8 +166,8 @@ def absorbed_short(policy, snapshot, ranged) -> bool:
     floor, level = float(ranged["shot_average"]), snapshot.player.level
     return any(
         not power.group_only and not me_device_attacks.row_full(power, row)
-        and _counts(me_device_attacks.power_success(policy, snapshot, power, row, stun=GATE_STUN)
-                    * _least_damage(power, level, flag_sets), floor)
+        and _counts(_least_value(power, me_device_attacks.power_success(
+            policy, snapshot, power, row, stun=GATE_STUN), level, flag_sets), floor)
         for power, row in me_device_attacks.held_powers(policy))
 
 
@@ -180,8 +183,8 @@ def _carried(snapshot, flag_sets):
             continue
         power = me_device_attacks.POWERS.get((kind, item.sval))
         if power is not None and not power.group_only:
-            yield (chance(player.device_skill, power.level)
-                   * _least_damage(power, player.level, flag_sets), shots)
+            yield (_least_value(power, chance(player.device_skill, power.level), player.level, flag_sets),
+                   shots)
 
 
 def _devices(policy, snapshot, ranged, shot_floor: float) -> tuple[float, int]:
