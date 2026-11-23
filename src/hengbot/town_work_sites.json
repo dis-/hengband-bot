@@ -3392,34 +3392,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "home_cash_sale.py:sweep_ware": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "home_cash_sale.py:unneeded_jewelry": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "home_cash_sale.py:ware": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "home_cash_sale.py:wares": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "home_disposal.py:HomeDisposalState.decision": {
     "classification": "data",
     "rows": [
@@ -3610,6 +3582,13 @@
     "delegation": "selected child; no independent success"
   },
   "home_full_relief.py:HomeFullRelief.setdefault": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "home_full_relief.py:relief_of": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -4269,21 +4248,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "item_fate.py:home_take_blocked": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "item_fate.py:relief_ware": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "item_fate.py:sale_value": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "item_fate.py:sweep_ware": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -7770,13 +7742,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy.py:HengbotPolicy._is_high_value_book": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy.py:HengbotPolicy._is_processable_chest": {
     "classification": "data",
     "rows": [
@@ -10114,13 +10079,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "policy_home.py:HomeMixin._can_add_item_without_overweight": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_home.py:HomeMixin._carried_disposal_preserves_departure": {
     "classification": "data",
     "rows": [
@@ -10212,6 +10170,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_home.py:HomeMixin._home_cap_tidy_batch_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_home.py:HomeMixin._home_catalog_identification_source": {
     "classification": "data",
     "rows": [
@@ -10261,13 +10226,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy_home.py:HomeMixin._home_disposal_store": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "policy_home.py:HomeMixin._home_dominated_disposal_key": {
     "classification": "producer",
     "rows": [
@@ -10283,25 +10241,39 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy_home.py:HomeMixin._home_full_buyer": {
-    "classification": "data",
+  "policy_home.py:HomeMixin._home_full_current_ware_key": {
+    "classification": "producer",
     "rows": [
-      "data/no-independent-credit"
+      "home-relief"
     ],
-    "delegation": "selected child; no independent success"
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy_home.py:HomeMixin._home_full_discard_candidate": {
-    "classification": "data",
+  "policy_home.py:HomeMixin._home_full_destroy_taken_key": {
+    "classification": "producer",
     "rows": [
-      "data/no-independent-credit"
+      "home-relief"
     ],
-    "delegation": "selected child; no independent success"
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_dispose_taken_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "policy_home.py:HomeMixin._home_full_identify_carried_key": {
     "classification": "producer",
     "rows": [
       "home-relief",
       "identification"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_identify_taken_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
@@ -10327,6 +10299,41 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_home.py:HomeMixin._home_full_refile_take_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_relief_census": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_home.py:HomeMixin._home_full_relief_choice": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_relief_choose_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_relief_file_take": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_home.py:HomeMixin._home_full_relief_holds_carried": {
     "classification": "data",
     "rows": [
@@ -10341,14 +10348,49 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "policy_home.py:HomeMixin._home_full_sale_candidate": {
+  "policy_home.py:HomeMixin._home_full_relief_route_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_relief_wares": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_home.py:HomeMixin._home_full_removed_ware_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_retry_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_sell_taken_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_home.py:HomeMixin._home_full_skip_key": {
+    "classification": "producer",
+    "rows": [
+      "home-relief"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy_home.py:HomeMixin._home_full_taken_ware_key": {
     "classification": "producer",
     "rows": [
       "home-relief"
@@ -11939,13 +11981,6 @@
     "delegation": "selected child; no independent success"
   },
   "policy_shop.py:ShopMixin._identify_staff_swap_purchase": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "policy_shop.py:ShopMixin._inventory_item_from_store_item": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17482,48 +17517,6 @@
     "delegation": "selected child; no independent success"
   },
   "stone_to_mud_carry.py:stone_to_mud_kept": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "store_sale.py:_flag_cost": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "store_sale.py:_named_definition": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "store_sale.py:_value_knowledge": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "store_sale.py:_visible_sale_value": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "store_sale.py:known_sale_value": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "store_sale.py:sale_monrace": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

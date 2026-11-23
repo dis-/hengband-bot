@@ -62,6 +62,7 @@ it the device table's ordinary rung ("me-device:policy") buys it again.
 """
 from __future__ import annotations
 
+from hengbot.home_full_relief import relief_of
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -298,7 +299,7 @@ def releases(policy: Any, snapshot: Any, item: Any) -> bool:
     signature = policy._item_signature(item)
     if getattr(policy, "_bm_fund_planning", False):
         return getattr(policy, "_bm_fund_probe", None) == signature
-    relief = getattr(policy, "_home_full_relief", None)
+    relief = relief_of(policy)
     if relief is not None and relief.fund == signature:
         return True
     return signature in plan(policy, snapshot)
@@ -365,7 +366,7 @@ def _fundable(policy: Any, snapshot: Any) -> bool:
         return False
     if policy._home_knowledge_current:
         return bool(plan(policy, snapshot))
-    relief = getattr(policy, "_home_full_relief", None)
+    relief = relief_of(policy)
     if relief is not None and relief.fund is not None:
         # A fund piece is out of Home on its way to its buyer.
         return True

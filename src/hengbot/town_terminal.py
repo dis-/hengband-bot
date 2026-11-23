@@ -12,6 +12,7 @@ and the ladder that ranks them -- is ``town_hold``.
 
 from __future__ import annotations
 
+from hengbot.home_full_relief import relief_of
 from dataclasses import dataclass, replace
 from typing import Any, Callable, NamedTuple
 
@@ -445,7 +446,7 @@ def home_full_identification_target(policy: Any, board: Any) -> Any:
     """The already withdrawn Home-relief item, not the free pack target."""
     if not board.in_town or board.store is not None:
         return None
-    relief = policy._home_full_relief
+    relief = relief_of(policy)
     sale = relief.sale if relief is not None else None
     if sale is None:
         return None
@@ -710,7 +711,7 @@ class HomeAtomicDepositMaterial:
 
 
 def gather_home_atomic_deposit(policy: Any, board: Any) -> HomeAtomicDepositMaterial:
-    return HomeAtomicDepositMaterial(relief_pending=policy._home_full_relief is not None)
+    return HomeAtomicDepositMaterial(relief_pending=relief_of(policy) is not None)
 
 
 def verdict_home_atomic_deposit(material: HomeAtomicDepositMaterial) -> Admission:
@@ -1405,7 +1406,7 @@ def open_home_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef 
     store = board.store
     if store is None or store.store_type != STORE_HOME:
         return None
-    if policy._home_is_full(board) or policy._home_full_relief is not None:
+    if policy._home_is_full(board) or relief_of(policy) is not None:
         return TerminalRef("home-full-relief", ())
     return TerminalRef("home-open-deposit", ())
 
@@ -1413,7 +1414,7 @@ def open_home_deposit_intended_terminal(policy: Any, board: Any) -> TerminalRef 
 def home_full_defer_intended_terminal(policy: Any, board: Any) -> TerminalRef | None:
     """``_defer_home_full_deposit``: carry the unserviceable deposit past the
     visit.  It is the Home-full refusal's own close, never refused itself."""
-    if policy._home_full_relief is None:
+    if relief_of(policy) is None:
         return None
     return TerminalRef("home-full-defer", ())
 

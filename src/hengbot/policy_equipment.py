@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, deep_climb, equipment_target
 from hengbot import angband_finale, finale_prep
 from hengbot import approach_answer, destination_band_floor, home_pass_charge, item_need, launcher_upgrade, spare_gear
@@ -2819,7 +2820,7 @@ class EquipmentMixin:
             return self._equipment_home_outcome(
                 LEAVE_STORE_KEY, label="abandon-blocked",
             )
-        if self._home_full_relief is None and self._home_full_retry_deposits is not None:
+        if relief_of(self) is None and self._home_full_retry_deposits is not None:
             # The admitted transaction resumes after space relief. Explicitly
             # hand its remaining deposits back from the retry ledger; unrelated
             # retry items retain their Home owner until this session finishes.
