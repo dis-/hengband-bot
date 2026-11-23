@@ -23988,5 +23988,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Pure string: the named stop's reason; emits no key."
+  },
+  "me_device_attacks.py:use_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure value: the expected damage of one use of an attack power (success x damage after the known resistance, capped by the target's HP); emits no key."
   }
 }

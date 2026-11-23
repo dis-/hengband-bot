@@ -5601,6 +5601,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_device_attacks.py:use_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_device_policy.py:Device.kind": {
     "classification": "data",
     "rows": [
