@@ -359,6 +359,14 @@ NAV_ESCAPE_STEP_LIMIT = 200
 STUCK_WINDOW = 10
 EXTENDED_STUCK_WINDOW = 24
 
+# The fruitless-combat disengage's budget of decisions under threat (policy._fruitless_disengage_key;
+# kept below cli's MULTIPLIER_COMBAT_LOOP_WINDOW, see policy).
+FRUITLESS_DISENGAGE_LIMIT = 100
+# The unprofitable-unique disengage (policy._unprofitable_unique_disengage_key) that spent that
+# budget: its named final stop (POLICY_FINAL_STOP_REASONS) in place of combat:fruitless, which the
+# driver reports as loop-detected (owner 2026-11-23 (b)-1).
+UNPROFITABLE_UNIQUE_FRUITLESS_REASON = 'combat:avoid-unprofitable-unique-fruitless'
+
 EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS = frozenset(
     {
         "equipment-transaction:restore-blocked-terminal",
@@ -412,6 +420,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:outpost-fare-recall-active',
         'wilderness:no-safe-route',
         'dungeon:blocked:deep-arrival-without-destruction',
+        UNPROFITABLE_UNIQUE_FRUITLESS_REASON,
         *torch_release.HALT_REASONS,
     }
 )
@@ -433,12 +442,15 @@ OWNER_RETIRED_BURST_AFTER_PREFIX = 'town:blocked:owner-retired-burst:after:'
 # Reason families on which the driver stops, beside the exact set above.
 # APPROACH_WAIT_STOP_PREFIX: a store approach that kept yielding to the town's holder past
 # approach_answer.WAIT_LIMIT boards (owner 2026-11-18 Q2), named after the holder.
+# STATIONARY_EXHAUSTED_STOP_PREFIX: a stationary wait taken out of the loop guard held one cell past
+# its bound (stationary_bounds, owner 2026-11-23 (b)-1), named after the wait's reason.
+STATIONARY_EXHAUSTED_STOP_PREFIX = 'stationary:exhausted:'
 # EQUIPMENT_FLIPFLOP_STOP_PREFIX: a slot worn A, B, A in one town visit (owner 2026-11-22,
 # equipment_visit_journal), named after the slot.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
                               OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX,
                               APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX,
-                              BANNED_GEAR_STUCK_STOP_PREFIX)
+                              BANNED_GEAR_STUCK_STOP_PREFIX, STATIONARY_EXHAUSTED_STOP_PREFIX)
 
 TUNNEL_KEY = "T"
 

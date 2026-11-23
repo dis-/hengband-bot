@@ -17144,6 +17144,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "stationary_bounds.py:bound": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "stationary_bounds.py:stop_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "status_cure.py:_blinding_blow": {
     "classification": "data",
     "rows": [

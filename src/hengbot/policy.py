@@ -201,6 +201,8 @@ from hengbot.policy_constants import (
     BARREN_FLOOR_SKIP_THRESHOLD,
     BREEDER_CONTAINMENT_WINDOW,
     DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
+    FRUITLESS_DISENGAGE_LIMIT,
+    UNPROFITABLE_UNIQUE_FRUITLESS_REASON,
     CURE_CRITICAL_REQUIRED_DEPTH,
     FOOD_STOCK_TARGET,
     IDENTIFY_CHARGE_FLOOR,
@@ -913,7 +915,7 @@ NAV_NO_PROGRESS_LIMIT = 400
 # below has to arm before the position loop guard hard-stops the bot.  At 120 it
 # never did, and the multiplier-combat loop guard stopped the bot instead.
 WEAK_BREEDER_MAX_DAMAGE_RATIO = 0.05
-FRUITLESS_DISENGAGE_LIMIT = 100
+# FRUITLESS_DISENGAGE_LIMIT lives in policy_constants (stationary_bounds reads it too).
 # WAIT terminals which are deliberately allowed to outlive the CLI's positional
 # guard.  Each entry names an existing policy bound; cli imports this registry
 # rather than maintaining a broader reason-prefix exemption.
@@ -6627,6 +6629,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         key = self._break_positional_oscillation(snapshot, key)
         key = self._break_livelock(snapshot, key)
         key = self._bound_escape_wait(snapshot, key)
+        # The stationary waits taken out of the loop guard stop by name past their bound
+        # (owner 2026-11-23 (b)-1, stationary_bounds).
+        from hengbot import stationary_bounds  # import cycle (angband_finale_battle)
+        key = stationary_bounds.bound(self, snapshot, key)
         if (
             key == WAIT_KEY
             and snapshot.store is None
@@ -14853,6 +14859,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         ]
         return_start.start(self)
         key = self._fruitless_disengage_key(snapshot, hostiles)
+        if self.last_reason == "combat:fruitless":
+            # The renamed wait's budget (FRUITLESS_DISENGAGE_LIMIT) is spent: a named stop, not
+            # the driver's loop-detected one (owner 2026-11-23 (b)-1).
+            self.last_reason = UNPROFITABLE_UNIQUE_FRUITLESS_REASON
+            return key
         if self.last_reason.startswith("combat:disengage-"):
             self.last_reason = self.last_reason.replace(
                 "combat:disengage-",

@@ -20,11 +20,15 @@ HOST = "amberite_curse"     # imports WAIT_KEY and REST_MACRO is reachable throu
 # The 2026-11-23 review's (K3) waits outside every stationary row that the source sends with the
 # wait key or a rest command itself.  summoner:hold-reposition and quest-strategy:retake-hold are
 # not here: both return policy._step_toward (a step; its own refusals wait under their own reasons).
-REVIEW_K3 = (
-    "amberite:hold", "angband-finale:hold", "blind:wait-sight", "threat:wait",
+REVIEW_K3 = ("opening-q34:wait",)
+# The (b)-1 waits (owner 2026-11-23 「上限を付けて見張りから外す」): bounded by stationary_bounds and
+# rows of the table now, so registered and no longer findings.
+BOUNDED_B1 = (
+    "amberite:hold", "angband-finale:hold", "blind:wait-sight", "fundraise:wait-sight",
+    "return:wait-sight", "threat:wait", "combat:disengage-hold",
     "combat:avoid-unprofitable-unique-wait", "combat:avoid-unprofitable-unique-hold",
-    "quest25:hold-out-of-fire", "quest-strategy:hold-unreachable", "opening-q34:wait",
-    "quest:blocked:hold", "wait", "policy:none-wait",
+    "quest25:hold-out-of-fire", "quest-strategy:hold-unreachable", "quest:blocked:hold", "wait",
+    "policy:none-wait",
 )
 
 
@@ -53,6 +57,10 @@ class RepositoryTest(unittest.TestCase):
                                 or f"unregistered rest {reason!r}" in finding for finding in found),
                             reason)
         sent = {shape for _, _, _, _, shapes in lint.sites() for shape in shapes}
+        for reason in BOUNDED_B1:
+            self.assertIn(reason, sent)
+            self.assertTrue(lint.registered(reason), reason)
+            self.assertFalse(any(f"{reason!r}" in finding for finding in found), reason)
         self.assertNotIn("summoner:hold-reposition", sent)
         self.assertNotIn("quest-strategy:retake-hold", sent)
 

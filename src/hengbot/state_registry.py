@@ -1911,6 +1911,10 @@ REGISTRY = (
     # speed_dose
     S("_speed_dose_memory", "speed_dose", FLOOR,
       "speed_dose: speed dose memory (no comment at its definition)"),
+    # stationary_bounds
+    S("_stationary_bound_episode", "stationary_bounds", LIFE,
+      "the running hold episode of a bounded stationary wait: (reason, floor, cell, start turn, "
+      "decisions, last decision sequence, hp, mp); cleared by any other decision"),
     # status_cure
     S("_blind_attacker_floor", "status_cure", FLOOR,
       "floor whose unseen attacker no kill has followed"),

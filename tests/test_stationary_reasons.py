@@ -17,7 +17,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import reason_registry_lint as lint  # noqa: E402
 from hengbot import anaguma, cli, policy, policy_constants, quest25_battle, quest_target_search, reasons  # noqa: E402
-from hengbot import status_cure  # noqa: E402
+from hengbot import stationary_bounds, status_cure  # noqa: E402
 from hengbot.model import Position  # noqa: E402
 
 # cli.STATIONARY_REASONS at ae4da7673c.
@@ -42,6 +42,13 @@ OLD_STATIONARY_EXEMPT_REASONS = frozenset({
     'quest25:trap-search', 'return:wait', 'status-threat:wait', 'summoner:hold-choke',
     'town:blocked:repetition', 'unseen:choke-wait', 'warning:trap-search',
 })
+# Exact (EXEMPT) rows added since ae4da7673c, each with its own bound: the short blindness wait
+# (status_cure.SHORT_BLIND_MAX_GAME_TURNS) and the (b)-1 waits of stationary_bounds (owner
+# 2026-11-23 「上限を付けて見張りから外す」).
+ADDED_EXEMPT_REASONS = frozenset({'blind:short-wait'}) | frozenset(
+    row.reason for row in stationary_bounds.BOUNDS)
+# HOLD rows added since: deep_fall_guard's recall wait.
+ADDED_STATIONARY_REASONS = frozenset({'deep-fall-guard:wait-recall'})
 # cli.QUEST_COMBAT_REASON_PREFIXES and the literal prefixes of _cell_loop_guard_applies.
 OLD_QUEST_COMBAT_REASON_PREFIXES = ('quest-strategy:melee', 'quest-strategy:ranged-fire',
                                     'quest-strategy:q2-fire')
@@ -49,14 +56,14 @@ OLD_ACTION_PREFIXES = ('item:', 'ranged:', 'chest:')
 
 
 def old_stationary(reason: str) -> bool:
-    """cli._cell_loop_guard_applies's test at ae4da7673c, verbatim."""
+    """cli._cell_loop_guard_applies's test at ae4da7673c, verbatim, with the rows added since."""
     return (
         any(
             reason == stationary
             or reason.startswith(f"{stationary}:")
-            for stationary in OLD_STATIONARY_REASONS
+            for stationary in OLD_STATIONARY_REASONS | ADDED_STATIONARY_REASONS
         )
-        or reason in OLD_STATIONARY_EXEMPT_REASONS
+        or reason in OLD_STATIONARY_EXEMPT_REASONS | ADDED_EXEMPT_REASONS
         or reason.startswith(OLD_QUEST_COMBAT_REASON_PREFIXES)
         or reason.startswith("item:")
         or reason.startswith("ranged:")
@@ -88,8 +95,9 @@ def board(position=Position(5, 5), *, in_town=False, inside_arena=False):
 
 class EquivalenceTest(unittest.TestCase):
     def test_the_views_hold_the_old_lists(self):
-        self.assertEqual(cli.STATIONARY_REASONS, OLD_STATIONARY_REASONS)
-        self.assertEqual(cli.STATIONARY_EXEMPT_REASONS, OLD_STATIONARY_EXEMPT_REASONS)
+        self.assertEqual(cli.STATIONARY_REASONS, OLD_STATIONARY_REASONS | ADDED_STATIONARY_REASONS)
+        self.assertEqual(cli.STATIONARY_EXEMPT_REASONS,
+                         OLD_STATIONARY_EXEMPT_REASONS | ADDED_EXEMPT_REASONS)
         self.assertEqual(cli.QUEST_COMBAT_REASON_PREFIXES, OLD_QUEST_COMBAT_REASON_PREFIXES)
         self.assertEqual(cli.STATIONARY_ACTION_PREFIXES, OLD_ACTION_PREFIXES)
 
