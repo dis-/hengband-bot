@@ -12996,6 +12996,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_town.py:TownMixin._town_map_goal_route_search": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_town.py:TownMixin._town_map_goal_step": {
     "classification": "data",
     "rows": [
@@ -18170,6 +18177,13 @@
     "delegation": "selected child; no independent success"
   },
   "town_maps.py:TownMap.store_position": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "town_pack_budget.py:explicit_pickup_cells_now": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

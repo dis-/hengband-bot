@@ -8,7 +8,7 @@ from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot import bm_destruction_fund, destruction_means
-from hengbot.town_pack_budget import home_take_fits, native_travel_fits
+from hengbot.town_pack_budget import explicit_pickup_cells_now, home_take_fits, native_travel_fits
 from hengbot import destruction_use, ability_gear, consumable_policy, me_capability, town_pack_headroom
 from hengbot import item_use_route
 from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
@@ -53,6 +53,16 @@ _town_fact_inputs = WeakKeyDictionary()
 # The decision's (input grids, merged grids, emitted window): the merged view
 # holds the input's grid objects at every emitted cell.
 _town_fact_views = WeakKeyDictionary()
+# Maintainability review 2026-11-23 (a)-6: one decision asked the same town route up to four
+# times (the progress vector, the retirement key, the declared walk, the Inn receipt), each a
+# BFS over the town.  policy -> (decision board, {(id(board), route question): (board, floor,
+# door, door size, rubble, route)}): the routes asked during one decision (its
+# ``_map_predicate_snapshot``; a new decision starts an empty table), each for the very board
+# asked and kept while the grid index the BFS walks is the same (its sets are held and compared
+# by identity; the doors are also discarded in place, so their size is kept).  The hazard
+# answers the BFS reads (_is_avoidable_hazard_grid's cache) are kept once given in a decision.
+# Off under decision_caches_disabled.  Not policy state.
+_town_route_memo = WeakKeyDictionary()
 
 
 def _build_town_store_position_index(policy):
@@ -9211,6 +9221,34 @@ class TownMixin:
         entrance_cells = self._town_entrance_cells(snapshot)
         entrance_cells.discard(start)
         entrance_cells.discard(target)
+        routes = None
+        decision_board = self._map_predicate_snapshot
+        if decision_board is not None and decision_caches_enabled():
+            entry = _town_route_memo.get(self)
+            if entry is None or entry[0] is not decision_board:
+                entry = (decision_board, {})
+                _town_route_memo[self] = entry
+            routes = entry[1]
+            question = (id(snapshot), target, frozenset(blocked), allow_entrance_fallback,
+                        frozenset(entrance_cells), explicit_pickup_cells_now())
+            hit = routes.get(question)
+            if (hit is not None and hit[0] is snapshot and hit[1] is self._floor_t
+                    and hit[2] is self._door_t and hit[3] == len(self._door_t)
+                    and hit[4] is self._rubble_t):
+                return hit[5]
+        route = self._town_map_goal_route_search(
+            snapshot, start, target, blocked, entrance_cells, allow_entrance_fallback)
+        if routes is not None:
+            routes[question] = (snapshot, self._floor_t, self._door_t, len(self._door_t),
+                                self._rubble_t, route)
+        return route
+
+    def _town_map_goal_route_search(
+        self, snapshot: Snapshot, start: Position, target: Position,
+        blocked: set[Position], entrance_cells: set[Position],
+        allow_entrance_fallback: bool,
+    ) -> TownMapRoute | None:
+        """The BFS of ``_town_map_goal_route``."""
         route_attempts = (blocked | entrance_cells, blocked)
         if not allow_entrance_fallback:
             route_attempts = route_attempts[:1]

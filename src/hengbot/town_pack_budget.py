@@ -51,6 +51,11 @@ def explicit_pickup_cells(cells):
         _EXPLICIT_PICKUP_CELLS.reset(token)
 
 
+def explicit_pickup_cells_now() -> frozenset:
+    """The cells ``explicit_pickup_cells`` admits now: the one context ``floor_step_fits`` reads."""
+    return _EXPLICIT_PICKUP_CELLS.get()
+
+
 # Home takes that are used at once, so one slot of the reserve may hold
 # them (owner 2026-11-03 「取り置きを使ってよい」: the *Remove Curse* read on
 # the next board; nothing is sold or shelved to make room for it).
