@@ -74,8 +74,9 @@ from hengbot.model import (
     SV_ROD_DETECTION, SV_SCROLL_DETECT_TRAP, SV_STAFF_DETECT_TRAP, TVAL_ROD, TVAL_SCROLL,
     TVAL_STAFF,
 )
+from hengbot import deep_admission
 from hengbot.policy_constants import (
-    DEEP_FLOOR_DEPTH, DESCEND_MIN_HP_RATIO, UP_STAIRS_KEY, WAIT_KEY,
+    DESCEND_MIN_HP_RATIO, UP_STAIRS_KEY, WAIT_KEY,
 )
 
 SV_ROD_DETECT_TRAP = 0   # sv-definition/sv-rod-types.h (トラップ感知のロッド)
@@ -98,11 +99,17 @@ FAILED = frozenset({
 
 def sanctioned(policy, dungeon_id: int, depth: int) -> bool:
     """A floor change landing on ``depth`` of ``dungeon_id`` needs no *Destruction* means: above
-    50F, or the held climb's 50F landing (deep_climb)."""
-    from hengbot import deep_climb, dive_floor
+    50F, or the held climb's 50F landing (deep_climb).  The means is the board's, asked apart
+    (``_exposed``, deep_climb.observe)."""
+    return deep_admission.verdict(dungeon_id, depth, "trapdoor",
+                                  climbing=lambda: climbing(policy, dungeon_id)).admitted
 
-    return depth < DEEP_FLOOR_DEPTH or (
-        depth == deep_climb.LANDING and dive_floor.climb_dungeon(policy) == dungeon_id)
+
+def climbing(policy, dungeon_id: int) -> bool:
+    """The held climb is on ``dungeon_id`` (deep_climb)."""
+    from hengbot import dive_floor
+
+    return dive_floor.climb_dungeon(policy) == dungeon_id
 
 
 def fall_unsanctioned(policy, dungeon_id: int, depth: int) -> bool:

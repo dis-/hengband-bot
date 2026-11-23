@@ -66,7 +66,7 @@ from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
 
-from hengbot import deep_climb, deep_fall_guard, means_spent_loop, return_start
+from hengbot import deep_admission, deep_climb, deep_fall_guard, means_spent_loop, return_start
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
@@ -278,13 +278,14 @@ def means_spent(policy, snapshot) -> bool:
 
     from hengbot import deep_climb  # import cycle
 
-    return (snapshot.dungeon_level >= DEEP_FLOOR_DEPTH
-            # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the climb (deep_climb).
-            and not deep_climb.on_floor(policy, snapshot)
+    # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the climb (deep_climb.on_floor).
+    return (not deep_admission.verdict(
+                snapshot.floor_key[0], snapshot.dungeon_level, "stand",
+                lambda: holds_means(policy, snapshot),
+                lambda: deep_climb.on_floor(policy, snapshot)).admitted
             and threat_tiers.acts_here(policy, snapshot)
             and _floor_destroyed(policy, snapshot)
-            and not _quest_floor(policy, snapshot)
-            and not holds_means(policy, snapshot))
+            and not _quest_floor(policy, snapshot))
 
 
 BREEDER_COMEBACK_RECALL_REASON = "breeder-comeback:recall"
@@ -924,7 +925,8 @@ def observe(policy, snapshot) -> None:
     deep_fall_guard.observe(policy, snapshot)
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
         setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
-    if snapshot.dungeon_level >= DEEP_FLOOR_DEPTH and holds_means(policy, snapshot):
+    if deep_admission.verdict(snapshot.floor_key[0], snapshot.dungeon_level, "stand",
+                              lambda: holds_means(policy, snapshot)).by == deep_admission.MEANS:
         _memory(policy).entitled_floor = snapshot.floor_key
     memory = getattr(policy, MEMORY, None)
     if memory is None:

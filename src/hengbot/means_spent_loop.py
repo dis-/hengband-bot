@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from hengbot.policy_constants import DEEP_FLOOR_DEPTH
+from hengbot import deep_admission
 
 MEMORY = "_means_spent_loop"
 STOP_REASON = "town:blocked:destruction-means-spent-loop"
@@ -82,5 +82,6 @@ def note_return(policy, snapshot) -> None:
 def looping(policy, destination_depth: int) -> bool:
     """A 50F+ departure after ``STREAK_STOP`` spent-at-once dives in a row."""
     loop = getattr(policy, MEMORY, None)
-    return (destination_depth >= DEEP_FLOOR_DEPTH and loop is not None
+    return (deep_admission.verdict(None, destination_depth, "departure-loop").deep
+            and loop is not None
             and loop.streak >= STREAK_STOP)

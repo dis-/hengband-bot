@@ -878,7 +878,9 @@ def _required_abilities_for_depth(depth: int) -> frozenset:
 # - PLAN-50F section 4, owner 2026-11-11 C6 「2 3 5を入れる」: me_powers' deep-floor rows.
 # Not this constant: the 50 of DEPTH_ABILITY_REQUIREMENTS (the telepathy row of the depth table,
 # its own owner rule) and the 49 band of equipment_optimizer (a row boundary of that table).
-DEEP_FLOOR_DEPTH = 50
+# Defined in deep_admission (review 2026-11-23 K2), the one module that compares a depth with it.
+from hengbot import deep_admission  # noqa: E402
+from hengbot.deep_admission import DEEP_FLOOR_DEPTH  # noqa: E402
 
 DESTRUCTION_GATE_LABEL = "destruction"
 
@@ -893,8 +895,9 @@ DESTRUCTION_GATE_LABEL = "destruction"
 # ``holds_means`` is a callable, asked only for a depth at the gate.
 
 def destruction_dive_permitted(depth: int, holds_means) -> bool:
-    """Whether ``depth`` may be reached at all under the 50F+ rule."""
-    return depth < DEEP_FLOOR_DEPTH or holds_means()
+    """Whether ``depth`` may be reached at all under the 50F+ rule (deep_admission's
+    ``intent``)."""
+    return deep_admission.verdict(None, depth, "intent", holds_means).admitted
 
 def permitted_dive_depth(depth: int, holds_means) -> int:
     """Clamp an INTENDED depth to the deepest floor the bot may reach.
@@ -908,7 +911,8 @@ def permitted_dive_depth(depth: int, holds_means) -> int:
     intent here keeps every consumer of it consistent with what the gate will
     actually permit.
     """
-    return depth if destruction_dive_permitted(depth, holds_means) else DEEP_FLOOR_DEPTH - 1
+    return (depth if destruction_dive_permitted(depth, holds_means)
+            else deep_admission.DEEPEST_WITHOUT_MEANS)
 
 DESTRUCTION_USES_PER_STEP = 5
 
