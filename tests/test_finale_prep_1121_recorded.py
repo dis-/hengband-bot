@@ -274,9 +274,10 @@ class FinalePrepRecordedTest(unittest.TestCase):
         self.assertFalse(robes & held.target)
 
     def test_n1c_int_before_speed_beyond_the_gate(self):
-        """Owner 2026-11-21 「過剰な加速よりもまず知力を十分上げることを優先して」「成功率95%まで」:
-        among sets meeting the conditions, the absorbed Rockets' success up to 95% (the INT) comes
-        before any speed beyond the +25 gate; past 95% the speed comes first again."""
+        """Owner 2026-11-21 「過剰な加速よりもまず知力を十分上げることを優先して」, then 2026-11-24
+        「成功率は不足1%につき5%」: among sets meeting the conditions each percent of the absorbed
+        Rockets' success short of 100 takes 5% off the score (HP times the energy per game turn),
+        so the INT that raises it outweighs a few speed points beyond the +25 gate."""
         from hengbot.equipment_optimizer import FINALE_POWER_SUCCESS, finale_rank
         policy, decided = self.n1c_until(N1C_ENTRY + 4)
         held = finale_prep.phase(policy)
@@ -292,9 +293,9 @@ class FinalePrepRecordedTest(unittest.TestCase):
                                                  finale_power_success=success))
         faster, surer = variant(140, FINALE_POWER_SUCCESS - 5), variant(136, FINALE_POWER_SUCCESS)
         self.assertGreater(finale_rank(surer), finale_rank(faster))
-        # Past 95% the speed decides again.
-        self.assertGreater(finale_rank(variant(140, FINALE_POWER_SUCCESS)),
-                           finale_rank(variant(136, 99)))
+        # Past 95% too: 99% at +26 (36 x 0.95) over 95% at +30 (40 x 0.75).
+        self.assertGreater(finale_rank(variant(136, 99)),
+                           finale_rank(variant(140, FINALE_POWER_SUCCESS)))
         # Below the +25 gate no INT makes up for it.
         self.assertGreater(finale_rank(variant(135, 80)), finale_rank(variant(134, 99)))
 

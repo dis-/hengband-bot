@@ -2879,6 +2879,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:_finale_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:_meets_requirements": {
     "classification": "data",
     "rows": [
@@ -2886,7 +2893,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "equipment_optimizer.py:_meets_static_requirements": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "equipment_optimizer.py:_stable_operational_best": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:_stat_bonus": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2957,6 +2978,48 @@
     "delegation": "selected child; no independent success"
   },
   "equipment_optimizer.py:equipment_move_identity": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_elements": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_gate_failures": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_missing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_rank": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "equipment_optimizer.py:finale_score": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6103,6 +6166,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_loadout_offense.py:absorbed_power_fail_percent": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_loadout_offense.py:finale_power_success": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_loadout_offense.py:held_attack_powers": {
     "classification": "data",
     "rows": [
@@ -6118,6 +6195,20 @@
     "delegation": "selected child; no independent success"
   },
   "me_loadout_offense.py:held_survival_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_loadout_offense.py:loadout_intelligence": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_loadout_offense.py:offense_inputs": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -6165,6 +6256,20 @@
     "delegation": "selected child; no independent success"
   },
   "me_power_success.py:_displayed_fail": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_power_success.py:fail_percent_at_index": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_power_success.py:trunc_div": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17378,6 +17483,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "saving_throw.py:_pval_total": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "saving_throw.py:gear_terms": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "saving_throw.py:saving_base": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "sealed_loot.py:_first_step": {
     "classification": "data",
     "rows": [
@@ -19685,6 +19811,69 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "warrior_equipment_evaluator.py:modify_stat_value": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_equipment_evaluator.py:stat_index": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_equipment_evaluator.py:trunc_div": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_evaluator.py:constitution_hp_bonus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_evaluator.py:constitution_with_bonus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_evaluator.py:intelligence_with_bonus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_evaluator.py:max_hp_with_con_bonus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_search.py:FinaleFigures._rank_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_search.py:FinaleFigures.rank_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "warrior_loadout_search.py:WarriorSingleSlotSearch._device_skill_completions.slots": {
     "classification": "data",
     "rows": [
@@ -19700,6 +19889,13 @@
     "delegation": "selected child; no independent success"
   },
   "warrior_loadout_search.py:disposable_dominated_item_ids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_search.py:finale_exhaustive_search": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -19734,6 +19930,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "warrior_optimization.py:_equipment_speed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_optimization.py:_intrinsic_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "warrior_optimization.py:_loadout_key": {
     "classification": "data",
     "rows": [
@@ -19748,7 +19958,21 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "warrior_optimization.py:finale_seed_loadouts": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "warrior_optimization.py:load_character_calibration": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_optimization.py:loadout_natural_stats": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

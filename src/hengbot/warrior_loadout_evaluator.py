@@ -7,13 +7,14 @@ from math import isfinite, isinf
 
 from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_encounters import melee_multiplier
-from hengbot.equipment_optimizer import Loadout, LoadoutMetrics, SLOT_BOW
+from hengbot.equipment_optimizer import FinaleReading, Loadout, LoadoutMetrics, SLOT_BOW
 from hengbot.equipment_utility import utility_value
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, plain_ammo_turn_damage
 from hengbot.me_loadout_offense import (
     TR_INT,
     MagicEaterOffenseInputs,
     finale_power_success,
+    loadout_intelligence,
     magic_eater_device_dps,
     survival_factor,
 )
@@ -230,15 +231,41 @@ def loadout_defense_inputs(
 
 def loadout_max_hp(loadout: Loadout, inputs: WarriorLoadoutInputs) -> int:
     """Apply Hengband's Warrior CON hit-point adjustment to this loadout."""
+    return max_hp_with_con_bonus(inputs, _pval_total(loadout, TR_CON))
+
+
+def constitution_with_bonus(inputs: WarriorLoadoutInputs, con_bonus: int) -> int:
+    """The displayed CON with the gear's CON ``con_bonus`` (modify_stat_value)."""
+    return modify_stat_value(inputs.natural_con, inputs.intrinsic_con + con_bonus)
+
+
+def max_hp_with_con_bonus(inputs: WarriorLoadoutInputs, con_bonus: int) -> int:
+    """The maximum HP with the gear's CON ``con_bonus`` (``loadout_max_hp`` of its sum)."""
     if inputs.base_hp is None:
         return inputs.current_hp
-    constitution = modify_stat_value(
-        inputs.natural_con, inputs.intrinsic_con + _pval_total(loadout, TR_CON)
-    )
     return max(
         inputs.hp_floor,
         inputs.base_hp
-        + constitution_hp_bonus(constitution, inputs.combat.level),
+        + constitution_hp_bonus(constitution_with_bonus(inputs, con_bonus), inputs.combat.level),
+    )
+
+
+def intelligence_with_bonus(inputs: WarriorLoadoutInputs, int_bonus: int) -> int | None:
+    """The displayed INT with the gear's INT ``int_bonus``: the Magic-Eater's inputs read it
+    (me_loadout_offense); None without them."""
+    magic_eater = getattr(inputs, "magic_eater", None)
+    return None if magic_eater is None else loadout_intelligence(magic_eater, int_bonus)
+
+
+def loadout_finale_reading(loadout: Loadout, inputs: WarriorLoadoutInputs) -> FinaleReading:
+    """The figures the finale's gates and score read (equipment_optimizer ``finale_rank``): the
+    loadout's HP, displayed INT (the Magic-Eater's inputs; None without them) and CON, and the
+    character's own flags."""
+    return FinaleReading(
+        max_hp=loadout_max_hp(loadout, inputs),
+        intelligence=intelligence_with_bonus(inputs, _pval_total(loadout, TR_INT)),
+        constitution=constitution_with_bonus(inputs, _pval_total(loadout, TR_CON)),
+        intrinsic_flags=inputs.defense.intrinsic_flags,
     )
 
 
@@ -533,6 +560,7 @@ def _combine_warrior_results(
         finale_power_success=finale_power_success(
             getattr(inputs, "magic_eater", None), _pval_total(loadout, TR_INT),
             loadout.flags | inputs.defense.intrinsic_flags),
+        finale_reading=loadout_finale_reading(loadout, inputs),
     )
     return WarriorLoadoutResult(
         metrics, melee, defense, ranged, ranged_offense_dps, device_dps)

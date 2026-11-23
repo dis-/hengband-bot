@@ -66,19 +66,22 @@ class FinaleGear1123RecordedTest(unittest.TestCase):
         self.assertTrue(angband_finale.preparing(board))
         self.assertEqual(finale_prep.phase(policy).step, finale_prep.IDLE)  # Healing short
         held = angband_finale.memory(policy)
-        # Recorded: equipment_owned missing ["resist_blind|resist_lite", "resist_curse"].
+        # Recorded: equipment_owned missing ["resist_blind|resist_lite", "resist_curse"].  The
+        # mirror meets both; the owner's gates of 2026-11-24 (「閃光轟音時間以外の耐性を必須とする」)
+        # then name the one this Home's gear cannot add with the rest: resist darkness.
         report = held.report
         self.assertEqual(report["equipment_owned"],
-                         {"missing": [], "ready": True, "judged": "owned-search"})
+                         {"missing": ["resist_dark"], "ready": False, "judged": "owned-search"})
         # The 95F exploration keeps the ordinary loadout (Q9): the worn set still lacks them.
         self.assertEqual(report["equipment_worn"]["missing"],
                          ["resist_blind|resist_lite", "resist_curse"])
-        from hengbot.equipment_optimizer import finale_conditions_met
+        from hengbot.equipment_optimizer import finale_missing
         best = held.owned_best
         self.assertIsNotNone(best)
         self.assertIn(MIRROR, {finale_prep._signature(item.id) for _, item in best.loadout.slots})
-        self.assertTrue(finale_conditions_met(best))
-        self.assertEqual(finale_prep.set_missing(policy, board, best.loadout, best.metrics), [])
+        self.assertEqual(finale_missing(best), ("resist_dark",))
+        self.assertEqual(finale_prep.set_missing(policy, board, best.loadout, best.metrics),
+                         ["resist_dark"])
 
     def test_searched_once_a_visit(self):
         policy = self.policy

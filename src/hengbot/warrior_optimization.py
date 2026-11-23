@@ -18,6 +18,8 @@ from hengbot.equipment_encounters import (
 from hengbot.speed_valuation import permanent_player_speed
 from hengbot.equipment_optimizer import (
     ABILITY_FLAG,
+    DEPTH_BANDS,
+    _meets_static_requirements,
     Loadout,
     OptimizationResult,
     OwnedEquipment,
@@ -40,7 +42,9 @@ from hengbot.equipment_transaction_planner import (
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
 from hengbot.equipment_utility import with_destruction_means
 from hengbot import angband_cap, equipment_rules
-from hengbot.me_loadout_offense import offense_inputs as magic_eater_offense_inputs
+from hengbot.me_loadout_offense import (
+    finale_power_success, offense_inputs as magic_eater_offense_inputs,
+)
 from hengbot.model import STAT_NAMES, InventoryItem, Snapshot, StoreItem
 from hengbot.monrace_knowledge import MonraceKnowledge
 from hengbot.monster_ranged_evaluator import SpellSelectionContext
@@ -59,10 +63,15 @@ from hengbot.warrior_loadout_evaluator import (
     CachedWarriorLoadoutEvaluator,
     WarriorLoadoutInputs,
     constitution_hp_bonus,
+    constitution_with_bonus,
+    intelligence_with_bonus,
+    max_hp_with_con_bonus,
 )
 from hengbot.warrior_loadout_search import (
+    FinaleFigures,
     enumerate_single_slot_variants,
     enumerate_warrior_loadouts,
+    finale_exhaustive_search,
 )
 
 
@@ -117,6 +126,10 @@ CLOSURE_MELEE_LEADERS = 3
 # that and for a slower host; a capped search returns its last completed
 # pass (``OptimizationResult.search_capped``).
 CLOSURE_TIME_CAP_SECONDS = 30.0
+# The finale's exhaustive search (finale_seed_loadouts), out of the same cap: n1-c life-221's
+# 175-item catalog (2026-11-24) took 0.74 s on this PC; a search stopped here hands on the best
+# sets it found.
+FINALE_SEARCH_SECONDS = 8.0
 
 
 def _loadout_key(loadout: Loadout) -> tuple[frozenset[str], str]:
@@ -127,6 +140,7 @@ def optimize_single_slot_closure(
     current: Loadout,
     neighbours: Callable[[Loadout], Iterable[Loadout]],
     optimize: Callable[[tuple[Loadout, ...]], OptimizationResult],
+    extra_seeds: Iterable[Loadout] = (),
 ) -> OptimizationResult:
     """Choose over the single-slot neighbourhoods until the choice's own is included.
 
@@ -148,6 +162,11 @@ def optimize_single_slot_closure(
     gives each pass what is left of CLOSURE_TIME_CAP_SECONDS; a pass that runs
     out returns the previous pass's result marked ``search_capped``.
 
+    ``extra_seeds`` join the field from the first pass: the finale's exhaustive
+    search (warrior_loadout_search.finale_exhaustive_search) puts the sets first
+    in its order there, however many slots they change; a chosen one's own
+    neighbourhood is expanded in the next pass as any chosen set's.
+
     The field also holds the neighbourhoods of the CLOSURE_MELEE_LEADERS sets
     with the most melee per game time among the chosen band's sets that clear
     the 30-turn survival floor (owner 2026-11-20 「案A：打撃の上位3つの周りも
@@ -164,6 +183,8 @@ def optimize_single_slot_closure(
     candidates: dict[tuple[frozenset[str], str], Loadout] = {}
     expanded: set[tuple[frozenset[str], str]] = set()
     seeds = [current]
+    for seed in extra_seeds:
+        candidates.setdefault(_loadout_key(seed), seed)
     previous: OptimizationResult | None = None
     while True:
         for seed in seeds:
@@ -187,6 +208,45 @@ def optimize_single_slot_closure(
                 seeds.append(entry.loadout)
         if not seeds:
             return result
+
+
+def finale_seed_loadouts(
+    items, inputs: WarriorLoadoutInputs, defense: WarriorDefenseInputs,
+    intrinsic_flags: frozenset[int], *, current: Loadout, pinned, excluded_item_ids,
+    require_light: bool, require_body: bool, required_flags: frozenset[int],
+    depth: int | None, intrinsic_abilities: frozenset[str], has_destruction: bool,
+    staff_gate, deadline: float,
+) -> tuple[Loadout, ...]:
+    """The sets first in the finale's order over every combination of the owned gear
+    (warrior_loadout_search.finale_exhaustive_search), from the evaluator's own figures: the
+    search's key of a set is its equipment_optimizer ``finale_rank``.  The static requirements
+    are the given depth's, else the deepest band's (the finale's 99F/100F)."""
+    figures = FinaleFigures(
+        base_speed=defense.base_speed,
+        intrinsic_flags=intrinsic_flags,
+        intelligence=lambda bonus: intelligence_with_bonus(inputs, bonus),
+        constitution=lambda bonus: constitution_with_bonus(inputs, bonus),
+        max_hp=lambda bonus: max_hp_with_con_bonus(inputs, bonus),
+        power_success=lambda bonus, flags: finale_power_success(
+            getattr(inputs, "magic_eater", None), bonus, flags),
+    )
+    band = depth if depth is not None else DEPTH_BANDS[0]
+    # The band's abilities the gear must supply (the static requirements' own test), required of
+    # every branch so that none is searched without them.
+    band_flags = frozenset(ABILITY_FLAG[ability] for ability in required_abilities(band)
+                           if ability not in intrinsic_abilities)
+    found = finale_exhaustive_search(
+        items, figures, current_item_ids=current.item_ids, pinned=pinned,
+        excluded_item_ids=excluded_item_ids, require_light=require_light,
+        require_body=require_body,
+        fill_slots=owned_armor_fill_slots(items, excluded_item_ids),
+        required_flags=required_flags | band_flags,
+        valid=lambda loadout: _meets_static_requirements(
+            loadout, depth=band, intrinsic_abilities=intrinsic_abilities,
+            has_destruction=has_destruction, require_light=require_light,
+            staff_gate=staff_gate),
+        deadline=deadline)
+    return found.loadouts
 
 
 def destination_encounter_depth(snapshot, knowledge, *, cap_lifted: bool = False) -> int:
@@ -1190,12 +1250,24 @@ def prepare_warrior_optimization(
                    if search_factory is enumerate_single_slot_variants else {}),
             )
 
+        # The finale's order (owner 2026-11-24): its exhaustive search over the owned gear
+        # puts the sets first in that order among the candidates, whatever the slot count.
+        finale_seeds = (
+            finale_seed_loadouts(
+                items, inputs, defense, intrinsic_flags, current=current, pinned=pinned,
+                excluded_item_ids=search_excluded_item_ids, require_light=require_light,
+                require_body=require_body, required_flags=flags, depth=depth,
+                intrinsic_abilities=intrinsic_abilities.intersection(ABILITY_FLAG),
+                has_destruction=has_destruction, staff_gate=staff_gate,
+                deadline=min(closure_deadline, monotonic() + FINALE_SEARCH_SECONDS))
+            if finale else ())
         if search_factory is enumerate_single_slot_variants:
             result = optimize_single_slot_closure(
                 current, lambda seed: search(seed), optimize,
+                **({"extra_seeds": finale_seeds} if finale_seeds else {}),
             )
         else:
-            result = optimize(search())
+            result = optimize((*search(), *finale_seeds))
         if result.best is not None or result.timed_out:
             break
     if loadout_report_path is not None:

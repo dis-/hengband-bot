@@ -54,6 +54,8 @@ from hengbot.speed_valuation import (
 )
 from hengbot.policy_constants import (
     SPEED_GATE_DEPTH,
+    SPEED_GATE_LABEL,
+    speed_energy,
 )
 from hengbot.equipment_rules import (
     DEPTH_ABILITY_REQUIREMENTS,
@@ -528,6 +530,22 @@ class LoadoutMetrics:
     # ``finale_power_success``, the game's cmd-magiceat.cpp rate unstunned); None for every
     # class but the Magic-Eater.  Read by ``finale_rank`` only.
     finale_power_success: int | None = None
+    # The character with this loadout worn, as the finale's gates and score read it
+    # (``FinaleReading``); None from a metrics without the evaluator's inputs (a test fake).
+    finale_reading: "FinaleReading | None" = None
+
+
+@dataclass(frozen=True)
+class FinaleReading:
+    """The character with one loadout worn, for ``finale_rank`` (the evaluator's figures)."""
+
+    max_hp: int
+    # The displayed totals (modify_stat_value: 18/150 is 168).
+    intelligence: int
+    constitution: int
+    # The character's own TR flags (race, class, mutations: the calibration's
+    # ``intrinsic_tr_flags``); a Zombie's cold, poison and nether resistances are here.
+    intrinsic_flags: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -1361,31 +1379,133 @@ def _stat_bonus(loadout: Loadout, flag: int) -> int:
 FINALE_POWER_SUCCESS = 95
 
 
-def finale_rank(entry: EvaluatedLoadout) -> tuple:
-    """The 99F/100F loadout's order, compared before everything else: resist curse, resist
-    blindness or light, the speed gate (+25 after the weight); then, owner 2026-11-21
-    「過剰な加速よりもまず知力を十分上げることを優先して」「成功率95%まで」, the Rockets' success up to
-    95% (the INT that raises it); then the permanent speed, the number of resisted elements,
-    telepathy, INT, CON (owner 2026-11-20 「加速耐性テレパシー知力耐久力を優先」).  Nothing of AC or melee: those decide only between
-    loadouts this rank holds equal (the ordinary comparison)."""
-    flags = entry.loadout.flags
-    elements = (flags & FINALE_RESISTANCES) | {
+TR_RES_SOUND = 58
+TR_RES_TIME = 143
+# Owner 2026-11-24 「加速+25 知力18/150 耐久18/200 閃光轟音時間以外の耐性を必須とする。それ以降は加点式。」:
+# the displayed totals (18/150 is 168, 18/200 is 218) and every counted element but light, sound
+# and time.
+FINALE_INT_MINIMUM = 168
+FINALE_CON_MINIMUM = 218
+FINALE_OPTIONAL_RESISTANCES = frozenset({TR_RES_LITE, TR_RES_SOUND, TR_RES_TIME})
+FINALE_REQUIRED_RESISTANCES = FINALE_RESISTANCES - FINALE_OPTIONAL_RESISTANCES
+# The gates' report names (finale_prep ``set_missing``), the resistances by their ability names.
+FINALE_RESIST_NAMES = {48: "acid", 49: "elec", 50: "fire", 51: "cold", 52: "pois", 53: "fear",
+                       54: "lite", 55: "dark", 56: "blind", 57: "conf", 58: "sound", 59: "shard",
+                       60: "neth", 61: "nexus", 62: "chaos", 63: "disen", 143: "time", 144: "water"}
+FINALE_INT_GATE = "finale_int_18/150"
+FINALE_CON_GATE = "finale_con_18/200"
+
+# The additive score among the sets meeting every gate (owner 2026-11-24, answering the proposal
+# 「HP×行動の回数＋閃光轟音時間を1つ5%、ロケットの成功率は100%までの不足1%につき1%減らす」:
+# 「ほぼ推奨案で良いが、閃光と時間の耐性は1% 轟音は5% 成功率は不足1%につき5%」).  ``finale_score``
+# reads this table only: HP times the energy per game turn (speed_energy, core/speed-table.cpp
+# extract_energy), each optional resistance adding its share, each percent of the Rockets'
+# success short of 100 taking its share off (never below 0).
+FINALE_SCORE_WEIGHTS = {
+    "optional_resistance": {TR_RES_LITE: 0.01, TR_RES_TIME: 0.01, TR_RES_SOUND: 0.05},
+    "power_success_full": 100,
+    "power_shortfall_per_percent": 0.05,
+}
+
+
+def finale_elements(flags: frozenset[int]) -> frozenset[int]:
+    """The counted elements ``flags`` resists, an immunity counting as its element."""
+    return (flags & FINALE_RESISTANCES) | {
         element for immunity, element in FINALE_IMMUNITY_ELEMENT.items() if immunity in flags}
-    speed = loadout_speed(entry.metrics)
-    success = getattr(entry.metrics, "finale_power_success", None)
-    return (TR_RES_CURSE in flags, bool(flags & {TR_RES_BLIND, TR_RES_LITE}),
-            meets_speed_gate(speed),
+
+
+def finale_score(max_hp: int, speed: int, elements: frozenset[int], success: int | None) -> float:
+    """The finale's additive score (``FINALE_SCORE_WEIGHTS``); ``success`` None (no absorbed
+    Rockets' inputs, a class but the Magic-Eater) takes nothing off."""
+    weights = FINALE_SCORE_WEIGHTS
+    resist_share = 1.0 + sum(share for flag, share in weights["optional_resistance"].items()
+                             if flag in elements)
+    shortfall = 0 if success is None else max(0, weights["power_success_full"] - success)
+    success_share = max(0.0, 1.0 - weights["power_shortfall_per_percent"] * shortfall)
+    return max_hp * speed_energy(speed) * resist_share * success_share
+
+
+def finale_gate_failures(flags: frozenset[int], speed: int, intelligence: int | None,
+                         constitution: int | None) -> tuple[str, ...]:
+    """The finale's gates ``flags`` (worn and the character's own) and the figures miss: resist
+    curse, resist blindness or light, telepathy, the speed gate, INT 18/150, CON 18/200 and every
+    required element.  A stat the metrics do not read (None) is not judged."""
+    failures = []
+    if TR_RES_CURSE not in flags:
+        failures.append("resist_curse")
+    if not flags & {TR_RES_BLIND, TR_RES_LITE}:
+        failures.append("resist_blind|resist_lite")
+    if TR_TELEPATHY not in flags:
+        failures.append("telepathy")
+    if not meets_speed_gate(speed):
+        failures.append(SPEED_GATE_LABEL)
+    if intelligence is not None and intelligence < FINALE_INT_MINIMUM:
+        failures.append(FINALE_INT_GATE)
+    if constitution is not None and constitution < FINALE_CON_MINIMUM:
+        failures.append(FINALE_CON_GATE)
+    elements = finale_elements(flags)
+    failures.extend("resist_" + FINALE_RESIST_NAMES[flag]
+                    for flag in sorted(FINALE_REQUIRED_RESISTANCES - elements))
+    return tuple(failures)
+
+
+def finale_key(flags: frozenset[int], speed: int, success: int | None, *,
+               max_hp: int, intelligence: int | None, constitution: int | None,
+               int_bonus: int, con_bonus: int) -> tuple:
+    """The finale's order of one set (``finale_rank``, and the finale's exhaustive search of
+    warrior_loadout_search, which builds the same figures from the items' sums): every gate met,
+    then the number of gates met, then the score (``finale_score``); ties as before, the Rockets'
+    success up to 95%, the permanent speed, the resisted elements, telepathy, INT, CON."""
+    failures = finale_gate_failures(flags, speed, intelligence, constitution)
+    gates = 6 + len(FINALE_REQUIRED_RESISTANCES)
+    elements = finale_elements(flags)
+    return (not failures, gates - len(failures),
+            finale_score(max_hp, speed, elements, success),
             min(success or 0, FINALE_POWER_SUCCESS),
-            speed, len(elements), TR_TELEPATHY in flags, _stat_bonus(entry.loadout, TR_INT),
-            _stat_bonus(entry.loadout, TR_CON))
+            speed, len(elements), TR_TELEPATHY in flags, int_bonus, con_bonus)
+
+
+def _finale_flags(entry: EvaluatedLoadout) -> frozenset[int]:
+    reading = getattr(entry.metrics, "finale_reading", None)
+    own = reading.intrinsic_flags if reading is not None else frozenset()
+    return entry.loadout.flags | own
+
+
+def finale_rank(entry: EvaluatedLoadout) -> tuple:
+    """The 99F/100F loadout's order, compared before everything else (``finale_key``).
+
+    Owner 2026-11-24 「加速+25 知力18/150 耐久18/200 閃光轟音時間以外の耐性を必須とする。それ以降は
+    加点式。」: the gates (with resist curse, owner 2026-11-20 「呪力耐性も要求する」; resist blindness
+    or light, 2026-11-20 Q6; telepathy) first, then the score of ``FINALE_SCORE_WEIGHTS``.  The
+    character's own flags count (a Zombie's cold, poison and nether resistances: race-info-table.cpp).
+    Nothing of AC or melee: those decide only between loadouts this rank holds equal (the
+    ordinary comparison)."""
+    metrics = entry.metrics
+    reading = getattr(metrics, "finale_reading", None)
+    return finale_key(
+        _finale_flags(entry), loadout_speed(metrics),
+        getattr(metrics, "finale_power_success", None),
+        max_hp=reading.max_hp if reading is not None else 0,
+        intelligence=reading.intelligence if reading is not None else None,
+        constitution=reading.constitution if reading is not None else None,
+        int_bonus=_stat_bonus(entry.loadout, TR_INT),
+        con_bonus=_stat_bonus(entry.loadout, TR_CON))
+
+
+def finale_missing(entry: EvaluatedLoadout) -> tuple[str, ...]:
+    """The finale's gates ``entry`` misses (``finale_gate_failures``)."""
+    reading = getattr(entry.metrics, "finale_reading", None)
+    return finale_gate_failures(
+        _finale_flags(entry), loadout_speed(entry.metrics),
+        reading.intelligence if reading is not None else None,
+        reading.constitution if reading is not None else None)
 
 
 def finale_conditions_met(entry: EvaluatedLoadout) -> bool:
-    """The finale's equipment conditions ``finale_rank`` leads with: resist curse, resist
-    blindness or light, and the speed gate (+25 after the weight).  The finale's search takes
-    them as requirements: a set meeting them competes alone when any owned set does (n1-c
-    life-221 2026-11-23, owner 「★賢者マーリンの魔法の鏡を使用して条件を満たす装備を作れる」)."""
-    return all(finale_rank(entry)[:3])
+    """Every gate of the finale's rank is met.  The finale's search takes them as requirements:
+    a set meeting them competes alone when any owned set does (n1-c life-221 2026-11-23, owner
+    「★賢者マーリンの魔法の鏡を使用して条件を満たす装備を作れる」)."""
+    return finale_rank(entry)[0]
 
 
 def _prefer(
