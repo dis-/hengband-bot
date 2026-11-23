@@ -221,9 +221,9 @@ def _means_unread(policy, snapshot) -> bool:
     "no means": n1-c life-221 2026-11-23 15:17:39, restarted on the Mountain's 50F with the
     absorbed *Destruction*, held the climb on the board before ``bA`` and climbed 50F -> 46F
     (owner 「n1-cはなぜ山を登っている？」「破壊の手段は十分にあるが？」)."""
-    from hengbot import me_powers_refresh
+    from hengbot import destruction_use
 
-    return me_powers_refresh.list_pending(policy, snapshot, "staff")
+    return destruction_use.means_unread(policy, snapshot)
 
 
 def _standing_without_means(policy, snapshot, floor_key) -> bool:

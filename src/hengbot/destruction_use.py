@@ -238,6 +238,19 @@ def holds_means(policy, snapshot) -> bool:
     return destruction_means.Means(policy, snapshot).depth_gate()
 
 
+def means_unread(policy, snapshot) -> bool:
+    """The absorbed *Destruction* is not known yet: a restarted Magic-Eater's staff list is still
+    to be read (me_powers_refresh.list_pending; the read takes no game time, and
+    me_powers_refresh.resume_read_key asks for it at the head of a decision).  ``holds_means`` is
+    False meanwhile, so a descent or an arrival waits; a rule that leaves a floor, climbs or
+    recalls for the means missing waits for the read instead.  n1-c life-221 2026-11-23
+    15:17:39: restarted on the Mountain's 50F with the absorbed *Destruction*, the first board
+    read no means and held the climb (owner 「破壊の手段は十分にあるが？」)."""
+    from hengbot import me_powers_refresh
+
+    return me_powers_refresh.list_pending(policy, snapshot, "staff")
+
+
 MEANS_SPENT_TRIGGER = "emergency-destruction-means-spent"
 MEANS_SPENT_REASON = "return:recall"
 # Owner 2026-11-16 「普通は破壊手段が尽きる=最後の破壊を使用する=周囲13マスに危険はないので安全に
@@ -268,12 +281,15 @@ def gap_here(policy, snapshot, missing) -> frozenset:
     if (_quest_floor(policy, snapshot) and memory is not None
             and memory.entitled_floor == snapshot.floor_key):
         return frozenset(missing) - {DESTRUCTION_GATE_LABEL}
+    if means_unread(policy, snapshot):
+        # Not known yet is no gap (``means_unread``): the read comes before any return.
+        return frozenset(missing) - {DESTRUCTION_GATE_LABEL}
     return frozenset(missing)
 
 
 def means_spent(policy, snapshot) -> bool:
     """A 50F+ floor where the tiers act and *Destruction* touches, no quest floor (``gap_here``),
-    without the means."""
+    without the means (read: ``means_unread`` is not "without")."""
     from hengbot import threat_tiers  # import cycle
 
     from hengbot import deep_climb  # import cycle
@@ -285,7 +301,8 @@ def means_spent(policy, snapshot) -> bool:
                 lambda: deep_climb.on_floor(policy, snapshot)).admitted
             and threat_tiers.acts_here(policy, snapshot)
             and _floor_destroyed(policy, snapshot)
-            and not _quest_floor(policy, snapshot))
+            and not _quest_floor(policy, snapshot)
+            and not means_unread(policy, snapshot))
 
 
 BREEDER_COMEBACK_RECALL_REASON = "breeder-comeback:recall"
