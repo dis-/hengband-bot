@@ -67,7 +67,7 @@ from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
 
-from hengbot import deep_admission, deep_climb, deep_fall_guard, means_spent_loop, return_start
+from hengbot import deep_admission, deep_climb, deep_fall_guard, deep_recall_loot, means_spent_loop, return_start
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
@@ -821,6 +821,10 @@ def key(policy, snapshot, *, in_range=_threat_in_range, suffix="", leaving=None,
     read (none carried, or blind) it leaves the engagement here too (owner 2026-11-13).  The
     summoner hold's teleport, the immobile summoner's and the item-destroying breeders' floor
     exits ask it before their scrolls (owner 2026-11-13)."""
+    # Owner 2026-11-23 「見える敵がいなければ拾いを先に」: in the wait of deep_teleport's Recall with
+    # no hostile in view, the reachable items before the use (deep_recall_loot).
+    if (wait_loot := deep_recall_loot.key(policy, snapshot)) is not None:
+        return wait_loot
     if leaving is not None:
         in_range = partial(_threat_in_reach, hostiles=list(leaving))
     if _falls_back(_memory(policy), snapshot):
@@ -914,6 +918,11 @@ def loot_then_use(policy, snapshot, leaving, *, loot=True, use=True, suffix="") 
     shown).  The answer says which it was, for the callers' own bookkeeping after a use."""
     from hengbot import destruction_loot  # import cycle
 
+    # Owner 2026-11-23 「見える敵がいなければ拾いを先に」: the wait of deep_teleport's Recall picks
+    # the reachable items before the clean place, the fetch, the use and the approach's step
+    # (deep_recall_loot).  No use: the callers' bookkeeping reads it as a walk.
+    if (wait_loot := deep_recall_loot.key(policy, snapshot)) is not None:
+        return LootThenUse(wait_loot, False)
     if loot and (kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
         return LootThenUse(kept, False)
     if use and (used := key(policy, snapshot, leaving=leaving, suffix=suffix)) is not None:

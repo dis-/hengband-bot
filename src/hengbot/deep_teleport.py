@@ -94,7 +94,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hengbot import return_start
-from hengbot import cross_rules, line_of_fire, no_ac_recall, recall_wait_teleport
+from hengbot import cross_rules, deep_recall_loot, line_of_fire, no_ac_recall, recall_wait_teleport
 from hengbot.item_reservation import decision_memo
 from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL
 from hengbot.policy_constants import DEEP_FLOOR_DEPTH, SEARCH_KEY
@@ -321,6 +321,9 @@ def _recall_key(policy, snapshot, reason: str) -> str | None:
     policy._stuck_escape_streak = 0
     return_start.start(policy)
     policy.last_reason = reason
+    if reason == RECALL_REASON:
+        # Owner 2026-11-23 「帰還を読んでから待つ間に拾う」: the wait's pickup (deep_recall_loot).
+        deep_recall_loot.note_read(policy, snapshot)
     return key
 
 
