@@ -14780,7 +14780,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_ctx": {
+  "quest25_battle_board.py:_ctx": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14791,7 +14791,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_fire": {
+  "quest25_battle_walk.py:_fire": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14802,7 +14802,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_full_hp_key": {
+  "quest25_battle_attack.py:_full_hp_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -14813,7 +14813,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress."
   },
-  "quest25_battle.py:_killed_name": {
+  "quest25_battle_board.py:_killed_name": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14824,7 +14824,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_memory": {
+  "quest25_battle_board.py:_memory": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14846,7 +14846,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress."
   },
-  "quest25_battle.py:_prepare": {
+  "quest25_battle_attack.py:_prepare": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -14857,7 +14857,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress."
   },
-  "quest25_battle.py:_profile": {
+  "quest25_battle_board.py:_profile": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14868,7 +14868,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_recharge_key": {
+  "quest25_battle_attack.py:_recharge_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -14890,7 +14890,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress."
   },
-  "quest25_battle.py:_sweep": {
+  "quest25_battle_rooms.py:_sweep": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -14978,7 +14978,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "After the hand druj's death, the anti-teleport piece's lent slot (slot_lending q25-druj-anti-teleport) returns to the target loadout's piece through slot_lending.wield_back, or the piece comes off through slot_lending.take_back when the target names none for the slot (equipment review E5, owner 2026-11-22 Q6); no independent progress."
   },
-  "quest25_battle.py:_avoided": {
+  "quest25_battle_walk.py:_avoided": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -14989,7 +14989,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_direction": {
+  "quest25_battle_walk.py:_direction": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15000,7 +15000,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_path": {
+  "quest25_battle_walk.py:_path": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15022,7 +15022,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Below the plan's line with the druj's anti-teleport piece worn: the walk out of the druj's line, the rest there, or a Healing potion out of it. No independent progress."
   },
-  "quest25_battle.py:_walk": {
+  "quest25_battle_walk.py:_walk": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15033,7 +15033,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step of a Q25 walk (or its trap rule's search or disarm). No independent progress."
   },
-  "quest25_battle.py:_step": {
+  "quest25_battle_walk.py:_step": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15044,7 +15044,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step of a Q25 walk. No independent progress."
   },
-  "quest25_battle.py:_trap_key": {
+  "quest25_battle_walk.py:_trap_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15055,7 +15055,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The search, the disarming device or the disarm command before a Q25 trap cell. No independent progress."
   },
-  "quest25_battle.py:_disarm_device_key": {
+  "quest25_battle_walk.py:_disarm_device_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15066,7 +15066,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A disarming power or carried device aimed at a Q25 trap cell. No independent progress."
   },
-  "quest25_battle.py:_trap_detect_key": {
+  "quest25_battle_walk.py:_trap_detect_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15465,7 +15465,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_adjacent_mass_key": {
+  "quest25_battle_attack.py:_adjacent_mass_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15476,7 +15476,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-07 「隣に来たら倒す」, widened to every phase the same day: a corpse mass beside the player is struck through _engage's adjacent attack, else shot by _fire_at; None otherwise. Called only by _phase_key before the phase's preparation and step; no independent progress."
   },
-  "quest25_battle.py:_engage": {
+  "quest25_battle_attack.py:_engage": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15487,7 +15487,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "The phase battle's blow at a target beside the player (combat_answer.adjacent_attack under MELEE_REASON), else a shot at the first target that can be shot (quest_room_sweep._shot); None otherwise. Called only by the Q25 phases and _adjacent_mass_key; no independent progress."
   },
-  "quest25_battle.py:_fire_at": {
+  "quest25_battle_attack.py:_fire_at": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15498,7 +15498,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "The strongest attack aimed at a grid (an absorbed ball or beam, else the launcher at the grid); None when none can be keyed. Called only by the Q25 phases and _adjacent_mass_key; no independent progress."
   },
-  "quest25_battle.py:_carried_grid_key": {
+  "quest25_battle_attack.py:_carried_grid_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15509,7 +15509,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "A carried device aimed at a grid by the targeting cursor (reserved_item_command); None when the reservation refuses. Called only by _ball_powers' senders and _melt_key; no independent progress."
   },
-  "quest25_battle.py:_launcher_grid_key": {
+  "quest25_battle_attack.py:_launcher_grid_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15520,7 +15520,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "The fired launcher aimed at a grid by the targeting cursor under SHOT_REASON; None without ammunition. Called only by _fire_at; no independent progress."
   },
-  "quest25_battle.py:_cursor_suffix": {
+  "quest25_battle_attack.py:_cursor_suffix": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -15817,7 +15817,7 @@
     "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
     "evidence": "The running phase's own step (phase.act); where it holds or walks (or has none), _breeders_in_line_key first (owner 2026-11-08 「どの段でも…射線にいる増える敵を撃つ」). Called only by _phase_key; no independent progress."
   },
-  "quest25_battle.py:_breeders_in_line_key": {
+  "quest25_battle_attack.py:_breeders_in_line_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -15828,7 +15828,7 @@
     "context": "Dungeon quest floors only: quest25_battle._profile requires the TAKEN Q25 floor with an approved revised_plan_draft.",
     "evidence": "Owner 2026-11-08 「射線にいれば範囲で撃つ」: breeder_area_attack.line_of_fire_key with _fire_at as the one-target answer; records the aimed race. Called only by _act and _masses; no independent progress."
   },
-  "quest25_battle.py:_breeders_in_line_key.single": {
+  "quest25_battle_attack.py:_breeders_in_line_key.single": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -16412,7 +16412,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 enemy board below the heal line with no Healing potion: casts the absorbed Healing staff (me_absorbed_substitutes.item_cast_key) when its displayed success is at least 80% (owner 2026-11-09). No independent progress."
   },
-  "quest25_battle.py:_fire_guard": {
+  "quest25_battle_walk.py:_fire_guard": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -16434,7 +16434,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 floor: the room sweep's out-of-Healing start-stair rule (quest_room_sweep._leave_by_exit) asked by the phase battle. No independent progress."
   },
-  "quest25_battle.py:_out_of_fire_key": {
+  "quest25_battle_walk.py:_out_of_fire_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -16467,7 +16467,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 quiet board: the plan's restore potion (quest_plan_base._restore) unless a phase-2 summons it teleported from is remembered (owner 2026-11-09/11-11). No independent progress."
   },
-  "quest25_battle.py:_rest_out_of_fire": {
+  "quest25_battle_walk.py:_rest_out_of_fire": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -16478,7 +16478,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 floor: the rest (or one held turn) on a cell out of the casters' fire. No independent progress."
   },
-  "quest25_battle.py:_withdraw": {
+  "quest25_battle_walk.py:_withdraw": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -16489,7 +16489,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 floor: the least exposed step out of the casters' fire, then the rest there (owner 2026-11-09 Q1). No independent progress."
   },
-  "quest25_battle.py:_safe_cells": {
+  "quest25_battle_walk.py:_safe_cells": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -16948,7 +16948,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_Ctx.values": {
+  "quest25_battle_board.py:_Ctx.values": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17655,7 +17655,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Owner 2026-11-12 「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する。」: called by policy_combat._ranged_attack_key before it fires the launcher at a distant target; the Magic-Eater's fixed-order answer (absorbed power, absorbed Magic Missile, carried attack wand; no torch) when its expected damage per action is strictly above the launcher's (attack_expectation.launcher_shot), along a clear ray or, off the rays and never in town, an absorbed power aimed at the cell over a clear projection path; else None (the rung fires). Its key comes from the reviewed senders (device_key, _fire_missile, _use, _grid_options.send); no independent progress."
   },
-  "quest25_battle.py:_hold": {
+  "quest25_battle_attack.py:_hold": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17732,7 +17732,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_ball_powers": {
+  "quest25_battle_attack.py:_ball_powers": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17743,7 +17743,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_has_piercing": {
+  "quest25_battle_attack.py:_has_piercing": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17754,7 +17754,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_haste": {
+  "quest25_battle_attack.py:_haste": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17765,7 +17765,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_ipsissimus": {
+  "quest25_battle_hall.py:_ipsissimus": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17776,7 +17776,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_match_strong": {
+  "quest25_battle_hall.py:_match_strong": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17787,7 +17787,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_melt_key": {
+  "quest25_battle_rooms.py:_melt_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17798,7 +17798,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_pen_shot": {
+  "quest25_battle_hall.py:_pen_shot": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17809,7 +17809,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_pen_sight": {
+  "quest25_battle_hall.py:_pen_sight": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17820,7 +17820,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_quyls": {
+  "quest25_battle_rooms.py:_quyls": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17831,7 +17831,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_rally": {
+  "quest25_battle_hall.py:_rally": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17842,7 +17842,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_shunned": {
+  "quest25_battle_walk.py:_shunned": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17853,7 +17853,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_shunned_hold": {
+  "quest25_battle_walk.py:_shunned_hold": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17864,7 +17864,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_sights": {
+  "quest25_battle_board.py:_sights": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17875,7 +17875,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_summons_in_view": {
+  "quest25_battle_hall.py:_summons_in_view": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17886,7 +17886,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_tome": {
+  "quest25_battle_rooms.py:_tome": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17897,7 +17897,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_unseen_fire": {
+  "quest25_battle_walk.py:_unseen_fire": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -17908,7 +17908,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, cast, potion or rest of the Q25 plan (owner 2026-11-12: Teleport Away below the line, the sealed rooms, never toward). No independent progress."
   },
-  "quest25_battle.py:_walk_to_sight": {
+  "quest25_battle_walk.py:_walk_to_sight": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -18794,7 +18794,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_confirm_tome_key": {
+  "quest25_battle_rooms.py:_confirm_tome_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -18805,7 +18805,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the tome phase's detection to confirm the tome (owner 2026-11-13 「可能なら感知して存在を確認する」)."
   },
-  "quest25_battle.py:_detect_key": {
+  "quest25_battle_rooms.py:_detect_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -18816,7 +18816,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the sweep's and the tome phase's detection (absorbed or carried Rod of Detection / Staff of Detect Evil)."
   },
-  "quest25_battle.py:_leave_fire": {
+  "quest25_battle_walk.py:_leave_fire": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -18827,7 +18827,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the first step of the least exposed walk out of the casters' fire (_withdraw, the tome phase's rest)."
   },
-  "quest25_battle.py:_refill_key": {
+  "quest25_battle_rooms.py:_refill_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -18838,7 +18838,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "A step, shot, blow, potion, scroll, rest, list read or search of Q25's phase battle; no independent progress. the spent-attack refill: a fight first, the phase's own steps, then the between-phases rest."
   },
-  "quest25_battle.py:_tome_unarmed": {
+  "quest25_battle_rooms.py:_tome_unarmed": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -19997,7 +19997,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_choke_step_back": {
+  "quest25_battle_hall.py:_choke_step_back": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -20008,7 +20008,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 phase 2 beside a monster off the chokes: the step back to a free choke beside the player (owner 2026-11-16 「隘路で迎え撃ち」). No independent progress."
   },
-  "quest25_battle.py:_restock_recall": {
+  "quest25_battle_hall.py:_restock_recall": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -21064,7 +21064,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Names QUEST_32's one-turn tier ('full', 'hasted' or None) for acceptance, quest_force_rows.resolve and the fight; a label, not a key; no command."
   },
-  "quest25_battle.py:_teleported_dreadmaster_key": {
+  "quest25_battle_rooms.py:_teleported_dreadmaster_key": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -21075,7 +21075,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-19 「テレポートで飛ばされてドリードマスターの感知範囲内に行ってしまったら優先してドリードマスターを倒す」: after a monster's teleport into the living dreadmaster's sensing range, the dreadmaster phase's fight (_dreadmaster) ahead of the running phase, the breeders in line shot first when it walks or holds; ends when it is dead or the player is out of range. A step, shot, blow or hold of Q25's phase battle; no independent progress."
   },
-  "quest25_battle.py:_dreadmaster": {
+  "quest25_battle_rooms.py:_dreadmaster": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -21086,7 +21086,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Q25 phase5: the dreadmaster fight, haste, the engage, else the walk to or hold on its stand (owner 2026-11-22: the east big room's cell its movement brings it to, _dread_wait_cell; it replaced 2026-11-06's melee stand [1,17] and vision edge [1,9]); also asked first after a monster's teleport into its range (_teleported_dreadmaster_key). A step, shot, blow, potion or hold of Q25's phase battle; no independent progress."
   },
-  "quest25_battle.py:_walk_to_widest": {
+  "quest25_battle_rooms.py:_walk_to_widest": {
     "classification": "producer",
     "rows": [
       "survival"
@@ -21097,7 +21097,7 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-09 「一番多く届く位置へ」 and 2026-11-08 「道をふさがれたら待たずに撃って開ける」: the walk to the cells that reach the most corpse masses in view (_mass_firing_cells), in phase4 and when a phase has no step (_act); None when no cell reaches more than here. A step of Q25's phase battle; no independent progress."
   },
-  "quest25_battle.py:_mass_firing_cells": {
+  "quest25_battle_rooms.py:_mass_firing_cells": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -23115,7 +23115,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_dread_wait_cell": {
+  "quest25_battle_rooms.py:_dread_wait_cell": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -24154,7 +24154,7 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "quest25_battle.py:_no_pass": {
+  "quest25_battle_walk.py:_no_pass": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

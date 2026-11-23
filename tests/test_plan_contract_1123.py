@@ -122,7 +122,7 @@ class TheLintTest(unittest.TestCase):
 
     def test_a_plan_module_keying_a_door_by_itself_fails(self):
         findings = analyze_with(
-            "quest25_battle",
+            "quest25_battle_hall",
             "return quest_plan_base.plan_door(ctx.policy, ctx.snapshot, door, CLOSE_REASON, close=True)",
             "return CLOSE_KEY + _direction(ctx.here, door)")
         self.assertTrue(any("CLOSE_KEY composed directly" in finding for finding in findings), findings)

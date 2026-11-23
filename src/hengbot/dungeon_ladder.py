@@ -435,7 +435,7 @@ QUIET_RECOVERY = {
     "_rest": "quest_find_exit's rest below its rest_below_ratio, off the shouted cells",
     "_out_of_fire_key": "QUEST_25 「一歩で安全圏に移動して休息できる」 (owner 2026-11-09): damaged in the fire "
                         "(below the room sweep plan's rest_below_ratio), one step out; the phases rest "
-                        "out of the fire (quest25_battle._rest_out_of_fire)",
+                        "out of the fire (quest25_battle_walk._rest_out_of_fire)",
 }
 
 # The board class each plan reads its board with (the lint asks it to count the sensed shooters,
@@ -450,7 +450,8 @@ PLAN_BOARDS = {
 # policy, nor composes a door's key, itself; every step goes through quest_plan_base.plan_walk and
 # every door through quest_plan_base.plan_door (the lint).
 PLAN_WALK_MODULES = (
-    "quest_find_exit", "quest25_battle", "quest_room_sweep", "quest25_sealed_room", "quest25_pocket",
+    "quest_find_exit", "quest25_battle", "quest25_battle_attack", "quest25_battle_board", "quest25_battle_walk",
+    "quest25_battle_hall", "quest25_battle_rooms", "quest_room_sweep", "quest25_sealed_room", "quest25_pocket",
     "quest25_presence", "quest_summon_answer", "quest_mixed_assault", "quest_detect_remaining",
     "quest_lure_approach", "quest_alignment_split", "quest_room_light",
 )

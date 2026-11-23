@@ -38,7 +38,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hengbot.policy import ConservativePolicy  # first: the plan modules import in a cycle alone
-from hengbot import kill_all_patrol, me_device_attacks, quest25_battle as battle
+from hengbot import kill_all_patrol, me_device_attacks, quest25_battle as battle, quest25_battle_rooms as rooms
 from hengbot.model import parse_snapshot
 from tests.support import q25_house as q25
 
@@ -148,7 +148,7 @@ class SpentBallsTest(unittest.TestCase):
     def test_control_spent_read_as_missing_skips_as_recorded(self):
         raw, _row = board(AFTER_SHOTS)
         policy, fight = q25_policy(raw, "quylthulgs", device_lists=lists(spent=True))
-        with patch.object(battle, "_recharging_area_attack", lambda _ctx: False):
+        with patch.object(rooms, "_recharging_area_attack", lambda _ctx: False):
             decide(policy, raw)
         self.assertGreater(fight.phase, battle.phase_index("quylthulgs"))
 
@@ -174,7 +174,7 @@ class FailedDetectionTest(unittest.TestCase):
 
     def test_control_the_failed_cast_read_as_nothing_ends_the_sweep(self):
         policy, fight, raw = self._sweep()
-        with patch.object(battle, "_detection_failed", lambda _ctx: False):
+        with patch.object(rooms, "_detection_failed", lambda _ctx: False):
             decide(policy, raw)
         self.assertEqual(fight.detected, ())
 

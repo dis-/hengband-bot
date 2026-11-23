@@ -36,7 +36,7 @@ where the producer already counts its holds in decisions.  The values and why:
   battle tries (``STAND_ROUTE_TRIES``).  A stand dropped after its wait is not refused, so the same
   cell could be chosen again without end; the per-stand bounds stay as they are.
 * No natural end -- ``amberite:hold`` (amberite_curse._kept_alive_key), ``threat:wait``
-  (ladder_combat), ``quest25:hold-out-of-fire`` (quest25_battle._rest_out_of_fire, with its rest
+  (ladder_combat), ``quest25:hold-out-of-fire`` (quest25_battle_walk._rest_out_of_fire, with its rest
   ``quest25:rest-out-of-fire`` as companion), ``quest-strategy:hold-unreachable`` (policy_quest
   ._quest_execute_key), ``quest:blocked:hold`` (quest_navigator, after the plan's
   ``hold_budget``), ``wait`` (policy._town_idle_key, the dungeon side) and ``policy:none-wait``

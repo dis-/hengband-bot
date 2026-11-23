@@ -775,12 +775,12 @@ _stationary(EXEMPT, "the plan's dig_attempt_limit", "quest-strategy:exit-dig")
 # Bounded per warned cell by SEARCH_LIMIT (trap_warning): a corridor of traps walked one search at
 # a time is no confined loop.
 _stationary(EXEMPT, "SEARCH_LIMIT per warned cell", "warning:trap-search")
-# Q25's own trap rule (quest25_battle._trap_key, owner 2026-11-09 「罠探知があるなら使用することで確定。
+# Q25's own trap rule (quest25_battle_walk._trap_key, owner 2026-11-09 「罠探知があるなら使用することで確定。
 # そうでなければ10回で打ち切る。」): bounded per cell by the plan's revised_plan_values.trap_searches
 # (n1-a life-508 2026-11-11: row 1 from [1,14] to [1,9], stopped by the 40-decision window).
 _stationary(EXEMPT, "the plan's trap_searches per cell (owner 2026-11-09)",
             "quest25:trap-search")
-# Q25's between-phases rest (quest25_battle._recharge_key, owner 2026-11-06 「各段階の間に、魔道具術師の
+# Q25's between-phases rest (quest25_battle_attack._recharge_key, owner 2026-11-06 「各段階の間に、魔道具術師の
 # 使用回数のうち、攻撃に使うものを全快させる」): each 'R100' advances the game and a phase takes at most
 # RECHARGE_REST_LIMIT of them (n1-b life-382 2026-11-13 04:42:57: eleven rests on [5,1]).
 _stationary(EXEMPT, "RECHARGE_REST_LIMIT per phase (owner 2026-11-06)",
