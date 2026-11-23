@@ -31,6 +31,12 @@ def entrance(snapshot: Any, grid: Any) -> bool:
     return grid is not None and grid.is_store and _on_dungeon_floor(snapshot)
 
 
+def board_has_entrances(snapshot: Any) -> bool:
+    """Whether ``entrance`` can hold on any cell of ``snapshot``: its board test, for a caller
+    that asks it of every cell (the grid index: then ``entrance`` is ``grid.is_store``)."""
+    return _on_dungeon_floor(snapshot)
+
+
 def only_way(policy: Any, snapshot: Any) -> Position | None:
     """An entrance beside a player with no other step, else None."""
     here = snapshot.player.position

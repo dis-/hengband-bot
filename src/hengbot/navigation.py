@@ -80,6 +80,10 @@ class NavigationLedger:
     def is_expired(self, kind: str, target: Hashable) -> bool:
         return (kind, target) in self._expired
 
+    def expired_state(self) -> frozenset:
+        """Every expired (kind, target): a fingerprint of what ``is_expired`` answers."""
+        return frozenset(self._expired)
+
     def expired_targets(self, kind: str) -> set[Hashable]:
         return {target for k, target in self._expired if k == kind}
 
