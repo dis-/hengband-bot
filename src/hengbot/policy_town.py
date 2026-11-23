@@ -5,6 +5,7 @@ from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import deep_climb, return_start
+from hengbot import recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
@@ -8717,16 +8718,21 @@ class TownMixin:
         「待ちの残りで届く所まで」, recall_wait_reach; owner 2026-11-18 「見える敵がいなければ拾う」,
         ``_loot_before_recall_calm``), else None.  The return owner's wait asks it, and so does
         deep_recall_loot before the emergency ladder in the wait of deep_teleport's Recall
-        (owner 2026-11-23)."""
+        (owner 2026-11-23).  On 50F+, with no known way within the reach, the walk crosses the
+        cells the map does not hold (recall_wait_unknown_path, owner 2026-11-23 「見ていない
+        マスも通って向かう」)."""
         if not self._loot_before_recall_calm(snapshot):
             return None
         self._rearm_navigation_ledger_loot()
+        hostiles = self._strategic_hostiles(snapshot)
         collecting = self._normal_loot_key(
             snapshot,
-            self._strategic_hostiles(snapshot),
+            hostiles,
             max_path_distance=recall_wait_reach.max_path_distance(self, snapshot),
             seek_reason="return:seek-loot",
         )
+        if collecting is None:
+            collecting = recall_wait_unknown_path.key(self, snapshot, hostiles)
         if collecting is not None:
             self._offer_execution(
                 collecting, producer="departure",

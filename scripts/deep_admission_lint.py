@@ -53,6 +53,8 @@ ALLOWED: dict[tuple[str, str], tuple[int, str]] = {
                                                            "10 floors (user 2026-09-23)"),
     ("policy_quest", "_quest_light_key"): (1, "owner 2026-11-22 「50F以降は使わない」: the room "
                                               "light, not the admission"),
+    ("recall_wait_unknown_path", "key"): (1, "owner 2026-11-23 「見ていないマスも通って向かう」: the "
+                                             "50F+ recall wait's walk, not the admission"),
 }
 
 
