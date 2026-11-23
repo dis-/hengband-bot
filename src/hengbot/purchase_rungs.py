@@ -99,7 +99,6 @@ TIER_PRIORITY = "priority"   # 最優先: the owner's 「最優先で買う」 w
 TIER_REQUIRED = "required"   # 必須: what a departure, an errand or a depth gate needs
 TIER_OPTIONAL = "optional"   # 任意: the rest (from the gold above the departure resupply)
 TIERS = (TIER_PRIORITY, TIER_REQUIRED, TIER_OPTIONAL)
-TIER_LABELS = {TIER_PRIORITY: "最優先", TIER_REQUIRED: "必須", TIER_OPTIONAL: "任意"}
 PURCHASE_RUNG_TIER: dict[str, str] = {
     # 必須 -- a required remove-curse, the new character's light and food, the mining set's kit,
     # the departure ledger, the 50F+ *Destruction* gate, the identification errand, a drained

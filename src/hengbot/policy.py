@@ -260,7 +260,6 @@ from hengbot.policy_constants import (
     HOME_PLAN_OWNED_PROCESSING_REASONS,
     INN_BUILDING_TYPE,
     INSCRIBE_KEY,
-    LOW_VALUE_POTION_SVALS,
     FULL_IDENTIFY_DISMISS_SUFFIX,
     FUNDRAISING_GOLD_TARGET,
     FUNDRAISING_DETECTION_BASE_PRICE,
@@ -709,8 +708,6 @@ HOME_PAGE_SINGLE_PAGE_MESSAGES = (
     "Entire inventory is shown.",
 )
 STORE_INVEN_MAX = 24
-POWERUP_HOME_MULTIPLIER = 10
-MIN_STORE_PAGE_SIZE = 12
 # Derived from store.cpp/store.h and cmd-store.cpp, not a tuning cap: Home has
 # 24 slots, or 24 * 10 with powerup_home, and at least 12 displayed slots.
 # Twenty pages cover every reachable Home; one more SPACE guarantees a wrap.
@@ -1081,7 +1078,6 @@ DESTROY_FAIL_LIMIT = 3
 # A one-count ware skips input_quantity, so only its confirmation Return follows.
 # Live economy records show that stacked purchases consume the quantity Return
 # and one DEFAULT_Y confirmation Return; no intervening -more- is present.
-STACKED_BUY_CONFIRM_SUFFIX = "1\r\r"
 # *Identify* always opens screen_object(); equipment with many attributes can
 # add several ``-- more --`` pages before the final continue prompt.  Escape
 # closes each page and is harmless after control returns to the command loop.
@@ -1238,7 +1234,6 @@ SUPPLY_THRESHOLDS: dict[str, dict[str, tuple[tuple[int, int], ...]]] = {
 # When either missing component is visible in the live store snapshot, its
 # observed price replaces that component's base price for the reserve decision.
 HUNTER_OFFICE_BUILDING_TYPE = 13
-RUMOR_EXIT_SUFFIX = "\r\r\x1b"
 # Unlocking destinations can take many medium ("u") rumors. Keep each visit
 # bounded so PostMessage input finishes well below the CLI's stalled-send
 # diagnostic, then re-read exported progress before spending more gold.
@@ -8632,14 +8627,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         """Carried potions counted as ``force``'s ``heal_potions``."""
         return self._exact_potion_count(snapshot, heal_potion_sval(force))
 
-    def _find_low_value_potion(self, snapshot: Snapshot) -> InventoryItem | None:
-        return self._first_item(
-            snapshot,
-            lambda it: it.is_potion
-            and it.aware
-            and it.sval in LOW_VALUE_POTION_SVALS,
-        )
-
 
     def _is_spare_lantern(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # A brass lantern in the pack while a light is already worn is a redundant
@@ -9719,12 +9706,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if item.is_potion and item.aware and item.sval == sval
         )
 
-    @staticmethod
-    def _cure_critical_target(depth: int) -> int:
-        if depth >= CURE_CRITICAL_DEEP_DEPTH:
-            return CURE_CRITICAL_DEEP_TARGET
-        return CURE_CRITICAL_TARGET
-
     def _total_identify_staff_charges(self, snapshot: Snapshot) -> int:
         return sum(
             self._stack_charges(it)
@@ -9733,9 +9714,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and it.aware
             and it.sval == SV_STAFF_IDENTIFY
         )
-
-    def _owns_identify_staff(self, snapshot: Snapshot) -> bool:
-        return self._total_identify_staff_charges(snapshot) > 0
 
 
 
@@ -13210,10 +13188,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def _equipped_digging_tool(self, snapshot: Snapshot) -> InventoryItem | None:
         return next((it for it in snapshot.equipment if it.is_digging_tool), None)
-
-    @staticmethod
-    def _pack_has_melee_weapon(snapshot: Snapshot) -> bool:
-        return any(it.is_melee_weapon for it in snapshot.inventory)
 
     def _pack_has_safe_melee_weapon(self, snapshot: Snapshot) -> bool:
         return any(

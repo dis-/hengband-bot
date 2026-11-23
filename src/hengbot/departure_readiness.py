@@ -314,9 +314,3 @@ def _extra_items(policy: Any, board: Snapshot, depth: int, pure: bool) -> list[S
     return items
 
 
-def leaf_supply_kinds(policy: Any, board: Snapshot, leaf: str) -> set[str]:
-    """The ledger kinds supplying ``leaf`` (empty for a leaf no supply answers)."""
-    if leaf not in SUPPLY_LEAVES:
-        return set()
-    return readiness_table(policy, board).leaf_kinds(leaf)
-

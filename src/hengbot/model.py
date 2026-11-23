@@ -555,12 +555,6 @@ class PlayerState:
         return self.hp / self.max_hp
 
     @property
-    def mp_ratio(self) -> float:
-        if self.max_mp <= 0:
-            return 1.0
-        return self.mp / self.max_mp
-
-    @property
     def hungry(self) -> bool:
         return self.food_state in {"hungry", "weak", "fainting"}
 

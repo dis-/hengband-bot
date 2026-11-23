@@ -25,7 +25,7 @@ from hengbot.town_hold import home_sequence_has_holder as town_home_sequence_has
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_constants import AMMO_CARRY_TARGET, FUNDRAISING_START_GOLD, QUAFF_KEY, TORCH_THROW_MAX_DEPTH, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, MANA_FOOD_DEVICE_TARGET, BUY_KEY, BUY_CONFIRM_SUFFIX, FOOD_MIN_SVAL, FOOD_TYPE_RATION, FOOD_TYPE_MANA, FUNDRAISING_GOLD_TARGET, IDENTIFY_PURCHASE_MAX, LEAVE_STORE_KEY, DIGGER_WIELD_LIMIT, PACK_CAPACITY, HOME_BATCH_RESERVED_SLOTS, SELL_KEY, SELL_ATTEMPT_LIMIT, STORE_RESTOCK_WAIT_TURNS, STORE_RESTOCK_REASON_NAMES, STORE_RESTOCK_REST_GAME_TURNS, STORE_ACCEPTED_TVALS, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, TOWN_TRAVEL_STORE_SYMBOLS, CROSS_TOWN_SHOPPING_RESERVE, SHOP_APPROACH_STUCK_LIMIT, TOWN_TELEPORT_COST, WAIT_KEY
-from hengbot.policy_types import StoreVisitPhase, StoreVisit, TownNeed, NeedSpec, CrossTownShoppingExpedition, ProcurementHomeGate
+from hengbot.policy_types import StoreVisitPhase, TownNeed, CrossTownShoppingExpedition, ProcurementHomeGate
 from hengbot.policy_constants import MIN_FREE_PACK_SLOTS
 from hengbot.policy_constants import STAFF_IDENTIFY_MIN_CHARGES
 from hengbot.model import PLAYER_CLASS_WARRIOR, STORE_ALCHEMIST, STORE_ARMOURY, STORE_BLACK, STORE_GENERAL, STORE_HOME, STORE_MAGIC, STORE_TEMPLE, STORE_WEAPON, SV_LITE_TORCH, SV_POTION_RESISTANCE, SV_POTION_SPEED, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, RESTORE_POTION_SVAL_BY_STAT, SV_ROD_LITE, SV_SCROLL_IDENTIFY, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_REMOVE_CURSE, SV_SCROLL_STAR_REMOVE_CURSE, SV_SCROLL_ENCHANT_WEAPON_TO_HIT, SV_SCROLL_ENCHANT_WEAPON_TO_DAM, SV_STAFF_IDENTIFY, SV_WAND_STONE_TO_MUD, SV_HAFTED_WIZSTAFF, TVAL_FOOD, TVAL_LITE, TVAL_POTION, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND, TVAL_HAFTED, TVAL_SHOT, TVAL_ARROW, TVAL_BOLT, TVAL_BOW, TVAL_DIGGING, TVAL_POLEARM, TVAL_SWORD, TVAL_BOOTS, TVAL_GLOVES, TVAL_HELM, TVAL_CROWN, TVAL_SHIELD, TVAL_CLOAK, TVAL_SOFT_ARMOR, TVAL_HARD_ARMOR, TVAL_DRAG_ARMOR, InventoryItem, MonsterState, Position, Snapshot, StoreItem
@@ -388,22 +388,6 @@ class ShopMixin(InStoreMixin):
         }
         if visit.owner == owner or visit.owner in aliases.get(owner, set()):
             self._close_store_visit(outcome)
-
-    def _store_visit_arbiter_owner(self, visit: StoreVisit) -> str:
-        if (
-            visit.owner in {"shop-handler", "shop-one-shot", "home-one-shot"}
-            and not visit.operation_posted
-            and visit.phase in {StoreVisitPhase.APPROACHING, StoreVisitPhase.ENTERING}
-        ):
-            return "store-router"
-        aliases = {
-            "shop-handler": "shop-buy",
-            "shop-one-shot": "shop-buy",
-            "home-one-shot": "home-visit",
-            "equipment-transaction": "equipment-txn",
-            "town-errand": "town-plan",
-        }
-        return aliases.get(visit.owner, visit.owner)
 
     @staticmethod
     def _inventory_item_from_store_item(item: StoreItem) -> InventoryItem:
@@ -3001,17 +2985,6 @@ class ShopMixin(InStoreMixin):
                      and not me_capability.replaced_by_absorbed(
                          self, snapshot, item, me_capability.PURCHASE)
                      and item.price <= snapshot.player.gold), None)
-
-    def _live_purchase_need(
-        self, snapshot: Snapshot, category: str,
-    ) -> NeedSpec | None:
-        return next(
-            (
-                need for need in self._town_need_registry()
-                if need.category == category and need.produces(snapshot)
-            ),
-            None,
-        )
 
     @staticmethod
     def _purchase_item_identity(item) -> tuple[object, ...]:

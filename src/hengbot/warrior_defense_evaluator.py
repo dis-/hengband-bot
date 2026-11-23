@@ -115,7 +115,6 @@ BLOW_POWER = {
     "FLAVOR": 0,
 }
 
-SIDE_EFFECT_FREE = frozenset({"HURT", "SUPERHURT", "FLAVOR"})
 MODELLED_HP_EFFECTS = frozenset(BLOW_POWER)
 
 
