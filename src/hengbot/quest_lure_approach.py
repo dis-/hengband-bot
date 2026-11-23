@@ -61,13 +61,24 @@ and who are closed on afterwards).  The phase runs while an approach race lives.
    the absorbed power); with no means the walk keeps to open ground.  In view, the plan's fight answers;
    on the cell with nothing come within ``enemy_wait_turns`` the cell is spent and the next chosen.
    QUEST_33's split stays in force for any EVIL summoner alive (the walks never enter where both act).
+
+The sides already mixed (owner 2026-11-23, asked 「善と悪の召喚持ちがすでに同じ部屋に混ざって互いに召喚し合って
+いる時、どうしますか？」, verbatim 「加速して向かい、強引に邪悪側を排除する。」): while quest_mixed_assault holds
+its latch the lure gives way (no lure start, no step back, no disengage when a Queen and a Gachapin face
+each other); the assault kills the Gachapins.  The approach to the Queens follows their death as before.
 """
 
 from __future__ import annotations
 
 import heapq
 
-from hengbot import quest_alignment_split, quest_exposure, quest_plan_base, quest_wait_placement
+from hengbot import (
+    quest_alignment_split,
+    quest_exposure,
+    quest_mixed_assault,
+    quest_plan_base,
+    quest_wait_placement,
+)
 from hengbot.model import Position
 from hengbot.policy_constants import WAIT_KEY
 
@@ -539,7 +550,10 @@ def key(policy, snapshot, navigator, plan, board) -> str | None:
     if (value is None or snapshot.player.blind or snapshot.player.confused
             or not active(policy, snapshot, navigator, plan)):
         return None
-    read = quest_wait_placement.reader(policy, snapshot, navigator, plan)
     if _living(policy, snapshot, navigator, plan, value["lure_races"]):
+        if quest_mixed_assault.active(policy, snapshot, navigator, plan):
+            return None  # the sides already mixed: no lure, the assault (owner 2026-11-23)
+        read = quest_wait_placement.reader(policy, snapshot, navigator, plan)
         return _lure(policy, snapshot, navigator, plan, board, value, read)
+    read = quest_wait_placement.reader(policy, snapshot, navigator, plan)
     return _approach(policy, snapshot, navigator, plan, board, value, read)

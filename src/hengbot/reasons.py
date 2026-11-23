@@ -259,6 +259,9 @@ _rows(NOT_ESCAPE, ("finale_teleport_tour", "me_inn_refill"),
       "depart:inn-refill:finale-teleport:approach", "depart:inn-refill:finale-teleport:rest")
 _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's chase of a summoner: a step toward it",
       "quest-strategy:summoned-approach")
+# Owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」: the step toward the EVIL side once mixed.
+_rows(NOT_ESCAPE, "quest_mixed_assault", "QUEST_33's assault on the EVIL side once the sides are mixed: a step "
+      "toward it", "quest-strategy:mixed-assault-walk")
 _rows(EXCLUDED, "quest25_battle", _RULE_PLAN, "quest25:teleport")
 _rows(EXCLUDED, "breeder_quest", _RULE_PLAN + " (Q2's breeder breakthrough)", "breeder-breakthrough:teleport")
 _RULE_FINALE = ("the 99F/100F battle's own leaves (owner 2026-11-20, verbatim: 「召喚または攻撃を受けてHPが800を"

@@ -33,6 +33,13 @@ DECLARED CONSTRUCTED: the policy is n1-c life-217's town arrival (tests/test_que
 the game turn advanced 3 a decision, and the detection's result board given the monsters life-221's
 detection of 4492306 showed (the floor's latest picture; no It and no Bokrug among them, as on every
 detection's board since 4490812).
+
+The owner's answer of 2026-11-23 (「加速して向かい、強引に邪悪側を排除する。」, quest_mixed_assault) came after
+this record: its result board (4492306) shows the Queens' fire ants packed round the three awake
+Gachapins, the sides mixed, so the shipped plan now assaults the Gachapins from there
+(``test_the_shipped_plan_assaults_the_mixed_sides``).  The detection's own rules pinned above are read
+on the plan as it was before that answer: DECLARED CONSTRUCTED, ``when_mixed`` taken out of the plan's
+``alignment_split`` in ``setUp`` (n1c-221-q33-mixed-1123).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -44,7 +51,13 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from hengbot import quest_alignment_split, quest_detect_remaining, quest_lure_approach, quest_room_sweep
+from hengbot import (
+    quest_alignment_split,
+    quest_detect_remaining,
+    quest_lure_approach,
+    quest_mixed_assault,
+    quest_room_sweep,
+)
 from hengbot.model import parse_snapshot
 from hengbot.policy_constants import WAIT_KEY
 from tests.test_quest33_alignment_split import BOKRUG, DAGON, IT, QUEST, quest_dir, recorded
@@ -77,6 +90,9 @@ class N1c221Q33SweepTest(unittest.TestCase):
         self.policy._sweep_kill_record_path = record
         self.plan = self.policy.approved_quest_strategy(QUEST).engagement_plan["room_sweep"]
         self.raw = {board["turn"]: board for board in load("boards.json.xz")}
+        if self._testMethodName != "test_the_shipped_plan_assaults_the_mixed_sides":
+            # DECLARED CONSTRUCTED (module docstring): the plan before the owner's 2026-11-23 answer.
+            del self.plan["alignment_split"][quest_mixed_assault.FIELD]
 
     def board(self, raw):
         snapshot = parse_snapshot(raw, self.policy._monrace_knowledge)
@@ -185,6 +201,15 @@ class N1c221Q33SweepTest(unittest.TestCase):
         self.assertTrue(quest_lure_approach.active(self.policy, shown, navigator, self.plan))
         self.assertEqual(sorted(turn for race, turn in navigator.split_kill_turns if race in (IT, BOKRUG))[-2:],
                          [shown.turn, shown.turn])
+
+    def test_the_shipped_plan_assaults_the_mixed_sides(self):
+        made = self.recorded_boards()
+        result = self.board(self.raw[RESULT_TURN])
+        self.assertTrue(quest_mixed_assault.mixed_now(self.policy, result, self.navigator(), self.plan))
+        self.assertTrue(self.navigator().mixed_assault)
+        turn, key, reason = made[-1]
+        self.assertEqual((turn, reason), (STOP_TURN, quest_mixed_assault.WALK_REASON))
+        self.assertIn(key, STEP_KEYS)
 
 
 if __name__ == "__main__":

@@ -504,6 +504,9 @@ FLOOR_PLANS = (
             ("quest_plan_base._restore", OWN),
             # Owner 2026-11-23 「数マス以内なら拾って飲む」: a drained ability's floor restore potion.
             ("quest_plan_base.floor_restore_key", OWN), ("_out_of_line", OWN),
+            # QUEST_33, owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」: the sides mixed, the
+            # assault (the rest first below the plan's ratio).
+            ("quest_mixed_assault.key", OWN),
             # QUEST_33, owner 2026-11-19 「安全になったら休息してから…少しずつ釣りだして数を減らす」.
             ("quest_summon_answer.after_key", OWN),
             ("quest_plan_base._rest", OWN), ("_ambush_key", OWN), ("_advance", OWN)), enemy=False),
@@ -516,6 +519,10 @@ FLOOR_PLANS = (
             ("quest_plan_base._give_up", SURVIVAL), ("quest_plan_base._below_line", SURVIVAL),
             ("quest_plan_base._heal", SURVIVAL),
             ("quest_plan_base._speed", SURVIVAL),
+            # QUEST_33, owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」: the sides mixed and
+            # summoning at each other, the EVIL side killed by force under the survival rungs, ahead of
+            # the summon rules (their summoner shot first would turn the bot on the GOOD side).
+            ("quest_mixed_assault.key", FIRST),
             # QUEST_33, owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」: the summoner
             # gone after on the boards after its summon.
             ("quest_summon_answer.chase_key", FIRST),

@@ -163,6 +163,10 @@ class QuestFloorNavigator:
     # (quest_room_sweep: the walk hands the floor to kill_all_patrol).  Same rule.
     sweep_round_contact = False
     sweep_found_nothing = False
+    # The sides of QUEST_33 seen mixed and summoning at each other (quest_mixed_assault, owner
+    # 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」): latched until the side to kill is dead.
+    # Same rule.
+    mixed_assault = False
     # The phase battle of Q25's revised plan (quest25_battle.Battle): same rule.
     phase_battle = None
     # The cells an owner left (left_cells) as this board's walks read them: (floor key, cell the
@@ -242,6 +246,7 @@ class QuestFloorNavigator:
         self.remain_detections = ()
         self.sweep_round_contact = False
         self.sweep_found_nothing = False
+        self.mixed_assault = False
         self.summon_chase = None
         self.phase_battle = None
 
