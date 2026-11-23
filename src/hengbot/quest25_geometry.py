@@ -75,6 +75,9 @@ STAIRWAY_DOOR = (13, 28)
 STAIRWAY_STAND = (13, 27)     # 「[13,27] から階段までは距離2」
 DRUJ_DOOR = (11, 19)
 DRUJ_AREA_STAND = (13, 20)    # phase7: 「13,20に移動して、11,19を岩石溶解して11,19に範囲攻撃」
+# The owner's named stands of the phases (quest_plan_base Contract.stand_cells).
+PLAN_STANDS = frozenset({MEET_RANGED, WALL_PASSER_STAND, STRAGGLER_STAND, *QUYL_STANDS, *TOME_NEAR_STANDS,
+                         MASS_STAND, STAIRWAY_STAND, DRUJ_AREA_STAND})
 
 # The draft's initial roster count (phase6_sweep 「初めの配置」); MASS breeds and is judged
 # by sight from MASS_STAND instead.

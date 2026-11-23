@@ -13871,6 +13871,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest25_battle.py:_no_pass": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest25_battle.py:_out_of_fire_key": {
     "classification": "producer",
     "rows": [
@@ -14809,13 +14816,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_find_exit.py:_engaged_survival": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
   "quest_find_exit.py:_exit_cell": {
     "classification": "producer",
     "rows": [
@@ -15493,6 +15493,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_plan_base.py:_direction": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_plan_base.py:_give_up": {
     "classification": "producer",
     "rows": [
@@ -15605,6 +15612,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_plan_base.py:_yx": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_plan_base.py:floor_restore_key": {
     "classification": "producer",
     "rows": [
@@ -15613,6 +15627,27 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_plan_base.py:hall_away_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:plan_door": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:plan_walk": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:survival_stage": {
     "classification": "producer",
     "rows": [
       "survival"

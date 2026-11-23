@@ -495,6 +495,12 @@ class _Board:
         # (quest_plan_base.fires_at_player, n1-c life-220 2026-11-22): it acts on him now.
         self.firing = [monster for monster in known if monster.perception == "detected"
                        and quest_plan_base.fires_at_player(policy, snapshot, monster)]
+        # The plan's contract (quest_plan_base.Contract): its chokes, no cell refused outright (the
+        # walks keep off the left cells while a way off them leads on), its rest line.
+        plan = _plan_of(profile)
+        self.contract = quest_plan_base.Contract(
+            stand_cells=frozenset(tuple(cell) for cell in plan.get("choke_cells", ())),
+            recovery_line=quest_plan_base.recovery_line_of(plan))
 
     @property
     def engaged(self) -> bool:
@@ -521,8 +527,7 @@ def _step_on_exit(policy, snapshot, navigator, board) -> str | None:
     if (snapshot.player.position.distance_to(exit_cell) > 1
             or exit_cell in board.occupied):
         return None
-    policy.last_reason = STEP_ON_EXIT_REASON
-    return policy._step_toward(snapshot, exit_cell)
+    return quest_plan_base.plan_walk(policy, snapshot, exit_cell, STEP_ON_EXIT_REASON)
 
 
 def _below_line_recall(policy, snapshot, profile, *, line=True) -> str | None:
@@ -874,9 +879,7 @@ def _way_back(policy, snapshot, navigator, plan, board) -> str | None:
         blocker = next((monster for monster in board.in_view if monster.position == step), None)
         if blocker is not None:
             return combat_answer.strike_key(policy, snapshot, blocker, MELEE_REASON)
-    policy.last_reason = PULLED_BACK_REASON
-    policy._declare_reach(_exit_cell(navigator))
-    return policy._step_toward(snapshot, step)
+    return quest_plan_base.plan_walk(policy, snapshot, step, PULLED_BACK_REASON, reach=_exit_cell(navigator))
 
 
 def _exposed_count(navigator, plan, path: list[Position]) -> int:
@@ -963,8 +966,7 @@ def _clear_key(policy, snapshot, navigator, plan, board) -> str | None:
                               {Position(*cell) for cell in plan["choke_cells"]}, board.occupied,
                               as_it_is=True)
         if len(path) >= 2:
-            policy.last_reason = CLEAR_REASON
-            return policy._step_toward(snapshot, path[1])
+            return quest_plan_base.plan_walk(policy, snapshot, path[1], CLEAR_REASON)
     movers = _unvisited_movers(policy, navigator, profile)
     _note_empty_placements(snapshot, navigator, board, movers)
     movers = _unvisited_movers(policy, navigator, profile)
@@ -997,9 +999,7 @@ def _pull_walk(policy, snapshot, navigator, plan, board) -> str | None:
         blocker = next((monster for monster in board.in_view if monster.position == step), None)
         if blocker is not None:
             return combat_answer.strike_key(policy, snapshot, blocker, MELEE_REASON)
-    policy.last_reason = PULL_WALK_REASON
-    policy._declare_reach(_exit_cell(navigator))
-    return policy._step_toward(snapshot, step)
+    return quest_plan_base.plan_walk(policy, snapshot, step, PULL_WALK_REASON, reach=_exit_cell(navigator))
 
 
 def _off_the_pull_lines(policy, snapshot, navigator, plan, board) -> str | None:
@@ -1014,8 +1014,7 @@ def _off_the_pull_lines(policy, snapshot, navigator, plan, board) -> str | None:
         terrain, exposure, _cell(snapshot.player.position), goals, off), occupied)
     if len(path) < 2:
         return None
-    policy.last_reason = PULLED_BACK_REASON
-    return policy._step_toward(snapshot, Position(*path[1]))
+    return quest_plan_base.plan_walk(policy, snapshot, path[1], PULLED_BACK_REASON)
 
 
 def _advance(policy, snapshot, navigator, plan, board) -> str | None:
@@ -1061,9 +1060,7 @@ def _advance(policy, snapshot, navigator, plan, board) -> str | None:
     hasted = _haste_before_shouted(policy, snapshot, navigator, plan, step)
     if hasted is not None:
         return hasted
-    policy.last_reason = WALK_REASON
-    policy._declare_reach(exit_cell)
-    return policy._step_toward(snapshot, step)
+    return quest_plan_base.plan_walk(policy, snapshot, step, WALK_REASON, reach=exit_cell)
 
 
 def key(policy, snapshot) -> str | None:
@@ -1089,7 +1086,10 @@ def key(policy, snapshot) -> str | None:
             threat_tiers.instant_death_key(
                 policy, snapshot, lambda: _instant_death_escape(policy, snapshot, profile, board))
             or (_below_line_recall(policy, snapshot, profile) if board.enemy_for_the_line else None)
-            or (_heal(policy, snapshot, profile) if board.engaged else None)
+            # The shared survival stage: the cure and the Healing; on these cells the haste is the
+            # plan's own dose before the step onto them (``_haste_before_shouted``).
+            or (quest_plan_base.survival_stage(policy, snapshot, profile, board, enemy=True, haste=False)
+                if board.engaged else None)
             or _recall_wait_away(policy, snapshot, board)
             or summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
@@ -1102,6 +1102,8 @@ def key(policy, snapshot) -> str | None:
         return (
             summon_response.key(policy, snapshot)
             or resist_potion.key(policy, snapshot)
+            # The shared survival stage of a quiet board: the drained abilities' restore.
+            or quest_plan_base.survival_stage(policy, snapshot, profile, board, enemy=False)
             or _rest(policy, snapshot, plan, board)
             or (_to_choke(policy, snapshot, navigator, plan, board) if board.mobile_awake else None)
             or _wait_after_fight(policy, snapshot, navigator, plan, board)
@@ -1111,7 +1113,8 @@ def key(policy, snapshot) -> str | None:
         threat_tiers.instant_death_key(
             policy, snapshot, lambda: _instant_death_escape(policy, snapshot, profile, board))
         or _below_line_recall(policy, snapshot, profile)
-        or (_engaged_survival(policy, snapshot, profile, board) if board.engaged else None)
+        or (quest_plan_base.survival_stage(policy, snapshot, profile, board, enemy=True)
+            if board.engaged else None)
         or _recall_wait_away(policy, snapshot, board)
         # Owner 2026-11-04: the answer to the summons, ahead of the plan's own order.
         or summon_response.key(policy, snapshot)
@@ -1164,14 +1167,6 @@ def _haste_before_shouted(policy, snapshot, navigator, plan, step: Position) -> 
     if policy._player_hasted(snapshot) or not _exposure(navigator, plan).exposed(_cell(step)):
         return None
     return speed_dose.key(policy, snapshot, SPEED_REASON)
-
-
-def _engaged_survival(policy, snapshot, profile, board) -> str | None:
-    return (
-        _cure(policy, snapshot)
-        or _heal(policy, snapshot, profile)
-        or _speed(policy, snapshot, profile, board)
-    )
 
 
 def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:

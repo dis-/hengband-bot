@@ -273,6 +273,76 @@ def _branch_findings(plan, branch) -> list[str]:
     return findings
 
 
+def _stage_findings(plan, branch) -> list[str]:
+    """The shared survival stage in every branch of the plan's own order, and on a quiet board the
+    plan's recovery (whole-bot maintainability review 2026-11-23 K1, (a)-4)."""
+    where = f'{plan.rung} "{branch.board}"'
+    names = [name for name, _ in branch.rungs]
+    if ladder.OWN not in [role for _, role in branch.rungs]:
+        return []
+    findings = []
+    if ladder.SURVIVAL_STAGE not in names:
+        findings.append(f'{where}: the survival stage ({ladder.SURVIVAL_STAGE}) is not entered')
+    if not branch.enemy and not set(names) & ladder.QUIET_RECOVERY.keys():
+        findings.append(f'{where}: a quiet board without the recovery of the plan (QUIET_RECOVERY)')
+    return findings
+
+
+def _class_assigns(tree, name) -> tuple[set, list]:
+    """The ``self.<attr>`` assigned in class ``name``'s ``__init__``, and its bases' dotted names."""
+    cls = next((node for node in ast.walk(tree) if isinstance(node, ast.ClassDef) and node.name == name),
+               None)
+    if cls is None:
+        return set(), []
+    assigned = {target.attr for node in ast.walk(cls) if isinstance(node, (ast.Assign, ast.AnnAssign))
+                for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+                if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
+                and target.value.id == 'self'}
+    return assigned, [dotted(base) for base in cls.bases]
+
+
+BOARD_ATTRIBUTES = ('firing', 'contract')
+
+
+def board_findings(sources: dict[str, str]) -> list[str]:
+    """Each plan's board counts the sensed shooters and carries the plan's contract."""
+    findings = []
+    for module, board in ladder.PLAN_BOARDS.items():
+        owner, name = board.split('.')
+        assigned, bases = _class_assigns(ast.parse(sources[owner]), name)
+        for base in bases:
+            if '.' in base:
+                base_module, base_name = base.split('.')
+                inherited, _ = _class_assigns(ast.parse(sources[base_module]), base_name)
+                assigned |= inherited
+        for attribute in BOARD_ATTRIBUTES:
+            if attribute not in assigned:
+                findings.append(f'{module}: its board {board} does not set self.{attribute}')
+    return findings
+
+
+# The policy's reads a walk may make; every other ``_walk*`` is a walk of its own.
+WALK_READS = frozenset({'_walkable_neighbors', '_walk_veto', '_walk_step_target'})
+DOOR_KEYS = frozenset({'CLOSE_KEY', 'OPEN_KEY'})
+
+
+def walk_findings(sources: dict[str, str]) -> list[str]:
+    """No plan module steps or keys a door by itself: quest_plan_base.plan_walk and plan_door."""
+    findings = []
+    for module in ladder.PLAN_WALK_MODULES:
+        for node in ast.walk(ast.parse(sources[module])):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                attr = node.func.attr
+                if attr == '_step_toward' or (attr.startswith('_walk') and attr not in WALK_READS
+                                              and dotted(node.func.value) in ('', 'policy', 'ctx.policy')):
+                    findings.append(f'{module} line {node.lineno}: {attr} called directly, '
+                                    'not through quest_plan_base.plan_walk')
+            if isinstance(node, ast.Name) and node.id in DOOR_KEYS:
+                findings.append(f'{module} line {node.lineno}: {node.id} composed directly, '
+                                'not through quest_plan_base.plan_door')
+    return findings
+
+
 def _rule_findings(names) -> list[str]:
     findings = []
     for rule in ladder.OWNER_RULES:
@@ -352,13 +422,19 @@ def analyze(policy_source: str, plan_sources: dict[str, str]) -> list[str]:
             findings.append(f'{plan.rung}: the table says {said}, the module has {found}')
         for branch in plan.branches:
             findings.extend(_branch_findings(plan, branch))
+            findings.extend(_stage_findings(plan, branch))
+    if all(module in plan_sources for module in (*ladder.PLAN_WALK_MODULES, 'quest_plan_base')):
+        findings.extend(board_findings(plan_sources))
+        findings.extend(walk_findings(plan_sources))
     return findings
 
 
 def repository_sources() -> tuple[str, dict[str, str]]:
     def read(name):
         return (POLICY_ROOT / f'{name}.py').read_text(encoding='utf8')
-    modules = [plan.module for plan in ladder.FLOOR_PLANS] + list(ladder.LAYER_MODULES.values())
+    modules = list(dict.fromkeys([plan.module for plan in ladder.FLOOR_PLANS]
+                                 + list(ladder.LAYER_MODULES.values())
+                                 + list(ladder.PLAN_WALK_MODULES) + ['quest_plan_base']))
     return read('policy'), {module: read(module) for module in modules}
 
 

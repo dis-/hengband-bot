@@ -14,6 +14,8 @@ Nothing here is persisted: the floor's state is the QuestFloorNavigator's (quest
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 from hengbot import (
     line_of_fire,
     me_ranged_first,
@@ -27,7 +29,7 @@ from hengbot import (
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position, RESTORE_POTION_SVAL_BY_STAT, SV_POTION_HEALING, TVAL_POTION
-from hengbot.policy_constants import HEAL_POTION_SVALS, PACK_CAPACITY, REST_MACRO
+from hengbot.policy_constants import CLOSE_KEY, DIRECTION_KEYS, HEAL_POTION_SVALS, PACK_CAPACITY, REST_MACRO
 from hengbot.quest_navigator import PICKUP_KEY, QuestFloorNavigator
 
 MELEE_REASON = "quest-strategy:melee"
@@ -106,6 +108,30 @@ def fires_at_player(policy, snapshot, monster) -> bool:
             and policy._predicted_damage(snapshot, [monster], turns=1) > 0)
 
 
+class Contract(NamedTuple):
+    """What a floor plan says of its floor, once, for every walk and rung of it (whole-bot
+    maintainability review 2026-11-23 K1, (a)-4): the plans had each kept these to themselves, and
+    only quest25_battle's ``_path`` knew the cells no walk may pass.
+
+    ``stand_cells``: the (y, x) cells the plan stands and fights on (its chokes, its stands).
+    ``no_pass``: the (y, x) cells no step of the plan enters (``plan_walk`` refuses one); the cells
+    a walk merely keeps off while a way off them leads on (left_cells for quest_find_exit and
+    quest_room_sweep) are not these.  ``recovery_line``: the HP ratio below which the plan rests on
+    a quiet board (its ``rest_below_ratio``), None where it names none."""
+    stand_cells: frozenset = frozenset()
+    no_pass: frozenset = frozenset()
+    recovery_line: float | None = None
+
+
+NO_CONTRACT = Contract()
+
+
+def recovery_line_of(plan) -> float | None:
+    """The plan's ``rest_below_ratio`` as the contract's recovery line."""
+    value = (plan or {}).get("rest_below_ratio")
+    return None if value is None else float(value)
+
+
 class Board:
     """The enemies of one board, as a room plan weighs them (quest_room_sweep; quest25_battle
     leaves nothing alone).  ``left_alone``: the races seen but no target yet.
@@ -140,6 +166,8 @@ class Board:
         self.firing = [monster for monster in known
                        if monster.perception == "detected" and monster.race_id not in left_alone
                        and fires_at_player(policy, snapshot, monster)]
+        # The plan's contract (``Contract``): the plan that builds the board sets its own.
+        self.contract = NO_CONTRACT
 
     @property
     def enemy(self) -> bool:
@@ -188,9 +216,50 @@ def _least_exposed_walk(navigator, snapshot, exposure, start, goals, taken) -> l
 def _path_step(policy, snapshot, path: list[Position], reason: str) -> str | None:
     if len(path) < 2:
         return None
+    return plan_walk(policy, snapshot, path[1], reason, reach=path[-1])
+
+
+def _yx(cell) -> tuple[int, int]:
+    return (cell.y, cell.x) if isinstance(cell, Position) else (int(cell[0]), int(cell[1]))
+
+
+def plan_walk(policy, snapshot, target, reason: str | None = None, *, reach=None,
+              no_pass=frozenset()) -> str | None:
+    """The one step of every floor plan's walk (whole-bot maintainability review 2026-11-23 K1,
+    (a)-4; scripts/dungeon_ladder_lint.py fails a plan module that steps by ``_step_toward``
+    itself): toward ``target`` (a Position or a (y, x) cell), under ``reason`` (None: the reason the
+    caller set), the walk's end ``reach`` declared, as every plan's walk did on its own.
+
+    A ``target`` among the contract's ``no_pass`` cells is not stepped onto: None, and the plan
+    answers the board otherwise (quest25_battle holds).  ``_step_toward`` composes the step: a closed
+    door beside opens (``o`` + direction), a known trap is searched or disarmed, and the warning's
+    refusal stays its own reason (policy_navigation)."""
+    if _yx(target) in no_pass:
+        return None
+    if reason is not None:
+        policy.last_reason = reason
+    if reach is not None:
+        policy._declare_reach(reach if isinstance(reach, Position) else Position(*_yx(reach)))
+    return policy._step_toward(snapshot, target if isinstance(target, Position) else Position(*_yx(target)))
+
+
+def _direction(here: Position, cell: tuple[int, int]) -> str:
+    """The direction key from ``here`` toward the adjacent ``cell``."""
+    y, x = cell
+    return DIRECTION_KEYS[((y > here.y) - (y < here.y), (x > here.x) - (x < here.x))]
+
+
+def plan_door(policy, snapshot, door, reason: str, *, close: bool = False) -> str | None:
+    """The plan's open or close of the door ``door`` beside the player, the one entry for both.
+
+    Open: the step toward it (``_step_toward`` composes ``o`` + direction with the lock and jam
+    counts).  Close: ``c`` + direction.  Either way observed_input sends the command letter alone and
+    releases the direction only at the observed direction question (EASY_DIRECTION_COMMANDS:
+    easy_open takes the one door around without asking, n1-c life-221 2026-11-23 05:00:39)."""
     policy.last_reason = reason
-    policy._declare_reach(path[-1])
-    return policy._step_toward(snapshot, path[1])
+    if close:
+        return CLOSE_KEY + _direction(snapshot.player.position, _yx(door))
+    return policy._step_toward(snapshot, Position(*_yx(door)))
 
 
 # -- the shot -------------------------------------------------------------------------
@@ -280,10 +349,38 @@ def _speed(policy, snapshot, profile, board) -> str | None:
     return speed_dose.key(policy, snapshot, SPEED_REASON)
 
 
+def survival_stage(policy, snapshot, profile, board, *, enemy: bool | None = None,
+                   restore=None, haste: bool = True) -> str | None:
+    """The survival stage every branch of every floor plan enters (dungeon_ladder FLOOR_PLANS;
+    whole-bot maintainability review 2026-11-23 K1, (a)-4: the plans had each kept their own
+    cure, Healing, haste and restore, and a branch could go without one).
+
+    On a board with an enemy (``enemy``; None reads ``board.enemy``, which counts the hostiles known
+    by telepathy or detection that fire at the player, ``Board.firing``): the cure, the Healing at
+    the plan's heal line, the haste (``_cure``, ``_heal``, ``_speed``).  On a quiet board: the drained
+    abilities' restore (``restore``, the plan's own, else ``_restore``).  The 1-turn 即死 heads each
+    enemy branch above it (threat_tiers.instant_death_key), and the quiet board's recovery (the
+    rest below the contract's ``recovery_line``) is the plan's own rung (dungeon_ladder
+    QUIET_RECOVERY), where its walks out of the fire come before it.
+
+    ``haste`` False: the plan doses its haste by a rule of its own on this board (quest_find_exit on
+    the cells the casters reach: owner 2026-11-22 「加速してから入る」, the dose before a step onto
+    them, ``_haste_before_shouted``; the walk out of their reach comes before a fight's dose)."""
+    if board.enemy if enemy is None else enemy:
+        return (_cure(policy, snapshot)
+                or _heal(policy, snapshot, profile)
+                or (_speed(policy, snapshot, profile, board) if haste else None))
+    return (restore or _restore)(policy, snapshot)
+
+
 def _rest(policy, snapshot, plan, board) -> str | None:
-    """Below the plan's ratio on a board with nothing to answer: rest, however low."""
+    """Below the plan's ratio on a board with nothing to answer: rest, however low.  The ratio is
+    the contract's ``recovery_line`` (the plan's ``rest_below_ratio``)."""
     player = snapshot.player
-    if (player.hp_ratio >= float(plan["rest_below_ratio"]) or player.confused or board.pulling
+    line = getattr(board, "contract", NO_CONTRACT).recovery_line
+    if line is None:
+        line = float(plan["rest_below_ratio"])
+    if (player.hp_ratio >= line or player.confused or board.pulling
             or player.food_state not in {"normal", "full", "gorged"}):
         return None
     policy.last_reason = "rest"
@@ -478,6 +575,4 @@ def floor_restore_key(policy, snapshot) -> str | None:
     if found is None:
         return None
     step, target = found
-    policy.last_reason = FLOOR_RESTORE_WALK_REASON
-    policy._declare_reach(target)
-    return policy._step_toward(snapshot, step)
+    return plan_walk(policy, snapshot, step, FLOOR_RESTORE_WALK_REASON, reach=target)
