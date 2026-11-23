@@ -111,6 +111,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "amberite_curse.py:_refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "amberite_curse.py:after_ladder": {
     "classification": "producer",
     "rows": [

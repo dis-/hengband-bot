@@ -113,6 +113,8 @@ REGISTRY = (
     # amberite_curse
     S("_amberite_curse_note", "amberite_curse", LIFE,
       "(decision sequence, record);"),
+    S("_amberite_curse_readings", "amberite_curse", LIFE,
+      "(decision sequence, {indices: reading}): the kill-condition readings of that decision; record only"),
     # approach_answer
     S("_approach_answer_last", "approach_answer", LIFE,
       "the store approach's latest typed answer, stamped with its decision (record only)"),

@@ -10,6 +10,9 @@ known way to the piles.  Two of them, copied read-only from the viewing server's
   turns 4392651-4392698 (the use at 4392698 deleted 器用さの薬, *鑑定*の巻物 and two rods).
 - n1-b life-416 (Magic-Eater, Angband 95F), snapshots-20261123-145249-482bc2.jsonl.gz, player
   turns 4038420-4038441 (the use at 4038441 deleted two スピードの指輪 {未鑑定} and a potion).
+- n1-b life-416 (Magic-Eater, resist curse, Angband 95F), snapshots-20261123-150850-02ba52.jsonl.gz,
+  player turns 4054730-4054751 (the use at 4054751 erased アンバーの狂気の夢想家『ブランド』;
+  tests/test_amberite_readings_1123_recorded.py).
 
 The copies (``SOURCE``, ``<name>-boards.jsonl.gz``, wider windows) are kept beside the worktree that
 made the fix; only this tool reads them, the committed test reads the fixtures.
@@ -26,6 +29,7 @@ FIXTURES = Path(__file__).with_name("fixtures")
 WINDOWS = (
     ("c221-4392698-boards.jsonl.gz", "loot-yield-1123-fetch-frontier-n1c-221.jsonl.gz", 4392651, 4392698),
     ("b416-4038441-boards.jsonl.gz", "loot-yield-1123-fetch-frontier-n1b-416.jsonl.gz", 4038420, 4038441),
+    ("b416-4054751-boards.jsonl.gz", "loot-yield-1123-amberite-n1b-416.jsonl.gz", 4054730, 4054751),
 )
 
 

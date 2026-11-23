@@ -23956,6 +23956,17 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cells every walker refuses."
   },
+  "amberite_curse.py:_refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon only: the Amberite kill conditions read by the tiers and the after-ladder gate, never in town.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: why a strike that can kill the Amberites may not be sent now (refusal records it)."
+  },
   "destruction_loot.py:declined": {
     "classification": "data",
     "rows": [
