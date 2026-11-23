@@ -33,6 +33,7 @@ ALLOWLIST_FILES = (
     'scripts/item_sink_lint_baseline.json',
     'scripts/melee_site_lint_baseline.json',
     'scripts/ownership_claim_exceptions.txt',
+    'scripts/stationary_reason_lint_baseline.json',
     'scripts/test_fakery_lint_baseline.json',
     'scripts/town_structure_lint_baseline.json',
 )

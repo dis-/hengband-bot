@@ -800,6 +800,22 @@ _stationary(ACTION, "a ranged attack from one cell", "ranged:")
 _stationary(ACTION, "opening or disarming a chest in place", "chest:")
 
 
+# ---------------------------------------------------------------- bounded waits (lint only)
+# A wait or rest whose reason is no row above still holds the player on one cell, and the loop
+# guard counts it: it is fine only when the producer bounds it well inside LOOP_WINDOW (40
+# decisions).  scripts/stationary_reason_lint.py fails on a wait or rest under a reason that is
+# neither a stationary row nor a row here (beyond its 2026-11-23 baseline).  A row names the
+# module constant that bounds the hold (``module.NAME``, checked to exist) and the rule; nothing
+# at run time reads this table, so a row changes no decision.
+class BoundedWait(NamedTuple):
+    reason: str
+    bound: str      # "module.CONSTANT" of src/hengbot
+    rule: str
+
+
+BOUNDED_WAITS: list[BoundedWait] = []
+
+
 def stationary_set(match: str) -> frozenset:
     """The reasons of the ``HOLD`` or ``EXEMPT`` rows."""
     return frozenset(row.reason for row in STATIONARY_ROWS if row.match == match)
