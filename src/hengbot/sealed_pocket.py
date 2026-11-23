@@ -392,11 +392,14 @@ def destroyed_leave_key(policy, snapshot: Snapshot) -> str | None:
     2026-11-04 「治して階の探索を続ける」).  A second stuck on the same circle after the read is the
     floor's own, and keeps the old order.  None on 50F+ off the 即死 board (deep_teleport
     ``movement_refused``, owner 2026-11-14): the asker's next means answers."""
-    from hengbot import deep_teleport, retreat_enclosure
+    from hengbot import angband_finale_battle, deep_teleport, retreat_enclosure
 
     if not area_mapping.destroyed_since_arrival(policy, snapshot):
         return None
     if deep_teleport.movement_refused(policy, snapshot):
+        return None
+    # The 99F/100F battle's scrolls are its own (angband_finale_battle ``keeps_scrolls``).
+    if angband_finale_battle.keeps_scrolls(policy, snapshot):
         return None
     if snapshot.player.recalling or snapshot.floor_key[2] != 0 and not policy._on_random_quest_floor(snapshot):
         return None
@@ -419,8 +422,12 @@ def destroyed_leave_key(policy, snapshot: Snapshot) -> str | None:
 
 
 def _last_recall_key(policy, snapshot: Snapshot) -> str | None:
-    """Recall out of a sealed circle nothing else leaves (a random quest floor is not left)."""
+    """Recall out of a sealed circle nothing else leaves (a random quest floor is not left, nor a
+    floor the 99F/100F battle holds: its recall is its own, angband_finale_battle ``_recall``)."""
+    from hengbot import angband_finale_battle  # import cycle
     if snapshot.floor_key[2] != 0 or not policy._can_read_scrolls(snapshot):
+        return None
+    if angband_finale_battle.keeps_scrolls(policy, snapshot):
         return None
     recall = policy._find_recall_scroll(snapshot)
     if recall is None:

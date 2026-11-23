@@ -270,6 +270,31 @@ def finale_swept(policy, snapshot: Snapshot) -> bool:
             and memory.sweeps.count >= FINALE_SWEEPS_TO_REGENERATE)
 
 
+def restart_finale_lap(policy, snapshot: Snapshot) -> None:
+    """The 99F/100F target is shown (or its last-seen cell is still walked to): the search's
+    coverage made so far is spent, so only the coverage after the target is lost again counts
+    toward ``finale_swept`` (the lap, the sweep, its start turn and so the casts counted since it,
+    and the floor's ledger copy of them).
+
+    n1-b life-416 (Angband 99F, 2026-11-23 21:08-21:09): the lap had covered the east of the
+    22x198 floor (x 133-170) before Oberon was detected at (13,113); after the teleport away from
+    him and the lost walk, only x 16-63 was covered, yet seq 595 declared the floor swept and
+    regenerated it with Oberon somewhere east of x 106 (angband_finale_battle ``_observe`` calls
+    this)."""
+    memory = _memory(policy, snapshot)
+    sweeps = memory.sweeps
+    if not (sweeps.start_turn or sweeps.count or sweeps.cover.centres or memory.cover.centres
+            or memory.lap_turn or memory.stops):
+        return
+    memory.cover.clear()
+    sweeps.cover.clear()
+    sweeps.start_turn = sweeps.count = 0
+    memory.stops, memory.seen, memory.goal, memory.lap_turn = (), set(), None, 0
+    ledger = getattr(policy, "_exploration_ledger", None)
+    if ledger is not None and ledger.floor_key == snapshot.floor_key:
+        ledger.search_sweep_turn = ledger.search_sweeps = 0
+
+
 def _routes(policy, snapshot: Snapshot) -> dict:
     """Every walkable cell -> (walking distance, first step), breadth first.
 

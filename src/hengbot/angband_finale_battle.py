@@ -183,6 +183,9 @@ class Battle:
     # (set by a teleport and by reaching the last-seen cell; ``_detect_key``).  A class default:
     # restored checkpoints predate it.
     detect_due: bool = False
+    # (game turn, last-seen cell, why) of the last last-seen cell given up because no step of
+    # ``_line_key`` was left (``_approach_key``); the decision record reports it.  A class default.
+    dropped: tuple | None = None
 
 
 def battle(policy, snapshot) -> Battle:
@@ -204,6 +207,47 @@ def applies(policy, snapshot) -> bool:
             and angband_finale.on_finale_floor(snapshot)):
         return False
     return not battle(policy, snapshot).done_on_arrival
+
+
+def keeps_scrolls(policy, snapshot) -> bool:
+    """A floor whose Teleportation scrolls are the battle's alone: one the battle holds
+    (``applies``), or the relay floor above it while the stairs regenerate it (policy
+    ``_quest_regen_phase``, the 98F above 99F and the 99F above 100F).  The owner's 2026-11-20
+    directive reads the scroll on its own cases only (「召喚または攻撃を受けてHPが800を下回ったとき、
+    または対象が距離2より近づいたとき」), and 2026-11-21 「巻物が尽きたら取り込んだテレポートの杖、杖も
+    尽きたら帰還して補給」: the generic stuck escapes (sealed_pocket ``destroyed_leave_key``, policy
+    ``_stuck_escape_key``) read none here.  n1-b life-416 (Angband 99F, 2026-11-23 18:30-18:46):
+    11 stuck:destroyed-circle-teleport and 4 stuck:teleport-escape reads of the 39 scrolls; the
+    empty pack recalled the character with Oberon alive."""
+    if applies(policy, snapshot):
+        return True
+    return (not snapshot.in_town and angband_finale.magic_eater(snapshot)
+            and angband_finale.lifted(policy)
+            and snapshot.floor_key[0] == angband_finale.DUNGEON_ANGBAND
+            and snapshot.dungeon_level + 1 in angband_finale.FINALE
+            and getattr(policy, "_quest_regen_phase", None) in ("ascend", "descend"))
+
+
+def report(policy) -> dict | None:
+    """The decision record's ``angband_finale`` field: the finale's state (angband_finale
+    ``describe``: finale_prep's step, ``lifted`` and ``stopped`` among it) and this battle's
+    (phase, last-seen cell, the stand, the last given-up last-seen cell); None before the finale.
+    Record only: no decision reads it."""
+    finale = angband_finale.describe(policy)
+    held = getattr(policy, MEMORY, None)
+    if finale is None and held is None:
+        return None
+    entry = {"finale": finale}
+    if held is not None:
+        entry["battle"] = {
+            "floor": list(held.floor) if held.floor is not None else None,
+            "phase": held.phase,
+            "last_seen": list(held.last_seen) if held.last_seen is not None else None,
+            "stand": list(held.stand.cell) if held.stand is not None else None,
+            "detect_due": held.detect_due,
+            "dropped": list(held.dropped) if held.dropped is not None else None,
+        }
+    return entry
 
 
 def _known_hostiles(snapshot) -> list:
@@ -247,6 +291,10 @@ def _observe(policy, snapshot, held: Battle) -> None:
     target = target_monster(snapshot)
     if target is not None:
         held.last_seen = (target.position.y, target.position.x)
+        # 「感知で回る」 counts a lap only after the target is lost (quest_target_search
+        # ``restart_finale_lap``): the coverage made before this sighting is spent.
+        from hengbot import quest_target_search  # import cycle
+        quest_target_search.restart_finale_lap(policy, snapshot)
     elif held.last_seen is not None and snapshot.player.position == Position(*held.last_seen):
         # 「最後に対象をみた座標に向かって移動」 done and the target not there: detect again here
         # (owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」), then it is lost, and
@@ -744,8 +792,8 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
     *Destruction* forgot it: n1-b life-416 Angband 99F 2026-11-23 18:3x, Oberon last seen at
     (11,106) and the teleport's landing (6,46) on the far side of forgotten ground), else opened
     toward (the openers: the digger's route, else Stone to Mud, retreat_enclosure
-    ``open_toward_key``); with neither it is given up (the target is then ``lost`` and the floor
-    searched)."""
+    ``open_toward_key``), else along the line by walking and Stone to Mud (``_line_key``); only
+    with none of these is it given up (the target is then ``lost`` and the floor searched)."""
     if held.last_seen is None:
         return None
     goal = Position(*held.last_seen)
@@ -769,7 +817,70 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
         policy, snapshot, quest_target_search.walkable_cells(policy, snapshot), {goal})
     if opened is not None:
         return opened
+    # The openers' routes run over known grids only; a last-seen cell in forgotten ground is
+    # reached along the line instead (``_line_key``; owner 2026-11-21 「岩石溶解の消費量は問題では
+    # ない」).  n1-b life-416 (Angband 99F, 2026-11-23 21:08, seq 204): at (3,62), Oberon last seen
+    # at (11,120) beyond ground the *Destruction*s had forgotten, the cell was dropped and the floor
+    # searched from x 16-63 until it was regenerated without him.
+    line = _line_key(policy, snapshot, goal)
+    if line is not None:
+        return line
+    # Only with no way at all (no melt in hand, blind or confused, every nearer neighbour a
+    # permanent or worn-out wall) is the cell given up; the case is kept for the decision record.
+    held.dropped = (snapshot.turn, held.last_seen, _line_refusal(policy, snapshot))
     held.last_seen = None
+    return None
+
+
+def _line_refusal(policy, snapshot) -> str:
+    """Why ``_line_key`` found no step (the decision record's ``dropped``)."""
+    from hengbot import sealed_pocket  # import cycle
+    player = snapshot.player
+    if player.blind or player.confused:
+        return "blind-or-confused"
+    if not sealed_pocket.can_melt(policy, snapshot):
+        return "no-melt"
+    return "no-nearer-cell"
+
+
+def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None) -> str | None:
+    """One step along the line toward ``goal`` where no walk reaches it: the walkable neighbour
+    nearest to it, else Stone to Mud aimed at the nearest known wall (a beam melts the adjacent
+    wall), each strictly nearer to ``goal`` than the player and no nearer than ``keep`` (the
+    target's teleport distance stays outside it).  With ``target``, a melt that would open the line
+    of fire on it where it stands is not made (``_opens_line``, owner 2026-11-21 LOCKED
+    「溶かした時に先手を取られて何も出来ず離脱している場面が問題」).  Every step is nearer, so the
+    approach never turns back on itself; None when no neighbour qualifies."""
+    from hengbot import retreat_enclosure, sealed_pocket  # import cycle
+    here = snapshot.player.position
+    distance = game_distance(here, goal)
+    if distance <= keep:
+        return None
+    walkable = set(policy._walkable_neighbors(snapshot, here, allow_damaging=False))
+    options = []
+    for dy, dx in DIRECTIONS:
+        cell = Position(here.y + dy, here.x + dx)
+        nearer = game_distance(cell, goal)
+        if nearer >= distance or nearer < keep:
+            continue
+        # Equal game distances (its halved minor axis) are told apart by the straight line.
+        line = (goal.y - cell.y) ** 2 + (goal.x - cell.x) ** 2
+        if cell in walkable:
+            options.append((nearer, line, 0, cell.y, cell.x))
+            continue
+        grid = snapshot.grids.get(cell)
+        if grid is not None and grid.known and retreat_enclosure.meltable(policy, snapshot, grid):
+            options.append((nearer, line, 1, cell.y, cell.x))
+    for _nearer, _line, melt, y, x in sorted(options):
+        cell = Position(y, x)
+        if not melt:
+            policy.last_reason = APPROACH_REASON
+            return policy._step_toward(snapshot, cell)
+        if target is not None and _opens_line(policy, snapshot, here, cell, target.position):
+            continue
+        key = sealed_pocket.melt_at_key(policy, snapshot, cell, MELT_REASON)
+        if key is not None:
+            return key
     return None
 
 
@@ -846,7 +957,33 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
             return _heal(policy, snapshot)
         held.stand = None
         return _rocket(policy, snapshot, target)
-    return _stand_key(policy, snapshot, held, target)
+    stood = _stand_key(policy, snapshot, held, target)
+    if stood is not None:
+        return stood
+    return _close_in_key(policy, snapshot, target)
+
+
+def _close_in_key(policy, snapshot, target) -> str | None:
+    """No stand on the target's rays is open or reachable yet (the rays run through ground the
+    board does not know): the battle closes in itself, never nearer than ``STAND_MIN_DISTANCE``,
+    so that the rays' cells come into the board and ``_stand_key`` takes over -- the walk to a
+    nearer cell, else along the line by walking and Stone to Mud (``_line_key``, a melt that would
+    open the line on the target where it stands not made).  n1-b life-416 (Angband 99F,
+    2026-11-23 21:08, seq 160-176): Oberon detected 19 cells away with every ray in forgotten
+    ground, the stand answered None and the generic hunt walked the player beside him; at
+    distance 1 the battle had to teleport (seq 177).  None only when neither has a step; the
+    ladder below answers then."""
+    here = snapshot.player.position
+    aim = target.position
+    distance = game_distance(here, aim)
+    route = policy._nearest_goal_route(
+        snapshot, lambda grid: grid.known and grid.passable
+        and STAND_MIN_DISTANCE <= game_distance(grid.position, aim) < distance)
+    if route is not None:
+        key = policy._step_toward(snapshot, route.first_step)
+        policy.last_reason = APPROACH_REASON
+        return key
+    return _line_key(policy, snapshot, aim, keep=STAND_MIN_DISTANCE, target=target)
 
 
 def key(policy, snapshot) -> str | None:

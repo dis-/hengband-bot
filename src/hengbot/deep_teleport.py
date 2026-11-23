@@ -415,10 +415,11 @@ def _stuck_goals(policy, snapshot) -> set:
     return goals
 
 
-def stuck_key(policy, snapshot) -> str | None:
+def stuck_key(policy, snapshot, *, recall: bool = True) -> str | None:
     """In place of a movement teleport ``movement_refused`` refuses (the module docstring): the
-    walk to a goal, else Stone to Mud toward one, else Recall; None on a goal (the floor's own
-    ladder goes on) or with no means left."""
+    walk to a goal, else Stone to Mud toward one, else Recall (not with ``recall`` False: the
+    99F/100F battle's floors, angband_finale_battle ``keeps_scrolls``); None on a goal (the
+    floor's own ladder goes on) or with no means left."""
     from hengbot import retreat_enclosure
 
     if snapshot.player.recalling:
@@ -440,7 +441,7 @@ def stuck_key(policy, snapshot) -> str | None:
             policy, snapshot, frozenset(), goals, STUCK_MELT_REASON, power_first=True)
         if melt is not None:
             return melt
-    return _recall_key(policy, snapshot, STUCK_RECALL_REASON)
+    return _recall_key(policy, snapshot, STUCK_RECALL_REASON) if recall else None
 
 
 def substitute(policy, snapshot, *, teleportation: bool = True) -> str | None:
