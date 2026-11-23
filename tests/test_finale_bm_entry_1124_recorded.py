@@ -15,7 +15,11 @@ the recorded key.
 
 DECLARED CONSTRUCTED: ``test_another_short_row_keeps_the_95f_exploration`` reads the absorbed Stone
 to Mud row short beside the Restore Mana for the whole replay (``finale_hold.short_rows``; the
-Healing is the circuit's since 2026-11-24, tests/test_finale_bm_supplies_1124_recorded.py).
+Healing is the circuit's since 2026-11-24, tests/test_finale_bm_supplies_1124_recorded.py).  Every
+test reads Oberon as not killed (``restore_mana_target.killed``): since owner 2026-11-24 「倒した標的の
+HPは目標から外す」 the recorded board's plan is the Serpent's alone (31, carried 62) and its 76 owned
+are no longer short; the recorded 84 (both targets) keeps the Black Markets' circuit these tests
+exercise (tests/test_restore_mana_target_killed_1124_recorded.py reads the recorded quests).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -26,7 +30,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from hengbot import angband_cap, finale_bm_tour, finale_hold
+from hengbot import angband_cap, finale_bm_tour, finale_hold, restore_mana_target
 from hengbot.model import DUNGEON_ANGBAND
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
@@ -46,6 +50,12 @@ def post(policy, key):
 
 
 class FinaleBlackMarketEntry1124RecordedTest(unittest.TestCase):
+    def setUp(self):
+        # DECLARED CONSTRUCTED (module docstring): Oberon not killed, the recorded 84.
+        patcher = mock.patch.object(restore_mana_target, "killed", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def replay(self, rows):
         """(policy, the board of row ``rows``) after the rows before it, as recorded."""
         scratch = TemporaryDirectory()

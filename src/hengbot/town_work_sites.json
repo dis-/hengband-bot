@@ -17091,6 +17091,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "restore_mana_target.py:remaining_targets": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "restore_mana_target.py:rocket_damage": {
     "classification": "data",
     "rows": [

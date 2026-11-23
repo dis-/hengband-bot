@@ -425,9 +425,10 @@ def quest_done(snapshot) -> bool:
 
 def restore_mana_overspent(policy, snapshot) -> bool:
     """Owner 2026-11-20 「魔力復活の薬を予定の倍以上使ったとき」: the expedition used at least twice
-    the computed target."""
+    the computed target (the remaining targets' plan: restore_mana_target drops a killed one, owner
+    2026-11-24; with both killed there is no plan to overspend)."""
     goal = restore_mana_goal(policy, snapshot)
-    return goal is not None and memory(policy).restore_mana_used >= RESTORE_MANA_RECALL_SHARE * goal
+    return bool(goal) and memory(policy).restore_mana_used >= RESTORE_MANA_RECALL_SHARE * goal
 
 
 def no_ammunition(policy, snapshot) -> bool:
