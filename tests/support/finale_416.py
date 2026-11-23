@@ -38,9 +38,20 @@ def device_lists(turn: int) -> dict:
 
 
 def boards(name: str) -> list:
+    """The player_turn boards of a fixture.  A row may carry ``_same``: the fields equal to the
+    previous row's, left out of the file (the 100F floor's 1507 boards, 7.7 MB whole)."""
+    rows, previous = [], None
     with gzip.open(FIXTURES / name, "rt", encoding="utf-8") as stream:
-        return [row for row in (json.loads(line) for line in stream if line.strip())
-                if row.get("type") == "player_turn"]
+        for line in stream:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            same = row.pop("_same", ())
+            if same:
+                row = {**{key: previous[key] for key in same}, **row}
+            previous = row
+            rows.append(row)
+    return [row for row in rows if row.get("type") == "player_turn"]
 
 
 def drive(raw_boards, monrace, *, prepare=None) -> list:

@@ -186,6 +186,10 @@ class Battle:
     # (game turn, last-seen cell, why) of the last last-seen cell given up because no step of
     # ``_line_key`` was left (``_approach_key``); the decision record reports it.  A class default.
     dropped: tuple | None = None
+    # The cells the walk to ``trail_goal`` (the last-seen cell) has stood on (``_approach_key``):
+    # no step of that walk enters one again.  Class defaults.
+    trail_goal: tuple | None = None
+    trail: set = field(default_factory=set)
 
 
 def battle(policy, snapshot) -> Battle:
@@ -797,18 +801,20 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
     if held.last_seen is None:
         return None
     goal = Position(*held.last_seen)
-    if snapshot.player.position == goal:
+    here = snapshot.player.position
+    if here == goal:
         return None
+    left = _left_cells(held, here)
     step = policy._nearest_goal_step(snapshot, lambda grid: grid.position == goal)
-    if step is not None:
+    if step is not None and step not in left:
         key = policy._step_toward(snapshot, step)
         policy.last_reason = APPROACH_REASON
         return key
-    distance = game_distance(snapshot.player.position, goal)
+    distance = game_distance(here, goal)
     route = policy._nearest_goal_route(
         snapshot, lambda grid: game_distance(grid.position, goal) < distance
         and policy._is_frontier(snapshot, grid))
-    if route is not None:
+    if route is not None and route.first_step not in left:
         key = policy._step_toward(snapshot, route.first_step)
         policy.last_reason = APPROACH_REASON
         return key
@@ -822,7 +828,7 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
     # ない」).  n1-b life-416 (Angband 99F, 2026-11-23 21:08, seq 204): at (3,62), Oberon last seen
     # at (11,120) beyond ground the *Destruction*s had forgotten, the cell was dropped and the floor
     # searched from x 16-63 until it was regenerated without him.
-    line = _line_key(policy, snapshot, goal)
+    line = _line_key(policy, snapshot, goal, avoid=left)
     if line is not None:
         return line
     # Only with no way at all (no melt in hand, blind or confused, every nearer neighbour a
@@ -830,6 +836,24 @@ def _approach_key(policy, snapshot, held: Battle) -> str | None:
     held.dropped = (snapshot.turn, held.last_seen, _line_refusal(policy, snapshot))
     held.last_seen = None
     return None
+
+
+def _left_cells(held: Battle, here: Position) -> frozenset:
+    """The cells the walk to the last-seen cell has stood on and left (``Battle.trail``), with
+    ``here`` noted; a new last-seen cell starts a new trail.
+
+    Owner 2026-11-13 「交互に逆へ歩くループは根から防ぐ」: the walk's rungs disagree from one cell to
+    the next -- the frontier walk's route is drawn anew on each board under the walk vetoes of
+    that board, and ``_line_key`` steps only nearer -- so no step of the walk enters a cell it
+    left.  Every step enters a new cell, so the walk cannot cycle.  n1-b life-416 (Angband 100F,
+    2026-11-24 04:34:47-59, seq 4979-4987, loop-detected): at (10,27), 65 from the Serpent's
+    last-seen (10,92), the frontier route to (13,55) stepped '1' to (11,26); there no route was
+    drawn and the line stepped '9' back to (10,27), eight times."""
+    cell = (here.y, here.x)
+    if held.trail_goal != held.last_seen:
+        held.trail_goal, held.trail = held.last_seen, set()
+    held.trail.add(cell)
+    return frozenset(Position(y, x) for y, x in held.trail if (y, x) != cell)
 
 
 def _line_refusal(policy, snapshot) -> str:
@@ -843,7 +867,8 @@ def _line_refusal(policy, snapshot) -> str:
     return "no-nearer-cell"
 
 
-def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None) -> str | None:
+def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None,
+              avoid=frozenset()) -> str | None:
     """One step along the line toward ``goal`` where no walk reaches it: the walkable neighbour
     nearest to it, else Stone to Mud aimed at the nearest known wall (a beam melts the adjacent
     wall), each strictly nearer to ``goal`` than the player and no nearer than ``keep`` (the
@@ -866,7 +891,8 @@ def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None) -
         # Equal game distances (its halved minor axis) are told apart by the straight line.
         line = (goal.y - cell.y) ** 2 + (goal.x - cell.x) ** 2
         if cell in walkable:
-            options.append((nearer, line, 0, cell.y, cell.x))
+            if cell not in avoid:  # a cell the walk left (``_left_cells``)
+                options.append((nearer, line, 0, cell.y, cell.x))
             continue
         grid = snapshot.grids.get(cell)
         if grid is not None and grid.known and retreat_enclosure.meltable(policy, snapshot, grid):
@@ -1014,6 +1040,7 @@ def key(policy, snapshot) -> str | None:
             held.phase, held.stand = RECOVER, None
             held.refused.clear()
             held.detect_due = True
+            held.trail_goal = None  # the walk from the landing starts a new trail (``_left_cells``)
             return away
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
