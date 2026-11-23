@@ -106,6 +106,9 @@ RESTORE_MANA_REASON = f"{REASON}:restore-mana"
 REST_REASON = f"{REASON}:rest"
 RESTORE_STATS_REASON = f"{REASON}:restore-stats"  # the drained stats after a teleport (2026-11-21)
 APPROACH_REASON = f"{REASON}:approach"
+# Owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」: the full detection on landing
+# after a teleport and on reaching the last-seen cell (``_detect_key``).
+DETECT_REASON = f"{REASON}:detect"
 STAND_WALK_REASON = f"{REASON}:stand-walk"
 MELT_REASON = f"{REASON}:melt"
 HOLD_REASON = f"{REASON}:hold"
@@ -171,6 +174,10 @@ class Battle:
     # (stand cell, target cell) given up because the stand's wall would open the line on the target
     # first (``_stand_key``): skipped while the target stays on that cell; cleared by a teleport.
     refused: set = field(default_factory=set)
+    # Owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」: the full detection is due here
+    # (set by a teleport and by reaching the last-seen cell; ``_detect_key``).  A class default:
+    # restored checkpoints predate it.
+    detect_due: bool = False
 
 
 def battle(policy, snapshot) -> Battle:
@@ -236,9 +243,11 @@ def _observe(policy, snapshot, held: Battle) -> None:
     if target is not None:
         held.last_seen = (target.position.y, target.position.x)
     elif held.last_seen is not None and snapshot.player.position == Position(*held.last_seen):
-        # 「最後に対象をみた座標に向かって移動」 done and the target not there: it is lost, and the
-        # floor is searched by detection (quest_target_search ``finale_searching``).
+        # 「最後に対象をみた座標に向かって移動」 done and the target not there: detect again here
+        # (owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」), then it is lost, and
+        # the floor is searched by detection (quest_target_search ``finale_searching``).
         held.last_seen = None
+        held.detect_due = True
 
 
 def lost(policy, snapshot) -> bool:
@@ -723,18 +732,91 @@ def forbids_rest(policy, snapshot) -> bool:
 
 
 def _approach_key(policy, snapshot, held: Battle) -> str | None:
-    """「最後に対象をみた座標に向かって移動」."""
+    """「最後に対象をみた座標に向かって移動」.  A last-seen cell no walk reaches: toward the nearest
+    exploration frontier closer to it than the player (a cell the board no longer shows, as after a
+    *Destruction* forgot it: n1-b life-416 Angband 99F 2026-11-23 18:3x, Oberon last seen at
+    (11,106) and the teleport's landing (6,46) on the far side of forgotten ground), else opened
+    toward (the openers: the digger's route, else Stone to Mud, retreat_enclosure
+    ``open_toward_key``); with neither it is given up (the target is then ``lost`` and the floor
+    searched)."""
     if held.last_seen is None:
         return None
     goal = Position(*held.last_seen)
     if snapshot.player.position == goal:
         return None
     step = policy._nearest_goal_step(snapshot, lambda grid: grid.position == goal)
-    if step is None:
+    if step is not None:
+        key = policy._step_toward(snapshot, step)
+        policy.last_reason = APPROACH_REASON
+        return key
+    distance = game_distance(snapshot.player.position, goal)
+    route = policy._nearest_goal_route(
+        snapshot, lambda grid: game_distance(grid.position, goal) < distance
+        and policy._is_frontier(snapshot, grid))
+    if route is not None:
+        key = policy._step_toward(snapshot, route.first_step)
+        policy.last_reason = APPROACH_REASON
+        return key
+    from hengbot import quest_target_search, retreat_enclosure  # import cycle
+    opened = retreat_enclosure.open_toward_key(
+        policy, snapshot, quest_target_search.walkable_cells(policy, snapshot), {goal})
+    if opened is not None:
+        return opened
+    held.last_seen = None
+    return None
+
+
+def _detect_key(policy, snapshot, held: Battle) -> str | None:
+    """Owner 2026-11-23 「着いた所で全感知し見えなければ最後の位置へ歩く」: once where a teleport landed
+    and once on reaching the last-seen cell, the full detection while the target is shown nowhere:
+    the absorbed Detection (else Detect Evil for an EVIL target), else a carried Rod of Detection or
+    Staff of Detect Evil.  With none to use the walk goes on."""
+    from hengbot import area_mapping, hunt_target, quest_target_search  # import cycle
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.me_absorbed_substitutes import DETECTION, cast
+    held.detect_due = False
+    race = angband_finale.target_race(snapshot)
+    flags = hunt_target.race_flags(policy, race) if race is not None else frozenset()
+    for ident, effect in zip(DETECTION, ("detect-all", "detect-evil")):
+        if not hunt_target.REVEALS[effect](flags):
+            continue
+        key = cast(policy, snapshot, ident, DETECT_REASON)
+        if key is not None:
+            return key
+    if not area_mapping.device_usable_now(policy, snapshot):
         return None
-    key = policy._step_toward(snapshot, step)
-    policy.last_reason = APPROACH_REASON
-    return key
+    for (tval, sval), (kind, effect) in quest_target_search.CARRIED_DETECTION.items():
+        item = next((each for each in snapshot.inventory
+                     if (each.tval, each.sval) == (tval, sval)), None)
+        if (item is None or not hunt_target.REVEALS[effect](flags)
+                or not area_mapping.device_ready(item, kind)):
+            continue
+        key = reserved_item_command(policy, snapshot, kind, item)
+        if key is not None:
+            policy.last_reason = DETECT_REASON
+            return key
+    return None
+
+
+def _lost_key(policy, snapshot) -> str | None:
+    """「感知で回る」 (owner 2026-11-21) inside the battle: the target shown nowhere and no last-seen
+    cell kept, the quest search's lap with its detections (the absorbed one at its spacing, me_powers
+    ``hunt-target-unseen``; a carried one, quest_target_search ``detection_key``), and once that lap
+    covered the floor without the target, the stairs that regenerate it.  Never the generic
+    exploration, search or wander (owner 2026-11-23, the 99F waste: 89% of the floor's time)."""
+    from hengbot import me_powers, quest_target_search  # import cycle
+    if not lost(policy, snapshot):
+        return None
+    if quest_target_search.finale_swept(policy, snapshot):
+        return policy._town_producer_entry(
+            "_start_kill_quest_regeneration", lambda: policy._start_kill_quest_regeneration(snapshot))
+    power = me_powers.power_key(policy, snapshot, me_powers.FLOOR, only="hunt-target-unseen")
+    if power is not None:
+        return power
+    carried = quest_target_search.detection_key(policy, snapshot)
+    if carried is not None:
+        return carried
+    return quest_target_search.loop_key(policy, snapshot)
 
 
 def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
@@ -787,6 +869,7 @@ def key(policy, snapshot) -> str | None:
         if away is not None:
             held.phase, held.stand = RECOVER, None
             held.refused.clear()
+            held.detect_due = True
             return away
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
@@ -799,6 +882,12 @@ def key(policy, snapshot) -> str | None:
         recovered = _recover_key(policy, snapshot, held)
         if recovered is not None:
             return recovered
+    # The full detection where the teleport landed (after the recovery's heal, which the
+    # owner's 2026-11-20 line puts first) and on the last-seen cell (owner 2026-11-23).
+    if held.detect_due and target is None and held.phase != SWEEP:
+        detected = _detect_key(policy, snapshot, held)
+        if detected is not None:
+            return detected
     mapped = _map_key(policy, snapshot)
     if mapped is not None:
         return mapped
@@ -807,7 +896,10 @@ def key(policy, snapshot) -> str | None:
         return cleared
     if target is not None:
         return _fight_key(policy, snapshot, held, target)
-    return _approach_key(policy, snapshot, held)
+    approach = _approach_key(policy, snapshot, held)
+    if approach is not None:
+        return approach
+    return _lost_key(policy, snapshot)
 
 
 def _small_floor(policy, snapshot) -> str | None:

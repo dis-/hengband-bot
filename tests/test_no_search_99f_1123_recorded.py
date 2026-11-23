@@ -11,6 +11,13 @@ DECLARED RECONSTRUCTED: the Magic-Eater's device lists (the snapshot files carry
 absorbed Staff of Teleportation, 22 charges at 95% (the live bot held one: without it the 99F
 battle's ``teleports_out`` reads Word of Recall on every board).
 
+The live process took the finale's expedition mark from the floor (finale_prep
+``expedition_evident``), so the 99F battle holds these boards and, Oberon shown nowhere, searches
+the floor with its lap (angband_finale_battle ``_lost_key``): no ``s`` there (``test_battle_*``).
+The ladder's own dead-end search (ladder_idle) answers a 99F/100F floor the battle does not hold;
+DECLARED CONSTRUCTED for those runs: the battle holds no board (angband_finale_battle ``applies``
+patched False, as for a character that is not a Magic-Eater), so the ordinary ladder decides.
+
 - No door detection held (the pack has none): no ``s`` on any board; the walk goes on.
 - With five Scrolls of Door/Stair Location in the pack too (reconstructed): one is read instead
   of the search, once for the area (the board after it covers the corridor), and still no ``s``.
@@ -23,8 +30,9 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
 
-from hengbot import me_capability, search_ban
+from hengbot import angband_finale_battle, me_capability, search_ban
 from hengbot.me_absorbed_substitutes import TELEPORTATION
 from hengbot.model import SV_SCROLL_DETECT_DOOR, TVAL_SCROLL, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -51,8 +59,10 @@ class NoSearch99fRecordedTest(unittest.TestCase):
     def setUpClass(cls):
         cls.monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
         cls.boards = _boards()
-        cls.plain = cls.drive(None)
-        cls.detecting = cls.drive(DOOR_SCROLL)
+        cls.battle = cls.drive(None)
+        with mock.patch.object(angband_finale_battle, "applies", return_value=False):
+            cls.plain = cls.drive(None)
+            cls.detecting = cls.drive(DOOR_SCROLL)
 
     @classmethod
     def drive(cls, carried):
@@ -89,6 +99,10 @@ class NoSearch99fRecordedTest(unittest.TestCase):
         raw = copy.deepcopy(self.boards[0])
         raw["floor"]["dungeon_id"] = 2
         self.assertFalse(search_ban.banned(parse_snapshot(raw, self.monrace)))
+
+    def test_battle_sends_no_search(self):
+        sent = [row for row in self.battle if row[2] == "s" or row[3] == "search"]
+        self.assertEqual(sent, [], self.battle)
 
     def test_no_search_without_a_detection(self):
         sent = [row for row in self.plain if row[2] == "s"]

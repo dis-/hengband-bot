@@ -738,6 +738,11 @@ def door_means_key(policy, snapshot: Snapshot, memory: Memory, routes: dict) -> 
     return None
 
 
+def walkable_cells(policy, snapshot: Snapshot) -> frozenset:
+    """The cells the search's walks reach from the player (``_routes``)."""
+    return frozenset(_routes(policy, snapshot))
+
+
 def door_detection_key(policy, snapshot: Snapshot) -> str | None:
     """``door_means_key`` off the lap: search_ban's door detection on Angband 99F/100F, with this
     floor visit's memory of the covered places (owner 2026-11-23 「サーチ禁止。必要なら感知」)."""
