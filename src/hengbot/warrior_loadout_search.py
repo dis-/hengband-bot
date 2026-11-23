@@ -4,12 +4,24 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Iterable, Iterator, Mapping
+from time import monotonic
+from typing import Callable, Iterable, Iterator, Mapping
 
 from hengbot.equipment_encounters import BRANDS, SLAYS
 from hengbot.equipment_optimizer import (
     FILL_REQUIRED_ARMOR_SLOTS,
+    FINALE_IMMUNITY_ELEMENT,
+    FINALE_RESISTANCES,
     FIXED_SLOTS,
+    SLOT_BODY,
+    TR_CON as FINALE_TR_CON,
+    TR_INT,
+    TR_RES_BLIND,
+    TR_RES_CURSE,
+    TR_RES_LITE,
+    TR_TELEPATHY,
+    finale_key,
+    lights_nothing,
     SLOT_BOW,
     SLOT_LIGHT,
     SLOT_MAIN_HAND,
@@ -26,6 +38,7 @@ from hengbot.equipment_optimizer import (
     worn_light_radius,
 )
 from hengbot.equipment_rules import TR_LOW_AC, TR_NO_AC
+from hengbot.me_power_success import TR_DEC_MANA, TR_EASY_SPELL, TR_HARD_SPELL, TR_NO_MAGIC
 from hengbot.equipment_utility import UTILITY_FLAGS
 from hengbot.warrior_defense_evaluator import PROTECTOR_TVALS, TR_SPEED
 from hengbot.warrior_equipment_evaluator import warrior_melee_signature
@@ -964,3 +977,298 @@ def enumerate_single_slot_variants(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
         require_light, required_flags, seed, repair_flags, staff_gate,
     )
+
+
+
+@dataclass(frozen=True)
+class FinaleFigures:
+    """The character's figures the finale's order reads from a set's sums (warrior_optimization
+    builds them from the evaluator's inputs, so a set's key here is its ``finale_rank``)."""
+
+    base_speed: int
+    intrinsic_flags: frozenset[int]
+    intelligence: Callable[[int], int | None]
+    constitution: Callable[[int], int]
+    max_hp: Callable[[int], int]
+    power_success: Callable[[int, frozenset[int]], int | None]
+
+    def rank_key(self, speed: int, int_bonus: int, con_bonus: int, flags: frozenset[int]) -> tuple:
+        memo = self.__dict__.get("_memo")
+        if memo is None:
+            memo = {}
+            object.__setattr__(self, "_memo", memo)
+        args = (speed, int_bonus, con_bonus, flags)
+        key = memo.get(args)
+        if key is None:
+            key = memo[args] = self._rank_key(speed, int_bonus, con_bonus, flags)
+        return key
+
+    def _rank_key(self, speed: int, int_bonus: int, con_bonus: int, flags: frozenset[int]) -> tuple:
+        flags = flags | self.intrinsic_flags
+        return finale_key(
+            flags, self.base_speed + speed, self.power_success(int_bonus, flags),
+            max_hp=self.max_hp(con_bonus), intelligence=self.intelligence(int_bonus),
+            constitution=self.constitution(con_bonus), int_bonus=int_bonus, con_bonus=con_bonus)
+
+
+@dataclass(frozen=True)
+class FinaleSearchResult:
+    loadouts: tuple[Loadout, ...]
+    complete: bool
+    nodes: int
+    elapsed_seconds: float
+
+
+# The flags that lower the absorbed Rockets' success (me_power_success): never read as a gain.
+_FINALE_ADVERSE_FLAGS = frozenset({TR_NO_MAGIC, TR_HARD_SPELL})
+
+
+@dataclass(frozen=True)
+class _Choice:
+    slots: tuple[tuple[str, OwnedEquipment], ...]
+    hand_mode: str | None
+    speed: int
+    int_bonus: int
+    con_bonus: int
+    gains: frozenset[int]
+    adverse: frozenset[int]
+    radius: int
+    lights: bool
+    torch: bool
+    order: int
+
+    def dominates(self, other: "_Choice") -> bool:
+        return (self.speed >= other.speed and self.int_bonus >= other.int_bonus
+                and self.con_bonus >= other.con_bonus and self.gains >= other.gains
+                and self.adverse <= other.adverse and self.radius >= other.radius
+                and (self.lights or not other.lights) and (other.torch or not self.torch))
+
+    def projection(self) -> tuple:
+        return (self.speed, self.int_bonus, self.con_bonus, self.gains, self.adverse,
+                self.radius, self.lights, self.torch)
+
+
+def _finale_choice(slots, hand_mode, relevant: frozenset[int], order: int) -> _Choice:
+    items = [item for _, item in slots]
+    flags = frozenset().union(*(item.flags for item in items)) if items else frozenset()
+    light = next((item for slot, item in slots if slot == SLOT_LIGHT), None)
+    return _Choice(
+        tuple(slots), hand_mode,
+        sum(item.item.pval for item in items if TR_SPEED in item.flags),
+        sum(item.item.pval for item in items if TR_INT in item.flags),
+        sum(item.item.pval for item in items if FINALE_TR_CON in item.flags),
+        flags & relevant, flags & _FINALE_ADVERSE_FLAGS, worn_light_radius(items),
+        light is not None and not lights_nothing(light.item),
+        light is not None and light.item.is_torch, order)
+
+
+def _undominated(choices: list[_Choice], capacity: int = 1) -> list[_Choice]:
+    """The choices fewer than ``capacity`` others dominate (an equal one earlier in the order
+    counts as dominating), kept in their order."""
+    kept = []
+    for choice in choices:
+        projection = choice.projection()
+        beaten = 0
+        for other in choices:
+            if other is choice or not other.dominates(choice):
+                continue
+            if other.projection() == projection and other.order > choice.order:
+                continue
+            beaten += 1
+            if beaten >= capacity:
+                break
+        if beaten < capacity:
+            kept.append(choice)
+    return kept
+
+
+def _forced_two_handed(item: OwnedEquipment) -> bool:
+    """hand_configurations: a polearm or a weapon over 9.9 lb takes both hands."""
+    return item.item.tval == 22 or item.item.weight > 99
+
+
+def _finale_ring_choices(legal, pinned, relevant, order) -> list[_Choice]:
+    """The two ring slots as one choice: none, each ring, each pair (a pinned ring kept)."""
+    if SLOT_MAIN_RING in pinned and SLOT_SUB_RING in pinned:
+        return [_finale_choice(((SLOT_MAIN_RING, pinned[SLOT_MAIN_RING]),
+                                (SLOT_SUB_RING, pinned[SLOT_SUB_RING])), None, relevant,
+                               next(order))]
+    rings = [item for item in legal if item.item.tval == 45]
+    kept = _undominated(
+        [_finale_choice(((SLOT_MAIN_RING, ring),), None, relevant, next(order)) for ring in rings],
+        capacity=2)
+    pool = [choice.slots[0][1] for choice in kept]
+    choices = []
+    for main in (None, *pool):
+        for sub in (None, *pool):
+            if main is not None and sub is not None and main.id >= sub.id:
+                continue
+            if main is None and sub is not None:
+                continue
+            arrangements = [(main, sub)]
+            if pinned:
+                arrangements.append((sub, main))
+            for first, second in arrangements:
+                if SLOT_MAIN_RING in pinned and first is not pinned[SLOT_MAIN_RING]:
+                    continue
+                if SLOT_SUB_RING in pinned and second is not pinned[SLOT_SUB_RING]:
+                    continue
+                slots = tuple((slot, item) for slot, item in
+                              ((SLOT_MAIN_RING, first), (SLOT_SUB_RING, second))
+                              if item is not None)
+                choices.append(_finale_choice(slots, None, relevant, next(order)))
+    return _undominated(choices)
+
+
+def _finale_hand_choices(legal, pinned, relevant, order) -> list[_Choice]:
+    """The two hands as one choice (hand_configurations), two of each weapon kind kept."""
+    pool = []
+    for kind in ("one", "two", "shield"):
+        members = [item for item in legal
+                   if slot_for(item.item) in (SLOT_MAIN_HAND, SLOT_SUB_HAND)
+                   and (kind == "shield") == (item.item.tval not in {21, 22, 23})
+                   and (kind == "shield" or (kind == "two") == _forced_two_handed(item))]
+        kept = _undominated([_finale_choice(((SLOT_MAIN_HAND, item),), None, relevant,
+                                            next(order)) for item in members], capacity=2)
+        pool.extend(choice.slots[0][1] for choice in kept)
+    pool.extend(item for item in pinned.values() if item not in pool)
+    choices = []
+    for hands in hand_configurations(pool, pinned):
+        slots = tuple((slot, item) for slot, item in
+                      ((SLOT_MAIN_HAND, hands.main), (SLOT_SUB_HAND, hands.sub))
+                      if item is not None)
+        choices.append(_finale_choice(slots, hands.mode, relevant, next(order)))
+    return _undominated(choices)
+
+
+def finale_exhaustive_search(
+    items: Iterable[OwnedEquipment],
+    figures: FinaleFigures,
+    *,
+    current_item_ids: frozenset[str] = frozenset(),
+    pinned: Mapping[str, OwnedEquipment] | None = None,
+    excluded_item_ids: frozenset[str] = frozenset(),
+    require_light: bool = False,
+    require_body: bool = False,
+    fill_slots: frozenset[str] = frozenset(),
+    required_flags: frozenset[int] = frozenset(),
+    valid: Callable[[Loadout], bool] = lambda loadout: True,
+    deadline: float | None = None,
+    limit: int = 3,
+) -> FinaleSearchResult:
+    """The sets of the owned gear first in the finale's order (``FinaleFigures.rank_key``, the
+    equipment_optimizer ``finale_rank`` of their sums), over every combination of the slots.
+
+    Owner 2026-11-24 「装備が最適化されていない。もう少しなんとかならんか」: with 44 owned items or
+    more the loadout search climbs one slot at a time (WarriorSingleSlotSearch), and n1-c life-221
+    (175 items) could not reach a set changing six slots at once.  The finale's order reads only
+    sums and unions of the items (speed, INT, CON, the gates' and the score's flags), so the
+    search is exact here: in each slot (the two rings and the two hands taken as one choice each)
+    a choice another one dominates on those figures is dropped, then a branch and bound over the
+    slots keeps the ``limit`` best keys, a branch whose best possible key (the remaining slots'
+    largest sums and every flag they hold) is no better than the ``limit``-th found being cut.
+    Every slot an owned piece can fill stays filled (``fill_slots``, the body under
+    ``require_body``, the light under ``require_light``) as the optimizer's armour-fill tier asks;
+    ``valid`` is the optimizer's static requirements.  The optimizer scores the sets returned with
+    the evaluator (the ordinary comparison breaks the order's ties).  ``deadline``
+    (``time.monotonic``): a search stopped there returns the best found, ``complete`` False."""
+    started = monotonic()
+    pinned = dict(pinned or {})
+    legal = [item for item in items
+             if item.exploration_legal and item.id not in excluded_item_ids]
+    legal.extend(item for item in pinned.values() if item not in legal)
+    # The current pieces first: an equal choice keeps the worn one.
+    legal.sort(key=lambda item: (item.id not in current_item_ids, item.id))
+    relevant = (FINALE_RESISTANCES | frozenset(FINALE_IMMUNITY_ELEMENT)
+                | {TR_RES_CURSE, TR_RES_BLIND, TR_RES_LITE, TR_TELEPATHY, TR_DEC_MANA,
+                   TR_EASY_SPELL} | required_flags)
+    order = iter(range(1 << 30))
+    groups: list[list[_Choice]] = [
+        _finale_ring_choices(legal, pinned, relevant, order),
+        _finale_hand_choices(legal, pinned, relevant, order),
+    ]
+    for slot in FIXED_SLOTS:
+        if slot in pinned:
+            groups.append([_finale_choice(((slot, pinned[slot]),), None, relevant, next(order))])
+            continue
+        candidates = [_finale_choice(((slot, item),), None, relevant, next(order))
+                      for item in legal if slot_for(item.item) == slot]
+        required = ((slot == SLOT_LIGHT and require_light) or slot in fill_slots
+                    or (slot == SLOT_BODY and require_body)) and candidates
+        if not required:
+            candidates.append(_finale_choice((), None, relevant, next(order)))
+        groups.append(_undominated(candidates))
+    groups = [group for group in groups if group]
+    for group in groups:
+        group.sort(key=lambda choice: (-choice.speed, -len(choice.gains), -choice.int_bonus,
+                                       -choice.con_bonus, choice.order))
+    # The fewest choices first: the bound tightens before the wide slots branch.
+    groups.sort(key=len)
+    count = len(groups)
+    best_speed = [0] * (count + 1)
+    best_int = [0] * (count + 1)
+    best_con = [0] * (count + 1)
+    gains_left: list[frozenset[int]] = [frozenset()] * (count + 1)
+    for index in range(count - 1, -1, -1):
+        group = groups[index]
+        best_speed[index] = best_speed[index + 1] + max(choice.speed for choice in group)
+        best_int[index] = best_int[index + 1] + max(choice.int_bonus for choice in group)
+        best_con[index] = best_con[index + 1] + max(choice.con_bonus for choice in group)
+        gains_left[index] = gains_left[index + 1].union(*(choice.gains for choice in group))
+
+    top: list[tuple[tuple, Loadout]] = []
+    chosen: list[_Choice] = []
+    nodes = 0
+    stopped = False
+
+    def floor_key():
+        return top[-1][0] if len(top) >= limit else None
+
+    def leaf(speed, int_bonus, con_bonus, flags):
+        key = figures.rank_key(speed, int_bonus, con_bonus, flags)
+        floor = floor_key()
+        if floor is not None and key <= floor:
+            return
+        if any(found == key for found, _ in top):
+            return
+        slots = tuple(pair for choice in chosen for pair in choice.slots)
+        if len({item.id for _, item in slots}) != len(slots):
+            return
+        mode = next((choice.hand_mode for choice in chosen if choice.hand_mode is not None),
+                    "empty")
+        loadout = Loadout(slots, mode)
+        if not required_flags <= loadout.flags or not valid(loadout):
+            return
+        top.append((key, loadout))
+        top.sort(key=lambda pair: pair[0], reverse=True)
+        del top[limit:]
+
+    def visit(index, speed, int_bonus, con_bonus, gains, adverse):
+        nonlocal nodes, stopped
+        nodes += 1
+        if deadline is not None and nodes % 4096 == 0 and monotonic() > deadline:
+            stopped = True
+        if stopped:
+            return
+        if index == count:
+            leaf(speed, int_bonus, con_bonus, gains | adverse)
+            return
+        reachable = gains | gains_left[index]
+        if not required_flags <= reachable | figures.intrinsic_flags:
+            return
+        floor = floor_key()
+        if floor is not None and figures.rank_key(
+                speed + best_speed[index], int_bonus + best_int[index],
+                con_bonus + best_con[index], reachable | adverse) <= floor:
+            return
+        for choice in groups[index]:
+            chosen.append(choice)
+            visit(index + 1, speed + choice.speed, int_bonus + choice.int_bonus,
+                  con_bonus + choice.con_bonus, gains | choice.gains, adverse | choice.adverse)
+            chosen.pop()
+            if stopped:
+                return
+
+    visit(0, 0, 0, 0, frozenset(), frozenset())
+    return FinaleSearchResult(tuple(loadout for _, loadout in top), not stopped, nodes,
+                              monotonic() - started)

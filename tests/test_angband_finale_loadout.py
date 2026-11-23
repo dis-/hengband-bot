@@ -139,5 +139,57 @@ class FinaleLoadoutTest(unittest.TestCase):
         self.assertEqual(best(True), "guard")
 
 
+class FinaleExhaustiveSearchTest(unittest.TestCase):
+    """warrior_loadout_search.finale_exhaustive_search against every combination of a small
+    catalog (owner 2026-11-24 「装備が最適化されていない」: the single-slot climb missed a set
+    changing six slots at once).  DECLARED CONSTRUCTED: the items (rings, an amulet, a light,
+    a helm, boots of fixed-seed random flags and pvals) and the character's figures."""
+
+    def figures(self):
+        from hengbot.warrior_loadout_search import FinaleFigures
+        return FinaleFigures(
+            base_speed=110, intrinsic_flags=frozenset({TR_RES_COLD}),
+            intelligence=lambda bonus: 140 + 10 * bonus,
+            constitution=lambda bonus: 180 + 10 * bonus,
+            max_hp=lambda bonus: 900 + 25 * bonus,
+            power_success=lambda bonus, flags: min(100, 90 + bonus))
+
+    def test_the_best_key_over_every_combination(self):
+        import itertools
+        import random
+        from hengbot.warrior_loadout_search import finale_exhaustive_search
+        rng = random.Random(1124)
+        pool = sorted(GATES | {TR_RES_SOUND, TR_RES_LITE, TR_RES_TIME})
+        kinds = {"ring": 45, "neck": 40, "light": 39, "head": 32, "feet": 30}
+        stats = (12, TR_INT, TR_CON)  # TR_SPEED, INT, CON
+        items = []
+        for kind, tval in kinds.items():
+            for index in range(5 if kind == "ring" else 4):
+                flags = set(rng.sample(pool, 6)) | {rng.choice(stats)}
+                items.append(gear(f"{kind}{index}", tval, flags, pval=rng.randint(1, 6)))
+        figures = self.figures()
+
+        def key(loadout):
+            def total(flag):
+                return sum(item.item.pval for _, item in loadout.slots if flag in item.flags)
+            return figures.rank_key(total(12), total(TR_INT), total(TR_CON), loadout.flags)
+
+        rings = [item for item in items if item.item.tval == 45]
+        slots = {tval: [item for item in items if item.item.tval == tval]
+                 for tval in (40, 39, 32, 30)}
+        names = {40: "neck", 39: "light", 32: "head", 30: "feet"}
+        best = None
+        for pair in itertools.combinations(rings, 2):
+            for choice in itertools.product(*slots.values()):
+                loadout = Loadout(((SLOT_MAIN_RING, pair[0]), ("sub_ring", pair[1]),
+                                   *((names[item.item.tval], item) for item in choice)), "empty")
+                if best is None or key(loadout) > best:
+                    best = key(loadout)
+        found = finale_exhaustive_search(
+            items, figures, require_light=True, fill_slots=frozenset({"head", "feet"}))
+        self.assertTrue(found.complete)
+        self.assertEqual(key(found.loadouts[0]), best)
+
+
 if __name__ == "__main__":
     unittest.main()

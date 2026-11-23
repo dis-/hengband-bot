@@ -67,7 +67,7 @@ class N1b411ClosureTimeCapRecordedTest(unittest.TestCase):
             real = warrior_optimization.optimize_single_slot_closure
             passes = []
 
-            def counting(current, neighbours, optimize):
+            def counting(current, neighbours, optimize, **seeds):
                 def counted(candidates):
                     passes.append(len(candidates))
                     if len(passes) == 3:
@@ -76,7 +76,7 @@ class N1b411ClosureTimeCapRecordedTest(unittest.TestCase):
                                                lambda: float("inf")):
                             return optimize(candidates)
                     return optimize(candidates)
-                return real(current, neighbours, counted)
+                return real(current, neighbours, counted, **seeds)
 
             with mock.patch.object(warrior_optimization, "optimize_single_slot_closure", counting):
                 board = steps[0][1]()
