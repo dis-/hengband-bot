@@ -764,6 +764,8 @@ def sensed_t1_destruction_key(policy, snapshot) -> str | None:
         loot=approaching or not _sensed_strong(policy, snapshot, leave=True)[1])
     if answer.used and approaching and _reached(snapshot, targets):
         forget_approach(policy)
+    elif approaching:
+        _remember_loot_step(policy, snapshot, answer, targets)
     return answer.key
 
 
@@ -952,6 +954,8 @@ def approach_key(policy, snapshot, strong) -> str | None:
         else:
             # A strong monster on the way was the use's subject: the targets are still gone to.
             setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn, tuple(targets)))
+    else:
+        _remember_loot_step(policy, snapshot, answer, targets)
     if answer.key is not None:
         return answer.key
     # The walk goes to the monster the use asks about (``approach_subject``), not to the
@@ -980,6 +984,25 @@ def approach_key(policy, snapshot, strong) -> str | None:
 # approach (the means, a clear head, a floor *Destruction* touches) still apply; the use needs
 # the target shown again (destruction_use's own gates).
 APPROACH_MEMORY = "_sensed_approach_memory"
+
+
+def _remember_loot_step(policy, snapshot, answer, targets, *, turn=None) -> None:
+    """destruction_loot's place walk or fetch answered for the approach (``answer`` from
+    destruction_use ``loot_then_use``, not the use): that step is the approach's own, so it is
+    remembered as the approach's walk is (``APPROACH_MEMORY``), and on the next board the plan is
+    asked again by ``remembered_approach_key`` though the T1 reading is lost there; it holds
+    until the use is made or the plan ends by destruction_loot's own bounds.
+
+    n1-c life-221 (Angband 80F, 2026-11-23 11:42, livelock:recall-escape): at (11,96) the sensed
+    group read T1, the approach owned it, and destruction_loot stepped '6' toward its clean place
+    (11,98); at (11,97) four of the group were past the telepathy's range, the group read T1 no
+    more, no approach was remembered (only the walk and the use were), and explore stepped '4'
+    straight back.  n1-b life-416 (Angband 95F, 2026-11-23 15:13): the same with the fetch toward
+    the pile at (13,66), '3' from (10,63) and explore's '7' back, until the livelock's Recall."""
+    if answer.key is None or answer.used:
+        return
+    setattr(policy, APPROACH_MEMORY, (snapshot.floor_key, snapshot.turn if turn is None else turn,
+                                      tuple(targets)))
 
 
 def forget_approach(policy) -> None:
@@ -1024,6 +1047,8 @@ def remembered_approach_key(policy, snapshot) -> str | None:
                                            use=bool(leaving))
     if answer.used and _reached(snapshot, seen):
         forget_approach(policy)
+    elif not answer.used:
+        _remember_loot_step(policy, snapshot, answer, current, turn=snapshot.turn if seen else turn)
     if answer.key is not None:
         return answer.key
     # The same walk as ``approach_key``'s: to the monster the use asks about, at its last cell;
