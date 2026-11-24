@@ -107,11 +107,13 @@ def _launcher_grid_key(ctx: _Ctx, grid) -> str | None:
     return key
 
 
-def _beam_key(ctx: _Ctx, race: int, grid) -> tuple[float, Callable] | None:
+def _beam_key(ctx: _Ctx, race: int, grid, origin=None) -> tuple[float, Callable] | None:
     """The best absorbed beam along a ray to ``grid`` (a bolt-or-beam counts at its beam chance);
-    none that ``race``'s known flags cancel."""
+    none that ``race``'s known flags cancel.  ``origin``: the cell the ray starts from (default
+    where the player stands; another is for weighing a plan's stand, never for the key)."""
     snapshot = ctx.snapshot
-    direction = me_powers.beam_direction(ctx.policy, snapshot, snapshot.player.position, Position(*grid))
+    start = snapshot.player.position if origin is None else Position(*origin)
+    direction = me_powers.beam_direction(ctx.policy, snapshot, start, Position(*grid))
     if direction is None or not me_device_attacks.can_use_powers(snapshot):
         return None
     flags = me_device_attacks.race_id_flags(ctx.policy, race)
@@ -141,18 +143,19 @@ def _reaches_grid(power) -> bool:
 
 
 def _fire_options(ctx: _Ctx, grid, race: int, *, piercing: bool = False, area_only: bool = False,
-                  missiles: bool = True, covers=None) -> list:
+                  missiles: bool = True, covers=None, origin=None) -> list:
     """(expected damage, key maker) of every attack aimed at ``grid``; ``piercing``: only one that
     passes the bodies on the way (a beam, a ball or a breath aimed at the grid); ``missiles``:
     the launcher too; ``covers``: only a ball or breath whose radius reaches that cell from
     ``grid`` (a burst planned off the target with a Powerful Activation's radius 3, which a
-    radius-2 ball aimed there would miss)."""
+    radius-2 ball aimed there would miss); ``origin``: the beam's ray weighed from that cell
+    instead of the player's (``_beam_key``; the damages only -- a key is made where he stands)."""
     reach = None if covers is None else quest_exposure.game_distance(tuple(grid), tuple(covers))
     options = [(damage, lambda make=make: make(grid))
                for damage, radius, shape, make in _ball_powers(ctx, race, grid)
                if (not area_only or shape == "ball") and (reach is None or radius >= reach)]
     if not area_only:
-        if (beam := _beam_key(ctx, race, grid)) is not None:
+        if (beam := _beam_key(ctx, race, grid, origin)) is not None:
             options.append(beam)
         if not piercing and missiles:
             distance = quest_exposure.game_distance(ctx.here, tuple(grid))

@@ -30,8 +30,8 @@ from hengbot.quest25_battle_board import (
     melee_is_fewer, MELT_REASON, RECHARGE_REST_LIMIT,
 )
 from hengbot.quest25_battle_attack import (
-    _balls, _breeders_in_line_key, _carried_grid_key, _engage, _fight_targets, _fire_at, _fire_options,
-    _haste, _hold, _reaches_grid, _recharge_key,
+    _ball_powers, _balls, _breeders_in_line_key, _carried_grid_key, _engage, _fight_targets, _fire_at,
+    _fire_options, _haste, _hold, _reaches_grid, _recharge_key,
 )
 from hengbot.quest25_battle_walk import (
     _damaged, _fire, _leave_fire, _open_key, _path, _refused, _step, _unseen_fire, _walk, _walk_to_sight,
@@ -189,8 +189,7 @@ def _tome(ctx: _Ctx) -> str | None:
     seen = any(monster.race_id == geo.TOME for monster in ctx.seen_hostiles())
     hp = _tome_hp(ctx)
     stands = [stand for stand in geo.TOME_NEAR_STANDS if _path(ctx, {stand}) or ctx.here == stand]
-    near = max((damage for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False)),
-               default=0.0)
+    near = _near_damage(ctx, tome, stands)
     sights = _sights(ctx, tome)
     far = 0.0
     if sights:
@@ -209,6 +208,25 @@ def _tome(ctx: _Ctx) -> str | None:
     if seen:
         return _haste(ctx) or _fire_at(ctx, tome, geo.TOME)
     return _walk_to_sight(ctx, tome, sights)
+
+
+def _near_damage(ctx: _Ctx, tome, stands) -> float:
+    """The near plan's damage: the strongest grid-aimed attack at the tome from one of the near
+    ``stands`` -- a ball or a breath from any of them, a beam only along a stand's own ray
+    (``_fire_options`` ``origin``) -- never one that only the player's present cell has.
+
+    n1-c life-222 (2026-11-25 00:30, decisions 41220-41234): the balls spent, the near value was
+    the bolt-or-beam along the ray from where the player stood; on [4,8] and [5,8] the ray down
+    column 8 reaches [9,8] (33 a use against the launcher's 29 in the replay), so the near plan won and walked
+    toward [5,5]; one step west, on [4,7] or [5,7], no ray reached it, the far plan won and walked
+    to a sight back east.  The two walks alternated every board to ``livelock:exhausted``.  No near
+    stand has a ray to [9,8], and the near plan's attack is made from its stand, so a ray of the
+    present cell is not the near plan's."""
+    if not stands:   # no stand to weigh a ray from: the balls and breaths alone (no ray needed)
+        return max((row[0] for row in _ball_powers(ctx, geo.TOME, tome)), default=0.0)
+    return max((damage for stand in stands
+                for damage, _make in _fire_options(ctx, tome, geo.TOME, missiles=False, origin=stand)),
+               default=0.0)
 
 
 def _tome_unarmed(ctx: _Ctx, tome) -> str | None:
