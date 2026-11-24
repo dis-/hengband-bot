@@ -8,9 +8,10 @@ open and no nearer cell to close in to (STAND_MIN_DISTANCE 3); the battle answer
 the generic explore, breakout:seek-frontier and livelock:stone-to-mud answered, alternating with
 the battle's own approach between (40,52) and (41,51) until the loop detector stopped the run.
 
-Fixture finale-hold-loop-n1c-221-1124: every player_turn board of that 100F floor from the arrival
-(turns 6257708-6261238, 1494 boards, from the livelock-exhausted capture's snapshot ring
-20261124-071625 and current; ``_same`` rows as tests/support/finale_416.boards expands them),
+Fixture finale-hold-exhausted-n1c-221-1124: every player_turn board of that 100F floor from the
+arrival to the second halt (turns 6257708-6264262, 2768 boards: the livelock-exhausted capture's
+snapshot ring 20261124-071625 and current up to 6261238, then the 08:51 capture's current ring;
+``_same`` rows as tests/support/finale_416.boards expands them),
 replayed open-loop (tests/support/finale_416: DECLARED RECONSTRUCTED device lists and expedition
 mark; DECLARED: the expedition's Restore Mana count held at 0, as the open-loop replay counts its
 own quaffs; and the Stone to Mud uses counted per wall, sealed_pocket ``worn_out``, cleared on every
@@ -20,18 +21,27 @@ Owner 2026-11-24 (verbatim) 「周辺感知で状況を確認する。今回の�
 あった。」: the player stood inside a vault of permanent rock (x 49-61), the Serpent beyond its west
 wall; the stands of its rays all lay outside.  The battle now takes the way around the permanent
 rock (walking, melting granite) to a stand instead of stepping west against the wall.
+
+The second halt (2026-11-24 08:51:57, stationary:exhausted:angband-finale:hold): at (29,60), the
+Serpent at (29,48) with a Cyberdemon (a strong non-target) beside it, the three stands south of
+the Serpent (42-44,48) were out of every non-target's line, but every walker's veto (policy
+``_walk_veto``: 1156 cells of the strong monsters' engagement areas) left no way to them and the
+battle held 120 boards.  The battle's walks now keep off only the left cells (``_battle_veto``);
+the owner's rule for the non-targets on 99F/100F is their line of fire.
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
 import unittest
 
-from hengbot import angband_finale, sealed_pocket
+from hengbot import angband_finale, angband_finale_battle, sealed_pocket
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support import finale_416
 from tests.support.recorded import EDIT
 
-FIXTURE = "finale-hold-loop-n1c-221-1124.jsonl.gz"
-FROM = 6261100   # the last minute before the halt: the Serpent 3-6 cells away
+FIXTURE = "finale-hold-exhausted-n1c-221-1124.jsonl.gz"
+FROM = 6261100   # the last minute before the first halt: the Serpent 3-6 cells away
+FIRST_HALT = 6261238
+HELD = 6263495   # the second halt's hold at (29,60) began here (to 6264262)
 GENERIC = ("explore", "breakout:", "livelock:", "stuck:", "quest-search:")
 
 
@@ -40,12 +50,17 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
     def setUpClass(cls):
         monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
+        reports = {}
+
         def prepare(policy, board):
             angband_finale.memory(policy).restore_mana_used = 0
             sealed_pocket._memory(policy, board).uses.clear()
+            reports[board.turn] = angband_finale_battle.report(policy)
 
         rows = finale_416.drive(finale_416.boards(FIXTURE), monrace, prepare=prepare)
-        cls.rows = [row for row in rows if row[0] >= FROM]
+        cls.rows = [row for row in rows if FROM <= row[0] <= FIRST_HALT]
+        cls.held = [row for row in rows if row[0] >= HELD]
+        cls.reports = reports
 
     def test_no_generic_rung_answers_while_the_target_is_shown(self):
         generic = [row for row in self.rows
@@ -67,6 +82,22 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
         self.assertEqual(west, [], self.rows)
         self.assertEqual([row for row in self.rows if row[0] >= 6261200
                           and row[3] == "angband-finale:hold"], [], self.rows)
+
+    def test_the_way_to_the_stands_south_of_the_serpent_is_taken(self):
+        # The first boards of the recorded hold: the way around ('8', north out of the cell
+        # toward (44,48)).  The replay is open-loop -- the recorded boards never show the step
+        # made -- so only the boards before the walk's own refusal of a step that never lands
+        # are pinned (past them the replay's own refusals hold it, up to the bound).
+        first = self.held[:10]
+        self.assertTrue(all(row[1] == (29, 60) for row in first), first)
+        self.assertTrue(all(row[3].startswith(("angband-finale:stand-walk", "angband-finale:melt"))
+                            for row in first), first)
+
+    def test_the_record_names_the_shunned_and_why_no_stand(self):
+        battle = self.reports[HELD]["battle"]
+        self.assertIn("shunned", battle)
+        self.assertIn("no_stand", battle)
+        self.assertTrue(any(entry[0] == "サイバーデーモン" for entry in battle["shunned"]), battle)
 
 
 if __name__ == "__main__":
