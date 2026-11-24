@@ -69,6 +69,10 @@ STOP_REASON = "dungeon:blocked:deep-arrival-without-destruction"
 STOP_MESSAGE = ("a floor of 50F or deeper was entered from a shallower floor of the same "
                 "dungeon without the *Destruction* means")
 MEMORY = "_deep_climb_arrival"
+# policy_town ``_should_start_town_return``'s triggers the climb does not give way to
+# (``return_due``, with destruction_use's MEANS_SPENT_TRIGGER): the depth gap of the floor stood
+# on, and the next deeper floor's kit (no stair down is taken on a climb floor, dive_floor.capped).
+GAP_TRIGGERS = ("resist-gap", "next-depth-kit")
 
 
 def admits(missing, dungeon_id: int, landing: int) -> bool:
@@ -168,6 +172,8 @@ def key(policy, snapshot):
 
     if not climb_floor(policy, snapshot) or policy._floor_navigation_exit_locked(snapshot):
         return None
+    if return_due(policy, snapshot):
+        return None
     landing = on_floor(policy, snapshot)
     if not landing and policy._breeder_walkout_active(snapshot):
         return None
@@ -197,6 +203,36 @@ def key(policy, snapshot):
     if move is not None:
         policy.last_reason = f"{family}:search-upstairs"
     return move
+
+
+def return_due(policy, snapshot) -> bool:
+    """A town return the climb gives way to: latched, or due on this board
+    (policy_town ``_should_start_town_return``: the supply ledger's teleport-low / cure-low /
+    recall-low, the escape kit spent, a full pack, ...), and no Recall running yet (the climb
+    goes on during the countdown, as it did).
+
+    Owner 2026-10-03 (verbatim, the intent of the returns): 「回復・テレポート・帰還が尽きる前に町へ
+    戻る。既存の teleport-low / escape-kit-empty / recall 不足の帰還がそれ」.  The climb's rung is the
+    objectives layer's first, above the return's rungs, so it answered every climb-floor board
+    and no supply return started there: n1-a life-535 (2026-11-24, Mountain 45F, the band 38-42)
+    read its 15 Teleportation scrolls in four minutes against the floor's summoners, went on
+    searching for the up stairs with 3, then 0 (the ledger's return below 4), and read Recall
+    only on the 即死 board of 14:41:32; dead ten seconds later, the Recall still counting down.
+    The 50F row's gaps start no return here as before (``floor_gaps``), nor does the escape
+    count on a climb floor (escape_count.returns_on, owner 2026-11-22); a depth gap of the floor
+    stood on is what the climb itself answers and the next deeper floor's kit is no floor the
+    climb goes to (``GAP_TRIGGERS``), so they keep the climb as they did (a Recall there would set
+    the recall depth to this floor, dive_floor.reset_recall_depth, and land the next visit on it
+    again)."""
+    from hengbot import destruction_use
+
+    if snapshot.player.recalling:
+        return False
+    if policy._returning_to_town:
+        return True
+    return (policy._should_start_town_return(snapshot)
+            and policy._last_return_trigger not in (
+                *GAP_TRIGGERS, destruction_use.MEANS_SPENT_TRIGGER))
 
 
 def underfoot_key(policy, snapshot, family: str):

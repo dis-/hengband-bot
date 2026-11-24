@@ -265,6 +265,9 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         and not player.recalling
         and not policy._emergency_return_active
         and policy._last_return_trigger in RETURN_LOOT_SWEEP_TRIGGERS
+        # Owner 2026-11-23 「品の方へ寄り道はしない」: no sweep on a climb floor (deep_climb.return_due
+        # gives the climb's place to the return there, not to the loot).
+        and not deep_climb.climb_floor(policy, snapshot)
     ):
         return_loot = policy._town_producer_entry("_normal_loot_key#1", lambda: policy._normal_loot_key(
             snapshot,
