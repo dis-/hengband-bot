@@ -664,6 +664,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_melt_move": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "angband_finale_battle.py:_near_target": {
     "classification": "data",
     "rows": [
