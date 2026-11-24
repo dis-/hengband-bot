@@ -179,6 +179,35 @@ def retains(policy, item, borrower: str) -> bool:
     return any(is_target_piece(policy, item, slot) for slot in lent_slots(policy, borrower))
 
 
+# The retention branch of the hands' return pieces while a digger holds a hand.
+HANDS_RETURN_BRANCH = "slot-lending:hands-return"
+
+
+def retains_hands_return(policy, snapshot, item) -> bool:
+    """While a digger holds a hand (the ``mining-digger`` lending, read from the board), the piece
+    that hand returns to (:func:`return_item`) stays carried: no sale, deposit or destruction.
+
+    One verdict for the lent hands' piece: the Home's withdrawal (policy_equipment
+    ``_home_rearm_key``) takes the weapon out of the Home exactly while the pack has none for the
+    digger's hand, and the dungeon's re-arm (mining_loadout) and the town re-arm wield it from the
+    pack, so the Home's weight deposit may not shelve it.  n1-a life-536 (2026-11-24 19:02-19:15,
+    Lv35 Warrior, mining fundraise "mine", シャベル / 穴掘りのドワーフのシャベル in the hands): the
+    weight deposit shelved 殺戮のロッホアーバー・アックス (pack 1905 over the limit 1750), the
+    withdrawal took it back, nine times in the last visit, until town:blocked:stage-deadline:home.
+    """
+    if not item.is_equipment or item.is_digging_tool:
+        return False
+    for slot in HANDS:
+        worn = next((piece for piece in snapshot.equipment if piece.slot == slot), None)
+        if worn is None or not worn.is_digging_tool:
+            continue
+        returned = return_item(policy, snapshot, slot)
+        if (returned is not None and returned.slot == item.slot
+                and equipment_identity(returned) == equipment_identity(item)):
+            return True
+    return False
+
+
 # --- the return exits -------------------------------------------------------------------
 
 def wield_back(policy, snapshot, goal: str, item, slot: str, **options) -> str | None:
