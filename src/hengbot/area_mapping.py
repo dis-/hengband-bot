@@ -57,6 +57,7 @@ SEALED_POCKET = "sealed-pocket"
 LOOT_ENCLOSURE = "loot-enclosure"
 PICKED_UP = "picked-up"
 DEEP_CLIMB = "deep-climb"
+FINALE_DESCENT = "finale-descent"
 MEMORY = "_area_mapping_memory"
 CARRIED = {(TVAL_STAFF, SV_STAFF_MAPPING): "staff", (TVAL_ROD, SV_ROD_MAPPING): "rod"}
 FAILED = frozenset({
@@ -295,11 +296,23 @@ def deep_climb_key(policy, snapshot: Snapshot) -> str | None:
     or below the band) with no up stairs known (owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ
     登る」): a carried staff or rod, else a held Scroll of Magic Mapping, where no map of this
     floor covers the player; else None."""
+    return _stairs_map_key(policy, snapshot, DEEP_CLIMB)
+
+
+def finale_descent_key(policy, snapshot: Snapshot) -> str | None:
+    """The map finale_descent asks for on the expedition's way down with no down stairs known
+    (owner 2026-11-24 「決戦装備にしたら速やかに最下層まで降りること。寄り道は不要。」): as
+    ``deep_climb_key``, a carried staff or rod, else a held Scroll of Magic Mapping, where no map
+    of this floor covers the player; else None."""
+    return _stairs_map_key(policy, snapshot, FINALE_DESCENT)
+
+
+def _stairs_map_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
     from hengbot import mapped_area
 
     if _covered(policy, snapshot, mapped_area.floor_discs(policy, snapshot)):
         return None
-    used = _carried_key(policy, snapshot, DEEP_CLIMB)
+    used = _carried_key(policy, snapshot, trigger)
     if used is not None:
         return used
     scroll = _held_scroll(snapshot)
@@ -309,7 +322,7 @@ def deep_climb_key(policy, snapshot: Snapshot) -> str | None:
     used = policy._read_key(snapshot, scroll)
     if used is not None:
         memory = _memory(policy, snapshot)
-        policy.last_reason = f"{REASON}:{DEEP_CLIMB}"
+        policy.last_reason = f"{REASON}:{trigger}"
         memory.pending = (snapshot.turn, snapshot.player.position,
                           me_powers.map_radius(policy, snapshot))
     return used

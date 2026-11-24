@@ -18,6 +18,7 @@ from __future__ import annotations
 from hengbot import (
     anaguma,
     destruction_use,
+    finale_descent,
     immobile_ranged_kill,
     immobile_threat_memory,
     oneshot_breath,
@@ -76,6 +77,14 @@ def key(policy, snapshot, *, strategic_hostiles, strategic_adjacent, physical_ho
         ))
     detected_preparation = None
     if unseen_action is None:
+        # Owner 2026-11-24 「決戦装備にしたら速やかに最下層まで降りること。寄り道は不要。」: on the
+        # finale expedition's way down the descent owns the floor; no dug pocket and no hold.
+        if finale_descent.applies(policy, snapshot):
+            descent = policy._town_producer_entry(
+                "finale_descent.key", lambda: finale_descent.key(policy, snapshot), board=snapshot)
+            if descent is not None:
+                return descent
+            return PASS
         # Owner 2026-11-10 穴熊 「掘れるなら掘る」: the dug pocket comes before the
         # existing chokes; it declines (None) where it cannot be dug (anaguma).
         anaguma_key = anaguma.key(policy, snapshot, physical_hostiles)

@@ -14,7 +14,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import search_ban
+from hengbot import finale_descent, search_ban
 from hengbot import full_pack_exchange, left_cells, loot_frontier, loot_walk, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot, walk_vetoes
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
@@ -1816,6 +1816,10 @@ class IdentificationMixin:
         maintainability Q3 「命の危険が無ければ取り終える」).
         """
         loot_walk.forget_walk(self)
+        # Owner 2026-11-24 「決戦装備にしたら速やかに最下層まで降りること。寄り道は不要。」: no loot
+        # on the finale expedition's way down (finale_descent).
+        if finale_descent.applies(self, snapshot):
+            return None
         if self._safety_deferred_loot:
             blocker_now = self._loot_block_reason(snapshot, hostiles)
             if blocker_now not in LOOT_DEFER_BLOCKERS:

@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.home_full_relief import relief_of
 from hengbot import equipment_target
 from hengbot.item_identity import same_memory
-from hengbot import equipment_rules, finale_bm_tour, finale_hold, finale_prep, finale_teleport_tour
+from hengbot import equipment_rules, finale_bm_tour, finale_descent, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import deep_climb, fled_floor_stairs, return_start
 from hengbot import recall_wait_unknown_path
@@ -8546,6 +8546,22 @@ class TownMixin:
         # Records WHICH condition ends the run in self._last_return_trigger, so the
         # decision log shows why every dive returned (see the depth_safety telemetry).
         if snapshot.in_town:
+            return False
+        # Owner 2026-11-24 「決戦装備にしたら速やかに最下層まで降りること。寄り道は不要。」: on the
+        # finale expedition's way down to its floor (finale_descent) the return is the finale's
+        # own line (finale_hold's, as on the relay floor) and hunger with nothing to eat; no
+        # ordinary supply return and no pack-full (n1-c life-221 2026-11-24 16:55:51 recalled
+        # from 95F under pack-full after the loot walk filled the pack).
+        if finale_descent.applies(self, snapshot):
+            if snapshot.player.hungry and self._find_edible(snapshot) is None:
+                return_start.set_trigger(self, "food-hungry")
+                return True
+            if finale_descent.return_due(self, snapshot):
+                # The same line as the relay floor's; that floor keeps its trigger's name.
+                return_start.set_trigger(self, (
+                    finale_hold.RETURN_TRIGGER if finale_hold.relay_floor(self, snapshot)
+                    else finale_descent.RETURN_TRIGGER))
+                return True
             return False
         if self._guardian_descent_blocked(snapshot):
             return_start.set_trigger(self, "guardian-kit-insufficient")
