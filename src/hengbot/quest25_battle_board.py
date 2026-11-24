@@ -399,7 +399,17 @@ def sees_ipsissimus_unseen(snapshot) -> bool:
 
 def _note_pen_shot(ctx: _Ctx) -> None:
     """「[7,17] への撃ちで命中や倒したメッセージが10回続けて出なければ、まだ倒していない分は逃げたとみなす」,
-    only without telepathy or evil ESP."""
+    only without telepathy or evil ESP.
+
+    The misses stand in for a pen the player cannot see (owner 2026-11-06 「当たらない撃ちで補う」,
+    beside 「テレポートしたメッセージで判断」 and 「テレパシーか邪悪感知なら [5,1] から見える」): a board
+    that shows an Ipsissimus in the pen answers the shot as a hit does.  It is there, and the two
+    behind it on [8,17] [9,17] cannot leave while it stands (「一体倒すと歩き回る」).  n1-a life-536
+    (2026-11-24 20:52:50-20:52:52, Lv38 warrior): from [5,2] ten crossbow bolts at [7,17] missed
+    the Ipsissimus seen there (it cast at the player by name at 10904), all three were counted
+    escaped at 10906, the plan went on to the stragglers' stand [5,1] -- a cell its summons reaches
+    through [5,2] -- off phase 2's choke and restock (owner 2026-11-16 A), and the summons were
+    fought there until the Healing potions were gone and the player died."""
     battle = ctx.battle
     if not battle.pen_shot:
         return
@@ -408,11 +418,18 @@ def _note_pen_shot(ctx: _Ctx) -> None:
     names = _names(ctx.policy, geo.IPSISSIMUS)
     answered = any(_killed_name(text) is not None or text.endswith(_HIT_LINES)
                    or any(line in text for line in _HIT_LINES_EN) or _pain_of(text, names)
-                   for text in texts)
+                   for text in texts) or _ipsissimus_seen_in_pen(ctx)
     battle.pen_misses = 0 if answered else battle.pen_misses + 1
     if battle.pen_misses >= ctx.values.pen_misses_to_escaped and not sees_ipsissimus_unseen(ctx.snapshot):
         battle.assumed_escaped = max(0, geo.ROSTER[geo.IPSISSIMUS] - ctx.kills(geo.IPSISSIMUS)
                                      - _escaped_count(ctx, assumed=False))
+
+
+def _ipsissimus_seen_in_pen(ctx: _Ctx) -> bool:
+    """An Ipsissimus the board shows (not by detection alone) on a pen cell."""
+    return any(monster.race_id == geo.IPSISSIMUS
+               and (monster.position.y, monster.position.x) in geo.IPSISSIMUS_PEN
+               for monster in ctx.seen_hostiles())
 
 
 def _note_arrivals(ctx: _Ctx) -> None:
