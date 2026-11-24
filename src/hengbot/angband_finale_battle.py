@@ -169,6 +169,13 @@ class Stand:
     held: int = 0                     # boards the last wall was kept / the open ray waited
 
 
+@dataclass(frozen=True)
+class LastSeen:
+    """The target where it was last shown (``Battle.last_seen``), for the stand walk while it is
+    shown nowhere: the stand's rules read only its cell."""
+    position: Position
+
+
 @dataclass
 class Battle:
     floor: tuple | None = None
@@ -1495,6 +1502,17 @@ def key(policy, snapshot) -> str | None:
         return cleared
     if target is not None:
         return _fight_key(policy, snapshot, held, target)
+    # A stand chosen on a board that showed the target owns the walk while the target is shown
+    # nowhere, toward the target's last-seen cell (``LastSeen``): the stand walk and the walk to
+    # the last-seen cell have different goals and must not take turns.  n1-c life-221 (Angband
+    # 100F, 2026-11-24 10:30, loop-detected): with the stand (35,52), at (26,32) the Serpent
+    # (26,52) was shown by telepathy 20 cells away and the stand walk stepped '1' to (27,31); there
+    # it was 21 away, beyond telepathy (TELEPATHY_RANGE), and the walk to the last-seen cell
+    # stepped '9' back, over and over.
+    if held.stand is not None and held.last_seen is not None:
+        stood = _stand_key(policy, snapshot, held, LastSeen(Position(*held.last_seen)))
+        if stood is not None:
+            return stood
     approach = _approach_key(policy, snapshot, held)
     if approach is not None:
         return approach
