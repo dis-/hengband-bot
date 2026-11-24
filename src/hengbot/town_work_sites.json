@@ -10520,6 +10520,13 @@
     ],
     "delegation": "_leave_fundraising_floor; no independent progress"
   },
+  "policy_fundraising.py:FundraisingMixin._secret_wall_exit": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_fundraising.py:FundraisingMixin._secret_wall_search_step": {
     "classification": "data",
     "rows": [

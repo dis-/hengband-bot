@@ -12,8 +12,8 @@ forgetting the eye's cells.  Owner 2026-11-06:
 
 Now the floor exit digs (rung ``_fundraising_key#1``, walkout_dig), by the route with the
 fewest tunnelled cells: over the mapped corridor and round the trap and the ring.
-A digger-less walker keeps its wander, and the wander no longer starves the no-progress
-bound that sits below this owner in the ladder.
+A digger-less walker searches the walls for a secret door (2026-11-24, n1-a life-537), and
+neither starves the no-progress bound that sits below this owner in the ladder.
 Fixture: tests/extract_n1b_322_walkout_dig_1106_fixture.py.
 DECLARED RECONSTRUCTED: terrain, modes and ledger are the 02:43 stop capture's values,
 laid over the eye's board (the terrain only grows on this floor).
@@ -176,13 +176,18 @@ class MiningWalkOutDigTest(executor_pins.ProductionHarness):
         self.assertTrue(policy._is_oscillating())
         self.assertEqual((key, policy.last_reason), (ROUND_THE_TRAP, DIG_UPSTAIRS))
 
-    def test_without_a_digger_the_walker_still_wanders(self):
+    def test_without_a_digger_the_walker_searches_the_walls(self):
+        """No digger: the walls are searched for a secret door before any wander, as the
+        ordinary return searches them (policy_fundraising ``_secret_wall_exit``; n1-a
+        life-537 2026-11-24 wandered 1,432 decisions in rooms whose exits were secret doors,
+        tests/test_n1a_537_upstairs_wander_1124_recorded.py)."""
         raw = copy.deepcopy(CASE["wander_board"])
         raw["equipment"] = [item for item in raw["equipment"]
                             if item["tval"] != TVAL_DIGGING]
         policy = self.policy()
         _board, key = self.decide(policy, raw)
-        self.assertEqual(policy.last_reason, WANDER)
+        self.assertIn(policy.last_reason, {"fundraise:search", "fundraise:seek-secret-wall"})
+        self.assertNotEqual(policy.last_reason, WANDER)
         self.assertFalse(key.startswith(TUNNEL_KEY))
 
     def test_no_progress_bound_reaches_the_walker_below_this_owner(self):

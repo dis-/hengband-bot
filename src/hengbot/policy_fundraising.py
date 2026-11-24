@@ -65,6 +65,9 @@ from hengbot.policy_constants import (
     REFILL_KEY,
     SEARCH_KEY,
     SEARCH_LIMIT,
+    SECRET_WALL_DETECT,
+    SECRET_WALL_SEARCH,
+    SECRET_WALL_WALK,
     STUCK_ESCAPE_LIMIT,
     TUNNEL_KEY,
     UP_STAIRS_KEY,
@@ -1028,6 +1031,31 @@ class FundraisingMixin:
                 livelock = self._navigation_livelock_key(snapshot)
                 if livelock is not None:
                     return livelock
+            # Nothing left to explore, no dig, the bound not reached: the up staircase may
+            # be behind a secret door, searched as the ordinary return searches it
+            # (``_secret_wall_exit``).  n1-a life-537 (2026-11-24 20:55-21:03, Yeek cave 3F,
+            # Lv8 Warrior, no Recall) fell through a trap door into two rooms whose exits
+            # were secret doors and wandered 1,432 decisions: the search below was asked
+            # only while the walk oscillated.
+            wall_exit = self._secret_wall_exit(snapshot)
+            if wall_exit is not None:
+                kind, value, target = wall_exit
+                if kind == SECRET_WALL_DETECT:
+                    return value
+                if kind == SECRET_WALL_SEARCH:
+                    self.last_reason = "fundraise:search"
+                    return self._fundraising_return_route_key(
+                        value, step="fundraising.search-for-upstairs",
+                        work_id="fundraise:return:search",
+                        expected_effect="wall-observation",
+                    )
+                self.last_reason = "fundraise:seek-secret-wall"
+                self._declare_reach(target)
+                return self._fundraising_return_route_key(
+                    self._step_toward(snapshot, value),
+                    step="fundraising.seek-secret-wall",
+                    work_id="fundraise:return:secret-wall-route",
+                )
             if self._is_oscillating():
                 step = self._probe_unknown_step(snapshot)
                 if step is not None:
@@ -2415,6 +2443,34 @@ class FundraisingMixin:
             return False
         self._mining_stall_turns = MINING_STALL_LIMIT
         return True
+
+    def _secret_wall_exit(
+        self, snapshot: Snapshot
+    ) -> tuple[str, str | Position, Position | None] | None:
+        """The next step of a walk out whose floor shows no stair and nothing to explore.
+
+        One ladder for the town return and the income run's floor exit: (SECRET_WALL_DETECT,
+        key, None) the door detection of a floor where the search is banned (search_ban);
+        (SECRET_WALL_SEARCH, SEARCH_KEY, None) a search of the walls beside the player, counted;
+        (SECRET_WALL_WALK, first step, wall cell) the walk to the next wall to search; else
+        None (blind, confused, a forgetting maze, or every reachable wall searched)."""
+        player = snapshot.player
+        if self._is_forgetting_maze(snapshot) or player.blind or player.confused:
+            return None
+        if search_ban.banned(snapshot):
+            # 99F/100F (search_ban): a door detection instead, never the search.
+            detected = search_ban.detect_key(self, snapshot)
+            if detected is not None:
+                return SECRET_WALL_DETECT, detected, None
+        elif self._undersearched_walls(player.position):
+            self._record_wall_search(player.position)
+            return SECRET_WALL_SEARCH, SEARCH_KEY, None
+        self._claim_target_capture = []
+        try:
+            step = self._secret_wall_search_step(snapshot)
+        finally:
+            target = self._take_claim_target()
+        return None if step is None else (SECRET_WALL_WALK, step, target)
 
     def _secret_wall_search_step(self, snapshot: Snapshot) -> Position | None:
         if search_ban.banned(snapshot):
