@@ -3072,6 +3072,27 @@ def claim_entered_store_at(policy, snapshot: Snapshot, cell) -> bool:
     )
 
 
+def teleport_leg_landed(snapshot: Snapshot, claim) -> bool:
+    """The claim's inn teleport leg landed: the board is the town its execution declared.
+
+    Every town is floor (0, 0, 0), so a leg's cell Reach (the building in the town it left)
+    is never reached on the destination's map: the leg's own declared effect (``town:N``,
+    policy_town ``_offer_town_teleport_leg``) is its completion.  n1-b life-418 (2026-11-24
+    22:06:08, Lv17 Magic-Eater): the Tower of Sorcery trip's return leg (me-staff:return-outpost
+    '1ma', quest-request) landed in the outpost and its Reach (43,92) of Morivant stayed the
+    town's holder; the equipment transaction re-wielding ウォー・ハンマー over the mining run's
+    シャベル was held out and the town end stopped on town:blocked:survival:combat_weapon_ready.
+    """
+    execution = getattr(claim, "execution", None)
+    town_id = getattr(snapshot, "town_id", -1)
+    return bool(
+        execution is not None
+        and town_id is not None and town_id >= 0
+        and snapshot.in_town
+        and execution.expected_effect == f"town:{town_id}"
+    )
+
+
 def claim_reach_arrival(policy, snapshot: Snapshot, claim) -> str | None:
     """The observed arrival that completes a cell Reach claim, read-only.
 
@@ -3087,6 +3108,8 @@ def claim_reach_arrival(policy, snapshot: Snapshot, claim) -> str | None:
         return None
     if snapshot.on_open_wilderness:
         return None
+    if teleport_leg_landed(snapshot, claim):
+        return "teleport-arrived"
     position = snapshot.player.position
     if goal.cell == (position.y, position.x):
         return "reached"
@@ -3340,8 +3363,12 @@ def claim_suspended_exit(policy, snapshot: Snapshot, register) -> None:
         elif goal.cell is not None and not snapshot.on_open_wilderness:
             # Round 3: the same tests as an active Reach claim
             # (``_claim_exit_completion``): on the cell, or inside the
-            # store whose entrance is the cell.
-            if goal.cell == (position.y, position.x):
+            # store whose entrance is the cell, or its teleport leg landed.
+            if teleport_leg_landed(snapshot, claim):
+                register.close_suspended(
+                    claim.claim_id, "complete", "teleport-arrived"
+                )
+            elif goal.cell == (position.y, position.x):
                 register.close_suspended(
                     claim.claim_id, "complete", "reached"
                 )
