@@ -7530,6 +7530,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "policy_town.py:TownMixin._town_hunt_adjacent_strike": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The town hunt's adjacent blow on a walk's board: the ladder melee rung's own answer (combat_answer.adjacent_attack, its survival blow through _town_producer_entry); reviewed returns and consumers in the generated manifest.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._town_departure_conjuncts": {
     "classification": "data",
     "rows": [

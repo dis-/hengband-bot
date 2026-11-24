@@ -15,6 +15,7 @@ from hengbot import destruction_use, ability_gear, consumable_policy, me_capabil
 from hengbot import item_use_route
 from hengbot import guardian_rumor, home_identification, home_pass_charge, town_end_mining, town_travel
 from hengbot import recall_wait_reach, status_cure, unseen_strike, walkout_dig
+from hengbot import combat_answer, disenchant_avoid
 from hengbot import random_quest_reserve, search_ban
 from hengbot import town_visit_plan
 from hengbot.town_visit_plan import (
@@ -24,7 +25,7 @@ from hengbot.town_visit_plan import (
 
 from hengbot.departure_readiness import readiness_table
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from functools import wraps
+from functools import partial, wraps
 from weakref import WeakKeyDictionary
 from hengbot.item_reservation import (
     claim_candidate_cache, decision_caches_enabled, decision_memo, reservation_query,
@@ -36,6 +37,7 @@ from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
+    MONSTER_CHASE_OWNERS as CLAIM_MONSTER_CHASE_OWNERS,
     goal_typing as claim_goal_typing,
 )
 from hengbot.town_hold import claim_family_of as town_claim_family_of
@@ -5717,8 +5719,22 @@ class TownMixin:
     def _town_clear_traveler_key(
         self, snapshot: Snapshot, goal: Position | None = None
     ) -> str | None:
-        """Compatibility hook for travel callers; town combat is global now."""
-        return self._town_kill_mob_key(snapshot)
+        """The town hunt's answer on a walk's board, the adjacent monster's blow included.
+
+        The hunt hands a beatable hostile beside the player to the ladder's
+        melee rung (``combat_answer.adjacent_attack``).  A walk that asks the
+        hunt here (the store approach, the entrance travel) answers the board
+        itself and the ladder's melee is never reached, so the hunt's own
+        verdict -- this monster is killed -- is carried out here with that
+        rung's answer.  Otherwise the walk stepped away from the monster the
+        hunt walked back to on the next board: n1-c life-222 (2026-11-24
+        19:23-19:24, Lv23 Magic-Eater) walked toward a 戦傷兵士 under
+        town:kill-mob-approach and, beside it, away to Home under
+        equipment-transaction:approach-home (the transaction that had taken
+        off a ring owns every town decision, policy ``_decide``), 130 boards
+        to town:blocked:stage-deadline:equipment.
+        """
+        return self._town_kill_mob_key(snapshot, strike_adjacent=True)
 
     def _town_friendly_unbeatable(
         self, snapshot: Snapshot, monster: MonsterState
@@ -5803,14 +5819,47 @@ class TownMixin:
             return targets
         return []
 
+    def _town_hunt_adjacent_strike(self, snapshot: Snapshot) -> str | None:
+        """The ladder's melee rung's answer to the hostiles beside the player.
+
+        The same call as ladder_combat's rung 2 (``combat_answer.adjacent_attack``,
+        its survival blow and its chase completion), on the hostiles the hunt
+        fights: every adjacent visible non-pet hostile but what disenchants the
+        gear (owner 2026-11-05).  None (fear refusing the blow with no other
+        answer) leaves the board to the caller, as the rung leaves it below.
+        """
+        here = snapshot.player.position
+        adjacent = disenchant_avoid.not_avoided(self, snapshot, [
+            monster for monster in snapshot.visible_monsters
+            if monster.hostile and not monster.pet
+            and here.distance_to(monster.position) <= 1
+        ])
+        answer = combat_answer.adjacent_attack(
+            self, snapshot, adjacent, "melee",
+            blow=lambda target: self._town_producer_entry(
+                "_direction_key#2",
+                partial(combat_answer.direct_blow, self, snapshot, target),
+                family="survival"),
+            on_engage=lambda: self._complete_claim_goal(
+                "closed-to-melee", owners=CLAIM_MONSTER_CHASE_OWNERS,
+                monsters={(monster.index, monster.race_id) for monster in adjacent},
+            ))
+        return None if answer is None else answer.key
+
     @claims(ClaimOwner.SURVIVAL)
-    def _town_kill_mob_key(self, snapshot: Snapshot) -> str | None:
+    def _town_kill_mob_key(
+        self, snapshot: Snapshot, *, strike_adjacent: bool = False
+    ) -> str | None:
         """Approach and kill every visible town monster except the player's pets.
 
         A direction key merely swaps places with a friendly in Hengband's
         ``exe_movement``.  The alter command instead reaches ``do_cmd_attack``
         through ``exe_alter``; a normal Warrior then receives the friendly-fire
         confirmation, answered inline by the trailing ``y``.
+
+        A hostile beside the player is left to the ladder's melee rung; with
+        ``strike_adjacent`` (a walk's caller, ``_town_clear_traveler_key``,
+        that answers before that rung) the rung's own answer is given here.
         """
         if not snapshot.in_town or snapshot.dungeon_level != 0:
             self._town_hunt_target = None
@@ -5905,6 +5954,10 @@ class TownMixin:
                         expected_effect="monster-removed",
                     )
                     return key
+                if strike_adjacent:
+                    strike = self._town_hunt_adjacent_strike(snapshot)
+                    if strike is not None:
+                        return strike
                 # Preserve the ordinary adjacent-hostile melee path and reason.
                 self._offer_execution_no_step(
                     producer="survival",
