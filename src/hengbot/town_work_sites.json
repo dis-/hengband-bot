@@ -5762,6 +5762,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "map_memory_record.py:load": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "map_memory_record.py:restored_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "mapped_area.py:current": {
     "classification": "data",
     "rows": [

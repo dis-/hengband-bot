@@ -37,6 +37,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_alternate_dungeon_record_path",
     "_warning_cell_record_path",
     "_quest_plan_record_path",
+    "_map_memory_record_path",
 )
 
 

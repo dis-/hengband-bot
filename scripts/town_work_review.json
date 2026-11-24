@@ -15542,6 +15542,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "evidence": "Pure keys of the targeting cursor moved to a grid; no command."
   },
+  "map_memory_record.py:load": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Any region: called only by map_memory_record.restored_grids, once per process at its first region (HengbotPolicy._with_grid_memory).",
+    "evidence": "Data/selector result; no independent command or effect credit. Reads the map memory a previous bot process left beside the decision log; returns a dict or None, never a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "map_memory_record.py:restored_grids": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Any region: HengbotPolicy._with_grid_memory at the process's first region; restores only on a dungeon floor's region (never the town or the surface).",
+    "evidence": "Data/selector result; no independent command or effect credit. Hands back the remembered grids of the same floor and an earlier or equal game turn (else {}), which the board then merges over; returns a dict of grids, never a key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "quest25_battle_record.py:take": {
     "classification": "data",
     "rows": [

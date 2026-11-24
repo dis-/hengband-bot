@@ -22,6 +22,7 @@ from hengbot import anaguma, combat_answer, damaging_ground, deep_teleport, hero
 from hengbot.stair_destination import down_destination, surface_dungeon
 from hengbot.summoner_wait import hold_key, summoner_wait_decision, unfit_hold_point
 from hengbot import resist_alternatives, summoner_wait
+from hengbot import map_memory_record
 from hengbot import area_mapping, arena, guardian_landing, armor_smith, ability_gear, bm_destruction_fund, consumable_policy, destruction_use, disenchant_avoid, dungeon_shop, status_cure, equipment_pack_loss, goal_route, once_quest_recall, quest25_battle, quest25_battle_record, quest_plan_record, quest_sweep_record, quest_find_exit, quest_force_rows, quest_no_teleport, finale_prep, quest_optional_carry, quest_one_turn_kill, quest_ranged_force, quest_room_sweep, quest_target_search, recall_stockout_travel, resist_potion, sealed_loot, sealed_pocket, haste_read, hunt_target, immobile_ranged_kill, immobile_threat_memory, junk_destroy_now, magic_eater, mapped_area, me_capability, me_powerful_activation, me_powers, me_ranged_first, me_staff_sequence, spare_gear, speed_dose, torch_release, summon_response, survival_preemption, teleport_follower, threat_tier_memory, threat_tiers, worsens_kill, town_last_stand, town_travel, trap_warning, tunnel_feasibility, unseen_strike, wilderness_exit, zul_trip, wand_tower_recharge
 from hengbot import amberite_curse, curse_cure, equipment_visit_journal, home_cap, home_cash_sale, floor_identify, me_capped_pickup, me_inn_refill
 
@@ -1610,6 +1611,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._remembered_grids: dict[Position, GridState] = {}
         self._remembered_grid_signatures: dict[Position, tuple] = {}
         self._remembered_grid_sources: dict[Position, GridState] = {}
+        # How many merges changed the map memory (map_memory_record's write mark).
+        self._remembered_grid_revision = 0
         # The last known town id the routing terrain was learned in (see
         # _with_grid_memory); None until a board of a known town arrives.
         self._terrain_town_id: int | None = None
@@ -2151,6 +2154,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # beside the decision log.  Read with getattr defaults, so restored checkpoints without it
         # record nothing.
         self._quest_plan_record_path = None
+        # The floor's map memory's restart record (map_memory_record); the CLI points the path
+        # beside the decision log.  Read with getattr defaults, so restored checkpoints without it
+        # record nothing.
+        self._map_memory_record_path = None
         # The turn-free first read of each absorbed-power list a process lacks
         # (me_powers_refresh.resume_read_key); the CLI turns it on, a policy
         # built by a test asks for it as the CLI does.
@@ -2630,11 +2637,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             snapshot.town_id,
             snapshot.in_town,
         )
+        revision = getattr(self, "_remembered_grid_revision", 0)
         if self._remembered_grid_region != region:
             self._remembered_grid_region = region
-            self._remembered_grids = {}
-            self._remembered_grid_signatures = {}
+            # The first region of a process: the map memory the previous process left on this
+            # floor (map_memory_record, n1-c life-221 2026-11-24), under this board's merge.
+            self._remembered_grids = map_memory_record.restored_grids(self, region, snapshot)
+            self._remembered_grid_signatures = {
+                position: _persistent_grid_signature(grid)
+                for position, grid in self._remembered_grids.items()}
             self._remembered_grid_sources = {}
+            revision += 1
         self._scope_terrain_to_town(snapshot)
         tunnel_feasibility.forget_dug_walls(self, snapshot)
         sealed_pocket.forget_melted_wall(self, snapshot)
@@ -2648,6 +2661,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if self._remembered_grid_signatures.get(position) == signature:
                 continue
             self._remembered_grid_signatures[position] = signature
+            revision += 1
             remembered[position] = replace(
                 grid,
                 has_monster=False,
@@ -2660,6 +2674,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 map_lighting=None,
                 currently_observed=False,
             )
+        self._remembered_grid_revision = revision
         merged = dict(remembered)
         merged.update(snapshot.grids)
         return replace(snapshot, grids=merged)
@@ -3309,6 +3324,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         quest_sweep_record.record(self, snapshot)
         # Every floor plan's state, for a restart on the same floor (quest_plan_record, review K1 (b)-4).
         quest_plan_record.record(self, snapshot)
+        # The floor's map memory, for a restart on the same floor (map_memory_record).
+        map_memory_record.record(self, snapshot)
         warning_cell_record.record(self, snapshot)
         # The walk the next board's pingpong guard reads is the one emitted (owner 2026-11-13 part 2).
         pingpong_guard.note_emitted(self, snapshot, key)
