@@ -480,7 +480,7 @@
     "self._shopping_approach_key(snapshot, shopping_step, 'town:repetition-required-shopping') @ If:body:self._town_blocked_reason == 'repetition' / If:body:not self._visit_departure_committed / If:body:shopping_step is not None": 1
   },
   "policy_town.py:_town_clear_traveler_key": {
-    "self._town_kill_mob_key(snapshot) @ ": 1
+    "self._town_kill_mob_key(snapshot, strike_adjacent=True) @ ": 1
   },
   "policy_town.py:_town_destroy_key": {
     "self._verified_destroy_key(snapshot, lambda current: target if self._pending_disposal(current) is not None else None, 'equipment:destroy-unsellable-dominated') @ ": 1

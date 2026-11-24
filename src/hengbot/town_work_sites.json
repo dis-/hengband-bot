@@ -13737,6 +13737,13 @@
     ],
     "delegation": "retained child; no independent command"
   },
+  "policy_town.py:TownMixin._town_hunt_adjacent_strike": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy_town.py:TownMixin._town_inn_route_receipt": {
     "classification": "data",
     "rows": [
