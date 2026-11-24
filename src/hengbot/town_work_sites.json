@@ -552,6 +552,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_battle_melt": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "angband_finale_battle.py:_candidates": {
     "classification": "dungeon-only",
     "rows": [
@@ -698,6 +705,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_ray": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "angband_finale_battle.py:_reach.compute": {
     "classification": "dungeon-only",

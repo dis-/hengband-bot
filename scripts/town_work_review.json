@@ -24979,5 +24979,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_battle_melt": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The battle's Stone to Mud aimed at one cell (sealed_pocket.melt_at_key), refused for a cell an earlier melt left unchanged with no wall melted (n1-c life-221 100F 2026-11-24 14:47, 47 melts north at an unshown grid).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

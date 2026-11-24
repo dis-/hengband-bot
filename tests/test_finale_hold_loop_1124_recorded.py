@@ -16,7 +16,8 @@ exhausted) from the second restart;
 ``_same`` rows as tests/support/finale_416.boards expands them),
 replayed open-loop (tests/support/finale_416: DECLARED RECONSTRUCTED device lists and expedition
 mark; DECLARED: the expedition's Restore Mana count held at 0, as the open-loop replay counts its
-own quaffs; and the Stone to Mud uses counted per wall, sealed_pocket ``worn_out``, cleared on every
+own quaffs; and the Stone to Mud uses counted per wall, sealed_pocket ``worn_out``, and the battle's
+last melt, ``Battle.melt_aim`` (so no melt is read as one that changed nothing), cleared on every
 board, as the open-loop replay's melts never change the recorded boards).
 
 Owner 2026-11-24 (verbatim) 「周辺感知で状況を確認する。今回の場合は永久岩に阻まれていたので回り込む必要が
@@ -61,6 +62,9 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
         def prepare(policy, board):
             angband_finale.memory(policy).restore_mana_used = 0
             sealed_pocket._memory(policy, board).uses.clear()
+            held = getattr(policy, angband_finale_battle.MEMORY, None)
+            if held is not None:
+                held.melt_aim = None  # as the uses: the replay's melts change nothing
             if len(seen) in (RESTART, RESTART_2):
                 # DECLARED: the 09:54 and 10:2x restarts -- the policy's map memory (the remembered grids
                 # merged under the board, ``_with_grid_memory``) is not kept by a restart.
