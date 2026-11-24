@@ -234,8 +234,9 @@ class Battle:
     surveys: tuple = ()
     # Owner 2026-11-24 「離れて出口側へ回って待つ」 (``_outflank_key``): (target cell, boards) the
     # target has stayed on that cell with no stand on any of its rays, and the plan drawn after
-    # STALEMATE_BOARDS of them: (wait cell, exit cell, the target cell it was drawn for).  Class
-    # defaults: restored checkpoints predate them.
+    # STALEMATE_BOARDS of them: (wait cell, exit cell, the target cell it was drawn for, whether
+    # the way is opened with Stone to Mud -- 「岩石溶解で道を開けて待つマスへ行く」).  Class
+    # defaults: restored checkpoints predate them (a plan of three is a walk).
     still: tuple | None = None
     outflank: tuple | None = None
 
@@ -300,7 +301,8 @@ def report(policy) -> dict | None:
             "dropped": list(held.dropped) if held.dropped is not None else None,
             "shunned": [list(entry) for entry in held.shunned_seen],
             "no_stand": held.no_stand,
-            "outflank": ([list(cell) for cell in held.outflank]
+            "outflank": ([list(cell) if isinstance(cell, tuple) else cell
+                          for cell in held.outflank]
                          if getattr(held, "outflank", None) is not None else None),
         }
     return entry
@@ -474,6 +476,8 @@ def _out_of_line_key(policy, snapshot, held: Battle) -> str | None:
 
 
 AROUND_MELT_COST = 3  # a wall to melt (or an unknown grid) on the way around, against a step's 1
+# The outflank's way (``_melt_costs``): a grid the board does not show, between a step and a melt.
+OUTFLANK_UNSHOWN_COST = 2
 
 
 def _around_way(policy, snapshot, goals) -> tuple | None:
@@ -1541,50 +1545,164 @@ def _enclosure_flood(snapshot, aim: Position) -> dict:
     return steps
 
 
-def _outflank_plan(policy, snapshot, aim: Position) -> tuple | None:
-    """(wait cell, exit cell) for the target enclosed on ``aim``; None with the reason added to
-    ``Battle.no_stand`` (the decision record) when none is found.
+def _enclosure_box(snapshot, aim: Position) -> tuple | None:
+    """(top, left, bottom, right) of the permanent rock around the target: the bounds of the
+    8-connected permanent walls (the floor's outer wall left out) that touch ``aim`` or a cell next
+    to it; None when none does.  A vault's permanent walls are one such piece."""
+    from collections import deque
+    def permanent(cell) -> bool:
+        grid = snapshot.grids.get(cell)
+        return (grid is not None and grid.known and getattr(grid, "permanent", False)
+                and 0 < cell.y < snapshot.height - 1 and 0 < cell.x < snapshot.width - 1)
+    seeds = [Position(aim.y + dy, aim.x + dx) for dy, dx in DIRECTIONS]
+    seen = {cell for cell in seeds if permanent(cell)}
+    if not seen:
+        return None
+    queue = deque(seen)
+    while queue:
+        position = queue.popleft()
+        for dy, dx in DIRECTIONS:
+            cell = Position(position.y + dy, position.x + dx)
+            if cell not in seen and permanent(cell):
+                seen.add(cell)
+                queue.append(cell)
+    return (min(cell.y for cell in seen), min(cell.x for cell in seen),
+            max(cell.y for cell in seen), max(cell.x for cell in seen))
 
-    The exit: the cell of the player's ground (``_ground``, never within ``TELEPORT_WITHIN`` of
-    the target) that the target's way out (``_enclosure_flood``) reaches first -- where it comes
-    out of the permanent rock onto the ground the player walks.  The wait cell: a cell of that
-    ground beyond the exit on the target's way (more of its steps than the exit), with a line of
-    fire onto the exit (line_of_fire ``player_projectable``, the Rocket's 18 grids), at least
-    ``STAND_MIN_DISTANCE`` from the exit and from the target, and within ``TELEPATHY_RANGE`` of the
-    target so that it stays shown; the farthest from the exit first (「なるべく距離をとって」),
-    then the nearest to the player.  The strong non-targets' lines (``_exposed``) and every
-    walker's veto are kept off by ``_ground``.
+
+def _inside(box, cell: Position) -> bool:
+    return box is not None and box[0] <= cell.y <= box[2] and box[1] <= cell.x <= box[3]
+
+
+def _enclosure_exit(snapshot, aim: Position, ground: frozenset, steps: dict) -> Position | None:
+    """Where the target comes out: on its shortest way to the player (``_enclosure_flood``'s
+    steps, back from the player), the first cell from the target that is on the player's ground
+    (``_ground``) or outside the permanent rock around it (``_enclosure_box``).
+
+    The box: n1-c life-221 (Angband 100F, 2026-11-24 13:02, after the restart) knew only the ten
+    floor cells around the player -- the map (map_area) remembers walls, not floors, and the
+    restart kept no memory of the floors walked before -- so the vault's south corridor (58,55)
+    was no ground cell, and the first ground cell of the way was (43,47) beside the player."""
+    here = snapshot.player.position
+    if here not in steps:
+        return None
+    way = [here]
+    while steps[way[-1]] > 0:
+        cell = way[-1]
+        before = [Position(cell.y + dy, cell.x + dx) for dy, dx in DIRECTIONS]
+        before = [each for each in before if steps.get(each) == steps[cell] - 1]
+        way.append(min(before, key=lambda each: (each.y, each.x)))
+    box = _enclosure_box(snapshot, aim)
+    for cell in reversed(way[:-1]):
+        if cell in ground or (box is not None and not _inside(box, cell)):
+            return cell
+    return None
+
+
+def _melt_costs(policy, snapshot, avoid: frozenset) -> tuple[dict, dict]:
+    """(cost, parent) of the cheapest way from the player to each cell, as ``_around_way`` counts
+    it -- a step 1, a wall Stone to Mud melts ``AROUND_MELT_COST`` -- but a grid the board does not
+    show ``OUTFLANK_UNSHOWN_COST``: after the map (map_area remembers the walls, not the floors) an
+    unshown grid beside the remembered walls is floor, walked, not melted; never a permanent wall, the outer wall, a cell of every walker's veto
+    or of ``avoid``, nor (with a strong non-target known) a cell in its line of fire."""
+    import heapq
+    from hengbot import retreat_enclosure  # import cycle
+    here = snapshot.player.position
+    guarded = bool(shunned(policy, snapshot))
+    veto = _battle_veto(policy, snapshot)
+    walkable = {}
+    best = {here: 0}
+    parent = {}
+    heap = [(0, here.y, here.x)]
+    while heap:
+        cost, y, x = heapq.heappop(heap)
+        position = Position(y, x)
+        if cost > best.get(position, cost):
+            continue
+        if position not in walkable:
+            walkable[position] = set(policy._walkable_neighbors(snapshot, position,
+                                                                allow_damaging=False))
+        for dy, dx in DIRECTIONS:
+            cell = Position(y + dy, x + dx)
+            if (cell in veto or cell in avoid or not 0 < cell.y < snapshot.height - 1
+                    or not 0 < cell.x < snapshot.width - 1):
+                continue
+            grid = snapshot.grids.get(cell)
+            if grid is not None and grid.known and getattr(grid, "permanent", False):
+                continue
+            if cell in walkable[position]:
+                step = 1
+            elif grid is not None and _open(grid):
+                continue  # an open cell no walk enters (a monster, damaging ground)
+            elif grid is None or not grid.known:
+                step = OUTFLANK_UNSHOWN_COST
+            elif retreat_enclosure.meltable(policy, snapshot, grid):
+                step = AROUND_MELT_COST
+            else:
+                continue
+            if guarded and _exposed(policy, snapshot, cell):
+                continue
+            if cost + step < best.get(cell, cost + step + 1):
+                best[cell] = cost + step
+                parent[cell] = position
+                heapq.heappush(heap, (cost + step, cell.y, cell.x))
+    return best, parent
+
+
+def _wait_cell_fits(policy, snapshot, cell: Position, aim: Position, exit_cell: Position,
+                    steps: dict, box) -> bool:
+    """The wait cell's conditions: beyond the exit on the target's way, outside the permanent
+    rock around it, at least ``STAND_MIN_DISTANCE`` from the exit and from the target, within
+    ``TELEPATHY_RANGE`` of the target, and a line of fire onto the exit."""
+    from hengbot import line_of_fire
+    return (cell in steps and steps[cell] > steps[exit_cell] and not _inside(box, cell)
+            and game_distance(cell, exit_cell) >= STAND_MIN_DISTANCE
+            and STAND_MIN_DISTANCE <= game_distance(cell, aim) <= TELEPATHY_RANGE
+            and line_of_fire.player_projectable(policy, snapshot, cell, exit_cell))
+
+
+def _outflank_plan(policy, snapshot, aim: Position) -> tuple | None:
+    """(wait cell, exit cell, melt) for the target enclosed on ``aim``; None with the reason added
+    to ``Battle.no_stand`` (the decision record) when none is found.
+
+    The exit: ``_enclosure_exit``.  The wait cell (``_wait_cell_fits``): first one of the player's
+    ground (``_ground``, never within ``TELEPORT_WITHIN`` of the target, off the strong
+    non-targets' lines and every walker's veto), the farthest from the exit first
+    (「なるべく距離をとって」), then the nearest to the player; else (owner 2026-11-24, the chosen
+    answer, verbatim: 「岩石溶解で道を開けて待つマスへ行く — 届く10マスの周りの溶かせる壁を溶かして、出口から
+    距離3以上で射線が通るマスへの道を作る。」) one the way with Stone to Mud reaches (``_melt_costs``,
+    under the same exclusions), the cheapest first, then the farthest from the exit (``melt``
+    True).
 
     Why the target comes out (the game, monster-sweep-grid.cpp): a monster with a ranged attack
     within get_max_range() + 1 of the player and no line on the player moves down the player's
     noise flow (RangedAttackMoveGridDecider; update_flow over open grids, 32 deep); waiting near
     the exit puts the enclosure's inside on that flow, while a KILL_WALL monster's straight pursuit
     (should_go_straight) stops on the permanent rock."""
-    from hengbot import line_of_fire
     held = battle(policy, snapshot)
-    ground = _ground(policy, snapshot, _near_target(aim))
+    near = _near_target(aim)
+    ground = _ground(policy, snapshot, near)
     steps = _enclosure_flood(snapshot, aim)
     here = snapshot.player.position
-    out = [cell for cell in ground if cell in steps]
-    if not out:
+    exit_cell = _enclosure_exit(snapshot, aim, ground, steps)
+    if exit_cell is None:
         held.no_stand = f"{held.no_stand or ''} outflank=no-exit".strip()
         return None
-    exit_cell = min(out, key=lambda cell: (steps[cell], game_distance(cell, here), cell.y, cell.x))
-    found = []
-    for cell in ground:
-        if (cell not in steps or steps[cell] <= steps[exit_cell]
-                or game_distance(cell, exit_cell) < STAND_MIN_DISTANCE
-                or not STAND_MIN_DISTANCE <= game_distance(cell, aim) <= TELEPATHY_RANGE
-                or not line_of_fire.player_projectable(policy, snapshot, cell, exit_cell)):
-            continue
-        found.append(((-game_distance(cell, exit_cell), game_distance(cell, here),
-                       cell.y, cell.x), cell))
-    if not found:
-        held.no_stand = (f"{held.no_stand or ''} outflank=no-cell "
-                         f"exit=({exit_cell.y},{exit_cell.x})").strip()
-        return None
-    found.sort(key=lambda pair: pair[0])
-    return found[0][1], exit_cell
+    box = _enclosure_box(snapshot, aim)
+    found = sorted(((-game_distance(cell, exit_cell), game_distance(cell, here), cell.y, cell.x),
+                    cell) for cell in ground
+                   if _wait_cell_fits(policy, snapshot, cell, aim, exit_cell, steps, box))
+    if found:
+        return found[0][1], exit_cell, False
+    costs, _parent = _melt_costs(policy, snapshot, near)
+    found = sorted(((cost, -game_distance(cell, exit_cell), cell.y, cell.x), cell)
+                   for cell, cost in costs.items()
+                   if _wait_cell_fits(policy, snapshot, cell, aim, exit_cell, steps, box))
+    if found:
+        return found[0][1], exit_cell, True
+    held.no_stand = (f"{held.no_stand or ''} outflank=no-cell "
+                     f"exit=({exit_cell.y},{exit_cell.x})").strip()
+    return None
 
 
 def _stalemate_key(policy, snapshot, held: Battle, target) -> str | None:
@@ -1613,21 +1731,23 @@ def _stalemate_key(policy, snapshot, held: Battle, target) -> str | None:
     plan = _outflank_plan(policy, snapshot, target.position)
     if plan is None:
         return None
-    held.outflank = ((plan[0].y, plan[0].x), (plan[1].y, plan[1].x), aim)
+    held.outflank = ((plan[0].y, plan[0].x), (plan[1].y, plan[1].x), aim, plan[2])
     return _outflank_key(policy, snapshot, held, target)
 
 
 def _outflank_key(policy, snapshot, held: Battle, target) -> str | None:
     """The plan ``Battle.outflank`` (``_stalemate_key``): walk away from the target to the wait
-    cell (never within ``TELEPORT_WITHIN`` of it, off the strong non-targets' lines: ``_safe_step``)
-    and wait there (``_wait_key``, never a rest).  The Rocket fires once the target's move opens the
-    line (``_fight_key``'s first rung, 先手), and the teleport's triggers are asked above this on
-    every board (``key``).  The plan holds while the target moves (it comes out along the way)
-    until the Rocket, a stand (``_stand_key``) or a teleport ends it; with the target shown nowhere
-    (``target`` None: out of telepathy on the way) the walk goes on, and at the wait cell the plan
-    is dropped (the last-seen walk takes over), as it is when no walk reaches the wait cell."""
+    cell (never within ``TELEPORT_WITHIN`` of it, off the strong non-targets' lines: ``_safe_step``,
+    or for a plan opened with Stone to Mud ``_melt_move``) and wait there (``_wait_key``, never a
+    rest).  The Rocket fires once the target's move opens the line (``_fight_key``'s first rung,
+    先手), and the teleport's triggers are asked above this on every board (``key``).  The plan
+    holds while the target moves (it comes out along the way) until the Rocket, a stand
+    (``_stand_key``) or a teleport ends it; with the target shown nowhere (``target`` None: out of
+    telepathy on the way) the walk goes on, and at the wait cell the plan is dropped (the
+    last-seen walk takes over), as it is when no way reaches the wait cell."""
     here = snapshot.player.position
-    wait, _exit, aim = held.outflank
+    wait, _exit, aim = held.outflank[:3]
+    melt = len(held.outflank) > 3 and held.outflank[3]
     goal = Position(*wait)
     if here == goal:
         if target is None:
@@ -1635,6 +1755,11 @@ def _outflank_key(policy, snapshot, held: Battle, target) -> str | None:
             return None
         return _wait_key(policy, snapshot, held)
     centre = target.position if target is not None else Position(*aim)
+    if melt:
+        moved = _melt_move(policy, snapshot, held, goal, centre)
+        if moved is None:
+            held.outflank = held.still = None
+        return moved
     step = _safe_step(policy, snapshot, lambda position: position == goal,
                       avoid=_near_target(centre))
     if step is None:
@@ -1643,6 +1768,35 @@ def _outflank_key(policy, snapshot, held: Battle, target) -> str | None:
     key = policy._step_toward(snapshot, step)
     policy.last_reason = OUTFLANK_REASON
     return key
+
+
+def _melt_move(policy, snapshot, held: Battle, goal: Position, centre: Position) -> str | None:
+    """One move of the way with Stone to Mud to the wait cell (``_melt_costs``, drawn again on
+    each board): the step onto a cell the walk enters or the board does not show (the map
+    remembers walls, not floors: an unshown cell beside them is floor; a wall the step finds is
+    melted on the next board), else the melt of the wall.  A melt that would open the target's
+    line on the player where it stands is not made before the wait cell is reached (先手, owner
+    2026-11-21 LOCKED 「溶かした時に先手を取られて何も出来ず離脱している場面が問題」), nor one that
+    opens a strong non-target's line (``_melt_exposes``): the battle holds instead.  None when no
+    way is left or no melt can be cast."""
+    from hengbot import sealed_pocket  # import cycle
+    here = snapshot.player.position
+    _costs, parent = _melt_costs(policy, snapshot, _near_target(centre))
+    if goal not in parent:
+        return None
+    first = goal
+    while parent[first] != here:
+        first = parent[first]
+    grid = snapshot.grids.get(first)
+    if (first in set(policy._walkable_neighbors(snapshot, here, allow_damaging=False))
+            or grid is None or not grid.known):
+        key = policy._step_toward(snapshot, first)
+        policy.last_reason = OUTFLANK_REASON
+        return key
+    if (_opens_line(policy, snapshot, here, first, centre)
+            or _melt_exposes(policy, snapshot, first)):
+        return _wait_key(policy, snapshot, held)
+    return sealed_pocket.melt_at_key(policy, snapshot, first, MELT_REASON)
 
 
 def _close_in_key(policy, snapshot, target) -> str | None:

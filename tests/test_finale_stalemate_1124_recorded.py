@@ -108,7 +108,8 @@ class FinaleStalemateRecordedTest(unittest.TestCase):
 
     def test_the_plan_waits_beyond_the_exit_with_a_line_onto_it(self):
         self.assertIsNotNone(self.plan)
-        wait, exit_cell, aim = self.plan
+        wait, exit_cell, aim = self.plan[:3]
+        self.assertFalse(self.plan[3])  # walked, no Stone to Mud
         self.assertEqual(aim, SERPENT)
         self.assertEqual(exit_cell, EXIT)
         distance = game_distance(Position(*wait), Position(*exit_cell))
