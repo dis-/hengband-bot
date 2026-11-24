@@ -207,6 +207,8 @@ class Battle:
     # (name, y, x) and why the last stand search found none.  Class defaults.
     shunned_seen: tuple = ()
     no_stand: str | None = None
+    # The cell the last 周辺感知 of ``_survey_key``'s second rule was cast on (once per cell).
+    surveyed_at: tuple | None = None
 
 
 def battle(policy, snapshot) -> Battle:
@@ -527,6 +529,24 @@ def _survey_key(policy, snapshot) -> str | None:
     only STONE terrain)."""
     from hengbot import area_mapping
     return area_mapping.sealed_key(policy, snapshot)
+
+
+def _resurvey_key(policy, snapshot, held: Battle, target) -> str | None:
+    """周辺感知 once on this cell when the board shows no stand on any of the target's rays,
+    whatever this floor's maps cover (area_mapping ``survey_key``), before the way to an unshown
+    stand is taken (owner 2026-11-24 「周辺感知で状況を確認する」)."""
+    from hengbot import area_mapping
+    # A map of this floor covers the player, but the board shows no stand on any of the target's
+    # rays (the map memory a restart does not keep: n1-c life-221 Angband 100F 2026-11-24 09:55,
+    # rays=0 reach=4 at (29,60), 213 holds): map once more where the player stands.
+    here = (snapshot.player.position.y, snapshot.player.position.x)
+    if target is None or held.surveyed_at == here or _candidates(
+            policy, snapshot, (target.position.y, target.position.x)):
+        return None
+    key = area_mapping.survey_key(policy, snapshot)
+    if key is not None:
+        held.surveyed_at = here
+    return key
 
 
 def _wait_key(policy, snapshot, held: Battle) -> str:
@@ -934,14 +954,21 @@ def _walls_between(snapshot, stand: Stand) -> list | None:
     return walls
 
 
-def _candidates(policy, snapshot, aim) -> list:
-    from hengbot import sealed_pocket
+def _candidates(policy, snapshot, aim, *, unshown: bool = False) -> list:
+    """The stands on the target's eight rays (an open cell the board shows).  ``unshown``: a cell
+    the board does not show (or a wall Stone to Mud melts) may be one too -- the way around
+    (``_around_way``) opens it on arrival -- for a board that shows no stand at all."""
+    from hengbot import retreat_enclosure, sealed_pocket  # import cycle
     charges = sealed_pocket.melt_charges(policy, snapshot)
     found = []
     for step in DIRECTIONS:
         for distance in range(ROCKET_RANGE, STAND_MIN_DISTANCE - 1, -1):
             cell = (aim[0] + step[0] * distance, aim[1] + step[1] * distance)
-            if not _open(_grid(snapshot, cell)):
+            grid = _grid(snapshot, cell)
+            if not _open(grid) and not (unshown and (
+                    (grid is None or not grid.known) and 0 < cell[0] < snapshot.height - 1
+                    and 0 < cell[1] < snapshot.width - 1
+                    or grid is not None and retreat_enclosure.meltable(policy, snapshot, grid))):
                 continue
             stand = Stand(cell, aim, step, distance)
             walls = _walls_between(snapshot, stand)
@@ -979,6 +1006,15 @@ def _choose_stand(policy, snapshot, aim) -> Stand | None:
             return stand
     # None a walk reaches: the stand the cheapest way around reaches (``_around_way``).
     by_cell = {Position(*stand.cell): stand for stand in candidates}
+    if not rays:
+        # The board shows no stand on any ray (n1-c life-221 Angband 100F 2026-11-24 09:55: after
+        # a restart the map memory was gone, the ground west of the vault unshown): the rays'
+        # unshown cells and meltable walls are stands to reach and open (owner 2026-11-24
+        # 「周辺感知で状況を確認する。…回り込む必要があった。」, the map first: ``_survey_key``).
+        by_cell = {Position(*stand.cell): stand
+                   for stand in _candidates(policy, snapshot, aim, unshown=True)
+                   if not (shunned(policy, snapshot)
+                           and _exposed(policy, snapshot, Position(*stand.cell)))}
     way = _around_way(policy, snapshot, by_cell)
     if way is not None:
         return by_cell[way[0]]
@@ -1355,6 +1391,10 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
         out = _out_of_line_key(policy, snapshot, held)
         if out is not None:
             return out
+    if held.stand is None:
+        resurveyed = _resurvey_key(policy, snapshot, held, target)
+        if resurveyed is not None:
+            return resurveyed
     stood = _stand_key(policy, snapshot, held, target)
     if stood is not None:
         return stood

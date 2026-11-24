@@ -282,6 +282,14 @@ def sealed_key(policy, snapshot: Snapshot) -> str | None:
             or _carried_key(policy, snapshot, SEALED_POCKET))
 
 
+def survey_key(policy, snapshot: Snapshot) -> str | None:
+    """The map the 99F/100F battle asks for whatever this floor's maps cover (angband_finale_battle
+    ``_survey_key``: the board shows no stand on the target's rays): the absorbed power, else a
+    carried staff or rod, else a held Scroll of Magic Mapping."""
+    return (me_powers.power_key(policy, snapshot, me_powers.SEALED)
+            or _carried_key(policy, snapshot, SEALED_POCKET))
+
+
 def deep_climb_key(policy, snapshot: Snapshot) -> str | None:
     """The map deep_climb asks for on a climb floor of the Castle (deep_climb.climb_floor: 50F+
     or below the band) with no up stairs known (owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ

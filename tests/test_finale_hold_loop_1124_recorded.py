@@ -8,9 +8,10 @@ open and no nearer cell to close in to (STAND_MIN_DISTANCE 3); the battle answer
 the generic explore, breakout:seek-frontier and livelock:stone-to-mud answered, alternating with
 the battle's own approach between (40,52) and (41,51) until the loop detector stopped the run.
 
-Fixture finale-hold-exhausted-n1c-221-1124: every player_turn board of that 100F floor from the
-arrival to the second halt (turns 6257708-6264262, 2768 boards: the livelock-exhausted capture's
-snapshot ring 20261124-071625 and current up to 6261238, then the 08:51 capture's current ring;
+Fixture finale-hold-pocket-n1c-221-1124: every player_turn board of that 100F floor from the
+arrival to the third halt (turns 6257708-6264762, 2988 boards: the livelock-exhausted capture's
+snapshot ring 20261124-071625 and current up to 6261238, then the 08:51 capture's current ring to
+6264262, then the 09:55 capture's from the restart;
 ``_same`` rows as tests/support/finale_416.boards expands them),
 replayed open-loop (tests/support/finale_416: DECLARED RECONSTRUCTED device lists and expedition
 mark; DECLARED: the expedition's Restore Mana count held at 0, as the open-loop replay counts its
@@ -38,7 +39,8 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support import finale_416
 from tests.support.recorded import EDIT
 
-FIXTURE = "finale-hold-exhausted-n1c-221-1124.jsonl.gz"
+FIXTURE = "finale-hold-pocket-n1c-221-1124.jsonl.gz"
+RESTART = 2768   # the boards before the 09:54 restart (the second halt's last board, 6264262)
 FROM = 6261100   # the last minute before the first halt: the Serpent 3-6 cells away
 FIRST_HALT = 6261238
 HELD = 6263495   # the second halt's hold at (29,60) began here (to 6264262)
@@ -51,15 +53,24 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
         monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
 
         reports = {}
+        seen = []
 
         def prepare(policy, board):
             angband_finale.memory(policy).restore_mana_used = 0
             sealed_pocket._memory(policy, board).uses.clear()
-            reports[board.turn] = angband_finale_battle.report(policy)
+            if len(seen) == RESTART:
+                # DECLARED: the 09:54 restart -- the policy's map memory (the remembered grids
+                # merged under the board, ``_with_grid_memory``) is not kept by a restart.
+                policy._remembered_grids = {}
+                policy._remembered_grid_signatures = {}
+                policy._remembered_grid_sources = {}
+            seen.append(board.turn)
+            reports.setdefault(board.turn, angband_finale_battle.report(policy))
 
         rows = finale_416.drive(finale_416.boards(FIXTURE), monrace, prepare=prepare)
         cls.rows = [row for row in rows if FROM <= row[0] <= FIRST_HALT]
-        cls.held = [row for row in rows if row[0] >= HELD]
+        cls.held = [row for row in rows[:RESTART] if row[0] >= HELD]
+        cls.restarted = rows[RESTART:]
         cls.reports = reports
 
     def test_no_generic_rung_answers_while_the_target_is_shown(self):
@@ -98,6 +109,21 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
         self.assertIn("shunned", battle)
         self.assertIn("no_stand", battle)
         self.assertTrue(any(entry[0] == "サイバーデーモン" for entry in battle["shunned"]), battle)
+
+    def test_after_the_restart_the_map_then_the_way_not_the_hold(self):
+        # n1-c life-221 2026-11-24 09:55 (stationary:exhausted again): after the restart the
+        # board showed no stand on any ray (no_stand "rays=0 ... reach=4") and the battle held 213
+        # boards.  Owner 2026-11-24 「周辺感知で状況を確認する。…回り込む必要があった。」: the map once
+        # on the cell, then the way toward the rays' unshown cells.
+        # The replay is open-loop: the map's result never shows on the recorded boards, and the
+        # restart's first boards repeat one game turn (the walk reads a step that did not land), so
+        # holds stay between; what is pinned is the map, then the way.
+        first = self.restarted[:20]
+        mapped = next((n for n, row in enumerate(first) if "map-area" in (row[3] or "")), None)
+        self.assertIsNotNone(mapped, first)
+        self.assertTrue(any((row[3] or "").startswith(("angband-finale:stand-walk",
+                                                         "angband-finale:melt"))
+                            for row in first[mapped:]), first)
 
 
 if __name__ == "__main__":
