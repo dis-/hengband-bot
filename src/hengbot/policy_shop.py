@@ -540,6 +540,48 @@ class ShopMixin(InStoreMixin):
             return item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
         return False
 
+    def _staged_buy_identity(self, store, operation_key: str) -> tuple | None:
+        """The shelf ware a one-shot buy key names on the page it was composed on."""
+        if not operation_key.startswith(BUY_KEY) or len(operation_key) < 2:
+            return None
+        ware = next((w for w in store.items if w.letter == operation_key[1]), None)
+        if ware is None:
+            return None
+        return (self._item_signature(ware), ware.price, ware.count > 1)
+
+    def _staged_buy_matches_page(self, snapshot: Snapshot, visit) -> bool:
+        """Whether the staged buy's letter still names its ware on this page.
+
+        n1-c life-222: the weapon store's page was observed inside its
+        maintenance interval, so that entry did not maintain it (cmd-store.cpp
+        do_cmd_store advances ``last_visit`` only when maintenance runs).  The
+        re-entry nine turns later crossed the interval, the shelf shrank from
+        19 to 15 wares, and the staged ``pp6`` named a row that no longer
+        existed, so the purchase prompt stuck.  A letter is only valid on the
+        page it was read from.  When this page shows a different ware (or
+        none) at the staged letter, no buy is sent: the visit ends and this
+        page is observed like any other, so the next purchase is composed from
+        the page the game shows.
+        """
+        identity = visit.operation_item_identity
+        if identity is None or self._staged_buy_identity(
+            snapshot.store, visit.operation_key
+        ) == identity:
+            return True
+        self._shop_selector_diagnostics["staged_buy_stale_page"] = {
+            "store": visit.store_type,
+            "staged_key": visit.operation_key,
+            "signature": list(identity[0]),
+            "price": identity[1],
+            "page_letters": "".join(w.letter for w in snapshot.store.items),
+        }
+        self._store_entry_wait_owner = None
+        self._store_entry_wait_turn = None
+        self._town_visit_ledger.pending_store_transaction = None
+        self._town_visit_ledger.pending_store_context_waits = 0
+        self._close_store_visit("one-shot-buy-stale-page")
+        return False
+
     def _release_staged_store_operation(self, snapshot: Snapshot) -> str | None:
         """Release the one bound tail after its matching store page is fresh."""
         visit = self._store_visit
@@ -570,6 +612,9 @@ class ShopMixin(InStoreMixin):
             visit.operation_released = True
             self._release_claim_goal("full-page-before-weight-deposit", owners=("home-visit",),
                                      kinds=("Observe",), sources=("store-operation",))
+            return None
+        if (visit.operation_producer_family == "shop-buy"
+                and not self._staged_buy_matches_page(snapshot, visit)):
             return None
         visit.transition(StoreVisitPhase.OPERATING)
         visit.operation_released = True
@@ -6942,6 +6987,9 @@ class ShopMixin(InStoreMixin):
                 self._store_visit.operation_posted = True
                 self._store_visit.operation_producer_family = operation_family
                 self._store_visit.operation_key = operation_key
+                self._store_visit.operation_item_identity = (
+                    self._staged_buy_identity(observed_store, operation_key)
+                )
                 # The posted one-shot's observation wait needs the immutable
                 # operation identity captured at composition, including while
                 # the store page has not appeared yet.
