@@ -5820,6 +5820,8 @@ class TownAndFundraisingPolicyTest(shop_fixture._TownShopFixtureBase):
         policy._visit_counts[Position(10, 10)] = STUCK_WINDOW
         policy._visit_counts[Position(10, 11)] = STUCK_WINDOW
         policy._search_counts[(10, 11)] = SEARCH_LIMIT
+        # Both cells' walls searched for a secret door already (_secret_wall_exit, n1-a life-537).
+        policy._search_counts[(10, 10)] = SEARCH_LIMIT
         policy._build_grid_index(snap)
 
         self.assertEqual(

@@ -725,6 +725,10 @@ _stationary(HOLD, _RULE_WAIT_RECALL + " (FRUITLESS_DISENGAGE_LIMIT)",
 # bounded _wall_search_counts search as return:search-upstairs.
 _stationary(HOLD, _RULE_RETURN_HOLD + ", relabelled by the fruitless disengage",
             "combat:disengage-search-upstairs")
+# The income run's floor exit searches the same walls with the same bound
+# (policy_fundraising ``_secret_wall_exit``; n1-a life-537 2026-11-24).
+_stationary(HOLD, _RULE_RETURN_HOLD + ", the income run's floor exit (_secret_wall_exit)",
+            "fundraise:search")
 # Riding out confusion with no physical hostile: the game's confusion timer counts down every
 # player turn (magic-effects-timeout-reducer.cpp mod_confusion(-1)), so the hold ends by itself
 # (n1-b life-297 2026-11-02 22:49 stopped as loop-detected after 170 waits).

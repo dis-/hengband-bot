@@ -47,8 +47,9 @@ OLD_STATIONARY_EXEMPT_REASONS = frozenset({
 # 2026-11-23 「上限を付けて見張りから外す」).
 ADDED_EXEMPT_REASONS = frozenset({'blind:short-wait'}) | frozenset(
     row.reason for row in stationary_bounds.BOUNDS)
-# HOLD rows added since: deep_fall_guard's recall wait.
-ADDED_STATIONARY_REASONS = frozenset({'deep-fall-guard:wait-recall'})
+# HOLD rows added since: deep_fall_guard's recall wait, the income run's bounded wall search
+# (n1-a life-537, policy_fundraising ``_secret_wall_exit``).
+ADDED_STATIONARY_REASONS = frozenset({'deep-fall-guard:wait-recall', 'fundraise:search'})
 # cli.QUEST_COMBAT_REASON_PREFIXES and the literal prefixes of _cell_loop_guard_applies.
 OLD_QUEST_COMBAT_REASON_PREFIXES = ('quest-strategy:melee', 'quest-strategy:ranged-fire',
                                     'quest-strategy:q2-fire')

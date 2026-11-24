@@ -1041,6 +1041,7 @@ MOVE_REASONS = frozenset(
         "fundraise:seek-upstairs",
         "fundraise:seek-upstairs-explore",
         "fundraise:seek-upstairs-wander",
+        "fundraise:seek-secret-wall",
         "fundraise:seek-upstairs-door",
         "fundraise:seek-loot",
         "fundraise:trigger-autodestroy",
@@ -1067,6 +1068,9 @@ MIN_TERMINAL_FREE_PACK_SLOTS = 4
 RECALL_ISSUE_CONFIRM_TURNS = 10
 
 WALK_OUT_MAX_DEPTH = RECALL_MIN_DEPTH - 1
+
+# The kinds of the secret-wall exit ladder's answer (policy_fundraising ``_secret_wall_exit``).
+SECRET_WALL_DETECT, SECRET_WALL_SEARCH, SECRET_WALL_WALK = "detect", "search", "walk"
 
 MINING_RUNS_PER_SET = 5
 
@@ -1130,6 +1134,7 @@ STUCK_FAMILY_REASONS = frozenset(
         "return:seek-secret-wall",
         "fundraise:probe",
         "fundraise:search",
+        "fundraise:seek-secret-wall",
         "paralyzer-guard:approach-range",
     }
 )
