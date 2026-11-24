@@ -390,7 +390,7 @@ def _seen_gone(snapshot, cell: tuple[int, int]) -> bool:
             and not grid.has_monster)
 
 
-def _in_view_waits(navigator, snapshot, coming, known) -> tuple[list, list]:
+def _in_view_waits(navigator, snapshot, coming, known, sensed=()) -> tuple[list, list]:
     """Owner 2026-11-08 「見えていても移動経路があるとは限らない。50行動で来なければ経路がない
     と判断する。」 (n1-a life 495, floor (0,35,18): the swordfish 88 on (10,13), seen from
     (3,20) only, never moved; (3,20) stepped to the choke (1,19) and (2,20), out of its
@@ -408,6 +408,16 @@ def _in_view_waits(navigator, snapshot, coming, known) -> tuple[list, list]:
     from it.  These keep a walk to a choke and its wait going, so the choke the walk went
     to out of their sight is not left for the cell they are seen from, one step each
     (``mobile_awake``); they are no enemy in view (``coming_in_view``).
+
+    Out of sight includes known by telepathy or detection only (``sensed``: the reachable awake
+    ones, ``perception`` "detected"): one within its wait, never beside the player since it
+    began, is remembered at the cell the board shows it on, not read anew by the far rule
+    (``approaching``); one that met the player is read anew, as one not known at all.
+    n1-b life-418 (2026-11-25 06:22, Magic-Eater Lv38 with telepathy, floor (0,35,18)): the
+    giant squid 482 on (9,24), first seen from (3,20) at distance 6, sent '8' exit-to-choke onto
+    (2,20); there, out of sight and shown by ESP only, it was the far rule's, not closing in,
+    and '2' exit-walk stepped back onto (3,20), until the ping-pong guard escalated to the
+    livelock stop.
     """
     player = _cell(snapshot.player.position)
     now = navigator.exit_actions
@@ -424,8 +434,16 @@ def _in_view_waits(navigator, snapshot, coming, known) -> tuple[list, list]:
         if now - began < IN_VIEW_WAIT_ACTIONS:
             waiting.append(monster)
     known_indices = {monster.index for monster in known}
+    sensed_now = {monster.index: monster for monster in sensed}
     remembered = []
-    for index, (_, began, _, last, far) in list(entries.items()):
+    for index, (race, began, _, last, far) in list(entries.items()):
+        monster = sensed_now.get(index)
+        if monster is not None and monster.race_id == race:
+            if not far:
+                del entries[index]  # met: seen again, it starts anew
+            elif now - began < IN_VIEW_WAIT_ACTIONS:
+                remembered.append(monster)
+            continue
         if index in known_indices:
             continue
         if not far or _seen_gone(snapshot, _cell(last.position)):
@@ -456,16 +474,20 @@ class _Board:
         # is left behind by walking on (a siren's pull ends beside it, 840 HP unfought).
         self.reachable_awake = [monster for monster in known
                                 if comes_for_player(policy, navigator, snapshot, monster)]
+        sensed = [monster for monster in self.reachable_awake if monster.perception == "detected"]
         self.coming_in_view, remembered = _in_view_waits(
             navigator, snapshot,
             [monster for monster in self.reachable_awake if monster.perception != "detected"],
-            known)
+            known, sensed)
         # What sends the walk to a choke or stops a dig: one in view, a far one seen to
         # close in, or one beside the walk ahead (in the way, moving or not).  A far one
         # that does not come is no reason (owner 2026-11-06).
         # One a choke's enemy bound already outwaited there (``_outwaited``) is no reason
         # beside the walk ahead until it is seen to close in.
-        far = [monster for monster in self.reachable_awake if monster.perception == "detected"]
+        # One sensed within the wait it began in view is remembered (``_in_view_waits``): the
+        # in-view verdict holds for it, the far rule does not read it a second time.
+        waiting = {monster.index for monster in remembered}
+        far = [monster for monster in sensed if monster.index not in waiting]
         leg = (_next_leg(navigator, _plan_of(profile), position)
                if any(not approaching(navigator, snapshot, monster)
                       and not _outwaited(navigator, monster) for monster in far) else [])
@@ -1120,6 +1142,12 @@ def key(policy, snapshot) -> str | None:
         or summon_response.key(policy, snapshot)
         or resist_potion.key(policy, snapshot)
         or (_fight(policy, snapshot, profile, navigator, plan, board) if board.engaged else None)
+        # Nothing to fight or walk to a choke for: the choke's wait after a fight or a shriek
+        # holds as on a quiet board (``_shriek_hold``, owner 2026-11-22).  n1-b life-418
+        # (2026-11-25): the shriek heard on (1,16), the giant squid 482 breathing range away in
+        # the lake (``firing``, 9a474abadd) made the board engaged, and (1,19) was walked off at
+        # once onto the open (2,20) and (3,20), as life-414 had died doing.
+        or _wait_after_fight(policy, snapshot, navigator, plan, board)
         or _choke_walk_under_way(policy, snapshot, navigator, plan, board)
         or _advance(policy, snapshot, navigator, plan, board)
     )

@@ -492,6 +492,9 @@ FLOOR_PLANS = (
             (INSTANT_DEATH, SURVIVAL), ("_below_line_recall", SURVIVAL), (SURVIVAL_STAGE, SURVIVAL),
             ("_recall_wait_away", SURVIVAL),
             ("summon_response.key", SUMMONS), ("resist_potion.key", OWN), ("_fight", OWN),
+            # Owner 2026-11-22: the choke's wait after a fight or a shriek, as on a quiet board
+            # (n1-b life-418: a sensed shooter made the board engaged and skipped it).
+            ("_wait_after_fight", OWN),
             ("_choke_walk_under_way", OWN), ("_advance", OWN))),
     )),
     # Q25's revised plan: on its phase 2 and on the stairway the phase's own summons rule
