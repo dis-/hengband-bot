@@ -171,7 +171,11 @@ def _in_view(snapshot, *, awake_only: bool) -> bool:
 
 def key(policy, snapshot, leaving) -> str | None:
     """A step or a pickup before the use that leaves ``leaving``, else None (the use is made).
-    Asked through destruction_use ``loot_then_use``."""
+    Asked through destruction_use ``loot_then_use``.  None on the finale expedition's way down
+    (owner 2026-11-24 「寄り道は不要。」, finale_descent): the use is made."""
+    from hengbot import finale_descent  # import cycle
+    if finale_descent.applies(policy, snapshot):
+        return None
     leaving = list(leaving or ())
     if not leaving or not destruction_use.usable(policy, snapshot, leaving=leaving):
         return _committed(policy, snapshot, leaving)

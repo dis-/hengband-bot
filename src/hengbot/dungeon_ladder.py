@@ -132,6 +132,10 @@ LADDER = (
         *D("immobile_threat_memory.step_out_key", exempt=NOT_DECIDED),
         *E("_unseen_retreat_intercept_key", exempt=FIGHTS),
         *E("_unseen_retreat_key", exempt=ANSWERS_DANGER),
+        # Owner 2026-11-24 「決戦装備にしたら速やかに最下層まで降りること。寄り道は不要。」: the
+        # finale expedition's way down (finale_descent) before the dug pocket, the detected
+        # threat's hold and every layer below; the pocket and the hold are skipped on its floors.
+        *P("finale_descent.key"),
         # Owner 2026-11-10 穴熊 「掘れるなら掘る」: the dug pocket before the existing chokes.
         *D("anaguma.key", exempt=FIGHTS),
         # n1-b life-377: on a board the pocket answers, the sensed T1 leave answers instead

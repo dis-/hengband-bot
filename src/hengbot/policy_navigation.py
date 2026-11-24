@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import deep_fall_guard, destruction_means, means_spent_loop, mining_loadout, return_start
+from hengbot import deep_fall_guard, destruction_means, finale_descent, means_spent_loop, mining_loadout, return_start
 from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -1007,7 +1007,12 @@ class NavigationMixin:
 
     def _descent_is_blocked(self, snapshot: Snapshot) -> bool:
         self._descent_refusal_reason = None
-        if self._returning_to_town or len(snapshot.inventory) >= PACK_CAPACITY:
+        # Owner 2026-11-24 「決戦装備にしたら速やかに最下層まで降りること。寄り道は不要。」: on the
+        # finale expedition's way down a full pack and the next depth's supply ledger refuse no
+        # stair; the finale's own recall line is the return (finale_descent).
+        finale_way_down = finale_descent.applies(self, snapshot)
+        if self._returning_to_town or (
+                len(snapshot.inventory) >= PACK_CAPACITY and not finale_way_down):
             self._descent_refusal_reason = (
                 "returning-to-town" if self._returning_to_town else "pack-full"
             )
@@ -1042,7 +1047,7 @@ class NavigationMixin:
         ):
             self._descent_refusal_reason = "recall-departure-shortage"
             return True
-        if self._next_depth_supply_shortage(snapshot):
+        if not finale_way_down and self._next_depth_supply_shortage(snapshot):
             # Defence in depth: the return policy should already be taking us
             # upward, but the descent command itself must never permit depth 2+
             # without the agreed supplies even if return state is lost/reset.
