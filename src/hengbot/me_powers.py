@@ -1145,6 +1145,30 @@ def forget_maps(policy, snapshot, centre: Position, radius: int) -> None:
         for use in memory.uses]
 
 
+def menu_owned_label(owner) -> bool:
+    """Whether the Magic-Eater menu compilers (me_menu_uses) refuse every key but their own
+    composed one under the label ``owner``: an absorbed attack's (me_device_attacks_input, its
+    Powerful Activation's in me_powerful_activation_input), a utility power's (``me-power:...``),
+    a quest's absorbed-power substitute's and the absorption's or the absorbed Magic Missile's
+    (magic_eater_input)."""
+    from hengbot.magic_eater import ABSORB_REASON, MISSILE_REASON
+    from hengbot.me_absorbed_substitutes import owns as substitute_owns
+    from hengbot.me_device_attacks import DEVICE_REASON, POWERFUL_REASON
+    return isinstance(owner, str) and (
+        owner in {DEVICE_REASON, POWERFUL_REASON, ABSORB_REASON, MISSILE_REASON}
+        or owner.startswith(REASON + ":") or substitute_owns(owner))
+
+
+def drop_standing_label(policy) -> None:
+    """At a public decision's start, a menu-owned label (``menu_owned_label``) the previous
+    decision left names none of this decision's keys: its producer sets it again with each key
+    it composes.  n1-c life-221 2026-11-24 16:56 walked ``7`` toward the Armoury under the
+    previous decision's ``ranged:magic-eater-device`` (the rod had killed its target) and the
+    device compiler refused the step at admission (owner halt ``stuck-prompt``)."""
+    if menu_owned_label(policy.last_reason):
+        policy.last_reason = ""
+
+
 def decision_reason(policy, key) -> str | None:
     """The power's reason when ``key`` is the pending power key, else None.
 
