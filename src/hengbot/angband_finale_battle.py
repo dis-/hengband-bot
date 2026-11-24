@@ -154,6 +154,13 @@ STAND_ROUTE_TRIES = 6
 # Owner 2026-11-24 「射線を通さないように近づくないし待つ」: the boards held out of a strong
 # non-target's line of fire before the full detection is asked again (``_out_of_line_key``).
 SHUN_DETECT_EVERY = 10
+# The battle's 周辺感知 with no stand shown (``_resurvey_key``) is cast once per area: not again
+# within this many cells of an earlier one, half the map's radius (DETECT_RAD_MAP 30,
+# spells-floor.cpp map_area), so that the next one maps mostly new ground.
+RESURVEY_SPACING = 15
+# ... unless the board shows less than this fraction (numerator, denominator) of the cells it knew
+# around the earlier one when it was cast.
+RESURVEY_LOST = (3, 4)
 DIRECTIONS = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
 
 SWEEP, BATTLE, RECOVER = "sweep", "battle", "recover"
@@ -214,8 +221,9 @@ class Battle:
     # (name, y, x) and why the last stand search found none.  Class defaults.
     shunned_seen: tuple = ()
     no_stand: str | None = None
-    # The cell the last 周辺感知 of ``_survey_key``'s second rule was cast on (once per cell).
-    surveyed_at: tuple | None = None
+    # The 周辺感知 of ``_resurvey_key`` on this floor: (y, x, the board's known cells then) each,
+    # once per area (``RESURVEY_SPACING``).  A class default: restored checkpoints predate it.
+    surveys: tuple = ()
 
 
 def battle(policy, snapshot) -> Battle:
@@ -538,22 +546,52 @@ def _survey_key(policy, snapshot) -> str | None:
     return area_mapping.sealed_key(policy, snapshot)
 
 
+def _known_cells(snapshot, centre: Position) -> int:
+    """The board's known cells within ``RESURVEY_SPACING`` of ``centre``."""
+    return sum(1 for position, grid in snapshot.grids.items()
+               if grid.known and game_distance(position, centre) < RESURVEY_SPACING)
+
+
 def _resurvey_key(policy, snapshot, held: Battle, target) -> str | None:
-    """周辺感知 once on this cell when the board shows no stand on any of the target's rays,
+    """周辺感知 once per area when the board shows no stand on any of the target's rays,
     whatever this floor's maps cover (area_mapping ``survey_key``), before the way to an unshown
-    stand is taken (owner 2026-11-24 「周辺感知で状況を確認する」)."""
+    stand is taken (owner 2026-11-24 「周辺感知で状況を確認する」).
+
+    Once per area, not per cell: no earlier one of this floor within ``RESURVEY_SPACING`` of the
+    player, unless the board has since lost much of what it knew around that one (``RESURVEY_LOST``
+    of the known cells there when it was cast: a restart's lost map memory, a *Destruction* over
+    it; a far *Destruction* forgetting its edge is not that).  Owner 2026-11-23 (verbatim) 「長期戦になる99F 100Fにおいて
+    無駄な行動は許されない」: n1-c life-221 (Angband 100F, 2026-11-24 11:02:37-55) cast the map on
+    every cell of the close-in walk from (59,53) to (42,48), 46 maps alternating with the steps, the
+    Serpent in permanent rock with no stand on its rays before or after any of them."""
     from hengbot import area_mapping
     # A map of this floor covers the player, but the board shows no stand on any of the target's
     # rays (the map memory a restart does not keep: n1-c life-221 Angband 100F 2026-11-24 09:55,
     # rays=0 reach=4 at (29,60), 213 holds): map once more where the player stands.
-    here = (snapshot.player.position.y, snapshot.player.position.x)
-    if target is None or held.surveyed_at == here or _candidates(
-            policy, snapshot, (target.position.y, target.position.x)):
+    if target is None or _surveyed_near(snapshot, held):
+        return None
+    if _candidates(policy, snapshot, (target.position.y, target.position.x)):
         return None
     key = area_mapping.survey_key(policy, snapshot)
     if key is not None:
-        held.surveyed_at = here
+        _note_survey(snapshot, held)
     return key
+
+
+def _surveyed_near(snapshot, held: Battle) -> bool:
+    """A 周辺感知 of the battle (``Battle.surveys``) was cast within ``RESURVEY_SPACING`` of the
+    player and the board still knows most of what it knew around it then (``RESURVEY_LOST``)."""
+    here = snapshot.player.position
+    return any(game_distance(here, Position(y, x)) < RESURVEY_SPACING
+               and (_known_cells(snapshot, Position(y, x)) * RESURVEY_LOST[1]
+                    >= known * RESURVEY_LOST[0])
+               for y, x, known in held.surveys)
+
+
+def _note_survey(snapshot, held: Battle) -> None:
+    """A 周辺感知 of the battle cast where the player stands, noted in ``Battle.surveys``."""
+    here = snapshot.player.position
+    held.surveys = (*held.surveys, (here.y, here.x, _known_cells(snapshot, here)))
 
 
 def _wait_key(policy, snapshot, held: Battle) -> str:
@@ -1411,8 +1449,11 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
     # Owner 2026-11-24 「周辺感知で状況を確認する」: no stand and no nearer cell -- map the ground
     # around (the absorbed map, else a carried device or scroll) where no map of this floor covers
     # the player yet; the stand is chosen again on the mapped board.
-    surveyed = _survey_key(policy, snapshot)
+    # Not again where the battle's own map was cast (``_surveyed_near``): n1-c life-221 (Angband
+    # 100F, 2026-11-24 11:02:55) mapped at (42,48) after the map at (41,48).
+    surveyed = None if _surveyed_near(snapshot, held) else _survey_key(policy, snapshot)
     if surveyed is not None:
+        _note_survey(snapshot, held)
         return surveyed
     if guarded:
         out = _out_of_line_key(policy, snapshot, held)
