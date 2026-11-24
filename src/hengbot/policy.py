@@ -2831,6 +2831,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._shop_approach_previous_origin = None
             self._staged_shop_approach = None
             self._pending_shop_approach = None
+        # A Magic-Eater menu label names only the key composed with it in its own
+        # decision (me_powers.drop_standing_label, n1-c life-221 2026-11-24).
+        me_powers.drop_standing_label(self)
         self._acquire_store_visit_attempt = {
             "acquire_store_visit_called": False,
             "requested_owner": None,
