@@ -96,6 +96,10 @@ EAT_REASON = f"{REASON}:eat"
 # makes me_device_attacks_input own its prompt (an empty staff closes it with ESC).
 TELEPORT_STAFF_REASON = f"{REASON}:teleport:absorbed-power"
 SWEEP_SUFFIX = f":{REASON}-sweep"
+# The *Destruction* with the target in the circle when it is shut in permanent rock
+# (``_stalemate_destruction_key``) and the walk into its sure radius.
+STALEMATE_SUFFIX = f":{REASON}-stalemate"
+STALEMATE_WALK_REASON = f"{REASON}:stalemate-walk"
 CLEAR_SUFFIX = f":{REASON}-clear"
 SWEEP_WALK_REASON = f"{REASON}:sweep-walk"
 MAP_REASON = f"{REASON}:map"
@@ -169,6 +173,12 @@ RESURVEY_LOST = (3, 4)
 # (speed +35) moves several times a board when it can; ten boards still is a stalemate, and far
 # inside the stationary bound of the hold (stationary_bounds ``FINALE_HOLD_MAX_DECISIONS``).
 STALEMATE_BOARDS = 10
+# The wait on the outflank's wait cell, in game turns, before the stalemate's *Destruction*
+# (``_outflank_key``).  The Serpent of Chaos (speed +35: 40 energy a game turn, speed-table.cpp)
+# walks the about 20 cells of a vault's way out in about 50 game turns; four times that.  It does
+# not take that way of itself (KILL_WALL: straight at the player, monster-sweep-grid.cpp), so the
+# wait is short.
+OUTFLANK_WAIT_GAME_TURNS = 200
 DIRECTIONS = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
 
 SWEEP, BATTLE, RECOVER = "sweep", "battle", "recover"
@@ -239,6 +249,11 @@ class Battle:
     # defaults: restored checkpoints predate them (a plan of three is a walk).
     still: tuple | None = None
     outflank: tuple | None = None
+    # The game turn the player reached the outflank's wait cell, and the stalemate declared (the
+    # wait ran OUTFLANK_WAIT_GAME_TURNS, or no plan was found): the *Destruction* with the target
+    # in the circle is due (``_stalemate_destruction_key``).  Class defaults.
+    waited_since: int | None = None
+    blast: bool = False
 
 
 def battle(policy, snapshot) -> Battle:
@@ -304,6 +319,8 @@ def report(policy) -> dict | None:
             "outflank": ([list(cell) if isinstance(cell, tuple) else cell
                           for cell in held.outflank]
                          if getattr(held, "outflank", None) is not None else None),
+            "waited_since": getattr(held, "waited_since", None),
+            "blast": getattr(held, "blast", False),
         }
     return entry
 
@@ -1447,7 +1464,7 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
             # HP to the shot's 800 + cost.
             return _heal(policy, snapshot)
         held.stand = None
-        held.still = held.outflank = None
+        _end_stalemate(held)
         return _rocket(policy, snapshot, target)
     # The target's own line is the tactic's (the stand, 先手); a strong non-target's is never
     # entered (owner 2026-11-24 「射線を通さないように近づくないし待つ」, 「サーペントには射線を通さなければ
@@ -1463,10 +1480,14 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
             return resurveyed
     stood = _stand_key(policy, snapshot, held, target)
     if stood is not None:
-        held.still = held.outflank = None
+        _end_stalemate(held)
         return stood
     # Owner 2026-11-24 「離れて出口側へ回って待つ」: a plan drawn answers before the close-in, which
     # would walk back toward the enclosed target.
+    if held.blast:
+        blasted = _stalemate_destruction_key(policy, snapshot, held, target)
+        if blasted is not None:
+            return blasted
     if held.outflank is not None:
         flanked = _outflank_key(policy, snapshot, held, target)
         if flanked is not None:
@@ -1674,11 +1695,13 @@ def _outflank_plan(policy, snapshot, aim: Position) -> tuple | None:
     under the same exclusions), the cheapest first, then the farthest from the exit (``melt``
     True).
 
-    Why the target comes out (the game, monster-sweep-grid.cpp): a monster with a ranged attack
-    within get_max_range() + 1 of the player and no line on the player moves down the player's
-    noise flow (RangedAttackMoveGridDecider; update_flow over open grids, 32 deep); waiting near
-    the exit puts the enclosure's inside on that flow, while a KILL_WALL monster's straight pursuit
-    (should_go_straight) stops on the permanent rock."""
+    The game does not lead the target out (monster-sweep-grid.cpp): a monster with a ranged
+    attack within get_max_range() + 1 of the player moves only to a neighbouring grid from which it
+    projects onto the player (RangedAttackMoveGridDecider, ``projectable(pos_neighbor, p_pos)``),
+    and a KILL_WALL monster follows no noise or scent flow (``should_go_straight``): it steps
+    straight toward the player and stops on the permanent rock.  n1-c life-221 (Angband 100F,
+    2026-11-24 13:39:27-40): with the player on the wait cell (59,45), the Serpent of Chaos moved
+    from (44,50) to (45,51), toward the player, and stayed there for 400 game turns."""
     held = battle(policy, snapshot)
     near = _near_target(aim)
     ground = _ground(policy, snapshot, near)
@@ -1730,7 +1753,9 @@ def _stalemate_key(policy, snapshot, held: Battle, target) -> str | None:
         return None
     plan = _outflank_plan(policy, snapshot, target.position)
     if plan is None:
-        return None
+        # No wait cell: the stalemate's *Destruction* at once (owner 2026-11-24).
+        held.blast = True
+        return _stalemate_destruction_key(policy, snapshot, held, target)
     held.outflank = ((plan[0].y, plan[0].x), (plan[1].y, plan[1].x), aim, plan[2])
     return _outflank_key(policy, snapshot, held, target)
 
@@ -1751,22 +1776,95 @@ def _outflank_key(policy, snapshot, held: Battle, target) -> str | None:
     goal = Position(*wait)
     if here == goal:
         if target is None:
-            held.outflank = held.still = None
+            _end_stalemate(held)
             return None
+        if held.waited_since is None:
+            held.waited_since = snapshot.turn
+        if snapshot.turn - held.waited_since >= OUTFLANK_WAIT_GAME_TURNS:
+            # The target did not come out: the stalemate's *Destruction* (owner 2026-11-24).
+            held.blast = True
+            blasted = _stalemate_destruction_key(policy, snapshot, held, target)
+            if blasted is not None:
+                return blasted
         return _wait_key(policy, snapshot, held)
+    held.waited_since = None
     centre = target.position if target is not None else Position(*aim)
     if melt:
         moved = _melt_move(policy, snapshot, held, goal, centre)
         if moved is None:
-            held.outflank = held.still = None
+            _end_stalemate(held)
         return moved
     step = _safe_step(policy, snapshot, lambda position: position == goal,
                       avoid=_near_target(centre))
     if step is None:
-        held.outflank = held.still = None
+        _end_stalemate(held)
         return None
     key = policy._step_toward(snapshot, step)
     policy.last_reason = OUTFLANK_REASON
+    return key
+
+
+def _end_stalemate(held: Battle) -> None:
+    """The stalemate's count, plan, wait and *Destruction* are over (a Rocket, a stand, a
+    teleport, the target lost, the *Destruction* cast)."""
+    held.still = held.outflank = held.waited_since = None
+    held.blast = False
+
+
+def _stalemate_destruction_key(policy, snapshot, held: Battle, target) -> str | None:
+    """「サーペントを巻き込んで *破壊* で飛ばす」 (owner 2026-11-24, the chosen answer, verbatim:
+    「サーペントを範囲に入れて *破壊* を使う。クエストの標的は消えず、全回復して階のどこかへ飛ばされる
+    ので、囲みの外へ出る見込みが高い。全回復するのは、まだ被害を与えていない今なら損が無い。飛ばした後は
+    着いた所で全感知して探す。」).
+
+    The one exception to the battle's rule that keeps the target out of its *Destruction* past
+    the arrival sweep (``_clear_key``), for the stalemate only (``Battle.blast``: the target shown
+    with permanent rock on every ray and still for ``STALEMATE_BOARDS`` boards, and then no wait
+    cell found or the wait on it past ``OUTFLANK_WAIT_GAME_TURNS``).  The game: destroy_area
+    deletes no QUESTOR but heals it to full and teleports it (spells-floor.cpp), so the target
+    lands somewhere on the floor, likely out of the rock.  Only while the target is unhurt
+    (「まだ被害を与えていない今なら損が無い」: its health band unhurt, ``hp == max_hp``); a hurt one
+    is left to the hold below (``Battle.no_stand`` says so) for the owner to decide.
+
+    The target within the staff's sure radius (destruction_use.GUARANTEED_RADIUS): the ordinary
+    *Destruction*; within Powerful Activation's sure radius (``POWERED_SURE``): the powered one;
+    else (or with no powered cast) the walk to a cell within the sure radius, never within
+    ``TELEPORT_WITHIN`` of the target (the teleport's triggers stay above this in ``key``).  On
+    the cast the target's last-seen cell is dropped and the full detection made due
+    (``Battle.detect_due``, 「着いた所で全感知して探す」); the map after a *Destruction* is
+    me_powers' own (owner 2026-11-20 「破壊を使用した後は周辺感知で地形把握する」)."""
+    if target is None:
+        return None
+    if target.hp < target.max_hp:
+        if "destruction=hurt" not in (held.no_stand or ""):
+            held.no_stand = f"{held.no_stand or ''} destruction=hurt".strip()
+        return None
+    here = snapshot.player.position
+    distance = game_distance(here, target.position)
+    used = None
+    sure = destruction_use.in_sure_radius(snapshot, target)
+    if sure:
+        used = _destroy(policy, snapshot, [target], STALEMATE_SUFFIX)
+    elif distance <= POWERED_SURE:
+        used = _destroy(policy, snapshot, [target], STALEMATE_SUFFIX, powerful=True)
+    if used is not None:
+        _end_stalemate(held)
+        held.stand = None
+        held.last_seen = None
+        held.detect_due = True
+        held.trail_goal = None
+        return used
+    if sure:
+        return None  # the cast refused here (no charge, a confused head): the hold below
+    aim = target.position
+    step = _safe_step(policy, snapshot,
+                      lambda position: game_distance(position, aim) >= STAND_MIN_DISTANCE
+                      and destruction_use.in_sure_radius(snapshot, aim, centre=position),
+                      avoid=_near_target(aim))
+    if step is None:
+        return None
+    key = policy._step_toward(snapshot, step)
+    policy.last_reason = STALEMATE_WALK_REASON
     return key
 
 
@@ -1854,7 +1952,7 @@ def key(policy, snapshot) -> str | None:
             held.refused.clear()
             held.detect_due = True
             held.trail_goal = None  # the walk from the landing starts a new trail (``_left_cells``)
-            held.still = held.outflank = None
+            _end_stalemate(held)
             return away
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
