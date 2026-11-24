@@ -33,7 +33,15 @@ class FinaleApproachLineRecordedTest(unittest.TestCase):
         monrace = load_monrace_knowledge(EDIT / "MonraceDefinitions.jsonc")
         raws = [raw for raw in finale_416.boards("finale-floor-2108-n1b-416-1123.jsonl.gz")
                 if TELEPORT - 60 <= raw["turn"] <= END]
-        cls.rows = finale_416.drive(raws, monrace)
+
+        def prepare(policy, _board):
+            # DECLARED: the battle's last melt (``Battle.melt_aim``, read for a melt that changed
+            # nothing) cleared on every board, as the open-loop replay's melts never change the
+            # recorded boards.
+            held = getattr(policy, angband_finale_battle.MEMORY, None)
+            if held is not None:
+                held.melt_aim = None
+        cls.rows = finale_416.drive(raws, monrace, prepare=prepare)
 
     def test_the_last_seen_cell_is_kept_and_the_rock_melted_toward_it(self):
         row = next(row for row in self.rows if row[0] == GIVE_UP)

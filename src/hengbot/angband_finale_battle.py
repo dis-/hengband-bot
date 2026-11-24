@@ -254,6 +254,11 @@ class Battle:
     # in the circle is due (``_stalemate_destruction_key``).  Class defaults.
     waited_since: int | None = None
     blast: bool = False
+    # The battle's last melt, (game turn, (y, x) aimed at), and the cells a melt was aimed at that
+    # the next board showed unchanged with no wall melted (``_observe``): never aimed at again on
+    # this floor (``_battle_melt``).  Class defaults.
+    melt_aim: tuple | None = None
+    dud_melts: set = field(default_factory=set)
 
 
 def battle(policy, snapshot) -> Battle:
@@ -557,7 +562,6 @@ def _around_move(policy, snapshot, first: Position, target) -> str | None:
     """The first move of a way around (``_around_way``): the step onto ``first``, else the melt of
     it -- never one that would open the target's line where it stands (``_opens_line``, 先手) or a
     strong non-target's line on the player (``_melt_exposes``)."""
-    from hengbot import sealed_pocket  # import cycle
     here = snapshot.player.position
     if first in set(policy._walkable_neighbors(snapshot, here, allow_damaging=False)):
         policy.last_reason = STAND_WALK_REASON
@@ -570,7 +574,7 @@ def _around_move(policy, snapshot, first: Position, target) -> str | None:
     if (_opens_line(policy, snapshot, here, first, target.position)
             or _melt_exposes(policy, snapshot, first)):
         return None
-    return sealed_pocket.melt_at_key(policy, snapshot, first, MELT_REASON)
+    return _battle_melt(policy, snapshot, first)
 
 
 def _survey_key(policy, snapshot) -> str | None:
@@ -675,6 +679,7 @@ def _observe(policy, snapshot, held: Battle) -> None:
     elif held.attacked:
         held.hit_below = True
     held.summoned = any(summon_response.summons_of(message) for message in snapshot.messages)
+    _note_dud_melt(snapshot, held)
     held.shunned_seen = tuple((monster.name, monster.position.y, monster.position.x)
                               for monster in shunned(policy, snapshot))
     target = target_monster(snapshot)
@@ -1142,10 +1147,57 @@ def _opens_line(policy, snapshot, stand: Position, wall: Position, target: Posit
     return line_of_fire.player_projectable(policy, snapshot, stand, target, opened=(wall,))
 
 
+def _ray(cell: tuple, aim: tuple) -> tuple | None:
+    """(step, distance) of the target's ray from ``aim`` through ``cell`` -- its row, column or
+    diagonal, ``STAND_MIN_DISTANCE`` to ``ROCKET_RANGE`` away -- else None."""
+    dy, dx = cell[0] - aim[0], cell[1] - aim[1]
+    distance = max(abs(dy), abs(dx))
+    if not (dy == 0 or dx == 0 or abs(dy) == abs(dx)):
+        return None
+    if not STAND_MIN_DISTANCE <= distance <= ROCKET_RANGE:
+        return None
+    return ((dy > 0) - (dy < 0), (dx > 0) - (dx < 0)), distance
+
+
+def _battle_melt(policy, snapshot, cell: Position) -> str | None:
+    """The battle's Stone to Mud aimed at ``cell`` (sealed_pocket ``melt_at_key``), noted for
+    ``_note_dud_melt``; None for a cell an earlier melt left unchanged (``Battle.dud_melts``):
+    a melt that did not change the board is never made again (a grid the board does not show,
+    floor the beam crosses, or a wall it does not reach)."""
+    from hengbot import sealed_pocket  # import cycle
+    held = battle(policy, snapshot)
+    if cell in _duds(held):
+        return None
+    key = sealed_pocket.melt_at_key(policy, snapshot, cell, MELT_REASON)
+    if key is not None:
+        held.melt_aim = (snapshot.turn, (cell.y, cell.x))
+    return key
+
+
+def _duds(held: Battle) -> set:
+    """``Battle.dud_melts`` (a battle restored from an older checkpoint has none yet)."""
+    return held.__dict__.setdefault("dud_melts", set())
+
+
+def _note_dud_melt(snapshot, held: Battle) -> None:
+    """The board after a battle melt (``Battle.melt_aim``): no wall melted (sealed_pocket
+    MELTED_MESSAGES) and the aimed cell still not open -- the melt changed nothing, and that
+    cell is a dud (``Battle.dud_melts``)."""
+    from hengbot import sealed_pocket  # import cycle
+    aim = getattr(held, "melt_aim", None)
+    if aim is None or snapshot.turn <= aim[0]:
+        return
+    held.melt_aim = None
+    cell = Position(*aim[1])
+    melted = any(text in message for message in snapshot.messages
+                 for text in sealed_pocket.MELTED_MESSAGES)
+    if not melted and not _open(snapshot.grids.get(cell)):
+        _duds(held).add(cell)
+
+
 def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
     """「なるべく距離をとって相対するように岩石溶解を使って射線を通す。可能なら相手の移動後に射線が通る
     ようにして、先手を取ること。」"""
-    from hengbot import sealed_pocket
     from hengbot.policy_constants import WAIT_KEY
     aim = (target.position.y, target.position.x)
     stand = held.stand
@@ -1168,6 +1220,16 @@ def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
         key = policy._step_toward(snapshot, step)
         policy.last_reason = STAND_WALK_REASON
         return key
+    ray = _ray(stand.cell, aim) if stand.aim != aim else None
+    if ray is not None:
+        # The target moved onto another ray of this stand: the walls are read toward it where it
+        # stands.  n1-c life-221 (Angband 100F, 2026-11-24 14:47:05-11, loop-detected): on the
+        # stand (26,55) drawn for (10,55), the Serpent shown at (26,50) 5 west, the walls toward
+        # (10,55) were melted: Stone to Mud north at (22,55), a grid the board did not show, 47
+        # times with nothing melted.  Off every ray the stand keeps its aim (the owner's 先手:
+        # the last wall is melted while the target is off the ray, ``_stand_key`` below), and a
+        # melt that changed nothing gives the stand up (``_battle_melt``).
+        stand = held.stand = Stand(stand.cell, aim, ray[0], ray[1], stand.held)
     walls = _walls_between(snapshot, stand)
     if walls is None:
         held.stand = None
@@ -1193,7 +1255,13 @@ def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
             held.stand = None
             return _stand_key(policy, snapshot, held, target)
         stand.held = 0
-        return sealed_pocket.melt_at_key(policy, snapshot, Position(*walls[0]), MELT_REASON)
+        melted = _battle_melt(policy, snapshot, Position(*walls[0]))
+        if melted is None and Position(*walls[0]) in _duds(held):
+            # This wall did not change under an earlier melt: the stand is given up.
+            held.refused.add((stand.cell, aim))
+            held.stand = None
+            return _stand_key(policy, snapshot, held, target)
+        return melted
     if stand.held >= OPEN_STAND_WAIT:
         held.stand = None
         return None
@@ -1354,7 +1422,7 @@ def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None,
     of fire on it where it stands is not made (``_opens_line``, owner 2026-11-21 LOCKED
     「溶かした時に先手を取られて何も出来ず離脱している場面が問題」).  Every step is nearer, so the
     approach never turns back on itself; None when no neighbour qualifies."""
-    from hengbot import retreat_enclosure, sealed_pocket  # import cycle
+    from hengbot import retreat_enclosure  # import cycle
     here = snapshot.player.position
     distance = game_distance(here, goal)
     if distance <= keep:
@@ -1387,7 +1455,7 @@ def _line_key(policy, snapshot, goal: Position, *, keep: int = 0, target=None,
             continue
         if guarded and _melt_exposes(policy, snapshot, cell):
             continue
-        key = sealed_pocket.melt_at_key(policy, snapshot, cell, MELT_REASON)
+        key = _battle_melt(policy, snapshot, cell)
         if key is not None:
             return key
     return None
@@ -1877,7 +1945,6 @@ def _melt_move(policy, snapshot, held: Battle, goal: Position, centre: Position)
     2026-11-21 LOCKED 「溶かした時に先手を取られて何も出来ず離脱している場面が問題」), nor one that
     opens a strong non-target's line (``_melt_exposes``): the battle holds instead.  None when no
     way is left or no melt can be cast."""
-    from hengbot import sealed_pocket  # import cycle
     here = snapshot.player.position
     _costs, parent = _melt_costs(policy, snapshot, _near_target(centre))
     if goal not in parent:
@@ -1894,7 +1961,7 @@ def _melt_move(policy, snapshot, held: Battle, goal: Position, centre: Position)
     if (_opens_line(policy, snapshot, here, first, centre)
             or _melt_exposes(policy, snapshot, first)):
         return _wait_key(policy, snapshot, held)
-    return sealed_pocket.melt_at_key(policy, snapshot, first, MELT_REASON)
+    return _battle_melt(policy, snapshot, first)
 
 
 def _close_in_key(policy, snapshot, target) -> str | None:
