@@ -8,10 +8,11 @@ open and no nearer cell to close in to (STAND_MIN_DISTANCE 3); the battle answer
 the generic explore, breakout:seek-frontier and livelock:stone-to-mud answered, alternating with
 the battle's own approach between (40,52) and (41,51) until the loop detector stopped the run.
 
-Fixture finale-hold-pocket-n1c-221-1124: every player_turn board of that 100F floor from the
-arrival to the third halt (turns 6257708-6264762, 2988 boards: the livelock-exhausted capture's
+Fixture finale-stand-pingpong-n1c-221-1124: every player_turn board of that 100F floor from the
+arrival to the fourth halt (turns 6257708-6266122, 3555 boards: the livelock-exhausted capture's
 snapshot ring 20261124-071625 and current up to 6261238, then the 08:51 capture's current ring to
-6264262, then the 09:55 capture's from the restart;
+6264262, the 09:55 capture's from the restart to 6264762, then the 10:30 capture's (livelock-
+exhausted) from the second restart;
 ``_same`` rows as tests/support/finale_416.boards expands them),
 replayed open-loop (tests/support/finale_416: DECLARED RECONSTRUCTED device lists and expedition
 mark; DECLARED: the expedition's Restore Mana count held at 0, as the open-loop replay counts its
@@ -39,8 +40,10 @@ from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support import finale_416
 from tests.support.recorded import EDIT
 
-FIXTURE = "finale-hold-pocket-n1c-221-1124.jsonl.gz"
+FIXTURE = "finale-stand-pingpong-n1c-221-1124.jsonl.gz"
 RESTART = 2768   # the boards before the 09:54 restart (the second halt's last board, 6264262)
+RESTART_2 = 2988  # the boards before the 10:2x restart (the third halt's last board, 6264762)
+PINGPONG = (6266083, 6266122)  # the fourth halt's alternation (10:30:21-22)
 FROM = 6261100   # the last minute before the first halt: the Serpent 3-6 cells away
 FIRST_HALT = 6261238
 HELD = 6263495   # the second halt's hold at (29,60) began here (to 6264262)
@@ -58,8 +61,8 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
         def prepare(policy, board):
             angband_finale.memory(policy).restore_mana_used = 0
             sealed_pocket._memory(policy, board).uses.clear()
-            if len(seen) == RESTART:
-                # DECLARED: the 09:54 restart -- the policy's map memory (the remembered grids
+            if len(seen) in (RESTART, RESTART_2):
+                # DECLARED: the 09:54 and 10:2x restarts -- the policy's map memory (the remembered grids
                 # merged under the board, ``_with_grid_memory``) is not kept by a restart.
                 policy._remembered_grids = {}
                 policy._remembered_grid_signatures = {}
@@ -70,7 +73,8 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
         rows = finale_416.drive(finale_416.boards(FIXTURE), monrace, prepare=prepare)
         cls.rows = [row for row in rows if FROM <= row[0] <= FIRST_HALT]
         cls.held = [row for row in rows[:RESTART] if row[0] >= HELD]
-        cls.restarted = rows[RESTART:]
+        cls.restarted = rows[RESTART:RESTART_2]
+        cls.pingpong = [row for row in rows[RESTART_2:] if PINGPONG[0] <= row[0] <= PINGPONG[1]]
         cls.reports = reports
 
     def test_no_generic_rung_answers_while_the_target_is_shown(self):
@@ -124,6 +128,19 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
         self.assertTrue(any((row[3] or "").startswith(("angband-finale:stand-walk",
                                                          "angband-finale:melt"))
                             for row in first[mapped:]), first)
+
+    def test_the_held_stand_owns_the_walk_while_the_target_is_unseen(self):
+        # n1-c life-221 2026-11-24 10:30 (loop-detected): the stand (35,52) walk stepped '1' from
+        # (26,32) to (27,31), 21 cells from the Serpent (beyond telepathy's 20), and the walk to
+        # its last-seen cell stepped '9' back; the two walkers took turns.  The stand keeps the
+        # walk: no angband-finale:approach on those boards.
+        approach = [row for row in self.pingpong if row[3] == "angband-finale:approach"]
+        self.assertEqual(approach, [], self.pingpong)
+        unseen = [row for row in self.pingpong if row[6] is None]
+        self.assertTrue(unseen, self.pingpong)
+        self.assertTrue(all(row[3].startswith(("angband-finale:stand-walk", "angband-finale:melt",
+                                               "angband-finale:hold"))
+                            for row in unseen), unseen)
 
 
 if __name__ == "__main__":
