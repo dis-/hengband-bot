@@ -664,7 +664,21 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_near_target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_finale_battle.py:_out_of_line_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_outflank_key": {
     "classification": "dungeon-only",
     "rows": [
       "survival"
@@ -752,6 +766,13 @@
     "classification": "dungeon-only",
     "rows": [
       "bookkeeping"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_stalemate_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },

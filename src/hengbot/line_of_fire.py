@@ -182,6 +182,10 @@ READERS = {
         "line of fire to the target where it stands: that melt is never made, the target would act "
         "first on the open line (owner 2026-11-21 「溶かした時に先手を取られて何も出来ず離脱している"
         "場面が問題」)",
+    ("angband_finale_battle", "_outflank_plan", "player_projectable"):
+        "the 100F wait cell beyond the exit of the target's permanent-rock enclosure: the player's "
+        "line of fire onto the exit, where the target comes out (owner 2026-11-24 「離れて出口側へ"
+        "回って待つ」)",
     ("angband_finale_battle", "_fight_key", "player_reaches"):
         "the 99F/100F powered Rocket at the target's grid: a ball aimed at a grid flies the bolt "
         "path to it (owner 2026-11-20 「岩石溶解を使って射線を通す」); a target in view has the line "

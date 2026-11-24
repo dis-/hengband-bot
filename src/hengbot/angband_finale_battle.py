@@ -111,6 +111,8 @@ APPROACH_REASON = f"{REASON}:approach"
 # after a teleport and on reaching the last-seen cell (``_detect_key``).
 DETECT_REASON = f"{REASON}:detect"
 STAND_WALK_REASON = f"{REASON}:stand-walk"
+# The walk to the exit side of the target's permanent-rock enclosure (``_outflank_key``).
+OUTFLANK_REASON = f"{REASON}:outflank-walk"
 # The step out of a strong non-target's line of fire (``_out_of_line_key``).
 OUT_OF_LINE_REASON = f"{REASON}:out-of-line"
 MELT_REASON = f"{REASON}:melt"
@@ -161,6 +163,12 @@ RESURVEY_SPACING = 15
 # ... unless the board shows less than this fraction (numerator, denominator) of the cells it knew
 # around the earlier one when it was cast.
 RESURVEY_LOST = (3, 4)
+# Owner 2026-11-24 (the chosen answer) 「離れて出口側へ回って待つ」: the boards the target is shown on one
+# cell with no stand on any of its rays (``_candidates`` empty: permanent rock on every ray) before
+# the battle leaves for the exit side of its enclosure (``_outflank_key``).  The Serpent of Chaos
+# (speed +35) moves several times a board when it can; ten boards still is a stalemate, and far
+# inside the stationary bound of the hold (stationary_bounds ``FINALE_HOLD_MAX_DECISIONS``).
+STALEMATE_BOARDS = 10
 DIRECTIONS = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
 
 SWEEP, BATTLE, RECOVER = "sweep", "battle", "recover"
@@ -224,6 +232,12 @@ class Battle:
     # The 周辺感知 of ``_resurvey_key`` on this floor: (y, x, the board's known cells then) each,
     # once per area (``RESURVEY_SPACING``).  A class default: restored checkpoints predate it.
     surveys: tuple = ()
+    # Owner 2026-11-24 「離れて出口側へ回って待つ」 (``_outflank_key``): (target cell, boards) the
+    # target has stayed on that cell with no stand on any of its rays, and the plan drawn after
+    # STALEMATE_BOARDS of them: (wait cell, exit cell, the target cell it was drawn for).  Class
+    # defaults: restored checkpoints predate them.
+    still: tuple | None = None
+    outflank: tuple | None = None
 
 
 def battle(policy, snapshot) -> Battle:
@@ -286,6 +300,8 @@ def report(policy) -> dict | None:
             "dropped": list(held.dropped) if held.dropped is not None else None,
             "shunned": [list(entry) for entry in held.shunned_seen],
             "no_stand": held.no_stand,
+            "outflank": ([list(cell) for cell in held.outflank]
+                         if getattr(held, "outflank", None) is not None else None),
         }
     return entry
 
@@ -1427,6 +1443,7 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
             # HP to the shot's 800 + cost.
             return _heal(policy, snapshot)
         held.stand = None
+        held.still = held.outflank = None
         return _rocket(policy, snapshot, target)
     # The target's own line is the tactic's (the stand, 先手); a strong non-target's is never
     # entered (owner 2026-11-24 「射線を通さないように近づくないし待つ」, 「サーペントには射線を通さなければ
@@ -1442,9 +1459,17 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
             return resurveyed
     stood = _stand_key(policy, snapshot, held, target)
     if stood is not None:
+        held.still = held.outflank = None
         return stood
+    # Owner 2026-11-24 「離れて出口側へ回って待つ」: a plan drawn answers before the close-in, which
+    # would walk back toward the enclosed target.
+    if held.outflank is not None:
+        flanked = _outflank_key(policy, snapshot, held, target)
+        if flanked is not None:
+            return flanked
     closed = _close_in_key(policy, snapshot, target)
     if closed is not None:
+        held.still = None
         return closed
     # Owner 2026-11-24 「周辺感知で状況を確認する」: no stand and no nearer cell -- map the ground
     # around (the absorbed map, else a carried device or scroll) where no map of this floor covers
@@ -1455,11 +1480,169 @@ def _fight_key(policy, snapshot, held: Battle, target) -> str | None:
     if surveyed is not None:
         _note_survey(snapshot, held)
         return surveyed
+    flanked = _stalemate_key(policy, snapshot, held, target)
+    if flanked is not None:
+        return flanked
     if guarded:
         out = _out_of_line_key(policy, snapshot, held)
         if out is not None:
             return out
     return _wait_key(policy, snapshot, held)
+
+
+def _near_target(aim: Position) -> frozenset:
+    """The cells within ``TELEPORT_WITHIN`` of ``aim``: standing on one is the teleport's
+    「対象が距離2より近づいたとき」, so no walk of the outflank enters one."""
+    span = TELEPORT_WITHIN + 1
+    cells = (Position(aim.y + dy, aim.x + dx)
+             for dy in range(-span, span + 1) for dx in range(-span, span + 1))
+    return frozenset(cell for cell in cells if game_distance(cell, aim) <= TELEPORT_WITHIN)
+
+
+def _ground(policy, snapshot, avoid: frozenset) -> frozenset:
+    """The cells the battle's walks reach (``_reach``) keeping off ``avoid`` on the way."""
+    from collections import deque
+    start = snapshot.player.position
+    veto = _battle_veto(policy, snapshot)
+    guarded = bool(shunned(policy, snapshot))
+    seen = {start}
+    queue = deque([start])
+    while queue:
+        position = queue.popleft()
+        for neighbour in policy._walkable_neighbors(snapshot, position, allow_damaging=False):
+            if (neighbour in seen or neighbour in veto or neighbour in avoid
+                    or (guarded and _exposed(policy, snapshot, neighbour))):
+                continue
+            seen.add(neighbour)
+            queue.append(neighbour)
+    return frozenset(seen)
+
+
+def _enclosure_flood(snapshot, aim: Position) -> dict:
+    """The target's way out: its steps from ``aim`` to each cell, over every cell but a known
+    permanent wall and the outer wall.  The Serpent of Chaos is KILL_WALL (MonraceDefinitions id
+    862): a granite wall or a grid the board does not show is on its way; no monster crosses
+    permanent rock (monster-move.cpp: KILL_WALL breaks no PERMANENT wall)."""
+    from collections import deque
+    steps = {aim: 0}
+    queue = deque([aim])
+    while queue:
+        position = queue.popleft()
+        for dy, dx in DIRECTIONS:
+            cell = Position(position.y + dy, position.x + dx)
+            if (cell in steps or not 0 < cell.y < snapshot.height - 1
+                    or not 0 < cell.x < snapshot.width - 1):
+                continue
+            grid = snapshot.grids.get(cell)
+            if grid is not None and grid.known and getattr(grid, "permanent", False):
+                continue
+            steps[cell] = steps[position] + 1
+            queue.append(cell)
+    return steps
+
+
+def _outflank_plan(policy, snapshot, aim: Position) -> tuple | None:
+    """(wait cell, exit cell) for the target enclosed on ``aim``; None with the reason added to
+    ``Battle.no_stand`` (the decision record) when none is found.
+
+    The exit: the cell of the player's ground (``_ground``, never within ``TELEPORT_WITHIN`` of
+    the target) that the target's way out (``_enclosure_flood``) reaches first -- where it comes
+    out of the permanent rock onto the ground the player walks.  The wait cell: a cell of that
+    ground beyond the exit on the target's way (more of its steps than the exit), with a line of
+    fire onto the exit (line_of_fire ``player_projectable``, the Rocket's 18 grids), at least
+    ``STAND_MIN_DISTANCE`` from the exit and from the target, and within ``TELEPATHY_RANGE`` of the
+    target so that it stays shown; the farthest from the exit first (「なるべく距離をとって」),
+    then the nearest to the player.  The strong non-targets' lines (``_exposed``) and every
+    walker's veto are kept off by ``_ground``.
+
+    Why the target comes out (the game, monster-sweep-grid.cpp): a monster with a ranged attack
+    within get_max_range() + 1 of the player and no line on the player moves down the player's
+    noise flow (RangedAttackMoveGridDecider; update_flow over open grids, 32 deep); waiting near
+    the exit puts the enclosure's inside on that flow, while a KILL_WALL monster's straight pursuit
+    (should_go_straight) stops on the permanent rock."""
+    from hengbot import line_of_fire
+    held = battle(policy, snapshot)
+    ground = _ground(policy, snapshot, _near_target(aim))
+    steps = _enclosure_flood(snapshot, aim)
+    here = snapshot.player.position
+    out = [cell for cell in ground if cell in steps]
+    if not out:
+        held.no_stand = f"{held.no_stand or ''} outflank=no-exit".strip()
+        return None
+    exit_cell = min(out, key=lambda cell: (steps[cell], game_distance(cell, here), cell.y, cell.x))
+    found = []
+    for cell in ground:
+        if (cell not in steps or steps[cell] <= steps[exit_cell]
+                or game_distance(cell, exit_cell) < STAND_MIN_DISTANCE
+                or not STAND_MIN_DISTANCE <= game_distance(cell, aim) <= TELEPATHY_RANGE
+                or not line_of_fire.player_projectable(policy, snapshot, cell, exit_cell)):
+            continue
+        found.append(((-game_distance(cell, exit_cell), game_distance(cell, here),
+                       cell.y, cell.x), cell))
+    if not found:
+        held.no_stand = (f"{held.no_stand or ''} outflank=no-cell "
+                         f"exit=({exit_cell.y},{exit_cell.x})").strip()
+        return None
+    found.sort(key=lambda pair: pair[0])
+    return found[0][1], exit_cell
+
+
+def _stalemate_key(policy, snapshot, held: Battle, target) -> str | None:
+    """「離れて出口側へ回って待つ」 (owner 2026-11-24, the chosen answer, verbatim: 「標的から離れ、
+    永久岩の囲みから出てくる道の先の、射線が取れる所へ回って待つ。相手が動いて出てきた所で先手を取る。」),
+    asked where the battle would otherwise hold: no stand, no nearer cell, no map to cast.
+
+    The target shown with no stand on any of its rays (``_candidates`` empty: permanent rock on
+    each) and on one cell for ``STALEMATE_BOARDS`` such boards in a row (お互いに動かない): the plan
+    of ``_outflank_plan`` is drawn and taken (``_outflank_key``).  A board the target moved on, or
+    the battle had a stand or a step to close in, starts the count again.  None before the bound,
+    and when no plan is found (the hold below answers, as before; ``Battle.no_stand`` says why).
+
+    n1-c life-221 (Angband 100F, 2026-11-24 11:02:55-11:04:40, stationary:exhausted:angband-finale
+    :hold): at (42,48) the Serpent of Chaos was shown by telepathy at (44,50), 3 away, inside a
+    vault's permanent rock (no_stand "rays=0 ... reach=520"); neither moved, and the battle held
+    until the bound stopped the run.  The vault's way out is its south corridor (58,55)."""
+    aim = (target.position.y, target.position.x)
+    if _candidates(policy, snapshot, aim):
+        held.still = None
+        return None
+    boards = held.still[1] + 1 if held.still is not None and held.still[0] == aim else 1
+    held.still = (aim, boards)
+    if boards < STALEMATE_BOARDS:
+        return None
+    plan = _outflank_plan(policy, snapshot, target.position)
+    if plan is None:
+        return None
+    held.outflank = ((plan[0].y, plan[0].x), (plan[1].y, plan[1].x), aim)
+    return _outflank_key(policy, snapshot, held, target)
+
+
+def _outflank_key(policy, snapshot, held: Battle, target) -> str | None:
+    """The plan ``Battle.outflank`` (``_stalemate_key``): walk away from the target to the wait
+    cell (never within ``TELEPORT_WITHIN`` of it, off the strong non-targets' lines: ``_safe_step``)
+    and wait there (``_wait_key``, never a rest).  The Rocket fires once the target's move opens the
+    line (``_fight_key``'s first rung, 先手), and the teleport's triggers are asked above this on
+    every board (``key``).  The plan holds while the target moves (it comes out along the way)
+    until the Rocket, a stand (``_stand_key``) or a teleport ends it; with the target shown nowhere
+    (``target`` None: out of telepathy on the way) the walk goes on, and at the wait cell the plan
+    is dropped (the last-seen walk takes over), as it is when no walk reaches the wait cell."""
+    here = snapshot.player.position
+    wait, _exit, aim = held.outflank
+    goal = Position(*wait)
+    if here == goal:
+        if target is None:
+            held.outflank = held.still = None
+            return None
+        return _wait_key(policy, snapshot, held)
+    centre = target.position if target is not None else Position(*aim)
+    step = _safe_step(policy, snapshot, lambda position: position == goal,
+                      avoid=_near_target(centre))
+    if step is None:
+        held.outflank = held.still = None
+        return None
+    key = policy._step_toward(snapshot, step)
+    policy.last_reason = OUTFLANK_REASON
+    return key
 
 
 def _close_in_key(policy, snapshot, target) -> str | None:
@@ -1517,6 +1700,7 @@ def key(policy, snapshot) -> str | None:
             held.refused.clear()
             held.detect_due = True
             held.trail_goal = None  # the walk from the landing starts a new trail (``_left_cells``)
+            held.still = held.outflank = None
             return away
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
@@ -1550,6 +1734,12 @@ def key(policy, snapshot) -> str | None:
     # (26,52) was shown by telepathy 20 cells away and the stand walk stepped '1' to (27,31); there
     # it was 21 away, beyond telepathy (TELEPATHY_RANGE), and the walk to the last-seen cell
     # stepped '9' back, over and over.
+    # The walk to the exit side goes on while the target drops out of telepathy on the way
+    # (``_outflank_key``); at the wait cell with the target shown nowhere the plan is dropped.
+    if held.outflank is not None:
+        flanked = _outflank_key(policy, snapshot, held, None)
+        if flanked is not None:
+            return flanked
     if held.stand is not None and held.last_seen is not None:
         stood = _stand_key(policy, snapshot, held, LastSeen(Position(*held.last_seen)))
         if stood is not None:
