@@ -203,6 +203,10 @@ class Battle:
     # The boards held out of a strong non-target's line of fire in a row (``_out_of_line_key``);
     # every ``SHUN_DETECT_EVERY``-th asks the full detection again.  A class default.
     shun_held: int = 0
+    # For the decision record only (``report``): the strong non-targets of the last board
+    # (name, y, x) and why the last stand search found none.  Class defaults.
+    shunned_seen: tuple = ()
+    no_stand: str | None = None
 
 
 def battle(policy, snapshot) -> Battle:
@@ -263,6 +267,8 @@ def report(policy) -> dict | None:
             "stand": list(held.stand.cell) if held.stand is not None else None,
             "detect_due": held.detect_due,
             "dropped": list(held.dropped) if held.dropped is not None else None,
+            "shunned": [list(entry) for entry in held.shunned_seen],
+            "no_stand": held.no_stand,
         }
     return entry
 
@@ -336,13 +342,41 @@ def _exposed(policy, snapshot, cell: Position, opened: tuple = ()) -> bool:
     return memo[key]
 
 
+def _battle_veto(policy, snapshot) -> frozenset:
+    """The cells the battle's own walks keep off: every walker's veto (policy ``_walk_veto``,
+    walk_vetoes.walk) without its strong-monster ranges.
+
+    Owner 2026-11-24 (verbatim, the chosen answer) 「強敵の範囲だけ外し床の害や罠は避ける — 決戦の
+    歩きでは、強い敵の周りの範囲は使わず、標的以外の強敵は射線の決まりで扱う。害のある床・罠・溶岩などの
+    避けるマスは今までどおり避ける。」  The parts of ``_walk_veto``:
+
+    * ``_engagement_avoid_cells`` -- the engagement retreats' own cells: a strong-monster range,
+      left out;
+    * ``left_cells.refused`` -- the cells an owner left (against walking back and forth): kept;
+    * ``_engagement_route_veto`` -- the engagement danger areas near the strong monsters (owner
+      2026-11-07 「眠っている敵でも強い敵からは離れる」) with a kept-away disenchanter's area: the
+      strong-monster ranges, left out (the target's would keep the battle off the monster it must
+      give a line to, 「サーペントには射線を通さなければならない」; the others' are their line of fire,
+      ``_exposed``);
+    * ``_unseen_attack_area_veto`` -- an unseen attacker's area: kept.
+
+    The ground's own harm (damaging terrain, traps, lava) is the walk's step test
+    (``_walkable_neighbors`` with ``allow_damaging=False``, policy ``_step_toward``'s warning
+    gate), not this veto, and is unchanged.  n1-c life-221 (Angband 100F, 2026-11-24 08:51): the
+    1156 vetoed cells left no way from (29,60) to the three stands south of the Serpent at
+    (29,48); the battle held 120 boards and stopped (stationary:exhausted)."""
+    from hengbot import left_cells
+    return frozenset(left_cells.refused(policy, snapshot)) | frozenset(
+        policy._unseen_attack_area_veto(snapshot))
+
+
 def _safe_step(policy, snapshot, is_goal, *, avoid=frozenset()) -> Position | None:
     """The first step of the shortest walk to a cell ``is_goal`` accepts that enters no cell a
     strong non-target has a line of fire to (``_exposed``), nor a cell of every walker's veto
     (policy ``_walk_veto``) or of ``avoid``; None when no such walk exists."""
     from collections import deque
     start = snapshot.player.position
-    veto = policy._walk_veto(snapshot)
+    veto = _battle_veto(policy, snapshot)
     parent = {start: None}
     queue = deque([start])
     while queue:
@@ -387,7 +421,7 @@ def _out_of_line_key(policy, snapshot, held: Battle) -> str | None:
     here = snapshot.player.position
     if _exposed(policy, snapshot, here):
         from collections import deque
-        veto = policy._walk_veto(snapshot)
+        veto = _battle_veto(policy, snapshot)
         parent = {here: None}
         queue = deque([here])
         while queue:
@@ -427,7 +461,7 @@ def _around_way(policy, snapshot, goals) -> tuple | None:
     if not goals or here in goals:
         return None
     guarded = bool(shunned(policy, snapshot))
-    veto = policy._walk_veto(snapshot)
+    veto = _battle_veto(policy, snapshot)
     best = {here: 0}
     parent = {}
     heap = [(0, here.y, here.x)]
@@ -539,6 +573,8 @@ def _observe(policy, snapshot, held: Battle) -> None:
     elif held.attacked:
         held.hit_below = True
     held.summoned = any(summon_response.summons_of(message) for message in snapshot.messages)
+    held.shunned_seen = tuple((monster.name, monster.position.y, monster.position.x)
+                              for monster in shunned(policy, snapshot))
     target = target_monster(snapshot)
     if target is not None:
         held.last_seen = (target.position.y, target.position.x)
@@ -923,12 +959,14 @@ def _candidates(policy, snapshot, aim) -> list:
 def _choose_stand(policy, snapshot, aim) -> Stand | None:
     here = (snapshot.player.position.y, snapshot.player.position.x)
     held = battle(policy, snapshot)
-    candidates = [stand for stand in _candidates(policy, snapshot, aim)
-                  if (stand.cell, aim) not in held.refused]
+    rays = _candidates(policy, snapshot, aim)
+    candidates = [stand for stand in rays if (stand.cell, aim) not in held.refused]
+    refused = len(rays) - len(candidates)
     if shunned(policy, snapshot):
         # Owner 2026-11-24 「射線を通さないように近づく」: no stand in a strong non-target's line.
         candidates = [stand for stand in candidates
                       if not _exposed(policy, snapshot, Position(*stand.cell))]
+    exposed = len(rays) - refused - len(candidates)
     # Every candidate the walk reaches, best first: one search of the reachable cells, not a route
     # per candidate.  Owner 2026-11-24 (verbatim) 「周辺感知で状況を確認する。今回の場合は永久岩に
     # 阻まれていたので回り込む必要があった。」: the best rays may run into permanent rock (no melt
@@ -942,7 +980,13 @@ def _choose_stand(policy, snapshot, aim) -> Stand | None:
     # None a walk reaches: the stand the cheapest way around reaches (``_around_way``).
     by_cell = {Position(*stand.cell): stand for stand in candidates}
     way = _around_way(policy, snapshot, by_cell)
-    return by_cell[way[0]] if way is not None else None
+    if way is not None:
+        return by_cell[way[0]]
+    # For the decision record: why no stand (the rays' cells within reach of the melts, those the
+    # 先手 rule gave up, those in a strong non-target's line, and none of the rest reached).
+    held.no_stand = (f"rays={len(rays)} refused={refused} exposed={exposed} "
+                     f"unreached={len(candidates)} reach={len(reach)}")
+    return None
 
 
 def _reach(policy, snapshot) -> frozenset:
@@ -953,7 +997,7 @@ def _reach(policy, snapshot) -> frozenset:
 
     def compute():
         start = snapshot.player.position
-        veto = policy._walk_veto(snapshot)
+        veto = _battle_veto(policy, snapshot)
         guarded = bool(shunned(policy, snapshot))
         seen = {start}
         queue = deque([start])
@@ -988,6 +1032,7 @@ def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
     aim = (target.position.y, target.position.x)
     stand = held.stand
     if stand is None or not _open(_grid(snapshot, stand.cell)):
+        held.no_stand = None
         stand = held.stand = _choose_stand(policy, snapshot, aim)
     if stand is None:
         return None
