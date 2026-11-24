@@ -15882,6 +15882,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 or angband_cap.capped(snapshot, destination, self)
                 or self._missing_required_abilities(snapshot, destination)):
             return None
+        # An escape by stairs: the up stair it lands on leads back here (fled_floor_stairs,
+        # n1-a life-535), and the return does not take it.
+        fled_floor_stairs.note_flight(self, snapshot)
         self.last_reason = reason
         return DOWN_STAIRS_KEY
 

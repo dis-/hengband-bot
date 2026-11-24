@@ -13433,6 +13433,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_town.py:TownMixin._is_return_upstairs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_town.py:TownMixin._mining_walk_in_return_key": {
     "classification": "producer",
     "rows": [

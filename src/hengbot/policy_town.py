@@ -4,7 +4,7 @@ from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_bm_tour, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
-from hengbot import deep_climb, return_start
+from hengbot import deep_climb, fled_floor_stairs, return_start
 from hengbot import recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
@@ -8774,6 +8774,11 @@ class TownMixin:
             )
         return collecting
 
+    def _is_return_upstairs(self, snapshot: Snapshot, grid) -> bool:
+        """An up stair the return to town takes: not the one back to a fled floor."""
+        return self._is_upstairs_target(grid) and not fled_floor_stairs.leads_back(
+            self, snapshot, grid.position)
+
     @claims(ClaimOwner.DEPARTURE)
     def _return_to_town_key(
         self,
@@ -8825,7 +8830,10 @@ class TownMixin:
                     self, snapshot, RETURN_WAIT_SIGHT_REASON, producer="departure")) is not None):
             return sight
         here = snapshot.grid_at(player.position)
-        if here is not None and self._is_upstairs_target(here):
+        # Never up the stair back to the floor an escape by stairs just left (fled_floor_stairs;
+        # n1-a life-535: the emergency's '>' from the summoner's 40F, then this '<' loaded the
+        # same 40F, 19 times): with Recall read it waits below, else Recall or another up stair.
+        if here is not None and self._is_return_upstairs(snapshot, here):
             self.last_reason = "return:ascend"
             self._offer_execution(
                 UP_STAIRS_KEY, producer="departure",
@@ -8964,7 +8972,8 @@ class TownMixin:
             upstairs_step = self._escape_state.read_once(
                 snapshot,
                 "return:upstairs-step",
-                lambda: self._nearest_goal_step(snapshot, self._is_upstairs_target),
+                lambda: self._nearest_goal_step(
+                    snapshot, lambda grid: self._is_return_upstairs(snapshot, grid)),
             )
         finally:
             upstairs_step_target = self._take_claim_target()

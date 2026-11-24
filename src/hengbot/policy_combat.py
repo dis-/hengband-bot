@@ -4,7 +4,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import ESP_THREAT_HEAL_REASON, ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import deep_fall_guard, escape_count, return_start
+from hengbot import deep_fall_guard, escape_count, fled_floor_stairs, return_start
 from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_breeder_avoid, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
@@ -541,6 +541,8 @@ class CombatMixin:
             return None
         exits = self._immobile_summoner_exits(snapshot)
         if exits.on_downstairs:
+            # The up stair it lands on leads back to the summoner (fled_floor_stairs).
+            fled_floor_stairs.note_flight(self, snapshot)
             self.last_reason = "summoner:stairs-down"
             return DOWN_STAIRS_KEY
         if exits.down_route is not None:
