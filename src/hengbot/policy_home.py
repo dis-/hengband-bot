@@ -6,7 +6,7 @@ from hengbot.item_identity import (
     MemorySignatures, display_signature,
     remembered_stack, same_memory,
 )
-from hengbot import bm_destruction_fund, destruction_means, home_cap, home_cash_sale, item_fate, mining_oil_sale, spare_gear, torch_release
+from hengbot import bm_destruction_fund, destruction_means, home_cap, home_cash_sale, item_fate, mining_oil_sale, slot_lending, spare_gear, torch_release
 from hengbot.item_reservation import (
     item_available,
     reservation_query_memo,
@@ -3032,6 +3032,11 @@ class HomeMixin:
             # Owner 2026-11-08 「旅の後に付け直す」: carried through the trip; the lent ring slot
             # returns to the target's ring (slot_lending, owner 2026-11-22 Q6).
             return 1, "zul-trip:replaced-ring"
+        if slot_lending.retains_hands_return(self, snapshot, item):
+            # The hands lent to a digger return to this piece (owner 2026-11-22 Q6): carried
+            # while the digger holds the hand, the one verdict the Home's combat-weapon
+            # withdrawal also reads (n1-a life-536 2026-11-24, the weight deposit's loop).
+            return 1, slot_lending.HANDS_RETURN_BRANCH
         from hengbot.magic_eater_devices import WONDER_HOLD_LIMIT, is_staple_food, staple_food
         staple = staple_food(snapshot)
         if staple is not None and is_staple_food(item):
