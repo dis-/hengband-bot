@@ -1674,11 +1674,13 @@ def _outflank_plan(policy, snapshot, aim: Position) -> tuple | None:
     under the same exclusions), the cheapest first, then the farthest from the exit (``melt``
     True).
 
-    Why the target comes out (the game, monster-sweep-grid.cpp): a monster with a ranged attack
-    within get_max_range() + 1 of the player and no line on the player moves down the player's
-    noise flow (RangedAttackMoveGridDecider; update_flow over open grids, 32 deep); waiting near
-    the exit puts the enclosure's inside on that flow, while a KILL_WALL monster's straight pursuit
-    (should_go_straight) stops on the permanent rock."""
+    The game does not lead the target out (monster-sweep-grid.cpp): a monster with a ranged
+    attack within get_max_range() + 1 of the player moves only to a neighbouring grid from which it
+    projects onto the player (RangedAttackMoveGridDecider, ``projectable(pos_neighbor, p_pos)``),
+    and a KILL_WALL monster follows no noise or scent flow (``should_go_straight``): it steps
+    straight toward the player and stops on the permanent rock.  n1-c life-221 (Angband 100F,
+    2026-11-24 13:39:27-40): with the player on the wait cell (59,45), the Serpent of Chaos moved
+    from (44,50) to (45,51), toward the player, and stayed there for 400 game turns."""
     held = battle(policy, snapshot)
     near = _near_target(aim)
     ground = _ground(policy, snapshot, near)
