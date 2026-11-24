@@ -209,6 +209,10 @@ class StoreVisit:
     operation_producer_family: str | None = field(default=None, compare=False, repr=False)
     exit_requester: str | None = field(default=None, compare=False, repr=False)
     claim_operation_identity: tuple | None = field(default=None, compare=False, repr=False)
+    # The shelf ware a staged one-shot buy was composed for: (display
+    # signature, price, stacked).  The entry page re-derives the letter from it
+    # because entering a store can run its maintenance and reorder the shelf.
+    operation_item_identity: tuple | None = field(default=None, compare=False, repr=False)
 
     def transition(self, phase: StoreVisitPhase, key: str | None = None) -> None:
         if self.phase == StoreVisitPhase.CLOSED:
@@ -220,6 +224,7 @@ class StoreVisit:
     def close(self, outcome: str) -> None:
         self.operation_posted = False
         self.operation_key = None
+        self.operation_item_identity = None
         self.operation_released = False
         self.phase = StoreVisitPhase.CLOSED
         self.outcome = outcome
