@@ -38,7 +38,18 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_warning_cell_record_path",
     "_quest_plan_record_path",
     "_map_memory_record_path",
+    "_q25_battle_record_path",
+    "_sweep_kill_record_path",
+    "_purchase_source_journal_path",
 )
+# Policy attributes that name a file the policy reads but the game writes (the character
+# sheet ``cli`` asks the game to dump).  A checkpoint carries it (town_arrival_checkpoint
+# copies it) but a restore does not re-point it: nothing in a replay writes it.
+POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES = (
+    "_character_dump_path",
+)
+# scripts/state_registry_lint.py fails when ``cli`` attaches a ``_*_path`` to the policy that
+# neither table names (review 2026-11-25 (a)-1: four were missing).
 
 
 def configured_runtime_dir() -> Path | None:

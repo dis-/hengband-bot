@@ -25,7 +25,12 @@ registry says it; this lint fails on
   source: a counter-like entry (``state_registry.COUNTER_NAME``) with no ``RESET_BY`` row, a row
   of no counter-like entry, a row with neither a site nor a note, a site naming a function its
   module does not define, a reset site of the source (``reset_sites``) the row does not list, a
-  listed site that resets nothing of it.
+  listed site that resets nothing of it,
+- a ``_*_path`` attribute ``cli`` attaches to the policy (``policy._x_path = ...`` or a
+  ``setattr`` of one) that neither ``runtime_paths.POLICY_RUNTIME_PATH_ATTRIBUTES`` nor
+  ``runtime_paths.POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES`` names (review 2026-11-25 (a)-1: the
+  checkpoint copies and the restore re-points only the paths of those tables), or a name in
+  both tables.
 
 A new state: add its row to ``hengbot/state_registry.py``.
 
@@ -476,6 +481,52 @@ def reset_findings(modules: dict) -> list[str]:
     return lines
 
 
+# --- The runtime path tables (review 2026-11-25 (a)-1) -----------------------------------------
+RUNTIME_PATH_NAME = re.compile(r"_[A-Za-z0-9_]+_path")
+RUNTIME_PATH_ATTACHER = "cli"
+
+
+def attached_paths(modules: dict) -> dict:
+    """{name: line}: the ``_*_path`` attributes ``cli`` attaches to the policy."""
+    found = {}
+    tree = modules.get(RUNTIME_PATH_ATTACHER)
+    if tree is None:
+        return found
+    for node in ast.walk(tree):
+        targets = (node.targets if isinstance(node, ast.Assign)
+                   else [node.target] if isinstance(node, (ast.AnnAssign, ast.AugAssign)) else [])
+        for target in targets:
+            for element in (target.elts if isinstance(target, (ast.Tuple, ast.List)) else [target]):
+                if (isinstance(element, ast.Attribute)
+                        and ast.unparse(element.value) in POLICY_EXPRESSIONS
+                        and RUNTIME_PATH_NAME.fullmatch(element.attr)):
+                    found.setdefault(element.attr, element.lineno)
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "setattr" and len(node.args) >= 2
+                and ast.unparse(node.args[0]) in POLICY_EXPRESSIONS
+                and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str)
+                and RUNTIME_PATH_NAME.fullmatch(node.args[1].value)):
+            found.setdefault(node.args[1].value, node.lineno)
+    return found
+
+
+def runtime_path_findings(modules: dict) -> list[str]:
+    """Every ``_*_path`` ``cli`` attaches is in one of the runtime path tables."""
+    from hengbot import runtime_paths
+
+    written = set(runtime_paths.POLICY_RUNTIME_PATH_ATTRIBUTES)
+    read = set(runtime_paths.POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES)
+    lines = [f"runtime-path: {name} is in both POLICY_RUNTIME_PATH_ATTRIBUTES and "
+             "POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES" for name in sorted(written & read)]
+    for name, line in sorted(attached_paths(modules).items()):
+        if name not in written | read:
+            lines.append(f"{RUNTIME_PATH_ATTACHER}.py:{line} runtime-path: {name} is attached to "
+                         "the policy but is in no runtime path table (runtime_paths."
+                         "POLICY_RUNTIME_PATH_ATTRIBUTES for a file the policy writes, "
+                         "POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES for one it only reads)")
+    return lines
+
+
 def findings(modules: dict | None = None) -> list[str]:
     from hengbot import (floor_visit_memory, latch_onset_capture, monster_memory, state_registry,
                          town_visit)
@@ -558,6 +609,7 @@ def findings(modules: dict | None = None) -> list[str]:
             lines.append(f"checkpoint: {row.name} saved={row.saved}, but the checkpoint "
                          f"{'keeps' if saved else 'leaves out'} it")
     lines.extend(reset_findings(modules))
+    lines.extend(runtime_path_findings(modules))
     return lines
 
 

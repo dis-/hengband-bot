@@ -94,6 +94,22 @@ class StateRegistryLintTest(unittest.TestCase):
                     if state_registry.COUNTER_NAME.search(row.name)}
         self.assertEqual(set(state_registry.RESET_BY), counters)
 
+    def test_every_path_cli_attaches_is_in_a_runtime_path_table(self):
+        self.assertEqual(state_registry_lint.runtime_path_findings(self.modules), [])
+        attached = state_registry_lint.attached_paths(self.modules)
+        for name in ("_q25_battle_record_path", "_sweep_kill_record_path",
+                     "_purchase_source_journal_path", "_character_dump_path"):
+            self.assertIn(name, attached)
+
+    def test_an_attached_path_missing_from_the_tables_fails(self):
+        cli = ast.parse("def configure(policy, args):\n"
+                        "    policy._mutant_record_path = args.decision_log\n"
+                        "    setattr(policy, \"_other_mutant_path\", None)\n")
+        lines = state_registry_lint.runtime_path_findings({**self.modules, "cli": cli})
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(lines[0].startswith("cli.py:2 runtime-path: _mutant_record_path"))
+        self.assertTrue(lines[1].startswith("cli.py:3 runtime-path: _other_mutant_path"))
+
 
 if __name__ == "__main__":
     unittest.main()
