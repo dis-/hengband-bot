@@ -162,7 +162,7 @@ _SEARCH_RADIUS = DISENGAGE_WALK_LIMIT
 # MAX_PLAYER_SIGHT (system/gamevalue.h): a monster in the player's line this near acts
 # (monster-processor.cpp decide_process_continue).
 MAX_PLAYER_SIGHT = 20
-_STAND = frozenset({"floor", "passage"})
+_STAND = quest_exposure.STAND_KINDS
 
 
 def answers(plan) -> bool:
@@ -210,7 +210,7 @@ def _out_of_sight(policy, snapshot, navigator, watchers) -> set[Position]:
     walkable = quest_plan_base._terrain_of(navigator, snapshot, water=False)
     found = set()
     for cell, kind in walkable.items():
-        if (kind not in {"floor", "passage"} or quest_exposure.game_distance(here, cell) > _SEARCH_RADIUS
+        if (kind not in _STAND or quest_exposure.game_distance(here, cell) > _SEARCH_RADIUS
                 or any(quest_exposure.game_distance(cell, (m.position.y, m.position.x)) <= 1
                        for m in watchers)):
             continue

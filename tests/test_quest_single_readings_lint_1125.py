@@ -52,5 +52,30 @@ class NeverMovesTest(unittest.TestCase):
         self.assertEqual(cross_rule_lint.move_flag_problems(modules), [])
 
 
+class TerrainSetsTest(unittest.TestCase):
+    """(a)-3: the quest map's kinds are named once (quest_exposure)."""
+
+    def test_named_sets_keep_their_members(self):
+        from hengbot import quest_exposure
+
+        self.assertEqual(quest_exposure.STAND_KINDS, {"floor", "passage"})
+        self.assertEqual(quest_exposure.DRY_WALK_KINDS, {"floor", "exit", "passage", "shallow_water"})
+        self.assertEqual(quest_exposure.WALKABLE_KINDS, quest_exposure.DRY_WALK_KINDS | {"deep_water"})
+        self.assertEqual(quest_exposure.MAP_STAND_KINDS,
+                         {"floor", "exit", "door", "passage", "shallow_water", "tree"})
+
+    def test_the_lint_names_a_set_of_kinds_outside_quest_exposure(self):
+        tree = ast.parse('def stand(kind):\n    return kind in {"floor", "passage"}\n')
+        problems = cross_rule_lint.terrain_set_problems({"quest_example": tree})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("quest_example.py:2", problems[0])
+        self.assertEqual(cross_rule_lint.terrain_set_problems({"quest_exposure": tree}), [])
+        mixed = ast.parse('READ = {"floor", "full"}\n')   # not every string a kind: not a set of kinds
+        self.assertEqual(cross_rule_lint.terrain_set_problems({"quest_example": mixed}), [])
+
+    def test_the_source_has_no_such_set(self):
+        self.assertEqual(cross_rule_lint.terrain_set_problems(cross_rule_lint._modules()), [])
+
+
 if __name__ == "__main__":
     unittest.main()

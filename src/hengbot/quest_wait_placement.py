@@ -92,9 +92,9 @@ from hengbot.model import Position
 FLOW_DEPTH = 32  # grid.cpp update_flow monster_flow_depth
 SEARCH_STEPS = 24  # the walk from a stand within which another waiting cell is looked for
 MAX_PLAYER_SIGHT = 20
-WAIT_KINDS = frozenset({"floor", "passage"})
-_FLOW_KINDS = frozenset({"floor", "exit", "passage", "tree", "shallow_water", "deep_water", "lava", "door"})
-_WALK_KINDS = frozenset({"floor", "exit", "passage", "tree", "shallow_water", "door"})
+WAIT_KINDS = quest_exposure.STAND_KINDS
+_FLOW_KINDS = quest_exposure.FLOW_KINDS
+_WALK_KINDS = quest_exposure.MONSTER_WALK_KINDS
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 
 
@@ -183,7 +183,7 @@ def _crosses(snapshot, terrain, flags, cell) -> bool:
     fly, aquatic = "CAN_FLY" in flags, "AQUATIC" in flags
     if kind is None:
         return False
-    if kind in {"wall", "rubble"}:
+    if kind in quest_exposure.WALL_OR_RUBBLE_KINDS:
         return bool({"PASS_WALL", "KILL_WALL"} & flags) and not _permanent(snapshot, cell)
     if kind == "door":
         return bool({"OPEN_DOOR", "BASH_DOOR", "PASS_WALL"} & flags) or not _closed(snapshot, cell)
@@ -209,7 +209,7 @@ def _closed(snapshot, cell) -> bool:
 
 def _flow_from(terrain, start, fly: bool) -> dict:
     """update_flow's distances, walked from the monster's cell (the grid graph is undirected)."""
-    kinds = _FLOW_KINDS | ({"pit"} if fly else frozenset())
+    kinds = _FLOW_KINDS | (quest_exposure.PIT_KINDS if fly else frozenset())
     dist = {start: 0}
     pending = deque([start])
     while pending:
@@ -264,7 +264,7 @@ def _moves_val(vec) -> list:
 def _flow_maps(snapshot, terrain, spot, fly: bool) -> tuple[dict, dict]:
     """update_flow (grid/grid.cpp:806-913) from a player on ``spot``: (distance, cost) per cell, a closed
     door costing 3 more; absent where the walk of 32 does not reach (the game's 0)."""
-    kinds = _FLOW_KINDS | ({"pit"} if fly else frozenset())
+    kinds = _FLOW_KINDS | (quest_exposure.PIT_KINDS if fly else frozenset())
     dist, cost = {spot: 0}, {spot: 0}
     pending = deque([spot])
     while pending:
@@ -618,7 +618,7 @@ def _unspent(rows_by_key, spent, spot, keys) -> frozenset:
 def _candidates(policy, snapshot, navigator, plan, stand, taken) -> dict:
     """Cell -> steps from ``stand`` over the plan's walking map, within SEARCH_STEPS."""
     terrain = quest_plan_base._terrain_of(navigator, snapshot, water=False)
-    walkable = {"floor", "exit", "passage", "shallow_water"}  # quest_exposure's walk (no trees)
+    walkable = quest_exposure.DRY_WALK_KINDS  # quest_exposure's walk (no trees)
     steps = {stand: 0}
     pending = deque([stand])
     while pending:

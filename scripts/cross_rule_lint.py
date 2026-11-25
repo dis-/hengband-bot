@@ -455,10 +455,33 @@ def move_flag_problems(modules: dict) -> list:
     return problems
 
 
+# (a)-3: the named sets of the quest map's kinds (quest_exposure: STAND_KINDS, WALKABLE_KINDS, ...);
+# a quest module writes no set of terrain kinds of its own.
+TERRAIN_KINDS = frozenset({"floor", "passage", "exit", "shallow_water", "deep_water", "tree", "door",
+                           "lava", "pit", "wall", "rubble", "permanent"})
+TERRAIN_HOME = "quest_exposure"
+
+
+def terrain_set_problems(modules: dict) -> list:
+    problems = []
+    for module, tree in _quest_modules(modules).items():
+        if module == TERRAIN_HOME:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Set, ast.List, ast.Tuple)):
+                continue
+            strings = [elt.value for elt in node.elts if isinstance(elt, ast.Constant) and isinstance(elt.value, str)]
+            if strings and all(value in TERRAIN_KINDS for value in strings):
+                problems.append(f"terrain-set: {module}.py:{node.lineno} writes {ast.unparse(node)} "
+                                f"(name it in {TERRAIN_HOME})")
+    return problems
+
+
 def main(argv) -> int:
     index = Index(_modules())
     found = gaps(index)
-    problems = registry_problems(index) + move_flag_problems(index.modules)
+    problems = (registry_problems(index) + move_flag_problems(index.modules)
+                + terrain_set_problems(index.modules))
     if "--write-baseline" in argv:
         BASELINE.write_text(json.dumps(found, ensure_ascii=False, indent=1) + "\n", encoding="utf-8",
                             newline="\n")

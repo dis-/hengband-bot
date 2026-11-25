@@ -100,8 +100,8 @@ BURNING_ELEMENTS = frozenset({"FIRE", "ELEC", "PLASMA"})
 SPELL_RANGE = 18  # AngbandSystem::get_max_range
 MAX_PLAYER_SIGHT = 20
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
-_STAND = frozenset({"floor", "passage"})
-_APPROACH_WALK = frozenset({"floor", "exit", "passage", "shallow_water", "door", "tree"})
+_STAND = quest_exposure.STAND_KINDS
+_APPROACH_WALK = quest_exposure.MAP_STAND_KINDS
 
 
 def config(plan) -> dict | None:
@@ -171,7 +171,7 @@ def _taken(policy, snapshot, navigator, plan, read, approach) -> frozenset:
 def _walk_from(navigator, snapshot, start, taken, limit=80) -> dict:
     """Cell -> (steps, previous) over the plan's walking map from ``start``."""
     terrain = quest_plan_base._terrain_of(navigator, snapshot, water=False)
-    walkable = {"floor", "exit", "passage", "shallow_water"}
+    walkable = quest_exposure.DRY_WALK_KINDS
     seen = {start: (0, None)}
     frontier = [start]
     while frontier:

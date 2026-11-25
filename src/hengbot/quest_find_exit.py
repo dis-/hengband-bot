@@ -930,7 +930,7 @@ def _safe_region(navigator, plan) -> set:
             for dx in (-1, 0, 1):
                 nxt = (cell[0] + dy, cell[1] + dx)
                 if (nxt not in seen and nxt not in forbidden
-                        and terrain.get(nxt) in {"deep_water", "shallow_water", "floor"}):
+                        and terrain.get(nxt) in quest_exposure.SHORE_KINDS):
                     seen.add(nxt)
                     pending.append(nxt)
     return seen
@@ -997,7 +997,7 @@ def _unvisited_movers(policy, navigator, profile) -> dict[tuple[int, int], set]:
             continue
         found[cell] = {(cell[0] + dy, cell[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
                        if (dy, dx) != (0, 0)
-                       and terrain.get((cell[0] + dy, cell[1] + dx)) in {"deep_water", "shallow_water"}
+                       and terrain.get((cell[0] + dy, cell[1] + dx)) in quest_exposure.WATER_KINDS
                        and (cell[0] + dy, cell[1] + dx) not in pull}
     return found
 
@@ -1082,7 +1082,7 @@ def _off_the_pull_lines(policy, snapshot, navigator, plan, board) -> str | None:
     exposure = _exposure_with(navigator, plan, navigator.exit_dug)
     pull = pull_cells(navigator, plan)
     goals = {cell for cell, kind in terrain.items()
-             if kind in {"deep_water", "shallow_water"} and cell not in pull}
+             if kind in quest_exposure.WATER_KINDS and cell not in pull}
     occupied = frozenset(_cell(cell) for cell in board.occupied)
     path = _off_left(board, lambda off: quest_exposure.least_exposed_path(
         terrain, exposure, _cell(snapshot.player.position), goals, off), occupied)

@@ -295,7 +295,7 @@ def _to_last_seen(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     if not sought:
         return None
     terrain = _terrain_of(navigator, snapshot, water=False)
-    goals = {Position(*spot) for spot, kind in terrain.items() if kind in {"floor", "passage"}
+    goals = {Position(*spot) for spot, kind in terrain.items() if kind in quest_exposure.STAND_KINDS
              and any(_in_light_and_line(navigator, snapshot, spot, cell) for cell in sought.values())}
     stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, goals, blocked), WALK_REASON)
     if stepped is None:
@@ -340,7 +340,7 @@ def _out_of_line(policy, snapshot, navigator, plan) -> str | None:
     lines = _lines(navigator, plan, snapshot).pull
     walkable = _terrain_of(navigator, snapshot, water=False)
     free = {Position(*cell) for cell, kind in walkable.items()
-            if kind in {"floor", "passage"} and cell not in lines}
+            if kind in quest_exposure.STAND_KINDS and cell not in lines}
     return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, free), WALK_REASON)
 
 
@@ -610,7 +610,7 @@ def _cover_step(snapshot, navigator, plan, cells, board) -> Position | None:
     around = (Position(here.y + dy, here.x + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
     for step in around:
         spot = _cell(step)
-        if (walkable.get(spot) in {"floor", "passage"} and not _door_is_closed_on_map(navigator, snapshot, spot)
+        if (walkable.get(spot) in quest_exposure.STAND_KINDS and not _door_is_closed_on_map(navigator, snapshot, spot)
                 and step not in board.occupied and spot not in lines
                 and not any(quest_exposure.projectable(terrain, cell, spot) for cell in cells)):
             return step

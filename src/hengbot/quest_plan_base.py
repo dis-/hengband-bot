@@ -251,9 +251,9 @@ def _pocket_ground(navigator, snapshot, start) -> frozenset:
     member was left as no walk reaches it and the sweep stopped by name
     (quest:blocked:sweep-nothing-comes) with 巨大火アリ a few steps away."""
     terrain = navigator.battlefield.terrain
-    kinds = {"tree"}
+    kinds = set(quest_exposure.TREE_KINDS)
     if ability_sources.has_ability(snapshot.player, "levitation"):
-        kinds.add("pit")
+        kinds |= quest_exposure.PIT_KINDS
     if terrain.get(start) not in kinds:
         return frozenset()
     found, frontier = {start}, [start]

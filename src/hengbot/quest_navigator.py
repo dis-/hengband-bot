@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
-from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup, search_ban
+from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup, quest_exposure, search_ban
 from hengbot.item_identity import unidentified_identity
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
@@ -656,10 +656,7 @@ class QuestFloorNavigator:
 
     def _static_walkable(self, pos: Position) -> bool:
         kind = self.battlefield.terrain.get((pos.y, pos.x))
-        return pos in self.opened or kind in {
-            "floor", "exit", "door", "passage", "rubble", "shallow_water",
-            "tree",
-        } or (self.allow_deep_water and kind == "deep_water")
+        return pos in self.opened or kind in quest_exposure.NAVIGATOR_WALK_KINDS or (self.allow_deep_water and kind == "deep_water")
 
     @staticmethod
     def placement_sweep_blocked(
@@ -689,9 +686,7 @@ class QuestFloorNavigator:
     ) -> set[Position]:
         """Static dry/shallow firing cells with an unobstructed 8-way ray."""
         goals: set[Position] = set()
-        ray_terrain = {
-            "floor", "exit", "passage", "shallow_water", "deep_water"
-        }
+        ray_terrain = quest_exposure.WALKABLE_KINDS
         for dy, dx in RANGED_VANTAGE_DIRECTIONS:
             for distance in range(1, max_distance + 1):
                 candidate = Position(
