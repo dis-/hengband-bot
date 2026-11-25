@@ -21697,6 +21697,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "QUEST_33 owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the absorbed Teleportation cast through teleport_follower.device_teleport_key."
   },
+  "quest_summon_answer.py:emergency_scroll_substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from policy._issue_emergency_consumable (the emergency ladder's read of Teleportation or Phase Door); answers only on an ABSORBED_FIRST_QUESTS floor (absorbed_teleport_key requires the active fixed quest 33).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」: the emergency ladder's read of a Scroll of Teleportation (emergency:teleport) cast from the absorbed Teleportation through absorbed_teleport_key (n1-b life-418)."
+  },
   "quest_summon_answer.py:_scroll_teleport": {
     "classification": "producer",
     "rows": [

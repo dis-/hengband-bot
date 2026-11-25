@@ -30,6 +30,7 @@
   "policy_navigation:_disengage_move_or_escalate",
   "quest_find_exit:_below_line_recall",
   "quest_plan_base:_give_up",
+  "quest_summon_answer:emergency_scroll_substitute",
   "resist_potion:_leave_key",
   "summon_response:recall_key",
   "summoner_wait:_leave_shot_hold_point_key",

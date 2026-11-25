@@ -15039,6 +15039,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # The 50F+ rule's substitute (deep_teleport) before the read is latched or watched.
         if (instead := deep_teleport.scroll_substitute(self, snapshot, item)) is not None:
             return instead
+        # Quest 33's absorbed Teleportation before its scroll (owner 2026-11-19, n1-b life-418).
+        from hengbot import quest_summon_answer  # it imports the policy's quest modules
+
+        if (absorbed := quest_summon_answer.emergency_scroll_substitute(self, snapshot, item, reason)) is not None:
+            return absorbed
         if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
             # The piece first: no escape is read (or counted) on this decision.
             return takeoff
