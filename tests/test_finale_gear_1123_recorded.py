@@ -67,11 +67,14 @@ class FinaleGear1123RecordedTest(unittest.TestCase):
         self.assertEqual(finale_prep.phase(policy).step, finale_prep.IDLE)  # Healing short
         held = angband_finale.memory(policy)
         # Recorded: equipment_owned missing ["resist_blind|resist_lite", "resist_curse"].  The
-        # mirror meets both; the owner's gates of 2026-11-24 (「閃光轟音時間以外の耐性を必須とする」)
-        # then name the one this Home's gear cannot add with the rest: resist darkness.
+        # mirror meets both, and the owner's gates of 2026-11-24 (「閃光轟音時間以外の耐性を必須とする」)
+        # are all met too: with the hands searched (n1-c life-222 2026-11-26, the finale search
+        # had never put a weapon or a shield in them) ★怪力サムソンの棍棒 and the mirror in the hands
+        # free the amulet for 耐性のアミュレット {r酸電火冷暗} (speed +26, INT 18/165, CON 18/200).
+        # Before, resist darkness was named missing.
         report = held.report
         self.assertEqual(report["equipment_owned"],
-                         {"missing": ["resist_dark"], "ready": False, "judged": "owned-search"})
+                         {"missing": [], "ready": True, "judged": "owned-search"})
         # The 95F exploration keeps the ordinary loadout (Q9): the worn set still lacks them.
         self.assertEqual(report["equipment_worn"]["missing"],
                          ["resist_blind|resist_lite", "resist_curse"])
@@ -79,9 +82,8 @@ class FinaleGear1123RecordedTest(unittest.TestCase):
         best = held.owned_best
         self.assertIsNotNone(best)
         self.assertIn(MIRROR, {finale_prep._signature(item.id) for _, item in best.loadout.slots})
-        self.assertEqual(finale_missing(best), ("resist_dark",))
-        self.assertEqual(finale_prep.set_missing(policy, board, best.loadout, best.metrics),
-                         ["resist_dark"])
+        self.assertEqual(finale_missing(best), ())
+        self.assertEqual(finale_prep.set_missing(policy, board, best.loadout, best.metrics), [])
 
     def test_searched_once_a_visit(self):
         policy = self.policy
