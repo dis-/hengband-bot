@@ -22,6 +22,7 @@ from hengbot import (
     immobile_ranged_kill,
     immobile_threat_memory,
     oneshot_breath,
+    quest_summoner_light,
     resist_potion,
     summon_response,
     threat_tiers,
@@ -33,6 +34,11 @@ def key(policy, snapshot, *, strategic_hostiles, strategic_adjacent, physical_ho
         physical_adjacent):
     """The floor-avoidance layer's key, or PASS when none of its rungs acts."""
     if not snapshot.in_town:
+        # Owner 2026-11-26 「戦士も光の巻物で部屋を照らす」: a plan's dark summoner room is lit
+        # first, so its caster is an enemy in view (quest_summoner_light).
+        lit = quest_summoner_light.light_key(policy, snapshot)
+        if lit is not None:
+            return lit
         # Owner 2026-11-04: the answer to the summons of this floor visit.
         summons = summon_response.key(policy, snapshot)
         if summons is not None:

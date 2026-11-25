@@ -16,6 +16,7 @@ from hengbot import (
     quest_lure_approach,
     quest_one_turn_kill,
     quest_summon_answer,
+    quest_summoner_light,
 )
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, TVAL_POTION
 from hengbot.monrace_knowledge import _strip_jsonc
@@ -202,6 +203,11 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
     if not isinstance(engaged, list) or not all(
             isinstance(value, int) and not isinstance(value, bool) for value in engaged):
         raise ValueError("engage_never_move_races must be an integer list")
+    plan = data["engagement_plan"] if isinstance(data["engagement_plan"], dict) else {}
+    if quest_summoner_light.FIELD in plan and not quest_summoner_light.valid(
+            plan[quest_summoner_light.FIELD], plan.get("light_areas")):
+        raise ValueError("summoner_light must give race as a positive integer and area as the name "
+                         "of a light_areas row (quest_summoner_light)")
     sweep = data["engagement_plan"].get("room_sweep") if isinstance(data["engagement_plan"], dict) else None
     if isinstance(sweep, dict) and "alignment_split" in sweep and not (
             quest_alignment_split.valid(sweep["alignment_split"]) and quest_alignment_split.valid_stops(sweep)):

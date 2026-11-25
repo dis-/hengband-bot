@@ -289,13 +289,18 @@ def _count(memory: Memory, summon: Summon, here: Position, in_fire: bool) -> Non
 
 # -- the shot -------------------------------------------------------------------
 
-def _awake_in_reach(snapshot, wanted) -> list:
-    """The awake hostiles ``wanted`` picks in ranged reach and not beside the player, nearest first."""
+def _awake_in_reach(policy, snapshot, wanted) -> list:
+    """The awake hostiles ``wanted`` picks in ranged reach and not beside the player, nearest first.
+    A plan's summoner the walk and the blows out-damage is walked to, not shot (owner 2026-11-26
+    「期待値の高い方（殴る）」, quest_summoner_light ``walks_to``)."""
+    from hengbot import quest_summoner_light
+
     here = snapshot.player.position
     return sorted(
         (monster for monster in snapshot.visible_monsters
          if monster.hostile and not monster.asleep and wanted(monster)
-         and 2 <= here.distance_to(monster.position) <= RANGED_MAX_DISTANCE),
+         and 2 <= here.distance_to(monster.position) <= RANGED_MAX_DISTANCE
+         and not quest_summoner_light.walks_to(policy, snapshot, monster)),
         key=lambda monster: monster.distance)
 
 
@@ -333,7 +338,7 @@ def caster_shot_key(policy, snapshot) -> str | None:
     """Shoot the monster named casting a summon on this visit, nearest first; a
     caster beside the player is the melee rungs' (they strike summoners first)."""
     casters = _memory(policy).casters
-    targets = _awake_in_reach(snapshot, lambda monster: _plain_name(monster.name) in casters)
+    targets = _awake_in_reach(policy, snapshot, lambda monster: _plain_name(monster.name) in casters)
     return _first_shot(policy, snapshot, targets, CASTER_SHOT_REASON)
 
 
@@ -346,9 +351,21 @@ def named_casters_first(policy, monsters) -> list:
 # -- 2. the caster out of view --------------------------------------------------
 
 def leave_due(policy, snapshot) -> bool:
-    """The unseen casts ran on and the window is still open on this board."""
+    """The unseen casts ran on and the window is still open on this board.  Not while the
+    summoner a plan lights its room for is in view (owner 2026-11-26 「見えた召喚者には…を当てない」,
+    quest_summoner_light ``spares_leave``)."""
+    from hengbot import quest_summoner_light
+
     memory = _memory(policy)
-    return memory.unseen_run >= UNSEEN_CASTS_TO_LEAVE and not _run_ended(memory, snapshot)
+    return (memory.unseen_run >= UNSEEN_CASTS_TO_LEAVE and not _run_ended(memory, snapshot)
+            and not quest_summoner_light.spares_leave(policy, snapshot))
+
+
+def end_unseen_run(policy) -> None:
+    """The unseen casts counted so far are ended: their dark room was lit (quest_summoner_light)."""
+    memory = _memory(policy)
+    memory.unseen_run = 0
+    memory.last_unseen = None
 
 
 def counter_shot_key(policy, snapshot) -> str | None:
@@ -356,7 +373,7 @@ def counter_shot_key(policy, snapshot) -> str | None:
     monster in reach whose race can summon (module docstring), else None."""
     if policy._is_material_threat(snapshot, policy._physical_hostiles(snapshot)):
         return None
-    targets = _awake_in_reach(snapshot, lambda monster: monster.can_summon)
+    targets = _awake_in_reach(policy, snapshot, lambda monster: monster.can_summon)
     return _first_shot(policy, snapshot, targets, COUNTER_SHOT_REASON)
 
 

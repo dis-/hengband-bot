@@ -25,7 +25,7 @@ POLICY_ROOT = Path(__file__).resolve().parents[1] / "src" / "hengbot"
 # The per-action readers.
 PER_ACTION = frozenset({
     "melee", "melee_against", "launcher_shot", "launcher_against", "devices_against",
-    "ranged_against", "torch_throw", "carried_wand", "legacy_melee", "legacy_shot",
+    "ranged_against", "ammo_against", "torch_throw", "carried_wand", "legacy_melee", "legacy_shot",
     "_strategy_measured_dps", "_main_hand_dps", "_sub_hand_dps", "best_expected",
     "shot_power_per_turn",
 })

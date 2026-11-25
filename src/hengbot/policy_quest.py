@@ -11,7 +11,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_summon_answer, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_summon_answer, quest_summoner_light, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -3991,15 +3991,27 @@ class QuestMixin(OpeningRouteMixin):
         # QUEST_32 names no launcher: its Magic-Eater shoots its devices (the ranged core without
         # ammunition), at every target but the one-turn race when its blows are the stronger turn
         # (quest_one_turn_kill.means): that one is walked to and struck.
+        # Owner 2026-11-26 「期待値の高い方（殴る）」: with the plan's summoner_light, the walk and the
+        # blows against the shot per 10 game turns, the walk's time in it (quest_summoner_light).
         one_turn_means = quest_one_turn_kill.means(self, snapshot, profile.required_force)
+        summoner_lit = quest_summoner_light.FIELD in profile.engagement_plan
         ranged_hostiles = [
             monster for monster in combat_hostiles
-            if not (one_turn_means == "melee" and monster.race_id == one_turn_race)
+            if not (monster.race_id == one_turn_race and (
+                quest_summoner_light.walks_to(self, snapshot, monster) if summoner_lit
+                else one_turn_means == "melee"))
         ]
         if (profile.required_force.get("launcher") or one_turn_means is not None) and ranged_hostiles:
             ranged = self._q2_ranged_core_key(snapshot, profile, ranged_hostiles)
             if ranged is not None:
                 return ranged
+
+        # Owner 2026-11-26 「戦士も光の巻物で部屋を照らす」「期待値の高い方（殴る）」: the plan's
+        # summoner in view is walked to and struck, or shot, by the higher figure per 10 game turns,
+        # before the sweep and the hold, and the walk is kept to its cell (quest_summoner_light).
+        summoner_walk = quest_summoner_light.engage_key(self, snapshot, profile, combat_hostiles)
+        if summoner_walk is not None:
+            return summoner_walk
 
         # A priority summoner outside launcher range must be hunted now rather
         # than letting the ordered placement sweep advance to another race.
