@@ -7601,7 +7601,12 @@ class TownMixin:
             # Owner 2026-11-23 「4つの町の闇市を巡回して買い足し、目標に届くまで99Fへは行かない。」:
             # the Restore Mana the finale's only supply short, whatever the recall depth (a
             # Reset Recall's 95F took the ordinary departure, n1-b life-416 2026-11-24 02:21).
-            return finale_hold.black_market_key(self, snapshot)
+            circuit = finale_hold.black_market_key(self, snapshot)
+            if circuit is not None or not finale_bm_tour.diving(self, snapshot):
+                return circuit
+            # Owner 2026-11-25 「1F採掘は明らかに効率が悪いので適当なダンジョンに潜って稼いでくれ」:
+            # short of the gold, the circuit yields to the ordinary departure below (the
+            # recall's own destination), never a mining run (finale_bm_tour ``_funds_key``).
         if recall_dest is not None and departure_ok:
             if not snapshot.player.recalling and getattr(
                 self, "_town_visit_unready_recall_cancelled", False
