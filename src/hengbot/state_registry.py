@@ -337,6 +337,9 @@ REGISTRY = (
       "dive_haul: carried units by kind on the board before"),
     S("_dive_start_units", "dive_haul", LIFE,
       "dive_haul: carried units by kind at the dive's start"),
+    # door_detect_cover
+    S("_door_detect_cover", "door_detect_cover", FLOOR,
+      "door_detect_cover: the door detections of this floor visit (their walls count as searched)"),
     # equipment_visit_journal
     S("_equipment_hand_trail", "equipment_visit_journal", LIFE,
       "The combat hands' worn items on every board, in town and out, across the visits (the last few, with where each was seen); a hand worn A, B, A over the town's edge writes equipment-hand-roundtrip:<slot>, record only (n1-c life-220 2026-11-22)."),
@@ -2386,6 +2389,9 @@ RESTART = {
     "_unseen_loot_direction": Restart(PERSISTED, "policy_identification",
                                       "same floor, inside UNSEEN_LOOT_QUIET_TURNS"),
     "_unseen_attack_read": Restart(MAY_BE_LOST, "policy_identification", _ONCE),
+    # door_detect_cover: a new process searches the walls again until its next door detection.
+    "_door_detect_cover": Restart(MAY_BE_LOST, "door_detect_cover",
+                                  "no record carries it: the next door detection notes it again"),
     # monster_memory.KEPT_GUARDIAN (destruction_use.observe_kept_guardian): shown again after a restart.
     "_kept_guardian_seen": Restart(MAY_BE_LOST, "monster_memory",
                                    "a new process remembers the guardian from the next board "

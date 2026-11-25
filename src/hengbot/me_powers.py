@@ -1112,6 +1112,31 @@ def mapped_areas(policy, snapshot) -> tuple:
         for use in memory.uses if BY_KEY[use.used].effect == MAP_AREA and not use.map_forgotten)
 
 
+# The effects that run detect_doors (spells-detection.cpp: detect_feat_flag discloses every hidden
+# door in range; detect_all calls detect_doors), for door_detect_cover.
+DOOR_DETECTIONS = frozenset({"detect-doors-stairs", "detect-all"})
+
+
+def door_detections(policy, snapshot) -> tuple:
+    """(centre, radius, turn) of every landed door detection this floor visit cast: its plain
+    radius in an unknown dungeon read as DARKNESS (the smaller area), Powerful Activation's 3/2
+    (cmd-usestaff.cpp:60, cmd-zaprod.cpp:50)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return ()
+    ctx = Context(policy, snapshot, FLOOR, memory)
+    found = []
+    for use in memory.uses:
+        power = BY_KEY[use.used]
+        if power.effect not in DOOR_DETECTIONS:
+            continue
+        radius = ctx.radius(power, unknown_is_dark=True)
+        if use.reason.endswith(POWERFUL_SUFFIX):
+            radius = radius * 3 // 2
+        found.append((use.position, radius, use.turn))
+    return tuple(found)
+
+
 def map_radius(policy, snapshot) -> int:
     """What a mapping cast here covers, the smaller reading in an unknown dungeon."""
     return Context(policy, snapshot, FLOOR, None).radius(

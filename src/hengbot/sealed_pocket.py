@@ -7,7 +7,10 @@ The condition is the walls, not how they came: no floor, class or depth is named
 How they came sets only when: owner the same day, asked whether to melt before the
 secret-door search, 「*破壊* の後はすぐ溶かす」.  A pocket in the circle of the player's own
 *Destruction* on this floor visit is melted at once (``after_destruction_key``); any other
-seal keeps the search first.
+seal keeps the search first, of the walls outside every door detection of the floor visit only:
+owner 2026-11-25 「感知が届いた壁はサーチせず溶かして出る」 (door_detect_cover), so a pocket whose
+walls a detection reached is melted at once too (ladder_idle asks ``key`` before the explored
+floor's Recall).
 
 Sealed (``sealed_region``): what the player can walk to shows no way on.  Every
 neighbour of it is known, and none is a stair, or a door or rubble not given up.

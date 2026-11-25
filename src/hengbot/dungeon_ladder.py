@@ -334,6 +334,9 @@ LADDER = (
            "search_ban.detect_key"),
         *I("search", "seek-secret-wall"),
         *D("sealed_loot.key"),
+        # Sealed in with no wall left to search (a door detection's range counts as searched,
+        # door_detect_cover): the melt out, before the explored floor's Recall.
+        *D("sealed_pocket.key"),
         # The same floor with nothing left to explore, after the walled-in loot's melt.
         *D("explored_floor.recall_key"),
         *E("_start_kill_quest_regeneration"),
