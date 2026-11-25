@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot import angband_finale_battle
-from hengbot import return_start, search_ban
+from hengbot import finale_prep, return_start, search_ban
 from hengbot import angband_cap, attack_expectation, quest_optional_carry, quest_supply_gate
 from hengbot import spare_gear
 from hengbot.stair_destination import down_destination
@@ -6284,6 +6284,13 @@ class QuestMixin(OpeningRouteMixin):
         # The latch only breaks on a STRUCTURAL change -- conquered, a resistance
         # regression past its max_depth, no final guardian, or it dropping out of the
         # known/entered set -- never on consumable possession.
+        #
+        # Owner 2026-11-26 「守護者は追わないが、薬は今まで通り使う」: no conquest while the
+        # finale is prepared (finale_prep ``forbids_hunting``); the latch goes with it (n1-c
+        # life-222 took the Castle over Angband at 01:13:26 and chased its guardian).
+        if finale_prep.forbids_hunting(self, snapshot):
+            self._conquest_committed = None
+            return None
         limit = self._resistance_depth_limit(snapshot)
         conquered = set(snapshot.conquered_dungeon_ids)
         committed = self._conquest_committed

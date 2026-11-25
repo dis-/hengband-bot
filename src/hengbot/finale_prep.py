@@ -211,6 +211,38 @@ def lifted(policy) -> bool:
     return bool(held is not None and held.lifted)
 
 
+def forbids_hunting(policy, snapshot) -> bool:
+    """No dungeon guardian or strong unique is sought out while the finale is prepared.
+
+    Owner 2026-11-26 (verbatim), the answer to 「決戦の準備中（体力回復と*体力回復*を集めている間）の
+    n1-c の戦い方をどう変えますか？」: 「守護者は追わないが、薬は今まで通り使う」.  From the 95F
+    exploration (angband_finale ``preparing``) to the expedition (the cap lifted, ``lifted``, or a
+    99F/100F board of the battle) the gold and the supplies come from exploring, picking up and
+    selling, the finale funds' dive (finale_bm_tour ``diving``) included; the potions are drunk as
+    before (no reserve is added), and a fight that comes to the character is the ordinary survival
+    and combat rules'.  n1-c life-222 (2026-11-26 01:13:26, decision 23603): back from 99F with the
+    expedition's 30 Potions of Healing in the pack, the Castle's guardian read beatable, the
+    conquest target (policy_quest ``_conquest_target``) took the Castle over Angband, and the
+    character chased 『カロン』 and 皇帝『レイザーク』 on its 65F, owned Healing 33 -> 17.
+
+    The askers (scripts/finale_hunt_gate_lint.py keeps the list whole): the conquest target, the
+    target dungeon's final floor (policy ``_target_guardian_floor_id``: the guardian hunt of
+    hunt_target and the guardian rung), the descent onto an unconquered guardian floor (policy
+    ``_guardian_floor_blocked``) and the committed STRONG hunt of sensed hostiles with a unique
+    among them (policy_combat ``_esp_threat_rest_key``)."""
+    from hengbot import angband_finale  # import cycle
+    if not angband_finale.preparing(snapshot) or lifted(policy):
+        return False
+    return not angband_finale.on_finale_floor(snapshot)
+
+
+def uniques(policy, monsters) -> list:
+    """The UNIQUE races among ``monsters`` (lib/edit/MonraceDefinitions.jsonc flags, fair play)."""
+    races = policy._monrace_knowledge
+    return [monster for monster in monsters
+            if "UNIQUE" in getattr(races.get(monster.race_id), "flags", ())]
+
+
 def recall_closed(policy, snapshot) -> bool:
     """On the 99F/100F floors of the expedition, Word of Recall is the battle's alone: read on
     success or once the Restore Mana is overspent (angband_finale_battle ``recall_permitted``,
