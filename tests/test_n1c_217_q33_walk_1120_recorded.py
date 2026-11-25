@@ -68,10 +68,13 @@ class N1c217Q33WalkTest(unittest.TestCase):
 
     def test_a_round_with_nothing_found_hands_the_floor_to_the_patrol(self):
         snapshot, navigator = self.on_last_stop(DEAD)
-        self.policy.choose_key(snapshot)   # the last stop passed: the round ends with no hostile met
+        # The last stop passed: the round ends with no hostile met, and the same board is the
+        # patrol's (n1-a life-537 2026-11-25: the hand-over comes before the rounds' bound).
+        self.policy.choose_key(snapshot)
         self.assertTrue(navigator.sweep_found_nothing)
-        self.policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
         self.assertTrue(self.policy.last_reason.startswith(kill_all_patrol.DETECT_REASON), self.policy.last_reason)
+        self.policy.choose_key(replace(snapshot, turn=snapshot.turn + 1))
+        self.assertTrue(self.policy.last_reason.startswith(kill_all_patrol.REASON), self.policy.last_reason)
 
     def test_a_tracked_summoner_alive_keeps_the_sweep(self):
         # A Queen alive (and never seen here): the plan's 段2 goes on, its remaining-enemy detection
