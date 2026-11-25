@@ -344,6 +344,8 @@ def walk_key(policy, snapshot, navigator, plan) -> str | None:
     races = tuple(missing(policy, snapshot, navigator, plan))
     if not races or _results_pending(snapshot, navigator) or not _casts(navigator):
         return None  # no detection yet: the first is cast where the player stands
+    if any(monster.hostile for monster in snapshot.visible_monsters):
+        return None  # a fight on the board: its own rungs answer it
     pending = _pending(policy, snapshot, navigator, races)
     here = (snapshot.player.position.y, snapshot.player.position.x)
     if pending is None or here in pending:
@@ -353,8 +355,10 @@ def walk_key(policy, snapshot, navigator, plan) -> str | None:
 
 
 def key(policy, snapshot, navigator, plan) -> str | None:
-    """The detection of the missing races, else the walk to where the next one covers the floor,
-    else None (module docstring)."""
+    """The detection of the missing races, else None (module docstring); no detection with a fight on
+    the board (its own rungs answer it).  The walk to where the next one covers the floor is
+    ``walk_key``: quest_room_sweep's hunt of a known member goes between the two (quest_room_sweep
+    ``_hunt_key``)."""
     from hengbot import hunt_target, kill_all_patrol, me_powers
     from hengbot.model import SV_ROD_DETECTION, SV_STAFF_DETECT_EVIL, TVAL_ROD, TVAL_STAFF
 
@@ -380,8 +384,8 @@ def key(policy, snapshot, navigator, plan) -> str | None:
                 _note_cast(policy, snapshot, navigator, "detect-all" if rod else "detect-evil")
                 return used
     # The Magic-Eater's absorbed rows answer the cast above through me_powers (its hostile and charge
-    # rules); the walk to the next cast's cell is the plan's own.
-    return walk_key(policy, snapshot, navigator, plan)
+    # rules); the walk to the next cast's cell is the plan's own (``walk_key``).
+    return None
 
 
 def trigger_due(ctx, power, radius: int = DETECT_RAD) -> bool:

@@ -161,6 +161,7 @@ from hengbot.quest_plan_base import (  # noqa: F401 -- re-exported
 WALK_REASON = "quest-strategy:sweep-walk"
 OPEN_REASON = "quest-strategy:sweep-open-door"
 APPROACH_REASON = "quest-strategy:sweep-approach"
+HUNT_REASON = "quest-strategy:sweep-hunt"
 NOTHING_LEFT_REASON = "quest:blocked:sweep-nothing-left"
 SPLIT_BLOCKED_REASON = "quest:blocked:sweep-split"
 NOTHING_COMES_REASON = "quest:blocked:sweep-nothing-comes"
@@ -202,7 +203,7 @@ def planned_step(policy, snapshot) -> bool:
     toward a shot at what fires at the player, or out of its line (quest_summon_answer
     ``fire_answer_key``), are the plan's answer to that fire; its heal line (50% on QUEST_33) and
     withdrawal line answer the HP on the way."""
-    return (policy.last_reason in {WALK_REASON, EXIT_WALK_REASON, COVER_REASON, CLOSE_REASON,
+    return (policy.last_reason in {WALK_REASON, HUNT_REASON, EXIT_WALK_REASON, COVER_REASON, CLOSE_REASON,
                                    quest_summon_answer.FIRE_APPROACH_REASON,
                                    quest_summon_answer.FIRE_WALK_REASON}
             and _plan(policy, snapshot) is not None)
@@ -491,9 +492,23 @@ def _hold_key(policy, snapshot, navigator, plan, stop) -> str | None:
     return WAIT_KEY
 
 
+def _idle(navigator) -> tuple:
+    """What a pass with nothing to do is read against: the kills and the spent waits so far."""
+    return tuple(sorted(navigator.split_kills.items())), navigator.wait_spent
+
+
+def _nothing_comes(navigator) -> bool:
+    """A full pass of the stops found none to walk or hold (every one waits for its phase or has
+    nothing that will come, ``_skipped``), and no kill or spent wait since: the stops have nothing
+    more to do until something changes."""
+    return navigator.wait_idle is not None and navigator.wait_idle == _idle(navigator)
+
+
 def _walk_over(policy, snapshot, navigator, plan) -> bool:
-    """The last round answered no hostile, or the rounds' bound is walked, and no tracked summoner
-    lives (the split refuses no cell): the plan's walk is over and the patrol's is next.
+    """The last round answered no hostile, or the rounds' bound is walked, or a pass of the stops
+    found nothing to do (``_nothing_comes``), and no tracked summoner lives (the split refuses no
+    cell): the plan's walk is over and the patrol's is next.  With a tracked summoner alive the same
+    verdict hunts it (``_hunt_key``).
 
     The bound counts too: n1-a life-537 (Quest 33) was stopped by name at 20:21:45 on its 100th
     round, and the process resumed at 22:48:21 with the fix of the round's contact restored the
@@ -501,8 +516,75 @@ def _walk_over(policy, snapshot, navigator, plan) -> bool:
     old count had left it) and stopped by name again on its first decision.  With the summoners
     dead, a plan whose rounds are spent and whose quest is open has ended unwon (owner 2026-11-13
     「全滅クエストで作戦を終えても終わらない時は周回して探す・感知があれば感知して探す」)."""
-    return ((navigator.sweep_found_nothing or navigator.sweep_round >= int(plan["max_rounds"]))
+    return ((navigator.sweep_found_nothing or navigator.sweep_round >= int(plan["max_rounds"])
+             or _nothing_comes(navigator))
             and not _tracked_living(policy, snapshot, navigator, plan))
+
+
+def _hunted_races(policy, snapshot, navigator, plan) -> frozenset:
+    """The tracked races the hunt goes after: alive, not left alone, and not the lure phase's own
+    (``lure_approach``'s lured and approached races are drawn out and closed on by
+    quest_lure_approach, owner 2026-11-19 「ガチャピンを先に女王アリの範囲外まで誘導して処理」)."""
+    split = quest_alignment_split.split_of(plan)
+    if not split:
+        return frozenset()
+    lure = quest_lure_approach.config(plan) or {}
+    held = {*lure.get("lure_races", ()), *lure.get("approach_races", ()), *_left_alone_races(navigator, plan)}
+    return frozenset(race for race in split["tracked_races"] if race not in held
+                     and quest_alignment_split.living(policy, snapshot, navigator, plan, race) > 0)
+
+
+def _hunt_targets(policy, snapshot, navigator, plan, races) -> dict[int, tuple[int, int]]:
+    """index -> cell of the hunted races' members: on the board, else where a board last showed them
+    (quest_detect_remaining's ``remain_seen``, kept at any age: a member asleep in its room stays).
+    A kept cell in the player's light and line with nothing on it is forgotten: the member has moved
+    or died, and the detection looks for it again (quest_detect_remaining ``missing``)."""
+    shown = {monster.index: _cell(monster.position)
+             for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+             if monster.hostile and monster.race_id in races}
+    here = _cell(snapshot.player.position)
+    gone = {index for index, (race, cell, _turn) in navigator.remain_seen.items()
+            if index not in shown and not snapshot.player.blind
+            and _in_light_and_line(navigator, snapshot, here, cell)}
+    if gone:
+        navigator.remain_seen = {index: entry for index, entry in navigator.remain_seen.items()
+                                 if index not in gone}
+    kept = {index: cell for index, (race, cell, _turn) in navigator.remain_seen.items()
+            if race in races and index not in shown}
+    return {**kept, **shown}
+
+
+def _hunt_key(policy, snapshot, navigator, plan, blocked=()) -> str | None:
+    """The stops have nothing to do (``_nothing_comes``) and a tracked summoner lives: the walk to
+    the nearest known member of a hunted race (``_hunted_races``), beside it, by the plan's own walk
+    (no cell where both sides act, the fewest cells in a caster's line).  In view, the plan's fight
+    shoots it (``_fight``); beside, the blow.
+
+    n1-b life-419 (Quest 33, 2026-11-26 08:07-08:09, Zombie Magic-Eater Lv41): the Its and the Dagons
+    were killed and two of the three Bokrugs (sweep-kills); the third (race 489, vision 20, asleep)
+    stayed in the west room at [20,7], where the detection of 08:08 showed it.  No stand of 段1 had
+    anything coming, 段2's lure waits for every Bokrug dead (``lure_approach.after_races_dead``) and
+    段3's stands for the Queens: the pass stopped by name on [15,39], quest:blocked:sweep-nothing-comes.
+    Owner 2026-11-13 「全滅クエストで作戦を終えても終わらない時は周回して探す・感知があれば感知して探す」:
+    the plan whose stops have ended goes to what its detection found, on the plan's walk; the patrol
+    (kill_all_patrol) is the same verdict once no tracked summoner lives (``_walk_over``)."""
+    races = _hunted_races(policy, snapshot, navigator, plan)
+    if not races:
+        return None
+    here = _cell(snapshot.player.position)
+    targets = _hunt_targets(policy, snapshot, navigator, plan, races)
+    ground = _terrain_of(navigator, snapshot, water=False)
+    taken = {_cell(cell) for cell in blocked}
+    for _index, cell in sorted(targets.items(), key=lambda item: quest_exposure.game_distance(here, item[1])):
+        beside = {Position(cell[0] + dy, cell[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                  if (dy or dx) and ground.get((cell[0] + dy, cell[1] + dx)) in quest_exposure.STAND_KINDS
+                  and (cell[0] + dy, cell[1] + dx) not in taken}
+        if here in {_cell(spot) for spot in beside}:
+            continue  # beside it already: the fight's rungs answer what the board shows
+        stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, beside, blocked), HUNT_REASON)
+        if stepped is not None:
+            return stepped
+    return None
 
 
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
@@ -533,6 +615,13 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     # detection before the plan chooses where to wait or where to go (quest_detect_remaining).
     if (detected := quest_detect_remaining.key(policy, snapshot, navigator, plan)) is not None:
         return detected
+    # The stops have nothing to do and a tracked summoner lives: to what the detection found (owner
+    # 2026-11-13 「全滅クエストで作戦を終えても終わらない時は周回して探す・感知があれば感知して探す」), ahead of the
+    # walk to the next cast's cell, which would draw the player back from it each step.
+    if _nothing_comes(navigator) and (hunted := _hunt_key(policy, snapshot, navigator, plan, blocked)) is not None:
+        return hunted
+    if (walked := quest_detect_remaining.walk_key(policy, snapshot, navigator, plan)) is not None:
+        return walked
     # QUEST_33 段2 (owner 2026-11-19 「ガチャピンを先に女王アリの範囲外まで誘導して処理。終わったら森側から
     # なるべく射線を通さないように女王アリに近づいて処理。」): the lure, then the approach, ahead of the stops
     # and of the walk out of the cells where both sides act (the lure starts on one, 「射線の外なら許す」).
@@ -563,9 +652,9 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
         # Every stop waits: no round is spent, and the wait is named.
         policy.last_reason = SPLIT_BLOCKED_REASON
         return WAIT_KEY
-    idle = (tuple(sorted(navigator.split_kills.items())), navigator.wait_spent)
-    if navigator.wait_idle == idle:
-        # A full pass found no stop to walk or hold (below), and no kill or spent wait since.
+    if _nothing_comes(navigator):
+        # A full pass found no stop to walk or hold (below), no kill or spent wait since, and no
+        # known member to hunt nor detection to make (above).
         policy.last_reason = NOTHING_COMES_REASON
         return WAIT_KEY
     navigator.wait_idle = None
@@ -580,10 +669,10 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
             return WAIT_KEY
         if passed >= len(_stops(plan)):
             # Every stop waits for its phase or is passed for nothing to do there (_skipped): the
-            # plan has no next step, and the stop is named instead of walking the round again.
-            navigator.wait_idle = idle
-            policy.last_reason = NOTHING_COMES_REASON
-            return WAIT_KEY
+            # stops have no next step (``_nothing_comes``).  The patrol with no tracked summoner
+            # alive, else the hunt of what is known, else the stop by name (above).
+            navigator.wait_idle = _idle(navigator)
+            return _advance(policy, snapshot, navigator, plan, blocked)
         stop = _stops(plan)[navigator.sweep_stage]
         goal = Position(*stop.get("stand", stop.get("cell")))
         if waits(stop) or _skipped(policy, snapshot, navigator, plan, stop):

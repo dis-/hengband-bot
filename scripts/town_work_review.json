@@ -21997,6 +21997,17 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Where a KILL_ALL room sweep holds its wait (quest_wait_placement): a step to the waiting cell or the hold; no independent progress."
   },
+  "quest_room_sweep.py:_hunt_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "evidence": "The step toward a known member of a tracked race when the sweep's stops have nothing to do; delegates to _step.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "quest_room_sweep.py:_wait_choice": {
     "classification": "producer",
     "rows": [
