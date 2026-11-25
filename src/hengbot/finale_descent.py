@@ -32,9 +32,12 @@ layer's rung above the dug pocket):
   the combat layer while this rung walks;
 * the town return: the finale's own lines only (``return_due``, finale_hold's relay-floor line:
   no Teleportation scroll and no charge of the absorbed staff, or the Restore Mana overspent),
-  and hunger with nothing to eat; no ordinary supply return and no ``pack-full`` (policy_town
-  ``_should_start_town_return``), and a full pack or the next depth's supply ledger refuses no
-  stair (policy_navigation ``_descent_is_blocked``).  The emergency recalls above are kept.
+  hunger with nothing to eat, and the Potions of Healing and *Healing* spent (``healing_spent``:
+  owner 2026-11-25, answer (b)-5 「回復の薬が尽きたら帰還する」, the two the finale carries,
+  angband_finale ``CARRY``; the Cure Critical Wounds count is not read); no ordinary supply
+  return and no ``pack-full`` (policy_town ``_should_start_town_return``), and a full pack
+  or the next depth's supply ledger refuses no stair (policy_navigation ``_descent_is_blocked``).
+  The emergency recalls above are kept.
 
 The game has no Deep Descent in Hengband (C:/hengband/src: no such scroll in
 sv-definition/sv-scroll-types.h; Teleport Level goes up or down at random), so the stairs are the
@@ -49,6 +52,7 @@ from hengbot.stair_destination import down_destination
 REASON = "finale-descent"
 RUNG = "finale_descent.key"
 RETURN_TRIGGER = "angband-finale:descent"
+HEALING_TRIGGER = "angband-finale:descent-healing-out"
 # The recall landing of the expedition (angband_cap.ANGBAND_DEPTH_CAP, angband_finale
 # PREPARE_DEPTH): the descent's floors start there.
 FIRST_FLOOR = 95
@@ -84,6 +88,15 @@ def return_due(policy, snapshot) -> bool:
     """The finale's own recall line on the way down (finale_hold ``return_due``)."""
     from hengbot import finale_hold  # import cycle
     return finale_hold.return_due(policy, snapshot)
+
+
+def healing_spent(snapshot) -> bool:
+    """No Potion of Healing and no Potion of *Healing* carried (angband_finale ``carried``): the
+    finale's carry has no lower bound for them below its departure target (angband_finale
+    ``CARRY``, 30 and 15), so the line is none left."""
+    from hengbot import angband_finale  # import cycle
+    return (angband_finale.carried(snapshot, angband_finale.HEALING)
+            + angband_finale.carried(snapshot, angband_finale.STAR_HEALING)) <= 0
 
 
 def _descend_here(policy, snapshot):
