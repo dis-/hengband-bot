@@ -352,6 +352,35 @@ def fix_target(policy, snapshot, preparation) -> None:
     _go(policy, held, SWAP, f"{len(held.target)} pieces")
 
 
+def check_done(policy, snapshot) -> None:
+    """The check step's done-check, on its own search's result (``_angband_finale_feasibility``).
+
+    policy_equipment runs it where that search finishes, as ``fix_target`` the loadout step's:
+    the step otherwise ended only on the next board's ``observe``, and the decision whose search
+    chose the set still held the swap (``holds_swap``) of the target it searched, so the
+    departure's equipment verdict was unmet with no town work left and the town stopped
+    (n1-c life-222 2026-11-26 07:46:59, town:blocked:unmet:equipment_departure_ready after a
+    restart re-entered the phase).  A search that ran over the whole owned gear and chose no set
+    stops the phase as ``check:no-set`` (the loadout step's ``loadout:no-set``) instead of holding
+    the swap until the step limit; a search the optimizer refused (a Home census to read again,
+    say) waits for the next one."""
+    held = getattr(policy, STATE, None)
+    if held is None or held.step != CHECK:
+        return
+    feasibility = getattr(policy, "_angband_finale_feasibility", None)
+    best = _best(feasibility)
+    if best is None:
+        if (feasibility is not None and getattr(feasibility, "result", None) is not None
+                and not getattr(feasibility, "blockers", ())):
+            _stop(policy, held, "check:no-set")
+        return
+    missing = set_missing(policy, snapshot, best.loadout, best.metrics)
+    if missing:
+        _stop(policy, held, "check:" + ",".join(missing))
+    else:
+        _go(policy, held, AMMO)
+
+
 def departure_reached(policy, snapshot) -> None:
     """The town's Word of Recall read while a step before ``recall`` runs: the town had nothing
     left to do for that step, so the phase stops and the 95F departure goes on."""
@@ -416,14 +445,7 @@ def observe(policy, snapshot, rows: dict | None) -> None:
         _go(policy, held, CHECK)
         return
     if held.step == CHECK:
-        best = _best(getattr(policy, "_angband_finale_feasibility", None))
-        if best is None:
-            return
-        missing = set_missing(policy, snapshot, best.loadout, best.metrics)
-        if missing:
-            _stop(policy, held, "check:" + ",".join(missing))
-        else:
-            _go(policy, held, AMMO)
+        check_done(policy, snapshot)
         return
     if held.step == AMMO:
         stacks = carried_ammo(snapshot)
