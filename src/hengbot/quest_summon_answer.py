@@ -700,12 +700,15 @@ def _side_of(policy, race, split) -> str | None:
     return mark
 
 
-def lure_cells(policy, snapshot, navigator, plan, board, index, *, close) -> dict[int, set]:
+def lure_cells(policy, snapshot, navigator, plan, board, index, *, close, wander=False) -> dict[int, set]:
     """Step 4: the pulling cells of member ``index`` by how many other members act there: where it
     acts on the player (``close``: where it would be seen; for one on the board that never comes,
     where it is killed from, ``attack_cells``); never where both sides act, nor, for a
-    member with a side, where a living summoner of the other side acts."""
+    member with a side, where a living summoner of the other side acts.  ``wander``: where it acts
+    from its last cell or a cell one step from it (``_lure_path``'s kept wait)."""
     race, cell, _summons = navigator.summon_group[index]
+    froms = ([(cell[0] + dy, cell[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)] if wander
+             else [cell])
     open_cells = _open_cells(navigator, snapshot)
     walkable = quest_plan_base._terrain_of(navigator, snapshot, water=False)
     refused = quest_alignment_split.refused_cells(policy, snapshot, navigator, plan)
@@ -727,12 +730,13 @@ def lure_cells(policy, snapshot, navigator, plan, board, index, *, close) -> dic
     by_count: dict[int, set] = {}
     for spot, kind in walkable.items():
         if (kind not in _STAND or spot in refused or spot in occupied
-                or (attack is None and quest_exposure.game_distance(spot, cell) > reach)):
+                or (attack is None and min(quest_exposure.game_distance(spot, at) for at in froms) > reach)):
             continue
         if attack is not None:
             pulls = spot in attack
         else:
-            pulls = _sight_line(open_cells, spot, cell) if close else _acts(open_cells, cell, vision, spot)
+            pulls = any(_sight_line(open_cells, spot, at) if close else _acts(open_cells, at, vision, spot)
+                        for at in froms)
         if not pulls or any(_acts(open_cells, where, seen, spot) for where, seen in other_side):
             continue
         count = sum(1 for where, seen in others if _acts(open_cells, where, seen, spot))
@@ -740,13 +744,28 @@ def lure_cells(policy, snapshot, navigator, plan, board, index, *, close) -> dic
     return by_count
 
 
-def _lure_path(policy, snapshot, navigator, plan, board, index, *, close):
+def _lure_path(policy, snapshot, navigator, plan, board, index, *, close, keep=False):
     """(how many others act there, the walk) to the reachable pulling cells of member ``index`` where
-    the fewest others act; the walk is ``[here]`` standing on one; None with none reachable."""
+    the fewest others act; the walk is ``[here]`` standing on one; None with none reachable.
+
+    ``keep``: the wait on a pulling cell has begun, so the player stays on any pulling cell of the
+    member, however many others act there, and while the member acts on it from its last cell or one
+    step from it (``lure_cells`` ``wander``).  How many others act on a cell, and whether the member
+    itself does, change with every step they take, and walking to the fewest each board turns the
+    wait into a walk back and forth (n1-a life-537, Quest 33, 2026-11-25 12:37: the 巨大火アリ 9
+    stepping between [27,53] and [26,54] at the edge of its vision (14) put [29,40] in and out of its
+    pulling cells, and the player between [29,40] and [29,41] until the livelock stop; owner
+    2026-11-13 pingpong 「理由が消えるまで戻らない」: the cell is kept while its reason holds)."""
     from hengbot import quest_room_sweep  # it asks this module for its rungs
 
     here = _cell(snapshot.player.position)
-    for count, cells in sorted(lure_cells(policy, snapshot, navigator, plan, board, index, close=close).items()):
+    by_count = sorted(lure_cells(policy, snapshot, navigator, plan, board, index, close=close).items())
+    if keep:
+        for count, cells in sorted(lure_cells(policy, snapshot, navigator, plan, board, index, close=close,
+                                              wander=True).items()):
+            if here in cells:
+                return count, [snapshot.player.position]
+    for count, cells in by_count:
         if here in cells:
             return count, [snapshot.player.position]
         path = quest_room_sweep._path(policy, navigator, plan, snapshot,
@@ -806,7 +825,9 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
         navigator.summon_hold = 0
     close = (navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
              or _stays(policy, navigator.summon_group[navigator.summon_target][0]))
-    found = _lure_path(policy, snapshot, navigator, plan, board, navigator.summon_target, close=close)
+    # The wait has begun (a hold spent on this member): it goes on on any of its pulling cells.
+    found = _lure_path(policy, snapshot, navigator, plan, board, navigator.summon_target, close=close,
+                       keep=not close and navigator.summon_hold > 0)
     if found is None:
         _mark_unreached(navigator, navigator.summon_target)
         navigator.summon_target = None

@@ -159,5 +159,60 @@ class ShoreBlowTest(unittest.TestCase):
         self.assertEqual((reason, key), (MELEE_REASON, "9"))
 
 
+# -- the second process (restart 12:32:51, main 12c52ae3b): the lure's wait ---------------------------
+#
+# Stopped again by the livelock guard at 12:37:33.  The member lured was the 巨大火アリ 9 (race 548,
+# vision 14, in the tree-and-pit pocket [25..27,53..54]); it stepped between [27,53] and [26,54].
+# [29,40] is 14 game grids (quest_exposure.game_distance) from [27,53] and 15 from [26,54], so it was
+# a pulling cell (the fewest others acting) on one board and none on the next: the lure walked
+# '6' to [29,41]/[29,42] and '4' back and held between (decisions 2424-2446).  Owner 2026-11-13
+# pingpong 「理由が消えるまで戻らない」: once the wait has begun the pulling cell is kept while the member
+# acts on it from its last cell or one step from it (quest_summon_answer ``_lure_path`` ``keep``).
+#
+# Recorded: tests/fixtures/n1a-537-q33-lure-hold-1125 (tests/extract_n1a_537_q33_lure_hold_1125_fixture.py;
+# DECLARED CONSTRUCTED there: the restart).  The policy decides the boards from decision 2400 in order.
+
+SECOND = Path(__file__).with_name("fixtures") / "n1a-537-q33-lure-hold-1125"
+SECOND_CASE = json.loads(lzma.decompress((SECOND / "boards.json.xz").read_bytes()))
+FIRE_ANT = 548
+WAIT = range(2424, 2447)
+
+
+def drive_second():
+    """{sequence: (cell, reason, key)} of the second process's boards decided in order."""
+    deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((SECOND / "policy.pkl.xz").read_bytes()))
+    out = {}
+    for raw, row in zip(SECOND_CASE["boards"], SECOND_CASE["recorded"]):
+        snapshot = parse_snapshot(copy.deepcopy(raw), deciding._monrace_knowledge)
+        key = str(deciding.choose_key(snapshot))
+        if row is not None:
+            out[row["sequence"]] = ((snapshot.player.position.y, snapshot.player.position.x),
+                                    deciding.last_reason, key)
+        deciding.confirm_key_posted(key)
+    return out
+
+
+class TheLureWaitRecordingTest(unittest.TestCase):
+
+    def test_the_lure_walks_off_and_back_between_holds(self):
+        rows = {row["sequence"]: (row, raw) for raw, row in zip(SECOND_CASE["boards"], SECOND_CASE["recorded"]) if row}
+        reasons = [rows[sequence][0]["reason"] for sequence in WAIT]
+        self.assertEqual(set(reasons), {quest_summon_answer.LURE_WALK_REASON, "quest-strategy:hold"})
+        self.assertGreaterEqual(reasons.count(quest_summon_answer.LURE_WALK_REASON), 5)
+        cells = {(raw["player"]["y"], raw["player"]["x"]) for _row, raw in (rows[s] for s in WAIT)}
+        self.assertEqual(cells, {(29, 40), (29, 41), (29, 42)})
+        ants = {(monster["y"], monster["x"]) for _row, raw in (rows[s] for s in WAIT)
+                for monster in (*raw["visible_monsters"], *raw["detected_monsters"]) if monster["race_id"] == FIRE_ANT}
+        self.assertLessEqual(ants, {(y, x) for y in range(25, 28) for x in range(53, 55)})
+        self.assertIsNone(SECOND_CASE["recorded"][-1])   # the stop's board
+
+
+class TheLureWaitKeptTest(unittest.TestCase):
+
+    def test_the_wait_is_kept_on_its_cell(self):
+        answers = drive_second()
+        self.assertEqual({answers[sequence][1:] for sequence in WAIT}, {("quest-strategy:hold", "5")})
+
+
 if __name__ == "__main__":
     unittest.main()
