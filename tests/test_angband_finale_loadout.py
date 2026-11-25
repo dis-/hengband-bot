@@ -190,6 +190,78 @@ class FinaleExhaustiveSearchTest(unittest.TestCase):
         self.assertTrue(found.complete)
         self.assertEqual(key(found.loadouts[0]), best)
 
+    def test_the_hands_are_searched(self):
+        """n1-c life-222 2026-11-26 02:12 (after Oberon, the check step stopped as
+        check:resist_shard): every gate was met only with ★ハーゲンのスピア (+3 speed) and
+        ★魔術師の杖『エリリル』 (+4 INT) in the hands, and the search never put a weapon or a shield
+        in them (``slot_for`` names no hand).  Here the speed past +25 is the sword's and the
+        shards are the shield's only."""
+        from hengbot.warrior_loadout_search import finale_exhaustive_search
+        ring = gear("ring", 45, (GATES - {59}) | {12}, pval=15)  # TR_SPEED, every gate but shards
+        sword = gear("sword", 23, {12}, pval=10)
+        shield = gear("shield", 34, {59})  # TR_RES_SHARDS
+        found = finale_exhaustive_search((ring, sword, shield, gear("light", 39)), self.figures(),
+                                         require_light=True)
+        self.assertTrue(found.complete)
+        best = found.loadouts[0]
+        self.assertEqual(best.item_at("main_hand"), sword)
+        self.assertEqual(best.item_at("sub_hand"), shield)
+        self.assertIn(59, best.flags)
+        # The set meets every gate (the figures' INT and CON at +3 and +4 standing in for the stats).
+        self.assertIs(self.figures().rank_key(25, 3, 4, best.flags)[0], True)
+
+
+class FinaleRecordedCatalogTest(unittest.TestCase):
+    """RECORDED: n1-c life-222's owned gear (166 pieces the search reads) at the town-arrival
+    checkpoint of 2026-11-26 02:12 (tests/extract_n1c_222_finale_catalog_fixture.py), after it
+    killed Oberon: the finale preparation's check step stopped as check:resist_shard, the search
+    never putting a weapon or a shield in the hands.  The character's figures are its calibration
+    (character-calibration.json: INT 18/120 natural, -6 own; CON 18/115 natural, +3 own; the
+    Zombie's own flags as its FinaleReading); HP and the Rockets' success do not decide here."""
+
+    def test_a_set_meeting_every_gate_is_found(self):
+        import gzip
+        import json
+        from pathlib import Path
+        from time import monotonic
+        from hengbot.equipment_optimizer import finale_gate_failures
+        from hengbot.warrior_equipment_evaluator import modify_stat_value
+        from hengbot.warrior_loadout_search import FinaleFigures, finale_exhaustive_search
+        path = Path(__file__).parent / "fixtures/n1c-222-finale-catalog-20261126.json.gz"
+        payload = json.loads(gzip.decompress(path.read_bytes()))
+        items = []
+        for entry in payload["items"]:
+            fields = dict(entry["item"], known_flags=frozenset(entry["item"]["known_flags"]))
+            items.append(OwnedEquipment(entry["id"], InventoryItem(**fields), entry["origin"],
+                                        entry["equipped_slot"]))
+        own = frozenset({10, 47, 51, 52, 60, 78, 80})
+        figures = FinaleFigures(
+            base_speed=110, intrinsic_flags=own,
+            intelligence=lambda bonus: modify_stat_value(138, -6 + bonus),
+            constitution=lambda bonus: modify_stat_value(133, 3 + bonus),
+            max_hp=lambda bonus: 1000 + 10 * bonus, power_success=lambda bonus, flags: None)
+        worn = frozenset(item.id for item in items if item.origin == "equipped")
+        # The live search's own budget is 8 seconds (FINALE_SEARCH_SECONDS); this bound only
+        # keeps a regressed search from running for minutes.
+        found = finale_exhaustive_search(items, figures, current_item_ids=worn,
+                                         require_light=True, deadline=monotonic() + 60)
+        self.assertTrue(found.complete)
+        best = found.loadouts[0]
+
+        def total(flag):
+            return sum(item.item.pval for _, item in best.slots if flag in item.flags)
+
+        failures = finale_gate_failures(
+            best.flags | own, 110 + total(12), modify_stat_value(138, -6 + total(TR_INT)),
+            modify_stat_value(133, 3 + total(TR_CON)))
+        self.assertEqual(failures, ())
+        names = {slot: item.item.name for slot, item in best.slots}
+        self.assertIn("ハーゲンのスピア", names["main_hand"] + names["sub_hand"])
+        self.assertIn("サルケットス", names["body"])
+        # The gates' pass alone reaches it (about 1.9 million nodes; the whole order's pass over
+        # the same catalog visits about 30 million).
+        self.assertLess(found.nodes, 5_000_000)
+
 
 if __name__ == "__main__":
     unittest.main()

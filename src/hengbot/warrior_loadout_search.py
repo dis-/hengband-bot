@@ -10,7 +10,9 @@ from typing import Callable, Iterable, Iterator, Mapping
 from hengbot.equipment_encounters import BRANDS, SLAYS
 from hengbot.equipment_optimizer import (
     FILL_REQUIRED_ARMOR_SLOTS,
+    FINALE_CON_MINIMUM,
     FINALE_IMMUNITY_ELEMENT,
+    FINALE_INT_MINIMUM,
     FINALE_RESISTANCES,
     FIXED_SLOTS,
     SLOT_BODY,
@@ -39,6 +41,7 @@ from hengbot.equipment_optimizer import (
 )
 from hengbot.equipment_rules import TR_LOW_AC, TR_NO_AC
 from hengbot.me_power_success import TR_DEC_MANA, TR_EASY_SPELL, TR_HARD_SPELL, TR_NO_MAGIC
+from hengbot.policy_constants import SPEED_GATE_MINIMUM
 from hengbot.equipment_utility import UTILITY_FLAGS
 from hengbot.warrior_defense_evaluator import PROTECTOR_TVALS, TR_SPEED
 from hengbot.warrior_equipment_evaluator import warrior_melee_signature
@@ -1120,13 +1123,55 @@ def _finale_ring_choices(legal, pinned, relevant, order) -> list[_Choice]:
     return _undominated(choices)
 
 
+def _least_bonus(figure: Callable[[int], int | None], minimum: int) -> int | None:
+    """The least gear bonus whose figure meets ``minimum`` (0 when the figure is not read, as
+    finale_gate_failures does not judge it); None when no bonus up to 100 does."""
+    for bonus in range(-100, 101):
+        value = figure(bonus)
+        if value is None:
+            return 0
+        if value >= minimum:
+            return bonus
+    return None
+
+
+def _stat_frontiers(groups: list[list[_Choice]], needs: tuple[int, int, int]) -> list[list[tuple]]:
+    """For each slot index, the (speed, INT, CON) sums the slots from there on reach together,
+    only those no other one reaches in all three kept, each capped where no prefix needs more.
+    The gates' search reads it: the three sums of one set, not each slot's largest of each."""
+    floors = [sum(min(getattr(choice, name) for choice in group) for group in groups)
+              for name in ("speed", "int_bonus", "con_bonus")]
+    caps = [max(0, need - min(0, floor)) for need, floor in zip(needs, floors)]
+    frontiers: list[list[tuple]] = [[(0, 0, 0)]]
+    for group in reversed(groups):
+        points = {(min(caps[0], speed + choice.speed), min(caps[1], int_bonus + choice.int_bonus),
+                   min(caps[2], con_bonus + choice.con_bonus))
+                  for speed, int_bonus, con_bonus in frontiers[0] for choice in group}
+        frontiers.insert(0, [point for point in points
+                             if not any(other != point and all(o >= p for o, p in zip(other, point))
+                                        for other in points)])
+    return frontiers
+
+
+# equipment_optimizer hand_configurations' pieces: a weapon (_is_weapon, TV_HAFTED 21, TV_POLEARM
+# 22, TV_SWORD 23; never TV_DIGGING 20) or a shield (_is_shield, TV_SHIELD 34).
+_SHIELD_TVAL = 34
+_HAND_TVALS = frozenset({21, 22, 23, _SHIELD_TVAL})
+
+
 def _finale_hand_choices(legal, pinned, relevant, order) -> list[_Choice]:
-    """The two hands as one choice (hand_configurations), two of each weapon kind kept."""
+    """The two hands as one choice (hand_configurations), two of each weapon kind kept.
+
+    The hands' pieces are hand_configurations' own (``_HAND_TVALS``): a weapon or a shield.
+    ``slot_for`` names no hand (it reads the armour's tvals only), so the hands were never searched:
+    n1-c life-222 (2026-11-26 02:12, after Oberon) had a set meeting every gate with ★ハーゲンのスピア
+    (+3 speed, dark) and ★魔術師の杖『エリリル』 (+4 INT, blindness) in the hands and
+    ★サルケットス (shards) worn, and the check step stopped as check:resist_shard."""
     pool = []
     for kind in ("one", "two", "shield"):
         members = [item for item in legal
-                   if slot_for(item.item) in (SLOT_MAIN_HAND, SLOT_SUB_HAND)
-                   and (kind == "shield") == (item.item.tval not in {21, 22, 23})
+                   if item.item.tval in _HAND_TVALS
+                   and (kind == "shield") == (item.item.tval == _SHIELD_TVAL)
                    and (kind == "shield" or (kind == "two") == _forced_two_handed(item))]
         kept = _undominated([_finale_choice(((SLOT_MAIN_HAND, item),), None, relevant,
                                             next(order)) for item in members], capacity=2)
@@ -1216,59 +1261,96 @@ def finale_exhaustive_search(
         best_con[index] = best_con[index + 1] + max(choice.con_bonus for choice in group)
         gains_left[index] = gains_left[index + 1].union(*(choice.gains for choice in group))
 
-    top: list[tuple[tuple, Loadout]] = []
-    chosen: list[_Choice] = []
     nodes = 0
-    stopped = False
+    least = (SPEED_GATE_MINIMUM - figures.base_speed,
+             _least_bonus(figures.intelligence, FINALE_INT_MINIMUM),
+             _least_bonus(figures.constitution, FINALE_CON_MINIMUM))
+    frontiers = (_stat_frontiers(groups, least) if None not in least else None)
+    stat_memo: dict[tuple, bool] = {}
 
-    def floor_key():
-        return top[-1][0] if len(top) >= limit else None
+    def stats_reachable(index: int, speed: int, int_bonus: int, con_bonus: int) -> bool:
+        """Whether the slots from ``index`` on can bring the three sums to the gates together."""
+        key = (index, speed, int_bonus, con_bonus)
+        reached = stat_memo.get(key)
+        if reached is None:
+            needs = (least[0] - speed, least[1] - int_bonus, least[2] - con_bonus)
+            reached = stat_memo[key] = any(
+                all(point >= need for point, need in zip(points, needs))
+                for points in frontiers[index])
+        return reached
 
-    def leaf(speed, int_bonus, con_bonus, flags):
-        key = figures.rank_key(speed, int_bonus, con_bonus, flags)
-        floor = floor_key()
-        if floor is not None and key <= floor:
-            return
-        if any(found == key for found, _ in top):
-            return
-        slots = tuple(pair for choice in chosen for pair in choice.slots)
-        if len({item.id for _, item in slots}) != len(slots):
-            return
-        mode = next((choice.hand_mode for choice in chosen if choice.hand_mode is not None),
-                    "empty")
-        loadout = Loadout(slots, mode)
-        if not required_flags <= loadout.flags or not valid(loadout):
-            return
-        top.append((key, loadout))
-        top.sort(key=lambda pair: pair[0], reverse=True)
-        del top[limit:]
+    def run(gates_only: bool) -> tuple[tuple[Loadout, ...], bool]:
+        """One branch and bound; ``gates_only`` cuts every branch whose best possible sums and
+        flags miss a gate (the key's first element), and every leaf missing one."""
+        nonlocal nodes
+        top: list[tuple[tuple, Loadout]] = []
+        chosen: list[_Choice] = []
+        stopped = False
 
-    def visit(index, speed, int_bonus, con_bonus, gains, adverse):
-        nonlocal nodes, stopped
-        nodes += 1
-        if deadline is not None and nodes % 4096 == 0 and monotonic() > deadline:
-            stopped = True
-        if stopped:
-            return
-        if index == count:
-            leaf(speed, int_bonus, con_bonus, gains | adverse)
-            return
-        reachable = gains | gains_left[index]
-        if not required_flags <= reachable | figures.intrinsic_flags:
-            return
-        floor = floor_key()
-        if floor is not None and figures.rank_key(
-                speed + best_speed[index], int_bonus + best_int[index],
-                con_bonus + best_con[index], reachable | adverse) <= floor:
-            return
-        for choice in groups[index]:
-            chosen.append(choice)
-            visit(index + 1, speed + choice.speed, int_bonus + choice.int_bonus,
-                  con_bonus + choice.con_bonus, gains | choice.gains, adverse | choice.adverse)
-            chosen.pop()
+        def floor_key():
+            return top[-1][0] if len(top) >= limit else None
+
+        def leaf(speed, int_bonus, con_bonus, flags):
+            key = figures.rank_key(speed, int_bonus, con_bonus, flags)
+            if gates_only and not key[0]:
+                return
+            floor = floor_key()
+            if floor is not None and key <= floor:
+                return
+            if any(found == key for found, _ in top):
+                return
+            slots = tuple(pair for choice in chosen for pair in choice.slots)
+            if len({item.id for _, item in slots}) != len(slots):
+                return
+            mode = next((choice.hand_mode for choice in chosen if choice.hand_mode is not None),
+                        "empty")
+            loadout = Loadout(slots, mode)
+            if not required_flags <= loadout.flags or not valid(loadout):
+                return
+            top.append((key, loadout))
+            top.sort(key=lambda pair: pair[0], reverse=True)
+            del top[limit:]
+
+        def visit(index, speed, int_bonus, con_bonus, gains, adverse):
+            nonlocal nodes, stopped
+            nodes += 1
+            if deadline is not None and nodes % 4096 == 0 and monotonic() > deadline:
+                stopped = True
             if stopped:
                 return
+            if index == count:
+                leaf(speed, int_bonus, con_bonus, gains | adverse)
+                return
+            reachable = gains | gains_left[index]
+            if not required_flags <= reachable | figures.intrinsic_flags:
+                return
+            optimistic = figures.rank_key(
+                speed + best_speed[index], int_bonus + best_int[index],
+                con_bonus + best_con[index], reachable | adverse)
+            if gates_only and (not optimistic[0] or frontiers is None
+                               or not stats_reachable(index, speed, int_bonus, con_bonus)):
+                return
+            floor = floor_key()
+            if floor is not None and optimistic <= floor:
+                return
+            for choice in groups[index]:
+                chosen.append(choice)
+                visit(index + 1, speed + choice.speed, int_bonus + choice.int_bonus,
+                      con_bonus + choice.con_bonus, gains | choice.gains, adverse | choice.adverse)
+                chosen.pop()
+                if stopped:
+                    return
 
-    visit(0, 0, 0, 0, frozenset(), frozenset())
-    return FinaleSearchResult(tuple(loadout for _, loadout in top), not stopped, nodes,
-                              monotonic() - started)
+        visit(0, 0, 0, 0, frozenset(), frozenset())
+        return tuple(loadout for _, loadout in top), not stopped
+
+    # A set meeting every gate competes alone when one is owned (equipment_optimizer
+    # ``finale_conditions_met``): those sets are searched first, every branch that cannot meet the
+    # gates cut, so the search over the hands' choices (n1-c life-222 2026-11-26: 200 of them,
+    # about 1.3 billion combinations, not done in 8 seconds) reaches them.  None found by the
+    # deadline or none owned: the whole order, the gates' count first, as before (a deadline
+    # already past stops it at its first check with the best it reached).
+    found, complete = run(True)
+    if not found:
+        found, complete = run(False)
+    return FinaleSearchResult(found, complete, nodes, monotonic() - started)
