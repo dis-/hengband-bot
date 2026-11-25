@@ -259,6 +259,12 @@ class Battle:
     # this floor (``_battle_melt``).  Class defaults.
     melt_aim: tuple | None = None
     dud_melts: set = field(default_factory=set)
+    # For the decision record only (``report``): why the battle's last teleport and its recall were
+    # read (``_escape_record``, ``_recall_record``).  The efficiency audit of n1-c life-222's 100F
+    # (2026-11-26, finale-efficiency-1126) could not tell 14 of the 33 escapes on 「同時に射線」 from
+    # the log.  Class defaults: restored checkpoints predate them.
+    escape: dict | None = None
+    recall_why: tuple = ()
 
 
 def battle(policy, snapshot) -> Battle:
@@ -326,6 +332,8 @@ def report(policy) -> dict | None:
                          if getattr(held, "outflank", None) is not None else None),
             "waited_since": getattr(held, "waited_since", None),
             "blast": getattr(held, "blast", False),
+            "escape": getattr(held, "escape", None),
+            "recall_why": list(getattr(held, "recall_why", ())),
         }
     return entry
 
@@ -352,12 +360,22 @@ def crowded(policy, snapshot, target) -> bool:
     """「ターゲットとターゲット以外が同時に射線に入っているとき」: a line projects from the player to
     the target and to another known monster on this board (line_of_fire ``player_reaches``: to a
     monster in view, a wall only the map memory keeps does not stop it)."""
+    return bool(crowding(policy, snapshot, target, first=True))
+
+
+def crowding(policy, snapshot, target, *, first: bool = False) -> list:
+    """The other known monsters a line projects to while one projects to the target (``crowded``);
+    ``first``: the first one only.  Empty when no line projects to the target."""
     from hengbot import line_of_fire
-    if target is None:
-        return False
-    return (line_of_fire.player_reaches(policy, snapshot, target)
-            and any(line_of_fire.player_reaches(policy, snapshot, monster)
-                    for monster in others(snapshot)))
+    if target is None or not line_of_fire.player_reaches(policy, snapshot, target):
+        return []
+    found = []
+    for monster in others(snapshot):
+        if line_of_fire.player_reaches(policy, snapshot, monster):
+            found.append(monster)
+            if first:
+                break
+    return found
 
 
 # -- the strong non-targets' lines of fire -------------------------------------------------
@@ -2002,6 +2020,7 @@ def key(policy, snapshot) -> str | None:
     if recall_permitted(policy, snapshot):
         recall = _recall(policy, snapshot)
         if recall is not None:
+            held.recall_why = _recall_record(policy, snapshot)
             return recall
     target = target_monster(snapshot)
     distance = game_distance(player.position, target.position) if target is not None else None
@@ -2014,6 +2033,7 @@ def key(policy, snapshot) -> str | None:
             or crowded(policy, snapshot, target)):
         away = _teleport(policy, snapshot)
         if away is not None:
+            held.escape = _escape_record(policy, snapshot, held, target, distance)
             held.phase, held.stand = RECOVER, None
             held.hit_below = False
             held.refused.clear()
@@ -2071,6 +2091,53 @@ def key(policy, snapshot) -> str | None:
         return searched
     # The battle keeps the board (``_wait_key``): no generic rung answers on its floor.
     return _wait_key(policy, snapshot, held)
+
+
+def _escape_record(policy, snapshot, held: Battle, target, distance) -> dict:
+    """For the decision record (``Battle.escape``): every rule of the teleport that holds on this
+    board, and the monsters it read -- 「召喚」 (``summon``: the casters the messages name),
+    「攻撃を受けてHPが800を下回った」 (``hp-below-800``, ``hit_below`` when the hit was on an earlier
+    board), 「距離2」 (``too-close``) and 「同時に射線」 (``crowded``: the other monsters in a line
+    with the target).  Record only: no decision reads it."""
+    from hengbot import summon_response  # import cycle
+    player = snapshot.player
+    rules = []
+    summoners = []
+    if held.summoned:
+        rules.append("summon")
+        summoners = sorted({summon.caster for message in snapshot.messages
+                            for summon in summon_response.summons_of(message)})
+    if player.hp < TELEPORT_BELOW and held.attacked:
+        rules.append("hp-below-800")
+    elif player.hp < TELEPORT_BELOW and held.hit_below:
+        rules.append("hp-below-800:hit-before")
+    if distance is not None and distance <= TELEPORT_WITHIN:
+        rules.append("too-close")
+    crowd = crowding(policy, snapshot, target)
+    if crowd:
+        rules.append("crowded")
+    return {
+        "turn": snapshot.turn,
+        "rules": rules,
+        "hp": player.hp,
+        "max_hp": player.max_hp,
+        "player": [player.position.y, player.position.x],
+        "target": ([target.position.y, target.position.x] if target is not None else None),
+        "distance": distance,
+        "summoners": summoners,
+        "crowd": [[monster.name, monster.position.y, monster.position.x] for monster in crowd],
+        "means": policy.last_reason,
+    }
+
+
+def _recall_record(policy, snapshot) -> tuple:
+    """For the decision record (``Battle.recall_why``): the recall cases of ``recall_permitted``
+    that hold on this board.  Record only."""
+    cases = (("quest-done", angband_finale.quest_done(snapshot)),
+             ("restore-mana-overspent", angband_finale.restore_mana_overspent(policy, snapshot)),
+             ("teleports-out", teleports_out(policy, snapshot)),
+             ("starving-out", starving_out(policy, snapshot)))
+    return tuple(name for name, holds in cases if holds)
 
 
 def _small_floor(policy, snapshot) -> str | None:

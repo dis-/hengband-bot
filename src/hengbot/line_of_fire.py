@@ -173,7 +173,7 @@ READERS = {
     # player_projectable: the player's own bolt (glass stops it).
     ("immobile_ranged_kill", "_shooting_cell", "player_projectable"):
         "a grid the player's shot reaches an immobile summoner from",
-    ("angband_finale_battle", "crowded", "player_reaches"):
+    ("angband_finale_battle", "crowding", "player_reaches"):
         "the 99F/100F battle's leave when the target and another monster are both in the player's "
         "line of fire (owner 2026-11-20 「ターゲットとターゲット以外が同時に射線に入っているときは"
         "召喚直後でなくとも離脱する」)",
