@@ -34,6 +34,13 @@ The record (``MEMORY``, one floor visit):
   identification...).  The radius is DETECT_RAD_DEFAULT, a third in a dungeon whose DARKNESS is
   not known yet (me_powers ``map_radius``, the smaller reading).
 
+Owner 2026-11-26 「50F以降は全感知のロッドを持つ」 (deep_detection_rod): the trap detections of the
+same visit are noted beside them (``traps``): the absorbed Detection and Detect Traps uses
+(me_powers.trap_detections) and a carried Rod of Trap Location or of Detection, Staff of Detect
+Traps or Scroll of Detect Traps used, read the same way.  detect_feat_flag clears CAVE_UNSAFE on
+every grid within the range (spells-detection.cpp), so ``trap_covered`` reads the range itself.
+deep_detection_rod reads it only on a board without ``unsafe_rows`` (the game's own record).
+
 ``covered`` is read by policy ``_undersearched_walls`` (every wall search, the shared
 ``_secret_wall_exit`` included, and retreat_enclosure's searched-before-melt rule) and by
 quest_target_search's uncovered places.  A restart forgets the record (state_registry: may-be-lost):
@@ -46,8 +53,9 @@ from dataclasses import dataclass, field
 
 from hengbot import me_powers
 from hengbot.model import (
-    SV_ROD_DETECT_DOOR, SV_ROD_DETECTION, SV_SCROLL_DETECT_DOOR, SV_STAFF_DETECT_DOOR,
-    TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, Position, game_distance,
+    SV_ROD_DETECT_DOOR, SV_ROD_DETECTION, SV_SCROLL_DETECT_DOOR, SV_SCROLL_DETECT_TRAP,
+    SV_STAFF_DETECT_DOOR, SV_STAFF_DETECT_TRAP, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, Position,
+    game_distance,
 )
 from hengbot.policy_constants import NEIGHBOR_OFFSETS
 
@@ -57,6 +65,13 @@ CARRIED = frozenset({
     (TVAL_ROD, SV_ROD_DETECT_DOOR), (TVAL_ROD, SV_ROD_DETECTION),
     (TVAL_STAFF, SV_STAFF_DETECT_DOOR), (TVAL_SCROLL, SV_SCROLL_DETECT_DOOR),
 })
+# sv-definition/sv-rod-types.h SV_ROD_DETECT_TRAP (トラップ感知のロッド).
+SV_ROD_DETECT_TRAP = 0
+# (tval, sval) of a carried trap detection.
+CARRIED_TRAPS = frozenset({
+    (TVAL_ROD, SV_ROD_DETECT_TRAP), (TVAL_ROD, SV_ROD_DETECTION),
+    (TVAL_STAFF, SV_STAFF_DETECT_TRAP), (TVAL_SCROLL, SV_SCROLL_DETECT_TRAP),
+})
 
 
 @dataclass
@@ -64,6 +79,7 @@ class Cover:
     floor: tuple
     casts: list = field(default_factory=list)  # (centre, radius, turn) of each door detection
     last: tuple | None = None  # (turn, position, carried signature) of the previous board
+    traps: list = field(default_factory=list)  # (centre, radius, turn) of each trap detection
 
 
 def _signature(snapshot) -> dict:
@@ -71,7 +87,7 @@ def _signature(snapshot) -> dict:
     held: dict = {}
     for item in snapshot.inventory:
         kind = (item.tval, item.sval)
-        if kind not in CARRIED or not item.aware:
+        if (kind not in CARRIED and kind not in CARRIED_TRAPS) or not item.aware:
             continue
         if item.tval == TVAL_ROD:
             value = (item.charging_count if item.charging_count is not None
@@ -84,9 +100,11 @@ def _signature(snapshot) -> dict:
     return held
 
 
-def _used(before: dict, after: dict) -> bool:
-    """One carried door detection was used between the two signatures."""
+def _used(before: dict, after: dict, kinds=CARRIED) -> bool:
+    """One carried detection of ``kinds`` was used between the two signatures."""
     for kind, value in before.items():
+        if kind not in kinds:
+            continue
         now = after.get(kind, 0)
         if kind[0] == TVAL_ROD:
             if kind in after and now > value:
@@ -96,9 +114,17 @@ def _used(before: dict, after: dict) -> bool:
     return False
 
 
-def _add(memory: Cover, centre: Position, radius: int, turn: int) -> None:
-    if not any(each[0] == centre and each[2] == turn for each in memory.casts):
-        memory.casts.append((centre, radius, turn))
+def _add(memory: Cover, centre: Position, radius: int, turn: int, *, traps: bool = False) -> None:
+    casts = _traps(memory) if traps else memory.casts
+    if not any(each[0] == centre and each[2] == turn for each in casts):
+        casts.append((centre, radius, turn))
+
+
+def _traps(memory: Cover) -> list:
+    # A record pickled before the trap detections were noted has no ``traps``.
+    if not hasattr(memory, "traps"):
+        memory.traps = []
+    return memory.traps
 
 
 def observe(policy, snapshot) -> None:
@@ -111,11 +137,17 @@ def observe(policy, snapshot) -> None:
         setattr(policy, MEMORY, memory)
     for centre, radius, turn in me_powers.door_detections(policy, snapshot):
         _add(memory, centre, radius, turn)
+    for centre, radius, turn in me_powers.trap_detections(policy, snapshot):
+        _add(memory, centre, radius, turn, traps=True)
     here, signature = snapshot.player.position, _signature(snapshot)
     if memory.last is not None:
         turn, position, before = memory.last
-        if snapshot.turn > turn and position == here and _used(before, signature):
-            _add(memory, position, me_powers.map_radius(policy, snapshot), turn)
+        if snapshot.turn > turn and position == here:
+            radius = me_powers.map_radius(policy, snapshot)
+            if _used(before, signature):
+                _add(memory, position, radius, turn)
+            if _used(before, signature, CARRIED_TRAPS):
+                _add(memory, position, radius, turn, traps=True)
     memory.last = (snapshot.turn, here, signature)
 
 
@@ -134,6 +166,15 @@ def covered(policy, cell: tuple) -> bool:
         return False
     position = Position(*cell)
     return any(game_distance(centre, position) <= radius for centre, radius, _ in memory.casts)
+
+
+def trap_covered(policy, cell: tuple) -> bool:
+    """``cell`` (y, x) lies within a trap detection of the policy's current floor visit."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.floor != getattr(policy, "_floor_key", None):
+        return False
+    position = Position(*cell)
+    return any(game_distance(centre, position) <= radius for centre, radius, _ in _traps(memory))
 
 
 def around_covered(policy, position: Position) -> bool:

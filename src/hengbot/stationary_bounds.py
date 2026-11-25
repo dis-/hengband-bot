@@ -51,6 +51,11 @@ where the producer already counts its holds in decisions.  The values and why:
   count-99 wand at the slowest, hpmp/hp-mp-regenerator.cpp regenmagic); one use is enough here.
   The lists read between the rests (me_powers_refresh.REFRESH_REASON, no game time) are its
   companion, so they continue the episode.
+* ``deep-detection-rod:wait-recharge`` (deep_detection_rod.key, the rest ``R10`` on 50F+ while the
+  Rod of Detection held recharges before a step out of the trap-detected area, owner 2026-11-26
+  「50F以降は全感知のロッドを持つ」): ``DETECTION_ROD_RECHARGE_MAX_GAME_TURNS`` -- the rod's recharge,
+  BaseitemDefinitions.jsonc id 375 pval 99 (the timeout a zap adds, cmd-zaprod.cpp), counted down
+  one a world tick for a single rod, plus one rest of slack.
 """
 
 from __future__ import annotations
@@ -87,6 +92,9 @@ QUEST_HOLD_UNREACHABLE_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 QUEST_BLOCKED_HOLD_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 IDLE_WAIT_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 NONE_WAIT_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
+# BaseitemDefinitions.jsonc Rod of Detection (id 375) pval 99, and one R10 rest of slack.
+DETECTION_ROD_RECHARGE_TICKS = 99
+DETECTION_ROD_RECHARGE_MAX_GAME_TURNS = (DETECTION_ROD_RECHARGE_TICKS + 10) * recall_wait_reach.TURNS_PER_TICK
 # quest25_battle_board.RECHARGE_REST_LIMIT (not imported: this module sits under the battle's).
 SUMMONED_RECHARGE_REST_MAX_DECISIONS = 30
 
@@ -129,6 +137,8 @@ BOUNDS = (
     Bound("policy:none-wait", NONE_WAIT_MAX_GAME_TURNS, GAME_TURNS, "NONE_WAIT_MAX_GAME_TURNS"),
     Bound("quest-strategy:summoned-rest-recharge", SUMMONED_RECHARGE_REST_MAX_DECISIONS, DECISIONS,
           "SUMMONED_RECHARGE_REST_MAX_DECISIONS", companions=("periodic:magic-eater-powers",)),
+    Bound("deep-detection-rod:wait-recharge", DETECTION_ROD_RECHARGE_MAX_GAME_TURNS, GAME_TURNS,
+          "DETECTION_ROD_RECHARGE_MAX_GAME_TURNS"),
 )
 BY_REASON = {row.reason: row for row in BOUNDS}
 # A companion continues the episode of its row (it is counted with it, never alone).

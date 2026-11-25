@@ -25317,5 +25317,49 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "deep_detection_rod.py:carried": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by deep_detection_rod's owned / home_missing / key in town and in the dungeon alike.",
+    "evidence": "The pack's first identified Rod of Detection stack (owner 2026-11-26 「50F以降は全感知のロッドを持つ」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "deep_detection_rod.py:purchase_wanted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by bm_destruction_fund's detection-rod row of PRIORITY_WARES on a shop page (the priority-ware:detection-rod rung).",
+    "evidence": "50F+ recall depth or floor and no Rod of Detection carried, at Home or absorbed (owner 2026-11-26 「50F以降は全感知のロッドを持つ」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "deep_detection_rod.py:retained_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the retention authority (policy_home._retention_reservation_baseline_detail) in town and in the dungeon alike: the carried Rod of Detection's kept count.",
+    "evidence": "The retained count of the carried Rod of Detection while the 50F+ rule applies (owner 2026-11-26 「50F以降は全感知のロッドを持つ」); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "deep_detection_rod.py:key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Dungeon objectives layer only, on a 50F+ floor with a Rod of Detection carried or absorbed and a walkable neighbour still CAVE_UNSAFE (deep_detection_rod.undetected_step); never reached in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-26 「50F以降は全感知のロッドを持つ」: the carried rod's zap (deep-detection-rod:zap) through reserved_item_command, else the rest while the rod held recharges (deep-detection-rod:wait-recharge); the absorbed rod is cast by me_powers' deep-undetected-step trigger."
   }
 }

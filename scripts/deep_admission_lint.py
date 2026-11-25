@@ -35,6 +35,8 @@ ALLOWED: dict[tuple[str, str], tuple[int, str]] = {
     ("deep_climb", "departure_admits"): (1, "the climb's landing is exactly 50F (as admits)"),
     ("deep_climb", "_release_climb"): (1, "the held climb ends once the kit admits its 50F "
                                           "landing (depth_safety's gaps there, n1-c life-221)"),
+    ("deep_detection_rod", "<module>"): (1, "owner 2026-11-26 「50F以降は全感知のロッドを持つ」: "
+                                           "the rod's rule (DEPTH), not the admission"),
     ("deep_teleport", "applies"): (1, "owner 2026-11-14 「50F以降のテレポートの条件を厳しくする」: "
                                       "the teleport rule, not the admission"),
     ("destruction_use", "ranged_breeders"): (1, "owner 2026-11-22 「群れの数に関わらず破壊対象」: "

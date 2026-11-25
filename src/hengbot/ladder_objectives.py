@@ -17,7 +17,7 @@ still states this order.
 """
 from __future__ import annotations
 
-from hengbot import deep_climb, deep_fall_guard, finale_prep, reset_recall
+from hengbot import deep_climb, deep_detection_rod, deep_fall_guard, finale_prep, reset_recall
 from hengbot import approach_answer, fundraising_route, return_start
 from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
@@ -46,6 +46,11 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
     guard = deep_fall_guard.key(policy, snapshot)
     if guard is not None:
         return guard
+    # Owner 2026-11-26 「50F以降は全感知のロッドを持つ」: on 50F+ the Rod of Detection before a
+    # step out of the trap-detected area, else the wait for its recharge (deep_detection_rod).
+    detection = deep_detection_rod.key(policy, snapshot)
+    if detection is not None:
+        return detection
     climb = deep_climb.key(policy, snapshot)
     if climb is not None:
         return climb

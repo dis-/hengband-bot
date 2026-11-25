@@ -307,6 +307,9 @@ REGISTRY = (
     # deep_fall_guard
     S("_deep_fall_guard", "deep_fall_guard", FLOOR,
       "The floor's trap detections (owner 2026-11-22): the pending use (turn, place), the failed uses per place, the places detected from."),
+    # deep_detection_rod
+    S("_deep_detection_rod", "deep_detection_rod", FLOOR,
+      "The floor's Rod of Detection zaps on 50F+ (owner 2026-11-26 「50F以降は全感知のロッドを持つ」): the pending zap (turn, place) and the failed zaps per place."),
     # departure_rescues
     S("_departure_rescue_attempts", "departure_rescues", LIFE,
       "departure_rescues: departure rescue attempts (no comment at its definition)"),
@@ -2153,6 +2156,7 @@ RESET_BY = {
         "a set that only grows for the life (policy._finish_morivant_full_identify adds)"
     )),
     "_nav_stall_count": Reset((
+        "deep_detection_rod.key",
         "destruction_use._restart_progress_marks",
         "locked_doors.pick_key",
         "policy._update_navigation_progress",
@@ -2392,6 +2396,10 @@ RESTART = {
     # door_detect_cover: a new process searches the walls again until its next door detection.
     "_door_detect_cover": Restart(MAY_BE_LOST, "door_detect_cover",
                                   "no record carries it: the next door detection notes it again"),
+    # deep_detection_rod: a new process counts the failed zaps of a place again from none; the
+    # zaps themselves read the board's unsafe_rows.
+    "_deep_detection_rod": Restart(MAY_BE_LOST, "deep_detection_rod",
+                                   "the board's unsafe_rows still show what was detected"),
     # monster_memory.KEPT_GUARDIAN (destruction_use.observe_kept_guardian): shown again after a restart.
     "_kept_guardian_seen": Restart(MAY_BE_LOST, "monster_memory",
                                    "a new process remembers the guardian from the next board "

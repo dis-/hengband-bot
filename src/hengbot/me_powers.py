@@ -81,6 +81,8 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    zero light radius (the light-sensitive neighbour, an attack, keeps it);
    4.9 the Speed row is also cast on the floor rung once per floor visit while not hasted
    (``deep-arrival-unhasted``).
+ - 50F+ (owner 2026-11-26 「50F以降は全感知のロッドを持つ」, deep_detection_rod): the absorbed rod is
+   also cast before every step out of the trap-detected area (``deep-undetected-step``).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -241,7 +243,8 @@ POWERS = (
            "quest-remaining-unseen"),
           preferred=(("rod", SV_ROD_DETECTION),)),
     Power("rod", SV_ROD_DETECTION, devices()[(TVAL_ROD, SV_ROD_DETECTION)].names,
-          "detect-all", DETECT_RAD, 10, ("hunt-target-unseen", "quest-remaining-unseen"), powerful="when-safe"),
+          "detect-all", DETECT_RAD, 10, ("hunt-target-unseen", "quest-remaining-unseen",
+                                         "deep-undetected-step"), powerful="when-safe"),
     # Owner 2026-11-22 「害の無い敵の横でも唱える」 (as the mapping's 「脅威でなければ感知する」).
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
           "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled"),
@@ -798,6 +801,15 @@ def _deep_explore_redetect(ctx, power):
     return ctx.distance(latest.position) >= DEEP_REDETECT_WALK
 
 
+def _deep_undetected_step(ctx, power):
+    """Owner 2026-11-26 「50F以降は全感知のロッドを持つ」 (deep_detection_rod): on 50F+, a walkable
+    neighbour not trap-detected yet (the board's ``unsafe_rows``): the arrival and every step out
+    of the area the last detection covered."""
+    from hengbot import deep_detection_rod  # import cycle (door_detect_cover reads this module)
+
+    return _deep_floor(ctx) and deep_detection_rod.undetected_step(ctx.policy, ctx.snapshot)
+
+
 def _deep_arrival_unhasted(ctx, power):
     """PLAN-50F 4.9 (owner 2026-11-11 C6 「5」): on 50F+ the floor visit starts hasted, 「the first
     moves of a floor decide whether a pack reaches the character」.  Once per floor visit: not
@@ -842,6 +854,7 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("hunt-target-unseen", frozenset({FLOOR}), _hunt_target_unseen),
     Trigger("quest-remaining-unseen", frozenset({QUEST_REMAINING}), _quest_remaining_unseen),
     Trigger("deep-explore-redetect", frozenset({FLOOR}), _deep_explore_redetect),
+    Trigger("deep-undetected-step", frozenset({FLOOR}), _deep_undetected_step, takes_fallback=False),
     Trigger("fight-unhasted", frozenset({FIGHT}), _fight_unhasted),
     Trigger("deep-arrival-unhasted", frozenset({FLOOR}), _deep_arrival_unhasted),
     # Owner 2026-11-05 named 周辺感知: its Door/Stairs fallback does not map.
@@ -1129,6 +1142,29 @@ def door_detections(policy, snapshot) -> tuple:
     for use in memory.uses:
         power = BY_KEY[use.used]
         if power.effect not in DOOR_DETECTIONS:
+            continue
+        radius = ctx.radius(power, unknown_is_dark=True)
+        if use.reason.endswith(POWERFUL_SUFFIX):
+            radius = radius * 3 // 2
+        found.append((use.position, radius, use.turn))
+    return tuple(found)
+
+
+# The effects that run detect_traps (detect_all calls it), for door_detect_cover's trap record.
+TRAP_DETECTIONS = frozenset({"detect-traps", "detect-all"})
+
+
+def trap_detections(policy, snapshot) -> tuple:
+    """(centre, radius, turn) of every landed trap detection this floor visit cast, read as
+    ``door_detections`` (detect_feat_flag clears CAVE_UNSAFE within the whole range)."""
+    memory = getattr(policy, MEMORY, None)
+    if memory is None or memory.floor != snapshot.floor_key:
+        return ()
+    ctx = Context(policy, snapshot, FLOOR, memory)
+    found = []
+    for use in memory.uses:
+        power = BY_KEY[use.used]
+        if power.effect not in TRAP_DETECTIONS:
             continue
         radius = ctx.radius(power, unknown_is_dark=True)
         if use.reason.endswith(POWERFUL_SUFFIX):

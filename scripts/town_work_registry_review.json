@@ -98,6 +98,9 @@
   "purchase:priority-ware:rocket": [
     "optional-buy"
   ],
+  "purchase:priority-ware:detection-rod": [
+    "optional-buy"
+  ],
   "purchase:black-market:speed": [
     "optional-buy"
   ],

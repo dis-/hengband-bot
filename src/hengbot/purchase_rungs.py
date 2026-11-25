@@ -81,6 +81,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     # A Wand of Rockets: the device table absorbs it after the Tower's recharge
     # (me_device_policy.awaits_absorption).
     "priority-ware:rocket": "me-staff:absorb",
+    # The carried Rod of Detection on 50F+ (deep_detection_rod.retained_count).
+    "priority-ware:detection-rod": "deep-detection-rod",
     # Read at once by _town_remove_curse_key.
     "curse:normal": CONSUMED_ON_USE,
     "curse:star-reserve": "remove-curse:reserve",
@@ -139,6 +141,8 @@ PURCHASE_RUNG_TIER: dict[str, str] = {
     "priority-ware:telepathy": TIER_PRIORITY,
     "priority-ware:speed-staff": TIER_PRIORITY,
     "priority-ware:rocket": TIER_PRIORITY,
+    # Owner 2026-11-26 「50F以降は全感知のロッドを持つ」 (bm_destruction_fund.PRIORITY_WARES).
+    "priority-ware:detection-rod": TIER_PRIORITY,
     # 任意 -- the stock above the departure's needs.
     "restore:proactive": TIER_OPTIONAL,
     "experience:restore-life-levels": TIER_OPTIONAL,
