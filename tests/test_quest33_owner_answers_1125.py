@@ -129,5 +129,45 @@ class B3VerdictReadAgainTest(_FloorBoards, unittest.TestCase):
         self.assertEqual(len(self.reads), 2)
 
 
+class B6KeptWaitTest(_FloorBoards, unittest.TestCase):
+    """(b)-6 (answered unlike the recommendation) 「誘い出しで待ち始めたマスに、待ち始めた時より他の敵が3体以上
+    多く来られるようになったら、一番少ないマスへ移る」."""
+
+    HERE, OTHER = (13, 39), (13, 41)
+
+    def keep_path(self, basis_count, count_here):
+        snapshot = self.board_at(self.HERE)
+        navigator = self.disengaged(snapshot, {1: (DAGON, (14, 20), True)})
+        navigator.summon_target, navigator.summon_hold = 1, 5
+        navigator.summon_hold_basis = (1, self.HERE, basis_count)
+
+        def cells(*_args, **_kwargs):
+            return {count_here: {self.HERE}, 0: {self.OTHER}}
+
+        board = self.sweep_board(snapshot, navigator)
+        walk = [Position(*self.HERE), Position(*self.OTHER)]
+        with mock.patch.object(answer, "lure_cells", cells), \
+                mock.patch.object(quest_room_sweep, "_path", lambda *_a, **_k: walk):
+            return answer._lure_path(self.policy, snapshot, navigator, self.plan, board, 1, close=False, keep=True)
+
+    def test_three_more_others_move_to_the_fewest(self):
+        count, path = self.keep_path(0, 3)
+        self.assertEqual((count, path[-1]), (0, Position(*self.OTHER)))
+
+    def test_two_more_others_keep_the_cell(self):
+        self.assertEqual(self.keep_path(1, 3), (3, [Position(*self.HERE)]))
+
+    def test_the_wait_notes_how_many_act_where_it_begins(self):
+        dagon = monster(self.policy, 1, DAGON, (14, 20))
+        snapshot = self.board_at((13, 39), sensed=(dagon,))
+        navigator = self.disengaged(snapshot, {1: (DAGON, (14, 20), True)})
+        quest_room_sweep.key(self.policy, snapshot)
+        count, path = answer._lure_path(self.policy, snapshot, navigator, self.plan,
+                                        self.sweep_board(snapshot, navigator), 1, close=False)
+        there = self.board_at((path[-1].y, path[-1].x))
+        quest_room_sweep.key(self.policy, there)
+        self.assertEqual(navigator.summon_hold_basis, (1, (path[-1].y, path[-1].x), count))
+
+
 if __name__ == "__main__":
     unittest.main()

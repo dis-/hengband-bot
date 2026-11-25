@@ -916,6 +916,11 @@ def lure_cells(policy, snapshot, navigator, plan, board, index, *, close, wander
     return by_count
 
 
+# How many more other members act on the cell the lure's wait holds than when the wait began on it,
+# from which the wait leaves it for the cell where the fewest act (owner 2026-11-25 (b)-6).
+KEEP_WAIT_MORE_OTHERS = 3
+
+
 def _lure_path(policy, snapshot, navigator, plan, board, index, *, close, keep=False):
     """(how many others act there, the walk) to the reachable pulling cells of member ``index`` where
     the fewest others act; the walk is ``[here]`` standing on one; None with none reachable.
@@ -927,15 +932,23 @@ def _lure_path(policy, snapshot, navigator, plan, board, index, *, close, keep=F
     wait into a walk back and forth (n1-a life-537, Quest 33, 2026-11-25 12:37: the 巨大火アリ 9
     stepping between [27,53] and [26,54] at the edge of its vision (14) put [29,40] in and out of its
     pulling cells, and the player between [29,40] and [29,41] until the livelock stop; owner
-    2026-11-13 pingpong 「理由が消えるまで戻らない」: the cell is kept while its reason holds)."""
+    2026-11-13 pingpong 「理由が消えるまで戻らない」: the cell is kept while its reason holds).
+    Owner 2026-11-25 (b)-6 (verbatim answer) 「誘い出しで待ち始めたマスに、待ち始めた時より他の敵が3体以上
+    多く来られるようになったら、一番少ないマスへ移る」: not kept once ``KEEP_WAIT_MORE_OTHERS`` or more
+    other members act on it than when the wait began there (``navigator.summon_hold_basis``); then
+    the cell where the fewest act, as at the start (owner 2026-11-19)."""
     from hengbot import quest_room_sweep  # it asks this module for its rungs
 
     here = _cell(snapshot.player.position)
     by_count = sorted(lure_cells(policy, snapshot, navigator, plan, board, index, close=close).items())
     if keep:
+        basis = navigator.summon_hold_basis
         for count, cells in sorted(lure_cells(policy, snapshot, navigator, plan, board, index, close=close,
                                               wander=True).items()):
             if here in cells:
+                if (basis is not None and basis[:2] == (index, here)
+                        and count - basis[2] >= KEEP_WAIT_MORE_OTHERS):
+                    break
                 return count, [snapshot.player.position]
     for count, cells in by_count:
         if here in cells:
@@ -1100,7 +1113,14 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
     path = found[1]
     if len(path) == 1:
         # On a pulling cell: hold for what follows; seen from here, its cell is read by _note_group.
-        return None if close else _hold_for(policy, navigator)
+        if close:
+            return None
+        here = _cell(snapshot.player.position)
+        basis = navigator.summon_hold_basis
+        if basis is None or basis[:2] != (navigator.summon_target, here):
+            # The wait begins on this cell (owner 2026-11-25 (b)-6): how many others act on it now.
+            navigator.summon_hold_basis = (navigator.summon_target, here, found[0])
+        return _hold_for(policy, navigator)
     return quest_plan_base._path_step(policy, snapshot, path, LURE_WALK_REASON)
 
 

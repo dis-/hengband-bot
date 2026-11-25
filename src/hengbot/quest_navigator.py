@@ -146,6 +146,9 @@ class QuestFloorNavigator:
     # index -> (quest_wait_placement.hide_line of the board it was read on, whether the wait's cap has
     # read it again since), replaced whole, pruned with the verdicts.  Same rule.
     summon_comes_basis = {}
+    # The lure's wait as it began (quest_summon_answer ``_lure``, owner 2026-11-25 (b)-6): (the member
+    # lured, the cell held, how many other members acted on it then), or None.  Same rule.
+    summon_hold_basis = None
     summon_chase = None
     # Where the room sweep waits (quest_wait_placement): the stop being waited for and the chosen
     # quest_wait_placement.Choice, as (stage, round, Choice); and the waits that ran out with nothing
@@ -248,6 +251,7 @@ class QuestFloorNavigator:
         self.summon_unreached = {}
         self.summon_comes = {}
         self.summon_comes_basis = {}
+        self.summon_hold_basis = None
         self.wait_goal = None
         self.wait_spent = ()
         self.wait_idle = None
