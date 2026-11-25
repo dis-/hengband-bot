@@ -1,0 +1,163 @@
+"""Quest 33 on n1-a life-537 (2026-11-25 10:10:58-10:11:52): the lure and the fire answer alternate
+at the 船幽霊's water.
+
+The chain (Zombie warrior Lv48, HP 1169, no bolts for the heavy crossbow; decisions 71077-71102 of
+the quest floor, one process, in the summon answer's steps after a disengage, ``luring``):
+
+ * The member lured is the 船幽霊 38 (race 1389: AQUATIC, 10d10 HP, BO_WATE/SCARE 1_IN_8; it never
+   leaves the deep water, quest_summon_answer ``_stays``), so the lure closes on it at once, to a
+   cell it is seen from (``summoned-lure-walk``), and holds there for what follows.
+ * There the two 船幽霊 in [12..13,43..44] cast water bolts; no shot reaches them (no bolts), so the
+   fire answer walks out of their line (``fire-disengage-walk``); out of it, the lure walks back.
+ * The two (and the hold between them) alternated on [15..18,39..41] until the livelock stop, while
+   one blow (expected 100 a player action against the 10d10 HP) from the shore cell [14,42] beside
+   [13,43] kills one.  Decisions 70035-70047 (the same pair at [2..3,43..45]) had ended in the
+   livelock guard's teleport the same way.
+
+The rule (owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」, the plan's
+「召還持ちを優先して周辺のモンスターを倒す」; owner 2026-11-13 pingpong: one verdict for the walkers):
+the cells a monster that never comes is killed from (``attack_cells``: its shot, or the dry cell
+beside it a blow reaches) are where both the fire answer and the lure go.
+
+Recorded: tests/fixtures/n1a-537-q33-shore-1125 (tests/extract_n1a_537_q33_shore_1125_fixture.py):
+the policy replayed by the code of the live process from the town arrival through the floor's
+boards up to decision 71077 (it reproduces the recorded decisions), and the boards 71077 to the
+stop.  The policy decides them in order through the public ``choose_key``, each key confirmed as
+posted; the boards are the recorded cells, not where the replayed keys lead.
+
+DECLARED CONSTRUCTED (``ShoreBlowTest``): the board of 71099 (both 船幽霊 in view on [13,43] and
+[13,44]) with the player moved onto [14,42], beside [13,43].
+"""
+import tests  # noqa: F401 -- isolate runtime files for a bare-module run
+
+import copy
+import json
+import lzma
+import unittest
+from pathlib import Path
+
+from hengbot.latch_onset_capture import restore_checkpoint_bytes
+from hengbot.model import Position, parse_snapshot
+from hengbot.policy import HengbotPolicy
+from hengbot import quest_plan_base, quest_summon_answer
+from hengbot.quest_plan_base import MELEE_REASON
+
+FIXTURE = Path(__file__).with_name("fixtures") / "n1a-537-q33-shore-1125"
+CASE = json.loads(lzma.decompress((FIXTURE / "boards.json.xz").read_bytes()))
+PHANTOM_SHIP = 1389
+SHORE = Position(14, 42)
+LOOP = range(71089, 71103)
+STEPS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
+
+
+def policy():
+    return restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((FIXTURE / "policy.pkl.xz").read_bytes()))
+
+
+def drive(boards=None):
+    """[(recorded row, the board, key, reason, the cells the 船幽霊 are killed from)] of the boards
+    decided in order by the fixture's policy."""
+    deciding = policy()
+    out = []
+    for raw, row in zip(CASE["boards"] if boards is None else boards, CASE["recorded"]):
+        snapshot = parse_snapshot(copy.deepcopy(raw), deciding._monrace_knowledge)
+        key = str(deciding.choose_key(snapshot))
+        navigator = deciding._quest_navigators.get(33)
+        ground = (frozenset() if navigator is None else frozenset(
+            cell for cell, kind in quest_plan_base._terrain_of(navigator, snapshot, water=False).items()
+            if kind in {"floor", "passage"}))
+        # The shore: the dry ground beside a 船幽霊 (no bolts: no shot is taken from anywhere).
+        cells = {Position(monster.position.y + dy, monster.position.x + dx) for monster in ships(snapshot)
+                 for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                 if (monster.position.y + dy, monster.position.x + dx) in ground}
+        out.append((row, snapshot, key, deciding.last_reason, (cells, ground)))
+        deciding.confirm_key_posted(key)
+    return out
+
+
+def walk_length(ground, start, cells) -> int:
+    """The fewest steps over the dry ground from ``start`` to one of ``cells``."""
+    goals = {(cell.y, cell.x) for cell in cells}
+    frontier, seen, steps = [(start.y, start.x)], {(start.y, start.x)}, 0
+    while frontier:
+        if goals & set(frontier):
+            return steps
+        steps += 1
+        frontier = [(y + dy, x + dx) for y, x in frontier for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                    if (y + dy, x + dx) in ground and (y + dy, x + dx) not in seen]
+        seen |= set(frontier)
+    return 999
+
+
+def ships(snapshot):
+    return [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            if monster.race_id == PHANTOM_SHIP]
+
+
+class TheRecordingTest(unittest.TestCase):
+
+    def test_the_lure_and_the_fire_answer_alternate_at_the_water(self):
+        rows = {row["sequence"]: (row, raw) for raw, row in zip(CASE["boards"], CASE["recorded"]) if row}
+        reasons = [rows[sequence][0]["reason"] for sequence in LOOP]
+        self.assertEqual(set(reasons), {quest_summon_answer.LURE_WALK_REASON, quest_summon_answer.FIRE_WALK_REASON,
+                                        "quest-strategy:hold"})
+        self.assertGreaterEqual(reasons.count(quest_summon_answer.FIRE_WALK_REASON), 5)
+        self.assertGreaterEqual(reasons.count(quest_summon_answer.LURE_WALK_REASON), 3)
+        cells = {(raw["player"]["y"], raw["player"]["x"]) for _row, raw in (rows[s] for s in LOOP)}
+        self.assertLessEqual(cells, {(y, x) for y in range(15, 19) for x in range(39, 42)})
+        self.assertIn("船幽霊がウォーター・ボルトの呪文を唱えた。", rows[71101][1]["messages"])
+        self.assertIsNone(CASE["recorded"][-1])   # the stop's board: no decision recorded
+
+    def test_the_phantom_ship_never_leaves_its_water(self):
+        deciding = policy()
+        knowledge = deciding._monrace_knowledge[PHANTOM_SHIP]
+        self.assertIn("AQUATIC", knowledge.flags)
+        self.assertTrue(quest_summon_answer._stays(deciding, PHANTOM_SHIP))
+
+
+class OneVerdictTest(unittest.TestCase):
+
+    def test_the_fire_answer_closes_on_the_shore_and_never_leaves(self):
+        answers = drive()
+        loop = [answer for answer in answers if answer[0] is not None and answer[0]["sequence"] in LOOP]
+        reasons = {answer[3] for answer in loop}
+        self.assertNotIn(quest_summon_answer.FIRE_WALK_REASON, reasons)
+        # No hold with a 船幽霊 in view (the one at 71089, both known by telepathy only and out of
+        # line, is the plan's wait for what comes).
+        self.assertEqual([row["sequence"] for row, snapshot, _key, reason, _cells in loop
+                          if reason == "quest-strategy:hold"
+                          and any(monster.race_id == PHANTOM_SHIP for monster in snapshot.visible_monsters)], [])
+        # Every step of the loop's boards (the lure's and the fire answer's alike) heads for the cells
+        # the 船幽霊 are killed from (the shore beside them), never away.
+        steps = 0
+        for row, snapshot, key, reason, (cells, ground) in loop:
+            if key not in STEPS:
+                continue
+            steps += 1
+            self.assertTrue(cells, row["sequence"])
+            dy, dx = STEPS[key]
+            here = snapshot.player.position
+            there = Position(here.y + dy, here.x + dx)
+            self.assertLess(walk_length(ground, there, cells), walk_length(ground, here, cells),
+                            (row["sequence"], reason, key))
+        self.assertGreaterEqual(steps, 10)
+        # From [15,41] the step is onto the shore [14,42], beside the 船幽霊 on [13,43].
+        on_shore_side = {key for _row, snapshot, key, _reason, _cells in loop
+                         if snapshot.player.position == Position(15, 41)}
+        self.assertEqual(on_shore_side, {"9"})
+
+
+class ShoreBlowTest(unittest.TestCase):
+
+    def test_beside_the_phantom_ship_the_blow(self):
+        boards = copy.deepcopy(CASE["boards"])
+        index = next(i for i, row in enumerate(CASE["recorded"]) if row and row["sequence"] == 71099)
+        boards[index]["player"] = {**boards[index]["player"], "y": SHORE.y, "x": SHORE.x}
+        row, snapshot, key, reason, _cells = drive(boards[:index + 1])[-1]
+        self.assertEqual(row["sequence"], 71099)
+        self.assertIn(Position(13, 43), {monster.position for monster in ships(snapshot)})
+        self.assertEqual((reason, key), (MELEE_REASON, "9"))
+
+
+if __name__ == "__main__":
+    unittest.main()

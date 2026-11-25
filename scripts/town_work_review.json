@@ -21517,6 +21517,38 @@
     "delegation": "selected child; no independent success",
     "evidence": "The room sweep's walk (quest_room_sweep._path) to the nearest cell out of the given hostiles' lines; emits no key."
   },
+  "quest_summon_answer.py:_shooting_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: the cells a shot at a hostile is taken from (range, line, a shot that hurts it); emits no key."
+  },
+  "quest_summon_answer.py:_blow_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: the dry cells beside a hostile that never comes (NEVER_MOVE, AQUATIC) from which a blow hurts it; emits no key."
+  },
+  "quest_summon_answer.py:attack_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: the cells a hostile that does not come is killed from (its shooting cells and blow cells), read by the fire answer and the lure; emits no key."
+  },
+  "quest_summon_answer.py:stranded": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: the hostiles in view acting on the player that never come and have attack cells; emits no key."
+  },
   "quest_summon_answer.py:fire_answer_key": {
     "classification": "producer",
     "rows": [
