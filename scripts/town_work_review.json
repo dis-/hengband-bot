@@ -25218,5 +25218,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "QUEST_33 and the room sweeps: a Magic-Eater with no shot and an absorbed attack power a rest restores: a step out of the lines, else the counted rest (R100) that restores them (owner 2026-11-25 (b)-2)."
+  },
+  "quest_summon_answer.py:teleport_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_summon_answer.after_key on an ABSORBED_FIRST_QUESTS floor (Quest 33) with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 after a disengage, the absorbed Teleportation at one charge or less: a step out of the lines, else the counted rest (R100) that restores it, before the lure (owner 2026-11-25 (c)-1)."
   }
 }

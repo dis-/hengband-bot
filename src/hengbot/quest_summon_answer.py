@@ -109,6 +109,7 @@ from hengbot import (
     attack_expectation,
     combat_answer,
     me_absorbed_substitutes,
+    me_capability,
     me_device_attacks,
     me_ranged_first,
     quest_alignment_split,
@@ -863,6 +864,44 @@ def recharge_rest_key(policy, snapshot, navigator, plan, board, races) -> str | 
     return RECHARGE_REST_KEY
 
 
+# Owner 2026-11-25 (c)-1 (verbatim answer, as recommended) 「Q33 で取り込んだテレポートの回数が少ない時は
+# 射線の外で休んで回数を戻してから釣り出しを続ける」.  No count of "few" was named before (no constant of
+# the absorbed Teleportation's charges in me_powers or the Q33 plan): the one escape left, the least
+# that still takes the player out once.
+TELEPORT_FEW_CHARGES = 1
+
+
+def teleport_short(policy, snapshot) -> bool:
+    """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation (me_capability) has at most
+    ``TELEPORT_FEW_CHARGES`` and fewer than its count, so a rest restores some (hpmp/
+    hp-mp-regenerator.cpp regenmagic: each absorbed staff gains charge toward its count)."""
+    if policy._active_fixed_quest_id(snapshot) not in ABSORBED_FIRST_QUESTS:
+        return False
+    kind, sval = me_absorbed_substitutes.TELEPORTATION
+    if not me_capability.has(policy, snapshot, kind, sval):
+        return False
+    charges = me_capability.charges(policy, snapshot, kind, sval)
+    return charges <= TELEPORT_FEW_CHARGES and charges < me_capability.count(policy, snapshot, kind, sval)
+
+
+def teleport_rest_key(policy, snapshot, navigator, plan, board) -> str | None:
+    """Owner 2026-11-25 (c)-1: the absorbed Teleportation short (``teleport_short``), out of every
+    awake hostile's line the counted rest of ``recharge_rest_key`` (its list read again after it),
+    before the lure goes on."""
+    if not teleport_short(policy, snapshot):
+        return None
+    player = snapshot.player
+    watchers = _watchers(snapshot)
+    if watchers and not _out_of_lines(snapshot, navigator, watchers):
+        path = _out_of_lines_path(policy, snapshot, navigator, plan, board, watchers)
+        return quest_plan_base._path_step(policy, snapshot, path, FIRE_WALK_REASON)
+    if player.confused or player.food_state not in {"normal", "full", "gorged"}:
+        return None
+    me_device_attacks.mark_stale(policy, {me_absorbed_substitutes.TELEPORTATION[0]})
+    policy.last_reason = RECHARGE_REST_REASON
+    return RECHARGE_REST_KEY
+
+
 def _side_of(policy, race, split) -> str | None:
     knowledge = policy._monrace_knowledge.get(race)
     mark = quest_alignment_split.side(knowledge)
@@ -1182,6 +1221,9 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
         # Nothing acts on the player and nothing is lured: the next one to act starts its own wait.
         navigator.summon_hold = 0
     if (rested := _rest_key(policy, snapshot)) is not None:
+        return rested
+    # Owner 2026-11-25 (c)-1: the absorbed Teleportation short, a rest out of the lines first.
+    if (rested := teleport_rest_key(policy, snapshot, navigator, plan, board)) is not None:
         return rested
     if recharging and (recharged := _recharge_key(policy, snapshot, navigator, plan, board, recharging)) is not None:
         return recharged

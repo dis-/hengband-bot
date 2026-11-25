@@ -17076,6 +17076,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_summon_answer.py:teleport_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_summon_answer.py:walk_key": {
     "classification": "producer",
     "rows": [

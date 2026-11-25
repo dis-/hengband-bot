@@ -18,7 +18,7 @@ from unittest import mock
 
 from hengbot import me_absorbed_substitutes, me_capability, quest_room_sweep, quest_wait_placement
 from hengbot import quest_summon_answer as answer
-from hengbot.model import Position
+from hengbot.model import SV_SCROLL_PHASE_DOOR, SV_STAFF_TELEPORTATION, Position
 from hengbot.quest_plan_base import _navigator
 from tests.test_quest33_alignment_split import DAGON, QUEST, monster
 from hengbot.q34_recharge import REST_KEY
@@ -167,6 +167,38 @@ class B6KeptWaitTest(_FloorBoards, unittest.TestCase):
         there = self.board_at((path[-1].y, path[-1].x))
         quest_room_sweep.key(self.policy, there)
         self.assertEqual(navigator.summon_hold_basis, (1, (path[-1].y, path[-1].x), count))
+
+
+class C1TeleportRestTest(_FloorBoards, unittest.TestCase):
+    """(c)-1 (as recommended) 「Q33 で取り込んだテレポートの回数が少ない時は射線の外で休んで回数を戻してから
+    釣り出しを続ける」; "few": the one escape left (``TELEPORT_FEW_CHARGES``, no earlier constant)."""
+
+    def teleport_current(self, current):
+        lists = dict(self.policy._me_device_lists)
+        names = me_capability.names("staff", SV_STAFF_TELEPORTATION)
+        turn, rows = lists["staff"][0], lists["staff"][1]
+        lists["staff"] = (turn, [dict(row, current=current) if row.get("name") in names else row for row in rows],
+                          *lists["staff"][2:])
+        self.policy._me_device_lists = lists
+
+    def lure_board(self, current):
+        dagon = monster(self.policy, 1, DAGON, (14, 20))
+        snapshot = self.board_at((13, 39), sensed=(dagon,))
+        self.disengaged(snapshot, {1: (DAGON, (14, 20), True)})
+        self.teleport_current(current)
+        return snapshot
+
+    def test_one_charge_left_the_rest_comes_before_the_lure(self):
+        snapshot = self.lure_board(1)
+        self.assertTrue(answer.teleport_short(self.policy, snapshot))
+        key = quest_room_sweep.key(self.policy, snapshot)
+        self.assertEqual((key, self.policy.last_reason), (REST_KEY, answer.RECHARGE_REST_REASON))
+
+    def test_two_charges_the_lure_goes_on(self):
+        snapshot = self.lure_board(2)
+        self.assertFalse(answer.teleport_short(self.policy, snapshot))
+        quest_room_sweep.key(self.policy, snapshot)
+        self.assertEqual(self.policy.last_reason, answer.LURE_WALK_REASON)
 
 
 if __name__ == "__main__":
