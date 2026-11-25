@@ -544,8 +544,13 @@ def _walk_spared_positions(policy, snapshot, target, *, near=None) -> list:
 
 
 def _use_spared_positions(policy, snapshot, target, *, near=None) -> list:
-    """The spared cells that refuse the use itself (``_spared_in_circle``, ``_powered_scene``)."""
-    return _spared_positions(policy, snapshot, target, near=near, remembered=True)
+    """The spared cells that refuse the use itself (``_spared_in_circle``, ``_powered_scene``):
+    the board only.  Owner 2026-11-17 「*破壊* の決まりに『起きている敵だけ』『感知範囲の中だけ』は
+    無い」 (the implementation must not narrow the use) and 2026-11-25 (maintainability review
+    contradictions 1125, answer (b)-4) 「見えない『残す守護者』の記憶で止めるのは *破壊* へ近づく
+    歩きだけ」: the remembered guardian (ae69991689) refused the emergency and escape uses too, for
+    the memory's 1,000 game turns, while it was no longer shown."""
+    return _spared_positions(policy, snapshot, target, near=near, remembered=False)
 
 
 def kept_guardians_unseen(policy, snapshot, shown) -> list:
