@@ -82,7 +82,10 @@ taken or, with no shot, from the dry cells beside it by the blow (``attack_cells
 Owner 2026-11-25 (verbatim) 「撃つ手も取り込んだ魔法道具の手も無い時はそれを許可するが、休憩して魔法道具の
 使用回数を戻せる場合はその限りではない」: a Magic-Eater closes on it to melee only with no shot and no
 absorbed attack power for it; with a power a rest restores (``recharges_first``) he leaves its line and
-rests there (``_recharge_key``), then shoots it with the power.
+rests there (``_recharge_key``), then shoots it with the power.  Owner 2026-11-25 (b)-1 (the audit's
+question 「寄って近接の相手の範囲」, answered as recommended): only such a member is closed on to melee;
+one that does not come for another reason (a pack that hides, one that runs, one in a locked room) is
+closed on to a shot's cell, and with no shot it is the plan's (its wait, its lure, its sweep).
 
 QUEST_33's sides (quest_alignment_split): every walk here goes round the cells where both sides act,
 and a member of one side is pulled only to a cell no living summoner of the other side acts on (by its
@@ -369,14 +372,14 @@ def _shooting_cells(policy, snapshot, navigator, firer) -> set[Position]:
             and _sight_line(open_cells, spot, cell)}
 
 
-def _blow_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Position]:
+def _blow_cells(policy, snapshot, navigator, monster) -> set[Position]:
     """The dry ground beside a monster that never comes to the player (``_stays``: NEVER_MOVE, or
     AQUATIC in its water) from which the player's blow reaches it: melee scores above it zero
     (attack_expectation.melee).  A monster that comes is met where it comes (the plan's hold).
     A Magic-Eater closes on it to melee only with no shot and no absorbed power for it
     (``melee_withheld``, owner 2026-11-25).  ``stays``: the member's verdict (``never_comes``), else
     the race's (``_stays``)."""
-    if (melee_approach(policy, snapshot, monster, site=BLOW_SITE, stays=stays) != MELEE
+    if (melee_approach(policy, snapshot, monster, site=BLOW_SITE) != MELEE
             or attack_expectation.melee(policy, snapshot, monster) <= 0):
         return set()
     cell = _cell(monster.position)
@@ -422,30 +425,31 @@ SWEEP_SITE = "sweep"
 CHASE_SITE = "chase"
 
 
-def melee_approach(policy, snapshot, monster, *, site, stays=None) -> str:
+def melee_approach(policy, snapshot, monster, *, site) -> str:
     """The one gate on the walks that close on ``monster`` to melee it (contradiction audit
     2026-11-25 (a)-4): ``MELEE``, ``REST_FIRST`` or ``REFUSED`` at ``site``.
 
-    * ``BLOW_SITE``: a monster that never comes (``stays``: the member's verdict, ``never_comes``;
-      else the race's, ``_stays``); a Magic-Eater not while he has a shot or an absorbed power for
-      it (``melee_withheld``), resting first for the power a rest restores (``recharges_first``,
-      owner 2026-11-25).
-    * ``SWEEP_SITE``: a NEVER_MOVE monster (quest_plan_base.never_moves).
+    * ``BLOW_SITE`` and ``SWEEP_SITE``, a monster the plan closes on because it does not come:
+      owner 2026-11-25 (b)-1 (the audit's question 「寄って近接の相手の範囲」, as recommended): only one that
+      never leaves the water or never moves (``_stays``: quest_plan_base.never_moves ``in_water``).
+      A pack that hides, a monster that runs, one in a locked room is not closed on to melee: with no
+      shot it is the plan's (its wait, its lure, its sweep).  At ``BLOW_SITE`` a Magic-Eater not while
+      he has a shot or an absorbed power for it (``melee_withheld``), resting first for the power a
+      rest restores (``recharges_first``, owner 2026-11-25).
     * ``CHASE_SITE``: the summoner gone after (owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を
       優先する」)."""
     if site == CHASE_SITE:
         return MELEE
-    if site == SWEEP_SITE:
-        return MELEE if quest_plan_base.never_moves(policy, monster.race_id) else REFUSED
-    stays = _stays(policy, monster.race_id) if stays is None else stays
-    if not stays:
+    if not _stays(policy, monster.race_id):
         return REFUSED
+    if site == SWEEP_SITE:
+        return MELEE
     if melee_withheld(policy, snapshot, monster.race_id):
         return REST_FIRST if recharges_first(policy, snapshot, monster.race_id) else REFUSED
     return MELEE
 
 
-def attack_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Position]:
+def attack_cells(policy, snapshot, navigator, monster) -> set[Position]:
     """The one verdict of where the player stands to kill ``monster`` when it does not come to him:
     a cell its shot is taken from (``_shooting_cells``) or, for one that never comes, a dry cell
     beside it (``_blow_cells``).  The fire answer closes on these (``fire_answer_key``) and the lure
@@ -458,21 +462,24 @@ def attack_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Pos
     answer (no shot) walked out of their line, and the two alternated with the hold until the
     livelock stop, while one blow (expected 100 a player action) from [14,42] kills one."""
     return (_shooting_cells(policy, snapshot, navigator, monster)
-            | _blow_cells(policy, snapshot, navigator, monster, stays=stays))
+            | _blow_cells(policy, snapshot, navigator, monster))
 
 
 def stranded(policy, snapshot, navigator, plan, board, acting) -> list:
-    """Of ``acting`` (what acts on the player), those in view that never come (``_stays``), are not
-    beside him and have cells they are killed from (``attack_cells``): no wait brings them (owner
-    2026-11-19 「有効な場所で待つ」), so they are closed on as the fire is (``fire_answer_key``).
-    One the Magic-Eater recharges for (``recharges_first``) has no such cell yet: the fire answer
-    takes him out of its line, where the rest is taken (``_recharge_key``)."""
+    """Of ``acting`` (what acts on the player), those in view that do not come (``never_comes``),
+    are not beside him and have cells they are killed from (``attack_cells``: a shot's cell, and for
+    one that never leaves the water or never moves the dry cell beside it, owner 2026-11-25 (b)-1):
+    no wait brings them (owner 2026-11-19 「有効な場所で待つ」), so they are closed on as the fire is
+    (``fire_answer_key``).  One that never leaves the water or never moves and that the
+    Magic-Eater recharges for (``recharges_first``) has no such cell yet: the fire answer takes him
+    out of its line, where the rest is taken (``_recharge_key``).  One that does not come with no
+    such cell (a hiding pack, a monster in a locked room, no shot) is not closed on: the plan's."""
     indices = {monster.index for monster in acting}
     return [monster for monster in board.in_view
             if monster.index in indices and not monster.asleep and monster not in board.beside
             and _comes_not(policy, snapshot, navigator, plan, board, monster)
-            and (attack_cells(policy, snapshot, navigator, monster, stays=True)
-                 or recharges_first(policy, snapshot, monster.race_id))]
+            and (attack_cells(policy, snapshot, navigator, monster)
+                 or (_stays(policy, monster.race_id) and recharges_first(policy, snapshot, monster.race_id)))]
 
 
 def fire_answer_key(policy, snapshot, navigator, plan, board, firers) -> str | None:
@@ -499,8 +506,7 @@ def fire_answer_key(policy, snapshot, navigator, plan, board, firers) -> str | N
         return None
     shooting = set()
     for firer in firers:
-        shooting |= attack_cells(policy, snapshot, navigator, firer,
-                                 stays=_comes_not(policy, snapshot, navigator, plan, board, firer))
+        shooting |= attack_cells(policy, snapshot, navigator, firer)
     if shooting and snapshot.player.position not in shooting:
         path = quest_room_sweep._path(policy, navigator, plan, snapshot, shooting, board.occupied)
         if (key := quest_plan_base._path_step(policy, snapshot, path, FIRE_APPROACH_REASON)) is not None:
@@ -878,7 +884,7 @@ def lure_cells(policy, snapshot, navigator, plan, board, index, *, close, wander
     attack = None
     if close and never_comes(policy, snapshot, navigator, plan, board, index):
         attack = {_cell(spot) for spot in attack_cells(
-            policy, snapshot, navigator, _member(policy, snapshot, navigator, index), stays=True)}
+            policy, snapshot, navigator, _member(policy, snapshot, navigator, index))}
     by_count: dict[int, set] = {}
     for spot, kind in walkable.items():
         if (kind not in _STAND or spot in refused or spot in occupied
@@ -978,8 +984,9 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
     the sweep grid's flow, the hiding of an animal pack, the doors and the ground it cannot cross),
     comes to none of the nearest pulling cells (``_COMING_SPOTS``).  A member that does not come is
     not lured nor waited for (owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で
-    待つ」): it is closed on to the cells it is killed from (``attack_cells``), and one no walk reaches
-    such a cell of is left to the plan (``_unreached``).
+    待つ」): it is closed on to the cells it is killed from (``attack_cells``: a shot's cells, and the
+    dry cells beside it only for one that never leaves the water or never moves, owner 2026-11-25
+    (b)-1), and one no walk reaches such a cell of, or with none, is left to the plan (``_unreached``).
 
     n1-a life-537 (Quest 33, 2026-11-25 13:18): the 巨大火アリ (race 548: FRIENDS, ANIMAL, no spell)
     by the tree columns [24..27,53..55] hid from the player at full HP and SP
