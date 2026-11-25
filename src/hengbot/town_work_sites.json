@@ -16649,6 +16649,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_room_sweep.py:_noting_contact.noted": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_room_sweep.py:_out_of_line": {
     "classification": "producer",
     "rows": [

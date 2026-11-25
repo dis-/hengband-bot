@@ -106,6 +106,8 @@ breeder stalemate, starvation) leaves the board to them.
 
 from __future__ import annotations
 
+import functools
+
 from hengbot import (
     combat_answer,
     left_cells,
@@ -358,10 +360,47 @@ def _next_stop(navigator, plan) -> None:
     if navigator.sweep_stage >= len(_stops(plan)):
         navigator.sweep_stage = 0
         navigator.sweep_round += 1
-        # A round walked with no hostile on any board: the stops find nothing more (n1-c life-217,
-        # Quest 33, 2026-11-20 00:45-01:22: [20,39] and the two last targets walked round 12 times).
+        # A round in which the plan answered no hostile (``_note_contact``): the stops find nothing
+        # more (n1-c life-217, Quest 33, 2026-11-20 00:45-01:22: [20,39] and the two last targets
+        # walked round 12 times; n1-a life-537, 2026-11-25: 100 rounds past two cave spiders).
         navigator.sweep_found_nothing = not navigator.sweep_round_contact
         navigator.sweep_round_contact = False
+
+
+# The walk's own answers: on a board with a hostile known they leave it be (``_note_contact``).
+_WALK_REASONS = frozenset({WALK_REASON, LIGHT_REASON, OPEN_REASON, NOTHING_LEFT_REASON,
+                           NOTHING_COMES_REASON, SPLIT_BLOCKED_REASON})
+
+
+def _walk_mark(navigator) -> tuple:
+    """Where the walk stands before a decision: a stop's own wait moves it (``_hold_key``)."""
+    return navigator.sweep_stage, navigator.sweep_round, navigator.sweep_meet_turns
+
+
+def _note_contact(policy, snapshot, navigator, answered, *, enemy, mark: tuple) -> None:
+    """The round met a hostile only when the plan answered one: a blow, a shot, a wait for what
+    comes, a summon's answer, the shared ladders' fight (``answered`` None with an enemy on the
+    board), anything but the walk's own steps (``_WALK_REASONS``, a stop's own wait).
+
+    n1-a life-537 (Quest 33, 2026-11-25 19:51-20:21, Zombie warrior Lv48 with telepathy and no bolts):
+    two 洞窟蜘蛛 (race 60: level 2, vision 8, WEIRD_MIND), random monsters of the map's ``5``, wandered
+    the trees at [18,47..51] and the west room's [20,3..4].  The telepathy showed one on a few boards
+    of every round, no shot reached it (no bolts) and no walk went to it (the plan closes only on
+    what never moves, owner 2026-11-25 (b)-1), yet each board counted as the round's contact, so no
+    round was found empty and kill_all_patrol was never asked: the stops were walked 100 times and the
+    plan stopped by name (``NOTHING_LEFT_REASON``, 20:21:45) with the quest open.  Owner 2026-11-13
+    「全滅クエストで作戦を終えても終わらない時は周回して探す・感知があれば感知して探す」: a round in which
+    the plan answered nothing is a round that found nothing, and the patrol hunts what is known."""
+    if not any(monster.hostile for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)):
+        return
+    if answered is None:
+        engaged = enemy()
+    elif policy.last_reason == HOLD_REASON:
+        engaged = _walk_mark(navigator) == mark
+    else:
+        engaged = policy.last_reason not in _WALK_REASONS
+    if engaged:
+        navigator.sweep_round_contact = True
 
 
 def _light_key(policy, snapshot, navigator, plan) -> str | None:
@@ -452,15 +491,20 @@ def _hold_key(policy, snapshot, navigator, plan, stop) -> str | None:
     return WAIT_KEY
 
 
+def _walk_over(policy, snapshot, navigator, plan) -> bool:
+    """The last round answered no hostile and no tracked summoner lives (the split refuses no cell)."""
+    return navigator.sweep_found_nothing and not _tracked_living(policy, snapshot, navigator, plan)
+
+
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     """The next step of the walk; at a stop, what that stop asks, then the next."""
     here = snapshot.player.position
     # Owner 2026-11-13 「全滅クエストで作戦を終えても終わらない時は周回して探す・感知があれば感知して探す」
-    # and 2026-11-20 「残りの敵を探す時は感知を使うこと」: a round of the stops met no hostile, the quest
+    # and 2026-11-20 「残りの敵を探す時は感知を使うこと」: a round of the stops answered no hostile, the quest
     # is open and no tracked summoner lives (the split no longer refuses a cell): the plan's walk is
     # over and kill_all_patrol detects, hunts what it shows and patrols (its own rounds, then its
     # named stop).  Asked here: a None from this plan would fall to the fixed quest's hold.
-    if navigator.sweep_found_nothing and not _tracked_living(policy, snapshot, navigator, plan):
+    if _walk_over(policy, snapshot, navigator, plan):
         from hengbot import kill_all_patrol   # it reads the navigator, which imports this module
 
         patrolled = kill_all_patrol.key(policy, snapshot)
@@ -518,6 +562,10 @@ def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     navigator.wait_idle = None
     passed = 0
     for _ in range(2 * len(_stops(plan)) + 1):
+        if _walk_over(policy, snapshot, navigator, plan):
+            # The round that ended on this board answered nothing: the patrol now, before the
+            # rounds' bound (n1-a life-537: its 100th round ended so and stopped by name).
+            return _advance(policy, snapshot, navigator, plan, blocked)
         if navigator.sweep_round >= int(plan["max_rounds"]):
             policy.last_reason = NOTHING_LEFT_REASON
             return WAIT_KEY
@@ -577,10 +625,11 @@ def walk_key(policy, snapshot) -> str | None:
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
     quest_detect_remaining.observe(policy, snapshot, navigator, plan)
     quest_mixed_assault.observe(policy, snapshot, navigator, plan)
-    if any(monster.hostile for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)):
-        navigator.sweep_round_contact = True
     _note_gone(policy, snapshot, navigator, plan)
-    return _advance(policy, snapshot, navigator, plan)
+    mark = _walk_mark(navigator)
+    walked = _advance(policy, snapshot, navigator, plan)
+    _note_contact(policy, snapshot, navigator, walked, enemy=lambda: False, mark=mark)
+    return walked
 
 
 # -- the attacker no one sees ----------------------------------------------------------
@@ -743,6 +792,26 @@ def _unseen_light(policy, snapshot, navigator, plan, board) -> str | None:
         policy, snapshot, navigator, plan, _open_terrain(navigator, snapshot), board.hit_by_unseen)
 
 
+def _noting_contact(decide):
+    """``key`` with the round's contact noted from its answer (``_note_contact``): with none, the
+    board's enemy is left to the shared ladders, which fight it."""
+
+    @functools.wraps(decide)
+    def noted(policy, snapshot):
+        plan = _plan(policy, snapshot)
+        if plan is None:
+            return decide(policy, snapshot)
+        navigator = _navigator(policy, snapshot, snapshot.floor_key[2])
+        mark = _walk_mark(navigator)
+        answered = decide(policy, snapshot)
+        _note_contact(policy, snapshot, navigator, answered, mark=mark, enemy=lambda: _Board(
+            policy, snapshot, policy.approved_quest_strategy(navigator.quest_id), navigator, plan).enemy)
+        return answered
+
+    return noted
+
+
+@_noting_contact
 def key(policy, snapshot) -> str | None:
     """The board with an enemy about, or to recover on; None leaves it shared."""
     plan = _plan(policy, snapshot)
@@ -755,8 +824,6 @@ def key(policy, snapshot) -> str | None:
     quest_alignment_split.observe(policy, snapshot, navigator, plan)
     quest_detect_remaining.observe(policy, snapshot, navigator, plan)
     quest_mixed_assault.observe(policy, snapshot, navigator, plan)
-    if any(monster.hostile for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)):
-        navigator.sweep_round_contact = True
     _note_gone(policy, snapshot, navigator, plan)
     _note_last_seen(snapshot, navigator, plan)
     quest_room_light.note_floor_potion(policy, snapshot, navigator, plan)

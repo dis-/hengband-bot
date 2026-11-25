@@ -172,8 +172,8 @@ class QuestFloorNavigator:
     # Same rule.
     remain_seen = {}
     remain_detections = ()
-    # A hostile on a board of the current round of the sweep's stops; the last round met none
-    # (quest_room_sweep: the walk hands the floor to kill_all_patrol).  Same rule.
+    # A hostile the plan answered in the current round of the sweep's stops; the last round answered
+    # none (quest_room_sweep ``_note_contact``: the walk hands the floor to kill_all_patrol).  Same rule.
     sweep_round_contact = False
     sweep_found_nothing = False
     # The sides of QUEST_33 seen mixed and summoning at each other (quest_mixed_assault, owner

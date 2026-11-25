@@ -106,8 +106,11 @@ def key(policy, snapshot) -> str | None:
     hostiles = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
                 if monster.hostile]
     _remember(patrol, snapshot, hostiles)
-    if hostiles:
-        return _hunt(policy, snapshot, hostiles)
+    # One no walk reaches is passed for the others remembered, the detection and the round (a None
+    # here ended the room sweep by name, quest_room_sweep NOTHING_LEFT_REASON); it is asked again
+    # on every board that shows it.
+    if hostiles and (hunted := _hunt(policy, snapshot, hostiles)) is not None:
+        return hunted
     if patrol.targets:
         hunted = _hunt_remembered(policy, snapshot, patrol)
         if hunted is not None:
