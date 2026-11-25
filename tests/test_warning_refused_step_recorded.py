@@ -21,7 +21,8 @@ Declared:
 * 104109: the process is fresh, so the breakthrough latch armed before the
   window and the live claim state (emergency return active, not returning
   to town; claim row 3439 rung _breeder_breakthrough_escape_key) are set
-  after the first board.  The fresh frontier goal differs from live, so the
+  after the first board, and the Recall scroll is withheld (the flag no longer
+  skips the latched floor's Recall since n1-a life-538, 2026-11-26).  The fresh frontier goal differs from live, so the
   prompt of the last board is attributed to the live step (19, 38) -> (20, 37)
   (decision 3439 '1').
 * 120202: the fresh process does not re-arm the choke plan of 3513 (it
@@ -179,6 +180,11 @@ class WarningRefusedStepRecordedTest(unittest.TestCase):
         policy._breeder_breakthrough_floor = board.floor_key
         policy._emergency_return_active = True
         policy._returning_to_town = False
+        # DECLARED CONSTRUCTED: since n1-a life-538 (2026-11-26) the emergency
+        # flag no longer skips the latched floor's Recall
+        # (test_n1a_538_gremlin_breakthrough_1126_recorded), so the walk this
+        # pins is the one a floor without a readable Recall takes.
+        policy._find_recall_scroll = lambda _snapshot: None
 
     def test_breakthrough_routes_around_a_refused_cell(self):
         lines = self.boards[BREEDER]

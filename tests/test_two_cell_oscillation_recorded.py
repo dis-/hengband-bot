@@ -32,7 +32,10 @@ between two cells.  Three recorded instances, one pin each:
     reasons ``breeder-breakthrough:*`` from 5620) and
     ``_emergency_return_active`` (live ``emergency:cure-critical`` 13:06:08,
     decision 4051, same process and floor, which is why the breakthrough's
-    recall branch was skipped) -- DECLARED WALL.  It then reproduces every
+    recall branch was skipped) -- DECLARED WALL.  Since n1-a life-538
+    (2026-11-26) the flag no longer skips that Recall (the latch is the
+    owner's give-up), so the replay also withholds the Recall scroll
+    (DECLARED CONSTRUCTED) to keep pinning the walk.  It then reproduces every
     live (key, reason) of 5620-5646; 5647 is the first board with a
     non-breeder adjacent and the first divergence (R4): nothing later is
     asserted.
@@ -250,6 +253,10 @@ class BreederBreakthroughAdjacentHostileRecordedTest(unittest.TestCase):
                 # DECLARED WALL: both latches the live log shows armed.
                 self.policy._breeder_breakthrough_floor = board.floor_key
                 self.policy._emergency_return_active = True
+                # DECLARED CONSTRUCTED: since n1-a life-538 (2026-11-26) that
+                # flag no longer skips the latched floor's Recall; the walk
+                # pinned here is the one a floor without a readable Recall takes.
+                self.policy._find_recall_scroll = lambda _snapshot: None
             key = self.policy.choose_key(board)
             rows[sequence] = (_key(key), self.policy.last_reason)
             self.policy.confirm_key_posted(key)

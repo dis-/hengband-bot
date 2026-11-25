@@ -136,7 +136,7 @@
   },
   "policy_combat.py:_breeder_breakthrough_key": {
     "self._breeder_breakthrough_escape_key(snapshot) @ ": 1,
-    "self._dungeon_recall_confirmation_key(snapshot) @ If:body:not mining_walks_to_stairs and (abandon or (self._active_fixed_quest_id(snapshot) is None and (not self._return_exit_locked(snapshot)))) and (not self._emergency_return_active or self._returning_to_town) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
+    "self._dungeon_recall_confirmation_key(snapshot) @ If:body:not mining_walks_to_stairs and (abandon or (self._active_fixed_quest_id(snapshot) is None and (not self._return_exit_locked(snapshot)))) and (not snapshot.player.blind) and (not snapshot.player.confused)": 1
   },
   "policy_combat.py:_choke_engagement_key": {
     "self._ranged_attack_key(snapshot, visible_triggers, adjacent) @ If:body:not adjacent": 1
