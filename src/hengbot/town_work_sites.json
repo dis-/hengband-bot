@@ -19829,6 +19829,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "walk_vetoes.py:off_entrances": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "walk_vetoes.py:route_left": {
     "classification": "data",
     "rows": [
