@@ -21547,7 +21547,42 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success",
-    "evidence": "QUEST_33: the hostiles in view acting on the player that never come and have attack cells; emits no key."
+    "evidence": "QUEST_33: the hostiles in view acting on the player that never come and have attack cells, or that a Magic-Eater recharges for; emits no key."
+  },
+  "quest_summon_answer.py:recharges_first": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "A Magic-Eater with no shot at a race now and an absorbed attack power for it that a rest restores (owner 2026-11-25); emits no key."
+  },
+  "quest_summon_answer.py:_recharging": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: the group members that never come and that the Magic-Eater recharges for; emits no key."
+  },
+  "me_device_attacks.py:restorable_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The held absorbed attack powers with no use now that would hurt a race once refilled (regenmagic); emits no key."
+  },
+  "quest_summon_answer.py:_recharge_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_summon_answer.after_key, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 after a disengage, a Magic-Eater before a member that never comes with its attack powers spent: a step out of the lines, else the counted rest (R100) that restores them (owner 2026-11-25)."
   },
   "quest_summon_answer.py:fire_answer_key": {
     "classification": "producer",

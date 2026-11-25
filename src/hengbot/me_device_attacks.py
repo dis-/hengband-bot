@@ -333,10 +333,16 @@ def observe_lists(policy, snapshot) -> None:
 
 
 def stale_kinds(policy) -> frozenset:
-    """The kinds whose displayed list a Restore Mana made stale (``observe_lists``): their
-    uses are unknown until the game shows the list again (me_powers_refresh ``resume_read_key``
-    reads it on the next board)."""
+    """The kinds whose displayed list a Restore Mana made stale (``observe_lists``), or a counted
+    recharge rest (``mark_stale``): their uses are unknown until the game shows the list again
+    (me_powers_refresh ``resume_read_key`` reads it on the next board)."""
     return frozenset(getattr(policy, STALE, ()) or ())
+
+
+def mark_stale(policy, kinds) -> None:
+    """``kinds``' displayed lists are stale: a rest posted now refills their powers
+    (hpmp/hp-mp-regenerator.cpp regenmagic), and the list shown before it says nothing of that."""
+    setattr(policy, STALE, frozenset(stale_kinds(policy) | set(kinds)))
 
 
 def _blast_centres(snapshot, power, target, direction):
@@ -446,6 +452,30 @@ def usable_powers(policy, snapshot):
     for power, row in held_powers(policy):
         if _available(power, row):
             yield power, power_success(policy, snapshot, power, row)
+
+
+def restorable_powers(policy, snapshot, race_id) -> list:
+    """The held absorbed attack powers (``held_powers``) with no use now (``_available``) that
+    would hurt ``race_id`` once a use comes back: a rest restores each of them.
+
+    hpmp/hp-mp-regenerator.cpp regenmagic, every regeneration tick: each absorbed staff and wand
+    (count > 0) gains charge toward ``count * EATER_CHARGE``, and each absorbed rod's charging
+    counts down toward 0 (ready), whatever the player does; so a listed power (the game lists only
+    count > 0) without a use now has one again after enough game time.  Counted as
+    ``devices_against`` counts a power (not the group-only nor the whole-sight ones), at its
+    success under the board's stun and its damage after the race's known resistance: a power the
+    target is immune to is not waited for.
+
+    Owner 2026-11-25 (verbatim) 「撃つ手も取り込んだ魔法道具の手も無い時はそれを許可するが、休憩して魔法道具の
+    使用回数を戻せる場合はその限りではない」: the Magic-Eater with such a power rests for it before
+    closing on a monster that never comes to melee it (quest_summon_answer ``recharges_first``)."""
+    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
+        return []
+    flags = race_id_flags(policy, race_id)
+    level = snapshot.player.level
+    return [power for power, row in held_powers(policy)
+            if not _available(power, row) and not power.group_only and power.shape != "sight"
+            and power_success(policy, snapshot, power, row) * expected_damage(power, level, flags) > 0]
 
 
 def powerful_ready(policy, snapshot) -> bool:

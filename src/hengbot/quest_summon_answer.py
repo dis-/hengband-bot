@@ -77,6 +77,13 @@ After the disengage, owner 2026-11-19 (verbatim): 「まず離脱後の周辺状
      waits and the luring until a tracked summoner dies or it comes into view: one acting on the
      player from beyond the pits no longer holds him for ever (n1-c life-217, 2026-11-19).
 
+A member that never comes (NEVER_MOVE, or AQUATIC in its water) is killed from where its shot is
+taken or, with no shot, from the dry cells beside it by the blow (``attack_cells``, n1-a life-537).
+Owner 2026-11-25 (verbatim) 「撃つ手も取り込んだ魔法道具の手も無い時はそれを許可するが、休憩して魔法道具の
+使用回数を戻せる場合はその限りではない」: a Magic-Eater closes on it to melee only with no shot and no
+absorbed attack power for it; with a power a rest restores (``recharges_first``) he leaves its line and
+rests there (``_recharge_key``), then shoots it with the power.
+
 QUEST_33's sides (quest_alignment_split): every walk here goes round the cells where both sides act,
 and a member of one side is pulled only to a cell no living summoner of the other side acts on (by its
 vision or its line), so the pulled monster is not drawn into the other side's line.  A summon received
@@ -99,6 +106,7 @@ from hengbot import (
     attack_expectation,
     combat_answer,
     me_absorbed_substitutes,
+    me_device_attacks,
     me_ranged_first,
     quest_alignment_split,
     quest_exposure,
@@ -110,10 +118,12 @@ from hengbot import (
     teleport_follower,
     threat_tiers,
 )
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, REST_MACRO, WAIT_KEY
 from hengbot.projection_path import projection_path
 from hengbot.q2_kill_credit import _killed as kill_line
+from hengbot.q34_recharge import REST_KEY as RECHARGE_REST_KEY
 
 FIELD = "summon_answer"
 KILL_OR_DISENGAGE = "kill_or_disengage"
@@ -131,6 +141,9 @@ DISENGAGE_WALK_REASON = "quest-strategy:summoned-disengage-walk"
 LURE_WALK_REASON = "quest-strategy:summoned-lure-walk"
 APPROACH_REASON = "quest-strategy:summoned-approach"
 REST_REASON = "quest-strategy:summoned-rest"
+# The Magic-Eater's counted rest ('R100', the Q34/Q25 recharge rest) out of the lines for the absorbed
+# attack powers a monster that never comes is killed with (``recharges_first``, owner 2026-11-25).
+RECHARGE_REST_REASON = "quest-strategy:summoned-rest-recharge"
 # What fires at the player and no blow or shot of the board reaches (``fire_answer_key``): the step
 # to where it is shot from, else out of its line.
 FIRE_APPROACH_REASON = "quest-strategy:fire-approach"
@@ -328,13 +341,40 @@ def _shooting_cells(policy, snapshot, navigator, firer) -> set[Position]:
 def _blow_cells(policy, snapshot, navigator, monster) -> set[Position]:
     """The dry ground beside a monster that never comes to the player (``_stays``: NEVER_MOVE, or
     AQUATIC in its water) from which the player's blow reaches it: melee scores above it zero
-    (attack_expectation.melee).  A monster that comes is met where it comes (the plan's hold)."""
-    if not _stays(policy, monster.race_id) or attack_expectation.melee(policy, snapshot, monster) <= 0:
+    (attack_expectation.melee).  A monster that comes is met where it comes (the plan's hold).
+    A Magic-Eater closes on it to melee only with no shot and no absorbed power for it
+    (``melee_withheld``, owner 2026-11-25)."""
+    if (not _stays(policy, monster.race_id) or attack_expectation.melee(policy, snapshot, monster) <= 0
+            or melee_withheld(policy, snapshot, monster.race_id)):
         return set()
     cell = _cell(monster.position)
     walkable = quest_plan_base._terrain_of(navigator, snapshot, water=False)
     return {Position(*spot) for spot, kind in walkable.items()
             if kind in _STAND and quest_exposure.game_distance(spot, cell) == 1}
+
+
+def recharges_first(policy, snapshot, race_id) -> bool:
+    """A Magic-Eater with no shot at ``race_id`` now (attack_expectation.ranged_against: the
+    launcher and the charged absorbed powers) and an absorbed attack power for it that a rest
+    restores (me_device_attacks.restorable_powers).
+
+    Owner 2026-11-25 (verbatim), asked whether the Magic-Eater too closes on the shore or beside a
+    monster that never leaves the water or never moves to melee it when it has no shot: 「撃つ手も
+    取り込んだ魔法道具の手も無い時はそれを許可するが、休憩して魔法道具の使用回数を戻せる場合はその限りでは
+    ない」.  So it rests out of the lines (``_recharge_key``) and kills it with the powers."""
+    return (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+            and attack_expectation.ranged_against(policy, snapshot, race_id, RANGED_MAX_DISTANCE) <= 0
+            and bool(me_device_attacks.restorable_powers(policy, snapshot, race_id)))
+
+
+def melee_withheld(policy, snapshot, race_id) -> bool:
+    """A Magic-Eater does not close on a monster that never comes to melee it while it has a shot
+    at it or an absorbed attack power for it that a rest restores (``recharges_first``, owner
+    2026-11-25 「撃つ手も取り込んだ魔法道具の手も無い時はそれを許可する」).  Another class closes on it
+    whenever a blow reaches (n1-a life-537)."""
+    return (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
+            and (attack_expectation.ranged_against(policy, snapshot, race_id, RANGED_MAX_DISTANCE) > 0
+                 or recharges_first(policy, snapshot, race_id)))
 
 
 def attack_cells(policy, snapshot, navigator, monster) -> set[Position]:
@@ -356,11 +396,15 @@ def attack_cells(policy, snapshot, navigator, monster) -> set[Position]:
 def stranded(policy, snapshot, navigator, board, acting) -> list:
     """Of ``acting`` (what acts on the player), those in view that never come (``_stays``), are not
     beside him and have cells they are killed from (``attack_cells``): no wait brings them (owner
-    2026-11-19 「有効な場所で待つ」), so they are closed on as the fire is (``fire_answer_key``)."""
+    2026-11-19 「有効な場所で待つ」), so they are closed on as the fire is (``fire_answer_key``).
+    One the Magic-Eater recharges for (``recharges_first``) has no such cell yet: the fire answer
+    takes him out of its line, where the rest is taken (``_recharge_key``)."""
     indices = {monster.index for monster in acting}
     return [monster for monster in board.in_view
             if monster.index in indices and not monster.asleep and monster not in board.beside
-            and _stays(policy, monster.race_id) and attack_cells(policy, snapshot, navigator, monster)]
+            and _stays(policy, monster.race_id)
+            and (attack_cells(policy, snapshot, navigator, monster)
+                 or recharges_first(policy, snapshot, monster.race_id))]
 
 
 def fire_answer_key(policy, snapshot, navigator, plan, board, firers) -> str | None:
@@ -692,6 +736,38 @@ def _rest_key(policy, snapshot) -> str | None:
     return REST_MACRO
 
 
+def _recharging(policy, snapshot, navigator) -> frozenset:
+    """The members of the group that never come (``_stays``) and that the Magic-Eater rests for
+    before he kills them (``recharges_first``)."""
+    return frozenset(index for index, (race, _cell_, _summons) in navigator.summon_group.items()
+                     if _stays(policy, race) and recharges_first(policy, snapshot, race))
+
+
+def _recharge_key(policy, snapshot, navigator, plan, board, recharging) -> str | None:
+    """Owner 2026-11-25 「休憩して魔法道具の使用回数を戻せる場合はその限りではない」: for the members
+    ``recharging``, out of every awake hostile's line a counted rest (``R100``, as the Q34 and Q25
+    recharge rests) that restores the absorbed powers (me_device_attacks.restorable_powers); in a
+    line, a step out of it first (the fire answer's walk).  The displayed lists of those powers are
+    stale after the rest and are read again before the next decision (me_device_attacks
+    ``mark_stale``, me_powers_refresh ``resume_read_key``); a power with a use again is a shot, and
+    the member is closed on to its shooting cells (``attack_cells``).  The rests on one cell are
+    bounded (stationary_bounds ``SUMMONED_RECHARGE_REST_MAX_DECISIONS``)."""
+    player = snapshot.player
+    watchers = _watchers(snapshot)
+    if watchers and not _out_of_lines(snapshot, navigator, watchers):
+        path = _out_of_lines_path(policy, snapshot, navigator, plan, board, watchers)
+        return quest_plan_base._path_step(policy, snapshot, path, FIRE_WALK_REASON)
+    if player.confused or player.food_state not in {"normal", "full", "gorged"}:
+        return None
+    kinds = set()
+    for index in recharging:
+        race = navigator.summon_group[index][0]
+        kinds |= {power.kind for power in me_device_attacks.restorable_powers(policy, snapshot, race)}
+    me_device_attacks.mark_stale(policy, kinds)
+    policy.last_reason = RECHARGE_REST_REASON
+    return RECHARGE_REST_KEY
+
+
 def _side_of(policy, race, split) -> str | None:
     knowledge = policy._monrace_knowledge.get(race)
     mark = quest_alignment_split.side(knowledge)
@@ -843,6 +919,11 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
     # the others and the plan's own sweep go on.
     unreached = _unreached(navigator, board)
     acting = [monster for monster in acting if monster.index not in unreached]
+    # Owner 2026-11-25 「休憩して魔法道具の使用回数を戻せる場合はその限りではない」: a member that never comes
+    # and that the Magic-Eater rests for is neither waited for nor closed on until its power is back
+    # (``_recharge_key`` below), nor left as one no walk reaches.
+    recharging = _recharging(policy, snapshot, navigator)
+    acting = [monster for monster in acting if monster.index not in recharging]
     # Owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: held for only while one
     # of them will come here (quest_wait_placement); else closed on at once, as past the wait.
     coming = [monster for monster in acting
@@ -867,6 +948,8 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
         navigator.summon_hold = 0
     if (rested := _rest_key(policy, snapshot)) is not None:
         return rested
+    if recharging and (recharged := _recharge_key(policy, snapshot, navigator, plan, board, recharging)) is not None:
+        return recharged
     if not navigator.summon_group:
         navigator.summon_state = None
         navigator.summon_target = None
