@@ -31,6 +31,13 @@ back to the start of the recorded round: the last stop [25,73], round 98, the ro
 met (as the recorded process counted every round).  So set, the policy reproduces every recorded
 decision of the round but the stop's.  ``UnreachedTest`` moves the spider of a recorded board out of
 every walk's reach.
+
+The restart (``RestartTest``): the process resumed at 22:48:21 with the round's contact fixed (bot
+main 25ec1bfae) restored the record of the stop -- round 100, the last round not found empty, as the
+old count had left it -- and stopped by name again on its first plan decision on [25,73].  The record
+(restart-quest-plan.pkl.xz) is set on the fixture's policy as it is, as quest_plan_record.restore sets
+it, with the same kills, and the board is the restart's.  A plan whose rounds' bound is walked with the
+summoners dead has ended unwon too: the patrol, not the stop.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -56,21 +63,27 @@ CAVE_SPIDER = 60
 STEPS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1), "7": (-1, -1), "8": (-1, 0), "9": (-1, 1)}
 
 
-def policy(*, round_before_found_nothing=False):
-    """The fixture's policy with the record's plan state, at the start of the recorded round."""
+def restored(record="quest-plan.pkl.xz"):
+    """The fixture's policy with a plan record set on it as a restart sets it, and the kills."""
     deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress(POLICY.read_bytes()))
-    held = pickle.loads(lzma.decompress((FIXTURE / "quest-plan.pkl.xz").read_bytes()))
+    held = pickle.loads(lzma.decompress((FIXTURE / record).read_bytes()))
     for name, value in held["states"].items():
         setattr(deciding, name, value)
     navigator = held["navigators"][QUEST]
     navigator.split_kills = dict(collections.Counter(race for race, _turn in CASE["kills"]))
     navigator.split_kill_turns = tuple(tuple(kill) for kill in CASE["kills"])
+    deciding._quest_navigators[QUEST] = navigator
+    return deciding, navigator
+
+
+def policy(*, round_before_found_nothing=False):
+    """The fixture's policy with the record's plan state, at the start of the recorded round."""
+    deciding, navigator = restored()
     plan = deciding.approved_quest_strategy(QUEST).engagement_plan["room_sweep"]
     navigator.sweep_stage = len(quest_room_sweep._stops(plan)) - 1
     navigator.sweep_round = int(plan["max_rounds"]) - 2
     navigator.sweep_round_contact = not round_before_found_nothing
     navigator.sweep_found_nothing = round_before_found_nothing
-    deciding._quest_navigators[QUEST] = navigator
     return deciding
 
 
@@ -156,6 +169,22 @@ class UnreachedTest(unittest.TestCase):
         (_snapshot, key, reason), = drive(deciding, [raw])
         self.assertNotEqual(reason, quest_room_sweep.NOTHING_LEFT_REASON)
         self.assertEqual(reason, kill_all_patrol.WALK_REASON)
+        self.assertIn(key, STEPS)
+
+
+class RestartTest(unittest.TestCase):
+
+    def test_the_restored_record_of_the_stop_is_the_patrols(self):
+        recorded = CASE["restart_recorded"]
+        self.assertEqual((recorded["sequence"], recorded["reason"]), (1, quest_room_sweep.NOTHING_LEFT_REASON))
+        deciding, navigator = restored("restart-quest-plan.pkl.xz")
+        plan = deciding.approved_quest_strategy(QUEST).engagement_plan["room_sweep"]
+        self.assertEqual((navigator.sweep_stage, navigator.sweep_round, navigator.sweep_found_nothing),
+                         (0, int(plan["max_rounds"]), False))
+        (snapshot, key, reason), = drive(deciding, [CASE["restart_board"]])
+        self.assertEqual(snapshot.player.position, Position(25, 73))
+        self.assertNotEqual(reason, quest_room_sweep.NOTHING_LEFT_REASON)
+        self.assertTrue(reason.startswith(kill_all_patrol.REASON), reason)
         self.assertIn(key, STEPS)
 
 

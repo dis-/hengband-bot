@@ -10,7 +10,10 @@ Copied to C:/hengband-backups/pdca/n1a-537-q33-nothing-left-1125 (SOURCE.txt):
    same stand (turn 4326278);
  * ``decision-tail.jsonl.gz``: the decisions of 20:20:06-20:21:45 (every one of these boards);
  * ``quest-plan.pkl`` and ``sweep-kills.json``: the plan state and the tracked races' kills the
-   process left at the stop (quest_plan_record, quest_sweep_record).
+   process left at the stop (quest_plan_record, quest_sweep_record);
+ * ``restart-quest-plan.pkl``, ``restart-board.jsonl.gz`` and ``restart-decision-tail.jsonl.gz``: the process resumed at 22:48:21 (bot
+   main 25ec1bfae, incident capture 20261125-224821-quest-blocked-sweep-nothing-left) restored that
+   record and stopped by name again on this board, its first plan decision (the kills unchanged).
 
 The fixture keeps the boards with their recorded decision (sequence, turn, reason, key), the
 navigator of the plan record and the kills.  The test restores them on the policy of
@@ -59,9 +62,19 @@ def main():
     kills = json.loads((ROOT / "sweep-kills.json").read_text(encoding="utf-8"))
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / "quest-plan.pkl.xz").write_bytes(lzma.compress((ROOT / "quest-plan.pkl").read_bytes(), preset=PRESET))
+    (OUTPUT / "restart-quest-plan.pkl.xz").write_bytes(
+        lzma.compress((ROOT / "restart-quest-plan.pkl").read_bytes(), preset=PRESET))
+    restart = list(_rows(ROOT / "restart-board.jsonl.gz"))
+    assert len(restart) == 1 and restart[0]["turn"] == boards[-1]["turn"]
+    # The restarted process's last decision (the rows of ``restart-decision-tail.jsonl.gz``: the
+    # stop of 20:21:45, the restart's start record, its two decisions).
+    last = [row for row in _rows(ROOT / "restart-decision-tail.jsonl.gz") if "decision_sequence" in row][-1]
+    restart_row = {"sequence": last["decision_sequence"], "turn": last["turn"], "reason": last["reason"],
+                   "key": last["key"], "time": last["time"]}
     (OUTPUT / "boards.json.xz").write_bytes(lzma.compress(json.dumps(
         {"source": "n1a-537-q33-nothing-left-1125", "boards": boards, "recorded": recorded,
-         "kills": kills["kills"]},
+         "kills": kills["kills"], "restart_board": restart[0],
+         "restart_recorded": restart_row},
         ensure_ascii=False, separators=(",", ":")).encode("utf-8"), preset=PRESET))
     sys.stdout.write(f"{OUTPUT} {len(boards)} boards\n")
 
