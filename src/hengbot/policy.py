@@ -14425,6 +14425,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         The standing floor's form is ``_guardian_descent_blocked`` (the
         ``guardian-kit-insufficient`` return); ``_pick_alternate_dungeon`` asks
         the same question of a candidate's recall landing before switching to it.
+
+        While the finale is prepared (owner 2026-11-26 「守護者は追わない」, finale_prep
+        ``forbids_hunting``) an unconquered guardian floor is refused whatever the kit: going
+        down onto it is going to its guardian.
         """
         info = self._dungeon_knowledge.get(dungeon_id)
         return bool(
@@ -14432,7 +14436,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and info.guardian_id > 0
             and dungeon_id not in snapshot.conquered_dungeon_ids
             and depth >= info.max_depth
-            and not self._guardian_fight_viable(snapshot, info)
+            and (finale_prep.forbids_hunting(self, snapshot)
+                 or not self._guardian_fight_viable(snapshot, info))
         )
 
 
@@ -15201,10 +15206,15 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return None
 
     def _target_guardian_floor_id(self, snapshot: Snapshot) -> int | None:
-        """The final guardian's race when this is the target dungeon's final floor."""
+        """The final guardian's race when this is the target dungeon's final floor.
+
+        None while the finale is prepared (owner 2026-11-26 「守護者は追わない」, finale_prep
+        ``forbids_hunting``): neither the hunt of the unseen guardian (hunt_target) nor the
+        guardian rung's reposition seeks it out."""
         info = self._dungeon_knowledge.get(snapshot.floor_key[0])
         if (
-            info is None
+            finale_prep.forbids_hunting(self, snapshot)
+            or info is None
             or snapshot.floor_key[0] != self._target_dungeon_id
             or snapshot.dungeon_level != info.max_depth
             or info.guardian_id <= 0
