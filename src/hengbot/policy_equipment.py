@@ -1958,7 +1958,9 @@ class EquipmentMixin:
                 snapshot, search_catalog, self._monrace_knowledge,
                 **{**optimizer_inputs, "loadout_report_path": None},
                 finale=True, cap_lifted=True))
-        # The phase's loadout step: this search (in the finale's rank) chooses its fixed target.
+        # The phase's check step ends on its search (no decision holds the swap after it), and
+        # its loadout step: this search (in the finale's rank) chooses its fixed target.
+        finale_prep.check_done(self, snapshot)
         finale_prep.fix_target(self, snapshot, preparation)
         return preparation
 
