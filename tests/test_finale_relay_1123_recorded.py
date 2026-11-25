@@ -13,12 +13,15 @@ DECLARED CONSTRUCTED: the expedition's mark (finale_prep ``lifted``) and the abs
 (tests/support/finale_416 ``device_lists``: the Staff of Teleportation charged; the snapshot log
 carries no list, and the 98F boards show the staffs cast, 'mAj', 'mAw'); the regeneration's quest
 and its ``ascend`` phase on the 99F board (the policy is primed on that board only);
-``test_no_staff_charge_recalls``: the Teleportation staff's row at 0 charges.
+``test_no_staff_charge_recalls``: the Teleportation staff's row at 0 charges;
+``test_healing_spent_recalls``: the last 98F board's Healing (26) and *Healing* (15) taken out
+(owner 2026-11-25: the relay floor recalls with both spent, as the way down does).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import contextlib
 import copy
+import dataclasses
 import gzip
 import io
 import json
@@ -26,9 +29,11 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import finale_hold, finale_prep, me_capability
+from hengbot import finale_descent, finale_hold, finale_prep, me_capability
 from hengbot.me_absorbed_substitutes import TELEPORTATION
-from hengbot.model import DUNGEON_ANGBAND, parse_snapshot
+from hengbot.model import (
+    DUNGEON_ANGBAND, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_STAR_HEALING,
+    parse_snapshot)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from support import finale_416
 from support.recorded import EDIT, _policy
@@ -110,6 +115,25 @@ class FinaleRelayFloor1123RecordedTest(unittest.TestCase):
         self.assertTrue(finale_hold.return_due(policy, board))
         self.assertEqual(decided[-1][1:], ("rf", "return:recall"))
         self.assertEqual(policy._last_return_trigger, finale_hold.RETURN_TRIGGER)
+
+    def test_healing_spent_recalls(self):
+        policy, board, _decided = self.drive()
+        self.assertTrue(finale_hold.relay_floor(policy, board))
+        self.assertFalse(policy._should_start_town_return(board))
+
+        def without(*svals):
+            return dataclasses.replace(board, inventory=[
+                item for item in board.inventory
+                if not (item.is_potion and item.sval in svals)])
+
+        # Either kind left keeps the floor; the Cure Critical Wounds are not counted.
+        self.assertFalse(policy._should_start_town_return(without(SV_POTION_HEALING)))
+        self.assertFalse(policy._should_start_town_return(without(SV_POTION_STAR_HEALING)))
+        self.assertFalse(policy._should_start_town_return(without(SV_POTION_CURE_CRITICAL)))
+        spent = without(SV_POTION_HEALING, SV_POTION_STAR_HEALING)
+        self.assertEqual(len(spent.inventory), len(board.inventory) - 2)
+        self.assertTrue(policy._should_start_town_return(spent))
+        self.assertEqual(policy._last_return_trigger, finale_descent.HEALING_TRIGGER)
 
 
 if __name__ == "__main__":

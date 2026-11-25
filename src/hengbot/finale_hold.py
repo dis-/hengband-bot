@@ -12,7 +12,8 @@ which counts the Teleportation scrolls only: n1-b life-416 (21:09:12, live seq64
 with no scroll but the absorbed Staff of Teleportation charged and recalled at once under
 ``teleport-low``.  On the relay floor (``relay_floor``) the return check now asks the finale's line
 instead of the supply ledger (``return_due``: no scroll and no staff charge, or the Restore Mana
-overspent; policy_town ``_should_start_town_return``).
+overspent; policy_town ``_should_start_town_return``), and (owner 2026-11-25, as on the way down)
+the Potions of Healing and *Healing* spent (finale_descent ``healing_spent``).
 
 **The town while Angband is refused for its depth.**  Owner 2026-11-21 (LOCKED)
 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」 and owner 2026-11-19 「鉄獄50F以降は浅い階層への

@@ -8617,11 +8617,10 @@ class TownMixin:
                     else finale_descent.RETURN_TRIGGER))
                 return True
             # Owner 2026-11-25 (maintainability review contradictions 1125, answer (b)-5,
-            # 「回復の薬が尽きたら帰還する」, the Healing and the *Healing*): the pickup, the waiting
-            # and the pack-full return stay off.  The relay floor keeps the finale's own line
-            # only, as before the descent.
-            if (not finale_hold.relay_floor(self, snapshot)
-                    and finale_descent.healing_spent(snapshot)):
+            # 「回復の薬が尽きたら帰還する」, the Healing and the *Healing*, and its addition the same
+            # day: on the relay floor as well): the pickup, the waiting and the pack-full return
+            # stay off.
+            if finale_descent.healing_spent(snapshot):
                 return_start.set_trigger(self, finale_descent.HEALING_TRIGGER)
                 return True
             return False
@@ -8703,6 +8702,12 @@ class TownMixin:
             relay = finale_hold.relay_floor(self, snapshot)
             if relay and finale_hold.return_due(self, snapshot):
                 return_start.set_trigger(self, finale_hold.RETURN_TRIGGER)
+                return True
+            # Owner 2026-11-25: the relay floor recalls with the Healing and the *Healing* spent
+            # too (finale_descent ``healing_spent``; the descent's branch above asks it first
+            # wherever finale_descent applies).
+            if relay and finale_descent.healing_spent(snapshot):
+                return_start.set_trigger(self, finale_descent.HEALING_TRIGGER)
                 return True
             ledger_shortages = [] if relay else self._ledger_return_shortages(
                 ledger,
