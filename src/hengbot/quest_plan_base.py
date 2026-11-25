@@ -79,9 +79,30 @@ def _cell(position: Position) -> tuple[int, int]:
     return position.y, position.x
 
 
+def race_flags(policy, race) -> frozenset:
+    """The race's flags as the monster knowledge reads them (empty for an unknown race)."""
+    return frozenset(getattr(policy._monrace_knowledge.get(race), "flags", frozenset()) or ())
+
+
+def flags_never_move(flags, *, in_water: bool = False) -> bool:
+    """The one reading of "it never steps toward the player" from race flags (``never_moves``)."""
+    flags = frozenset(flags or ())
+    return "NEVER_MOVE" in flags or (in_water and "AQUATIC" in flags)
+
+
+def never_moves(policy, race, *, in_water: bool = False) -> bool:
+    """The one "never moves" predicate of the quest plans (contradiction audit 2026-11-25 (a)-1).
+
+    NEVER_MOVE never steps (monster-move.cpp process_monster_movement).  ``in_water``: an AQUATIC
+    one steps only on water (monster-info.cpp monster_can_cross_terrain), so it never comes to the
+    dry cells the plans stand on either; the callers that ask of dry ground pass it (QUEST_33's
+    lure and its closing on, quest_summon_answer), the others ask of NEVER_MOVE alone."""
+    return flags_never_move(race_flags(policy, race), in_water=in_water)
+
+
 def _never_moves(policy, monster) -> bool:
-    knowledge = policy._monrace_knowledge.get(monster.race_id)
-    return knowledge is not None and "NEVER_MOVE" in knowledge.flags
+    """``never_moves`` of a board monster (NEVER_MOVE alone)."""
+    return never_moves(policy, monster.race_id)
 
 
 def _rank(profile, monster) -> tuple[int, int]:
@@ -485,7 +506,7 @@ def hall_away_key(policy, snapshot, candidates=None, reason: str = AWAY_REASON) 
     for monster in (policy._physical_hostiles(snapshot) if candidates is None else candidates):
         knowledge = policy._monrace_knowledge.get(monster.race_id)
         flags = getattr(knowledge, "flags", frozenset())
-        if knowledge is None or "NEVER_MOVE" in flags or (
+        if knowledge is None or flags_never_move(flags) or (
                 "RES_TELE" in flags and flags & {"UNIQUE", "RES_ALL"}):
             continue
         direction = me_powers.beam_direction(policy, snapshot, here, monster.position)

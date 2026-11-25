@@ -992,9 +992,8 @@ def _unvisited_movers(policy, navigator, profile) -> dict[tuple[int, int], set]:
     sealed = sealed_races(profile)
     found: dict[tuple[int, int], set] = {}
     for cell, race in navigator.battlefield.monster_placements:
-        knowledge = policy._monrace_knowledge.get(race)
         if (race in sealed or cell in navigator.exit_cleared_placements
-                or (knowledge is not None and "NEVER_MOVE" in knowledge.flags)):
+                or quest_plan_base.never_moves(policy, race)):
             continue
         found[cell] = {(cell[0] + dy, cell[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
                        if (dy, dx) != (0, 0)

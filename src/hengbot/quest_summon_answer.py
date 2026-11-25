@@ -910,10 +910,9 @@ def _mark_unreached(navigator, index) -> None:
 
 
 def _stays(policy, race) -> bool:
-    """A race that never comes to a pulling cell: NEVER_MOVE never steps, an AQUATIC one steps only
-    on water (monster-info.cpp monster_can_cross_terrain), and the pulling cells are dry ground."""
-    flags = getattr(policy._monrace_knowledge.get(race), "flags", frozenset())
-    return bool({"NEVER_MOVE", "AQUATIC"} & set(flags))
+    """A race that never comes to a pulling cell (the pulling cells are dry ground):
+    quest_plan_base.never_moves with ``in_water`` (NEVER_MOVE, or AQUATIC)."""
+    return quest_plan_base.never_moves(policy, race, in_water=True)
 
 
 # The pulling cells read for a member's coming (``never_comes``): the nearest of them, as the lure

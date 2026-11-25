@@ -85,7 +85,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, replace
 
-from hengbot import quest_alignment_split, quest_detect_remaining, quest_exposure
+from hengbot import quest_alignment_split, quest_detect_remaining, quest_exposure, quest_plan_base
 from hengbot.item_reservation import decision_memo
 from hengbot.model import Position
 
@@ -293,7 +293,7 @@ def _passes(mover: Awaited, other) -> bool:
         return False
     if "KILL_BODY" in flags and "NEVER_BLOW" not in flags and mine.experience * mine.level > theirs.experience * theirs.level:
         return True
-    return "MOVE_BODY" in flags and "NEVER_MOVE" not in flags and mine.experience > theirs.experience
+    return "MOVE_BODY" in flags and not quest_plan_base.flags_never_move(flags) and mine.experience > theirs.experience
 
 
 class _Reader:
@@ -389,7 +389,7 @@ class _Reader:
             if other.key == row.key or _passes(row, other):
                 continue
             monster = other.monster
-            if (monster.asleep or "NEVER_MOVE" in _flags(other) or not self.acts(other, spot)):
+            if (monster.asleep or quest_plan_base.flags_never_move(_flags(other)) or not self.acts(other, spot)):
                 cells.add(other.cell)
         return frozenset(cells)
 
@@ -406,7 +406,7 @@ class _Reader:
     def comes(self, row: Awaited, spot) -> bool:
         """``row`` acts on a player on ``spot`` and will come to him (module docstring)."""
         flags = _flags(row)
-        if row.knowledge is None or "NEVER_MOVE" in flags or not self.acts(row, spot):
+        if row.knowledge is None or quest_plan_base.flags_never_move(flags) or not self.acts(row, spot):
             return False
         if self._runs(row, spot):
             return False
@@ -617,8 +617,6 @@ def _unspent(rows_by_key, spent, spot, keys) -> frozenset:
 
 def _candidates(policy, snapshot, navigator, plan, stand, taken) -> dict:
     """Cell -> steps from ``stand`` over the plan's walking map, within SEARCH_STEPS."""
-    from hengbot import quest_plan_base
-
     terrain = quest_plan_base._terrain_of(navigator, snapshot, water=False)
     walkable = {"floor", "exit", "passage", "shallow_water"}  # quest_exposure's walk (no trees)
     steps = {stand: 0}
