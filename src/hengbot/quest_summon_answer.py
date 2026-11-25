@@ -119,7 +119,8 @@ from hengbot import (
     threat_tiers,
 )
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
-from hengbot.model import Position
+from hengbot.item_reservation import decision_memo
+from hengbot.model import MonsterState, Position
 from hengbot.policy_constants import RANGED_MAX_DISTANCE, REST_MACRO, WAIT_KEY
 from hengbot.projection_path import projection_path
 from hengbot.q2_kill_credit import _killed as kill_line
@@ -338,13 +339,15 @@ def _shooting_cells(policy, snapshot, navigator, firer) -> set[Position]:
             and _sight_line(open_cells, spot, cell)}
 
 
-def _blow_cells(policy, snapshot, navigator, monster) -> set[Position]:
+def _blow_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Position]:
     """The dry ground beside a monster that never comes to the player (``_stays``: NEVER_MOVE, or
     AQUATIC in its water) from which the player's blow reaches it: melee scores above it zero
     (attack_expectation.melee).  A monster that comes is met where it comes (the plan's hold).
     A Magic-Eater closes on it to melee only with no shot and no absorbed power for it
-    (``melee_withheld``, owner 2026-11-25)."""
-    if (not _stays(policy, monster.race_id) or attack_expectation.melee(policy, snapshot, monster) <= 0
+    (``melee_withheld``, owner 2026-11-25).  ``stays``: the member's verdict (``never_comes``), else
+    the race's (``_stays``)."""
+    stays = _stays(policy, monster.race_id) if stays is None else stays
+    if (not stays or attack_expectation.melee(policy, snapshot, monster) <= 0
             or melee_withheld(policy, snapshot, monster.race_id)):
         return set()
     cell = _cell(monster.position)
@@ -377,7 +380,7 @@ def melee_withheld(policy, snapshot, race_id) -> bool:
                  or recharges_first(policy, snapshot, race_id)))
 
 
-def attack_cells(policy, snapshot, navigator, monster) -> set[Position]:
+def attack_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Position]:
     """The one verdict of where the player stands to kill ``monster`` when it does not come to him:
     a cell its shot is taken from (``_shooting_cells``) or, for one that never comes, a dry cell
     beside it (``_blow_cells``).  The fire answer closes on these (``fire_answer_key``) and the lure
@@ -390,10 +393,10 @@ def attack_cells(policy, snapshot, navigator, monster) -> set[Position]:
     answer (no shot) walked out of their line, and the two alternated with the hold until the
     livelock stop, while one blow (expected 100 a player action) from [14,42] kills one."""
     return (_shooting_cells(policy, snapshot, navigator, monster)
-            | _blow_cells(policy, snapshot, navigator, monster))
+            | _blow_cells(policy, snapshot, navigator, monster, stays=stays))
 
 
-def stranded(policy, snapshot, navigator, board, acting) -> list:
+def stranded(policy, snapshot, navigator, plan, board, acting) -> list:
     """Of ``acting`` (what acts on the player), those in view that never come (``_stays``), are not
     beside him and have cells they are killed from (``attack_cells``): no wait brings them (owner
     2026-11-19 「有効な場所で待つ」), so they are closed on as the fire is (``fire_answer_key``).
@@ -402,8 +405,8 @@ def stranded(policy, snapshot, navigator, board, acting) -> list:
     indices = {monster.index for monster in acting}
     return [monster for monster in board.in_view
             if monster.index in indices and not monster.asleep and monster not in board.beside
-            and _stays(policy, monster.race_id)
-            and (attack_cells(policy, snapshot, navigator, monster)
+            and _comes_not(policy, snapshot, navigator, plan, board, monster)
+            and (attack_cells(policy, snapshot, navigator, monster, stays=True)
                  or recharges_first(policy, snapshot, monster.race_id))]
 
 
@@ -431,7 +434,8 @@ def fire_answer_key(policy, snapshot, navigator, plan, board, firers) -> str | N
         return None
     shooting = set()
     for firer in firers:
-        shooting |= attack_cells(policy, snapshot, navigator, firer)
+        shooting |= attack_cells(policy, snapshot, navigator, firer,
+                                 stays=_comes_not(policy, snapshot, navigator, plan, board, firer))
     if shooting and snapshot.player.position not in shooting:
         path = quest_room_sweep._path(policy, navigator, plan, snapshot, shooting, board.occupied)
         if (key := quest_plan_base._path_step(policy, snapshot, path, FIRE_APPROACH_REASON)) is not None:
@@ -800,9 +804,10 @@ def lure_cells(policy, snapshot, navigator, plan, board, index, *, close, wander
     occupied = {_cell(position) for position in board.occupied}
     # A member that never comes, on the board: closed on to the cells it is killed from
     # (``attack_cells``, the fire answer's own), not merely to where it is seen (n1-a life-537).
-    on_board = next((monster for monster in _on_board(snapshot) if monster.index == index), None)
-    attack = (None if not close or on_board is None or not _stays(policy, race)
-              else {_cell(spot) for spot in attack_cells(policy, snapshot, navigator, on_board)})
+    attack = None
+    if close and never_comes(policy, snapshot, navigator, plan, board, index):
+        attack = {_cell(spot) for spot in attack_cells(
+            policy, snapshot, navigator, _member(policy, snapshot, navigator, index), stays=True)}
     by_count: dict[int, set] = {}
     for spot, kind in walkable.items():
         if (kind not in _STAND or spot in refused or spot in occupied
@@ -878,6 +883,65 @@ def _stays(policy, race) -> bool:
     return bool({"NEVER_MOVE", "AQUATIC"} & set(flags))
 
 
+# The pulling cells read for a member's coming (``never_comes``): the nearest of them, as the lure
+# walks to the nearest; a farther one is no wait the lure would take.
+_COMING_SPOTS = 24
+
+
+def _member(policy, snapshot, navigator, index):
+    """Member ``index``: the board's monster, else one of its race on its last cell."""
+    found = next((monster for monster in _on_board(snapshot) if monster.index == index), None)
+    if found is not None:
+        return found
+    race, cell, summons = navigator.summon_group[index]
+    knowledge = policy._monrace_knowledge.get(race)
+    hp = int(getattr(knowledge, "max_hp", 0) or 0)
+    names = getattr(knowledge, "names", None) or ("",)
+    return MonsterState(index=index, position=Position(*cell), hp=hp, max_hp=hp, distance=0,
+                        friendly=False, pet=False, name=names[0], race_id=race, can_summon=bool(summons))
+
+
+def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
+    """The one verdict, read by the lure, its wait and the closing on (``stranded``, ``lure_cells``),
+    whether member ``index`` comes to the player: no (``True``) for a race that never steps off its
+    ground (``_stays``), and for one that, by the game's own moves (quest_wait_placement ``comes``:
+    the sweep grid's flow, the hiding of an animal pack, the doors and the ground it cannot cross),
+    comes to none of the nearest pulling cells (``_COMING_SPOTS``).  A member that does not come is
+    not lured nor waited for (owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で
+    待つ」): it is closed on to the cells it is killed from (``attack_cells``), and one no walk reaches
+    such a cell of is left to the plan (``_unreached``).
+
+    n1-a life-537 (Quest 33, 2026-11-25 13:18): the 巨大火アリ (race 548: FRIENDS, ANIMAL, no spell)
+    by the tree columns [24..27,53..55] hid from the player at full HP and SP
+    (monster-sweep-grid.cpp HidingMoveGridDecider: the open grids round the player, less 2 in a room
+    and 2 for no spell, below 8 x (HP + SP) / (max HP + max SP)): the lure held 200 boards for them on
+    [28,52] and on [27,44], then walked to where they were last seen and the sweep to where it last
+    saw them, in turn, until the livelock stop."""
+    race, cell, _summons = navigator.summon_group[index]
+    if _stays(policy, race):
+        return True
+
+    def compute() -> bool:
+        here = _cell(snapshot.player.position)
+        cells = set()
+        for found in lure_cells(policy, snapshot, navigator, plan, board, index, close=False).values():
+            cells |= found
+        spots = sorted(cells, key=lambda spot: (quest_exposure.game_distance(here, spot), spot))[:_COMING_SPOTS]
+        on_board = next((monster for monster in _on_board(snapshot) if monster.index == index), None)
+        return not quest_wait_placement.come_cells(policy, snapshot, navigator, race, cell, spots, on_board,
+                                                    first=True)
+
+    return decision_memo(policy, "quest_summon_answer.never_comes", snapshot,
+                         (index, race, tuple(cell), tuple(sorted(navigator.summon_group))), compute)
+
+
+def _comes_not(policy, snapshot, navigator, plan, board, monster) -> bool:
+    """``never_comes`` of a board monster (a member, or one acting on the player not yet one)."""
+    if monster.index not in navigator.summon_group:
+        return _stays(policy, monster.race_id)
+    return never_comes(policy, snapshot, navigator, plan, board, monster.index)
+
+
 def _lure(policy, snapshot, navigator, plan, board) -> str | None:
     """Step 4: walk to the pulling cell of the member to pull, or hold there for it.  A member no
     walk reaches is left to the plan (``_unreached``); with none reachable the plan goes on.  A
@@ -890,7 +954,8 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
         for index, (race, _cell_, summons) in navigator.summon_group.items():
             if index in unreached:
                 continue
-            found = _lure_path(policy, snapshot, navigator, plan, board, index, close=_stays(policy, race))
+            found = _lure_path(policy, snapshot, navigator, plan, board, index,
+                               close=never_comes(policy, snapshot, navigator, plan, board, index))
             if found is None:
                 _mark_unreached(navigator, index)
             else:
@@ -900,7 +965,7 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
         navigator.summon_target = min(choices)[-1]
         navigator.summon_hold = 0
     close = (navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
-             or _stays(policy, navigator.summon_group[navigator.summon_target][0]))
+             or never_comes(policy, snapshot, navigator, plan, board, navigator.summon_target))
     # The wait has begun (a hold spent on this member): it goes on on any of its pulling cells.
     found = _lure_path(policy, snapshot, navigator, plan, board, navigator.summon_target, close=close,
                        keep=not close and navigator.summon_hold > 0)
@@ -931,7 +996,7 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
     # (``stranded``, ``attack_cells``): the hold below would wait in its line for nothing.
     indices = {monster.index for monster in acting}
     firers = [*(monster for monster in board.firing if monster.index in indices),
-              *stranded(policy, snapshot, navigator, board, acting)]
+              *stranded(policy, snapshot, navigator, plan, board, acting)]
     if (answered := fire_answer_key(policy, snapshot, navigator, plan, board, firers)) is not None:
         return answered
     # n1-c life-217 (2026-11-19 18:32-19:05, 15,900 holds at [2,56]): two ボーシン awake beyond the

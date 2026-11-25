@@ -16782,6 +16782,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_summon_answer.py:_comes_not": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_summon_answer.py:_disengage": {
     "classification": "producer",
     "rows": [
@@ -16998,6 +17005,20 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_summon_answer.py:never_comes": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "quest_summon_answer.py:never_comes.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_summon_answer.py:recharges_first": {
     "classification": "data",
