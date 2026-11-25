@@ -294,5 +294,67 @@ def assert_closed_on(test, answers, sequences):
     test.assertGreaterEqual(steps, 5)
 
 
+# -- n1-b life-418 (Magic-Eater Lv44, 2026-11-25 13:32:21, main 5d2d334da): the pocket of trees ------
+#
+# A levitating Magic-Eater was put on [20,42] (decision 6338), a dark pit between two tree columns.
+# The plans' walks cross only the walked ground (quest_exposure ``_WALKABLE_KINDS``), so no walk led
+# out: every member of the group was left as no walk reaches it, the 巨大火アリ were shot as they came
+# into view and held for in between (126 holds), and the sweep stopped by name
+# (quest:blocked:sweep-nothing-comes, 6595).  The game lets him walk out (TREE has MOVE, DARK_PIT
+# CAN_FLY for a levitating player): the walk leaves the pocket over them when no other walk leads
+# (quest_plan_base ``_pocket_ground``), and the plan goes on.
+#
+# Recorded: tests/fixtures/n1b-418-q33-blocked-1125 (tests/extract_n1b_418_q33_blocked_1125_fixture.py):
+# the arrival policy replayed by the live code over the floor's boards up to decision 6300, and the
+# boards from it to the stop (with the one skill-list answer among them).
+
+POCKET = Path(__file__).with_name("fixtures") / "n1b-418-q33-blocked-1125"
+POCKET_CASE = json.loads(lzma.decompress((POCKET / "boards.json.xz").read_bytes()))
+IN_POCKET = range(6345, 6596)
+
+
+def drive_pocket():
+    """{sequence: (cell, reason, key)} of n1-b life-418's boards decided in order."""
+    deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((POCKET / "policy.pkl.xz").read_bytes()))
+    out = {}
+    for raw, row in zip(POCKET_CASE["boards"], POCKET_CASE["recorded"]):
+        if raw.get("type") == "knowledge":
+            if getattr(deciding, "_skill_exp_request_inflight", False):
+                deciding.consume_skill_knowledge(raw)
+            continue
+        snapshot = parse_snapshot(copy.deepcopy(raw), deciding._monrace_knowledge)
+        key = str(deciding.choose_key(snapshot))
+        if row is not None:
+            out[row["sequence"]] = ((snapshot.player.position.y, snapshot.player.position.x),
+                                    deciding.last_reason, key)
+        deciding.confirm_key_posted(key)
+    return out
+
+
+class ThePocketRecordingTest(unittest.TestCase):
+
+    def test_held_in_the_pocket_until_the_named_stop(self):
+        rows = {row["sequence"]: (row, raw) for raw, row in zip(POCKET_CASE["boards"], POCKET_CASE["recorded"]) if row}
+        self.assertEqual(rows[6595][0]["reason"], "quest:blocked:sweep-nothing-comes")
+        self.assertEqual({(raw["player"]["y"], raw["player"]["x"]) for _row, raw in (rows[s] for s in IN_POCKET)},
+                         {(20, 42)})
+        reasons = [rows[s][0]["reason"] for s in IN_POCKET]
+        self.assertGreaterEqual(reasons.count("quest-strategy:hold"), 100)
+        self.assertTrue(any(raw["player"]["ability_sources"]["levitation"]["equipment"]
+                            or raw["player"]["ability_sources"]["levitation"]["temporary"]
+                            or raw["player"]["ability_sources"]["levitation"]["permanent"]
+                            for _row, raw in (rows[6595],)))
+
+
+class ThePocketLeftTest(unittest.TestCase):
+
+    def test_the_walk_leaves_the_pocket(self):
+        answers = drive_pocket()
+        in_pocket = [answers[s] for s in IN_POCKET]
+        self.assertNotIn("quest:blocked:sweep-nothing-comes", {reason for _cell, reason, _key in in_pocket})
+        self.assertNotIn("quest-strategy:hold", {reason for _cell, reason, _key in in_pocket})
+        self.assertGreaterEqual(sum(1 for _cell, _reason, key in in_pocket if key in STEPS), 100)
+
+
 if __name__ == "__main__":
     unittest.main()

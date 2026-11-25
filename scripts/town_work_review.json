@@ -21608,6 +21608,14 @@
     "delegation": "selected child; no independent success",
     "evidence": "QUEST_33: never_comes of a board monster; emits no key."
   },
+  "quest_plan_base.py:_pocket_ground": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Quest plans: the tree (and, levitating, dark pit) cells joined to the player's cell, walked out over when no other walk leads; emits no key."
+  },
   "quest_summon_answer.py:fire_answer_key": {
     "classification": "producer",
     "rows": [
