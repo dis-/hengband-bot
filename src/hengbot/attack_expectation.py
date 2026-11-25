@@ -631,6 +631,16 @@ def launcher_against(policy, snapshot, race_id, distance: int) -> float:
                 if ammo.tval == launcher.ammo_tval and ammo.count > 0), default=0.0)
 
 
+def ammo_against(policy, snapshot, race_id, ammo, distance: int) -> float:
+    """``ammo`` from the worn launcher: expected damage per player action against ``race_id``,
+    uncapped (``launcher_against``'s figure for the one stack the shot fires)."""
+    launcher = launcher_usable(policy, snapshot)
+    if launcher is None or ammo is None or ammo.tval != launcher.ammo_tval or ammo.count <= 0:
+        return 0.0
+    return _launcher_stack(snapshot, launcher, ammo, _race_flags(policy, race_id),
+                           _race_armour(policy, race_id), distance)
+
+
 def devices_against(policy, snapshot, race_id, *, area_only: bool = False) -> float:
     """The best absorbed attack power or carried attack wand/rod against ``race_id``.
 

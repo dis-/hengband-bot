@@ -25405,5 +25405,49 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-26 「50F以降は全感知のロッドを持つ」: the carried rod's zap (deep-detection-rod:zap) through reserved_item_command, else the rest while the rod held recharges (deep-detection-rod:wait-recharge); the absorbed rod is cast by me_powers' deep-undetected-step trigger."
+  },
+  "quest_summoner_light.py:light_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: the TAKEN approved quest's profile naming engagement_plan.summoner_light (QUEST_32); off such a floor it answers nothing.",
+    "evidence": "The plan's Light read once for the summoner's area (floor-avoidance rung); no independent progress."
+  },
+  "quest_summoner_light.py:engage_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: the TAKEN approved quest's profile naming engagement_plan.summoner_light (QUEST_32); off such a floor it answers nothing.",
+    "evidence": "The plan's step toward its summoner or the ranged rung's shot at it, inside _quest_execute_key; no independent progress."
+  },
+  "quest_summoner_light.py:engaged": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: the TAKEN approved quest's profile naming engagement_plan.summoner_light (QUEST_32); off such a floor it answers nothing.",
+    "evidence": "Names a never-moving race the plan walks to; sends no key and has no independent progress."
+  },
+  "quest_summoner_light.py:engaged_race": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "context": "Dungeon quest floors only: the TAKEN approved quest's profile naming engagement_plan.summoner_light (QUEST_32); off such a floor it answers nothing.",
+    "evidence": "Names a never-moving race the plan walks to; sends no key and has no independent progress."
   }
 }

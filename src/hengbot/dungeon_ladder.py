@@ -125,6 +125,9 @@ LADDER = (
         *E("_summoner_ranged_kill_key", exempt=FIGHTS),
     )),
     Layer("floor-avoidance", "light, the approved quest floor, combat and all below", (
+        # Owner 2026-11-26 「戦士も光の巻物で部屋を照らす」 (n1-a life-538 Q32): a plan's dark summoner
+        # room lit before the summons rules answer the unseen cast (quest_summoner_light).
+        *D("quest_summoner_light.light_key", exempt=ANSWERS_DANGER),
         *D("summon_response.key", "destruction_use.sight_trigger_key", "resist_potion.ladder_key",
            "oneshot_breath.key", exempt=ANSWERS_DANGER),
         *D("immobile_ranged_kill.key", exempt=NOT_DECIDED),
@@ -668,6 +671,10 @@ OWNER_RULES = (
             "worsens_kill.key": "kills a summoner / breeder / shrieker that dies 被害無く, after "
                                 "survival (threat tiers design 4.4, 10a); a summons rule due "
                                 "on the board skips it",
+            "quest_summoner_light.light_key": "lights a plan's dark summoner room, so the caster is "
+                                              "seen and walked to (owner 2026-11-26 「戦士も光の巻物で"
+                                              "部屋を照らす」); the casts counted in the dark end "
+                                              "with the read",
             "_summoner_ranged_kill_key": "shoots the summoner itself, after survival "
                                          "(owner 2026-11-06 「命に関わる時の後へ回す」); "
                                          "a summons rule due on the board skips it",

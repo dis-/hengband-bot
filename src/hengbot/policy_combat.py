@@ -5,7 +5,7 @@ from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import ESP_THREAT_HEAL_REASON, ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
 from hengbot import deep_fall_guard, escape_count, finale_prep, fled_floor_stairs, return_start
-from hengbot import anaguma, attack_expectation, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_breeder_avoid, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
+from hengbot import anaguma, attack_expectation, quest_summoner_light, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_breeder_avoid, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
 from heapq import heappop, heappush
@@ -359,7 +359,12 @@ class CombatMixin:
         )
         if remembered_floor != snapshot.floor_key:
             remembered = {}
-        perceived = self._perceived_hostiles(snapshot)
+        # Owner 2026-11-26 (QUEST_32, n1-a life-538): the never-moving summoner a plan walks to
+        # is no summoner to keep away from (quest_summoner_light ``engaged``).
+        perceived = [monster for monster in self._perceived_hostiles(snapshot)
+                     if not quest_summoner_light.engaged(self, snapshot, monster)]
+        remembered = {position: race_id for position, race_id in remembered.items()
+                      if not quest_summoner_light.engaged_race(self, snapshot, race_id)}
         if (
             not remembered
             and not any(self._summoner_never_approaches(snapshot, m)
@@ -414,7 +419,8 @@ class CombatMixin:
             if not targets:
                 return None
             adjacent = [m for m in hostiles if m.distance <= 1]
-            visible_targets = [m for m in hostiles if self._summoner_never_approaches(snapshot, m)]
+            visible_targets = [m for m in hostiles if self._summoner_never_approaches(snapshot, m)
+                               and not quest_summoner_light.engaged(self, snapshot, m)]
             ranged = self._town_producer_entry(
                 "_ranged_attack_key",
                 lambda: self._ranged_attack_key(snapshot, visible_targets, adjacent),
