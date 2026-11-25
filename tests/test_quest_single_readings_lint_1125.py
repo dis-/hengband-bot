@@ -97,5 +97,27 @@ class ComeEntryTest(unittest.TestCase):
         self.assertEqual(cross_rule_lint.come_entry_problems(cross_rule_lint._modules()), [])
 
 
+class MeleeApproachGateTest(unittest.TestCase):
+    """(a)-4: the walks that close on a monster to melee it ask one gate (melee_approach)."""
+
+    def test_the_lint_names_an_approach_walk_without_the_gate(self):
+        import melee_site_lint
+
+        source = ("APPROACH_REASON = 'x'\n"
+                  "def _fight(policy):\n    return policy.step(APPROACH_REASON)\n")
+        problems = melee_site_lint.ungated_approaches({"quest_room_sweep.py": source})
+        self.assertTrue(any("_fight closes on a monster without melee_approach" in p for p in problems))
+        gated = source.replace("    return", "    melee_approach(policy)\n    return")
+        self.assertFalse(any("_fight" in p and "without" in p
+                             for p in melee_site_lint.ungated_approaches({"quest_room_sweep.py": gated})))
+
+    def test_the_source_asks_the_gate(self):
+        import melee_site_lint
+
+        sources = {path.name: path.read_text(encoding="utf-8")
+                   for path in sorted(melee_site_lint.POLICY_ROOT.glob("quest_*.py"))}
+        self.assertEqual(melee_site_lint.ungated_approaches(sources), [])
+
+
 if __name__ == "__main__":
     unittest.main()

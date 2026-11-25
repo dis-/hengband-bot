@@ -376,9 +376,8 @@ def _blow_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Posi
     A Magic-Eater closes on it to melee only with no shot and no absorbed power for it
     (``melee_withheld``, owner 2026-11-25).  ``stays``: the member's verdict (``never_comes``), else
     the race's (``_stays``)."""
-    stays = _stays(policy, monster.race_id) if stays is None else stays
-    if (not stays or attack_expectation.melee(policy, snapshot, monster) <= 0
-            or melee_withheld(policy, snapshot, monster.race_id)):
+    if (melee_approach(policy, snapshot, monster, site=BLOW_SITE, stays=stays) != MELEE
+            or attack_expectation.melee(policy, snapshot, monster) <= 0):
         return set()
     cell = _cell(monster.position)
     walkable = quest_plan_base._terrain_of(navigator, snapshot, water=False)
@@ -408,6 +407,42 @@ def melee_withheld(policy, snapshot, race_id) -> bool:
     return (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
             and (attack_expectation.ranged_against(policy, snapshot, race_id, RANGED_MAX_DISTANCE) > 0
                  or recharges_first(policy, snapshot, race_id)))
+
+
+# The answers of the one gate on the walks that close on a monster to melee it (``melee_approach``):
+# walk to melee it, rest first (out of the lines, for an absorbed power a rest restores), or not.
+MELEE = "melee"
+REST_FIRST = "rest-first"
+REFUSED = "refused"
+# Its sites (scripts/melee_site_lint.py ``MELEE_APPROACH_ENTRIES``): the dry cells beside a monster that
+# never comes (``_blow_cells``, which ``attack_cells`` reads), the room sweep's walk to what stands
+# still in view (quest_room_sweep ``_fight``) and the chase of a summoner (``_approach``).
+BLOW_SITE = "blow"
+SWEEP_SITE = "sweep"
+CHASE_SITE = "chase"
+
+
+def melee_approach(policy, snapshot, monster, *, site, stays=None) -> str:
+    """The one gate on the walks that close on ``monster`` to melee it (contradiction audit
+    2026-11-25 (a)-4): ``MELEE``, ``REST_FIRST`` or ``REFUSED`` at ``site``.
+
+    * ``BLOW_SITE``: a monster that never comes (``stays``: the member's verdict, ``never_comes``;
+      else the race's, ``_stays``); a Magic-Eater not while he has a shot or an absorbed power for
+      it (``melee_withheld``), resting first for the power a rest restores (``recharges_first``,
+      owner 2026-11-25).
+    * ``SWEEP_SITE``: a NEVER_MOVE monster (quest_plan_base.never_moves).
+    * ``CHASE_SITE``: the summoner gone after (owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を
+      優先する」)."""
+    if site == CHASE_SITE:
+        return MELEE
+    if site == SWEEP_SITE:
+        return MELEE if quest_plan_base.never_moves(policy, monster.race_id) else REFUSED
+    stays = _stays(policy, monster.race_id) if stays is None else stays
+    if not stays:
+        return REFUSED
+    if melee_withheld(policy, snapshot, monster.race_id):
+        return REST_FIRST if recharges_first(policy, snapshot, monster.race_id) else REFUSED
+    return MELEE
 
 
 def attack_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Position]:
@@ -523,9 +558,12 @@ def _chase_order(snapshot, navigator) -> list:
 
 
 def _approach(policy, snapshot, navigator, plan, board, target) -> str | None:
-    """A step toward the cells beside ``target`` over the plan's walks."""
+    """A step toward the cells beside ``target`` over the plan's walks, as the gate allows
+    (``melee_approach`` at ``CHASE_SITE``)."""
     from hengbot import quest_room_sweep  # it asks this module for its rungs
 
+    if melee_approach(policy, snapshot, target, site=CHASE_SITE) != MELEE:
+        return None
     goals = {Position(target.position.y + dy, target.position.x + dx)
              for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx}
     path = quest_room_sweep._path(policy, navigator, plan, snapshot, goals, board.occupied)

@@ -25199,5 +25199,13 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The one entry of the reading whether a monster comes (quest_room_sweep._fight's wait, quest_summon_answer's verdict and steps after a disengage, quest25_battle_rooms' waiting cell); no independent progress."
+  },
+  "quest_summon_answer.py:melee_approach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The one gate on the quest plans' walks that close on a monster to melee it (melee, rest first, or refused); emits no key."
   }
 }

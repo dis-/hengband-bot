@@ -16369,13 +16369,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_plan_base.py:_never_moves": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "quest_plan_base.py:_open_doors": {
     "classification": "data",
     "rows": [
@@ -17040,6 +17033,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_summon_answer.py:melee_approach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_summon_answer.py:never_comes": {
     "classification": "data",
