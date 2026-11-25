@@ -110,6 +110,43 @@ class StateRegistryLintTest(unittest.TestCase):
         self.assertTrue(lines[0].startswith("cli.py:2 runtime-path: _mutant_record_path"))
         self.assertTrue(lines[1].startswith("cli.py:3 runtime-path: _other_mutant_path"))
 
+    def test_the_restart_column_has_no_finding(self):
+        lines, _notes = state_registry_lint.restart_findings(self.modules)
+        self.assertEqual(lines, [])
+        column = state_registry.restart_column()
+        self.assertEqual(column["_remembered_grids"].behaviour, state_registry.PERSISTED)
+        self.assertEqual(column["_q2_kill_credit"].record, "quest_plan_record")
+
+    def test_a_new_row_without_a_restart_classification_fails(self):
+        row = state_registry.State("_mutant_restart_state", "policy", state_registry.DECISION,
+                                   "a new row")
+        with mock.patch.object(state_registry, "REGISTRY", state_registry.REGISTRY + (row,)):
+            lines, _notes = state_registry_lint.restart_findings(self.modules)
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].startswith("restart: _mutant_restart_state (decision) has no "
+                                            "restart classification"))
+
+    def test_a_changed_life_row_needs_its_classification(self):
+        baseline = state_registry_lint.load_restart_baseline()
+        name, row = next((row.name, row) for row in state_registry.REGISTRY
+                         if row.lifetime == state_registry.LIFE and row.name in baseline)
+        changed = state_registry.State(row.name, row.owner, row.lifetime, row.purpose + " (edited)",
+                                       row.destruction, row.saved)
+        registry = tuple(changed if entry.name == name else entry
+                         for entry in state_registry.REGISTRY)
+        with mock.patch.object(state_registry, "REGISTRY", registry):
+            lines, _notes = state_registry_lint.restart_findings(self.modules)
+        self.assertEqual(lines, [f"restart: {name} is a life row changed since the restart "
+                                 "baseline: add its RESTART row in hengbot/state_registry.py"])
+
+    def test_a_restart_row_whose_record_does_not_name_it_fails(self):
+        wrong = {**state_registry.RESTART, "_warning_refused_cells": state_registry.Restart(
+            state_registry.PERSISTED, "map_memory_record")}
+        with mock.patch.object(state_registry, "RESTART", wrong):
+            lines, _notes = state_registry_lint.restart_findings(self.modules)
+        self.assertEqual(lines, ["restart: _warning_refused_cells names map_memory_record, whose "
+                                 "source does not name it"])
+
 
 if __name__ == "__main__":
     unittest.main()
