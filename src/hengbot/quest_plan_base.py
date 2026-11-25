@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import NamedTuple
 
 from hengbot import (
+    ability_sources,
     line_of_fire,
     me_ranged_first,
     once_quest_recall,
@@ -203,14 +204,47 @@ def _open_terrain(navigator, snapshot) -> dict:
 
 def _least_exposed_walk(navigator, snapshot, exposure, start, goals, taken) -> list:
     """quest_exposure.least_exposed_path over the map from ``start``: dry first, through deep
-    water only from where no dry walk leads (a teleport can land on a shore)."""
+    water only from where no dry walk leads (a teleport can land on a shore).  A player standing
+    in the trees or over a dark pit (a landing there, levitating) walks out over them only when no
+    other walk leads (``_pocket_ground``)."""
     for water in (False, True):
         terrain = _terrain_of(navigator, snapshot, water=water)
         terrain[start] = "floor"
         path = quest_exposure.least_exposed_path(terrain, exposure, start, goals, taken)
         if path:
             return path
+    ground = _pocket_ground(navigator, snapshot, start)
+    if ground:
+        terrain = {**_terrain_of(navigator, snapshot, water=False), **{cell: "floor" for cell in ground}}
+        terrain[start] = "floor"
+        return quest_exposure.least_exposed_path(terrain, exposure, start, goals, taken)
     return []
+
+
+def _pocket_ground(navigator, snapshot, start) -> frozenset:
+    """The trees, and over a levitating player's feet the dark pits, the player stands among:
+    the cells of those kinds joined to ``start`` (the game lets him enter them: TREE has MOVE,
+    DARK_PIT CAN_FLY for a levitating player, player-move.cpp player_can_enter).  Empty when he
+    stands on the walked ground.  n1-b life-418 (Quest 33, 2026-11-25 13:31): a levitating
+    Magic-Eater put on [20,42], a dark pit between two tree columns, had no walk out of them; every
+    member was left as no walk reaches it and the sweep stopped by name
+    (quest:blocked:sweep-nothing-comes) with 巨大火アリ a few steps away."""
+    terrain = navigator.battlefield.terrain
+    kinds = {"tree"}
+    if ability_sources.has_ability(snapshot.player, "levitation"):
+        kinds.add("pit")
+    if terrain.get(start) not in kinds:
+        return frozenset()
+    found, frontier = {start}, [start]
+    while frontier:
+        y, x = frontier.pop()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                cell = (y + dy, x + dx)
+                if cell not in found and terrain.get(cell) in kinds:
+                    found.add(cell)
+                    frontier.append(cell)
+    return frozenset(found)
 
 
 def _path_step(policy, snapshot, path: list[Position], reason: str) -> str | None:

@@ -83,7 +83,7 @@ the same monsters never repeat, and a sweep whose stops bring nothing ends by na
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from hengbot import quest_alignment_split, quest_detect_remaining, quest_exposure
 from hengbot.item_reservation import decision_memo
@@ -486,7 +486,8 @@ class _Reader:
         directions refused: a wall, a door it cannot open, a monster it cannot pass) or goes round."""
         flags = _flags(row)
         doors = bool({"OPEN_DOOR", "BASH_DOOR"} & flags)
-        distances, costs = self.flow_maps(spot, "CAN_FLY" in flags)
+        fly = "CAN_FLY" in flags
+        distances, costs = self.flow_maps(spot, fly)
         gauge = distances if doors else costs
         cell, seen = row.cell, set()
         # The cells each move headed for first, and the five of the move that found none free:
@@ -498,6 +499,12 @@ class _Reader:
             if cell in seen:
                 return False
             seen.add(cell)
+            # An animal pack hides on every move it makes (HidingMoveGridDecider is asked each turn
+            # while it sees the player or is near him), not only from where it starts: one that
+            # reaches the hiding range on the way stops coming (n1-a life-537, Quest 33,
+            # 2026-11-25 13:18, the 巨大火アリ by the tree columns).
+            if cell != row.cell and self._hides(replace(row, cell=cell), spot, self.flow_to(spot, fly).get(cell)):
+                return False
             target = self._heading(row, cell, spot, gauge, flags, doors)
             if target is True:
                 return True

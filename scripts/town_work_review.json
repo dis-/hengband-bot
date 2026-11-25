@@ -21584,6 +21584,38 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "QUEST_33 after a disengage, a Magic-Eater before a member that never comes with its attack powers spent: a step out of the lines, else the counted rest (R100) that restores them (owner 2026-11-25)."
   },
+  "quest_summon_answer.py:never_comes": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: whether a summon-answer group member comes to the player by the game moves (quest_wait_placement.come_cells over its nearest pulling cells); emits no key."
+  },
+  "quest_summon_answer.py:never_comes.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: the memoized body of never_comes; emits no key."
+  },
+  "quest_summon_answer.py:_comes_not": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "QUEST_33: never_comes of a board monster; emits no key."
+  },
+  "quest_plan_base.py:_pocket_ground": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Quest plans: the tree (and, levitating, dark pit) cells joined to the player's cell, walked out over when no other walk leads; emits no key."
+  },
   "quest_summon_answer.py:fire_answer_key": {
     "classification": "producer",
     "rows": [

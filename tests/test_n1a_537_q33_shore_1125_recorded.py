@@ -165,9 +165,9 @@ class ShoreBlowTest(unittest.TestCase):
 # vision 14, in the tree-and-pit pocket [25..27,53..54]); it stepped between [27,53] and [26,54].
 # [29,40] is 14 game grids (quest_exposure.game_distance) from [27,53] and 15 from [26,54], so it was
 # a pulling cell (the fewest others acting) on one board and none on the next: the lure walked
-# '6' to [29,41]/[29,42] and '4' back and held between (decisions 2424-2446).  Owner 2026-11-13
-# pingpong 「理由が消えるまで戻らない」: once the wait has begun the pulling cell is kept while the member
-# acts on it from its last cell or one step from it (quest_summon_answer ``_lure_path`` ``keep``).
+# '6' to [29,41]/[29,42] and '4' back and held between (decisions 2424-2446).  The 巨大火アリ is an
+# animal pack that hides from a player at full HP (the third process below): it never comes, so it
+# is not waited for but closed on (quest_summon_answer ``never_comes``), every step toward it.
 #
 # Recorded: tests/fixtures/n1a-537-q33-lure-hold-1125 (tests/extract_n1a_537_q33_lure_hold_1125_fixture.py;
 # DECLARED CONSTRUCTED there: the restart).  The policy decides the boards from decision 2400 in order.
@@ -179,17 +179,8 @@ WAIT = range(2424, 2447)
 
 
 def drive_second():
-    """{sequence: (cell, reason, key)} of the second process's boards decided in order."""
-    deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((SECOND / "policy.pkl.xz").read_bytes()))
-    out = {}
-    for raw, row in zip(SECOND_CASE["boards"], SECOND_CASE["recorded"]):
-        snapshot = parse_snapshot(copy.deepcopy(raw), deciding._monrace_knowledge)
-        key = str(deciding.choose_key(snapshot))
-        if row is not None:
-            out[row["sequence"]] = ((snapshot.player.position.y, snapshot.player.position.x),
-                                    deciding.last_reason, key)
-        deciding.confirm_key_posted(key)
-    return out
+    """``drive_pack`` of the second process."""
+    return drive_pack(SECOND, SECOND_CASE)
 
 
 class TheLureWaitRecordingTest(unittest.TestCase):
@@ -207,11 +198,162 @@ class TheLureWaitRecordingTest(unittest.TestCase):
         self.assertIsNone(SECOND_CASE["recorded"][-1])   # the stop's board
 
 
-class TheLureWaitKeptTest(unittest.TestCase):
+class TheLureWaitClosedOnTest(unittest.TestCase):
 
-    def test_the_wait_is_kept_on_its_cell(self):
-        answers = drive_second()
-        self.assertEqual({answers[sequence][1:] for sequence in WAIT}, {("quest-strategy:hold", "5")})
+    def test_no_wait_and_every_step_toward_the_pack(self):
+        assert_closed_on(self, drive_second(), WAIT)
+
+
+# -- the third process (restart 13:15:05, main 5d2d334da): the pack that hides ------------------------
+#
+# Stopped by the livelock guard at 13:18:15.  The members left were 巨大火アリ (race 548: FRIENDS,
+# ANIMAL, no spell, speed -10) on the open floor by the tree columns [24..27,51..55].  An animal pack
+# hides from a player at full HP and SP (monster-sweep-grid.cpp HidingMoveGridDecider: the open grids
+# round the player, less 2 in a room and 2 for no spell, below 8 x (HP + SP) / (max HP + max SP),
+# asked while it sees him or is within MAX_PLAYER_SIGHT / 2), so it never comes.  The lure held 200
+# boards for one (decisions 1487-1686), then walked to where it was last seen and the sweep to where
+# it last saw one, in turn (1696-1725).  The one verdict (quest_summon_answer ``never_comes``): it
+# does not come, so it is closed on to the cells beside it (``attack_cells``), by the lure and the
+# fire answer alike.
+#
+# Recorded: tests/fixtures/n1a-537-q33-hiding-pack-1125 (tests/extract_n1a_537_q33_hiding_pack_1125_fixture.py;
+# DECLARED CONSTRUCTED there: the two restarts).  The policy decides the boards from decision 1080.
+
+THIRD = Path(__file__).with_name("fixtures") / "n1a-537-q33-hiding-pack-1125"
+THIRD_CASE = json.loads(lzma.decompress((THIRD / "boards.json.xz").read_bytes()))
+CYCLE = range(1696, 1726)
+
+
+def drive_third():
+    """``drive_pack`` of the third process."""
+    return drive_pack(THIRD, THIRD_CASE)
+
+
+def drive_pack(fixture, case):
+    """{sequence: (snapshot, reason, key, the dry cells beside the 巨大火アリ known, the dry ground)}
+    of a fixture's boards decided in order."""
+    deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((fixture / "policy.pkl.xz").read_bytes()))
+    out = {}
+    for raw, row in zip(case["boards"], case["recorded"]):
+        snapshot = parse_snapshot(copy.deepcopy(raw), deciding._monrace_knowledge)
+        key = str(deciding.choose_key(snapshot))
+        navigator = deciding._quest_navigators.get(33)
+        ground = (frozenset() if navigator is None else frozenset(
+            cell for cell, kind in quest_plan_base._terrain_of(navigator, snapshot, water=False).items()
+            if kind in {"floor", "passage"}))
+        beside = {Position(m.position.y + dy, m.position.x + dx)
+                  for m in (*snapshot.visible_monsters, *snapshot.detected_monsters) if m.race_id == FIRE_ANT
+                  for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (m.position.y + dy, m.position.x + dx) in ground}
+        if row is not None:
+            out[row["sequence"]] = (snapshot, deciding.last_reason, key, beside, ground)
+        deciding.confirm_key_posted(key)
+    return out
+
+
+class TheHidingPackRecordingTest(unittest.TestCase):
+
+    def test_the_lure_and_the_sweep_walk_in_turn(self):
+        rows = {row["sequence"]: (row, raw) for raw, row in zip(THIRD_CASE["boards"], THIRD_CASE["recorded"]) if row}
+        reasons = [rows[sequence][0]["reason"] for sequence in CYCLE]
+        self.assertEqual(set(reasons), {quest_summon_answer.LURE_WALK_REASON, "quest-strategy:sweep-walk"})
+        self.assertGreaterEqual(reasons.count("quest-strategy:sweep-walk"), 6)
+        self.assertEqual([rows[sequence][0]["reason"] for sequence in range(1487, 1687)],
+                         ["quest-strategy:hold"] * 200)
+        self.assertIsNone(THIRD_CASE["recorded"][-1])   # the stop's board
+
+    def test_the_fire_ant_is_a_pack_that_hides(self):
+        deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((THIRD / "policy.pkl.xz").read_bytes()))
+        flags = set(deciding._monrace_knowledge[FIRE_ANT].flags)
+        self.assertLessEqual({"FRIENDS", "ANIMAL"}, flags)
+        self.assertFalse({"PASS_WALL", "KILL_WALL", "CAN_FLY"} & flags)
+
+
+class TheHidingPackClosedOnTest(unittest.TestCase):
+
+    def test_no_wait_nor_sweep_and_every_step_toward_the_pack(self):
+        assert_closed_on(self, drive_third(), CYCLE)
+
+
+def assert_closed_on(test, answers, sequences):
+    """No hold and no sweep walk on ``sequences``, and every step heads for the cells beside a
+    巨大火アリ the board knows (the steps of the lure and of the fire answer alike)."""
+    reasons = {answers[sequence][1] for sequence in sequences}
+    test.assertNotIn("quest-strategy:sweep-walk", reasons)
+    test.assertNotIn("quest-strategy:hold", reasons)
+    steps = 0
+    for sequence in sequences:
+        snapshot, reason, key, beside, ground = answers[sequence]
+        if key not in STEPS or not beside:
+            continue
+        steps += 1
+        dy, dx = STEPS[key]
+        here = snapshot.player.position
+        there = Position(here.y + dy, here.x + dx)
+        test.assertLess(walk_length(ground, there, beside), walk_length(ground, here, beside),
+                        (sequence, reason, key))
+    test.assertGreaterEqual(steps, 5)
+
+
+# -- n1-b life-418 (Magic-Eater Lv44, 2026-11-25 13:32:21, main 5d2d334da): the pocket of trees ------
+#
+# A levitating Magic-Eater was put on [20,42] (decision 6338), a dark pit between two tree columns.
+# The plans' walks cross only the walked ground (quest_exposure ``_WALKABLE_KINDS``), so no walk led
+# out: every member of the group was left as no walk reaches it, the 巨大火アリ were shot as they came
+# into view and held for in between (126 holds), and the sweep stopped by name
+# (quest:blocked:sweep-nothing-comes, 6595).  The game lets him walk out (TREE has MOVE, DARK_PIT
+# CAN_FLY for a levitating player): the walk leaves the pocket over them when no other walk leads
+# (quest_plan_base ``_pocket_ground``), and the plan goes on.
+#
+# Recorded: tests/fixtures/n1b-418-q33-blocked-1125 (tests/extract_n1b_418_q33_blocked_1125_fixture.py):
+# the arrival policy replayed by the live code over the floor's boards up to decision 6300, and the
+# boards from it to the stop (with the one skill-list answer among them).
+
+POCKET = Path(__file__).with_name("fixtures") / "n1b-418-q33-blocked-1125"
+POCKET_CASE = json.loads(lzma.decompress((POCKET / "boards.json.xz").read_bytes()))
+IN_POCKET = range(6345, 6596)
+
+
+def drive_pocket():
+    """{sequence: (cell, reason, key)} of n1-b life-418's boards decided in order."""
+    deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((POCKET / "policy.pkl.xz").read_bytes()))
+    out = {}
+    for raw, row in zip(POCKET_CASE["boards"], POCKET_CASE["recorded"]):
+        if raw.get("type") == "knowledge":
+            if getattr(deciding, "_skill_exp_request_inflight", False):
+                deciding.consume_skill_knowledge(raw)
+            continue
+        snapshot = parse_snapshot(copy.deepcopy(raw), deciding._monrace_knowledge)
+        key = str(deciding.choose_key(snapshot))
+        if row is not None:
+            out[row["sequence"]] = ((snapshot.player.position.y, snapshot.player.position.x),
+                                    deciding.last_reason, key)
+        deciding.confirm_key_posted(key)
+    return out
+
+
+class ThePocketRecordingTest(unittest.TestCase):
+
+    def test_held_in_the_pocket_until_the_named_stop(self):
+        rows = {row["sequence"]: (row, raw) for raw, row in zip(POCKET_CASE["boards"], POCKET_CASE["recorded"]) if row}
+        self.assertEqual(rows[6595][0]["reason"], "quest:blocked:sweep-nothing-comes")
+        self.assertEqual({(raw["player"]["y"], raw["player"]["x"]) for _row, raw in (rows[s] for s in IN_POCKET)},
+                         {(20, 42)})
+        reasons = [rows[s][0]["reason"] for s in IN_POCKET]
+        self.assertGreaterEqual(reasons.count("quest-strategy:hold"), 100)
+        self.assertTrue(any(raw["player"]["ability_sources"]["levitation"]["equipment"]
+                            or raw["player"]["ability_sources"]["levitation"]["temporary"]
+                            or raw["player"]["ability_sources"]["levitation"]["permanent"]
+                            for _row, raw in (rows[6595],)))
+
+
+class ThePocketLeftTest(unittest.TestCase):
+
+    def test_the_walk_leaves_the_pocket(self):
+        answers = drive_pocket()
+        in_pocket = [answers[s] for s in IN_POCKET]
+        self.assertNotIn("quest:blocked:sweep-nothing-comes", {reason for _cell, reason, _key in in_pocket})
+        self.assertNotIn("quest-strategy:hold", {reason for _cell, reason, _key in in_pocket})
+        self.assertGreaterEqual(sum(1 for _cell, _reason, key in in_pocket if key in STEPS), 100)
 
 
 if __name__ == "__main__":
