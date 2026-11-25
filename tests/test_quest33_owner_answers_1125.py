@@ -82,5 +82,52 @@ class B2RestFirstTest(_SpentReplay):
                          answer.MELEE)
 
 
+class B3VerdictReadAgainTest(_FloorBoards, unittest.TestCase):
+    """(b)-3 「「来るか」は固定しておき、待ちの上限が尽きた時と、HP が隠れの境目をまたいで大きく変わった時だけ
+    判断し直す」: the kept verdict is read again only on those two."""
+
+    def setUp(self):
+        super().setUp()
+        self.reads = []
+
+    def verdict(self, snapshot, navigator, comes_now):
+        def will_come(*_args, **_kwargs):
+            self.reads.append(1)
+            return ((0, 0),) if comes_now else ()
+
+        board = self.sweep_board(snapshot, navigator)
+        with mock.patch.object(quest_wait_placement, "will_come", will_come):
+            return answer.never_comes(self.policy, snapshot, navigator, self.plan, board, 1)
+
+    def test_kept_until_the_hiding_line_is_crossed(self):
+        full = self.board_at((13, 39), hp=int(self.board.player.max_hp * 0.7))
+        navigator = self.disengaged(full, {1: (JART, (14, 20), False)})
+        self.assertFalse(self.verdict(full, navigator, comes_now=True))   # read: it comes
+        self.assertFalse(self.verdict(full, navigator, comes_now=False))  # kept
+        self.assertEqual(len(self.reads), 1)
+        # The same hiding line at a little less HP: kept.
+        line = quest_wait_placement.hide_line(full)
+        near = self.board_at((13, 39), hp=full.player.hp - 1)
+        self.assertEqual(quest_wait_placement.hide_line(near), line)
+        self.assertFalse(self.verdict(near, navigator, comes_now=False))
+        # A fifth of the HP: the line is crossed, the verdict read again.
+        low = self.board_at((13, 39), hp=full.player.max_hp // 5)
+        self.assertNotEqual(quest_wait_placement.hide_line(low), line)
+        self.assertTrue(self.verdict(low, navigator, comes_now=False))
+        self.assertEqual(len(self.reads), 2)
+
+    def test_read_again_once_when_the_wait_runs_out(self):
+        snapshot = self.board_at((13, 39))
+        navigator = self.disengaged(snapshot, {1: (JART, (14, 20), False)})
+        self.assertFalse(self.verdict(snapshot, navigator, comes_now=True))
+        answer._rejudge_after_wait(navigator, [1])
+        later = self.board_at((13, 39))
+        self.assertTrue(self.verdict(later, navigator, comes_now=False))   # read again
+        answer._rejudge_after_wait(navigator, [1])
+        again = self.board_at((13, 39))
+        self.assertTrue(self.verdict(again, navigator, comes_now=True))    # once: kept now
+        self.assertEqual(len(self.reads), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

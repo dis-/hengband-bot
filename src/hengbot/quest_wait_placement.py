@@ -296,6 +296,14 @@ def _passes(mover: Awaited, other) -> bool:
     return "MOVE_BODY" in flags and not quest_plan_base.flags_never_move(flags) and mine.experience > theirs.experience
 
 
+def hide_line(snapshot) -> int:
+    """HidingMoveGridDecider's line (monster-sweep-grid.cpp:186-226): an animal pack hides while the
+    walkable cells round the player (less 2 for a race with no spell) are fewer than
+    8 x (HP + SP) / (max HP + max SP), in integers as the game divides."""
+    player = snapshot.player
+    return (8 * (player.hp + player.mp)) // max(1, player.max_hp + player.max_mp)
+
+
 class _Reader:
     """One board's readings, cached across the cells weighed."""
 
@@ -309,7 +317,7 @@ class _Reader:
         self.flows: dict = {}
         self.steps: dict = {}
         player = snapshot.player
-        self.hide_line = (8 * (player.hp + player.mp)) // max(1, player.max_hp + player.max_mp)
+        self.hide_line = hide_line(snapshot)
         self.level = int(getattr(player, "level", 0) or 0)
         self.summoners = quest_alignment_split.summoners(policy, snapshot, navigator, plan)
 

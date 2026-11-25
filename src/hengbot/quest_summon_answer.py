@@ -781,6 +781,8 @@ def _note_group(policy, snapshot, navigator) -> None:
     # A member's verdict whether it comes (``never_comes``) leaves with it.
     navigator.summon_comes = {index: comes for index, comes in navigator.summon_comes.items()
                               if index in navigator.summon_group}
+    navigator.summon_comes_basis = {index: basis for index, basis in navigator.summon_comes_basis.items()
+                                    if index in navigator.summon_group}
     if navigator.summon_target is not None and navigator.summon_target not in navigator.summon_group:
         # The member lured is gone: the next one starts its own wait.  (With no member lured the
         # holds for what acts on the player keep counting: n1-c life-217, see ``after_key``.)
@@ -1014,7 +1016,13 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
     # and the lure walks to its pulling cells and to its killing cells in turn (n1-b life-418,
     # Quest 33, 2026-11-25 15:08:59: Fang (race 55, RAND_25) in its locked room [24..26,1..4] read
     # in turn, the walk between [25,11], [26,12] and [26,11] until the livelock stop).
-    if index in navigator.summon_comes:
+    # Owner 2026-11-25 (b)-3 (verbatim answer, as recommended) 「「来るか」は固定しておき、待ちの上限が
+    # 尽きた時と、HP が隠れの境目をまたいで大きく変わった時だけ判断し直す」: read again when the board's
+    # hiding line (quest_wait_placement.hide_line, the game's HidingMoveGridDecider) is not the one
+    # it was read under, and once when the wait's cap runs out (``_rejudge_after_wait``).
+    line = quest_wait_placement.hide_line(snapshot)
+    basis = navigator.summon_comes_basis.get(index)
+    if index in navigator.summon_comes and basis is not None and basis[0] == line:
         return not navigator.summon_comes[index]
 
     def compute() -> bool:
@@ -1030,7 +1038,22 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
     verdict = decision_memo(policy, "quest_summon_answer.never_comes", snapshot,
                             (index, race, tuple(cell), tuple(sorted(navigator.summon_group))), compute)
     navigator.summon_comes = {**navigator.summon_comes, index: not verdict}
+    # The cap's reading is spent once per hiding line.
+    capped = basis is not None and basis[0] == line and basis[1]
+    navigator.summon_comes_basis = {**navigator.summon_comes_basis, index: (line, capped)}
     return verdict
+
+
+def _rejudge_after_wait(navigator, indices) -> None:
+    """Owner 2026-11-25 (b)-3: the wait's cap (``enemy_wait_turns``) ran out on ``indices``: each
+    verdict is read again on the next ``never_comes``, once until the hiding line changes."""
+    comes, basis_of = dict(navigator.summon_comes), dict(navigator.summon_comes_basis)
+    for index in indices:
+        basis = basis_of.get(index)
+        if index in comes and basis is not None and not basis[1]:
+            del comes[index]
+            basis_of[index] = (basis[0], True)
+    navigator.summon_comes, navigator.summon_comes_basis = comes, basis_of
 
 
 def _comes_not(policy, snapshot, navigator, plan, board, monster) -> bool:
@@ -1062,8 +1085,10 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
             return None
         navigator.summon_target = min(choices)[-1]
         navigator.summon_hold = 0
-    close = (navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
-             or never_comes(policy, snapshot, navigator, plan, board, navigator.summon_target))
+    capped = navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
+    if capped:
+        _rejudge_after_wait(navigator, (navigator.summon_target,))
+    close = capped or never_comes(policy, snapshot, navigator, plan, board, navigator.summon_target)
     # The wait has begun (a hold spent on this member): it goes on on any of its pulling cells.
     found = _lure_path(policy, snapshot, navigator, plan, board, navigator.summon_target, close=close,
                        keep=not close and navigator.summon_hold > 0)
@@ -1109,9 +1134,15 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
     recharging = _recharging(policy, snapshot, navigator)
     acting = [monster for monster in acting if monster.index not in recharging]
     # Owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: held for only while one
-    # of them will come here (quest_wait_placement); else closed on at once, as past the wait.
+    # of them will come (their kept verdict, ``never_comes``, owner 2026-11-25 (b)-3: one reading,
+    # not a reading of its own each board); else closed on at once, as past the wait.  The cap run
+    # out, the verdicts are read again once.
     coming = [monster for monster in acting
-              if quest_wait_placement.comes_here(policy, snapshot, navigator, plan, monster)]
+              if not _comes_not(policy, snapshot, navigator, plan, board, monster)]
+    if coming and navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0)):
+        _rejudge_after_wait(navigator, [monster.index for monster in coming])
+        coming = [monster for monster in coming
+                  if not _comes_not(policy, snapshot, navigator, plan, board, monster)]
     if coming and navigator.summon_hold < int(plan.get("enemy_wait_turns", 0)):
         return _hold_for(policy, navigator)
     if acting:
