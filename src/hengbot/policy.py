@@ -15525,17 +15525,28 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _quest_plan_owns_detected(
         self, snapshot: Snapshot, monsters: list[MonsterState]
     ) -> bool:
-        """Whether the approved Q2 phase strategy's plan names every monster."""
+        """Whether the approved quest plan owns every monster: the Q2 phase strategy's plan names
+        each one, or the floor is a room sweep that answers each summon itself (Quest 33,
+        quest_summon_answer.never_abandons): its walk, its fight and its survival rungs answer what
+        is sensed (owner 2026-11-07 「作戦が先・即死だけ例外」).
+
+        n1-a life-537 (Quest 33, 2026-11-25 16:05-16:09, the floor-dwell stop
+        ``stall:floor-dwell:quest-strategy:retake-hold``): the sweep walked to its stop 20 (Fang's
+        locked room, stand [25,6]); the clones of Fang sensed by telepathy behind the door made this
+        retreat walk back to a choke ([19,13]), the cells it left refused the sweep's walk
+        (left_cells), the fixed quest's hold walked back to [13,39] and held, and the sweep walked
+        out again, round after round until the stop."""
         profile = self.approved_quest_strategy(snapshot.floor_key[2])
-        return (
-            profile is not None
-            and profile.quest_id == 2
-            and bool(monsters)
-            and all(
+        if profile is None or not monsters:
+            return False
+        if profile.quest_id == 2:
+            return all(
                 monster.race_id in profile.priority_targets
                 for monster in monsters
             )
-        )
+        from hengbot import quest_summon_answer  # it imports the policy's quest modules
+
+        return quest_summon_answer.never_abandons(self, snapshot)
 
     def _town_hunt_owns_detected(
         self, snapshot: Snapshot, monsters: list[MonsterState]

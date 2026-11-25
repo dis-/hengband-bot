@@ -85,7 +85,7 @@ class N1c217Q33HoldTest(unittest.TestCase):
         plan = self.policy.approved_quest_strategy(QUEST).engagement_plan["room_sweep"]
         acting = answer.acting_around(self.policy, self.board, navigator)
         self.assertEqual(len(acting), 2)
-        self.assertFalse(any(quest_wait_placement.comes(self.policy, self.board, navigator, plan, monster)
+        self.assertFalse(any(quest_wait_placement.comes_here(self.policy, self.board, navigator, plan, monster)
                              for monster in acting))
 
     def test_hurt_it_rests_at_once(self):

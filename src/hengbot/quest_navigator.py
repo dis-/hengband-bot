@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
-from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup, search_ban
+from hengbot import breeder_quest, kill_all_patrol, locked_doors, me_capped_pickup, quest_exposure, search_ban
 from hengbot.item_identity import unidentified_identity
 from hengbot.equipment_optimizer import Q34_ITEM_TAG, q34_item_tagged
 from hengbot.item_reservation import reserved_item_command
@@ -142,6 +142,13 @@ class QuestFloorNavigator:
     # The members' verdict whether they come (quest_summon_answer.never_comes): index -> bool, kept
     # while the member stays in the group, replaced whole.  Same rule.
     summon_comes = {}
+    # What each verdict was read under (quest_summon_answer ``never_comes``, owner 2026-11-25 (b)-3):
+    # index -> (quest_wait_placement.hide_line of the board it was read on, whether the wait's cap has
+    # read it again since), replaced whole, pruned with the verdicts.  Same rule.
+    summon_comes_basis = {}
+    # The lure's wait as it began (quest_summon_answer ``_lure``, owner 2026-11-25 (b)-6): (the member
+    # lured, the cell held, how many other members acted on it then), or None.  Same rule.
+    summon_hold_basis = None
     summon_chase = None
     # Where the room sweep waits (quest_wait_placement): the stop being waited for and the chosen
     # quest_wait_placement.Choice, as (stage, round, Choice); and the waits that ran out with nothing
@@ -243,6 +250,8 @@ class QuestFloorNavigator:
         self.summon_hold = 0
         self.summon_unreached = {}
         self.summon_comes = {}
+        self.summon_comes_basis = {}
+        self.summon_hold_basis = None
         self.wait_goal = None
         self.wait_spent = ()
         self.wait_idle = None
@@ -656,10 +665,7 @@ class QuestFloorNavigator:
 
     def _static_walkable(self, pos: Position) -> bool:
         kind = self.battlefield.terrain.get((pos.y, pos.x))
-        return pos in self.opened or kind in {
-            "floor", "exit", "door", "passage", "rubble", "shallow_water",
-            "tree",
-        } or (self.allow_deep_water and kind == "deep_water")
+        return pos in self.opened or kind in quest_exposure.NAVIGATOR_WALK_KINDS or (self.allow_deep_water and kind == "deep_water")
 
     @staticmethod
     def placement_sweep_blocked(
@@ -689,9 +695,7 @@ class QuestFloorNavigator:
     ) -> set[Position]:
         """Static dry/shallow firing cells with an unobstructed 8-way ray."""
         goals: set[Position] = set()
-        ray_terrain = {
-            "floor", "exit", "passage", "shallow_water", "deep_water"
-        }
+        ray_terrain = quest_exposure.WALKABLE_KINDS
         for dy, dx in RANGED_VANTAGE_DIRECTIONS:
             for distance in range(1, max_distance + 1):
                 candidate = Position(

@@ -82,7 +82,10 @@ taken or, with no shot, from the dry cells beside it by the blow (``attack_cells
 Owner 2026-11-25 (verbatim) 「撃つ手も取り込んだ魔法道具の手も無い時はそれを許可するが、休憩して魔法道具の
 使用回数を戻せる場合はその限りではない」: a Magic-Eater closes on it to melee only with no shot and no
 absorbed attack power for it; with a power a rest restores (``recharges_first``) he leaves its line and
-rests there (``_recharge_key``), then shoots it with the power.
+rests there (``_recharge_key``), then shoots it with the power.  Owner 2026-11-25 (b)-1 (the audit's
+question 「寄って近接の相手の範囲」, answered as recommended): only such a member is closed on to melee;
+one that does not come for another reason (a pack that hides, one that runs, one in a locked room) is
+closed on to a shot's cell, and with no shot it is the plan's (its wait, its lure, its sweep).
 
 QUEST_33's sides (quest_alignment_split): every walk here goes round the cells where both sides act,
 and a member of one side is pulled only to a cell no living summoner of the other side acts on (by its
@@ -106,6 +109,7 @@ from hengbot import (
     attack_expectation,
     combat_answer,
     me_absorbed_substitutes,
+    me_capability,
     me_device_attacks,
     me_ranged_first,
     quest_alignment_split,
@@ -162,7 +166,7 @@ _SEARCH_RADIUS = DISENGAGE_WALK_LIMIT
 # MAX_PLAYER_SIGHT (system/gamevalue.h): a monster in the player's line this near acts
 # (monster-processor.cpp decide_process_continue).
 MAX_PLAYER_SIGHT = 20
-_STAND = frozenset({"floor", "passage"})
+_STAND = quest_exposure.STAND_KINDS
 
 
 def answers(plan) -> bool:
@@ -210,7 +214,7 @@ def _out_of_sight(policy, snapshot, navigator, watchers) -> set[Position]:
     walkable = quest_plan_base._terrain_of(navigator, snapshot, water=False)
     found = set()
     for cell, kind in walkable.items():
-        if (kind not in {"floor", "passage"} or quest_exposure.game_distance(here, cell) > _SEARCH_RADIUS
+        if (kind not in _STAND or quest_exposure.game_distance(here, cell) > _SEARCH_RADIUS
                 or any(quest_exposure.game_distance(cell, (m.position.y, m.position.x)) <= 1
                        for m in watchers)):
             continue
@@ -262,13 +266,16 @@ def absorbed_teleport_key(policy, snapshot, reason) -> str | None:
 # The emergency ladder's read of Teleportation (policy_combat._emergency_item and the other rungs that read
 # through policy._issue_emergency_consumable), cast from the absorbed Teleportation here.
 EMERGENCY_TELEPORT_REASON = "emergency:teleport"
+# The emergency ladder's read of Phase Door (owner 2026-11-25 (c)-2): cast as the Teleportation too.
+EMERGENCY_PHASE_REASON = "emergency:phase"
 
 
 def emergency_scroll_substitute(policy, snapshot, item, reason) -> str | None:
     """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation (``absorbed_teleport_key``)
     in the place of the emergency ladder's read of a Scroll of Teleportation (``reason``
-    ``EMERGENCY_TELEPORT_REASON``); else None (the scroll is read).  The other reads through
-    policy._issue_emergency_consumable (Phase Door, the reads under other reasons) are unchanged.
+    ``EMERGENCY_TELEPORT_REASON``) or of Phase Door (``EMERGENCY_PHASE_REASON``, owner 2026-11-25
+    (c)-2 「緊急の段がフェイズ・ドアを読む時も、取り込んだテレポートに回数があればそれを唱える」); else None
+    (the scroll is read).  The reads under other reasons are unchanged.
 
     Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」 and, asked how far the
     plan fights, 「取り込んだ杖を優先しようすれば問題ない」: every teleport away on Quest 33 casts the
@@ -284,7 +291,8 @@ def emergency_scroll_substitute(policy, snapshot, item, reason) -> str | None:
     45 monsters in view) with no scroll left; the fight that followed ended at 15:39:56."""
     from hengbot import deep_teleport  # it reads the quest modules
 
-    if reason != EMERGENCY_TELEPORT_REASON or not deep_teleport.is_self_teleport_scroll(item):
+    if (reason not in {EMERGENCY_TELEPORT_REASON, EMERGENCY_PHASE_REASON}
+            or not deep_teleport.is_self_teleport_scroll(item)):
         return None
     return absorbed_teleport_key(policy, snapshot, EMERGENCY_TELEPORT_REASON)
 
@@ -369,16 +377,15 @@ def _shooting_cells(policy, snapshot, navigator, firer) -> set[Position]:
             and _sight_line(open_cells, spot, cell)}
 
 
-def _blow_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Position]:
+def _blow_cells(policy, snapshot, navigator, monster) -> set[Position]:
     """The dry ground beside a monster that never comes to the player (``_stays``: NEVER_MOVE, or
     AQUATIC in its water) from which the player's blow reaches it: melee scores above it zero
     (attack_expectation.melee).  A monster that comes is met where it comes (the plan's hold).
     A Magic-Eater closes on it to melee only with no shot and no absorbed power for it
     (``melee_withheld``, owner 2026-11-25).  ``stays``: the member's verdict (``never_comes``), else
     the race's (``_stays``)."""
-    stays = _stays(policy, monster.race_id) if stays is None else stays
-    if (not stays or attack_expectation.melee(policy, snapshot, monster) <= 0
-            or melee_withheld(policy, snapshot, monster.race_id)):
+    if (melee_approach(policy, snapshot, monster, site=BLOW_SITE) != MELEE
+            or attack_expectation.melee(policy, snapshot, monster) <= 0):
         return set()
     cell = _cell(monster.position)
     walkable = quest_plan_base._terrain_of(navigator, snapshot, water=False)
@@ -410,7 +417,47 @@ def melee_withheld(policy, snapshot, race_id) -> bool:
                  or recharges_first(policy, snapshot, race_id)))
 
 
-def attack_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Position]:
+# The answers of the one gate on the walks that close on a monster to melee it (``melee_approach``):
+# walk to melee it, rest first (out of the lines, for an absorbed power a rest restores), or not.
+MELEE = "melee"
+REST_FIRST = "rest-first"
+REFUSED = "refused"
+# Its sites (scripts/melee_site_lint.py ``MELEE_APPROACH_ENTRIES``): the dry cells beside a monster that
+# never comes (``_blow_cells``, which ``attack_cells`` reads), the room sweep's walk to what stands
+# still in view (quest_room_sweep ``_fight``) and the chase of a summoner (``_approach``).
+BLOW_SITE = "blow"
+SWEEP_SITE = "sweep"
+CHASE_SITE = "chase"
+
+
+def melee_approach(policy, snapshot, monster, *, site) -> str:
+    """The one gate on the walks that close on ``monster`` to melee it (contradiction audit
+    2026-11-25 (a)-4): ``MELEE``, ``REST_FIRST`` or ``REFUSED`` at ``site``.
+
+    * ``BLOW_SITE`` and ``SWEEP_SITE``, a monster the plan closes on because it does not come:
+      owner 2026-11-25 (b)-1 (the audit's question 「寄って近接の相手の範囲」, as recommended): only one that
+      never leaves the water or never moves (``_stays``: quest_plan_base.never_moves ``in_water``).
+      A pack that hides, a monster that runs, one in a locked room is not closed on to melee: with no
+      shot it is the plan's (its wait, its lure, its sweep).
+    * ``CHASE_SITE``: the summoner gone after (owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を
+      優先する」).
+
+    At every site, owner 2026-11-25 (b)-2 (the audit's question 「魔道具術師が召喚主を追う時も休めば
+    戻るなら休む」, answered as recommended, the 11-25 rule 「撃つ手も取り込んだ魔法道具の手も無い時は
+    それを許可するが、休憩して魔法道具の使用回数を戻せる場合はその限りではない」 carried to the chase and to
+    the sweep): a Magic-Eater with no shot now and an absorbed attack power for it that a rest
+    restores rests first, out of the lines (``recharges_first``: ``REST_FIRST``, ``recharge_rest_key``);
+    with a shot he does not walk to melee a monster that does not come (``melee_withheld``)."""
+    if recharges_first(policy, snapshot, monster.race_id):
+        return REST_FIRST if site == CHASE_SITE or _stays(policy, monster.race_id) else REFUSED
+    if site == CHASE_SITE:
+        return MELEE
+    if not _stays(policy, monster.race_id) or melee_withheld(policy, snapshot, monster.race_id):
+        return REFUSED
+    return MELEE
+
+
+def attack_cells(policy, snapshot, navigator, monster) -> set[Position]:
     """The one verdict of where the player stands to kill ``monster`` when it does not come to him:
     a cell its shot is taken from (``_shooting_cells``) or, for one that never comes, a dry cell
     beside it (``_blow_cells``).  The fire answer closes on these (``fire_answer_key``) and the lure
@@ -423,21 +470,24 @@ def attack_cells(policy, snapshot, navigator, monster, *, stays=None) -> set[Pos
     answer (no shot) walked out of their line, and the two alternated with the hold until the
     livelock stop, while one blow (expected 100 a player action) from [14,42] kills one."""
     return (_shooting_cells(policy, snapshot, navigator, monster)
-            | _blow_cells(policy, snapshot, navigator, monster, stays=stays))
+            | _blow_cells(policy, snapshot, navigator, monster))
 
 
 def stranded(policy, snapshot, navigator, plan, board, acting) -> list:
-    """Of ``acting`` (what acts on the player), those in view that never come (``_stays``), are not
-    beside him and have cells they are killed from (``attack_cells``): no wait brings them (owner
-    2026-11-19 「有効な場所で待つ」), so they are closed on as the fire is (``fire_answer_key``).
-    One the Magic-Eater recharges for (``recharges_first``) has no such cell yet: the fire answer
-    takes him out of its line, where the rest is taken (``_recharge_key``)."""
+    """Of ``acting`` (what acts on the player), those in view that do not come (``never_comes``),
+    are not beside him and have cells they are killed from (``attack_cells``: a shot's cell, and for
+    one that never leaves the water or never moves the dry cell beside it, owner 2026-11-25 (b)-1):
+    no wait brings them (owner 2026-11-19 「有効な場所で待つ」), so they are closed on as the fire is
+    (``fire_answer_key``).  One that never leaves the water or never moves and that the
+    Magic-Eater recharges for (``recharges_first``) has no such cell yet: the fire answer takes him
+    out of its line, where the rest is taken (``_recharge_key``).  One that does not come with no
+    such cell (a hiding pack, a monster in a locked room, no shot) is not closed on: the plan's."""
     indices = {monster.index for monster in acting}
     return [monster for monster in board.in_view
             if monster.index in indices and not monster.asleep and monster not in board.beside
             and _comes_not(policy, snapshot, navigator, plan, board, monster)
-            and (attack_cells(policy, snapshot, navigator, monster, stays=True)
-                 or recharges_first(policy, snapshot, monster.race_id))]
+            and (attack_cells(policy, snapshot, navigator, monster)
+                 or (_stays(policy, monster.race_id) and recharges_first(policy, snapshot, monster.race_id)))]
 
 
 def fire_answer_key(policy, snapshot, navigator, plan, board, firers) -> str | None:
@@ -464,8 +514,7 @@ def fire_answer_key(policy, snapshot, navigator, plan, board, firers) -> str | N
         return None
     shooting = set()
     for firer in firers:
-        shooting |= attack_cells(policy, snapshot, navigator, firer,
-                                 stays=_comes_not(policy, snapshot, navigator, plan, board, firer))
+        shooting |= attack_cells(policy, snapshot, navigator, firer)
     if shooting and snapshot.player.position not in shooting:
         path = quest_room_sweep._path(policy, navigator, plan, snapshot, shooting, board.occupied)
         if (key := quest_plan_base._path_step(policy, snapshot, path, FIRE_APPROACH_REASON)) is not None:
@@ -523,9 +572,16 @@ def _chase_order(snapshot, navigator) -> list:
 
 
 def _approach(policy, snapshot, navigator, plan, board, target) -> str | None:
-    """A step toward the cells beside ``target`` over the plan's walks."""
+    """A step toward the cells beside ``target`` over the plan's walks, as the gate allows
+    (``melee_approach`` at ``CHASE_SITE``); a Magic-Eater the gate sends to rest first rests out of
+    the lines (``recharge_rest_key``, owner 2026-11-25 (b)-2)."""
     from hengbot import quest_room_sweep  # it asks this module for its rungs
 
+    verdict = melee_approach(policy, snapshot, target, site=CHASE_SITE)
+    if verdict == REST_FIRST:
+        return recharge_rest_key(policy, snapshot, navigator, plan, board, {target.race_id})
+    if verdict != MELEE:
+        return None
     goals = {Position(target.position.y + dy, target.position.x + dx)
              for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx}
     path = quest_room_sweep._path(policy, navigator, plan, snapshot, goals, board.occupied)
@@ -730,6 +786,8 @@ def _note_group(policy, snapshot, navigator) -> None:
     # A member's verdict whether it comes (``never_comes``) leaves with it.
     navigator.summon_comes = {index: comes for index, comes in navigator.summon_comes.items()
                               if index in navigator.summon_group}
+    navigator.summon_comes_basis = {index: basis for index, basis in navigator.summon_comes_basis.items()
+                                    if index in navigator.summon_group}
     if navigator.summon_target is not None and navigator.summon_target not in navigator.summon_group:
         # The member lured is gone: the next one starts its own wait.  (With no member lured the
         # holds for what acts on the player keep counting: n1-c life-217, see ``after_key``.)
@@ -781,8 +839,14 @@ def _recharging(policy, snapshot, navigator) -> frozenset:
 
 
 def _recharge_key(policy, snapshot, navigator, plan, board, recharging) -> str | None:
-    """Owner 2026-11-25 「休憩して魔法道具の使用回数を戻せる場合はその限りではない」: for the members
-    ``recharging``, out of every awake hostile's line a counted rest (``R100``, as the Q34 and Q25
+    """``recharge_rest_key`` for the members ``recharging`` (their races)."""
+    return recharge_rest_key(policy, snapshot, navigator, plan, board,
+                             {navigator.summon_group[index][0] for index in recharging})
+
+
+def recharge_rest_key(policy, snapshot, navigator, plan, board, races) -> str | None:
+    """Owner 2026-11-25 「休憩して魔法道具の使用回数を戻せる場合はその限りではない」: against the races
+    ``races``, out of every awake hostile's line a counted rest (``R100``, as the Q34 and Q25
     recharge rests) that restores the absorbed powers (me_device_attacks.restorable_powers); in a
     line, a step out of it first (the fire answer's walk).  The displayed lists of those powers are
     stale after the rest and are read again before the next decision (me_device_attacks
@@ -797,10 +861,47 @@ def _recharge_key(policy, snapshot, navigator, plan, board, recharging) -> str |
     if player.confused or player.food_state not in {"normal", "full", "gorged"}:
         return None
     kinds = set()
-    for index in recharging:
-        race = navigator.summon_group[index][0]
+    for race in races:
         kinds |= {power.kind for power in me_device_attacks.restorable_powers(policy, snapshot, race)}
     me_device_attacks.mark_stale(policy, kinds)
+    policy.last_reason = RECHARGE_REST_REASON
+    return RECHARGE_REST_KEY
+
+
+# Owner 2026-11-25 (c)-1 (verbatim answer, as recommended) 「Q33 で取り込んだテレポートの回数が少ない時は
+# 射線の外で休んで回数を戻してから釣り出しを続ける」.  No count of "few" was named before (no constant of
+# the absorbed Teleportation's charges in me_powers or the Q33 plan): the one escape left, the least
+# that still takes the player out once.
+TELEPORT_FEW_CHARGES = 1
+
+
+def teleport_short(policy, snapshot) -> bool:
+    """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation (me_capability) has at most
+    ``TELEPORT_FEW_CHARGES`` and fewer than its count, so a rest restores some (hpmp/
+    hp-mp-regenerator.cpp regenmagic: each absorbed staff gains charge toward its count)."""
+    if policy._active_fixed_quest_id(snapshot) not in ABSORBED_FIRST_QUESTS:
+        return False
+    kind, sval = me_absorbed_substitutes.TELEPORTATION
+    if not me_capability.has(policy, snapshot, kind, sval):
+        return False
+    charges = me_capability.charges(policy, snapshot, kind, sval)
+    return charges <= TELEPORT_FEW_CHARGES and charges < me_capability.count(policy, snapshot, kind, sval)
+
+
+def teleport_rest_key(policy, snapshot, navigator, plan, board) -> str | None:
+    """Owner 2026-11-25 (c)-1: the absorbed Teleportation short (``teleport_short``), out of every
+    awake hostile's line the counted rest of ``recharge_rest_key`` (its list read again after it),
+    before the lure goes on."""
+    if not teleport_short(policy, snapshot):
+        return None
+    player = snapshot.player
+    watchers = _watchers(snapshot)
+    if watchers and not _out_of_lines(snapshot, navigator, watchers):
+        path = _out_of_lines_path(policy, snapshot, navigator, plan, board, watchers)
+        return quest_plan_base._path_step(policy, snapshot, path, FIRE_WALK_REASON)
+    if player.confused or player.food_state not in {"normal", "full", "gorged"}:
+        return None
+    me_device_attacks.mark_stale(policy, {me_absorbed_substitutes.TELEPORTATION[0]})
     policy.last_reason = RECHARGE_REST_REASON
     return RECHARGE_REST_KEY
 
@@ -840,7 +941,7 @@ def lure_cells(policy, snapshot, navigator, plan, board, index, *, close, wander
     attack = None
     if close and never_comes(policy, snapshot, navigator, plan, board, index):
         attack = {_cell(spot) for spot in attack_cells(
-            policy, snapshot, navigator, _member(policy, snapshot, navigator, index), stays=True)}
+            policy, snapshot, navigator, _member(policy, snapshot, navigator, index))}
     by_count: dict[int, set] = {}
     for spot, kind in walkable.items():
         if (kind not in _STAND or spot in refused or spot in occupied
@@ -858,6 +959,11 @@ def lure_cells(policy, snapshot, navigator, plan, board, index, *, close, wander
     return by_count
 
 
+# How many more other members act on the cell the lure's wait holds than when the wait began on it,
+# from which the wait leaves it for the cell where the fewest act (owner 2026-11-25 (b)-6).
+KEEP_WAIT_MORE_OTHERS = 3
+
+
 def _lure_path(policy, snapshot, navigator, plan, board, index, *, close, keep=False):
     """(how many others act there, the walk) to the reachable pulling cells of member ``index`` where
     the fewest others act; the walk is ``[here]`` standing on one; None with none reachable.
@@ -869,15 +975,23 @@ def _lure_path(policy, snapshot, navigator, plan, board, index, *, close, keep=F
     wait into a walk back and forth (n1-a life-537, Quest 33, 2026-11-25 12:37: the 巨大火アリ 9
     stepping between [27,53] and [26,54] at the edge of its vision (14) put [29,40] in and out of its
     pulling cells, and the player between [29,40] and [29,41] until the livelock stop; owner
-    2026-11-13 pingpong 「理由が消えるまで戻らない」: the cell is kept while its reason holds)."""
+    2026-11-13 pingpong 「理由が消えるまで戻らない」: the cell is kept while its reason holds).
+    Owner 2026-11-25 (b)-6 (verbatim answer) 「誘い出しで待ち始めたマスに、待ち始めた時より他の敵が3体以上
+    多く来られるようになったら、一番少ないマスへ移る」: not kept once ``KEEP_WAIT_MORE_OTHERS`` or more
+    other members act on it than when the wait began there (``navigator.summon_hold_basis``); then
+    the cell where the fewest act, as at the start (owner 2026-11-19)."""
     from hengbot import quest_room_sweep  # it asks this module for its rungs
 
     here = _cell(snapshot.player.position)
     by_count = sorted(lure_cells(policy, snapshot, navigator, plan, board, index, close=close).items())
     if keep:
+        basis = navigator.summon_hold_basis
         for count, cells in sorted(lure_cells(policy, snapshot, navigator, plan, board, index, close=close,
                                               wander=True).items()):
             if here in cells:
+                if (basis is not None and basis[:2] == (index, here)
+                        and count - basis[2] >= KEEP_WAIT_MORE_OTHERS):
+                    break
                 return count, [snapshot.player.position]
     for count, cells in by_count:
         if here in cells:
@@ -910,10 +1024,9 @@ def _mark_unreached(navigator, index) -> None:
 
 
 def _stays(policy, race) -> bool:
-    """A race that never comes to a pulling cell: NEVER_MOVE never steps, an AQUATIC one steps only
-    on water (monster-info.cpp monster_can_cross_terrain), and the pulling cells are dry ground."""
-    flags = getattr(policy._monrace_knowledge.get(race), "flags", frozenset())
-    return bool({"NEVER_MOVE", "AQUATIC"} & set(flags))
+    """A race that never comes to a pulling cell (the pulling cells are dry ground):
+    quest_plan_base.never_moves with ``in_water`` (NEVER_MOVE, or AQUATIC)."""
+    return quest_plan_base.never_moves(policy, race, in_water=True)
 
 
 # The pulling cells read for a member's coming (``never_comes``): the nearest of them, as the lure
@@ -937,12 +1050,13 @@ def _member(policy, snapshot, navigator, index):
 def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
     """The one verdict, read by the lure, its wait and the closing on (``stranded``, ``lure_cells``),
     whether member ``index`` comes to the player: no (``True``) for a race that never steps off its
-    ground (``_stays``), and for one that, by the game's own moves (quest_wait_placement ``comes``:
+    ground (``_stays``), and for one that, by the game's own moves (quest_wait_placement ``will_come``:
     the sweep grid's flow, the hiding of an animal pack, the doors and the ground it cannot cross),
     comes to none of the nearest pulling cells (``_COMING_SPOTS``).  A member that does not come is
     not lured nor waited for (owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で
-    待つ」): it is closed on to the cells it is killed from (``attack_cells``), and one no walk reaches
-    such a cell of is left to the plan (``_unreached``).
+    待つ」): it is closed on to the cells it is killed from (``attack_cells``: a shot's cells, and the
+    dry cells beside it only for one that never leaves the water or never moves, owner 2026-11-25
+    (b)-1), and one no walk reaches such a cell of, or with none, is left to the plan (``_unreached``).
 
     n1-a life-537 (Quest 33, 2026-11-25 13:18): the 巨大火アリ (race 548: FRIENDS, ANIMAL, no spell)
     by the tree columns [24..27,53..55] hid from the player at full HP and SP
@@ -958,7 +1072,13 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
     # and the lure walks to its pulling cells and to its killing cells in turn (n1-b life-418,
     # Quest 33, 2026-11-25 15:08:59: Fang (race 55, RAND_25) in its locked room [24..26,1..4] read
     # in turn, the walk between [25,11], [26,12] and [26,11] until the livelock stop).
-    if index in navigator.summon_comes:
+    # Owner 2026-11-25 (b)-3 (verbatim answer, as recommended) 「「来るか」は固定しておき、待ちの上限が
+    # 尽きた時と、HP が隠れの境目をまたいで大きく変わった時だけ判断し直す」: read again when the board's
+    # hiding line (quest_wait_placement.hide_line, the game's HidingMoveGridDecider) is not the one
+    # it was read under, and once when the wait's cap runs out (``_rejudge_after_wait``).
+    line = quest_wait_placement.hide_line(snapshot)
+    basis = navigator.summon_comes_basis.get(index)
+    if index in navigator.summon_comes and basis is not None and basis[0] == line:
         return not navigator.summon_comes[index]
 
     def compute() -> bool:
@@ -968,13 +1088,28 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
             cells |= found
         spots = sorted(cells, key=lambda spot: (quest_exposure.game_distance(here, spot), spot))[:_COMING_SPOTS]
         on_board = next((monster for monster in _on_board(snapshot) if monster.index == index), None)
-        return not quest_wait_placement.come_cells(policy, snapshot, navigator, race, cell, spots, on_board,
-                                                    first=True)
+        return not quest_wait_placement.will_come(policy, snapshot, navigator, race, cell, spots, on_board,
+                                                   first=True)
 
     verdict = decision_memo(policy, "quest_summon_answer.never_comes", snapshot,
                             (index, race, tuple(cell), tuple(sorted(navigator.summon_group))), compute)
     navigator.summon_comes = {**navigator.summon_comes, index: not verdict}
+    # The cap's reading is spent once per hiding line.
+    capped = basis is not None and basis[0] == line and basis[1]
+    navigator.summon_comes_basis = {**navigator.summon_comes_basis, index: (line, capped)}
     return verdict
+
+
+def _rejudge_after_wait(navigator, indices) -> None:
+    """Owner 2026-11-25 (b)-3: the wait's cap (``enemy_wait_turns``) ran out on ``indices``: each
+    verdict is read again on the next ``never_comes``, once until the hiding line changes."""
+    comes, basis_of = dict(navigator.summon_comes), dict(navigator.summon_comes_basis)
+    for index in indices:
+        basis = basis_of.get(index)
+        if index in comes and basis is not None and not basis[1]:
+            del comes[index]
+            basis_of[index] = (basis[0], True)
+    navigator.summon_comes, navigator.summon_comes_basis = comes, basis_of
 
 
 def _comes_not(policy, snapshot, navigator, plan, board, monster) -> bool:
@@ -1006,8 +1141,10 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
             return None
         navigator.summon_target = min(choices)[-1]
         navigator.summon_hold = 0
-    close = (navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
-             or never_comes(policy, snapshot, navigator, plan, board, navigator.summon_target))
+    capped = navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0))
+    if capped:
+        _rejudge_after_wait(navigator, (navigator.summon_target,))
+    close = capped or never_comes(policy, snapshot, navigator, plan, board, navigator.summon_target)
     # The wait has begun (a hold spent on this member): it goes on on any of its pulling cells.
     found = _lure_path(policy, snapshot, navigator, plan, board, navigator.summon_target, close=close,
                        keep=not close and navigator.summon_hold > 0)
@@ -1019,7 +1156,14 @@ def _lure(policy, snapshot, navigator, plan, board) -> str | None:
     path = found[1]
     if len(path) == 1:
         # On a pulling cell: hold for what follows; seen from here, its cell is read by _note_group.
-        return None if close else _hold_for(policy, navigator)
+        if close:
+            return None
+        here = _cell(snapshot.player.position)
+        basis = navigator.summon_hold_basis
+        if basis is None or basis[:2] != (navigator.summon_target, here):
+            # The wait begins on this cell (owner 2026-11-25 (b)-6): how many others act on it now.
+            navigator.summon_hold_basis = (navigator.summon_target, here, found[0])
+        return _hold_for(policy, navigator)
     return quest_plan_base._path_step(policy, snapshot, path, LURE_WALK_REASON)
 
 
@@ -1053,9 +1197,15 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
     recharging = _recharging(policy, snapshot, navigator)
     acting = [monster for monster in acting if monster.index not in recharging]
     # Owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: held for only while one
-    # of them will come here (quest_wait_placement); else closed on at once, as past the wait.
+    # of them will come (their kept verdict, ``never_comes``, owner 2026-11-25 (b)-3: one reading,
+    # not a reading of its own each board); else closed on at once, as past the wait.  The cap run
+    # out, the verdicts are read again once.
     coming = [monster for monster in acting
-              if quest_wait_placement.comes(policy, snapshot, navigator, plan, monster)]
+              if not _comes_not(policy, snapshot, navigator, plan, board, monster)]
+    if coming and navigator.summon_hold >= int(plan.get("enemy_wait_turns", 0)):
+        _rejudge_after_wait(navigator, [monster.index for monster in coming])
+        coming = [monster for monster in coming
+                  if not _comes_not(policy, snapshot, navigator, plan, board, monster)]
     if coming and navigator.summon_hold < int(plan.get("enemy_wait_turns", 0)):
         return _hold_for(policy, navigator)
     if acting:
@@ -1075,6 +1225,9 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
         # Nothing acts on the player and nothing is lured: the next one to act starts its own wait.
         navigator.summon_hold = 0
     if (rested := _rest_key(policy, snapshot)) is not None:
+        return rested
+    # Owner 2026-11-25 (c)-1: the absorbed Teleportation short, a rest out of the lines first.
+    if (rested := teleport_rest_key(policy, snapshot, navigator, plan, board)) is not None:
         return rested
     if recharging and (recharged := _recharge_key(policy, snapshot, navigator, plan, board, recharging)) is not None:
         return recharged

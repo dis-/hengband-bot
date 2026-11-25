@@ -16369,13 +16369,6 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_plan_base.py:_never_moves": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "quest_plan_base.py:_open_doors": {
     "classification": "data",
     "rows": [
@@ -16460,6 +16453,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_plan_base.py:flags_never_move": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_plan_base.py:floor_restore_key": {
     "classification": "producer",
     "rows": [
@@ -16474,6 +16474,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_plan_base.py:never_moves": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_plan_base.py:plan_door": {
     "classification": "producer",
     "rows": [
@@ -16487,6 +16494,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_plan_base.py:race_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_plan_base.py:survival_stage": {
     "classification": "producer",
@@ -17020,6 +17034,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_summon_answer.py:melee_approach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_summon_answer.py:never_comes": {
     "classification": "data",
     "rows": [
@@ -17034,6 +17055,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_summon_answer.py:recharge_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_summon_answer.py:recharges_first": {
     "classification": "data",
     "rows": [
@@ -17047,6 +17075,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "quest_summon_answer.py:teleport_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "quest_summon_answer.py:walk_key": {
     "classification": "producer",
@@ -17321,14 +17356,14 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "quest_wait_placement.py:comes": {
+  "quest_wait_placement.py:reader": {
     "classification": "producer",
     "rows": [
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "quest_wait_placement.py:reader": {
+  "quest_wait_placement.py:will_come": {
     "classification": "producer",
     "rows": [
       "survival"

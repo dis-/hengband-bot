@@ -402,10 +402,117 @@ def registry_problems(index: Index) -> list:
     return problems
 
 
+# -- the quest plans' single readings (contradiction audit 2026-11-25, (a)-1..(a)-3) --------------
+
+# (a)-1: the one "never moves" predicate (quest_plan_base.never_moves / flags_never_move).  The
+# functions that port the game's terrain crossing (monster_can_cross_terrain: an AQUATIC one only on
+# water) read AQUATIC as a crossing rule, not as "never comes": they are listed with their reason.
+MOVE_FLAGS = frozenset({"NEVER_MOVE", "AQUATIC"})
+MOVE_FLAG_READERS = {
+    ("quest_plan_base", "flags_never_move"): "the one predicate",
+    ("quest_exposure", "can_reach"): "monster_can_cross_terrain's port (the walk over the map)",
+    ("quest_wait_placement", "_crosses"): "monster_can_cross_terrain's port (one step)",
+}
+
+
+def _docstrings(tree) -> set:
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                found.add(id(first.value))
+    return found
+
+
+def _enclosing(tree) -> dict:
+    """Node id -> the name of the innermost top-level or method function holding it."""
+    owner = {}
+
+    def visit(node, name):
+        for child in ast.iter_child_nodes(node):
+            here = child.name if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) else name
+            owner[id(child)] = here
+            visit(child, here)
+
+    visit(tree, None)
+    return owner
+
+
+def _quest_modules(modules: dict) -> dict:
+    return {module: tree for module, tree in modules.items() if module.startswith("quest_")}
+
+
+def move_flag_problems(modules: dict) -> list:
+    problems = []
+    for module, tree in _quest_modules(modules).items():
+        docs, owner = _docstrings(tree), _enclosing(tree)
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and node.value in MOVE_FLAGS and id(node) not in docs
+                    and (module, owner.get(id(node))) not in MOVE_FLAG_READERS):
+                problems.append(f"never-moves: {module}.py:{node.lineno} reads {node.value} directly "
+                                "(quest_plan_base.never_moves is the one predicate)")
+    return problems
+
+
+# (a)-3: the named sets of the quest map's kinds (quest_exposure: STAND_KINDS, WALKABLE_KINDS, ...);
+# a quest module writes no set of terrain kinds of its own.
+TERRAIN_KINDS = frozenset({"floor", "passage", "exit", "shallow_water", "deep_water", "tree", "door",
+                           "lava", "pit", "wall", "rubble", "permanent"})
+TERRAIN_HOME = "quest_exposure"
+
+
+def terrain_set_problems(modules: dict) -> list:
+    problems = []
+    for module, tree in _quest_modules(modules).items():
+        if module == TERRAIN_HOME:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Set, ast.List, ast.Tuple)):
+                continue
+            strings = [elt.value for elt in node.elts if isinstance(elt, ast.Constant) and isinstance(elt.value, str)]
+            if strings and all(value in TERRAIN_KINDS for value in strings):
+                problems.append(f"terrain-set: {module}.py:{node.lineno} writes {ast.unparse(node)} "
+                                f"(name it in {TERRAIN_HOME})")
+    return problems
+
+
+# (a)-2: the one entry of "does it come?" (quest_wait_placement.will_come).  A reader is built only by
+# the board's cached ``reader`` and by ``come_cells`` (the reader of one monster), ``come_cells`` is
+# called only by the entry.  (quest_lure_approach asks the board reader's ``comes`` of its own rows on
+# a map with cells opened, ``_Reader.with_opened``: the same rule over another map.)
+COME_HOME = "quest_wait_placement"
+COME_BUILDERS = frozenset({"reader", "come_cells"})
+COME_ENTRY = "will_come"
+
+
+def _called(node) -> str | None:
+    func = node.func
+    return func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+
+
+def come_entry_problems(modules: dict) -> list:
+    problems = []
+    for module, tree in modules.items():
+        owner = _enclosing(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name, where = _called(node), owner.get(id(node))
+            if name == "_Reader" and not (module == COME_HOME and where in COME_BUILDERS):
+                problems.append(f"come-entry: {module}.py:{node.lineno} builds a _Reader "
+                                f"({COME_HOME}.{COME_ENTRY} is the entry)")
+            elif name == "come_cells" and not (module == COME_HOME and where == COME_ENTRY):
+                problems.append(f"come-entry: {module}.py:{node.lineno} calls come_cells "
+                                f"({COME_HOME}.{COME_ENTRY} is the entry)")
+    return problems
+
+
 def main(argv) -> int:
     index = Index(_modules())
     found = gaps(index)
-    problems = registry_problems(index)
+    problems = (registry_problems(index) + move_flag_problems(index.modules)
+                + terrain_set_problems(index.modules) + come_entry_problems(index.modules))
     if "--write-baseline" in argv:
         BASELINE.write_text(json.dumps(found, ensure_ascii=False, indent=1) + "\n", encoding="utf-8",
                             newline="\n")

@@ -68,9 +68,9 @@ GOOD = "good"
 EVIL = "evil"
 # The battlefield's kinds a line passes over (TerrainDefinitions.jsonc LOS and PROJECTION): the
 # pits and lavas do, a tree does not (TREE has neither flag), a closed door does not.
-_SIGHT_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage", "pit", "lava"})
+_SIGHT_KINDS = quest_exposure.SPLIT_SIGHT_KINDS
 # The kinds a walk of the plan may stand on (quest_plan_base._terrain_of).
-_STAND_KINDS = frozenset({"floor", "exit", "door", "passage", "shallow_water", "tree"})
+_STAND_KINDS = quest_exposure.MAP_STAND_KINDS
 
 
 def split_of(plan) -> dict | None:
@@ -240,7 +240,7 @@ def leave_goals(policy, snapshot, navigator, plan) -> set[Position]:
     if _cell(snapshot.player.position) not in contact:
         return set()
     return {Position(*spot) for spot, kind in navigator.battlefield.terrain.items()
-            if kind in {"floor", "passage"} and spot not in contact}
+            if kind in quest_exposure.STAND_KINDS and spot not in contact}
 
 
 # -- the casts at a monster -------------------------------------------------------------
@@ -268,7 +268,7 @@ def board_terrain(navigator, snapshot) -> dict:
     terrain = dict(navigator.battlefield.terrain)
     opened = set(getattr(navigator, "opened_cells", ()))
     for spot, kind in navigator.battlefield.terrain.items():
-        if kind not in {"tree", "wall"}:
+        if kind not in quest_exposure.SIGHT_BLOCKING_KINDS:
             continue
         grid = snapshot.grid_at(Position(*spot))
         if spot in opened or (grid is not None and grid.known and grid.terrain_id in _OPENED_TERRAIN_IDS):

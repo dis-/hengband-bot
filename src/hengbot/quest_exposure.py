@@ -32,8 +32,42 @@ from hengbot.model import Position
 from hengbot.projection_path import projection_path
 
 MAX_SPELL_RANGE = 18  # AngbandSystem::get_max_range
+
+# The named sets of the quest map's kinds (quest_knowledge's terrain), the one place they are written
+# (contradiction audit 2026-11-25 (a)-3; scripts/cross_rule_lint.py ``terrain-set``).
+# Plain ground: where a plan stands, waits or lures (no water, no door, no tree).
+STAND_KINDS = frozenset({"floor", "passage"})
+# What a projection passes (projectable): the ground, the water and a tree.
 PROJECTING_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage", "tree"})
-_WALKABLE_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage"})
+# The player's walk over the map (least_exposed_path): no tree, no door.
+WALKABLE_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage"})
+_WALKABLE_KINDS = WALKABLE_KINDS
+# That walk without the deep water.
+DRY_WALK_KINDS = WALKABLE_KINDS - {"deep_water"}
+WATER_KINDS = frozenset({"shallow_water", "deep_water"})
+# The shore walk (quest_find_exit): the water and the floor beside it.
+SHORE_KINDS = WATER_KINDS | {"floor"}
+# The cells stood on on the map (quest_knowledge's chokes, quest_alignment_split, quest_lure_approach).
+MAP_STAND_KINDS = frozenset({"floor", "exit", "door", "passage", "shallow_water", "tree"})
+# The static walk of quest_navigator: those and the rubble.
+NAVIGATOR_WALK_KINDS = MAP_STAND_KINDS | {"rubble"}
+# What a line of the alignment split passes: the walk's kinds, the pits and the lavas.
+SPLIT_SIGHT_KINDS = frozenset({"floor", "exit", "shallow_water", "deep_water", "passage", "pit", "lava"})
+# What stops the alignment split's sight: a tree and a wall.
+SIGHT_BLOCKING_KINDS = frozenset({"tree", "wall"})
+# The kinds a detection is cast from (quest_detect_remaining).
+CAST_KINDS = frozenset({"floor", "passage", "exit"})
+WALL_KINDS = frozenset({"wall"})
+# A wall or rubble: crossed only by PASS_WALL or KILL_WALL (quest_wait_placement._crosses).
+WALL_OR_RUBBLE_KINDS = frozenset({"wall", "rubble"})
+# Not of a room (quest_final_room): a wall, a permanent wall, an unmapped cell.
+NOT_ROOM_KINDS = frozenset({"wall", "permanent", None})
+TREE_KINDS = frozenset({"tree"})
+PIT_KINDS = frozenset({"pit"})
+# update_flow's kinds (quest_wait_placement): what a monster's flow passes.
+FLOW_KINDS = frozenset({"floor", "exit", "passage", "tree", "shallow_water", "deep_water", "lava", "door"})
+# A monster's own steps over the ground (quest_wait_placement._crosses, the last case).
+MONSTER_WALK_KINDS = frozenset({"floor", "exit", "passage", "tree", "shallow_water", "door"})
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (dy, dx) != (0, 0))
 
 
@@ -112,11 +146,11 @@ def can_reach(terrain, flags, source: tuple[int, int], player: tuple[int, int]) 
     if {"PASS_WALL", "KILL_WALL"} & flags:
         return True
     if "AQUATIC" in flags and "CAN_FLY" not in flags:
-        allowed = {"shallow_water", "deep_water"}
+        allowed = WATER_KINDS
     elif {"CAN_SWIM", "CAN_FLY"} & flags:
         allowed = _WALKABLE_KINDS
     else:
-        allowed = _WALKABLE_KINDS - {"deep_water"}
+        allowed = DRY_WALK_KINDS
     seen, pending = {source}, [source]
     while pending:
         cell = pending.pop()

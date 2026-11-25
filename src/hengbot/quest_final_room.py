@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Any, Mapping
 
+from hengbot import quest_exposure
 from hengbot.model import Position, Snapshot
 
 
@@ -125,7 +126,7 @@ def final_search_area(
 
     area = {
         Position(y, x) for (y, x), kind in terrain.items()
-        if in_room(y, x) and kind not in ("wall", "permanent", None)
+        if in_room(y, x) and kind not in quest_exposure.NOT_ROOM_KINDS
     }
     area.add(door)
     queue = deque([door])
@@ -138,7 +139,7 @@ def final_search_area(
             if nxt in seen or in_room(y, x):
                 continue
             seen.add(nxt)
-            if terrain.get((y, x)) in ("floor", "passage"):
+            if terrain.get((y, x)) in quest_exposure.STAND_KINDS:
                 area.add(nxt)
                 queue.append(nxt)
     return frozenset(area)

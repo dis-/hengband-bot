@@ -85,16 +85,16 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, replace
 
-from hengbot import quest_alignment_split, quest_detect_remaining, quest_exposure
+from hengbot import quest_alignment_split, quest_detect_remaining, quest_exposure, quest_plan_base
 from hengbot.item_reservation import decision_memo
 from hengbot.model import Position
 
 FLOW_DEPTH = 32  # grid.cpp update_flow monster_flow_depth
 SEARCH_STEPS = 24  # the walk from a stand within which another waiting cell is looked for
 MAX_PLAYER_SIGHT = 20
-WAIT_KINDS = frozenset({"floor", "passage"})
-_FLOW_KINDS = frozenset({"floor", "exit", "passage", "tree", "shallow_water", "deep_water", "lava", "door"})
-_WALK_KINDS = frozenset({"floor", "exit", "passage", "tree", "shallow_water", "door"})
+WAIT_KINDS = quest_exposure.STAND_KINDS
+_FLOW_KINDS = quest_exposure.FLOW_KINDS
+_WALK_KINDS = quest_exposure.MONSTER_WALK_KINDS
 _NEIGHBOURS = tuple((dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
 
 
@@ -183,7 +183,7 @@ def _crosses(snapshot, terrain, flags, cell) -> bool:
     fly, aquatic = "CAN_FLY" in flags, "AQUATIC" in flags
     if kind is None:
         return False
-    if kind in {"wall", "rubble"}:
+    if kind in quest_exposure.WALL_OR_RUBBLE_KINDS:
         return bool({"PASS_WALL", "KILL_WALL"} & flags) and not _permanent(snapshot, cell)
     if kind == "door":
         return bool({"OPEN_DOOR", "BASH_DOOR", "PASS_WALL"} & flags) or not _closed(snapshot, cell)
@@ -209,7 +209,7 @@ def _closed(snapshot, cell) -> bool:
 
 def _flow_from(terrain, start, fly: bool) -> dict:
     """update_flow's distances, walked from the monster's cell (the grid graph is undirected)."""
-    kinds = _FLOW_KINDS | ({"pit"} if fly else frozenset())
+    kinds = _FLOW_KINDS | (quest_exposure.PIT_KINDS if fly else frozenset())
     dist = {start: 0}
     pending = deque([start])
     while pending:
@@ -264,7 +264,7 @@ def _moves_val(vec) -> list:
 def _flow_maps(snapshot, terrain, spot, fly: bool) -> tuple[dict, dict]:
     """update_flow (grid/grid.cpp:806-913) from a player on ``spot``: (distance, cost) per cell, a closed
     door costing 3 more; absent where the walk of 32 does not reach (the game's 0)."""
-    kinds = _FLOW_KINDS | ({"pit"} if fly else frozenset())
+    kinds = _FLOW_KINDS | (quest_exposure.PIT_KINDS if fly else frozenset())
     dist, cost = {spot: 0}, {spot: 0}
     pending = deque([spot])
     while pending:
@@ -293,7 +293,15 @@ def _passes(mover: Awaited, other) -> bool:
         return False
     if "KILL_BODY" in flags and "NEVER_BLOW" not in flags and mine.experience * mine.level > theirs.experience * theirs.level:
         return True
-    return "MOVE_BODY" in flags and "NEVER_MOVE" not in flags and mine.experience > theirs.experience
+    return "MOVE_BODY" in flags and not quest_plan_base.flags_never_move(flags) and mine.experience > theirs.experience
+
+
+def hide_line(snapshot) -> int:
+    """HidingMoveGridDecider's line (monster-sweep-grid.cpp:186-226): an animal pack hides while the
+    walkable cells round the player (less 2 for a race with no spell) are fewer than
+    8 x (HP + SP) / (max HP + max SP), in integers as the game divides."""
+    player = snapshot.player
+    return (8 * (player.hp + player.mp)) // max(1, player.max_hp + player.max_mp)
 
 
 class _Reader:
@@ -309,7 +317,7 @@ class _Reader:
         self.flows: dict = {}
         self.steps: dict = {}
         player = snapshot.player
-        self.hide_line = (8 * (player.hp + player.mp)) // max(1, player.max_hp + player.max_mp)
+        self.hide_line = hide_line(snapshot)
         self.level = int(getattr(player, "level", 0) or 0)
         self.summoners = quest_alignment_split.summoners(policy, snapshot, navigator, plan)
 
@@ -389,7 +397,7 @@ class _Reader:
             if other.key == row.key or _passes(row, other):
                 continue
             monster = other.monster
-            if (monster.asleep or "NEVER_MOVE" in _flags(other) or not self.acts(other, spot)):
+            if (monster.asleep or quest_plan_base.flags_never_move(_flags(other)) or not self.acts(other, spot)):
                 cells.add(other.cell)
         return frozenset(cells)
 
@@ -406,7 +414,7 @@ class _Reader:
     def comes(self, row: Awaited, spot) -> bool:
         """``row`` acts on a player on ``spot`` and will come to him (module docstring)."""
         flags = _flags(row)
-        if row.knowledge is None or "NEVER_MOVE" in flags or not self.acts(row, spot):
+        if row.knowledge is None or quest_plan_base.flags_never_move(flags) or not self.acts(row, spot):
             return False
         if self._runs(row, spot):
             return False
@@ -586,12 +594,37 @@ def come_cells(policy, snapshot, navigator, race: int, cell, spots, monster=None
     return tuple(found)
 
 
-def comes(policy, snapshot, navigator, plan, monster, spot=None) -> bool:
-    """A board monster acts on a player on ``spot`` (where he stands by default) and comes."""
-    knowledge = policy._monrace_knowledge.get(monster.race_id)
-    row = Awaited(("seen", monster.index), monster.race_id, _cell(monster.position), knowledge, monster)
-    here = _cell(snapshot.player.position) if spot is None else spot
-    return reader(policy, snapshot, navigator, plan).comes(row, here)
+def will_come(policy, snapshot, navigator, race: int, cell, spots, monster=None, *, first: bool = False,
+              plan=None) -> tuple:
+    """The one entry of "does it come?" (contradiction audit 2026-11-25 (a)-2): of ``spots`` (in
+    their order), those a player on which the one monster of ``race`` on ``cell`` acts on and comes
+    to (``_Reader.comes``; ``first``: only the first).  ``plan`` given: read with the board's shared
+    reader (``reader``, cached over the board's readings, the plan's fight and the steps after a
+    disengage); else with a reader of that monster alone (``come_cells``: a member's verdict,
+    quest_summon_answer ``never_comes``, and the fixed waiting cells of quest25_battle_rooms).  The
+    two read the same game rule (``_Reader.comes`` reads no plan).  scripts/cross_rule_lint.py
+    fails on a module that builds a reader or calls ``come_cells`` itself."""
+    if plan is None:
+        return come_cells(policy, snapshot, navigator, race, cell, spots, monster, first=first)
+    knowledge = policy._monrace_knowledge.get(race)
+    cell = tuple(cell)
+    key = ("seen", monster.index) if monster is not None else ("placed", race, cell)
+    row = Awaited(key, race, cell, knowledge, monster)
+    read = reader(policy, snapshot, navigator, plan)
+    found = []
+    for spot in spots:
+        if read.comes(row, tuple(spot)):
+            found.append(tuple(spot))
+            if first:
+                break
+    return tuple(found)
+
+
+def comes_here(policy, snapshot, navigator, plan, monster) -> bool:
+    """``will_come`` of a board monster to where the player stands, with the board's reader."""
+    here = _cell(snapshot.player.position)
+    return bool(will_come(policy, snapshot, navigator, monster.race_id, _cell(monster.position), (here,),
+                          monster, first=True, plan=plan))
 
 
 # -- the choice -----------------------------------------------------------------------------
@@ -617,10 +650,8 @@ def _unspent(rows_by_key, spent, spot, keys) -> frozenset:
 
 def _candidates(policy, snapshot, navigator, plan, stand, taken) -> dict:
     """Cell -> steps from ``stand`` over the plan's walking map, within SEARCH_STEPS."""
-    from hengbot import quest_plan_base
-
     terrain = quest_plan_base._terrain_of(navigator, snapshot, water=False)
-    walkable = {"floor", "exit", "passage", "shallow_water"}  # quest_exposure's walk (no trees)
+    walkable = quest_exposure.DRY_WALK_KINDS  # quest_exposure's walk (no trees)
     steps = {stand: 0}
     pending = deque([stand])
     while pending:

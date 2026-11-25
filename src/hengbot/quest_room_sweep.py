@@ -295,7 +295,7 @@ def _to_last_seen(policy, snapshot, navigator, plan, blocked=()) -> str | None:
     if not sought:
         return None
     terrain = _terrain_of(navigator, snapshot, water=False)
-    goals = {Position(*spot) for spot, kind in terrain.items() if kind in {"floor", "passage"}
+    goals = {Position(*spot) for spot, kind in terrain.items() if kind in quest_exposure.STAND_KINDS
              and any(_in_light_and_line(navigator, snapshot, spot, cell) for cell in sought.values())}
     stepped = _step(policy, snapshot, _path(policy, navigator, plan, snapshot, goals, blocked), WALK_REASON)
     if stepped is None:
@@ -340,7 +340,7 @@ def _out_of_line(policy, snapshot, navigator, plan) -> str | None:
     lines = _lines(navigator, plan, snapshot).pull
     walkable = _terrain_of(navigator, snapshot, water=False)
     free = {Position(*cell) for cell, kind in walkable.items()
-            if kind in {"floor", "passage"} and cell not in lines}
+            if kind in quest_exposure.STAND_KINDS and cell not in lines}
     return _step(policy, snapshot, _path(policy, navigator, plan, snapshot, free), WALK_REASON)
 
 
@@ -610,7 +610,7 @@ def _cover_step(snapshot, navigator, plan, cells, board) -> Position | None:
     around = (Position(here.y + dy, here.x + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
     for step in around:
         spot = _cell(step)
-        if (walkable.get(spot) in {"floor", "passage"} and not _door_is_closed_on_map(navigator, snapshot, spot)
+        if (walkable.get(spot) in quest_exposure.STAND_KINDS and not _door_is_closed_on_map(navigator, snapshot, spot)
                 and step not in board.occupied and spot not in lines
                 and not any(quest_exposure.projectable(terrain, cell, spot) for cell in cells)):
             return step
@@ -683,7 +683,7 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
             return shot
     # Owner 2026-11-19 「有効な場所で待つ」: only for what will come here (quest_wait_placement).
     coming = [monster for monster in board.mobile
-              if quest_wait_placement.comes(policy, snapshot, navigator, plan, monster)]
+              if quest_wait_placement.comes_here(policy, snapshot, navigator, plan, monster)]
     if (coming and not _in_line(navigator, plan, snapshot)
             and navigator.sweep_enemy_turns < int(plan["enemy_wait_turns"])):
         navigator.sweep_enemy_turns += 1
@@ -699,8 +699,17 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     if not board.in_view and not board.left_alone:
         return None  # hit by the unseen: unseen_strike and the shared ladders answer it
     occupied = board.occupied
-    still = next((monster for monster in board.in_view
-                  if _never_moves(policy, monster)), None)
+    # The one gate on the walks that close on a monster to melee it (quest_summon_answer.melee_approach);
+    # a Magic-Eater it sends to rest first rests out of the lines (owner 2026-11-25 (b)-2).
+    still = None
+    for monster in board.in_view:
+        verdict = quest_summon_answer.melee_approach(policy, snapshot, monster, site=quest_summon_answer.SWEEP_SITE)
+        if verdict == quest_summon_answer.REST_FIRST and (rested := quest_summon_answer.recharge_rest_key(
+                policy, snapshot, navigator, plan, board, {monster.race_id})) is not None:
+            return rested
+        if verdict == quest_summon_answer.MELEE:
+            still = monster
+            break
     if still is not None:
         around = {Position(still.position.y + dy, still.position.x + dx)
                   for dy in (-1, 0, 1) for dx in (-1, 0, 1)} - occupied

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from hengbot import quest_exposure
 from hengbot.monrace_knowledge import _strip_jsonc
 
 
@@ -196,7 +197,7 @@ def _legacy_battlefield(
     reward = next(((y, x) for y, row in enumerate(rows) for x, ch in enumerate(row) if ch in reward_glyphs), None)
     walkable = {
         pos for pos, kind in terrain.items()
-        if kind in {"floor", "exit", "door", "passage", "shallow_water", "tree"}
+        if kind in quest_exposure.MAP_STAND_KINDS
     }
     neighbours = lambda pos: {
         (pos[0] + dy, pos[1] + dx) for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1))

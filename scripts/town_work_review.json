@@ -22162,17 +22162,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
   },
-  "quest_wait_placement.py:comes": {
-    "classification": "producer",
-    "rows": [
-      "survival"
-    ],
-    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "The lure of the Gachapins and the approach to the Queens of QUEST_33 段2 (quest_lure_approach): a step, a hold or a Stone to Mud; no independent progress."
-  },
   "sealed_pocket.py:can_melt": {
     "classification": "producer",
     "rows": [
@@ -25199,5 +25188,46 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "'>' underfoot on the finale expedition's way down when the stair is a descent target and its floor allowed (finale-descent:descend); dungeon only."
+  },
+  "quest_wait_placement.py:will_come": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: quest_room_sweep._plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "The one entry of the reading whether a monster comes (quest_room_sweep._fight's wait, quest_summon_answer's verdict and steps after a disengage, quest25_battle_rooms' waiting cell); no independent progress."
+  },
+  "quest_summon_answer.py:melee_approach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The one gate on the quest plans' walks that close on a monster to melee it (melee, rest first, or refused); emits no key."
+  },
+  "quest_summon_answer.py:recharge_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_summon_answer (after_key, the chase's _approach) and quest_room_sweep._fight, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 and the room sweeps: a Magic-Eater with no shot and an absorbed attack power a rest restores: a step out of the lines, else the counted rest (R100) that restores them (owner 2026-11-25 (b)-2)."
+  },
+  "quest_summon_answer.py:teleport_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_summon_answer.after_key on an ABSORBED_FIRST_QUESTS floor (Quest 33) with a room_sweep plan naming summon_answer.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 after a disengage, the absorbed Teleportation at one charge or less: a step out of the lines, else the counted rest (R100) that restores it, before the lure (owner 2026-11-25 (c)-1)."
   }
 }

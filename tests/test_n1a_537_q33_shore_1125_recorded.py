@@ -167,7 +167,9 @@ class ShoreBlowTest(unittest.TestCase):
 # a pulling cell (the fewest others acting) on one board and none on the next: the lure walked
 # '6' to [29,41]/[29,42] and '4' back and held between (decisions 2424-2446).  The 巨大火アリ is an
 # animal pack that hides from a player at full HP (the third process below): it never comes, so it
-# is not waited for but closed on (quest_summon_answer ``never_comes``), every step toward it.
+# is not waited for (quest_summon_answer ``never_comes``).  Owner 2026-11-25 (b)-1 (only a monster
+# that never leaves the water or never moves is closed on to melee): with no shot (no bolts) it is
+# not closed on either but left to the plan; the lure goes on with the others.
 #
 # Recorded: tests/fixtures/n1a-537-q33-lure-hold-1125 (tests/extract_n1a_537_q33_lure_hold_1125_fixture.py;
 # DECLARED CONSTRUCTED there: the restart).  The policy decides the boards from decision 2400 in order.
@@ -198,10 +200,11 @@ class TheLureWaitRecordingTest(unittest.TestCase):
         self.assertIsNone(SECOND_CASE["recorded"][-1])   # the stop's board
 
 
-class TheLureWaitClosedOnTest(unittest.TestCase):
+class TheLureWaitLeftToThePlanTest(unittest.TestCase):
 
-    def test_no_wait_and_every_step_toward_the_pack(self):
-        assert_closed_on(self, drive_second(), WAIT)
+    def test_no_wait_and_the_pack_not_closed_on(self):
+        # Owner 2026-11-25 (b)-1 changes this pin: it was 「every step toward the pack」 (7ad573ec7b).
+        assert_left_to_the_plan(self, drive_second(), WAIT)
 
 
 # -- the third process (restart 13:15:05, main 5d2d334da): the pack that hides ------------------------
@@ -213,8 +216,9 @@ class TheLureWaitClosedOnTest(unittest.TestCase):
 # asked while it sees him or is within MAX_PLAYER_SIGHT / 2), so it never comes.  The lure held 200
 # boards for one (decisions 1487-1686), then walked to where it was last seen and the sweep to where
 # it last saw one, in turn (1696-1725).  The one verdict (quest_summon_answer ``never_comes``): it
-# does not come, so it is closed on to the cells beside it (``attack_cells``), by the lure and the
-# fire answer alike.
+# does not come, so it is not waited for; owner 2026-11-25 (b)-1 (only a monster that never leaves
+# the water or never moves is closed on to melee): with no shot it is left to the plan
+# (``_unreached``), and the lure goes on with the others.
 #
 # Recorded: tests/fixtures/n1a-537-q33-hiding-pack-1125 (tests/extract_n1a_537_q33_hiding_pack_1125_fixture.py;
 # DECLARED CONSTRUCTED there: the two restarts).  The policy decides the boards from decision 1080.
@@ -230,8 +234,9 @@ def drive_third():
 
 
 def drive_pack(fixture, case):
-    """{sequence: (snapshot, reason, key, the dry cells beside the 巨大火アリ known, the dry ground)}
-    of a fixture's boards decided in order."""
+    """{sequence: (snapshot, reason, key, the dry cells beside the 巨大火アリ known, the dry ground,
+    the race of the member lured, the 巨大火アリ members left to the plan)} of a fixture's boards
+    decided in order."""
     deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((fixture / "policy.pkl.xz").read_bytes()))
     out = {}
     for raw, row in zip(case["boards"], case["recorded"]):
@@ -245,7 +250,11 @@ def drive_pack(fixture, case):
                   for m in (*snapshot.visible_monsters, *snapshot.detected_monsters) if m.race_id == FIRE_ANT
                   for dy in (-1, 0, 1) for dx in (-1, 0, 1) if (m.position.y + dy, m.position.x + dx) in ground}
         if row is not None:
-            out[row["sequence"]] = (snapshot, deciding.last_reason, key, beside, ground)
+            group = {} if navigator is None else navigator.summon_group
+            target = None if navigator is None else group.get(navigator.summon_target, (None,))[0]
+            left = frozenset() if navigator is None else frozenset(
+                index for index in navigator.summon_unreached if group.get(index, (None,))[0] == FIRE_ANT)
+            out[row["sequence"]] = (snapshot, deciding.last_reason, key, beside, ground, target, left)
         deciding.confirm_key_posted(key)
     return out
 
@@ -268,30 +277,31 @@ class TheHidingPackRecordingTest(unittest.TestCase):
         self.assertFalse({"PASS_WALL", "KILL_WALL", "CAN_FLY"} & flags)
 
 
-class TheHidingPackClosedOnTest(unittest.TestCase):
+class TheHidingPackLeftToThePlanTest(unittest.TestCase):
 
-    def test_no_wait_nor_sweep_and_every_step_toward_the_pack(self):
-        assert_closed_on(self, drive_third(), CYCLE)
+    def test_no_wait_nor_sweep_and_the_pack_not_closed_on(self):
+        # Owner 2026-11-25 (b)-1 changes this pin: it was 「every step toward the pack」 (7ad573ec7b).
+        answers = drive_third()
+        assert_left_to_the_plan(self, answers, CYCLE)
+        # The pack that hides is left to the plan (no shot: no bolts).
+        self.assertTrue(any(answers[sequence][6] for sequence in CYCLE))
 
 
-def assert_closed_on(test, answers, sequences):
-    """No hold and no sweep walk on ``sequences``, and every step heads for the cells beside a
-    巨大火アリ the board knows (the steps of the lure and of the fire answer alike)."""
+def assert_left_to_the_plan(test, answers, sequences):
+    """No hold and no sweep walk on ``sequences`` (the livelock's two sides), no 巨大火アリ lured, and
+    no step onto the cells beside one (owner 2026-11-25 (b)-1: a pack that hides is not closed on to
+    melee)."""
     reasons = {answers[sequence][1] for sequence in sequences}
     test.assertNotIn("quest-strategy:sweep-walk", reasons)
     test.assertNotIn("quest-strategy:hold", reasons)
-    steps = 0
+    test.assertNotIn(FIRE_ANT, {answers[sequence][5] for sequence in sequences})
     for sequence in sequences:
-        snapshot, reason, key, beside, ground = answers[sequence]
+        snapshot, reason, key, beside, _ground, _target, _left = answers[sequence]
         if key not in STEPS or not beside:
             continue
-        steps += 1
         dy, dx = STEPS[key]
         here = snapshot.player.position
-        there = Position(here.y + dy, here.x + dx)
-        test.assertLess(walk_length(ground, there, beside), walk_length(ground, here, beside),
-                        (sequence, reason, key))
-    test.assertGreaterEqual(steps, 5)
+        test.assertNotIn(Position(here.y + dy, here.x + dx), beside, (sequence, reason, key))
 
 
 # -- n1-b life-418 (Magic-Eater Lv44, 2026-11-25 13:32:21, main 5d2d334da): the pocket of trees ------

@@ -85,9 +85,9 @@ POWERFUL_RAD = DETECT_RAD * 3 // 2  # cmd-item/cmd-zaprod.cpp:50, the rod's Powe
 POWERFUL_SUFFIX = ":powerful"  # me_powers.POWERFUL_SUFFIX (me_powers imports this module's callers)
 # The quest map's kinds no monster stands on (a flier crosses the pits, the lavas and the water; a
 # tree is passable).
-_WALL_KINDS = frozenset({"wall"})
+_WALL_KINDS = quest_exposure.WALL_KINDS
 # The kinds a detection is cast from.
-_CAST_KINDS = frozenset({"floor", "passage", "exit"})
+_CAST_KINDS = quest_exposure.CAST_KINDS
 
 
 def _tracked(plan) -> tuple:

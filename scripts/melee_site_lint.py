@@ -129,6 +129,47 @@ def analyze_repository(root: Path = POLICY_ROOT) -> tuple[int, list[str]]:
     return count, findings
 
 
+# The quest plans' walks that close on a monster to melee it ask one gate (contradiction audit
+# 2026-11-25 (a)-4, quest_summon_answer.melee_approach): these entries, and any function of a quest
+# module that steps under ``APPROACH_REASON`` (the reason of such a walk).
+GATE = "melee_approach"
+MELEE_APPROACH_ENTRIES = {
+    ("quest_summon_answer.py", "_blow_cells"): "the dry cells beside a monster that never comes",
+    ("quest_room_sweep.py", "_fight"): "the room sweep's walk to what stands still in view",
+    ("quest_summon_answer.py", "_approach"): "the chase of a summoner",
+}
+APPROACH_NAME = "APPROACH_REASON"
+
+
+def _functions(tree):
+    return [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
+
+def _asks_gate(function) -> bool:
+    return any(isinstance(node, ast.Call) and (getattr(node.func, "attr", None) == GATE
+                                                or getattr(node.func, "id", None) == GATE)
+               for node in ast.walk(function))
+
+
+def ungated_approaches(sources: dict) -> list[str]:
+    """``sources``: file name -> source.  The approach walks that do not ask the gate, and the
+    registered entries the source no longer has."""
+    found, seen = [], set()
+    for filename, source in sorted(sources.items()):
+        if not filename.startswith("quest_"):
+            continue
+        for function in _functions(ast.parse(source)):
+            key = (filename, function.name)
+            steps = any(isinstance(node, ast.Name) and node.id == APPROACH_NAME for node in ast.walk(function))
+            if key in MELEE_APPROACH_ENTRIES:
+                seen.add(key)
+            if (key in MELEE_APPROACH_ENTRIES or steps) and not _asks_gate(function):
+                found.append(f"{filename}:{function.lineno}: {function.name} closes on a monster without {GATE}")
+    found += [f"{filename}: entry {name} not found" for filename, name in sorted(MELEE_APPROACH_ENTRIES)
+              if (filename, name) not in seen and filename in sources]
+    return found
+
+
 def main(argv: list[str] | None = None) -> int:
     import sys
     import lint_baseline
@@ -137,6 +178,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"melee sites: {total}, unguarded: {len(problems)}")
     for problem in problems:
         print(problem)
+    gated = ungated_approaches({path.name: path.read_text(encoding="utf-8")
+                                for path in sorted(POLICY_ROOT.glob("quest_*.py"))})
+    for problem in gated:
+        print(f"melee-approach-gate: {problem}")
+    if gated:
+        return 1
     # 2026-11-17 owner (maintainability review Q9): only sites beyond the recorded
     # baseline (scripts/melee_site_lint_baseline.json) fail.
     return lint_baseline.gate(
