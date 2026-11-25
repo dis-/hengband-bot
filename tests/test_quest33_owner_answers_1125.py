@@ -26,6 +26,8 @@ from tests import test_me_stranded_rest_first_1125 as stranded
 from tests import test_n1c_220_q33_sensed_1122_recorded as sensed
 from tests.test_quest33_post_disengage import JART, _FloorBoards
 
+FANG = 55  # 農夫マゴットの飼犬『きば』 (its clones in the locked room of stop 20)
+
 
 class _SpentReplay(sensed.N1c220SensedChooseKeyTest):
     """n1-c life-220's Q33 replay with the attack powers spent (tests/test_me_stranded_rest_first_1125)."""
@@ -211,6 +213,19 @@ class C2PhaseDoorTest(_FloorBoards, unittest.TestCase):
         key = self.policy._issue_emergency_consumable(snapshot, phase, "emergency:phase")
         self.assertEqual((key, self.policy.last_reason),
                          (power.key, answer.EMERGENCY_TELEPORT_REASON + me_absorbed_substitutes.CAST_SUFFIX))
+
+
+class PlanOwnsTheSensedTest(_FloorBoards, unittest.TestCase):
+    """n1-a life-537's floor-dwell stop (2026-11-25 16:09): the room sweep that answers each summon owns
+    what it senses; the shared retreat to a choke does not walk the player off its stops."""
+
+    def test_the_sweep_owns_the_sensed_clones(self):
+        clones = tuple(monster(self.policy, index, FANG, cell) for index, cell in ((2, (25, 3)), (3, (26, 2))))
+        snapshot = self.board_at((24, 8), sensed=clones)
+        self.assertTrue(self.policy._quest_plan_owns_detected(snapshot, list(snapshot.detected_monsters)))
+        other = replace(snapshot, floor_key=(0, 45, 32), quests={
+            **snapshot.quests, 32: replace(snapshot.quests[QUEST], id=32)})
+        self.assertFalse(self.policy._quest_plan_owns_detected(other, list(other.detected_monsters)))
 
 
 if __name__ == "__main__":
