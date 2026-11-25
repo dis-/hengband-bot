@@ -536,8 +536,8 @@ def _dread_wait_cell(ctx: _Ctx):
     origin = ((seen.position.y, seen.position.x) if seen is not None else _placed(ctx, geo.DREADMASTER))
     if origin is None:
         return ordered[0]
-    come = quest_wait_placement.come_cells(ctx.policy, ctx.snapshot, ctx.navigator, geo.DREADMASTER,
-                                           origin, ordered, seen, first=True)
+    come = quest_wait_placement.will_come(ctx.policy, ctx.snapshot, ctx.navigator, geo.DREADMASTER,
+                                          origin, ordered, seen, first=True)
     return come[0] if come else ordered[0]
 
 

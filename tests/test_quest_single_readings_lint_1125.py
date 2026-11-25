@@ -77,5 +77,25 @@ class TerrainSetsTest(unittest.TestCase):
         self.assertEqual(cross_rule_lint.terrain_set_problems(cross_rule_lint._modules()), [])
 
 
+class ComeEntryTest(unittest.TestCase):
+    """(a)-2: one entry of "does it come?" (quest_wait_placement.will_come)."""
+
+    def test_the_lint_names_a_reader_or_come_cells_outside_the_entry(self):
+        caller = ast.parse("def verdict(p, s, n):\n"
+                           "    return quest_wait_placement.come_cells(p, s, n, 1, (0, 0), ())\n"
+                           "def build(p, s, n):\n"
+                           "    return quest_wait_placement._Reader(p, s, n, {}, ())\n")
+        problems = cross_rule_lint.come_entry_problems({"quest_summon_answer": caller})
+        self.assertEqual(len(problems), 2)
+        self.assertIn("calls come_cells", problems[0])
+        self.assertIn("builds a _Reader", problems[1])
+        home = ast.parse("def will_come():\n    return come_cells()\n"
+                         "def reader():\n    return _Reader()\n")
+        self.assertEqual(cross_rule_lint.come_entry_problems({"quest_wait_placement": home}), [])
+
+    def test_the_source_reads_through_the_entry(self):
+        self.assertEqual(cross_rule_lint.come_entry_problems(cross_rule_lint._modules()), [])
+
+
 if __name__ == "__main__":
     unittest.main()

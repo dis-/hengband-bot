@@ -683,7 +683,7 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
             return shot
     # Owner 2026-11-19 「有効な場所で待つ」: only for what will come here (quest_wait_placement).
     coming = [monster for monster in board.mobile
-              if quest_wait_placement.comes(policy, snapshot, navigator, plan, monster)]
+              if quest_wait_placement.comes_here(policy, snapshot, navigator, plan, monster)]
     if (coming and not _in_line(navigator, plan, snapshot)
             and navigator.sweep_enemy_turns < int(plan["enemy_wait_turns"])):
         navigator.sweep_enemy_turns += 1

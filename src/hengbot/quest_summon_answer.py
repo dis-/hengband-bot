@@ -936,7 +936,7 @@ def _member(policy, snapshot, navigator, index):
 def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
     """The one verdict, read by the lure, its wait and the closing on (``stranded``, ``lure_cells``),
     whether member ``index`` comes to the player: no (``True``) for a race that never steps off its
-    ground (``_stays``), and for one that, by the game's own moves (quest_wait_placement ``comes``:
+    ground (``_stays``), and for one that, by the game's own moves (quest_wait_placement ``will_come``:
     the sweep grid's flow, the hiding of an animal pack, the doors and the ground it cannot cross),
     comes to none of the nearest pulling cells (``_COMING_SPOTS``).  A member that does not come is
     not lured nor waited for (owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で
@@ -967,8 +967,8 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
             cells |= found
         spots = sorted(cells, key=lambda spot: (quest_exposure.game_distance(here, spot), spot))[:_COMING_SPOTS]
         on_board = next((monster for monster in _on_board(snapshot) if monster.index == index), None)
-        return not quest_wait_placement.come_cells(policy, snapshot, navigator, race, cell, spots, on_board,
-                                                    first=True)
+        return not quest_wait_placement.will_come(policy, snapshot, navigator, race, cell, spots, on_board,
+                                                   first=True)
 
     verdict = decision_memo(policy, "quest_summon_answer.never_comes", snapshot,
                             (index, race, tuple(cell), tuple(sorted(navigator.summon_group))), compute)
@@ -1054,7 +1054,7 @@ def after_key(policy, snapshot, navigator, plan, board) -> str | None:
     # Owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」: held for only while one
     # of them will come here (quest_wait_placement); else closed on at once, as past the wait.
     coming = [monster for monster in acting
-              if quest_wait_placement.comes(policy, snapshot, navigator, plan, monster)]
+              if quest_wait_placement.comes_here(policy, snapshot, navigator, plan, monster)]
     if coming and navigator.summon_hold < int(plan.get("enemy_wait_turns", 0)):
         return _hold_for(policy, navigator)
     if acting:

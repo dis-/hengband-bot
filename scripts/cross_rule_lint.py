@@ -477,11 +477,42 @@ def terrain_set_problems(modules: dict) -> list:
     return problems
 
 
+# (a)-2: the one entry of "does it come?" (quest_wait_placement.will_come).  A reader is built only by
+# the board's cached ``reader`` and by ``come_cells`` (the reader of one monster), ``come_cells`` is
+# called only by the entry.  (quest_lure_approach asks the board reader's ``comes`` of its own rows on
+# a map with cells opened, ``_Reader.with_opened``: the same rule over another map.)
+COME_HOME = "quest_wait_placement"
+COME_BUILDERS = frozenset({"reader", "come_cells"})
+COME_ENTRY = "will_come"
+
+
+def _called(node) -> str | None:
+    func = node.func
+    return func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+
+
+def come_entry_problems(modules: dict) -> list:
+    problems = []
+    for module, tree in modules.items():
+        owner = _enclosing(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name, where = _called(node), owner.get(id(node))
+            if name == "_Reader" and not (module == COME_HOME and where in COME_BUILDERS):
+                problems.append(f"come-entry: {module}.py:{node.lineno} builds a _Reader "
+                                f"({COME_HOME}.{COME_ENTRY} is the entry)")
+            elif name == "come_cells" and not (module == COME_HOME and where == COME_ENTRY):
+                problems.append(f"come-entry: {module}.py:{node.lineno} calls come_cells "
+                                f"({COME_HOME}.{COME_ENTRY} is the entry)")
+    return problems
+
+
 def main(argv) -> int:
     index = Index(_modules())
     found = gaps(index)
     problems = (registry_problems(index) + move_flag_problems(index.modules)
-                + terrain_set_problems(index.modules))
+                + terrain_set_problems(index.modules) + come_entry_problems(index.modules))
     if "--write-baseline" in argv:
         BASELINE.write_text(json.dumps(found, ensure_ascii=False, indent=1) + "\n", encoding="utf-8",
                             newline="\n")
