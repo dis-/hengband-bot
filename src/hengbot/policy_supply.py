@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot import angband_finale
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, quest_supply_gate, torch_release, town_pack_headroom
-from hengbot import deep_teleport, destruction_means, me_deep_launcher, teleport_away_carry
+from hengbot import deep_detection_rod, deep_teleport, destruction_means, me_deep_launcher, teleport_away_carry
 from hengbot.threat_projection import _with_adjusted_speed
 from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.policy_constants import UNSEEN_REVERSE_REASON
@@ -1320,6 +1320,11 @@ class SupplyMixin:
             # the pack keeps none (teleport_away_carry.home_missing); before the zombie's mana
             # food reading of a charged wand.
             return teleport_away_carry.home_missing(self, snapshot, item)
+        if (deep_detection_rod.is_rod(item)
+                and any(item is stock for stock in self._home_knowledge_items)):
+            # Owner 2026-11-26 「50F以降は全感知のロッドを持つ」: the Home Rod of Detection is taken
+            # out when none is carried or absorbed (deep_detection_rod.home_missing).
+            return deep_detection_rod.home_missing(self, snapshot, item)
         kind = next(
             (name for name in SUPPLY_STORES if self._store_item_is_supply(item, name)),
             None,

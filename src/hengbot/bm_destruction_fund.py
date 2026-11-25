@@ -59,6 +59,13 @@ Owner 2026-11-22 (verbatim): 「魔道具術師の場合、ロケットの魔法
 of Rockets a Magic-Eater sees on any shop's shelf (any number, a carried copy included), wanted
 while its absorbed Rocket count (me_capability.count) is at most ``ME_ROCKET_COUNT_LIMIT``; above
 it the device table's ordinary rung ("me-device:policy") buys it again.
+
+Owner 2026-11-26 (verbatim): 「50F以降は全感知のロッドを持つ」.  The table's fifth row: a Rod of
+Detection on any shop's shelf (in practice the Black Market's: no other shop stocks one), wanted
+while the character's recall depth or floor is 50F+ and it owns none (carried, at Home or absorbed:
+deep_detection_rod ``purchase_wanted``).  The owner did not say 「売ってでも」: the row is not
+``funded``, so it is read only when the gold above the departure resupply already covers it
+(``_affordable``, the shortfall's own reading) and no Home spare is ever sold for it.
 """
 from __future__ import annotations
 
@@ -66,7 +73,7 @@ from hengbot.home_full_relief import relief_of
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from hengbot import ability_sources
+from hengbot import ability_sources, deep_detection_rod
 from hengbot import item_fate
 from hengbot.item_reservation import decision_memo
 from hengbot.model import STORE_BLACK, STORE_HOME, SV_STAFF_SPEED, TVAL_STAFF, TVAL_WAND
@@ -88,6 +95,9 @@ class PriorityWare:
     is_ware: Callable[[Any, Any], bool]
     # The character wants it now: (policy, snapshot).
     wanted: Callable[[Any, Any], bool]
+    # Home's spares are sold for it when the gold is short; False: it is read only when the
+    # gold already covers it (``_affordable``).
+    funded: bool = True
 
 
 def _is_telepathy_ware(_policy: Any, item: Any) -> bool:
@@ -174,6 +184,11 @@ PRIORITY_WARES = (
     # Owner 2026-11-22 「ロケットの魔法棒の購入優先度を最優先に。破壊の杖同様売ってでも買う。」; its
     # purchase rung is policy_shop's "priority-ware:rocket".
     PriorityWare("rocket", None, _is_rocket_wand, rocket_wanted),
+    # Owner 2026-11-26 「50F以降は全感知のロッドを持つ」 (not 「売ってでも」: unfunded); its purchase
+    # rung is policy_shop's "priority-ware:detection-rod".
+    PriorityWare("detection-rod", None,
+                 lambda _policy, item: deep_detection_rod.is_rod(item),
+                 deep_detection_rod.purchase_wanted, funded=False),
 )
 _BY_LABEL = {entry.label: entry for entry in PRIORITY_WARES}
 _RANK = {entry.label: rank for rank, entry in enumerate(PRIORITY_WARES)}
@@ -233,6 +248,18 @@ def shortfall(policy: Any, snapshot: Any) -> int | None:
         return None
     fare = policy._outpost_return_fare(snapshot) or 0
     return shelf["price"] + max(reserve, fare) - snapshot.player.gold
+
+
+def _affordable(policy: Any, snapshot: Any, price: int) -> bool:
+    """An unfunded row's ware: the gold covers it above the optional reserve (``shortfall``'s
+    reading, before any shelf)."""
+    if policy._required_remove_curse_kind(snapshot) is not None:
+        return False
+    reserve = policy._full_departure_resupply_reserve(snapshot)
+    if reserve is None:
+        return False
+    fare = policy._outpost_return_fare(snapshot) or 0
+    return price + max(reserve, fare) <= snapshot.player.gold
 
 
 def sale_estimate(policy: Any, item: Any) -> int:
@@ -416,6 +443,10 @@ def _wares(policy: Any, snapshot: Any, store: Any) -> tuple:
             continue
         rows = _rows(policy, store, entry)
         if rows and entry.wanted(policy, snapshot):
+            if not entry.funded:
+                rows = [item for item in rows if _affordable(policy, snapshot, item.price)]
+                if not rows:
+                    continue
             return entry, rows
     return None, []
 

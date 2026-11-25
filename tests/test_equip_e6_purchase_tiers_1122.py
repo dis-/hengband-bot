@@ -61,8 +61,9 @@ class TierTableTest(unittest.TestCase):
     def test_the_owner_s_first_priority_rows(self):
         priority = sorted(rung for rung, tier in purchase_rungs.PURCHASE_RUNG_TIER.items()
                           if tier == TIER_PRIORITY)
-        self.assertEqual(priority, ["black-market:destruction", "priority-ware:rocket",
-                                    "priority-ware:speed-staff", "priority-ware:telepathy"])
+        self.assertEqual(priority, ["black-market:destruction", "priority-ware:detection-rod",
+                                    "priority-ware:rocket", "priority-ware:speed-staff",
+                                    "priority-ware:telepathy"])
         for rung in ("mandatory:recall", "mandatory:food", "mandatory:teleport", "mandatory:cure",
                      "mandatory:destruction", "ability-gear:buy", "restore:str"):
             self.assertEqual(purchase_rung_tier(rung), TIER_REQUIRED, rung)
