@@ -51,13 +51,17 @@ The per-board order (``key``), the first that answers wins:
     while one is left (then on the gaps), walking to the nearest such cell; the map after each use
     (周辺感知) shows the floor further;
  5. the recovery after a teleport: once no awake hostile is in view, Restore Mana while the
-    rocket can take a potion's refill, then the heal (``_heal``: the absorbed Healing, else a
-    Potion of Healing) for a deficit of a potion's 300 or more, never a rest (owner 2026-11-21
+    rocket can take a potion's refill, then the heal to the full HP (``_full_heal``: the absorbed
+    Healing for any deficit, a Potion of Healing for a deficit of its 300 or more; owner
+    2026-11-26 「満タンにしてから行動するべき」), never a rest (owner 2026-11-21
     「99F 100Fでの休憩は許可していない」); then on to the last-seen cell;
  6. the battle: the ordinary *Destruction* on the other monsters while the target is shown
     nowhere (owner 2026-11-23 「テレパシーに映らなければ破壊を使って良い」「普通の *破壊* だけにする」); haste and the Resistance potion; the powered Rocket when
     a line projects and HP - cost >= 800; else the stand on one of the eight rays of the target
-    (its row or column first), as far as the Rocket reaches, opened with Stone to Mud; a wall
+    (one ``STAND_SAFE_DISTANCE`` or farther first, then its row or column, then the fewest steps,
+    then the farthest the Rocket reaches; drawn again when the target moves on the way, the walk
+    never within its teleport distance: owner 2026-11-26 「縦または横でサーペントとラインを合わせる」),
+    opened with Stone to Mud; a wall
     whose melting would open the line on the target where it stands is never melted: it is kept
     (``LAST_WALL_HOLD``) so that the target's own move opens a line and the hasted player fires
     first, then the stand is given up (owner 2026-11-21, LOCKED 「溶かした時に先手を取られて何も
@@ -139,8 +143,8 @@ SWEEP_SPACING = 20
 # The sweep ends after this many refused uses in a row (a damaged target in the circle, a
 # failed cast's fallback).
 SWEEP_REFUSALS = 3
-# A Potion of Healing's 300 (quaff-effects.cpp hp_player(300)): a smaller deficit is not healed
-# (and never rested off: ``_recover_key``).
+# A Potion of Healing's 300 (quaff-effects.cpp hp_player(300)): a smaller deficit is healed by the
+# absorbed Healing only (owner 2026-11-26 「満タンにしてから」, ``_full_heal``), never rested off.
 HEAL_DEFICIT = 300
 ROCKET = ("wand", 29)
 # Powerful Activation's *Destruction* radius 18 + randint0(5): no rung of the battle casts it at
@@ -153,6 +157,14 @@ TELEPATHY_RANGE = 20
 # The boards a wall whose melting would open the line on the target is kept (the target's own move
 # opens it); past them the stand is given up, never opened (``_stand_key``).
 LAST_WALL_HOLD = 10
+# Owner 2026-11-26 「距離を詰めすぎてテレポートで離れる動きがもったいない」: a stand nearer than this to
+# the target is taken only when no farther one is reached, before the row or column
+# (``_choose_stand``).  n1-c life-222 (Angband 100F, 2026-11-26 03:11:03, turn 10185946): the stand
+# (10,127) on the Serpent's row 3 cells beyond it at (10,124) was taken before every diagonal.  The Serpent of Chaos
+# (speed +45: energy 43, speed-table.cpp) acts about twice for each action of the hasted player
+# (+20: 30) and each move closes up to 1.5 of the game distance (a diagonal step); from 6 it is
+# still beyond TELEPORT_WITHIN after the player's next action.
+STAND_SAFE_DISTANCE = 6
 # The boards a fully open stand waits for the target to cross its ray before a new stand.
 OPEN_STAND_WAIT = 20
 # The stands tried for a route, best first (each one BFS).
@@ -865,6 +877,18 @@ def _heal(policy, snapshot) -> str | None:
     return _quaff(policy, snapshot, angband_finale.HEALING, HEAL_REASON)
 
 
+def _full_heal(policy, snapshot, deficit: int) -> str | None:
+    """The recovery's heal (``_recover_key``): the absorbed Healing for any ``deficit``, a carried
+    Potion of Healing only for ``HEAL_DEFICIT`` or more (``_heal``'s order)."""
+    from hengbot.me_absorbed_substitutes import item_cast_key
+    if deficit >= HEAL_DEFICIT:
+        return _heal(policy, snapshot)
+    key = item_cast_key(policy, snapshot, angband_finale.HEALING)
+    if key is not None:
+        policy.last_reason = ABSORBED_HEAL_REASON
+    return key
+
+
 def _rod_list_fresh(policy, snapshot) -> bool:
     """The rod list was displayed on this game turn and no Restore Mana came after it
     (``rocket_list_fresh``'s mark): its rows are the rods' charges now."""
@@ -1105,10 +1129,24 @@ def _choose_stand(policy, snapshot, aim) -> Stand | None:
     # opens it, ``_walls_between``) or stand behind it; a stand around it is taken (n1-c life-221
     # Angband 100F 2026-11-24 07:18: only the six best were tried, none reached, and the battle
     # answered None beside the Serpent).
-    reach = _reach(policy, snapshot)
-    for stand in candidates:
-        if stand.cell == here or Position(*stand.cell) in reach:
-            return stand
+    # Owner 2026-11-26 (verbatim) 「距離を詰めすぎてテレポートで離れる動きがもったいない。位置関係が斜め
+    # の時に頻発していたように見えるので、縦または横でサーペントとラインを合わせる動きを徹底することで
+    # 改善しそう。」: of the stands the walk reaches, one at least ``STAND_SAFE_DISTANCE`` away first
+    # (a nearer one is the 詰めすぎ itself), then the target's row or column, then the fewest steps
+    # (the target closes in while the player walks), then the farthest.  The walk keeps out of the target's teleport distance
+    # (``_reach_steps``).  n1-c life-222 (Angband 100F, 2026-11-26 03:11:04, turn 10185957-64): at
+    # (2,113) the stand (10,127) beyond the Serpent at (6,119) was walked to; at (1,116), the
+    # Serpent at (3,117), the teleport.  26 of the floor's 151 teleports were within distance 2.
+    steps = _reach_steps(policy, snapshot, aim)
+    reached = [stand for stand in candidates
+               if stand.cell == here or Position(*stand.cell) in steps]
+    if reached:
+        def rank(stand):
+            diagonal = stand.step[0] != 0 and stand.step[1] != 0
+            return (stand.distance < STAND_SAFE_DISTANCE, diagonal,
+                    steps.get(Position(*stand.cell), 0), -stand.distance)
+        return min(reached, key=rank)
+    reach = steps
     # None a walk reaches: the stand the cheapest way around reaches (``_around_way``).
     by_cell = {Position(*stand.cell): stand for stand in candidates}
     if not rays:
@@ -1130,28 +1168,30 @@ def _choose_stand(policy, snapshot, aim) -> Stand | None:
     return None
 
 
-def _reach(policy, snapshot) -> frozenset:
-    """The cells the battle's walks reach on this board (``_route_step``'s walk: every walker's
-    veto, and with a strong non-target known no cell in its line of fire)."""
+def _reach_steps(policy, snapshot, aim) -> dict:
+    """The steps of the battle's walk (``_stand_step``: every walker's veto, and with a strong
+    non-target known no cell in its line of fire) to each cell it reaches on this board, keeping
+    off the cells within ``TELEPORT_WITHIN`` of the target at ``aim`` (``_near_target``: standing on
+    one is the teleport)."""
     from collections import deque
     from hengbot.item_reservation import decision_memo
 
     def compute():
         start = snapshot.player.position
-        veto = _battle_veto(policy, snapshot)
+        veto = _battle_veto(policy, snapshot) | _near_target(Position(*aim))
         guarded = bool(shunned(policy, snapshot))
-        seen = {start}
+        steps = {start: 0}
         queue = deque([start])
         while queue:
             position = queue.popleft()
             for neighbour in policy._walkable_neighbors(snapshot, position, allow_damaging=False):
-                if (neighbour in seen or neighbour in veto
+                if (neighbour in steps or neighbour in veto
                         or (guarded and _exposed(policy, snapshot, neighbour))):
                     continue
-                seen.add(neighbour)
+                steps[neighbour] = steps[position] + 1
                 queue.append(neighbour)
-        return frozenset(seen)
-    return decision_memo(policy, "angband_finale_battle.reach", snapshot, None, compute)
+        return steps
+    return decision_memo(policy, "angband_finale_battle.reach_steps", snapshot, tuple(aim), compute)
 
 
 def _opens_line(policy, snapshot, stand: Position, wall: Position, target: Position) -> bool:
@@ -1213,21 +1253,44 @@ def _note_dud_melt(snapshot, held: Battle) -> None:
         _duds(held).add(cell)
 
 
+def _stand_step(policy, snapshot, goal: Position, aim) -> Position | None:
+    """The first step of the walk to the stand ``goal`` that enters no cell within
+    ``TELEPORT_WITHIN`` of the target at ``aim`` (``_reach_steps``'s walk), else None."""
+    near = _near_target(Position(*aim))
+    if goal in near:
+        return None
+    return _safe_step(policy, snapshot, lambda position: position == goal, avoid=near)
+
+
 def _stand_key(policy, snapshot, held: Battle, target) -> str | None:
     """「なるべく距離をとって相対するように岩石溶解を使って射線を通す。可能なら相手の移動後に射線が通る
     ようにして、先手を取ること。」"""
     from hengbot.policy_constants import WAIT_KEY
     aim = (target.position.y, target.position.x)
+    here = (snapshot.player.position.y, snapshot.player.position.x)
     stand = held.stand
+    # Owner 2026-11-26 「縦または横でサーペントとラインを合わせる動きを徹底する」: on the way to a stand
+    # the target shown elsewhere than the stand was drawn for (it closes in while the player walks)
+    # keeps the stand while it is still on one of the target's rays ``STAND_SAFE_DISTANCE`` or
+    # farther from it (re-aimed), else draws the stand again for where it is now.  n1-c life-222
+    # (Angband 100F, 2026-11-26 03:09:27, turns 10183954-72): the stand (10,130) drawn for the
+    # Serpent at (10,138) was walked to while it came to (10,132); the step onto the stand was
+    # beside it, and the teleport.
+    if (stand is not None and here != stand.cell and stand.aim != aim
+            and not isinstance(target, LastSeen)):
+        ray = _ray(stand.cell, aim)
+        if ray is not None and ray[1] >= STAND_SAFE_DISTANCE:
+            stand = held.stand = Stand(stand.cell, aim, ray[0], ray[1], stand.held)
+        else:
+            stand = held.stand = None
     if stand is None or not _open(_grid(snapshot, stand.cell)):
         held.no_stand = None
         stand = held.stand = _choose_stand(policy, snapshot, aim)
     if stand is None:
         return None
-    here = (snapshot.player.position.y, snapshot.player.position.x)
     if here != stand.cell:
         goal = Position(*stand.cell)
-        step = _route_step(policy, snapshot, lambda position: position == goal)
+        step = _stand_step(policy, snapshot, goal, aim)
         if step is None:
             # No walk reaches the stand: the way around it (permanent rock never crossed).
             way = _around_way(policy, snapshot, {goal})
@@ -1299,8 +1362,9 @@ def _recover_key(policy, snapshot, held: Battle) -> str | None:
     """The recovery after a teleport: Restore Mana, the heal, the drained stats -- never a rest.
 
     Owner 2026-11-21 (verbatim, LOCKED) 「99F 100Fでの休憩は許可していない。薬や取り込んだ体力回復の杖
-    などで回復する指示である。」: a deficit of a Potion of Healing's 300 or more takes the heal
-    (``_heal``: the absorbed Healing first); a smaller one, or none left to take, goes on at once.
+    などで回復する指示である。」 and 2026-11-26 「満タンにしてから行動するべき」: any deficit takes the
+    absorbed Healing, one of a Potion of Healing's 300 or more the potion too (``_full_heal``);
+    with none left to take it goes on at once.
     The rests it replaced were cut short by every telepathy-sensed monster's move (n1-b life-411
     Angband 99F 2026-11-21 13:59: 29 rests, 1041 -> 1111 HP, then loop-detected)."""
     if not _safe(policy, snapshot):
@@ -1309,8 +1373,15 @@ def _recover_key(policy, snapshot, held: Battle) -> str | None:
     if restored is not None:
         return restored
     player = snapshot.player
-    if player.max_hp - player.hp >= HEAL_DEFICIT:
-        healed = _heal(policy, snapshot)
+    deficit = player.max_hp - player.hp
+    if deficit > 0:
+        # Owner 2026-11-26 (verbatim) 「テレポート離脱後、HP800以上の時は回復せずに次の行動に移っている
+        # のが気になる。取り込んだ体力回復などを使用して満タンにしてから行動するべき。攻撃機会の損失に
+        # 繋がっている。」: the absorbed Healing for any deficit, up to the full HP; a Potion of Healing
+        # only for a deficit of its 300 or more, as before.  n1-c life-222 (Angband 100F, 2026-11-26
+        # 03:09:27, turn 10183975): landed at 1011/1103 HP, the battle went on at once; 67 of the
+        # floor's recoveries went on between 800 and 50 short of full.
+        healed = _full_heal(policy, snapshot, deficit)
         if healed is not None:
             return healed
     if player.drained_stats:
