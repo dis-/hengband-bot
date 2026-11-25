@@ -4,7 +4,7 @@ from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
 from hengbot import deep_fall_guard, destruction_means, finale_descent, means_spent_loop, mining_loadout, return_start
-from hengbot import area_mapping, cross_rules, dive_floor, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
+from hengbot import area_mapping, cross_rules, dive_floor, door_detect_cover, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
@@ -2092,6 +2092,9 @@ class NavigationMixin:
             and self._wall_search_counts[key] < SEARCH_LIMIT
             # No secret door is left in the player's own *Destruction* (area_mapping.wrecked).
             and not area_mapping.wrecked(self, key)
+            # Nor within a door detection of this floor visit: it showed every secret door
+            # there (door_detect_cover, owner 2026-11-25 「感知が届いた壁はサーチせず溶かして出る」).
+            and not door_detect_cover.covered(self, key)
         ]
 
     def _warning_step_refused(self, snapshot: Snapshot, cell: Position) -> bool:

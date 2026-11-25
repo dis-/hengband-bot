@@ -14,7 +14,7 @@ in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import damaging_ground, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket, search_ban
+from hengbot import damaging_ground, door_detect_cover, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket, search_ban
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 from hengbot.town_terminal import town_end_key
@@ -89,6 +89,9 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
             and not forgetting_maze
             and policy._search_counts[here_key] < SEARCH_LIMIT
             and not damaging_ground.hurts_here(policy, snapshot)
+            # A door detection that reached every grid around showed any secret door there
+            # (door_detect_cover, owner 2026-11-25 「感知が届いた壁はサーチせず溶かして出る」).
+            and not door_detect_cover.around_covered(policy, player.position)
         ):
             # Owner 2026-11-23 「99F 100Fはサーチ禁止。必要なら感知すること。」 (search_ban).
             if search_ban.banned(snapshot):
@@ -233,6 +236,9 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
             and not forgetting_maze
             and policy._search_counts[here_key] < SEARCH_LIMIT
             and not damaging_ground.hurts_here(policy, snapshot)
+            # A door detection that reached every grid around showed any secret door there
+            # (door_detect_cover, owner 2026-11-25 「感知が届いた壁はサーチせず溶かして出る」).
+            and not door_detect_cover.around_covered(policy, player.position)
         ):
             if search_ban.banned(snapshot):
                 detected = search_ban.detect_key(policy, snapshot)
@@ -289,6 +295,15 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         loot = sealed_loot.key(policy, snapshot)
         if loot is not None:
             return loot
+
+    # Sealed in with every reachable wall searched or within a door detection's range: the melt
+    # out comes before the explored floor's Recall below (a sealed pocket is no explored floor;
+    # door_detect_cover, owner 2026-11-25 「感知が届いた壁はサーチせず溶かして出る」).  It was asked
+    # only after the stairs, by the idle fallback (policy ``_town_idle_key``).
+    if snapshot.floor_key[2] == 0 and not forgetting_maze:
+        sealed = sealed_pocket.key(policy, snapshot)
+        if sealed is not None:
+            return sealed
 
     # Nothing is left to explore on a floor the dive goes no deeper from: Word of Recall, not the
     # up stairs below (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」) -- after the

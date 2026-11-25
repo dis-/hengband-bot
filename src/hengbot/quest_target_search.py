@@ -145,8 +145,8 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from hengbot import (
-    area_mapping, hunt_target, left_cells, locked_doors, me_capability, me_powers, retreat_enclosure,
-    search_ban, search_coverage, walk_vetoes,
+    area_mapping, door_detect_cover, hunt_target, left_cells, locked_doors, me_capability, me_powers,
+    retreat_enclosure, search_ban, search_coverage, walk_vetoes,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -706,7 +706,9 @@ def _absorbed_door_casts(policy, snapshot: Snapshot, radius: int) -> list:
 def _uncovered(policy, snapshot: Snapshot, memory: Memory, walls: set) -> set:
     """The places no door detection of this floor visit reached."""
     casts = [*memory.door_casts,
-             *_absorbed_door_casts(policy, snapshot, me_powers.map_radius(policy, snapshot))]
+             *_absorbed_door_casts(policy, snapshot, me_powers.map_radius(policy, snapshot)),
+             # Every producer's door detections of this floor visit (door_detect_cover).
+             *door_detect_cover.casts(policy, snapshot)]
     return {wall for wall in walls
             if not any(game_distance(centre, wall) <= radius for centre, radius in casts)}
 

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 VISIT_MEMORIES = (
     ("_area_mapping_memory", None, "area_mapping"),
+    ("_door_detect_cover", None, "door_detect_cover"),
     ("_destroyed_circle_teleport", None, "sealed_pocket"),
     ("_sealed_pocket_memory", None, "sealed_pocket"),
     ("_lit_floor_memory", None, "dark_recall"),
