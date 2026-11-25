@@ -697,6 +697,9 @@ def _note_group(policy, snapshot, navigator) -> None:
     navigator.summon_group = {
         index: entry for index, entry in navigator.summon_group.items()
         if index in known or not (entry[0] in killed or _looked_at(navigator, snapshot, entry[1]))}
+    # A member's verdict whether it comes (``never_comes``) leaves with it.
+    navigator.summon_comes = {index: comes for index, comes in navigator.summon_comes.items()
+                              if index in navigator.summon_group}
     if navigator.summon_target is not None and navigator.summon_target not in navigator.summon_group:
         # The member lured is gone: the next one starts its own wait.  (With no member lured the
         # holds for what acts on the player keep counting: n1-c life-217, see ``after_key``.)
@@ -920,6 +923,13 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
     race, cell, _summons = navigator.summon_group[index]
     if _stays(policy, race):
         return True
+    # Kept for the member while it stays in the group (``_note_group``): read afresh from each cell it
+    # steps to, a member wandering by the edge of its reach comes on one board and not on the next,
+    # and the lure walks to its pulling cells and to its killing cells in turn (n1-b life-418,
+    # Quest 33, 2026-11-25 15:08:59: Fang (race 55, RAND_25) in its locked room [24..26,1..4] read
+    # in turn, the walk between [25,11], [26,12] and [26,11] until the livelock stop).
+    if index in navigator.summon_comes:
+        return not navigator.summon_comes[index]
 
     def compute() -> bool:
         here = _cell(snapshot.player.position)
@@ -931,8 +941,10 @@ def never_comes(policy, snapshot, navigator, plan, board, index) -> bool:
         return not quest_wait_placement.come_cells(policy, snapshot, navigator, race, cell, spots, on_board,
                                                     first=True)
 
-    return decision_memo(policy, "quest_summon_answer.never_comes", snapshot,
-                         (index, race, tuple(cell), tuple(sorted(navigator.summon_group))), compute)
+    verdict = decision_memo(policy, "quest_summon_answer.never_comes", snapshot,
+                            (index, race, tuple(cell), tuple(sorted(navigator.summon_group))), compute)
+    navigator.summon_comes = {**navigator.summon_comes, index: not verdict}
+    return verdict
 
 
 def _comes_not(policy, snapshot, navigator, plan, board, monster) -> bool:
