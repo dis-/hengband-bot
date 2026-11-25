@@ -356,5 +356,63 @@ class ThePocketLeftTest(unittest.TestCase):
         self.assertGreaterEqual(sum(1 for _cell, _reason, key in in_pocket if key in STEPS), 100)
 
 
+# -- n1-b life-418, the second process (restart 15:07:38, main c56d737dd): the turning walk ----------
+#
+# Stopped by the livelock guard at 15:08:59.  The member lured was Fang (race 55: RAND_25,
+# BASH_DOOR, ANIMAL) in its locked room [24..26,1..4].  Read afresh from each cell it stepped to, it
+# came on one board and not on the next (quest_summon_answer ``never_comes``), and the lure walked
+# toward its pulling cells and toward the cells beside it in turn: [25,11] <-> [26,12], then
+# [26,12] <-> [26,11] (decisions 653-662).  The verdict is kept for the member while it stays in
+# the group (navigator ``summon_comes``), so one walk holds for it.
+#
+# Recorded: tests/fixtures/n1b-418-q33-lure-target-1125
+# (tests/extract_n1b_418_q33_lure_target_1125_fixture.py; DECLARED CONSTRUCTED there: the restart).
+# The policy decides the boards from decision 600.
+
+TURNING = Path(__file__).with_name("fixtures") / "n1b-418-q33-lure-target-1125"
+TURNING_CASE = json.loads(lzma.decompress((TURNING / "boards.json.xz").read_bytes()))
+TURNS = range(653, 663)
+FANG = 70
+
+
+def drive_turning():
+    """{sequence: (cell, reason, key, the lured member)} of the boards decided in order."""
+    deciding = restore_checkpoint_bytes(HengbotPolicy, lzma.decompress((TURNING / "policy.pkl.xz").read_bytes()))
+    out = {}
+    for raw, row in zip(TURNING_CASE["boards"], TURNING_CASE["recorded"]):
+        if raw.get("type") == "knowledge":
+            if getattr(deciding, "_skill_exp_request_inflight", False):
+                deciding.consume_skill_knowledge(raw)
+            continue
+        snapshot = parse_snapshot(copy.deepcopy(raw), deciding._monrace_knowledge)
+        key = str(deciding.choose_key(snapshot))
+        if row is not None:
+            out[row["sequence"]] = ((snapshot.player.position.y, snapshot.player.position.x),
+                                    deciding.last_reason, key, deciding._quest_navigators[33].summon_target)
+        deciding.confirm_key_posted(key)
+    return out
+
+
+class TheTurningWalkRecordingTest(unittest.TestCase):
+
+    def test_the_lure_walks_back_and_forth(self):
+        rows = {row["sequence"]: (row, raw) for raw, row in zip(TURNING_CASE["boards"], TURNING_CASE["recorded"]) if row}
+        self.assertEqual({rows[s][0]["reason"] for s in TURNS}, {quest_summon_answer.LURE_WALK_REASON})
+        self.assertEqual({(raw["player"]["y"], raw["player"]["x"]) for _row, raw in (rows[s] for s in TURNS)},
+                         {(25, 10), (25, 11), (26, 12), (26, 11)})
+        keys = [rows[s][0]["key"] for s in TURNS]
+        self.assertTrue({"3", "7"} <= set(keys) and {"4", "6"} <= set(keys))
+
+
+class TheTurningWalkHeldTest(unittest.TestCase):
+
+    def test_one_walk_toward_the_member(self):
+        answers = drive_turning()
+        self.assertEqual({answers[s][3] for s in TURNS}, {FANG})
+        self.assertEqual({answers[s][1] for s in TURNS}, {quest_summon_answer.LURE_WALK_REASON})
+        # Fang's room is west, behind its door [25,5]: every step goes west, none back east.
+        self.assertEqual({answers[s][2] for s in TURNS} & {"3", "6", "9"}, set())
+
+
 if __name__ == "__main__":
     unittest.main()

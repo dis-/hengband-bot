@@ -139,6 +139,9 @@ class QuestFloorNavigator:
     # The group's members no walk reaches (quest_summon_answer._unreached): index -> the tracked
     # summoners' kills when found so, replaced whole.  Same rule.
     summon_unreached = {}
+    # The members' verdict whether they come (quest_summon_answer.never_comes): index -> bool, kept
+    # while the member stays in the group, replaced whole.  Same rule.
+    summon_comes = {}
     summon_chase = None
     # Where the room sweep waits (quest_wait_placement): the stop being waited for and the chosen
     # quest_wait_placement.Choice, as (stage, round, Choice); and the waits that ran out with nothing
@@ -239,6 +242,7 @@ class QuestFloorNavigator:
         self.summon_target = None
         self.summon_hold = 0
         self.summon_unreached = {}
+        self.summon_comes = {}
         self.wait_goal = None
         self.wait_spent = ()
         self.wait_idle = None
