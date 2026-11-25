@@ -4629,8 +4629,16 @@ class CombatMixin:
         # (kill-all) and pursuing the target clear of the swarm (breeder_quest).
         breeder_quest.refresh_avoidance(self, snapshot)
         abandon = breeder_quest.abandons_floor(self, snapshot)
-        # A one-off emergency relocation does not start a town return, but an
-        # already active return still needs an exit from this latched floor.
+        # The latch is the owner's give-up (2026-11-02 「20ターンで数が減らせない
+        # なら逃走を選択する」, the window 100 since 11-09): it reads Recall even
+        # when an emergency escape fired earlier on this floor.  That flag
+        # (_emergency_return_active) only shuts the routine return looting out
+        # for the floor visit; vetoing this exit with it left the up-stairs walk
+        # through the swarm, whose route cell the breeders refill forever: n1-a
+        # life-538 (2026-11-26 07:18, Lv30 Warrior, dungeon 12 29F) teleported
+        # away at turn 1334738, rested and explored, latched on グレムリン at
+        # 1339309 and killed one at (24,59) every action with six Recall
+        # scrolls carried until the loop detector stopped it.
         # A kill-quest floor asks the quest exit lock, as the stair exits
         # below and the town return do: once the lock released (a runtime
         # RANDOM quest's stall boundary, the teleport reserve, ...) Recall is
@@ -4660,10 +4668,6 @@ class CombatMixin:
                 abandon
                 or self._active_fixed_quest_id(snapshot) is None
                 and not self._return_exit_locked(snapshot)
-            )
-            and (
-                not self._emergency_return_active
-                or self._returning_to_town
             )
             and not snapshot.player.blind
             and not snapshot.player.confused
