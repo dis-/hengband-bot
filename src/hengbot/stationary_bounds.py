@@ -44,6 +44,13 @@ where the producer already counts its holds in decisions.  The values and why:
   waiting on something that may not come (2026-09-20, ``DETECTED_THREAT_HOLD_MAX_GAME_TURNS``, 50
   player turns), named here for each of them.  It is no shorter than what the loop guard gave
   these waits before (40 decisions, 400 game turns at normal speed).
+* ``quest-strategy:summoned-rest-recharge`` (quest_summon_answer._recharge_key, the counted rest
+  ``R100`` out of the lines for the absorbed powers a monster that never comes is killed with,
+  owner 2026-11-25): ``SUMMONED_RECHARGE_REST_MAX_DECISIONS`` rests, the Q25 recharge rest's own
+  bound (quest25_battle_board.RECHARGE_REST_LIMIT: twice the about 16 rests that refill an empty
+  count-99 wand at the slowest, hpmp/hp-mp-regenerator.cpp regenmagic); one use is enough here.
+  The lists read between the rests (me_powers_refresh.REFRESH_REASON, no game time) are its
+  companion, so they continue the episode.
 """
 
 from __future__ import annotations
@@ -80,6 +87,8 @@ QUEST_HOLD_UNREACHABLE_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 QUEST_BLOCKED_HOLD_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 IDLE_WAIT_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 NONE_WAIT_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
+# quest25_battle_board.RECHARGE_REST_LIMIT (not imported: this module sits under the battle's).
+SUMMONED_RECHARGE_REST_MAX_DECISIONS = 30
 
 
 def _finale_hold_max_decisions() -> int:
@@ -118,6 +127,8 @@ BOUNDS = (
           "QUEST_BLOCKED_HOLD_MAX_GAME_TURNS"),
     Bound("wait", IDLE_WAIT_MAX_GAME_TURNS, GAME_TURNS, "IDLE_WAIT_MAX_GAME_TURNS"),
     Bound("policy:none-wait", NONE_WAIT_MAX_GAME_TURNS, GAME_TURNS, "NONE_WAIT_MAX_GAME_TURNS"),
+    Bound("quest-strategy:summoned-rest-recharge", SUMMONED_RECHARGE_REST_MAX_DECISIONS, DECISIONS,
+          "SUMMONED_RECHARGE_REST_MAX_DECISIONS", companions=("periodic:magic-eater-powers",)),
 )
 BY_REASON = {row.reason: row for row in BOUNDS}
 # A companion continues the episode of its row (it is counted with it, never alone).

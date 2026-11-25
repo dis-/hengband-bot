@@ -252,6 +252,10 @@ _rows(NOT_ESCAPE, "reset_recall", "a town read of the Scroll of Reset Recall tha
       "Word of Recall, no leave of a floor", "reset-recall:read", "reset-recall:close-store")
 _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's lure after a disengage: a step toward the monsters",
       "quest-strategy:summoned-lure-walk", "quest-strategy:summoned-rest")
+# Owner 2026-11-25 「休憩して魔法道具の使用回数を戻せる場合はその限りではない」: the Magic-Eater's counted rest
+# out of the lines for the absorbed powers a monster that never comes is killed with.
+_rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's recharge rest before a monster that never comes",
+      "quest-strategy:summoned-rest-recharge")
 # Owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を優先する」: the step toward the summoner gone after.
 _rows(NOT_ESCAPE, ("finale_teleport_tour", "me_inn_refill"),
       "the inn's night between two loops of the 99F/100F Teleportation circuit, a town walk and a "
@@ -798,6 +802,11 @@ _stationary(EXEMPT, "the plan's trap_searches per cell (owner 2026-11-09)",
 # RECHARGE_REST_LIMIT of them (n1-b life-382 2026-11-13 04:42:57: eleven rests on [5,1]).
 _stationary(EXEMPT, "RECHARGE_REST_LIMIT per phase (owner 2026-11-06)",
             "quest25:rest-recharge")
+# The summon answer's recharge rest (quest_summon_answer._recharge_key, owner 2026-11-25 「休憩して魔法道具
+# の使用回数を戻せる場合はその限りではない」): each 'R100' advances the game; the list reads between the
+# rests continue its episode.
+_stationary(EXEMPT, "stationary_bounds.SUMMONED_RECHARGE_REST_MAX_DECISIONS (owner 2026-11-25)",
+            "quest-strategy:summoned-rest-recharge")
 _stationary(EXEMPT, "the once-quest floor's rest (policy_constants.ONCE_QUEST_TICK_REST_REASON)",
             "once-quest:recover")
 # Exact policy-registered escape WAIT terminals (policy.ESCAPE_BUDGETED_WAIT_LIMITS).  Each owns

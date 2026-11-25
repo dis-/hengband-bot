@@ -6134,6 +6134,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_device_attacks.py:restorable_powers": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_device_attacks.py:scored": {
     "classification": "data",
     "rows": [
@@ -16838,6 +16845,20 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "quest_summon_answer.py:_recharge_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_summon_answer.py:_recharging": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_summon_answer.py:_rest_key": {
     "classification": "producer",
     "rows": [
@@ -16970,6 +16991,13 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_summon_answer.py:recharges_first": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "quest_summon_answer.py:stranded": {
     "classification": "data",
