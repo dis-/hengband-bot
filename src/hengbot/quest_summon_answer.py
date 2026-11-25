@@ -433,19 +433,22 @@ def melee_approach(policy, snapshot, monster, *, site) -> str:
       owner 2026-11-25 (b)-1 (the audit's question 「寄って近接の相手の範囲」, as recommended): only one that
       never leaves the water or never moves (``_stays``: quest_plan_base.never_moves ``in_water``).
       A pack that hides, a monster that runs, one in a locked room is not closed on to melee: with no
-      shot it is the plan's (its wait, its lure, its sweep).  At ``BLOW_SITE`` a Magic-Eater not while
-      he has a shot or an absorbed power for it (``melee_withheld``), resting first for the power a
-      rest restores (``recharges_first``, owner 2026-11-25).
+      shot it is the plan's (its wait, its lure, its sweep).
     * ``CHASE_SITE``: the summoner gone after (owner 2026-11-19 「予測被害が小さいうちは召還主の撃破を
-      優先する」)."""
+      優先する」).
+
+    At every site, owner 2026-11-25 (b)-2 (the audit's question 「魔道具術師が召喚主を追う時も休めば
+    戻るなら休む」, answered as recommended, the 11-25 rule 「撃つ手も取り込んだ魔法道具の手も無い時は
+    それを許可するが、休憩して魔法道具の使用回数を戻せる場合はその限りではない」 carried to the chase and to
+    the sweep): a Magic-Eater with no shot now and an absorbed attack power for it that a rest
+    restores rests first, out of the lines (``recharges_first``: ``REST_FIRST``, ``recharge_rest_key``);
+    with a shot he does not walk to melee a monster that does not come (``melee_withheld``)."""
+    if recharges_first(policy, snapshot, monster.race_id):
+        return REST_FIRST if site == CHASE_SITE or _stays(policy, monster.race_id) else REFUSED
     if site == CHASE_SITE:
         return MELEE
-    if not _stays(policy, monster.race_id):
+    if not _stays(policy, monster.race_id) or melee_withheld(policy, snapshot, monster.race_id):
         return REFUSED
-    if site == SWEEP_SITE:
-        return MELEE
-    if melee_withheld(policy, snapshot, monster.race_id):
-        return REST_FIRST if recharges_first(policy, snapshot, monster.race_id) else REFUSED
     return MELEE
 
 
@@ -565,10 +568,14 @@ def _chase_order(snapshot, navigator) -> list:
 
 def _approach(policy, snapshot, navigator, plan, board, target) -> str | None:
     """A step toward the cells beside ``target`` over the plan's walks, as the gate allows
-    (``melee_approach`` at ``CHASE_SITE``)."""
+    (``melee_approach`` at ``CHASE_SITE``); a Magic-Eater the gate sends to rest first rests out of
+    the lines (``recharge_rest_key``, owner 2026-11-25 (b)-2)."""
     from hengbot import quest_room_sweep  # it asks this module for its rungs
 
-    if melee_approach(policy, snapshot, target, site=CHASE_SITE) != MELEE:
+    verdict = melee_approach(policy, snapshot, target, site=CHASE_SITE)
+    if verdict == REST_FIRST:
+        return recharge_rest_key(policy, snapshot, navigator, plan, board, {target.race_id})
+    if verdict != MELEE:
         return None
     goals = {Position(target.position.y + dy, target.position.x + dx)
              for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx}
@@ -825,8 +832,14 @@ def _recharging(policy, snapshot, navigator) -> frozenset:
 
 
 def _recharge_key(policy, snapshot, navigator, plan, board, recharging) -> str | None:
-    """Owner 2026-11-25 「休憩して魔法道具の使用回数を戻せる場合はその限りではない」: for the members
-    ``recharging``, out of every awake hostile's line a counted rest (``R100``, as the Q34 and Q25
+    """``recharge_rest_key`` for the members ``recharging`` (their races)."""
+    return recharge_rest_key(policy, snapshot, navigator, plan, board,
+                             {navigator.summon_group[index][0] for index in recharging})
+
+
+def recharge_rest_key(policy, snapshot, navigator, plan, board, races) -> str | None:
+    """Owner 2026-11-25 「休憩して魔法道具の使用回数を戻せる場合はその限りではない」: against the races
+    ``races``, out of every awake hostile's line a counted rest (``R100``, as the Q34 and Q25
     recharge rests) that restores the absorbed powers (me_device_attacks.restorable_powers); in a
     line, a step out of it first (the fire answer's walk).  The displayed lists of those powers are
     stale after the rest and are read again before the next decision (me_device_attacks
@@ -841,8 +854,7 @@ def _recharge_key(policy, snapshot, navigator, plan, board, recharging) -> str |
     if player.confused or player.food_state not in {"normal", "full", "gorged"}:
         return None
     kinds = set()
-    for index in recharging:
-        race = navigator.summon_group[index][0]
+    for race in races:
         kinds |= {power.kind for power in me_device_attacks.restorable_powers(policy, snapshot, race)}
     me_device_attacks.mark_stale(policy, kinds)
     policy.last_reason = RECHARGE_REST_REASON

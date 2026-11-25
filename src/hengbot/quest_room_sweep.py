@@ -699,11 +699,17 @@ def _fight(policy, snapshot, profile, navigator, plan, board) -> str | None:
     if not board.in_view and not board.left_alone:
         return None  # hit by the unseen: unseen_strike and the shared ladders answer it
     occupied = board.occupied
-    # The one gate on the walks that close on a monster to melee it (quest_summon_answer.melee_approach).
-    still = next((monster for monster in board.in_view
-                  if quest_summon_answer.melee_approach(policy, snapshot, monster,
-                                                        site=quest_summon_answer.SWEEP_SITE)
-                  == quest_summon_answer.MELEE), None)
+    # The one gate on the walks that close on a monster to melee it (quest_summon_answer.melee_approach);
+    # a Magic-Eater it sends to rest first rests out of the lines (owner 2026-11-25 (b)-2).
+    still = None
+    for monster in board.in_view:
+        verdict = quest_summon_answer.melee_approach(policy, snapshot, monster, site=quest_summon_answer.SWEEP_SITE)
+        if verdict == quest_summon_answer.REST_FIRST and (rested := quest_summon_answer.recharge_rest_key(
+                policy, snapshot, navigator, plan, board, {monster.race_id})) is not None:
+            return rested
+        if verdict == quest_summon_answer.MELEE:
+            still = monster
+            break
     if still is not None:
         around = {Position(still.position.y + dy, still.position.x + dx)
                   for dy in (-1, 0, 1) for dx in (-1, 0, 1)} - occupied

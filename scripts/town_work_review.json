@@ -25207,5 +25207,16 @@
     ],
     "delegation": "selected child; no independent success",
     "evidence": "The one gate on the quest plans' walks that close on a monster to melee it (melee, rest first, or refused); emits no key."
+  },
+  "quest_summon_answer.py:recharge_rest_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from quest_summon_answer (after_key, the chase's _approach) and quest_room_sweep._fight, whose _plan requires the TAKEN fixed quest on this floor with a room_sweep plan.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "QUEST_33 and the room sweeps: a Magic-Eater with no shot and an absorbed attack power a rest restores: a step out of the lines, else the counted rest (R100) that restores them (owner 2026-11-25 (b)-2)."
   }
 }
