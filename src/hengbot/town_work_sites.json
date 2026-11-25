@@ -622,6 +622,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_full_heal": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "angband_finale_battle.py:_heal": {
     "classification": "dungeon-only",
     "rows": [
@@ -713,7 +720,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "angband_finale_battle.py:_reach.compute": {
+  "angband_finale_battle.py:_reach_steps.compute": {
     "classification": "dungeon-only",
     "rows": [
       "survival"
@@ -805,6 +812,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "angband_finale_battle.py:_stand_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "angband_finale_battle.py:_stand_step": {
     "classification": "dungeon-only",
     "rows": [
       "survival"

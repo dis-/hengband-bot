@@ -404,13 +404,15 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         walls = [self.at(0, dx) for dx in range(5, 10)]
         board = self.board(oberon=oberon, walls=walls, pack=[("z", "mud")])
         key, reason = decide(self.policy, board)
-        self.assertEqual(reason, battle.STAND_WALK_REASON)
         stand = battle.battle(self.policy, board).stand
-        # The farthest reachable open cell on a ray of Oberon the five walls (and the Wand's five
-        # charges) let a line through: west on Oberon's row, beyond the player's 10.
-        self.assertEqual((stand.aim, stand.step, stand.cell[0]), ((oberon.y, oberon.x), (0, -1), oberon.y))
-        self.assertGreater(stand.distance, 10)
-        self.assertEqual(stand.distance, oberon.x - stand.cell[1])
+        # Owner 2026-11-26 「縦または横でサーペントとラインを合わせる」: of the reachable stands
+        # STAND_SAFE_DISTANCE or farther on Oberon's row or column, the fewest steps -- the player's
+        # own cell, 10 west on his row, behind the five walls the Wand's five charges melt (before
+        # 2026-11-26: the farthest, a walk west beyond 10).
+        self.assertEqual((stand.aim, stand.step, stand.cell),
+                         ((oberon.y, oberon.x), (0, -1), (oberon.y, oberon.x - 10)))
+        self.assertEqual(stand.distance, 10)
+        self.assertEqual(reason, battle.MELT_REASON)
         at_stand = replace(board, player=replace(board.player, position=Position(*stand.cell)))
         key, reason = decide(self.policy, at_stand)
         self.assertEqual(reason, battle.MELT_REASON)

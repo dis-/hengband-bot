@@ -65,6 +65,12 @@ class FinaleHoldLoopRecordedTest(unittest.TestCase):
             held = getattr(policy, angband_finale_battle.MEMORY, None)
             if held is not None:
                 held.melt_aim = None  # as the uses: the replay's melts change nothing
+                if (held.phase == angband_finale_battle.RECOVER
+                        and policy.last_reason == angband_finale_battle.ABSORBED_HEAL_REASON):
+                    # DECLARED: the recovery's heal to the full HP (owner 2026-11-26) lands; the
+                    # open-loop boards never show it, so the replay ends the recovery as the
+                    # closed loop's next board would.
+                    held.phase = angband_finale_battle.BATTLE
             if len(seen) in (RESTART, RESTART_2):
                 # DECLARED: the 09:54 and 10:2x restarts -- the policy's map memory (the remembered grids
                 # merged under the board, ``_with_grid_memory``) is not kept by a restart.

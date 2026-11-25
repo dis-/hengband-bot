@@ -22954,6 +22954,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_full_heal": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: called from angband_finale_battle's recovery and fight, which answer only on Angband 99F/100F with the readiness latched (applies).",
+    "evidence": "Owner 2026-11-26 「満タンにしてから行動するべき」: the recovery's heal to the full HP, the absorbed Healing (me_absorbed_substitutes.item_cast_key) for any deficit, a Potion of Healing for 300 or more (_heal).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "policy.py:HengbotPolicy._angband_finale_small_floor_key": {
     "classification": "producer",
     "rows": [
@@ -24859,6 +24870,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "angband_finale_battle.py:_stand_step": {
+    "classification": "dungeon-only",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
+    "evidence": "The first step of the walk to the stand that enters no cell within the target's teleport distance (owner 2026-11-26 「縦または横でサーペントとラインを合わせる」); a reading, no key.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "angband_finale_battle.py:_route_step": {
     "classification": "dungeon-only",
     "rows": [
@@ -24914,13 +24936,13 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "angband_finale_battle.py:_reach.compute": {
+  "angband_finale_battle.py:_reach_steps.compute": {
     "classification": "dungeon-only",
     "rows": [
       "survival"
     ],
     "context": "Dungeon only: angband_finale_battle.key answers only on Angband 99F/100F with the readiness latched (applies), or on Angband 95F-98F for the small-floor option (_small_floor refuses the town).",
-    "evidence": "The cells the finale's walks reach on this board (every walker's veto, the strong non-targets' lines kept out of); a reading, no key.",
+    "evidence": "The steps of the finale's walk to each cell it reaches on this board (every walker's veto, the strong non-targets' lines and the target's teleport distance kept out of); a reading, no key.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
