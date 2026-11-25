@@ -15,7 +15,8 @@ read the left cells).  Now the approach's walk and its ownership read one goal, 
 in the sure radius and nothing to keep in the worst radius (destruction_use ``use_cell``): on both
 boards the approach walks on east toward (11,77).  DECLARED RECONSTRUCTED: the absorbed *Destruction*
 list row (22 charges at 95%; the capture carries no list).  DECLARED CONSTRUCTED: the board without the
-guardian (the use is due at (10,73)).
+guardian (the use is due at (10,73)), its last shown cell forgotten as well (monster_memory.KEPT_GUARDIAN,
+n1-c life-222 2026-11-25: a kept guardian out of detection is judged at its last shown cell).
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -26,7 +27,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import destruction_use, me_capability, threat_tiers
+from hengbot import destruction_use, me_capability, monster_memory, threat_tiers
 from hengbot.model import SV_STAFF_DESTRUCTION, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
@@ -101,7 +102,10 @@ class T1WalkApproachRecordedTest(unittest.TestCase):
         self.assertEqual(key, "3")
 
     def test_without_the_guardian_the_use_is_due_in_reach(self):
-        _, _, _, reason = self.decide(LEFT_IN_REACH, _without_guardian)
+        policy, board = self.replay(LEFT_IN_REACH, _without_guardian)
+        monster_memory.forget_floor(policy, monster_memory.KEPT_GUARDIAN)
+        policy.choose_key(board)
+        reason = policy.last_reason
         self.assertTrue(reason.startswith(destruction_use.REASON), reason)
 
     def test_approach_owns_reads_the_walk(self):

@@ -67,7 +67,12 @@ SLEEPER_REACH = Kind("_sleeper_reach_memory")
 LOOT_BLOCK = Kind("_sleeper_loot_block", group_turn=True)
 # An entry whose index is on the board with its race stays, however old its last sighting.
 DISENCHANT = Kind("_disenchant_avoid_seen", window_while_shown=False)
-KINDS = (SLEEPER_REACH, LOOT_BLOCK, DISENCHANT)
+# The floor's guardian a *Destruction* must not reach (destruction_use ``spared_positions``),
+# judged at its last shown cell while out of detection: n1-c life-222 (Mountain 50F,
+# 2026-11-25 13:21, loop-detected), the approach's verdict on its use cells flipped with
+# 大鷲王『ソロンドール』 entering and leaving the telepathy's range.
+KEPT_GUARDIAN = Kind("_kept_guardian_seen")
+KINDS = (SLEEPER_REACH, LOOT_BLOCK, DISENCHANT, KEPT_GUARDIAN)
 # The breeder quest's memory (breeder_quest re-exports it).
 BREEDER_SEEN = Kind("_breeder_quest_seen")
 
@@ -92,6 +97,7 @@ DESTRUCTION_FORGETS = (
     Forgotten("_sleeper_loot_block", "monster_memory", "kind"),
     Forgotten("_disenchant_avoid_seen", "monster_memory", "kind"),
     Forgotten("_breeder_quest_seen", "monster_memory", "kind"),
+    Forgotten("_kept_guardian_seen", "monster_memory", "kind"),
     Forgotten("_immobile_summoner_memory", "summoner_wait", "visit"),
     Forgotten("_detected_hold_outwaited", "summoner_wait", "visit"),
     Forgotten("_immobile_threat_memory", "immobile_threat_memory", "visit"),

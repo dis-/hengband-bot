@@ -492,6 +492,8 @@ REGISTRY = (
       "monster_memory: breeder quest seen (no comment at its definition)", destruction=True),
     S("_disenchant_avoid_seen", "monster_memory", LIFE,
       "monster_memory: disenchant avoid seen (no comment at its definition)", destruction=True),
+    S("_kept_guardian_seen", "monster_memory", LIFE,
+      "The floor's guardian a *Destruction* must not reach at its last shown cell while out of detection (destruction_use._spared_positions; n1-c life-222 2026-11-25)", destruction=True),
     S("_paralyser_left", "monster_memory", LIFE,
       "monster_memory: paralyser left (no comment at its definition)"),
     S("_sleeper_loot_block", "monster_memory", LIFE,
@@ -2384,6 +2386,10 @@ RESTART = {
     "_unseen_loot_direction": Restart(PERSISTED, "policy_identification",
                                       "same floor, inside UNSEEN_LOOT_QUIET_TURNS"),
     "_unseen_attack_read": Restart(MAY_BE_LOST, "policy_identification", _ONCE),
+    # monster_memory.KEPT_GUARDIAN (destruction_use.observe_kept_guardian): shown again after a restart.
+    "_kept_guardian_seen": Restart(MAY_BE_LOST, "monster_memory",
+                                   "a new process remembers the guardian from the next board "
+                                   "that shows it"),
     # policy_home._carry_town_visit_purchases_across_restart.
     "_town_visit_purchases": Restart(PERSISTED, "policy_home",
                                      "same town floor, same or later game turn"),
