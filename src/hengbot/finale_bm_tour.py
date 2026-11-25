@@ -41,8 +41,23 @@ them.
 
 The gold is no end (``_funds_key``, owner 2026-11-18 「必要なものは買う」): below the next leg's
 fare, the reserve and one potion at the price last seen on a Black Market shelf (the base price
-before one is seen), Home's cash wares are sold first and then one fundraising run brings the
-gold; the circuit starts again on the next town board.  Only an inn the walk cannot reach, a leg
+before one is seen), Home's cash wares are sold first and then the ordinary departure dives for
+the gold (below); the circuit starts again on the next town board.
+
+**The gold from a dive, not from 1F** (owner 2026-11-25, verbatim: 「決戦用の資金調達は分かったが、
+1F採掘は明らかに効率が悪いので適当なダンジョンに潜って稼いでくれ」).  n1-c life-222 (Lv49, Angband
+recall depth 95) sold Home's rings and at 2026-11-25 20:10:50 (42,504 of 49,993 gold) handed a
+mining run over (``town:finale-hold:bm-funds-fundraise:49993``): the Yeek cave 1F, one floor a
+run, the run's ascent back to town, the circuit again and its Black Market buying with the gold
+just mined, the next run -- town and 1F about every 10 s.  Now the circuit yields its departure
+(``dive_target``, ``diving``): the town's ordinary departure reads the recall to its own
+destination (policy_town, the departure toward Angband: the 95F exploration of the owner's
+2026-11-19 rule, with the finale's loadout that holds from 95F on, angband_finale ``preparing``),
+explores and loots there, and comes back by the ordinary return rules; the dungeon board forgets
+the circuit, the next town board sells and starts it again, and its Black Markets buy once the
+gold is there.  Where the ordinary departure has no destination -- Angband's recall refused for
+its depth (finale_hold ``applies``, owner 2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還
+しない」 with 2026-11-19's no fallback from 50F) -- the fundraising run stays.  Only an inn the walk cannot reach, a leg
 refused or no town to visit end it (``closed``): the town stops by name
 (``town:blocked:finale-bm-tour-closed:<why>``, a final stop of the driver, policy_constants
 FINALE_BM_CLOSED_STOP_PREFIX).  A dungeon board forgets the circuit (angband_finale
@@ -105,6 +120,10 @@ class Tour:
     funds_needed: int | None = None
     funds_waits: tuple[int, int] | None = None
     fundraise_target: int | None = None
+    # The gold the circuit's departure is yielded to the ordinary dive for (``_funds_key``,
+    # owner 2026-11-25); None while the circuit holds the departure.  A circuit pickled before
+    # it reads the class default.
+    dive_target: int | None = None
 
 
 def record(policy: Any) -> Tour | None:
@@ -224,17 +243,23 @@ def _funds_key(policy: Any, snapshot: Any, tour: Tour, needed: int) -> str:
     """Owner 2026-11-18 「必要な物は買う。本当に資金枯渇したら採掘で良いが、自宅に大量の換金用アイテムが
     あるので先に売る。」: below what the next leg needs, Home's cash wares are sold first (home_cash_sale,
     its line read through ``funds_short``: the existing Home junk sweep, never a finale supply or
-    a never-sold ware, item_fate); with none left (or the sale making no progress), one
-    fundraising run to the gold needed (morivant_tower ``start_fundraising_run``, the mining set's
-    gold end); its dungeon board forgets the circuit, which starts again on the next town board.
+    a never-sold ware, item_fate); with none left (or the sale making no progress), the dive
+    (owner 2026-11-25 「1F採掘は明らかに効率が悪いので適当なダンジョンに潜って稼いでくれ」): None, the
+    departure yielded to the ordinary one (``diving``).  Only where that one has no destination
+    (finale_hold ``applies``: Angband's recall refused for its depth) one fundraising run to the
+    gold needed (morivant_tower ``start_fundraising_run``, the mining set's gold end).  Either
+    trip's dungeon board forgets the circuit, which starts again on the next town board.
     n1-b life-416 2026-11-24 00:49: 20,149 gold of 21,235 named a stop and spun on it."""
-    from hengbot import home_cash_sale, morivant_tower
+    from hengbot import finale_hold, home_cash_sale, morivant_tower  # import cycle
     tour.funds_needed = needed
     gold = snapshot.player.gold
     waits = tour.funds_waits[1] + 1 if tour.funds_waits and tour.funds_waits[0] == gold else 1
     tour.funds_waits = (gold, waits)
     if home_cash_sale.pending(policy, snapshot) and waits <= FUNDS_SALE_WAITS:
         return _wait(policy, FUNDS_SALE_REASON, FUNDS_SALE_REASON)
+    if not finale_hold.applies(policy, snapshot):
+        tour.dive_target = needed
+        return None
     if policy._fundraising_mode not in home_cash_sale.MINING_MODES:
         tour.fundraise_target = needed
         morivant_tower.start_fundraising_run(policy, snapshot, needed)
@@ -311,6 +336,10 @@ def town_key(policy: Any, snapshot: Any) -> str | None:
     tour = record(policy) or _start(policy, snapshot)
     if tour.closed is not None:
         return None
+    if tour.dive_target is not None:
+        if snapshot.player.gold < tour.dive_target:
+            return None  # the dive's departure (``diving``)
+        tour.dive_target = None
     if tour.night.due:
         key = _night_key(policy, snapshot, tour)
         if key is not None or tour.closed is not None:
@@ -343,6 +372,15 @@ def town_key(policy: Any, snapshot: Any) -> str | None:
     return key
 
 
+def diving(policy: Any, snapshot: Any) -> bool:
+    """The circuit yielded this town's departure to the ordinary dive for its gold
+    (``_funds_key``, owner 2026-11-25)."""
+    tour = record(policy)
+    return bool(tour is not None and tour.closed is None and snapshot.in_town
+                and tour.dive_target is not None
+                and snapshot.player.gold < tour.dive_target)
+
+
 def closed(policy: Any) -> bool:
     """The circuit ended (an inn, a leg, no town): the town's final stop (finale_hold)."""
     tour = record(policy)
@@ -365,4 +403,4 @@ def facts(policy: Any) -> dict | None:
                        for kind, price in _prices(tour).items()},
             "nights": tour.night.nights, "night_due": tour.night.due, "closed": tour.closed,
             "funds_needed": tour.funds_needed, "funds_waits": tour.funds_waits,
-            "fundraise_target": tour.fundraise_target}
+            "fundraise_target": tour.fundraise_target, "dive_target": tour.dive_target}

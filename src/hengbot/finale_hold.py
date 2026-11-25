@@ -38,8 +38,10 @@ character preparing the finale (``applies``), the town's departure is this modul
   ``BLACK_MARKET_SUPPLIES``): once the Teleportation is owned, the four towns' Black Markets lap after lap
   with a night at the inn between laps until the carry is owned (finale_bm_tour, owner
   2026-11-23 「4つの町の闇市を巡回して買い足し、目標に届くまで99Fへは行かない。闇市に無ければ
-  巡回をくり返す。」); short of gold, Home's cash wares are sold and a fundraising run brings
-  it (owner 2026-11-18 「必要なものは買う」); a circuit that closed (an inn, a leg, no town) is
+  巡回をくり返す。」); short of gold, Home's cash wares are sold (owner 2026-11-18 「必要なものは
+  買う」) and the ordinary departure dives for the rest where it has a destination (owner
+  2026-11-25, finale_bm_tour ``_funds_key``), else a fundraising run brings it; a circuit that
+  closed (an inn, a leg, no town) is
   the driver's final stop ``town:blocked:finale-bm-tour-closed:<why>``;
 * anything else short (a supply only the dungeon gives: the absorbed Stone to Mud), or the phase
   stopped (an equipment condition the owned gear does not meet stops it at its check step): a
@@ -142,6 +144,9 @@ def _black_market_key(policy, snapshot, short: list) -> str | None:
     circuit = finale_bm_tour.town_key(policy, snapshot)
     if circuit is not None:
         return circuit
+    if finale_bm_tour.diving(policy, snapshot):
+        # Owner 2026-11-25: short of gold, the ordinary departure dives for it (the caller's).
+        return None
     if finale_bm_tour.closed(policy):
         # A final stop of the driver (policy_constants FINALE_BM_CLOSED_STOP_PREFIX).
         return _stop(policy, snapshot, f"{BM_CLOSED}:{finale_bm_tour.why(policy)}")
