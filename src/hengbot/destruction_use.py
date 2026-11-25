@@ -514,13 +514,59 @@ def _spared_in_circle(policy, snapshot, target, *, centre=None) -> bool:
 def _spared_positions(policy, snapshot, target, *, near=None) -> list:
     """The cells of the monsters a use must not reach (``_spared_in_circle``): a damaged quest
     target, the floor's guardian to be kept.  With ``near``, only those within the worst radius
-    of it are judged (the guardian's reading is a threat projection)."""
+    of it are judged (the guardian's reading is a threat projection).
+
+    The guardian to be kept is judged at its last shown cell while it is out of detection
+    (``kept_guardians_unseen``), as the remembered approach judges its targets.  n1-c life-222
+    (Mountain 50F, 2026-11-25 13:19-13:21, loop-detected): 大鷲王『ソロンドール』 (race 468, kept: not
+    T1 alone) at (8,172) was shown by telepathy from (26,176), 18 off, and not from (27,177), 19
+    off.  From (26,176) every use cell of the nearer sensed イヌワシ (9,173) had the guardian
+    within the worst radius, so the walk went to the next subject, race 361 at (58,168), '3';
+    from (27,177) the guardian was not on the board, the cell (21,175) was a use cell for the
+    eagle again, and the walk stepped '7' back: 25 alternations until the loop detector."""
     guardian = _guardian_race(policy, snapshot)
+    shown = (*snapshot.visible_monsters, *snapshot.detected_monsters)
     return [monster.position
-            for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            for monster in (*shown, *kept_guardians_unseen(policy, snapshot, shown))
             if (near is None or game_distance(near, monster.position) <= WORST_RADIUS)
             and (_guardian_kept(policy, snapshot, monster, guardian)
                  or (monster.race_id == target and monster.hp < monster.max_hp))]
+
+
+def kept_guardians_unseen(policy, snapshot, shown) -> list:
+    """The floor's guardians to be kept remembered at their last shown cell
+    (monster_memory.KEPT_GUARDIAN, ``observe_kept_guardian``) whose index ``shown`` does not
+    hold."""
+    on_board = {monster.index for monster in shown}
+    return [monster for (index, _race), (monster, _turn)
+            in monster_memory.entries(policy, snapshot, monster_memory.KEPT_GUARDIAN).items()
+            if index not in on_board]
+
+
+def _kept_guardian_gone(policy, snapshot, monster) -> bool:
+    """Shown with another race on its index; not shown: its kill line (the window,
+    monster_memory.KEPT_GUARDIAN, ends one not shown)."""
+    from hengbot.breeder_stalemate import shows_kill
+
+    now = monster_memory.shown_by_index(snapshot).get(monster.index)
+    if now is not None:
+        return now.race_id != monster.race_id
+    return shows_kill(snapshot, monster.name)
+
+
+def _kept_guardians_shown(policy, snapshot) -> list:
+    guardian = _guardian_race(policy, snapshot)
+    if guardian is None:
+        return []
+    return [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+            if monster.race_id == guardian and _guardian_kept(policy, snapshot, monster, guardian)]
+
+
+def observe_kept_guardian(policy, snapshot) -> None:
+    """Every board: remember the floor's guardian to be kept at the cell it is shown on, forget
+    it once gone (``_spared_positions``)."""
+    monster_memory.observe(policy, snapshot, monster_memory.KEPT_GUARDIAN,
+                           remember=_kept_guardians_shown, gone=_kept_guardian_gone)
 
 
 def _visible_hostiles_except_target(policy, snapshot, target) -> list:
@@ -1013,6 +1059,7 @@ def sight_trigger_key(policy, snapshot) -> str | None:
 def observe(policy, snapshot) -> None:
     """Every decision, before the board joins the map memory: settle the last use."""
     setattr(policy, UNSAFE_NOTE, None)
+    observe_kept_guardian(policy, snapshot)
     means_spent_loop.observe(policy, snapshot)
     deep_climb.observe(policy, snapshot)
     deep_fall_guard.observe(policy, snapshot)

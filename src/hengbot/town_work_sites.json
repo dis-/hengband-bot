@@ -2589,6 +2589,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:kept_guardians_unseen": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:key": {
     "classification": "data",
     "rows": [
