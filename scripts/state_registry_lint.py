@@ -25,11 +25,25 @@ registry says it; this lint fails on
   source: a counter-like entry (``state_registry.COUNTER_NAME``) with no ``RESET_BY`` row, a row
   of no counter-like entry, a row with neither a site nor a note, a site naming a function its
   module does not define, a reset site of the source (``reset_sites``) the row does not list, a
-  listed site that resets nothing of it.
+  listed site that resets nothing of it,
+- a ``_*_path`` attribute ``cli`` attaches to the policy (``policy._x_path = ...`` or a
+  ``setattr`` of one) that neither ``runtime_paths.POLICY_RUNTIME_PATH_ATTRIBUTES`` nor
+  ``runtime_paths.POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES`` names (review 2026-11-25 (a)-1: the
+  checkpoint copies and the restore re-points only the paths of those tables), or a name in
+  both tables,
+- the "restart" column (state_registry.RESTART and the record tables of
+  state_registry.RESTART_RECORD_TABLES, review 2026-11-25 (a)-2): a value that is none of
+  RESTART_BEHAVIOURS or is written as unclassified, a row of no entry, a row whose
+  record module does not name the entry, a name both in RESTART and a record table, and an
+  entry with no classification that is not in scripts/state_registry_restart_baseline.json or
+  is a life/floor row whose owner, lifetime, flags or purpose changed since it.  A baseline
+  entry no longer needed is printed and does not fail (--prune-restart-baseline drops it; it
+  never adds one).
 
 A new state: add its row to ``hengbot/state_registry.py``.
 
     python scripts/state_registry_lint.py            # exit 1 on a finding
+    python scripts/state_registry_lint.py --prune-restart-baseline
     python scripts/state_registry_lint.py --report   # also list the "decision" entries no
                                                      # decision boundary clears (report only)
 """
@@ -37,6 +51,9 @@ A new state: add its row to ``hengbot/state_registry.py``.
 from __future__ import annotations
 
 import ast
+import hashlib
+import importlib
+import json
 import re
 import sys
 from collections import defaultdict
@@ -476,6 +493,154 @@ def reset_findings(modules: dict) -> list[str]:
     return lines
 
 
+# --- The runtime path tables (review 2026-11-25 (a)-1) -----------------------------------------
+RUNTIME_PATH_NAME = re.compile(r"_[A-Za-z0-9_]+_path")
+RUNTIME_PATH_ATTACHER = "cli"
+
+
+def attached_paths(modules: dict) -> dict:
+    """{name: line}: the ``_*_path`` attributes ``cli`` attaches to the policy."""
+    found = {}
+    tree = modules.get(RUNTIME_PATH_ATTACHER)
+    if tree is None:
+        return found
+    for node in ast.walk(tree):
+        targets = (node.targets if isinstance(node, ast.Assign)
+                   else [node.target] if isinstance(node, (ast.AnnAssign, ast.AugAssign)) else [])
+        for target in targets:
+            for element in (target.elts if isinstance(target, (ast.Tuple, ast.List)) else [target]):
+                if (isinstance(element, ast.Attribute)
+                        and ast.unparse(element.value) in POLICY_EXPRESSIONS
+                        and RUNTIME_PATH_NAME.fullmatch(element.attr)):
+                    found.setdefault(element.attr, element.lineno)
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "setattr" and len(node.args) >= 2
+                and ast.unparse(node.args[0]) in POLICY_EXPRESSIONS
+                and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str)
+                and RUNTIME_PATH_NAME.fullmatch(node.args[1].value)):
+            found.setdefault(node.args[1].value, node.lineno)
+    return found
+
+
+def runtime_path_findings(modules: dict) -> list[str]:
+    """Every ``_*_path`` ``cli`` attaches is in one of the runtime path tables."""
+    from hengbot import runtime_paths
+
+    written = set(runtime_paths.POLICY_RUNTIME_PATH_ATTRIBUTES)
+    read = set(runtime_paths.POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES)
+    lines = [f"runtime-path: {name} is in both POLICY_RUNTIME_PATH_ATTRIBUTES and "
+             "POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES" for name in sorted(written & read)]
+    for name, line in sorted(attached_paths(modules).items()):
+        if name not in written | read:
+            lines.append(f"{RUNTIME_PATH_ATTACHER}.py:{line} runtime-path: {name} is attached to "
+                         "the policy but is in no runtime path table (runtime_paths."
+                         "POLICY_RUNTIME_PATH_ATTRIBUTES for a file the policy writes, "
+                         "POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES for one it only reads)")
+    return lines
+
+
+# --- The "restart" column (review 2026-11-25 (a)-2) -------------------------------------------
+RESTART_BASELINE = ROOT / "scripts" / "state_registry_restart_baseline.json"
+PRUNE_FLAG = "--prune-restart-baseline"
+
+
+def restart_fingerprint(row) -> str:
+    """What a change of a ``life``/``floor`` row is measured by (its name aside)."""
+    purpose = hashlib.sha1(row.purpose.encode("utf-8")).hexdigest()[:12]
+    return f"{row.owner}|{row.lifetime}|{int(row.destruction)}|{int(row.saved)}|{purpose}"
+
+
+def load_restart_baseline(path: Path = RESTART_BASELINE) -> dict:
+    """{name: fingerprint}: the rows left unclassified when the column was added."""
+    if not path.is_file():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))["unclassified"]
+
+
+def write_restart_baseline(rows: dict, path: Path = RESTART_BASELINE) -> None:
+    text = json.dumps({"unclassified": dict(sorted(rows.items()))}, ensure_ascii=False, indent=1)
+    path.write_text(text + "\n", encoding="utf-8", newline="\n")
+
+
+def _all_rows() -> list:
+    from hengbot import state_registry
+
+    return [*state_registry.REGISTRY, *(row for row, _c, _f in state_registry.town_visit_columns())]
+
+
+def _module_names(tree) -> set:
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            names.add(node.attr)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            names.add(node.value)
+    return names
+
+
+def restart_findings(modules: dict, baseline: dict | None = None) -> tuple[list[str], list[str]]:
+    """(findings, notes): the "restart" column against the rows and the baseline.  A note (a
+    baseline entry no longer needed) does not fail; ``--prune-restart-baseline`` drops it."""
+    from hengbot import state_registry as registry
+
+    baseline = load_restart_baseline() if baseline is None else baseline
+    lines, notes = [], []
+    rows = {row.name: row for row in _all_rows()}
+    tabled = {}
+    for module, table in registry.RESTART_RECORD_TABLES:
+        for name in getattr(importlib.import_module(f"hengbot.{module}"), table):
+            tabled[name] = f"{module}.{table}"
+    for name in sorted(set(registry.RESTART) & set(tabled)):
+        lines.append(f"restart: {name} is a RESTART row and is carried by {tabled[name]}; keep the "
+                     "one declaration")
+    column = registry.restart_column()
+    names_of = {}
+    for name, restart in sorted(column.items()):
+        if name not in rows:
+            lines.append(f"restart: {name} has a restart row but is no registry entry")
+        if restart.behaviour not in registry.RESTART_BEHAVIOURS:
+            lines.append(f"restart: {name} has behaviour {restart.behaviour!r}, not one of "
+                         f"{registry.RESTART_BEHAVIOURS}")
+        elif restart.behaviour == registry.UNCLASSIFIED:
+            lines.append(f"restart: {name} is written as {registry.UNCLASSIFIED!r}; an unclassified "
+                         "row has no RESTART row (the baseline holds the old ones)")
+        tree = modules.get(restart.record)
+        if tree is None:
+            lines.append(f"restart: {name} names the record module {restart.record}, which does "
+                         "not exist")
+            continue
+        if restart.record not in names_of:
+            names_of[restart.record] = _module_names(tree)
+        if name not in names_of[restart.record]:
+            lines.append(f"restart: {name} names {restart.record}, whose source does not name it")
+    for name, row in sorted(rows.items()):
+        if name in column:
+            continue
+        held = baseline.get(name)
+        if held is None:
+            lines.append(f"restart: {name} ({row.lifetime}) has no restart classification: add its "
+                         "RESTART row in hengbot/state_registry.py (persisted-to-file, "
+                         "rebuilt-from-board or may-be-lost)")
+        elif (row.lifetime in (registry.LIFE, registry.FLOOR)
+              and held != restart_fingerprint(row)):
+            lines.append(f"restart: {name} is a {row.lifetime} row changed since the restart "
+                         "baseline: add its RESTART row in hengbot/state_registry.py")
+    for name in sorted(set(baseline) - (set(rows) - set(column))):
+        notes.append(f"restart-baseline: {name} no longer needs its entry ({PRUNE_FLAG})")
+    return lines, notes
+
+
+def prune_restart_baseline() -> int:
+    """Drop the baseline entries of the rows that are gone or classified (never adds one)."""
+    from hengbot import state_registry as registry
+
+    baseline = load_restart_baseline()
+    keep = {row.name for row in _all_rows()} - set(registry.restart_column())
+    pruned = {name: value for name, value in baseline.items() if name in keep}
+    write_restart_baseline(pruned)
+    return len(baseline) - len(pruned)
+
+
 def findings(modules: dict | None = None) -> list[str]:
     from hengbot import (floor_visit_memory, latch_onset_capture, monster_memory, state_registry,
                          town_visit)
@@ -558,14 +723,20 @@ def findings(modules: dict | None = None) -> list[str]:
             lines.append(f"checkpoint: {row.name} saved={row.saved}, but the checkpoint "
                          f"{'keeps' if saved else 'leaves out'} it")
     lines.extend(reset_findings(modules))
+    lines.extend(runtime_path_findings(modules))
+    lines.extend(restart_findings(modules)[0])
     return lines
 
 
 def main(argv) -> int:
+    if PRUNE_FLAG in argv:
+        print(f"state_registry_lint: pruned {prune_restart_baseline()} restart baseline entr(y/ies)")
     modules = _modules()
     lines = findings(modules)
     for line in lines:
         print(line)
+    for note in restart_findings(modules)[1]:
+        print(note)
     if "--report" in argv:
         rows = never_cleared_decisions(modules)
         print(f"report: {len(rows)} 'decision' entr(y/ies) no decision boundary writes:")

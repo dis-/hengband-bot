@@ -54,7 +54,8 @@ from pathlib import Path
 from typing import Any
 
 from hengbot.flight_recorder import jsonable
-from hengbot.runtime_paths import POLICY_RUNTIME_PATH_ATTRIBUTES
+from hengbot.runtime_paths import (POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES,
+                                   POLICY_RUNTIME_PATH_ATTRIBUTES)
 from hengbot.latch_onset_capture import checkpoint_bytes
 from hengbot.town_visit import is_fresh_visit
 
@@ -95,8 +96,8 @@ def runtime_files(policy) -> dict[str, Path]:
     in a replay.
     """
     state = vars(policy)
-    files = {name: state.get(name) for name in POLICY_RUNTIME_PATH_ATTRIBUTES}
-    files["_character_dump_path"] = state.get("_character_dump_path")
+    files = {name: state.get(name)
+             for name in (*POLICY_RUNTIME_PATH_ATTRIBUTES, *POLICY_RUNTIME_INPUT_PATH_ATTRIBUTES)}
     ledger = state.get("_exploration_ledger")
     files["_exploration_ledger.path"] = getattr(ledger, "path", None)
     home = state.get("_home_disposal")

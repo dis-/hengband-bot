@@ -36,6 +36,10 @@ its mixins is a state name too; the town visit's forwarded names are rows read f
 ``town_visit``'s tables (``town_visit_columns``), not copied; a counter-like entry says where the
 source resets it today (``RESET_BY``, the "reset by" column).
 
+Review 2026-11-25 (a)-2 added the "restart" column (``RESTART``, ``restart_column``): what a bot
+restart does to each entry (persisted-to-file, rebuilt-from-board, may-be-lost; the rows not yet
+read are ``unclassified`` in ``scripts/state_registry_restart_baseline.json``).
+
 A new state: add its row here (the lint names the missing one).
 """
 
@@ -2290,3 +2294,123 @@ RESET_BY = {
     )),
     "_tunnel_attempt_memory": Reset(("floor_visit_memory.forget", "tunnel_feasibility.observe")),
 }
+
+
+# --- The "restart" column (review 2026-11-25 N3, (a)-2) --------------------------------------
+#
+# What a bot restart (every deploy restarts every bot; a restart builds a fresh policy) does to
+# each entry's value.  Data only, read from the source:
+#
+# - ``persisted-to-file``: a record beside the decision log (``runtime_paths``) carries it, and the
+#   first board(s) of the new process read it back (each record has its own conditions: the same
+#   floor, the same or a later game turn...).  ``record`` names the module that reads it back.
+# - ``rebuilt-from-board``: the new process derives it again from the game's boards.
+# - ``may-be-lost``: the new process starts without it.  ``record`` names the module whose source
+#   says so (a record's own write cache or once-per-process mark, a plan state its record leaves
+#   out on purpose).
+# - ``unclassified``: not yet read.  Every row the column did not classify when it was added is in
+#   ``scripts/state_registry_restart_baseline.json``; a row added after it, and a ``life`` or
+#   ``floor`` row whose owner, lifetime, purpose or flags change, needs its classification here.
+#
+# The record modules' own tables of the names they carry are rows of this column too, read from
+# there and not copied (``RESTART_RECORD_TABLES``).  ``scripts/state_registry_lint.py`` fails on a
+# value that is none of the four, a row of no entry, a ``record`` that does not name the entry,
+# and an entry that needs a classification and has none.
+PERSISTED = "persisted-to-file"
+REBUILT = "rebuilt-from-board"
+MAY_BE_LOST = "may-be-lost"
+UNCLASSIFIED = "unclassified"
+RESTART_BEHAVIOURS = (PERSISTED, REBUILT, MAY_BE_LOST, UNCLASSIFIED)
+
+
+@dataclass(frozen=True)
+class Restart:
+    behaviour: str
+    record: str  # the module whose source says so
+    note: str = ""
+
+
+_ONCE = "the record's own once-per-process mark: a new process reads its record once"
+_CACHE = "the record's own write cache: a new process writes its first record"
+
+RESTART = {
+    # breeder_floor_record: the breakthrough latch and the engagement window's floor (the
+    # window's own fields are its _ENGAGEMENT_FIELDS, RESTART_RECORD_TABLES).
+    "_breeder_breakthrough_floor": Restart(PERSISTED, "breeder_floor_record",
+                                           "same dungeon floor, same or later game turn"),
+    "_breeder_engagement_floor": Restart(PERSISTED, "breeder_floor_record",
+                                         "same dungeon floor, same or later game turn"),
+    "_breeder_floor_record": Restart(MAY_BE_LOST, "breeder_floor_record", _CACHE),
+    # alternate_dungeon_record (FIELDS in RESTART_RECORD_TABLES).
+    "_alternate_dive_floor": Restart(PERSISTED, "alternate_dungeon_record",
+                                     "DIVE_FLOOR_FIELD; same or later game turn"),
+    "_alternate_dungeon_record": Restart(MAY_BE_LOST, "alternate_dungeon_record", _CACHE),
+    # warning_cell_record.
+    "_warning_refused_cells": Restart(PERSISTED, "warning_cell_record",
+                                      "same dungeon floor, same or later game turn"),
+    "_trap_warning_cells": Restart(PERSISTED, "warning_cell_record",
+                                   "same dungeon floor, same or later game turn"),
+    "_warning_cell_record": Restart(MAY_BE_LOST, "warning_cell_record", _CACHE),
+    "_warning_cell_record_read": Restart(MAY_BE_LOST, "warning_cell_record", _ONCE),
+    # map_memory_record (restored_grids, set by HengbotPolicy._with_grid_memory).
+    "_remembered_grids": Restart(PERSISTED, "policy",
+                                 "same dungeon region, same or later game turn; the last "
+                                 "SAVE_CADENCE decisions' new cells may be lost"),
+    "_map_memory_record": Restart(MAY_BE_LOST, "map_memory_record", _CACHE),
+    "_map_memory_record_read": Restart(MAY_BE_LOST, "map_memory_record", _ONCE),
+    # quest_plan_record (CARRIED in RESTART_RECORD_TABLES).
+    "_quest_plan_record": Restart(MAY_BE_LOST, "quest_plan_record", _CACHE),
+    "_quest_plan_record_read": Restart(MAY_BE_LOST, "quest_plan_record", _ONCE),
+    # quest25_battle_record (the battle itself is a navigator field, phase_battle).
+    "_q25_battle_record": Restart(MAY_BE_LOST, "quest_plan_record", _CACHE),
+    "_q25_battle_record_read": Restart(MAY_BE_LOST, "quest_plan_record", _ONCE),
+    "_q25_battle_restored": Restart(MAY_BE_LOST, "quest_plan_record",
+                                    "quest25_battle_record's own pending restore"),
+    # quest_sweep_record (the kills themselves are navigator fields, split_kills).
+    "_sweep_kill_record": Restart(MAY_BE_LOST, "quest_plan_record", _CACHE),
+    "_sweep_kill_record_read": Restart(MAY_BE_LOST, "quest_plan_record", _ONCE),
+    "_sweep_kills_restored": Restart(MAY_BE_LOST, "quest_plan_record",
+                                     "quest_sweep_record's own pending restore"),
+    # town_end_mining.
+    "_town_end_mining_cycle": Restart(PERSISTED, "town_end_mining",
+                                      "same or later game turn"),
+    # policy_identification._apply_unseen_attack_restore.
+    "_unseen_last_hit_floor": Restart(PERSISTED, "policy_identification",
+                                      "same floor, inside UNSEEN_LOOT_QUIET_TURNS"),
+    "_unseen_last_hit_turn": Restart(PERSISTED, "policy_identification",
+                                     "same floor, inside UNSEEN_LOOT_QUIET_TURNS"),
+    "_unseen_last_hit_position": Restart(PERSISTED, "policy_identification",
+                                         "same floor, inside UNSEEN_LOOT_QUIET_TURNS"),
+    "_unseen_loot_direction": Restart(PERSISTED, "policy_identification",
+                                      "same floor, inside UNSEEN_LOOT_QUIET_TURNS"),
+    "_unseen_attack_read": Restart(MAY_BE_LOST, "policy_identification", _ONCE),
+    # policy_home._carry_town_visit_purchases_across_restart.
+    "_town_visit_purchases": Restart(PERSISTED, "policy_home",
+                                     "same town floor, same or later game turn"),
+    "_town_visit_purchase_quantities": Restart(PERSISTED, "policy_home",
+                                               "same town floor, same or later game turn"),
+    "_town_visit_purchase_record": Restart(MAY_BE_LOST, "policy_home", _CACHE),
+    # policy_observation._observe: a town visit's first board reads the overweight ledger.
+    "_overweight_surplus_ledger": Restart(PERSISTED, "policy_observation",
+                                          "read when a town visit starts (no epoch yet)"),
+}
+
+# (record module, table): the policy attributes a record carries, read from the record's own
+# table (each is ``persisted-to-file``, its ``record`` the module).
+RESTART_RECORD_TABLES = (
+    ("breeder_floor_record", "_ENGAGEMENT_FIELDS"),
+    ("alternate_dungeon_record", "FIELDS"),
+    ("quest_plan_record", "CARRIED"),
+)
+
+
+def restart_column() -> dict:
+    """{name: Restart}: ``RESTART`` with the record tables' names (``RESTART_RECORD_TABLES``)."""
+    import importlib
+
+    column = {}
+    for module, table in RESTART_RECORD_TABLES:
+        for name in getattr(importlib.import_module(f"hengbot.{module}"), table):
+            column[name] = Restart(PERSISTED, module, f"{module}.{table}")
+    column.update(RESTART)
+    return column
