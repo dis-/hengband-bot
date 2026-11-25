@@ -40,7 +40,7 @@ from hengbot.equipment_optimizer import equipment_identity, random_teleport_is_s
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.store_sale import has_positive_sale_value, sale_monrace
 from hengbot.model import SPELLBOOK_TVALS, TVAL_HISSATSU_BOOK
-from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
+from hengbot.ammo_carry import is_plain_store_ammo
 import re
 from dataclasses import replace
 from hengbot.policy_instore import InStoreMixin
@@ -3303,7 +3303,7 @@ class ShopMixin(InStoreMixin):
 
     def _ammo_purchase_preserves_plan(self, snapshot: Snapshot, item: StoreItem) -> bool:
         launcher = self._equipped_launcher(snapshot)
-        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        plan = self._ammo_plan(snapshot, AMMO_CARRY_TARGET, launcher)
         if launcher is None or item.tval != launcher.ammo_tval:
             return False
         if plan.carried_count >= self._ammo_procurement_target(snapshot, item):

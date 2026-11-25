@@ -274,6 +274,43 @@ def _grid_options(policy, snapshot, target, *, quest_floor=False) -> list:
     return options
 
 
+def _offset_options(policy, snapshot, target, aim, *, quest_floor=False) -> list:
+    """Off the rays with the direct path stopped (a wall corner, another body): the powers that
+    reach ``target`` the way the launcher's offset shot does (policy_combat ``_offset_fire_aim``:
+    the path to ``aim`` meets ``target`` before any other body).
+
+    A bolt or beam aimed at ``aim`` keeps PROJECT_STOP and stops at the first monster on the way,
+    the target (``device_target_key``); a power that needs no aim reaches what it sees.  A ball or
+    breath aimed at a grid flies over the target to ``aim`` (TARGETABLE_SHAPES) and stays out.
+    n1-c life-222 (2026-11-26, 95F): the cursor victim one row off the ray behind a wall corner
+    drew ``ranged:fire-offset`` 67/turn arrows while the absorbed staff of Power (207) and the
+    Fire Bolt rod (57) were never weighed: this branch answered None (owner 2026-11-12
+    「射撃と取り込んだ魔法道具は常に威力比較して期待値の高い方を使用する」)."""
+    if snapshot.floor_key[2] == 1:
+        return []
+    direction = _aim(snapshot, target)
+
+    def reaches(power) -> bool:
+        return not (power.aimed and power.shape in me_device_attacks.TARGETABLE_SHAPES)
+
+    def send(power):
+        if not power.aimed:
+            return me_device_attacks.device_key(policy, power, direction, snapshot)
+        return me_device_attacks.device_target_key(policy, power, aim, snapshot)
+
+    ranked = [(score, power) for score, power
+              in me_device_attacks.scored(policy, snapshot, target, direction)
+              if score > 0 and reaches(power)]
+    options = []
+    best = next(((score, power) for score, power in ranked if not power.is_missile), None)
+    if best is not None:
+        options.append((best[0], lambda power=best[1]: send(power)))
+    missile = next(((score, power) for score, power in ranked if power.is_missile), None)
+    if missile is not None and applies(snapshot, quest_floor=quest_floor):
+        options.append((missile[0], lambda power=missile[1]: send(power)))
+    return sorted(options, key=lambda option: -option[0])
+
+
 def stronger_than_launcher_key(policy, snapshot, target, ammo, thrown=None) -> str | None:
     """The Magic-Eater's answer to a distant ``target`` the launcher is about to shoot,
     when it is stronger; None fires the launcher.
@@ -343,6 +380,8 @@ def _device_over(policy, snapshot, target, ammo, *, quest_floor=False, thrown=No
                                  quest_floor=quest_floor)
     elif not snapshot.in_town and _clear_projection(policy, snapshot, target):
         options = _grid_options(policy, snapshot, target, quest_floor=quest_floor)
+    elif not snapshot.in_town and (aim := policy._offset_fire_aim(snapshot, target)) is not None:
+        options = _offset_options(policy, snapshot, target, aim, quest_floor=quest_floor)
     else:
         return None
     if ammo is not None:
