@@ -238,6 +238,37 @@ class Quest33PlanTeleportTest(_FloorBoards, unittest.TestCase):
         self.assertIsNotNone(answer.absorbed_teleport_key(self.policy, snapshot, quest_plan_base.TELEPORT_REASON))
 
 
+class Quest33EmergencyReadTest(_FloorBoards, unittest.TestCase):
+    """Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」 / 「取り込んだ杖を優先
+    しようすれば問題ない」: the emergency ladder's read too (quest_summon_answer.emergency_scroll_substitute).
+
+    n1-b life-418 (2026-11-25 15:08:00-15:08:53): the ladder read all 15 Scrolls of Teleportation under
+    ``emergency:teleport`` while the absorbed Teleportation had charges; at 15:39:50 the power was empty
+    on a 即死 board with no scroll left, and the character died at 15:39:56."""
+
+    def ladder_read(self, snapshot):
+        scroll = self.policy._find_teleport_scroll(snapshot)
+        self.assertIsNotNone(scroll)
+        return self.policy._issue_emergency_consumable(snapshot, scroll, "emergency:teleport")
+
+    def test_the_ladder_casts_the_absorbed_teleportation(self):
+        snapshot = self.board_at((15, 38), hp=int(self.board.player.max_hp * 0.5))
+        power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
+        self.assertEqual((self.ladder_read(snapshot), self.policy.last_reason),
+                         (power.key, "emergency:teleport" + me_absorbed_substitutes.CAST_SUFFIX))
+
+    def test_without_the_power_the_ladder_reads_the_scroll(self):
+        summon_tests.Quest33SummonAnswerTest.without_absorbed_teleportation(self)
+        snapshot = self.board_at((15, 38), hp=int(self.board.player.max_hp * 0.5))
+        self.assertEqual((self.ladder_read(snapshot), self.policy.last_reason), ("re", "emergency:teleport"))
+
+    def test_another_quest_keeps_the_scroll_first(self):
+        snapshot = self.board_at((15, 38), hp=int(self.board.player.max_hp * 0.5))
+        other = replace(snapshot, floor_key=(0, 45, 32), quests={
+            **snapshot.quests, 32: replace(snapshot.quests[QUEST], id=32)})
+        self.assertEqual((self.ladder_read(other), self.policy.last_reason), ("re", "emergency:teleport"))
+
+
 class Quest33TeleportScrollsTest(unittest.TestCase):
     """Owner 2026-11-19 「ない場合はテレポートの巻物を40巻用意すること」."""
 

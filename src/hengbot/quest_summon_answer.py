@@ -259,6 +259,36 @@ def absorbed_teleport_key(policy, snapshot, reason) -> str | None:
                                                  reason + "-staff")
 
 
+# The emergency ladder's read of Teleportation (policy_combat._emergency_item and the other rungs that read
+# through policy._issue_emergency_consumable), cast from the absorbed Teleportation here.
+EMERGENCY_TELEPORT_REASON = "emergency:teleport"
+
+
+def emergency_scroll_substitute(policy, snapshot, item, reason) -> str | None:
+    """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation (``absorbed_teleport_key``)
+    in the place of the emergency ladder's read of a Scroll of Teleportation (``reason``
+    ``EMERGENCY_TELEPORT_REASON``); else None (the scroll is read).  The other reads through
+    policy._issue_emergency_consumable (Phase Door, the reads under other reasons) are unchanged.
+
+    Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」 and, asked how far the
+    plan fights, 「取り込んだ杖を優先しようすれば問題ない」: every teleport away on Quest 33 casts the
+    absorbed power first.  The plan's escapes and the summon answers did (``_teleport``,
+    quest_plan_base._below_line, summon_response's leave); the emergency ladder's read did not.
+    The ladder noted the line of fire of its causes before the read (policy_combat, line_of_fire.note).
+
+    n1-b life-418 (Quest 33, 2026-11-25 15:08:00-15:08:53, Zombie Magic-Eater Lv44, HP 455-622/948,
+    no 即死 on any of those boards): the ladder read all 15 Scrolls of Teleportation under
+    ``emergency:teleport`` while the absorbed Teleportation was cast between the reads
+    (``quest-strategy:sweep-teleport:absorbed-power`` at 15:08:21 and 15:08:52).  At 15:39:50 the
+    absorbed power was found empty (its ``mAe`` closed on the game's list) on a 即死 board (HP 520,
+    45 monsters in view) with no scroll left; the fight that followed ended at 15:39:56."""
+    from hengbot import deep_teleport  # it reads the quest modules
+
+    if reason != EMERGENCY_TELEPORT_REASON or not deep_teleport.is_self_teleport_scroll(item):
+        return None
+    return absorbed_teleport_key(policy, snapshot, EMERGENCY_TELEPORT_REASON)
+
+
 def _scroll_teleport(policy, snapshot, reason) -> str | None:
     if not policy._can_read_scrolls(snapshot):
         return None

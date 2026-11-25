@@ -16999,6 +16999,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_summon_answer.py:emergency_scroll_substitute": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "quest_summon_answer.py:fire_answer_key": {
     "classification": "producer",
     "rows": [
