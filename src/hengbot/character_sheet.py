@@ -73,14 +73,19 @@ def printed_stat(text: str) -> tuple[int, bool]:
     raise CharacterSheetUnavailable("invalid-visible-stat")
 
 
-SHEET_ENCODINGS = ("cp932", "euc_jp")
+SHEET_ENCODINGS = ("utf-8", "cp932", "euc_jp")
 
 
 def _decode_sheet(raw: bytes, encodings: tuple[str, ...]) -> str:
     """The Windows build writes the dump in Shift-JIS (cp932); the Linux build writes EUC-JP
     (2026-10-16 soak: every Linux dump was "dump-encoding", so the equipment optimizer never
     calibrated). Some EUC-JP bytes also decode as cp932, so take the first decoding whose text
-    carries the sheet's own header line."""
+    carries the sheet's own header line.
+
+    Upstream develop (e60789df3b, c57a5b4ca5) made the Unix Japanese build's internal encoding
+    UTF-8, so the game from 8c09a69b3 on writes the dump in UTF-8; without "utf-8" every such
+    dump failed both strict decodes. It comes first: Japanese cp932 / EUC-JP bytes almost never
+    form valid UTF-8, so an old dump still falls through to its own encoding."""
     decoded = []
     for encoding in encodings:
         try:
