@@ -13,7 +13,9 @@ over:
     to it.  On an approved quest floor the navigator's answer ends the ladder (dungeon_ladder's
     plan-approved-quest layer), so no ordinary combat rung fights for this rung; else the walk to
     the cell a hostile was last seen or detected at (``_remember``: a detection shows it for one
-    board only), forgotten when reached empty, the detection then asked again;
+    board only), forgotten when reached empty, the detection then asked again.  A walk the
+    remembered map does not carry passes the cells it does not know inside the known walls
+    (``_toward_unmapped``: a room behind a door never opened);
  2. a monster detection the character holds, once per round (asked again after a cast that failed,
     and after one whose prompt the menu walk closed, the list showing it charging or empty):
     the absorbed Rod of Detection, then the absorbed Staff of Detect Evil, then a carried rod or
@@ -185,7 +187,7 @@ def _hunt_remembered(policy, snapshot, patrol: Patrol) -> str | None:
     here = snapshot.player.position
     for index, (y, x) in sorted(patrol.targets.items(),
                                 key=lambda item: max(abs(item[1][0] - here.y), abs(item[1][1] - here.x))):
-        step = _toward(policy, snapshot, lambda cell, y=y, x=x: max(abs(cell[0] - y), abs(cell[1] - x)) <= 1)
+        step = _toward_beside(policy, snapshot, (y, x))
         if step is not None:
             policy.last_reason = HUNT_REASON
             return policy._step_toward(snapshot, step)
@@ -218,13 +220,82 @@ def _hunt(policy, snapshot, hostiles) -> str | None:
         if shot is not None:
             return shot
     nearest = min(hostiles, key=lambda monster: here.distance_to(monster.position))
-    target = nearest.position
-    step = _toward(policy, snapshot, lambda cell: max(abs(cell[0] - target.y),
-                                                      abs(cell[1] - target.x)) <= 1)
+    step = _toward_beside(policy, snapshot, (nearest.position.y, nearest.position.x))
     if step is None:
         return None
     policy.last_reason = HUNT_REASON
     return policy._step_toward(snapshot, step)
+
+
+def _toward_beside(policy, snapshot, target: tuple[int, int]) -> Position | None:
+    """The first step of the walk to a cell beside ``target``: the remembered walk, else the walk
+    through the floor's unmapped cells (``_toward_unmapped``).
+
+    n1-b life-419 (2026-11-26 05:00-05:01, Quest 25, every phase over): the powered Rod of Detection
+    showed the Nexus quylthulg left at [13,10], in the shadow demons' room no board had shown (its
+    one door [10,11] closed, the room's cells not on the remembered map).  No remembered walk reached
+    a cell beside it, so the patrol forgot it and walked its five rounds over the mapped floor, each
+    round's detection showing it there again, until ``STOP_REASON``.  The owner's 「感知して敵を
+    探す」 (2026-11-13) finds the enemy to kill it: the walk opens the door and enters the room."""
+    def beside(cell):
+        return max(abs(cell[0] - target[0]), abs(cell[1] - target[1])) <= 1
+
+    step = _toward(policy, snapshot, beside)
+    if step is None:
+        step = _toward_unmapped(policy, snapshot, beside)
+    return step
+
+
+def _unmapped_inside(policy, snapshot) -> frozenset:
+    """The cells the map does not know strictly inside the bounds of the known ones.
+
+    A fixed quest's map is framed by permanent walls the game reports beyond the map's own size
+    (Quest 25: a 15 x 31 map on a 22 x 66 floor), and the frame is known once seen; the cells
+    outside it, and the frame's own unseen cells, are no walk's."""
+    known = policy._remembered_known_t
+    if not known:
+        return frozenset()
+    top = min(y for y, _x in known)
+    bottom = max(y for y, _x in known)
+    left = min(x for _y, x in known)
+    right = max(x for _y, x in known)
+    blocked = getattr(policy, "_blocked_unknown", ())
+    return frozenset((y, x) for y in range(top + 1, bottom) for x in range(left + 1, right)
+                     if (y, x) not in known and (y, x) not in blocked)
+
+
+def _unmapped_neighbors(policy, snapshot, cell: Position, inside: frozenset) -> list[Position]:
+    """The remembered walk's neighbors of ``cell``, and its neighbors the map does not know."""
+    neighbors = list(policy._walkable_neighbors(snapshot, cell))
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if (dy or dx) and (cell.y + dy, cell.x + dx) in inside:
+                neighbors.append(Position(cell.y + dy, cell.x + dx))
+    return neighbors
+
+
+def _toward_unmapped(policy, snapshot, goal) -> Position | None:
+    """The first step of the shortest walk to a cell ``goal`` accepts that may pass cells the map
+    does not know (``_unmapped_inside``: a room no board has shown, behind a door never opened);
+    the walks' one veto holds as in ``_toward``.  A closed door on the way is opened by the step
+    (policy_navigation._step_toward); an unknown cell that is a wall is marked by the bump
+    (movement-execution.cpp: 「が行く手をはばんでいるようだ」 sets CAVE_MARK), so the next board's
+    walk goes around it, and a target whose every way is known wall is no walk's."""
+    inside = _unmapped_inside(policy, snapshot)
+    if not inside:
+        return None
+    start = snapshot.player.position
+    refused = policy._walk_veto(snapshot)
+    seen, queue = {start}, deque([(start, None)])
+    while queue:
+        cell, first = queue.popleft()
+        if first is not None and goal((cell.y, cell.x)):
+            return first
+        for neighbor in _unmapped_neighbors(policy, snapshot, cell, inside):
+            if neighbor not in seen and neighbor not in refused:
+                seen.add(neighbor)
+                queue.append((neighbor, first if first is not None else neighbor))
+    return None
 
 
 def _toward(policy, snapshot, goal) -> Position | None:

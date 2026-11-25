@@ -5395,6 +5395,27 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "kill_all_patrol.py:_toward_beside": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "kill_all_patrol.py:_toward_beside.beside": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "kill_all_patrol.py:_toward_unmapped": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "kill_all_patrol.py:key": {
     "classification": "producer",
     "rows": [
