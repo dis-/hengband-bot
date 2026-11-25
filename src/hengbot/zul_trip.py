@@ -57,7 +57,7 @@ from heapq import heappop, heappush
 from math import ceil
 
 from hengbot import ability_sources
-from hengbot import morivant_tower, slot_lending, town_travel
+from hengbot import fundraising_route, morivant_tower, slot_lending, town_travel
 from hengbot.model import STORE_BLACK, STORE_MAGIC, Position
 from hengbot.policy_constants import (
     DOWN_STAIRS_KEY, LEAVE_STORE_KEY, STORE_STUCK_LIMIT, TOWN_TELEPORT_BUILDING_TYPES,
@@ -579,12 +579,17 @@ def _levitation_key(policy, snapshot, record) -> str | None:
 
 
 def _fundraise(policy, snapshot, record, target: int) -> str | None:
+    if fundraising_route.dives(policy, snapshot, fundraising_route.ZUL_TRIP):
+        # Owner 2026-11-25 「帰還の深さ50F以上なら潜る」: the ordinary departure dives for the
+        # gold; the trip is asked again on the next town board.
+        policy.last_reason = f"{FUNDRAISE_REASON}-dive:{target}"
+        return None
     if record.fundraise_runs >= FUNDRAISE_RUN_LIMIT:
         _close(policy, record, f"fundraise-limit:{target}")
         return None
     record.fundraise_runs += 1
     record.fundraise_target = target
-    morivant_tower.start_fundraising_run(policy, snapshot, target)
+    morivant_tower.start_fundraising_run(policy, snapshot, target, fundraising_route.ZUL_TRIP)
     policy.last_reason = f"{FUNDRAISE_REASON}:{target}"
     from hengbot.policy_constants import WAIT_KEY
     return WAIT_KEY

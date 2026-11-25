@@ -4,7 +4,7 @@ from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_bm_tour, finale_descent, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
-from hengbot import deep_climb, fled_floor_stairs, return_start
+from hengbot import deep_climb, dive_floor, fled_floor_stairs, fundraising_route, return_start
 from hengbot import recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
@@ -5414,9 +5414,9 @@ class TownMixin:
                 if self._conquest_target(snapshot) is not None:
                     self._defer_identification_for_conquest(snapshot)
                     if snapshot.player.gold < FUNDRAISING_START_GOLD:
-                        self._start_fundraising(snapshot)
+                        self._start_fundraising(snapshot, fundraising_route.IDENTIFICATION_RETRY)
                     return
-                if self._start_fundraising(snapshot):
+                if self._start_fundraising(snapshot, fundraising_route.IDENTIFICATION_RETRY):
                     return
                 if STORE_ALCHEMIST in self._town_restock_rechecked:
                     self._defer_identification_for_conquest(snapshot)
@@ -5473,7 +5473,7 @@ class TownMixin:
                 self._retry_after_store_restock(snapshot, recall_stores)
                 return
             if not self._recall_departure_ready(snapshot):
-                if self._start_fundraising(snapshot):
+                if self._start_fundraising(snapshot, fundraising_route.DEPARTURE_SHORTAGE):
                     return
                 self._retry_after_store_restock(snapshot, recall_stores)
                 return
@@ -5485,12 +5485,12 @@ class TownMixin:
         )
         for missing, store_type in shortages:
             if missing and store_type in self._town_store_attempted:
-                if not self._start_fundraising(snapshot):
+                if not self._start_fundraising(snapshot, fundraising_route.DEPARTURE_SHORTAGE):
                     self._retry_after_store_restock(snapshot, (store_type,))
                 return
         cure_stores = (STORE_TEMPLE, STORE_ALCHEMIST)
         if not self._cure_critical_ready(snapshot) and all(store in self._town_store_attempted for store in cure_stores):
-            if not self._start_fundraising(snapshot):
+            if not self._start_fundraising(snapshot, fundraising_route.DEPARTURE_SHORTAGE):
                 self._retry_after_store_restock(snapshot, cure_stores)
             return
         if self._retry_processed_home_identification(snapshot) or self._start_identification_fundraising(snapshot):
@@ -6446,7 +6446,9 @@ class TownMixin:
         # Cycle recovery must obey the same detection admission as exhaustion.
         if (
             (self._fundraising_mode is None
-             and snapshot.player.gold < FUNDRAISING_START_GOLD)
+             and snapshot.player.gold < FUNDRAISING_START_GOLD
+             # Owner 2026-11-25 「帰還の深さ50F以上なら潜る」: no poverty set from 50F.
+             and not fundraising_route.dives(self, snapshot, fundraising_route.POVERTY))
             or self._fundraising_mode == "prepare"
             or (self._fundraising_mode == "mine"
                 and not self._fundraising_departure_ready(snapshot))
@@ -7391,7 +7393,7 @@ class TownMixin:
                     # For a dungeon, once per set: the next boards belong to the
                     # kit's shops, and what they could not sell stays attempted.
                     self._town_store_attempted.clear()
-                self._fundraising_mode = "prepare"
+                fundraising_route.open_set(self, snapshot, fundraising_route.RUMOR_FUNDS)
                 self.last_reason = "town:rumor-needs-funds"
                 self._offer_execution(
                     WAIT_KEY, producer="rumor", work_id="rumor:funds",
@@ -7978,7 +7980,12 @@ class TownMixin:
             # 「鉄獄50F以降は浅い階層へのフォールバックをやめる」: no fallback, the finale's preparation
             # (n1-b life-416 2026-11-23 21:10-21:16 fell back to the Castle 64F; finale_hold).
             if finale_hold.applies(self, snapshot):
-                return finale_hold.town_key(self, snapshot)
+                held = finale_hold.town_key(self, snapshot)
+                if held is not None or not finale_bm_tour.diving(self, snapshot):
+                    return held
+                # Owner 2026-11-25 (the 96F+ case): short of the finale's gold, the deepest
+                # other dungeon the character may explore, never a 1F mining run.
+                return self._finale_funds_dive_key(snapshot, unsafe_target_id)
             destination_depth = self._dungeon_entry_depth(
                 snapshot, unsafe_target_id, via_recall=True
             )
@@ -8055,6 +8062,44 @@ class TownMixin:
             return self._town_blocked_key(snapshot)
         return None
 
+    def _finale_funds_dive_key(self, snapshot: Snapshot, refused_id: int) -> str | None:
+        """The finale's Black Market gold with Angband's recall refused for its 96F+ depth.
+
+        Owner 2026-11-25 (the recommended answer): 鉄獄以外で探索できる一番深いダンジョン（城・山など）に
+        帰還して稼ぎ、目標額に届いたら決戦の準備に戻る.  The alternate-dungeon pick's deepest entered
+        landing below the refused one that passes the landing checks (``_pick_alternate_dungeon``:
+        the depth requirements, the guardian floor; the refused Angband excluded).  Neither the
+        Angband hold of 50F+ (owner 2026-11-19, a fallback away from Angband) nor the fallback depth
+        floor (owner 2026-11-13, the deepest reached less 20F) bounds it: this dive earns the gold
+        and goes back to the finale, it is no fallback (``depth_floor=False``, as the random-quest
+        hold's intended destination).  Held as ``finale_bm_tour.DIVE_REASON`` until the next town
+        board after the dive (``finale_bm_tour.settle_dive``).  None fits: a named stop.
+        """
+        if self._alternate_dungeon_reason == finale_bm_tour.DIVE_REASON:
+            # Picked on an earlier board of this visit: the pick skips the alternate it leaves.
+            self._alternate_dungeon = None
+        destination_depth = self._dungeon_entry_depth(snapshot, refused_id, via_recall=True)
+        alternate = self._pick_alternate_dungeon(
+            snapshot, max_entry_depth=max(1, destination_depth - 1), prefer_deepest=True,
+            refused_dungeon=refused_id, depth_floor=False)
+        if alternate is None or alternate == refused_id:
+            self._alternate_dungeon_reason = None
+            self._town_blocked_reason = finale_bm_tour.NO_DIVE_DESTINATION
+            return self._town_blocked_key(snapshot)
+        self._alternate_dungeon = alternate
+        self._alternate_dungeon_reason = finale_bm_tour.DIVE_REASON
+        setattr(self, dive_floor.STATE, None)
+        self._target_dungeon_id = alternate
+        self._target_dungeon_reason = finale_bm_tour.DIVE_REASON
+        # The finale's loadout stays worn (angband_finale ``preparing``): the dive is for its gold.
+        self._conquest_committed = None
+        self.last_reason = finale_bm_tour.DIVE_TOWN_REASON
+        self._offer_execution(
+            WAIT_KEY, producer="departure", work_id=finale_bm_tour.DIVE_TOWN_REASON,
+            next_step="recall.observe-fallback", expected_effect="safe-destination-selected",
+        )
+        return WAIT_KEY
+
     def _supply_stockout_mining_key(self, snapshot: Snapshot) -> str | None:
         return self._town_producer_entry(
             "supply-stockout-mining",
@@ -8087,12 +8132,12 @@ class TownMixin:
         if getattr(self, "_supply_stockout_cycles", 0) >= 3:
             self._town_blocked_reason = "departure-unsatisfiable"
             return self._town_blocked_key(snapshot)
+        fundraising_route.open_set(self, snapshot, fundraising_route.SUPPLY_STOCKOUT)
         self._supply_stockout_gold_target = snapshot.player.gold + 5_000
         self._planned_mining_runs = 1
         self._mining_runs_completed = 0
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False
-        self._fundraising_mode = "prepare"
         self._town_restock_suppressed = False
         self._town_restock_waiting_for = ()
         self._town_restock_wait_until = None

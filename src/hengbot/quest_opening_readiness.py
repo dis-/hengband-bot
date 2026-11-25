@@ -1,5 +1,5 @@
 """Bound the Q34 owner's response to a freshly evaluated entry rejection."""
-from hengbot import approach_answer
+from hengbot import approach_answer, fundraising_route
 from hengbot.policy_constants import REST_MACRO, WAIT_KEY
 
 
@@ -27,7 +27,7 @@ def q34_readiness_rejection_key(policy, snapshot, hostiles, readiness):
         key = policy._shopping_approach_key(snapshot, step, "shop:travel")
         if key is not None:
             return key
-    if policy._start_fundraising(snapshot):
+    if policy._start_fundraising(snapshot, fundraising_route.DEPARTURE_SHORTAGE):
         step = policy._shopping_approach_step(snapshot, router_plan_stop=True)
         if step is not None:
             policy.last_reason = "shop:approach"

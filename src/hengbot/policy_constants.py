@@ -459,6 +459,10 @@ FINALE_BM_CLOSED_STOP_PREFIX = 'town:blocked:finale-bm-tour-closed:'
 # ``finale-not-in-town:healing`` on '5' until the loop detector (the Healing is the circuit's
 # since then).
 FINALE_NOT_IN_TOWN_STOP_PREFIX = 'town:blocked:finale-not-in-town:'
+# FINALE_FUNDS_NO_DIVE_STOP: short of the finale's Black Market gold with Angband's recall refused
+# for its 96F+ depth, no other dungeon's landing fits the dive for it (owner 2026-11-25, policy_town
+# ``_finale_funds_dive_key``; never a 1F mining run).  A stop for the owner, not a wait.
+FINALE_FUNDS_NO_DIVE_STOP = 'town:blocked:finale-funds-no-dive-destination'
 # EQUIPMENT_FLIPFLOP_STOP_PREFIX: a slot worn A, B, A in one town visit (owner 2026-11-22,
 # equipment_visit_journal), named after the slot.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
@@ -466,7 +470,7 @@ POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP
                               APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX,
                               BANNED_GEAR_STUCK_STOP_PREFIX, STATIONARY_EXHAUSTED_STOP_PREFIX,
                               PLAN_GENERIC_REFUSED_STOP_PREFIX, FINALE_BM_CLOSED_STOP_PREFIX,
-                              FINALE_NOT_IN_TOWN_STOP_PREFIX)
+                              FINALE_NOT_IN_TOWN_STOP_PREFIX, FINALE_FUNDS_NO_DIVE_STOP)
 
 TUNNEL_KEY = "T"
 

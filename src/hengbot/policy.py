@@ -3,7 +3,7 @@ from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, item_need
 from hengbot import equipment_target
 from hengbot import angband_finale
-from hengbot import approach_answer, return_start
+from hengbot import approach_answer, fundraising_route, return_start
 from hengbot import me_power_success, safety_watch
 from hengbot import angband_cap, angband_hold, equipment_rules, item_identity
 from hengbot.item_identity import MemorySignatureList, MemorySignatures, same_memory
@@ -7125,7 +7125,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and snapshot.player.gold < FUNDRAISING_START_GOLD
             and not home_cash_sale.pending(self, snapshot)
         ):
-            self._fundraising_mode = "prepare"
+            # Owner 2026-11-25 「帰還の深さ50F以上なら潜る」 (fundraising_route).
+            fundraising_route.open_set(self, snapshot, fundraising_route.POVERTY)
         resumable_fundraising_floor = snapshot.dungeon_level == 1
         main_hand_digger = next(
             (
@@ -11868,11 +11869,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 # one-run mining kit and earn the missing gold locally.
                 self._town_restock_waiting_for = ()
                 self._town_restock_wait_until = None
+                fundraising_route.open_set(self, snapshot, fundraising_route.RECALL_PRICE)
                 self._planned_mining_runs = 1
                 self._identify_staff_mining_plan = False
                 self._recall_stockout_mining_plan = False
                 self._mining_runs_completed = 0
-                self._fundraising_mode = "prepare"
                 self._town_store_attempted.clear()
                 self._retire_town_errand_plan_for_rebuild()
             elif not stocked:
@@ -11950,10 +11951,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 and self._has_withdrawable_treasure_detection(snapshot)
             )
             if owned_kit:
+                fundraising_route.open_set(self, snapshot, fundraising_route.RECALL_STOCKOUT)
                 self._planned_mining_runs = 1
                 self._identify_staff_mining_plan = False
                 self._recall_stockout_mining_plan = True
-                self._fundraising_mode = "prepare"
                 self._mining_runs_completed = 0
                 self._town_restock_rechecked.difference_update(recall_stores)
                 self._town_store_attempted.clear()
@@ -11994,11 +11995,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 (STORE_TEMPLE, STORE_ALCHEMIST)
             )
             return True
+        fundraising_route.open_set(self, snapshot, fundraising_route.RECALL_STOCKOUT)
         self._planned_mining_runs = 1
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = True
         self._mining_runs_completed = 0
-        self._fundraising_mode = "prepare"
         self._town_restock_waiting_for = ()
         self._town_restock_wait_until = None
         self._town_store_attempted.clear()
@@ -12119,10 +12120,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     @claims(ClaimOwner.FUNDRAISING)
     def _identify_staff_stockout_key(self, snapshot: Snapshot) -> str:
         """Pass one Yeek Cave 1F mining run, then retry Home and Magic."""
+        fundraising_route.open_set(self, snapshot, fundraising_route.IDENTIFY_STAFF_STOCKOUT)
         self._planned_mining_runs = 1
         self._identify_staff_mining_plan = True
         self._recall_stockout_mining_plan = False
-        self._fundraising_mode = "prepare"
         self._mining_runs_completed = 0
         self._town_store_attempted.clear()
         self._retire_town_errand_plan_for_rebuild()
@@ -12388,7 +12389,14 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return (self._opening_q34_active(snapshot)
                 and self._opening_q34_torch_shortage(snapshot) > 0)
 
-    def _start_fundraising(self, snapshot: Snapshot) -> bool:
+    def _start_fundraising(
+        self, snapshot: Snapshot, cause: str = fundraising_route.DEPARTURE_SHORTAGE,
+    ) -> bool:
+        """Open the poverty set (gold under FUNDRAISING_START_GOLD) for ``cause``.
+
+        False also when ``cause`` dives for the gold (fundraising_route, owner 2026-11-25
+        「帰還の深さ50F以上なら潜る」): no set opened, the caller's other remedies go on.  Every
+        caller in the policy names its cause (scripts/fundraising_route_lint.py)."""
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return True
         if self._opening_q34_holds_fundraising(snapshot):
@@ -12399,11 +12407,12 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # Owner 2026-11-18 「自宅に大量の換金用アイテムがあるので先に売る」: Home's
             # cash wares are sold first (the junk sweep); mining only if still poor.
             return False
+        if not fundraising_route.open_set(self, snapshot, cause):
+            return False
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False
         self._no_safe_destination_set = False
-        self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
 
@@ -12485,11 +12494,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         if self._opening_q34_active(snapshot):
             return False
+        fundraising_route.open_set(self, snapshot, fundraising_route.NO_SAFE_DESTINATION)
         self._no_safe_destination_set = True
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False
-        self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         self._retire_town_errand_plan_for_rebuild()
         release_home_for_kit(self, snapshot)
@@ -12506,10 +12515,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         """
         if not self._identification_deadlock_recoverable(snapshot):
             return False
+        fundraising_route.open_set(self, snapshot, fundraising_route.IDENTIFICATION_RETRY)
         self._planned_mining_runs = None
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False
-        self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         return True
 
@@ -13763,7 +13772,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if quest.status == QUEST_STATUS_UNTAKEN and not self._fixed_quest_ready(snapshot, 2):
                 return None
             if snapshot.player.gold < RUMOR_GOLD_RESERVE + 1000:
-                self._fundraising_mode = "prepare"
+                if not fundraising_route.open_set(self, snapshot, fundraising_route.Q2_TRAVEL):
+                    # Owner 2026-11-25 「帰還の深さ50F以上なら潜る」: the ordinary departure dives
+                    # for the fare; Q2 is asked again on the next town board.
+                    return None
                 self.last_reason = "fixedquest:q2-travel-needs-funds"
                 return WAIT_KEY
             self._telmora_q2_errand = True

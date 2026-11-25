@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from hengbot import morivant_tower
+from hengbot import fundraising_route, morivant_tower
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_WAND_STONE_TO_MUD, TVAL_WAND
 from hengbot.policy_constants import (
@@ -156,13 +156,18 @@ def _fundraising_owns(policy) -> bool:
             and getattr(policy, "_supply_stockout_gold_target", None) == record.fundraise_target)
 
 
-def _fundraise(policy, snapshot, target: int, why: str) -> str:
+def _fundraise(policy, snapshot, target: int, why: str) -> str | None:
+    if fundraising_route.dives(policy, snapshot, fundraising_route.Q2_TOWER):
+        # Owner 2026-11-25 「帰還の深さ50F以上なら潜る」: the ordinary departure dives for the
+        # gold; the trip asks again on the next town board.
+        policy.last_reason = f"{REASON}fundraise-dive:{why}:{target}"
+        return None
     record = state(policy)
     if record.fundraise_runs >= FUNDRAISE_RUN_LIMIT:
         return _stop(policy, f"fundraise-limit:{why}:{target}")
     record.fundraise_runs += 1
     record.fundraise_target = target
-    morivant_tower.start_fundraising_run(policy, snapshot, target)
+    morivant_tower.start_fundraising_run(policy, snapshot, target, fundraising_route.Q2_TOWER)
     policy.last_reason = f"{REASON}fundraise:{why}:{target}"
     return WAIT_KEY
 

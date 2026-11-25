@@ -78,7 +78,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from hengbot import approach_answer, me_capability, morivant_tower
+from hengbot import approach_answer, fundraising_route, me_capability, morivant_tower
 from hengbot.magic_eater import ABSORB_REASON
 from hengbot.magic_eater_devices import (
     PLAYER_CLASS_MAGIC_EATER, power_command_refused, staple_food, staple_needs_recharge,
@@ -710,7 +710,7 @@ def supply_cost(policy, snapshot) -> int:
     return reserve or 0
 
 
-def _fundraise(policy, snapshot, target: int, why: str) -> str:
+def _fundraise(policy, snapshot, target: int, why: str) -> str | None:
     """One existing fundraising run whose objective is ``target`` gold.
 
     The limit counts runs that came back short of their target; a run that
@@ -730,6 +730,11 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
     (``town_key``), so the target-drift stop still ends a target that keeps
     moving and the staff purchase keeps its own failure count.
     """
+    if fundraising_route.dives(policy, snapshot, fundraising_route.ME_STAFF):
+        # Owner 2026-11-25 「帰還の深さ50F以上なら潜る」: the ordinary departure dives for the
+        # gold; this board is another owner's, the sequence asks again on the next town board.
+        policy.last_reason = f"{REASON}fundraise-dive:{why}:{target}"
+        return None
     record = state(policy)
     stockout = why == STOCKOUT_WHY
     expedition = why in EXPEDITION_WHYS
@@ -743,7 +748,7 @@ def _fundraise(policy, snapshot, target: int, why: str) -> str:
     record.fundraise_target = target
     record.fundraise_why = why
     record.shelf_after_turn = snapshot.turn
-    morivant_tower.start_fundraising_run(policy, snapshot, target)
+    morivant_tower.start_fundraising_run(policy, snapshot, target, fundraising_route.ME_STAFF)
     policy.last_reason = f"{REASON}fundraise:{why}:{target}"
     return WAIT_KEY
 

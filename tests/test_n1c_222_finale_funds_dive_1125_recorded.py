@@ -21,7 +21,8 @@ DECLARED CONSTRUCTED: the circuit's record as the decision log shows it on that 
 the visit's departure conjuncts ready (the recorded decision was the departure's own:
 ``rung: town-errand:departure``; a fresh policy has no Home catalogue); the absorbed *Destruction*
 already refilled at the inn (``me_inn_refill.destruction_key`` none); in
-``test_a_refused_recall_keeps_the_fundraising_run`` Angband's recall depth set to 96.
+``test_a_refused_recall_dives_too`` Angband's recall depth set to 96 (owner 2026-11-25, the 96F+
+case: the deepest other dungeon, tests/test_finale_bm_funds_1124_recorded.py).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -126,19 +127,20 @@ class FinaleFundsDive1125RecordedTest(unittest.TestCase):
         self.assertIsNone(tour.closed)
         self.assertIsNone(policy._fundraising_mode)
 
-    def test_a_refused_recall_keeps_the_fundraising_run(self):
+    def test_a_refused_recall_dives_too(self):
         raw = copy.deepcopy(BOARD)
         # DECLARED CONSTRUCTED (module docstring): Angband's recall refused for its depth.
         raw["progress"]["dungeon_recall_depths"][str(DUNGEON_ANGBAND)] = 96
         policy, board, tour = self.arrange(raw)
         self.assertTrue(finale_hold.applies(policy, board))
 
-        finale_bm_tour._funds_key(policy, board, tour, GOLD + 1)
+        key = finale_bm_tour._funds_key(policy, board, tour, GOLD + 1)
 
-        self.assertIsNone(tour.dive_target)
-        self.assertFalse(finale_bm_tour.diving(policy, board))
-        self.assertEqual(policy._fundraising_mode, "prepare")
-        self.assertEqual(policy.last_reason, f"{finale_bm_tour.FUNDRAISE_REASON}:{GOLD + 1}")
+        # Before (04011d41c2): the fundraising run, mode 'prepare'.
+        self.assertIsNone(key)
+        self.assertEqual(tour.dive_target, GOLD + 1)
+        self.assertTrue(finale_bm_tour.diving(policy, board))
+        self.assertIsNone(policy._fundraising_mode)
 
 
 if __name__ == "__main__":

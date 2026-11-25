@@ -522,7 +522,7 @@
   },
   "quest_opening_readiness.py:q34_readiness_rejection_key": {
     "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:step is not None": 1,
-    "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:policy._start_fundraising(snapshot) / If:body:step is not None": 1
+    "policy._shopping_approach_key(snapshot, step, 'shop:travel') @ If:body:policy._start_fundraising(snapshot, fundraising_route.DEPARTURE_SHORTAGE) / If:body:step is not None": 1
   },
   "return_yield.py:latched_return_key": {
     "policy._return_to_town_key(snapshot, policy._strategic_hostiles(snapshot)) @ ": 1

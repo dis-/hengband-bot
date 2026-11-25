@@ -86,6 +86,11 @@ def settle(policy, snapshot) -> bool:
     if (not snapshot.in_town or alternate is None or not held(policy, snapshot)
             or (alternate == DUNGEON_ANGBAND and reason not in alternate_lease.LEASED_REASONS)):
         return False
+    from hengbot import finale_bm_tour  # import cycle
+    if reason == finale_bm_tour.DIVE_REASON:
+        # Owner 2026-11-25: the 96F+ finale's dive for its gold is no fallback (finale_bm_tour
+        # ``settle_dive`` ends it).
+        return False
     # Owner 2026-11-19 「この場合だけ城40F付近を許す」: the refused landing's Castle band stays
     # until Angband's landing qualifies again.
     # Not for the 96F+ refusal (``deep_refused``): no fallback at all there.

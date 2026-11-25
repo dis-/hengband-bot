@@ -49,7 +49,7 @@ from hengbot import finale_prep, quest_optional_carry
 from hengbot import home_pass_charge
 from hengbot import ability_gear, approach_answer, approach_walk, consumable_policy, me_capability, me_device_policy, me_staff_sequence, zul_trip
 from hengbot.never_dispose import never_disposed
-from hengbot import finale_bm_tour, restore_mana_target
+from hengbot import finale_bm_tour, fundraising_route, restore_mana_target
 from hengbot import item_fate, item_use_route
 from hengbot import fundraising_survival, mining_loadout, mining_oil_sale, slot_lending
 from hengbot.magic_eater_devices import is_mana_food_ware
@@ -1375,7 +1375,7 @@ class ShopMixin(InStoreMixin):
             and self._fundraising_mode is None
             and (not opening_q34 or opening_torch_shortage == 0)
         ):
-            self._start_fundraising(snapshot)
+            self._start_fundraising(snapshot, fundraising_route.POVERTY)
         self._refresh_nonhome_effect_refusals(snapshot)
         ledger_blocked = {
             store
@@ -1934,8 +1934,8 @@ class ShopMixin(InStoreMixin):
             if snapshot.player.gold < required_gold:
                 # This is intentionally the ordinary fundraising owner and
                 # target; the existing mining kit/departure/walk-in rules apply.
+                fundraising_route.open_set(self, snapshot, fundraising_route.CROSS_TOWN_FUNDS)
                 self._planned_mining_runs = None
-                self._fundraising_mode = "prepare"
                 self._town_store_attempted.clear()
                 self.last_reason = "town:cross-town-shopping-needs-funds"
                 self._offer_execution(

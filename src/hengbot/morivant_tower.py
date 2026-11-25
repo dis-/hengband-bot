@@ -190,17 +190,23 @@ def approach_key(policy, snapshot, building: int, step, reason: str) -> str:
     return policy._step_toward(snapshot, step)
 
 
-def start_fundraising_run(policy, snapshot, target: int) -> None:
-    """Hand one explicit ``target``-gold run to the existing fundraising owners."""
+def start_fundraising_run(policy, snapshot, target: int, cause: str) -> bool:
+    """Hand one explicit ``target``-gold run to the existing fundraising owners.
+
+    False: ``cause`` dives for the gold instead (fundraising_route, owner 2026-11-25
+    「帰還の深さ50F以上なら潜る」): nothing opened, the caller yields its board."""
+    from hengbot import fundraising_route
+    if not fundraising_route.open_set(policy, snapshot, cause):
+        return False
     policy._supply_stockout_gold_target = target
     policy._planned_mining_runs = 1
     policy._mining_runs_completed = 0
     policy._identify_staff_mining_plan = False
     policy._recall_stockout_mining_plan = False
-    policy._fundraising_mode = "prepare"
     policy._town_restock_suppressed = False
     policy._town_restock_waiting_for = ()
     policy._town_restock_wait_until = None
     policy._town_store_attempted.clear()
     policy._cross_town_shopping = None
     policy._retire_town_errand_plan_for_rebuild()
+    return True
