@@ -8602,8 +8602,9 @@ class TownMixin:
             return False
         # Owner 2026-11-24 「決戦装備にしたら速やかに最下層まで降りること。寄り道は不要。」: on the
         # finale expedition's way down to its floor (finale_descent) the return is the finale's
-        # own line (finale_hold's, as on the relay floor) and hunger with nothing to eat; no
-        # ordinary supply return and no pack-full (n1-c life-221 2026-11-24 16:55:51 recalled
+        # own line (finale_hold's, as on the relay floor), hunger with nothing to eat and the
+        # Healing and *Healing* potions spent (owner 2026-11-25 (b)-5); no ordinary supply
+        # return and no pack-full (n1-c life-221 2026-11-24 16:55:51 recalled
         # from 95F under pack-full after the loot walk filled the pack).
         if finale_descent.applies(self, snapshot):
             if snapshot.player.hungry and self._find_edible(snapshot) is None:
@@ -8614,6 +8615,14 @@ class TownMixin:
                 return_start.set_trigger(self, (
                     finale_hold.RETURN_TRIGGER if finale_hold.relay_floor(self, snapshot)
                     else finale_descent.RETURN_TRIGGER))
+                return True
+            # Owner 2026-11-25 (maintainability review contradictions 1125, answer (b)-5,
+            # 「回復の薬が尽きたら帰還する」, the Healing and the *Healing*): the pickup, the waiting
+            # and the pack-full return stay off.  The relay floor keeps the finale's own line
+            # only, as before the descent.
+            if (not finale_hold.relay_floor(self, snapshot)
+                    and finale_descent.healing_spent(snapshot)):
+                return_start.set_trigger(self, finale_descent.HEALING_TRIGGER)
                 return True
             return False
         if self._guardian_descent_blocked(snapshot):

@@ -67,8 +67,9 @@ SLEEPER_REACH = Kind("_sleeper_reach_memory")
 LOOT_BLOCK = Kind("_sleeper_loot_block", group_turn=True)
 # An entry whose index is on the board with its race stays, however old its last sighting.
 DISENCHANT = Kind("_disenchant_avoid_seen", window_while_shown=False)
-# The floor's guardian a *Destruction* must not reach (destruction_use ``spared_positions``),
-# judged at its last shown cell while out of detection: n1-c life-222 (Mountain 50F,
+# The floor's guardian a *Destruction* must not reach, judged at its last shown cell while out of
+# detection by the walk toward a use only (destruction_use ``_walk_spared_positions``, owner
+# 2026-11-25 answer (b)-4; the use itself reads the board): n1-c life-222 (Mountain 50F,
 # 2026-11-25 13:21, loop-detected), the approach's verdict on its use cells flipped with
 # 大鷲王『ソロンドール』 entering and leaving the telepathy's range.
 KEPT_GUARDIAN = Kind("_kept_guardian_seen")

@@ -508,16 +508,18 @@ def _spared_in_circle(policy, snapshot, target, *, centre=None) -> bool:
     within the worst radius of ``centre`` (the player's cell by default)."""
     origin = snapshot.player.position if centre is None else centre
     return any(game_distance(origin, position) <= WORST_RADIUS
-               for position in _spared_positions(policy, snapshot, target, near=origin))
+               for position in _use_spared_positions(policy, snapshot, target, near=origin))
 
 
-def _spared_positions(policy, snapshot, target, *, near=None) -> list:
-    """The cells of the monsters a use must not reach (``_spared_in_circle``): a damaged quest
-    target, the floor's guardian to be kept.  With ``near``, only those within the worst radius
-    of it are judged (the guardian's reading is a threat projection).
+def _spared_positions(policy, snapshot, target, *, near=None, remembered: bool) -> list:
+    """The cells of the monsters a use must not reach: a damaged quest target, the floor's
+    guardian to be kept.  With ``near``, only those within the worst radius of it are judged (the
+    guardian's reading is a threat projection).  Read through its two readers only
+    (scripts/destruction_scene_lint ``SPARED_READERS``): ``_walk_spared_positions`` for the walk
+    toward a use, ``_use_spared_positions`` for the use itself.
 
-    The guardian to be kept is judged at its last shown cell while it is out of detection
-    (``kept_guardians_unseen``), as the remembered approach judges its targets.  n1-c life-222
+    With ``remembered``, the guardian to be kept is judged at its last shown cell while it is out
+    of detection (``kept_guardians_unseen``), as the remembered approach judges its targets.  n1-c life-222
     (Mountain 50F, 2026-11-25 13:19-13:21, loop-detected): 大鷲王『ソロンドール』 (race 468, kept: not
     T1 alone) at (8,172) was shown by telepathy from (26,176), 18 off, and not from (27,177), 19
     off.  From (26,176) every use cell of the nearer sensed イヌワシ (9,173) had the guardian
@@ -526,11 +528,29 @@ def _spared_positions(policy, snapshot, target, *, near=None) -> list:
     eagle again, and the walk stepped '7' back: 25 alternations until the loop detector."""
     guardian = _guardian_race(policy, snapshot)
     shown = (*snapshot.visible_monsters, *snapshot.detected_monsters)
+    unseen = kept_guardians_unseen(policy, snapshot, shown) if remembered else ()
     return [monster.position
-            for monster in (*shown, *kept_guardians_unseen(policy, snapshot, shown))
+            for monster in (*shown, *unseen)
             if (near is None or game_distance(near, monster.position) <= WORST_RADIUS)
             and (_guardian_kept(policy, snapshot, monster, guardian)
                  or (monster.race_id == target and monster.hp < monster.max_hp))]
+
+
+def _walk_spared_positions(policy, snapshot, target, *, near=None) -> list:
+    """The spared cells the walk toward a use keeps out of its worst radius (``walk_step``,
+    ``use_cell`` through ``spared_positions``): the board and the guardian to be kept at its last
+    shown cell (n1-c life-222, ``_spared_positions``)."""
+    return _spared_positions(policy, snapshot, target, near=near, remembered=True)
+
+
+def _use_spared_positions(policy, snapshot, target, *, near=None) -> list:
+    """The spared cells that refuse the use itself (``_spared_in_circle``, ``_powered_scene``):
+    the board only.  Owner 2026-11-17 「*破壊* の決まりに『起きている敵だけ』『感知範囲の中だけ』は
+    無い」 (the implementation must not narrow the use) and 2026-11-25 (maintainability review
+    contradictions 1125, answer (b)-4) 「見えない『残す守護者』の記憶で止めるのは *破壊* へ近づく
+    歩きだけ」: the remembered guardian (ae69991689) refused the emergency and escape uses too, for
+    the memory's 1,000 game turns, while it was no longer shown."""
+    return _spared_positions(policy, snapshot, target, near=near, remembered=False)
 
 
 def kept_guardians_unseen(policy, snapshot, shown) -> list:
@@ -749,9 +769,10 @@ def use_cell(snapshot, subject, spared, *, centre=None) -> bool:
 
 
 def spared_positions(policy, snapshot) -> list:
-    """The cells a use must keep out of its worst radius (the damaged quest target, the floor's
-    guardian to be kept): ``use_cell``'s ``spared``."""
-    return _spared_positions(policy, snapshot, _target_race(policy, snapshot))
+    """The cells the walk toward a use keeps out of its worst radius (the damaged quest target,
+    the floor's guardian to be kept, remembered at its last shown cell): ``use_cell``'s
+    ``spared`` (``_walk_spared_positions``)."""
+    return _walk_spared_positions(policy, snapshot, _target_race(policy, snapshot))
 
 
 def quest_target_race(policy, snapshot) -> int | None:
@@ -796,7 +817,7 @@ def _powered_scene(policy, snapshot, leaving) -> bool:
         return False
     origin = snapshot.player.position
     return not any(game_distance(origin, position) <= POWERED_WORST_RADIUS
-                   for position in _spared_positions(policy, snapshot, None))
+                   for position in _use_spared_positions(policy, snapshot, None))
 
 
 def _powered_ready(policy, snapshot) -> bool:

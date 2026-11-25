@@ -2547,6 +2547,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "destruction_use.py:_walk_spared_positions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "destruction_use.py:_within": {
     "classification": "data",
     "rows": [

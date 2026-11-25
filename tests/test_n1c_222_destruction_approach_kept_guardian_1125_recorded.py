@@ -15,6 +15,12 @@ Now the guardian to be kept is judged at its last shown cell while out of detect
 (destruction_use ``_spared_positions``, monster_memory.KEPT_GUARDIAN), as the remembered approach
 judges its targets: both cells read the same use cells, and the walk goes on south.
 
+Owner 2026-11-25 (maintainability review contradictions 1125, answer (b)-4): the memory restrains
+only the walk toward a use.  The use itself (destruction_use ``_spared_in_circle``, the emergency
+and escape uses with it) reads the board only, owner 2026-11-17 「*破壊* の決まりに『起きている敵だけ』
+『感知範囲の中だけ』は無い」: on a board without the guardian, a circle that would reach its last
+shown cell is not refused for it, while the walk still keeps that cell out of its use cells.
+
 Recorded: tests/fixtures/n1c-222-destruction-approach-1125.jsonl.gz (the floor from its arrival,
 tests/extract_n1c_222_destruction_approach_1125_fixture.py), the absorbed power lists of the same
 capture's town-arrival checkpoint (tests/fixtures/n1c-222-me-lists-1125.json).  A fresh policy
@@ -36,9 +42,9 @@ from collections import defaultdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import threat_tiers
+from hengbot import destruction_use, threat_tiers
 from hengbot.me_device_attacks import observe_lists
-from hengbot.model import parse_snapshot
+from hengbot.model import Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
 
@@ -54,6 +60,9 @@ SHOWN = (6851393, 6851403, 6851411, 6851428, 6851441, 6851455, 6851478, 6851500,
 LOST = (6851399, 6851407, 6851415, 6851434, 6851450, 6851460, 6851474, 6851496, 6851516)
 LAST = max(BOARDS)
 APPROACH = threat_tiers.APPROACH_REASON
+# The guardian's last shown cell, and a cell north of the player within its worst radius.
+GUARDIAN = Position(8, 172)
+NORTH = Position(21, 175)
 STEPS = {"1": (1, -1), "2": (1, 0), "3": (1, 1), "4": (0, -1), "6": (0, 1), "7": (-1, -1),
          "8": (-1, 0), "9": (-1, 1)}
 
@@ -91,6 +100,11 @@ class KeptGuardianApproachRecordedTest(unittest.TestCase):
                 cls.before_shown = (copy.deepcopy(policy), previous)
             key, previous = _decide(policy, copy.deepcopy(BOARDS[turn]), previous)
             cls.decided[turn] = (_cell(BOARDS[turn]), key, policy.last_reason)
+            if turn in (SHOWN[0], LOST[0]):
+                # The policy right after it decided the board, with the board.
+                cls.after = getattr(cls, "after", {})
+                cls.after[turn] = (copy.deepcopy(policy),
+                                   parse_snapshot(copy.deepcopy(BOARDS[turn]), MONRACE))
 
     @classmethod
     def tearDownClass(cls):
@@ -103,6 +117,24 @@ class KeptGuardianApproachRecordedTest(unittest.TestCase):
             self.assertEqual(self.decided[turn], ((26, 176), "3", APPROACH), turn)
         for turn in LOST:
             self.assertEqual(self.decided[turn], ((27, 177), "1", APPROACH), turn)
+
+    def test_the_memory_restrains_the_walk_only(self):
+        self.assertLessEqual(game_distance(NORTH, GUARDIAN), destruction_use.WORST_RADIUS)
+        policy, board = self.after[LOST[0]]
+        self.assertNotIn(GUARDIAN, [monster.position for monster in (
+            *board.visible_monsters, *board.detected_monsters)])
+        target = destruction_use.quest_target_race(policy, board)
+        # The walk: the remembered cell is kept out of the use cells.
+        self.assertIn(GUARDIAN, destruction_use.spared_positions(policy, board))
+        # The use: the board only, so a circle reaching the remembered cell is not refused.
+        self.assertNotIn(GUARDIAN, destruction_use._use_spared_positions(policy, board, target))
+        self.assertFalse(destruction_use._spared_in_circle(policy, board, target, centre=NORTH))
+
+    def test_a_shown_guardian_still_refuses_the_use(self):
+        policy, board = self.after[SHOWN[0]]
+        target = destruction_use.quest_target_race(policy, board)
+        self.assertIn(GUARDIAN, destruction_use._use_spared_positions(policy, board, target))
+        self.assertTrue(destruction_use._spared_in_circle(policy, board, target, centre=NORTH))
 
     def test_no_livelock_melt_in_the_alternation(self):
         # Recorded: livelock:stone-to-mud on 6851424, 6851463, 6851491, 6851506, 6851527.

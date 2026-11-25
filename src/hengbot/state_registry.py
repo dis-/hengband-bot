@@ -496,7 +496,7 @@ REGISTRY = (
     S("_disenchant_avoid_seen", "monster_memory", LIFE,
       "monster_memory: disenchant avoid seen (no comment at its definition)", destruction=True),
     S("_kept_guardian_seen", "monster_memory", LIFE,
-      "The floor's guardian a *Destruction* must not reach at its last shown cell while out of detection (destruction_use._spared_positions; n1-c life-222 2026-11-25)", destruction=True),
+      "The floor's guardian a *Destruction* must not reach at its last shown cell while out of detection, read by the walk toward a use only (destruction_use._walk_spared_positions; n1-c life-222 2026-11-25, owner answer (b)-4)", destruction=True),
     S("_paralyser_left", "monster_memory", LIFE,
       "monster_memory: paralyser left (no comment at its definition)"),
     S("_sleeper_loot_block", "monster_memory", LIFE,

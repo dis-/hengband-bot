@@ -20,6 +20,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
 import contextlib
 import copy
+import dataclasses
 import gzip
 import io
 import json
@@ -28,7 +29,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from hengbot import finale_descent, finale_prep
-from hengbot.model import DUNGEON_ANGBAND, parse_snapshot
+from hengbot.model import (
+    DUNGEON_ANGBAND, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_POTION_STAR_HEALING,
+    parse_snapshot)
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from hengbot.policy_constants import PACK_CAPACITY
 from support import finale_416
@@ -123,6 +126,28 @@ class FinaleDescend1124RecordedTest(unittest.TestCase):
         self.assertNotEqual(recorded[0][2], "return:recall")
         self.assertFalse(policy._returning_to_town)
         self.assert_descends(decided)
+
+    def test_healing_potions_spent_recall(self):
+        # Owner 2026-11-25 (b)-5 「回復の薬が尽きたら帰還する」: the Healing and the *Healing*.
+        # DECLARED CONSTRUCTED: the recorded pack-full board (30 Healing, 15 *Healing*, 10 Cure
+        # Critical Wounds) with stacks taken out.
+        policy, board, _decided = self.drive("pack-full")
+        self.assertTrue(finale_descent.applies(policy, board))
+        self.assertFalse(policy._should_start_town_return(board))
+
+        def without(*svals):
+            return dataclasses.replace(board, inventory=[
+                item for item in board.inventory
+                if not (item.is_potion and item.sval in svals)])
+
+        # The Cure Critical Wounds are not counted; one kind of the two left is enough.
+        self.assertFalse(policy._should_start_town_return(without(SV_POTION_CURE_CRITICAL)))
+        self.assertFalse(policy._should_start_town_return(without(SV_POTION_HEALING)))
+        self.assertFalse(policy._should_start_town_return(without(SV_POTION_STAR_HEALING)))
+        spent = without(SV_POTION_HEALING, SV_POTION_STAR_HEALING)
+        self.assertEqual(len(spent.inventory), len(board.inventory) - 2)
+        self.assertTrue(policy._should_start_town_return(spent))
+        self.assertEqual(policy._last_return_trigger, finale_descent.HEALING_TRIGGER)
 
     def test_outside_the_expedition_unchanged(self):
         policy, board, _decided = self.drive("pack-full")
