@@ -174,7 +174,8 @@ class WalkVetoNamesTest(unittest.TestCase):
 
     PARTS = {"_engagement_avoid_cells": "retreat", "refused": "left",
              "_engagement_route_veto": "route", "_unseen_attack_area_veto": "unseen-area",
-             "_unseen_attack_area_cells": "unseen-cells", "_warning_refused_cells": "warning"}
+             "_unseen_attack_area_cells": "unseen-cells", "_warning_refused_cells": "warning",
+             "_town_entrance_cells": "town-entrance"}
 
     def test_each_function_is_its_row(self):
         import ast

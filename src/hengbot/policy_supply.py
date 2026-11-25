@@ -2432,11 +2432,20 @@ class SupplyMixin:
         The nearest goal by BFS, unless the route this goal kind committed to
         on an earlier board is still valid (``goal_route``)."""
         entrance_cells = self._town_entrance_cells(snapshot)
-        entrance_cells.difference_update(
-            pos
-            for pos, grid in snapshot.grids.items()
-            if predicate(grid)
-        )
+        if entrance_cells:
+            goals = {pos for pos, grid in snapshot.grids.items() if predicate(grid)}
+            # An entrance the predicate accepts is the walk's goal only when the predicate
+            # names entrances alone (a store, a building, a quest entrance): a goal that
+            # ordinary floor also satisfies (beside a monster, within a range) is reached
+            # off the entrances, since stepping onto one enters it (player-move.cpp
+            # ``move_player_effect``).  n1-b life-418 (2026-11-25 11:17, Lv42 Magic-Eater):
+            # town:kill-mob-approach stepped '7' from (33,91) toward a sleeping 商人 at
+            # (31,91) onto the store 4 entrance (32,90), a cell beside it, which opened a
+            # store visit for the walk; the town's committed loot walk then took the board
+            # (stepping onto the store 5 entrance, walk_vetoes.off_entrances) and the hunt
+            # stepped off it again, to town:blocked:stage-deadline:buy.
+            if goals <= entrance_cells:
+                entrance_cells.difference_update(goals)
         entrance_cells.discard(snapshot.player.position)
         found = goal_route.nearest_goal_path(self, snapshot, predicate, entrance_cells)
         if found is None:
