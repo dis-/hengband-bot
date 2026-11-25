@@ -103,6 +103,11 @@ and 「戦った隘路では、敵が見えなくなってからも30手待っ�
 stirring, spells-sight.cpp) sends the walk's next unexposed choke into the wait a fight does
 (``_shriek_hold``), ``choke_hold_turns`` quiet turns before the walk goes on.
 
+Owner 2026-11-25 「叫びの届かない隘路を先に」 (n1-b life-418 went back from (1,19) to (1,15),
+(1,12) and (1,5) over the siren (6,14)'s reach and was shrieked at again and again): a shriek heard
+names the plan's casters that reach the cell it was heard on (``_attribute_shriek``), and the walk
+to a choke goes to one reached off their cells when there is one (``_choke_walk``).
+
 Owner 2026-11-22 「使う」 to 「Q18 で即死の見込みがある時と帰還待ちの間に、敵を飛ばすテレポート・
 アウェイを使ってよいか」: on the 即死 rung the plan's escape is Teleport Away at the worst hostile in
 a beam's line before the Recall (``_instant_death_escape``), and while the Recall counts down
@@ -215,6 +220,7 @@ def _navigator(policy, snapshot, quest_id: int) -> QuestFloorNavigator:
         _observe_digs(snapshot, navigator, plan)
         _record_entry_force(policy, snapshot, navigator, quest_id)
         _observe_shriek(snapshot, navigator)
+        _attribute_shriek(snapshot, navigator, plan)
     return navigator
 
 
@@ -224,8 +230,36 @@ def _observe_shriek(snapshot, navigator) -> None:
     (``exit_fought_at``): that wait is under way, and one each shriek restarted might not end."""
     if snapshot.player.position == navigator.exit_fought_at:
         return
-    if any(mark in message for message in snapshot.messages for mark in SHRIEK_MARKS):
+    if _heard_shriek(snapshot):
         navigator.exit_shrieked = True
+
+
+def _heard_shriek(snapshot) -> bool:
+    return any(mark in message for message in snapshot.messages for mark in SHRIEK_MARKS)
+
+
+def _attribute_shriek(snapshot, navigator, plan) -> None:
+    """A shriek heard on this board: the plan's casters that reach the player's cell are the
+    ones that shriek (``exit_shriekers``, ``_shriek_reach``).
+
+    The line names no caster the player cannot see (「何かがかん高い金切り声をあげた」), so the
+    cell it was heard on is the attribution: spell_RF4_SHRIEK (mspell-floor.cpp) is cast by
+    make_attack_spell within the range 18, at the player's cell on a projectable line or aimed at
+    a projectable cell beside him (quest_exposure, the map the plan already reads).  A caster that
+    never shrieked (asleep, a sleeping one casts nothing, or gone) stays out of it."""
+    if not _heard_shriek(snapshot):
+        return
+    casters = _exposure(navigator, plan).shout.get(_cell(snapshot.player.position), frozenset())
+    if not casters <= navigator.exit_shriekers:
+        navigator.exit_shriekers = navigator.exit_shriekers | casters
+
+
+def _shriek_reach(navigator, plan) -> frozenset:
+    """The cells a caster heard shrieking on this floor reaches, on the floor as it is."""
+    if not navigator.exit_shriekers:
+        return frozenset()
+    return frozenset(Position(*cell) for cell, casters in _exposure(navigator, plan).shout.items()
+                     if casters & navigator.exit_shriekers)
 
 
 def _record_entry_force(policy, snapshot, navigator, quest_id: int) -> None:
@@ -712,7 +746,7 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
                                       for monster in board.mobile_awake):
             return None  # the bound outwaited all that held it: the walk goes on (_outwaited)
         chokes = _chokes(navigator, plan, board)
-    path = _walk_off_left(board, navigator, plan, position, chokes, board.occupied, as_it_is=True)
+    path = _choke_walk(board, navigator, plan, position, chokes)
     if len(path) < 2:
         return None
     crowded = _crowded_step(policy, snapshot, navigator, plan, board, path[1])
@@ -724,6 +758,25 @@ def _to_choke(policy, snapshot, navigator, plan, board) -> str | None:
     navigator.exit_choke_goal = path[-1]
     _start_over(navigator, path[-1])
     return _path_step(policy, snapshot, path, TO_CHOKE_REASON)
+
+
+def _choke_walk(board, navigator, plan, position: Position, chokes) -> list[Position]:
+    """The walk to the choke ``_to_choke`` goes to: one that no cell a caster heard shrieking
+    reaches lies on, else the least exposed and nearest as before.
+
+    Owner 2026-11-25, to 「Q18 で隘路の待ちが尽きて別の隘路へ戻る時、叫ぶ敵の届くマスを通らない
+    隘路を先に選びますか？」: 「叫びの届かない隘路を先に」.  n1-b life-418 (floor (0,35,18)) went back
+    from (1,19) to (1,15), (1,12) and (1,5) over (2,18) (1,17) (1,16), the reach of the siren on
+    (6,14) it had heard on (2,6), and was shrieked at there again and again.  Among such walks the
+    plan's order holds (the fewest exposed cells, then the fewest steps); with none, the walk is
+    the plan's as it was (there, the chokes past the vein (5,25) not yet dug)."""
+    walk = _walk_off_left(board, navigator, plan, position, chokes, board.occupied, as_it_is=True)
+    reach = _shriek_reach(navigator, plan) - {position}
+    if not reach or not reach & set(walk[1:]):
+        return walk
+    clear = _walk_off_left(board, navigator, plan, position, chokes, board.occupied | reach,
+                           as_it_is=True)
+    return clear or walk
 
 
 def _without(spent: dict, choke: Position) -> dict:
