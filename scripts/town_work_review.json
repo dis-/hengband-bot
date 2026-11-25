@@ -20262,6 +20262,17 @@
     "delegation": "selected child; no independent success",
     "evidence": "Pure reading: the public reader of destruction_use._spared_positions with the active kill quest's target race; returns cells, no key."
   },
+  "destruction_use.py:_walk_spared_positions": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Dungeon only: read by destruction_use.spared_positions for walk_step (the approaches' walk to a use cell, n1-b life-411 1118, n1-c life-222 1125) under the same dungeon-only callers as walk_step (dungeon_level >= 1, not town, store or arena, no approved quest plan, no quest-locked exit).",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure reading: the walk's reader of destruction_use._spared_positions (the board and the floor's guardian to be kept at its last shown cell); returns cells, no key."
+  },
   "destruction_use.py:_spared_positions": {
     "classification": "data",
     "rows": [
