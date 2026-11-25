@@ -22,7 +22,9 @@ Pinned, through the public choose_key:
 * B: above those lines the casters, telepathy-seen with a line from the player, are shot
   (quest_summon_answer ``_strike_around``), not held for.
 * C (owner 2026-11-19 「地形と敵の位置、敵のアルゴリズムを確認して有効な場所で待つ」): with no shot at
-  them, the player leaves their line (``fire_disengage_key``), not holds in it.
+  them, the player closes on the dry cells beside them a blow reaches (they never leave the water;
+  ``attack_cells``, n1-a life-537 2026-11-25), and with neither a shot nor a blow he leaves their
+  line (``fire_answer_key``); he never holds in it.
 
 DECLARED CONSTRUCTED (the choose_key replay): the policy is n1-c life-217's town arrival
 (tests/test_quest33_alignment_split ``recorded``), not life-220's; the Q33 navigator is put in the
@@ -181,9 +183,12 @@ class N1c220SensedChooseKeyTest(unittest.TestCase):
                 self.assertEqual({reason for _snapshot, reason, _key in answers},
                                  {quest_summon_answer.FIRE_APPROACH_REASON})
 
-    def test_without_a_shot_the_line_is_left(self):
+    def test_without_a_shot_the_shore_is_closed_on(self):
         # DECLARED CONSTRUCTED: only the staff list displayed (no absorbed attack power; life-220
-        # carried no rounds for its launcher): no shot reaches the casters from anywhere.
+        # carried no rounds for its launcher): no shot reaches the casters from anywhere.  The
+        # 船幽霊 never leave the water (AQUATIC) and a blow reaches them from the dry cells beside it
+        # (quest_summon_answer ``attack_cells``, n1-a life-537 2026-11-25): the player closes on
+        # them there, not waits in their line nor walks out of it for the lure to walk back.
         for disengaged in (True, False):
             with self.subTest(disengaged=disengaged):
                 answers = self.answers(boards=HASTED_BOARDS, disengaged=disengaged, kinds={"staff"})
@@ -191,8 +196,20 @@ class N1c220SensedChooseKeyTest(unittest.TestCase):
                 # Between the walks the policy asks for the power lists it does not hold
                 # (me_powers_refresh), as the rest-loop replay of this life does.
                 reasons = [reason for _snapshot, reason, _key in answers]
-                self.assertLessEqual(set(reasons), {quest_summon_answer.FIRE_WALK_REASON, LIST_READ_REASON})
-                self.assertIn(quest_summon_answer.FIRE_WALK_REASON, reasons)
+                self.assertLessEqual(set(reasons), {quest_summon_answer.FIRE_APPROACH_REASON, LIST_READ_REASON})
+                self.assertIn(quest_summon_answer.FIRE_APPROACH_REASON, reasons)
+
+    def test_without_a_shot_nor_a_blow_the_line_is_left(self):
+        # DECLARED CONSTRUCTED: as above, and no blow reaches the casters either (the melee expectation
+        # read as 0): no cell kills them, so the player leaves their line.
+        from unittest.mock import patch
+
+        with patch.object(quest_summon_answer.attack_expectation, "melee", return_value=0.0):
+            answers = self.answers(boards=HASTED_BOARDS, kinds={"staff"})
+        self.assert_no_hold(answers)
+        reasons = [reason for _snapshot, reason, _key in answers]
+        self.assertLessEqual(set(reasons), {quest_summon_answer.FIRE_WALK_REASON, LIST_READ_REASON})
+        self.assertIn(quest_summon_answer.FIRE_WALK_REASON, reasons)
 
     def test_a_caster_that_never_comes_is_not_waited_for(self):
         # DECLARED CONSTRUCTED: the player on ACTED_ON_CELL at full HP.  The AQUATIC casters act on
