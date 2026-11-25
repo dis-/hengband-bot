@@ -266,13 +266,16 @@ def absorbed_teleport_key(policy, snapshot, reason) -> str | None:
 # The emergency ladder's read of Teleportation (policy_combat._emergency_item and the other rungs that read
 # through policy._issue_emergency_consumable), cast from the absorbed Teleportation here.
 EMERGENCY_TELEPORT_REASON = "emergency:teleport"
+# The emergency ladder's read of Phase Door (owner 2026-11-25 (c)-2): cast as the Teleportation too.
+EMERGENCY_PHASE_REASON = "emergency:phase"
 
 
 def emergency_scroll_substitute(policy, snapshot, item, reason) -> str | None:
     """On an ``ABSORBED_FIRST_QUESTS`` floor, the absorbed Teleportation (``absorbed_teleport_key``)
     in the place of the emergency ladder's read of a Scroll of Teleportation (``reason``
-    ``EMERGENCY_TELEPORT_REASON``); else None (the scroll is read).  The other reads through
-    policy._issue_emergency_consumable (Phase Door, the reads under other reasons) are unchanged.
+    ``EMERGENCY_TELEPORT_REASON``) or of Phase Door (``EMERGENCY_PHASE_REASON``, owner 2026-11-25
+    (c)-2 「緊急の段がフェイズ・ドアを読む時も、取り込んだテレポートに回数があればそれを唱える」); else None
+    (the scroll is read).  The reads under other reasons are unchanged.
 
     Owner 2026-11-19 「Q33では離脱に取り込んだテレポートの杖の使用を許可する」 and, asked how far the
     plan fights, 「取り込んだ杖を優先しようすれば問題ない」: every teleport away on Quest 33 casts the
@@ -288,7 +291,8 @@ def emergency_scroll_substitute(policy, snapshot, item, reason) -> str | None:
     45 monsters in view) with no scroll left; the fight that followed ended at 15:39:56."""
     from hengbot import deep_teleport  # it reads the quest modules
 
-    if reason != EMERGENCY_TELEPORT_REASON or not deep_teleport.is_self_teleport_scroll(item):
+    if (reason not in {EMERGENCY_TELEPORT_REASON, EMERGENCY_PHASE_REASON}
+            or not deep_teleport.is_self_teleport_scroll(item)):
         return None
     return absorbed_teleport_key(policy, snapshot, EMERGENCY_TELEPORT_REASON)
 

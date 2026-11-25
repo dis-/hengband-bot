@@ -201,5 +201,17 @@ class C1TeleportRestTest(_FloorBoards, unittest.TestCase):
         self.assertEqual(self.policy.last_reason, answer.LURE_WALK_REASON)
 
 
+class C2PhaseDoorTest(_FloorBoards, unittest.TestCase):
+    """(c)-2 「緊急の段がフェイズ・ドアを読む時も、取り込んだテレポートに回数があればそれを唱える」."""
+
+    def test_the_ladder_casts_the_absorbed_teleportation_for_phase_door(self):
+        snapshot = self.board_at((15, 38), hp=int(self.board.player.max_hp * 0.5))
+        phase = replace(self.policy._find_teleport_scroll(snapshot), sval=SV_SCROLL_PHASE_DOOR)
+        power = me_absorbed_substitutes.POWERS[me_absorbed_substitutes.TELEPORTATION]
+        key = self.policy._issue_emergency_consumable(snapshot, phase, "emergency:phase")
+        self.assertEqual((key, self.policy.last_reason),
+                         (power.key, answer.EMERGENCY_TELEPORT_REASON + me_absorbed_substitutes.CAST_SUFFIX))
+
+
 if __name__ == "__main__":
     unittest.main()
