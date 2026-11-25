@@ -492,8 +492,17 @@ def _hold_key(policy, snapshot, navigator, plan, stop) -> str | None:
 
 
 def _walk_over(policy, snapshot, navigator, plan) -> bool:
-    """The last round answered no hostile and no tracked summoner lives (the split refuses no cell)."""
-    return navigator.sweep_found_nothing and not _tracked_living(policy, snapshot, navigator, plan)
+    """The last round answered no hostile, or the rounds' bound is walked, and no tracked summoner
+    lives (the split refuses no cell): the plan's walk is over and the patrol's is next.
+
+    The bound counts too: n1-a life-537 (Quest 33) was stopped by name at 20:21:45 on its 100th
+    round, and the process resumed at 22:48:21 with the fix of the round's contact restored the
+    plan record of the stop (quest_plan_record: round 100, the last round not found empty, as the
+    old count had left it) and stopped by name again on its first decision.  With the summoners
+    dead, a plan whose rounds are spent and whose quest is open has ended unwon (owner 2026-11-13
+    「全滅クエストで作戦を終えても終わらない時は周回して探す・感知があれば感知して探す」)."""
+    return ((navigator.sweep_found_nothing or navigator.sweep_round >= int(plan["max_rounds"]))
+            and not _tracked_living(policy, snapshot, navigator, plan))
 
 
 def _advance(policy, snapshot, navigator, plan, blocked=()) -> str | None:
