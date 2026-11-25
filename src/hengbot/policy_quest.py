@@ -1933,6 +1933,7 @@ class QuestMixin(OpeningRouteMixin):
         hostiles: list[MonsterState],
         *,
         initial_hold_complete: bool,
+        kept: bool = True,
     ) -> bool:
         """Share the sweep/retake decision, including newly revealed enemies.
 
@@ -1951,16 +1952,33 @@ class QuestMixin(OpeningRouteMixin):
         2026-11-07: a strong monster is kept away from even asleep; the
         strength judgment is the engagement retreat's own, independent of
         the distance, so closing in does not flip it).
+
+        The verdict holds over the boards (quest_sweep_target ``hold_kept``): the enemies a
+        board keeps the player at the hold for keep him there until they are gone, though
+        a step later they are out of view (n1-a life-538 Q32, 2026-11-26: retake-hold and
+        sweep-engage-mobile alternated on whether a グリッドバグ was in view).  Not once the
+        post-wave light phase has begun (``kept`` False): the sweep then owns movement whatever
+        the verdict (the caller's post_wave_phase_started), and a board's enemy is no retake.
+
+        The never-moving races the plan walks to (``engage_never_move_races``, QUEST_32's
+        閾に棲む者 and スタンウォール) are no reason to hold either: they never come to the
+        hold, and the plan closes on them (QUEST_32 formation 「閾に棲む者が見えたら最優先で
+        …隣まで歩いて殴る」, owner 2026-11-19 「召喚魔法を受ける回数を最小化する」).  Taken out
+        of the never-moving races (_quest_never_move_races), they fell out of the distant
+        stationary enemy's exemption above, and a 閾に棲む者 in view (it summons) sent the
+        player back to the hold, where it was out of view again.
         """
+        if not (profile.engagement_plan.get("placement_sweep") and initial_hold_complete):
+            return False
         never_move_races = self._quest_never_move_races(profile)
+        engaged = set(profile.engagement_plan.get("engage_never_move_races", ()))
         hostiles = [
             monster for monster in hostiles
-            if not monster.asleep or self._material_melee_fight(snapshot, monster)
+            if (not monster.asleep or self._material_melee_fight(snapshot, monster))
+            and monster.race_id not in engaged
         ]
-        return bool(
-            profile.engagement_plan.get("placement_sweep")
-            and initial_hold_complete
-            and all(
+        board_allows = bool(
+            all(
                 (
                     monster.fearful
                     or (
@@ -1977,6 +1995,14 @@ class QuestMixin(OpeningRouteMixin):
                 "operational_total"
             ] == 0
         )
+        if not kept:
+            return board_allows
+        held = quest_sweep_target.hold_kept(
+            self, snapshot,
+            denying=() if board_allows else hostiles,
+            allowed=hostiles if board_allows else (),
+        )
+        return board_allows and not held
 
     def _quest_final_target_position(
         self, profile: StrategyProfile, never_move_races: set[int]
@@ -4109,6 +4135,7 @@ class QuestMixin(OpeningRouteMixin):
         may_leave_hold = self._quest_strategy_may_leave_hold(
             snapshot, profile, hostiles,
             initial_hold_complete=initial_hold_complete,
+            kept=not post_wave_phase_started,
         )
 
         if final_target_phase:

@@ -780,7 +780,9 @@ _stationary(EXEMPT, "DETECTED_THREAT_HOLD_MAX_GAME_TURNS",
 _stationary(EXEMPT, "the Anaguma pocket's own bounds (anaguma.WAIT_GAME_TURNS, the plan's end)",
             "anaguma:dig", "anaguma:dig:absorbed-power", "anaguma:hold", "anaguma:detect",
             "anaguma:close-haste")
-# A quest hold ends when a wave appears or completion routing takes ownership.
+# A quest hold ends when a wave appears or completion routing takes ownership; one kept for the
+# enemies the hold was retaken for ends when they are gone (quest_sweep_target.hold_kept: the
+# retreat veto's lifetime, UNSEEN_GAME_TURNS after they were last shown).
 _stationary(EXEMPT, "a quest hold ends with a wave or the completion routing",
             "quest-strategy:hold")
 # Resting on a quest search's cast stop until the detection spacing comes

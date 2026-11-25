@@ -55,6 +55,7 @@ VISIT_MEMORIES = (
     ("_blind_cure_futile_floor", None, "status_cure"),
     ("_blind_attacker_floor", None, "status_cure"),
     ("_quest_sweep_engage_commit", None, "quest_sweep_target"),
+    ("_quest_hold_threats", None, "quest_sweep_target"),
     ("_speed_dose_memory", None, "speed_dose"),
     ("_tunnel_attempt_memory", None, "tunnel_feasibility"),
     ("_mining_scroll_used_floor", None, "policy_fundraising"),
