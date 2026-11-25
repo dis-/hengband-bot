@@ -1917,6 +1917,8 @@ REGISTRY = (
     # quest_sweep_target
     S("_quest_sweep_engage_commit", "quest_sweep_target", FLOOR,
       "quest_sweep_target.COMMIT_ATTRIBUTE"),
+    S("_quest_hold_threats", "quest_sweep_target", FLOOR,
+      "quest_sweep_target.HOLD_ATTRIBUTE: the enemies the fixed-quest hold's verdict is kept for"),
     # quest_target_search
     S("_quest_target_search", "quest_target_search", LIFE,
       "quest_target_search: quest target search (no comment at its definition)"),
