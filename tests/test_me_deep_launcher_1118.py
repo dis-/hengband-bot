@@ -154,8 +154,14 @@ class RecordedAmmoTest(unittest.TestCase):
                 self.assertEqual(me_deep_launcher.shot_power_per_turn(policy, board), power)
                 self.assertFalse(me_deep_launcher.ammo_unneeded(policy, board))
                 self.assertGreater(policy._ammo_procurement_target(board), 0)
+                # Per stack (n1-c life-222 2026-11-26, owner 「弱い矢を撃つ仕様に戻っているようだ」;
+                # me_deep_launcher ``weak_round``): the plain bolts' own figure, 75/turn, is under
+                # the floor, so they go Home; the carried stacks over 100/turn are kept.
                 for item in recorded.ammo(board):
-                    self.assertEqual(policy._retention_reservation(board, item), item.count)
+                    strong = "75/turn" not in item.name
+                    self.assertEqual(me_deep_launcher.weak_round(policy, board, item), not strong)
+                    self.assertEqual(policy._retention_reservation(board, item),
+                                     item.count if strong else 0, item.name)
 
     def test_n1c_with_bucklands_sling_carries_no_shots(self):
         """After the swap the sling's plain shot is 42.5 per turn: no shots are bought or kept.

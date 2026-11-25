@@ -101,13 +101,23 @@ class FinaleTownAmmoDepositRecordedTest(unittest.TestCase):
     def at_step(self, step):
         held = finale_prep.phase(self.policy)
         held.step, held.since, held.in_town = step, self.policy._decision_sequence, True
+        # DECLARED CONSTRUCTED (2026-11-26): since the per-stack rule (me_deep_launcher
+        # ``weak_round``) the visit's own rows already send the plain 63/turn bolts Home; the
+        # open-loop replay posts the recorded keys, so that deposit is never made and is
+        # remembered as refused.  The step's tests start from a Home that took no refusal.
+        self.policy._home_rejected_deposits.clear()
 
     def test_the_95f_exploration_keeps_its_rounds(self):
+        """Its strong rounds: the plain bolts' own 63/turn is under the 50F+ Magic-Eater's floor
+        (owner 2026-11-18 「射撃威力が100ダメージ/ターンを下回る場合は矢も持たない」, per stack since
+        n1-c life-222 2026-11-26), so they go Home; the 136/turn 追尾 bolts stay."""
         policy, board = self.policy, self.board
         self.assertFalse(angband_finale.no_ammunition(policy, board))
         self.assertGreater(policy._ammo_procurement_target(board), 0)
         for item in self.ammo:
-            self.assertEqual(policy._retention_reservation(board, item), item.count)
+            strong = "136/turn" in item.name
+            self.assertEqual(policy._retention_reservation(board, item),
+                             item.count if strong else 0, item.name)
 
     def test_the_ammunition_step_deposits_every_round(self):
         policy, board = self.policy, self.board

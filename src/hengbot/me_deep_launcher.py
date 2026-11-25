@@ -26,6 +26,17 @@ optimizer counts: policy_equipment._obtainable_launcher_ammunition).  Without an
 store round's figure for that launcher (launcher_damage), so a newly worn launcher is judged
 before its first round is bought.
 
+Per stack (n1-c life-222, 2026-11-26, owner 「弱い矢を撃つ仕様に戻っているようだ。魔法道具優先は
+どこかにいったらしい。」): ``ammo_unneeded`` alone read the best obtainable stack, so one strong Home
+stack (追尾の矢 143/turn) lifted the carry target back to 99 and the shared carry plan filled it with
+the plain store arrows (67/turn) -- bought every visit and fired at 95F.  ``weak_round`` is the one
+verdict on a stack: under the rule (``judged``) a round below the floor is not ammunition at all.
+Its readers: the carry plan every count, retention, Home top-up and purchase read (policy
+``_ammo_plan``, scripts/ammo_plan_lint.py keeps the plan's callers on it), the carry target
+(policy_home ``_ammo_procurement_target``: 0 for a weak stack, and no more than the strong rounds
+carried -- nothing is procured for the shot) and the round the launcher fires out of town (policy
+``_matching_ammo``).
+
 A pending quest is no exception (owner 2026-11-18 「魔道具術師は矢の威力ではなく魔法道具の攻撃力で
 評価する。装備優先度の例外にはしない。」): the rules hold whatever quest the town prepares for.
 """
@@ -76,3 +87,38 @@ def ammo_unneeded(policy: Any, snapshot: Any) -> bool:
         return True
     return (planned_unscored(policy, snapshot)
             and shot_power_per_turn(policy, snapshot) < SHOT_POWER_FLOOR)
+
+
+def judged(policy: Any, snapshot: Any) -> bool:
+    """Whether each round is weighed against the floor: the rule's Magic-Eater (``planned_unscored``)
+    or the finale (angband_finale ``no_ammunition``: every round)."""
+    from hengbot import angband_finale  # import cycle
+    return planned_unscored(policy, snapshot) or angband_finale.no_ammunition(policy, snapshot)
+
+
+def weak_round(policy: Any, snapshot: Any, item: Any) -> bool:
+    """The one per-stack verdict: a round of the worn launcher's type the rule leaves at Home and
+    never fires -- its shot under ``SHOT_POWER_FLOOR`` per player action (the name's figure,
+    attack_expectation._shot_per_turn), or any round in the finale.
+
+    Owner 2026-11-18 「射撃威力が100ダメージ/ターンを下回る場合は矢も持たない」, and on speed
+    (``ammo_unneeded``) 「魔法道具が充実してくるタイミングなので単に弱い矢はいらない」: the floor is the
+    stack's own, not the best stack's (n1-c life-222 2026-11-26: one 143/turn Home stack kept 99
+    plain 67/turn arrows bought and fired)."""
+    if not getattr(item, "is_ammo", False) or not judged(policy, snapshot):
+        return False
+    from hengbot import angband_finale  # import cycle
+    if angband_finale.no_ammunition(policy, snapshot):
+        return True
+    launcher = policy._equipped_launcher(snapshot)
+    if launcher is None or launcher.sval not in LAUNCHER_PROPERTIES or item.tval != launcher.ammo_tval:
+        return False
+    return attack_expectation._shot_per_turn(launcher, item) < SHOT_POWER_FLOOR
+
+
+def plan_admits(policy: Any, snapshot: Any):
+    """The carry plan's stack filter (ammo_carry.ammo_carry_plan ``admits``): None while no round
+    is judged, else the rounds ``weak_round`` keeps."""
+    if not judged(policy, snapshot):
+        return None
+    return lambda item: not weak_round(policy, snapshot, item)

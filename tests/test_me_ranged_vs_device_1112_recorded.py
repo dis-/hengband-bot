@@ -52,6 +52,10 @@ from tests.support.recorded import EDIT, skill
 FIXTURE = Path(__file__).with_name("fixtures") / "n1b-370-ranged-1112.json.xz"
 NIBELUNG, BUBBLE = 111, 1155
 ARROWS = "l"   # 矢 (1d4) (+0,+0) (74/shot 74/turn), the first arrow stack (the rung's ammo)
+# Since 2026-11-26 (n1-c life-222, owner 「弱い矢を撃つ仕様に戻っているようだ」): at Castle 64F the
+# Magic-Eater fires no round under 100/turn (me_deep_launcher ``weak_round``), so the rung's shot
+# is the 聖なる束矢 (1d3) (+13,+9) (104/shot 104/turn) of slot m, not the 74/turn arrows.
+FIRED = "m"
 
 
 class RangedVersusDeviceRecordedTest(unittest.TestCase):
@@ -148,7 +152,7 @@ class RangedVersusDeviceRecordedTest(unittest.TestCase):
             return rows
         key, reason, policy, snapshot = self.decide(self.case(34173), rows=missile_only,
                                                     change=self.on_the_low_hp_line)
-        self.assertEqual((key, reason), ("fl4", "ranged:fire"))
+        self.assertEqual((key, reason), ("f" + FIRED + "4", "ranged:fire"))
         # (2 + 45 / 10)d6 at 96% (21 x 0.96) is below the arrow's 29.
         target = self.monster(snapshot, NIBELUNG, snapshot.player.position.__class__(37, 68))
         ammo = next(item for item in snapshot.inventory if item.slot == ARROWS)
@@ -195,7 +199,7 @@ class RangedVersusDeviceRecordedTest(unittest.TestCase):
         _, _, policy, snapshot = self.decide(self.case(34173), rows=missile_only,
                                              change=self.on_the_low_hp_line)
         target = self.monster(snapshot, NIBELUNG, snapshot.player.position.__class__(37, 68))
-        self.assertEqual(me_ranged_first.attack_key(policy, snapshot, target), "fl4")
+        self.assertEqual(me_ranged_first.attack_key(policy, snapshot, target), "f" + FIRED + "4")
         self.assertEqual(policy.last_reason, "ranged:fire")
         # A stronger answer keeps the fixed order (the rod bolt, as the rung above).
         _, _, policy, snapshot = self.decide(self.case(34173))
@@ -228,12 +232,13 @@ class RangedVersusDeviceRecordedTest(unittest.TestCase):
         self.assertTrue(attack_expectation.melee_answers_none_of(policy, snapshot, [target]))
         # The combat rungs' melee-refused order (me_ranged_first.melee_refused_key): the arrow
         # (about 0.92 x 32) over the 20% rod bolt (0.2 x 32).
-        self.assertEqual(me_ranged_first.melee_refused_key(policy, snapshot, [target]), "fl4")
+        self.assertEqual(me_ranged_first.melee_refused_key(policy, snapshot, [target]),
+                         "f" + FIRED + "4")
         self.assertEqual(policy.last_reason, "ranged:fire")
         # The launcher is weighed beside the target only while melee answers nothing.
         raw["player"]["status"]["afraid"] = False
         calm = parse_snapshot(copy.deepcopy(raw), self.races)
-        self.assertNotIn("fl4", [send() for _, send in me_ranged_first._adjacent_options(
+        self.assertNotIn("f" + FIRED + "4", [send() for _, send in me_ranged_first._adjacent_options(
             policy, calm, calm.visible_monsters[0], "4")])
 
 

@@ -45,12 +45,18 @@ def is_plain_store_ammo(item) -> bool:
     )
 
 
-def ammo_carry_plan(snapshot, launcher, target: int) -> AmmoCarryPlan:
+def ammo_carry_plan(snapshot, launcher, target: int, admits=None) -> AmmoCarryPlan:
+    """The kept stacks: the highest-power one, then the plain stack up to ``target``.
+
+    ``admits``: the stacks the plan may keep (None: every one of the launcher's type).  The
+    policy passes the 50F+ Magic-Eater's (me_deep_launcher ``plan_admits``: no round under
+    the floor) through ``_ammo_plan``, the one entry its callers use (scripts/ammo_plan_lint.py)."""
     if launcher is None or launcher.ammo_tval is None:
         return AmmoCarryPlan(None, None, None, (), target)
     matching = [
         item for item in snapshot.inventory
         if item.tval == launcher.ammo_tval and item.count > 0
+        and (admits is None or admits(item))
     ]
     if not matching:
         return AmmoCarryPlan(launcher.ammo_tval, None, None, (), target)

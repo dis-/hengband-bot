@@ -20,7 +20,7 @@ from hengbot.town_hold import end_execution_delegation as town_end_execution_del
 from hengbot.town_hold import claim_family_of as town_claim_family_of
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_hold import terminal_goal as claim_terminal
-from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
+from hengbot.ammo_carry import is_plain_store_ammo
 from hengbot import home_identification, home_pass_charge, me_deep_launcher, sale_progress
 from hengbot.home_full_relief import (
     DESTROY_FIELDS, SALE_DESTROY_FIELDS, SKIP_FIELDS, HomeFullRelief, ReliefAttribute, relief_of,
@@ -2990,12 +2990,12 @@ class HomeMixin:
             if launcher is not None and item.is_ammo and item.tval == launcher.ammo_tval:
                 target = self._ammo_procurement_target(snapshot, for_retention=True)
                 if target < AMMO_CARRY_TARGET:
-                    reservation = ammo_carry_plan(snapshot, launcher, target).reservation(item.slot)
+                    reservation = self._ammo_plan(snapshot, target, launcher).reservation(item.slot)
                     return min(baseline[0], reservation), baseline[1]
             return baseline
 
-        plan = ammo_carry_plan(snapshot, launcher, self._ammo_procurement_target(
-            snapshot, for_retention=True))
+        plan = self._ammo_plan(snapshot, self._ammo_procurement_target(
+            snapshot, for_retention=True), launcher)
         reservation = plan.reservation(item.slot)
         return reservation, "ammo:carry-plan" if reservation > 0 else None
 
@@ -3572,13 +3572,30 @@ class HomeMixin:
 
         Owner 2026-11-18 「射撃威力が100ダメージ/ターンを下回る場合は矢も持たない」: the
         Magic-Eater planning a 50F+ dive with weaker shooting carries none
-        (me_deep_launcher.ammo_unneeded).
+        (me_deep_launcher.ammo_unneeded), and of a stronger kit only its strong
+        rounds: a weak stack's target is 0 and the target is no more than the
+        strong rounds carried (me_deep_launcher ``weak_round``; n1-c life-222
+        2026-11-26: one 143/turn Home stack kept the plain 67/turn arrows bought
+        to 99 every visit and fired at 95F).
         """
         launcher = self._equipped_launcher(snapshot)
         if launcher is None:
             return AMMO_CARRY_TARGET
         if me_deep_launcher.ammo_unneeded(self, snapshot):
             return 0
+        if not me_deep_launcher.judged(self, snapshot):
+            return self._ammo_carry_target(snapshot, item, for_retention=for_retention)
+        if item is not None and me_deep_launcher.weak_round(self, snapshot, item):
+            return 0
+        return min(self._ammo_carry_target(snapshot, item, for_retention=for_retention),
+                   self._count_matching_ammo(snapshot))
+
+    def _ammo_carry_target(
+        self, snapshot: Snapshot, item=None, *, for_retention: bool = False
+    ) -> int:
+        """``_ammo_procurement_target`` before the 50F+ Magic-Eater's rules: the fixed target,
+        or the plan's rounds that fit the weight limit."""
+        launcher = self._equipped_launcher(snapshot)
         if snapshot.floor_key[2] != 0:
             return AMMO_CARRY_TARGET
         limit = self._inventory_weight_limit(snapshot)
@@ -3586,7 +3603,7 @@ class HomeMixin:
             return AMMO_CARRY_TARGET
         if for_retention and not self._inventory_overweight(snapshot):
             return AMMO_CARRY_TARGET
-        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        plan = self._ammo_plan(snapshot, AMMO_CARRY_TARGET, launcher)
         kept = [(next(i for i in snapshot.inventory if i.slot == slot), count)
                 for slot, count in plan.reservations]
         weight = self._inventory_weight(snapshot)
@@ -3598,6 +3615,17 @@ class HomeMixin:
             # breach digger (200) held the Home bolts at Home (1645/1700,
             # take of 18), and the Q2 carry of 99 never filled.
             weight -= self._ordinary_weight_relief_surplus(snapshot)
+        if not for_retention:
+            # The rounds the plan leaves out go Home (me_deep_launcher ``weak_round``): their
+            # weight does not crowd the kept rounds out (the retention branch below sheds
+            # every unreserved round of the type the same way).
+            weight -= sum(
+                max(0, i.weight) * i.count
+                for i in snapshot.inventory
+                if i.tval == launcher.ammo_tval and i.count > 0
+                and plan.reservation(i.slot) == 0
+                and me_deep_launcher.weak_round(self, snapshot, i)
+            )
         if for_retention:
             # Ordinary retention surplus goes first; ammunition clears only
             # the residual overload, rather than displacing the other excess.
@@ -6722,7 +6750,7 @@ class HomeMixin:
         if not self._home_knowledge_current:
             return None
         launcher = self._equipped_launcher(snapshot)
-        plan = ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET)
+        plan = self._ammo_plan(snapshot, AMMO_CARRY_TARGET, launcher)
         shortage = self._ammo_procurement_target(snapshot) - plan.carried_count
         if launcher is None or shortage <= 0 or not plan.kept_slots:
             return None

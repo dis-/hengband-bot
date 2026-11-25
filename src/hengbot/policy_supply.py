@@ -1369,8 +1369,9 @@ class SupplyMixin:
             return quest[2], quest[1]
         if (self._matching_ammo(snapshot) is None
                 # Owner 2026-11-18: a Magic-Eater that carries no ammunition at 50F+
-                # does not take throwing torches in its place.
-                and not me_deep_launcher.ammo_unneeded(self, snapshot)):
+                # does not take throwing torches in its place (nor for its weak rounds
+                # left unfired: me_deep_launcher ``weak_round``).
+                and not me_deep_launcher.judged(self, snapshot)):
             return TORCH_THROW_TARGET, self._count_throwing_torches(snapshot)
         if self._owns_usable_permanent_light(snapshot):
             # Spare torches only back up a fuelled light; with a permanent

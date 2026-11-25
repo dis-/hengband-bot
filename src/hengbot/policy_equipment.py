@@ -13,7 +13,7 @@ from hengbot.town_pack_budget import home_take_fits
 from hengbot.town_arbiter import ClaimOwner, claims
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.policy_identification import IDENTIFY_ITEM_PROMPT, SOURCE_PROMPT
-from hengbot.ammo_carry import ammo_carry_plan, is_plain_store_ammo
+from hengbot.ammo_carry import is_plain_store_ammo
 from hengbot import consumable_policy, equipment_swap_weight, lamp_fuel, mining_loadout, quest_ranged_force, slot_lending
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.me_loadout_offense import held_magic_eater_powers
@@ -4175,13 +4175,14 @@ class EquipmentMixin:
         self._equipment_optional_failure_departure = {**pending, "depth": depth, "posted": True}
         self._equipment_optional_failure_pending = None
 
-    @staticmethod
-    def _retained_ammo_slots(snapshot: Snapshot, ammo_tval: int) -> frozenset[str]:
+    def _retained_ammo_slots(self, snapshot: Snapshot, ammo_tval: int) -> frozenset[str]:
         launcher = next(
             (item for item in snapshot.equipment if item.ammo_tval == ammo_tval),
             None,
         )
-        return ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET).kept_slots
+        if launcher is None:
+            return frozenset()
+        return self._ammo_plan(snapshot, AMMO_CARRY_TARGET, launcher).kept_slots
 
     def _is_wanted_jewelry(self, snapshot: Snapshot, item: InventoryItem) -> bool:
         # Keep a ring / amulet in the pack (do NOT stash it at Home) while it could

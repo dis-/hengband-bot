@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, item_need
 from hengbot import equipment_target
-from hengbot import angband_finale
+from hengbot import angband_finale, me_deep_launcher
 from hengbot import approach_answer, fundraising_route, return_start
 from hengbot import me_power_success, safety_watch
 from hengbot import angband_cap, angband_hold, equipment_rules, item_identity
@@ -8357,8 +8357,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not snapshot.in_town and angband_finale.no_ammunition(self, snapshot):
             # Owner 2026-11-23 「魔道具術師は決戦で矢は撃たない。」: no round is fired.
             return None
+        # Owner 2026-11-18 「射撃威力が100ダメージ/ターンを下回る場合は矢も持たない」: out of town
+        # the 50F+ Magic-Eater fires no round under the floor (me_deep_launcher ``weak_round``;
+        # n1-c life-222 2026-11-26 shot 67/turn arrows at 95F).
+        weak = (lambda it: False) if snapshot.in_town else (
+            lambda it: me_deep_launcher.weak_round(self, snapshot, it))
         return next(
-            (it for it in snapshot.inventory if it.tval == launcher.ammo_tval),
+            (it for it in snapshot.inventory if it.tval == launcher.ammo_tval and not weak(it)),
             None,
         )
 
@@ -8463,8 +8468,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def _count_matching_ammo(self, snapshot: Snapshot) -> int:
-        launcher = self._equipped_launcher(snapshot)
-        return ammo_carry_plan(snapshot, launcher, AMMO_CARRY_TARGET).carried_count
+        return self._ammo_plan(snapshot, AMMO_CARRY_TARGET).carried_count
+
+    def _ammo_plan(self, snapshot: Snapshot, target: int, launcher=None):
+        """The shared carry plan (ammo_carry ``ammo_carry_plan``) of ``launcher`` (default the
+        worn one) without the rounds the 50F+ Magic-Eater does not carry (me_deep_launcher
+        ``weak_round``).  Every policy reader of the plan comes here
+        (scripts/ammo_plan_lint.py)."""
+        if launcher is None:
+            launcher = self._equipped_launcher(snapshot)
+        return ammo_carry_plan(snapshot, launcher, target,
+                               me_deep_launcher.plan_admits(self, snapshot))
 
 
 
