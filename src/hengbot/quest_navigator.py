@@ -76,6 +76,9 @@ class QuestFloorNavigator:
     exit_fought_at = None
     # A shriek heard since the walk last stood on an unexposed choke (quest_find_exit._shriek_hold).
     exit_shrieked = False
+    # The cells of the plan's casters heard shrieking on this floor (quest_find_exit
+    # ._attribute_shriek); replaced, never mutated.
+    exit_shriekers = frozenset()
     exit_spent_chokes = frozenset()
     # Of those, the ones spent by the quiet wait, with the player action they were spent on
     # (quest_find_exit._readmitted).  Replaced, never mutated.
@@ -198,6 +201,7 @@ class QuestFloorNavigator:
         self.exit_enemy_turns = 0
         self.exit_fought_at = None
         self.exit_shrieked = False
+        self.exit_shriekers = frozenset()
         self.exit_spent_chokes = frozenset()
         self.exit_quiet_spent = {}
         self.exit_dug = frozenset()

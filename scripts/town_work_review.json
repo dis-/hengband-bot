@@ -43,6 +43,39 @@
     "delegation": "selected child; no independent success",
     "evidence": "The least exposed walk off the board's left cells while one leads on (owner 2026-11-15 Q2); returns positions, emits no key."
   },
+  "quest_find_exit.py:_choke_walk": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The walk to a choke off the cells of a caster heard shrieking when one leads to a choke, else the least exposed walk (owner 2026-11-25); returns positions, emits no key."
+  },
+  "quest_find_exit.py:_exposure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The cells the plan's casters reach on the floor as it is (quest_exposure.exposure_map); emits no key."
+  },
+  "quest_find_exit.py:_shriek_reach": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The cells a caster heard shrieking on this floor reaches (owner 2026-11-25); emits no key."
+  },
   "quest_firing_cells.py:widest": {
     "classification": "data",
     "rows": [
