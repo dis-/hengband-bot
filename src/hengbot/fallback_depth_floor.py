@@ -74,6 +74,7 @@ def landing_depth(policy, snapshot, dungeon_id: int) -> int:
 def settle(policy, snapshot) -> bool:
     """On a town board: end a held switch that lands under the floor.  True when ended."""
     from hengbot import alternate_lease, dive_floor  # both read this module
+    from hengbot.finale_bm_tour import DIVE_REASON as FINALE_FUNDS_DIVE_REASON  # import cycle
 
     alternate = policy._alternate_dungeon
     # Owner 2026-11-15: a dive to the floor lands above it and goes down to its target.
@@ -84,7 +85,10 @@ def settle(policy, snapshot) -> bool:
             # Owner 2026-11-17: the guardian valve's Angband lands above the floor and dives to it.
             or dive_floor.angband_valve_held(policy, snapshot)
             # Owner 2026-11-17 (n1-b life-411): so does the unsafe-recall fallback's Castle.
-            or dive_floor.refused_dive_held(policy, snapshot)):
+            or dive_floor.refused_dive_held(policy, snapshot)
+            # Owner 2026-11-25: the 96F+ finale's dive for its gold is no fallback
+            # (finale_bm_tour ``settle_dive`` ends it).
+            or getattr(policy, "_alternate_dungeon_reason", None) == FINALE_FUNDS_DIVE_REASON):
         return False
     alternate_lease.end(policy, snapshot)
     return True

@@ -18,7 +18,7 @@ still states this order.
 from __future__ import annotations
 
 from hengbot import deep_climb, deep_fall_guard, finale_prep, reset_recall
-from hengbot import approach_answer, return_start
+from hengbot import approach_answer, fundraising_route, return_start
 from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
 from hengbot.home_visit import HomeVisitKind
@@ -680,7 +680,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         # Existing shopping, processing, and restock owners above get their
         # normal opportunity. At the ordinary departure boundary, shortage
         # permits only the established fundraising or restock-wait flow.
-        if policy._start_fundraising(snapshot):
+        if policy._start_fundraising(snapshot, fundraising_route.DEPARTURE_SHORTAGE):
             fundraising = policy._town_producer_entry("_fundraising_key#2", lambda: policy._fundraising_key(
                 snapshot, strategic_hostiles
             ))

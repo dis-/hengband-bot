@@ -25251,5 +25251,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "QUEST_33 after a disengage, the absorbed Teleportation at one charge or less: a step out of the lines, else the counted rest (R100) that restores it, before the lure (owner 2026-11-25 (c)-1)."
+  },
+  "policy_town.py:TownMixin._finale_funds_dive_key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Reviewed concrete returns/offers: the 96F+ finale funds dive selects the deepest other dungeon (WAIT with a departure offer) or names the town stop; consumers are the unsafe-recall branch of the town's special key only.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

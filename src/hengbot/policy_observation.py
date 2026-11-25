@@ -611,6 +611,9 @@ class ObservationMixin:
         # ダンジョンの主討伐のみとする。」: a held fallback switch of a character held at Angband
         # 50F+ is dropped on every town board (angband_hold); the valves below pick nothing for it.
         angband_hold.settle(self, snapshot)
+        # Owner 2026-11-25: the deepest other dungeon a 96F+ dive for the finale's gold took is
+        # dropped once that dive is over; the finale's preparation reads its rows again.
+        finale_bm_tour.settle_dive(self, snapshot)
         if snapshot.in_town and self._target_empty_dives >= EMPTY_DIVE_LIMIT:
             # User decision 2026-09-25 (guardian-recall-pingpong-r2,
             # 「倒せない階でなければ深くても可」): when every dive of the streak

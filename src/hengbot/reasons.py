@@ -839,6 +839,10 @@ _stationary(EXEMPT, "finale_bm_tour.FUNDS_SALE_WAITS at one gold, then the fundr
             "town:finale-hold:bm-funds-sale")
 _stationary(HOLD, "one wait: the fundraising run handed over takes the town (morivant_tower)",
             "town:finale-hold:bm-funds-fundraise")
+# Owner 2026-11-25, the 96F+ case: the deepest other dungeon picked for the finale's gold
+# (policy_town._finale_funds_dive_key); the next board reads the recall to it.
+_stationary(HOLD, "one wait: the next board's departure reads the recall to the picked dungeon",
+            "town:finale-funds-dive")
 _stationary(EXEMPT, "stationary_bounds.AMBERITE_HOLD_MAX_GAME_TURNS (no natural end)", "amberite:hold")
 _stationary(EXEMPT, "stationary_bounds.THREAT_WAIT_MAX_GAME_TURNS (no natural end)", "threat:wait")
 _stationary(EXEMPT, "stationary_bounds.QUEST25_FIRE_HOLD_MAX_GAME_TURNS (no natural end)",

@@ -204,14 +204,17 @@ class FundraisingMixin:
         """Open a one-run mining set in preparation mode.
 
         The preparation owners fetch or buy the kit; the mining departure
-        keeps its own gates (``_mining_departure_ready``).
+        keeps its own gates (``_mining_departure_ready``).  Its one caller is
+        the town end's retry cycle (town_end_mining), a departure that cannot
+        leave: it mines whatever the recall depth (fundraising_route).
         """
+        from hengbot import fundraising_route
+        fundraising_route.open_set(self, None, fundraising_route.TOWN_END_CYCLE)
         self._planned_mining_runs = 1
         self._identify_staff_mining_plan = False
         self._recall_stockout_mining_plan = False
         self._no_safe_destination_set = False
         self._mining_runs_completed = 0
-        self._fundraising_mode = "prepare"
         self._town_store_attempted.clear()
         self._retire_town_errand_plan_for_rebuild()
 

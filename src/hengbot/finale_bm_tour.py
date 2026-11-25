@@ -55,9 +55,17 @@ destination (policy_town, the departure toward Angband: the 95F exploration of t
 2026-11-19 rule, with the finale's loadout that holds from 95F on, angband_finale ``preparing``),
 explores and loots there, and comes back by the ordinary return rules; the dungeon board forgets
 the circuit, the next town board sells and starts it again, and its Black Markets buy once the
-gold is there.  Where the ordinary departure has no destination -- Angband's recall refused for
-its depth (finale_hold ``applies``, owner 2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還
-しない」 with 2026-11-19's no fallback from 50F) -- the fundraising run stays.  Only an inn the walk cannot reach, a leg
+gold is there.  Where Angband's recall is refused for its depth (finale_hold ``applies``, owner
+2026-11-21 「帰還の深さが96F以上なら遠征以外で鉄獄へ帰還しない」 with 2026-11-19's no fallback from
+50F) the dive is the deepest other dungeon the character may explore (owner 2026-11-25, the
+answer for the 96F+ case: 鉄獄以外で探索できる一番深いダンジョン（城・山など）に帰還して稼ぎ、目標額に
+届いたら決戦の準備に戻る): policy_town takes the ordinary safe-landing fallback for the refused
+Angband (``_activate_safe_recall_fallback``, the deepest entered landing that passes every landing
+check) and marks it ``DIVE_REASON``; the next town board after the dive drops it
+(``settle_dive``) and the finale's preparation reads its rows again.  No landing fits: the town
+stops by name (``town:blocked:finale-funds-no-dive-destination``), never a 1F mining run (owner
+2026-11-25).  Whether a fundraising need dives or mines is fundraising_route's (``dives``, the one
+gate).  Only an inn the walk cannot reach, a leg
 refused or no town to visit end it (``closed``): the town stops by name
 (``town:blocked:finale-bm-tour-closed:<why>``, a final stop of the driver, policy_constants
 FINALE_BM_CLOSED_STOP_PREFIX).  A dungeon board forgets the circuit (angband_finale
@@ -97,6 +105,11 @@ STATE = "_finale_bm_tour"
 # fundraising run handed over.  Each wait is one decision; the sale's own owner acts between.
 FUNDS_SALE_REASON = "town:finale-hold:bm-funds-sale"
 FUNDRAISE_REASON = "town:finale-hold:bm-funds-fundraise"
+# The deepest other dungeon a 96F+ dive for the gold holds (``_alternate_dungeon_reason``,
+# owner 2026-11-25; ``settle_dive``), and the town's reasons for it (policy_town).
+DIVE_REASON = "finale_funds_dive"
+DIVE_TOWN_REASON = "town:finale-funds-dive"
+NO_DIVE_DESTINATION = "finale-funds-no-dive-destination"  # policy_constants FINALE_FUNDS_NO_DIVE_STOP
 # Waits at one gold for the cash sale to begin before the fundraising run (a sale that cannot
 # start within them is no sale: its sweep's own gates hold, home_cash_sale ``pending``).
 FUNDS_SALE_WAITS = 20
@@ -239,30 +252,32 @@ def funds_short(policy: Any, snapshot: Any) -> bool:
                 and snapshot.player.gold < tour.funds_needed)
 
 
-def _funds_key(policy: Any, snapshot: Any, tour: Tour, needed: int) -> str:
+def _funds_key(policy: Any, snapshot: Any, tour: Tour, needed: int) -> str | None:
     """Owner 2026-11-18 「必要な物は買う。本当に資金枯渇したら採掘で良いが、自宅に大量の換金用アイテムが
     あるので先に売る。」: below what the next leg needs, Home's cash wares are sold first (home_cash_sale,
     its line read through ``funds_short``: the existing Home junk sweep, never a finale supply or
     a never-sold ware, item_fate); with none left (or the sale making no progress), the dive
     (owner 2026-11-25 「1F採掘は明らかに効率が悪いので適当なダンジョンに潜って稼いでくれ」): None, the
-    departure yielded to the ordinary one (``diving``).  Only where that one has no destination
-    (finale_hold ``applies``: Angband's recall refused for its depth) one fundraising run to the
-    gold needed (morivant_tower ``start_fundraising_run``, the mining set's gold end).  Either
-    trip's dungeon board forgets the circuit, which starts again on the next town board.
+    departure yielded to the ordinary one (``diving``); with Angband's recall refused for its
+    depth (finale_hold ``applies``) the ordinary one is the deepest other dungeon (policy_town,
+    owner 2026-11-25).  The gate is fundraising_route's (``dives``: a recall depth of 50F or
+    deeper, always so for the finale); a shallower one would open one fundraising run to the gold
+    needed (morivant_tower ``start_fundraising_run``).  The trip's dungeon board forgets the
+    circuit, which starts again on the next town board.
     n1-b life-416 2026-11-24 00:49: 20,149 gold of 21,235 named a stop and spun on it."""
-    from hengbot import finale_hold, home_cash_sale, morivant_tower  # import cycle
+    from hengbot import fundraising_route, home_cash_sale, morivant_tower  # import cycle
     tour.funds_needed = needed
     gold = snapshot.player.gold
     waits = tour.funds_waits[1] + 1 if tour.funds_waits and tour.funds_waits[0] == gold else 1
     tour.funds_waits = (gold, waits)
     if home_cash_sale.pending(policy, snapshot) and waits <= FUNDS_SALE_WAITS:
         return _wait(policy, FUNDS_SALE_REASON, FUNDS_SALE_REASON)
-    if not finale_hold.applies(policy, snapshot):
+    if fundraising_route.dives(policy, snapshot, fundraising_route.FINALE_BM):
         tour.dive_target = needed
         return None
     if policy._fundraising_mode not in home_cash_sale.MINING_MODES:
         tour.fundraise_target = needed
-        morivant_tower.start_fundraising_run(policy, snapshot, needed)
+        morivant_tower.start_fundraising_run(policy, snapshot, needed, fundraising_route.FINALE_BM)
     return _wait(policy, f"{FUNDRAISE_REASON}:{needed}", FUNDRAISE_REASON)
 
 
@@ -379,6 +394,22 @@ def diving(policy: Any, snapshot: Any) -> bool:
     return bool(tour is not None and tour.closed is None and snapshot.in_town
                 and tour.dive_target is not None
                 and snapshot.player.gold < tour.dive_target)
+
+
+def settle_dive(policy: Any, snapshot: Any) -> bool:
+    """A town board: drop the deepest other dungeon a 96F+ dive for the gold held
+    (``DIVE_REASON``) once that dive is not this town's departure any more (the circuit forgot on
+    the dive's dungeon board, or the gold reached), so the finale's preparation (finale_hold,
+    Angband the target) owns the departure again.  True when dropped."""
+    from hengbot import alternate_lease, dive_floor  # import cycle
+    if (not snapshot.in_town or getattr(policy, "_alternate_dungeon_reason", None) != DIVE_REASON
+            or diving(policy, snapshot)):
+        return False
+    policy._alternate_dungeon = None
+    policy._alternate_dungeon_reason = None
+    alternate_lease.forget(policy)
+    setattr(policy, dive_floor.STATE, None)
+    return True
 
 
 def closed(policy: Any) -> bool:
