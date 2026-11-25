@@ -6779,6 +6779,20 @@ class HomeMixin:
         if top_up is None:
             return False
         candidate, quantity = top_up
+        if not home_take_fits(snapshot, candidate, quantity, policy=self):
+            # The outside composer admits a take only through the town pack
+            # budget (store_item_key), so a take it refuses is not bound: bound,
+            # it held Home as the plan's stop while the composer refused it at
+            # the entrance and the open page released it, and the next need
+            # enumeration bound it again.  n1-a life-537 (2026-11-25 23:09-23:10,
+            # Lv48 Zombie Warrior): plain クロスボウの矢 for the carried (+6,+3)
+            # stack, bound at 4 free slots; the Q33 reward pickup left 3 (the
+            # terminal reserve), and shop:approach stepped on and off the Home
+            # entrance (home:route-claim-unfulfilled) to
+            # town:blocked:stage-deadline:home.  The headroom pass makes the
+            # room when a stack can be shelved; the take is bound once it fits.
+            make_room_for_home_take(self, snapshot)
+            return False
         signature = self._item_signature(candidate)
         self._home_pending_quantities[signature] = quantity
         if self._home_pending_item is None:
