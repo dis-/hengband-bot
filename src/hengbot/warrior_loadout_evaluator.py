@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from math import isfinite, isinf
 
 from hengbot.equipment_encounters import EncounterTarget
+from hengbot.equipment_class_profile import class_shots_bonus
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.equipment_optimizer import FinaleReading, Loadout, LoadoutMetrics, SLOT_BOW
 from hengbot.equipment_utility import utility_value
@@ -285,8 +286,8 @@ def warrior_ranged_offense_dps(
     Owner 2026-11-22 「射撃武器の比較には店で買える並の矢弾を使って。」: the shared figure
     (launcher_damage.plain_ammo_turn_damage), with this loadout's shooter: calc_to_hit_bow's
     to_h_b from its STR/DEX and the other gear's to_h (a heavy launcher's penalty), the STR
-    term of the multiplier, the other gear's extra shots and extra might and the Warrior's
-    shots.  So a launcher's stat modifiers count here and in the melee (owner 2026-11-22
+    term of the multiplier, the other gear's extra shots and extra might and the class's
+    shots (equipment_class_profile.class_shots_bonus: the Warrior's, the Rogue's sling).  So a launcher's stat modifiers count here and in the melee (owner 2026-11-22
     「近接の増え方も入れて全体で比べる」) through the ordinary comparison."""
     launcher = loadout.item_at(SLOT_BOW)
     if launcher is None or launcher.item.sval not in LAUNCHER_PROPERTIES:
@@ -308,7 +309,9 @@ def warrior_ranged_offense_dps(
         str_td=ADJ_STR_TO_D[str_idx],
         extra_shots=(sum(1 for _, item in loadout.slots if TR_XTRA_SHOTS in item.flags)
                      - (TR_XTRA_SHOTS in launcher.item.known_flags)),
-        shots_bonus=inputs.level * 2 if not heavy and inputs.class_id == 0 else 0,
+        shots_bonus=0 if heavy else class_shots_bonus(
+            inputs.class_id, level=inputs.level,
+            ammo_tval=LAUNCHER_PROPERTIES[launcher.item.sval][0]),
         xtra_might=(any(TR_XTRA_MIGHT in item.flags for item in others)
                     or TR_XTRA_MIGHT in launcher.flags),
         target_ac=target_ac,

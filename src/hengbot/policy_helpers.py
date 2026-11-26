@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hengbot.class_roles import realm_books_unusable
 from hengbot import item_need
 
 from hengbot import safety_watch
@@ -389,8 +390,7 @@ class PolicyHelpersMixin:
             junk = "harmful-consumable"
         elif snapshot is None:
             return None
-        elif item.is_spellbook and snapshot.player.class_id in {
-                PLAYER_CLASS_WARRIOR, PLAYER_CLASS_BERSERKER}:
+        elif item.is_spellbook and realm_books_unusable(snapshot.player.class_id):
             junk = "unusable-book"
         # Owner 2026-11-02: figurines, statues, capture balls and the cheap
         # books of other realms are never kept (unwanted_kinds).

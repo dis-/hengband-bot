@@ -137,7 +137,13 @@ class TorchQuestFloorsTest(unittest.TestCase):
         # The warrior keeps the 2026-10-26 opening carry of 5 (one per thief plus one).
         self.assertEqual(class_throwing_items(force, 0), {"lit_torch": 5})
         self.assertEqual(force["throwing_items"], {"lit_torch": 5})
-        self.assertEqual((acceptance_dps_floor(force, 3), acceptance_hp_floor(tier, 3)), (28.0, 88))
+        self.assertEqual((acceptance_dps_floor(force, 1), acceptance_hp_floor(tier, 1)), (28.0, 88))
+        # The Rogue is played as the Warrior (class_roles.class_row, owner 2026-11-26): the
+        # Warrior's rows.  Its throw skill (calc_to_hit_throw: class-info.cpp c_thb 66 / x_thb 18
+        # against the Warrior's 55 / 30) is 67 against 58 at Lv1 and 84 against 85 at Lv10, and
+        # its throw costs lev less energy (throw-execution.cpp:178).
+        self.assertEqual((acceptance_dps_floor(force, 3), acceptance_hp_floor(tier, 3)),
+                         (13.23, 88))
 
     def test_magic_eater_q1_floors(self):
         force = load_quest_strategies(STRATEGIES)[1].required_force

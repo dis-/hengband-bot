@@ -18,30 +18,30 @@ from hengbot import (
     quest_summon_answer,
     quest_summoner_light,
 )
+from hengbot.class_roles import class_row
 from hengbot.model import SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, TVAL_POTION
 from hengbot.monrace_knowledge import _strip_jsonc
 
 
 def acceptance_dps_floor(force: dict[str, Any], class_id: int) -> float:
     """Resolve a class-specific melee floor for an acceptance tier only."""
-    overrides = force.get("min_expected_dps_by_class", {})
-    return float(overrides.get(str(class_id), force.get("min_expected_dps", 0)) or 0)
+    return float(class_row(force.get("min_expected_dps_by_class"), class_id,
+                           force.get("min_expected_dps", 0)) or 0)
 
 
 def acceptance_hp_floor(force: dict[str, Any], class_id: int) -> int:
     """Resolve a class-specific maximum-HP floor for an acceptance tier only."""
-    overrides = force.get("min_hp_by_class", {})
-    return int(overrides.get(str(class_id), force.get("min_hp", 0)) or 0)
+    return int(class_row(force.get("min_hp_by_class"), class_id, force.get("min_hp", 0)) or 0)
 
 
 def torch_throw_output(force: dict[str, Any], class_id: int) -> float:
     """A reviewed class's per-action thrown lit-torch output (QUEST_1 class 16), else 0."""
-    return float(force.get("torch_throw_output_by_class", {}).get(str(class_id), 0) or 0)
+    return float(class_row(force.get("torch_throw_output_by_class"), class_id, 0) or 0)
 
 
 def class_throwing_items(force: dict[str, Any], class_id: int) -> dict[str, Any]:
     """Resolve a reviewed class-specific throwing plan (QUEST_1 class 16)."""
-    overrides = force.get("throwing_items_by_class", {}).get(str(class_id))
+    overrides = class_row(force.get("throwing_items_by_class"), class_id)
     return dict(overrides) if overrides is not None else dict(force.get("throwing_items", {}))
 
 
@@ -72,7 +72,7 @@ LOWERABLE_CARRIES = ("lit_torch", "heal_potions", "speed_potions")
 def carry_floor(force: dict[str, Any], class_id: int) -> dict[str, int]:
     """The reviewed lower carry counts (QUEST_1 ``carry_floor``), class rows first."""
     floor = dict(force.get("carry_floor", {}))
-    floor.update(force.get("carry_floor_by_class", {}).get(str(class_id), {}))
+    floor.update(class_row(force.get("carry_floor_by_class"), class_id, {}))
     return {name: int(value) for name, value in floor.items() if name in LOWERABLE_CARRIES}
 
 

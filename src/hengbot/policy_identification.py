@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.class_roles import plays_as_warrior
 from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot.item_reservation import reserved_item_command
@@ -1500,7 +1501,7 @@ class IdentificationMixin:
         identify errand) is left to its own owner rather than papered over with an
         endless mining cycle here.
         """
-        if snapshot.player.class_id != PLAYER_CLASS_WARRIOR or not snapshot.in_town:
+        if not plays_as_warrior(snapshot.player.class_id) or not snapshot.in_town:
             return False
         if self._fundraising_mode in {"prepare", "mine", "scavenge"}:
             return False

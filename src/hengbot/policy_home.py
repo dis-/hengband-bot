@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.class_roles import plays_as_warrior
 from hengbot import equipment_target
 from hengbot import angband_finale
 from hengbot import quest_optional_carry
@@ -6673,7 +6674,7 @@ class HomeMixin:
         if self._equipment_transaction_home_work():
             return True
         if (
-            snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            plays_as_warrior(snapshot.player.class_id)
             and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
             and (not self._equipment_catalog.home_scan_complete
                  or self._home_knowledge_invalidated)
