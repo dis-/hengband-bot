@@ -58,6 +58,7 @@ from hengbot.model import (
 from hengbot.policy_constants import (
     DEEP_FLOOR_DEPTH,
     DEPTH_ABILITY_REQUIREMENTS,
+    SPEED_GATES,
     _required_abilities_for_depth,
 )
 
@@ -179,8 +180,9 @@ def required_abilities_for_depth(depth: int) -> frozenset:
 
 
 # Bumped when a rule's logic changes without its data changing (4: the input key's former
-# hand-bumped schema, the NO_AC ban of 2026-11-21).
-RULES_REVISION = 4
+# hand-bumped schema, the NO_AC ban of 2026-11-21; 5: the single-slot search's speed
+# completions of 2026-11-26, warrior_loadout_search.SpeedGate).
+RULES_REVISION = 5
 
 
 def _rules_table() -> dict:
@@ -194,6 +196,8 @@ def _rules_table() -> dict:
         "unscored_launcher": [UNSCORED_LAUNCHER_CLASS, UNSCORED_LAUNCHER_DEPTH, SHOT_POWER_FLOOR],
         "depth_ability_requirements": [
             [first, sorted(adds)] for first, adds in DEPTH_ABILITY_REQUIREMENTS],
+        # The depth speeds (the 70-80F +10 of 2026-11-26, the 81F+ +25).
+        "speed_gates": [list(row) for row in SPEED_GATES],
     }
 
 

@@ -989,14 +989,53 @@ SPEED_GATE_LABEL = "speed+25"
 
 SPEED_GATE_MINIMUM = 135  # +25 over the 110 base
 
+# Supervisor decision 2026-11-26 (from the owner's 「n1-cはこのままゾンビ魔道具術師で勝率と時間効率
+# 改善を進める。…いずれも、ゲーム内選択に関して私の以前の指示を破ることを許可する。」): 70F-80F
+# ask a permanent speed of +10.  Of the seven deaths at 76-80F before it, five had +9 or less
+# (CL 36-47).  It replaces the 2026-11-22 answer 「50〜80FにCLとHPの下限を足さない」 only by
+# this speed floor (no CL or HP floor).  81F+ keeps its own +25, which includes it.
+MID_SPEED_GATE_DEPTH = 70
+
+MID_SPEED_GATE_LABEL = "speed+10"
+
+MID_SPEED_GATE_MINIMUM = 120  # +10 over the 110 base
+
+# The depth speed rows, deepest first: (first floor, label, permanent speed).
+SPEED_GATES = (
+    (SPEED_GATE_DEPTH, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM),
+    (MID_SPEED_GATE_DEPTH, MID_SPEED_GATE_LABEL, MID_SPEED_GATE_MINIMUM),
+)
+
+SPEED_GATE_LABELS = frozenset(label for _depth, label, _speed in SPEED_GATES)
+
+# Every permanent speed a depth gate asks (the single-slot loadout search completes a set that
+# reaches one by several swaps, warrior_loadout_search.SpeedGate).
+SPEED_GATE_MINIMA = tuple(speed for _depth, _label, speed in SPEED_GATES)
+
+
+def speed_gate(depth: int) -> tuple[str, int] | None:
+    """The speed row of ``depth``: (its label, the permanent speed it asks), or None."""
+    for first, label, speed in SPEED_GATES:
+        if depth >= first:
+            return label, speed
+    return None
+
+
+def required_speed(depth: int) -> int:
+    """The permanent speed ``depth`` asks (0: none)."""
+    row = speed_gate(depth)
+    return 0 if row is None else row[1]
+
+
 def required_depth_gates(depth: int) -> frozenset:
     """Every mandatory gate for a depth: the resistance/telepathy table plus the
-    *Destruction* (50F+) and speed +25 (81F+) requirements."""
+    *Destruction* (50F+) and the speed (+10 at 70-80F, +25 at 81F+) requirements."""
     gates = set(_required_abilities_for_depth(depth))
     if depth >= DEEP_FLOOR_DEPTH:
         gates.add(DESTRUCTION_GATE_LABEL)
-    if depth >= SPEED_GATE_DEPTH:
-        gates.add(SPEED_GATE_LABEL)
+    row = speed_gate(depth)
+    if row is not None:
+        gates.add(row[0])
     return frozenset(gates)
 
 

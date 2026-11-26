@@ -126,11 +126,12 @@ class DestructionBandTest(unittest.TestCase):
             require_light=True, require_body=False)
         self.assertLess(without.chosen_depth, 50)
         best = result.best.loadout
+        # +10 worn (the 70-80F speed, 2026-11-26).
         self.assertEqual(divable_depth(best, intrinsic_abilities=intrinsic,
-                                       staff_gate=self.gate), 80)
+                                       staff_gate=self.gate, player_speed=120), 80)
         self.assertEqual(divable_depth(best, intrinsic_abilities=intrinsic), 49)
         self.assertEqual(divable_depth(best, intrinsic_abilities=intrinsic,
-                                       has_destruction=True), 80)
+                                       has_destruction=True, player_speed=120), 80)
         # One mastery pval short (55): no 50F band.
         weak = Loadout(tuple((slot, item) for slot, item in best.slots if item.id != "mm-amulet"),
                        best.hand_mode)
@@ -142,7 +143,7 @@ def _metrics():
     from hengbot.equipment_optimizer import LoadoutMetrics
     return LoadoutMetrics(
         expected_dps=10.0, survival_turns=100.0, combat_margin=1.0, secondary_value=0.0,
-        speed_bonus=0, relevant_traits=frozenset(), evaluation_complete=True)
+        speed_bonus=10, relevant_traits=frozenset(), evaluation_complete=True)
 
 
 if __name__ == "__main__":

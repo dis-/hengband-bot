@@ -10179,6 +10179,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_constants.py:speed_gate": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_equipment.py:EquipmentMixin._angband_finale_order": {
     "classification": "data",
     "rows": [
@@ -20448,7 +20455,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "warrior_loadout_search.py:WarriorSingleSlotSearch._device_skill_completions.slots": {
+  "warrior_loadout_search.py:WarriorSingleSlotSearch._gate_completions.slots": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -20470,6 +20477,13 @@
     "delegation": "selected child; no independent success"
   },
   "warrior_loadout_search.py:finale_exhaustive_search": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "warrior_loadout_search.py:speed_gates": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

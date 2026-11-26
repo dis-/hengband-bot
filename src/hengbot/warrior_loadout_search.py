@@ -707,6 +707,9 @@ class WarriorSingleSlotSearch:
     # device_skill.StaffGate of an owned *Destruction* staff: the device-skill
     # completions below build the sets that make it reliable.
     staff_gate: object | None = None
+    # The depth gates' permanent speeds (SpeedGate): the speed completions below
+    # build the sets that reach them.
+    speed_gates: tuple = ()
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
@@ -881,9 +884,15 @@ class WarriorSingleSlotSearch:
                 if variant is not None:
                     yield variant
 
-        yield from self._device_skill_completions(current, moves, build, accept)
+        yield from self._gate_completions(self.staff_gate, current, moves, build, accept)
+        for gate in self.speed_gates:
+            yield from self._gate_completions(
+                gate, current, moves, build, accept,
+                per_group=SPEED_COMPLETION_MOVES_PER_SLOT, limit=SPEED_COMPLETION_LIMIT)
 
-    def _device_skill_completions(self, current, moves, build, accept) -> Iterator[Loadout]:
+    def _gate_completions(self, gate, current, moves, build, accept, *,
+                          per_group: int | None = None,
+                          limit: int | None = None) -> Iterator[Loadout]:
         """The sets that make an owned *Destruction* staff reliable (``staff_gate``).
 
         Owner 2026-11-15 「装備で魔法道具使用能力を向上させて杖の成功率を上げることで
@@ -898,12 +907,20 @@ class WarriorSingleSlotSearch:
         a swap in a further slot that puts every lost one back.  A set never
         drops a depth ability the seed wears; the band descent decides whether it
         wins.
+
+        The same completions reach a depth's permanent speed (``SpeedGate``: the 70F speed +10
+        and the 81F speed +25, policy_constants.required_speed).  n1-c life-222 (2026-11-25,
+        Magic-Eater Lv47-48 on Angband 80F, a Home past the single-slot threshold) held
+        ★ハーゲンのスピア (+3) from 04:09 and ☆破隼 (+3) from 15:57 in the Home, both fully
+        known, with +19 worn: only the two swaps together make +25, neither alone scored
+        better at 80F, and the 81F band had no set until the level 49 made the spear the 80F
+        choice at 19:46.  A speed gate keeps the ``per_group`` swaps of each slot group that
+        add the most speed, and completes at most ``limit`` combinations.
         """
-        gate = self.staff_gate
         if gate is None or gate.opens(current):
             return
         seed_skill = gate.skill(current)
-        raising = [move for move in moves
+        raising = [(move, gate.skill(one)) for move in moves
                    if (one := build((move,))) is not None and gate.skill(one) > seed_skill]
         depth_flags = self.repair_flags
         held = current.flags & depth_flags
@@ -915,14 +932,21 @@ class WarriorSingleSlotSearch:
         # the groups taken in order; a combination that reaches the skill is not
         # extended, so no swap is added past the skill.
         groups: dict[frozenset[str], list] = {}
-        for move in raising:
-            groups.setdefault(frozenset(move[0]), []).append(move)
-        order = list(groups.values())
+        for move, skill in raising:
+            groups.setdefault(frozenset(move[0]), []).append((move, skill))
+        order = [
+            [move for move, _skill in (
+                sorted(group, key=lambda entry: -entry[1])[:per_group]
+                if per_group is not None else group)]
+            for group in groups.values()
+        ]
         least: list[tuple] = []
 
         def extend(start: int, chosen: tuple) -> None:
             for index in range(start, len(order)):
                 for move in order[index]:
+                    if limit is not None and len(least) >= limit:
+                        return
                     combined = chosen + (move,)
                     loadout = build(combined)
                     if loadout is None:
@@ -972,14 +996,44 @@ def enumerate_single_slot_variants(
     seed: Loadout | None = None,
     repair_flags: frozenset[int] = frozenset(),
     staff_gate=None,
+    speed_gates: tuple = (),
 ) -> WarriorSingleSlotSearch:
     """Yield ``seed`` (the current loadout by default) plus its single-slot-swap
-    neighbours, the requirement repairs of ``repair_flags`` and the device-skill
-    completions of ``staff_gate``."""
+    neighbours, the requirement repairs of ``repair_flags``, the device-skill
+    completions of ``staff_gate`` and the speed completions of ``speed_gates``."""
     return WarriorSingleSlotSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
-        require_light, required_flags, seed, repair_flags, staff_gate,
+        require_light, required_flags, seed, repair_flags, staff_gate, speed_gates,
     )
+
+
+# The speed completions' bounds (WarriorSingleSlotSearch._gate_completions): a large Home
+# holds many pieces of +1 or +2 speed.
+SPEED_COMPLETION_MOVES_PER_SLOT = 2
+SPEED_COMPLETION_LIMIT = 32
+
+
+@dataclass(frozen=True)
+class SpeedGate:
+    """A depth's permanent speed as a gate of the single-slot search's completions.
+
+    ``base_speed`` is the character's permanent speed without gear (the evaluator's
+    ``WarriorDefenseInputs.base_speed``); the gear adds the pval of every worn piece with the
+    speed flag, as the evaluator's ``player_speed``."""
+
+    base_speed: int
+    minimum: int
+
+    def skill(self, loadout: Loadout) -> int:
+        return _pval_total(loadout, TR_SPEED)
+
+    def opens(self, loadout: Loadout) -> bool:
+        return self.base_speed + self.skill(loadout) >= self.minimum
+
+
+def speed_gates(base_speed: int, minima: Iterable[int]) -> tuple[SpeedGate, ...]:
+    """A SpeedGate for each depth speed of ``minima`` (policy_constants.SPEED_GATE_MINIMA)."""
+    return tuple(SpeedGate(base_speed, minimum) for minimum in sorted(set(minima)))
 
 
 

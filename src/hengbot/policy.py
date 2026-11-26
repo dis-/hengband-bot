@@ -177,6 +177,7 @@ from hengbot.policy_constants import (
     FUNDRAISING_START_GOLD,
     SPEED_GATE_DEPTH,
     SPEED_GATE_LABEL,
+    SPEED_GATE_LABELS,
     SPEED_GATE_MINIMUM,
     WEAPON_BLOCK_LIMIT,
     required_depth_gates,
@@ -12569,7 +12570,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         missing = self._missing_required_abilities(snapshot, destination_depth, owned=True)
         if not missing or (
             not any_missing
-            and missing & {DESTRUCTION_GATE_LABEL, SPEED_GATE_LABEL}
+            and missing & {DESTRUCTION_GATE_LABEL, *SPEED_GATE_LABELS}
         ):
             return False
         if self._opening_q34_active(snapshot):

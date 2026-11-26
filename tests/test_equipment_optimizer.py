@@ -395,7 +395,8 @@ class EquipmentOptimizerTest(unittest.TestCase):
         def evaluate(loadout):
             if "weak-speed-gate" in loadout.item_ids:
                 return metrics(10, dps=10, speed=25)
-            return metrics(100, dps=100)
+            # +10: the 70-80F speed (2026-11-26) keeps the strong set in the 80 band.
+            return metrics(100, dps=100, speed=10)
 
         result = optimize_loadout(
             (self.light, deep, strong), evaluate, depth=None, has_destruction=True,
@@ -482,7 +483,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
 
         self.assertEqual(
             [decision.band for decision in result.band_decisions],
-            [81, 80, 49, 39, 30, 25, 20, 19],
+            [81, 80, 69, 49, 39, 30, 25, 20, 19],
         )
         self.assertTrue(all(
             decision.melee_free == 7 for decision in result.band_decisions
@@ -1201,7 +1202,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         requirements = required_abilities(80)
         at_eighty = optimize_loadout(
             [self.light],
-            lambda loadout: metrics(10, speed=0),
+            lambda loadout: metrics(10, speed=10),
             depth=80,
             intrinsic_abilities=requirements,
             has_destruction=True,
@@ -1215,6 +1216,31 @@ class EquipmentOptimizerTest(unittest.TestCase):
         )
         self.assertIsNotNone(at_eighty.best)
         self.assertIsNone(at_eighty_one.best)
+
+    def test_speed_plus_ten_is_required_from_seventy(self):
+        # Supervisor 2026-11-26: 70-80F ask a permanent +10; 69F asks no speed.
+        requirements = required_abilities(80)
+
+        def chosen(depth, speed):
+            return optimize_loadout(
+                [self.light], lambda loadout: metrics(10, speed=speed), depth=depth,
+                intrinsic_abilities=requirements, has_destruction=True).best
+
+        self.assertIsNotNone(chosen(69, 0))
+        self.assertIsNone(chosen(70, 9))
+        self.assertIsNotNone(chosen(70, 10))
+        self.assertIsNone(chosen(80, 9))
+        empty = Loadout((), "empty")
+        self.assertEqual(divable_depth(empty, intrinsic_abilities=requirements,
+                                       has_destruction=True, player_speed=119), 69)
+        self.assertEqual(divable_depth(empty, intrinsic_abilities=requirements,
+                                       has_destruction=True, player_speed=120), 80)
+        unbanded = optimize_loadout(
+            [self.light], lambda loadout: metrics(10, speed=9), depth=None,
+            intrinsic_abilities=requirements, has_destruction=True)
+        self.assertEqual(unbanded.chosen_depth, 69)
+        self.assertEqual([(d.band, d.refusal_reason) for d in unbanded.band_decisions[:2]],
+                         [(81, "no-set"), (80, "no-set")])
 
     def test_one_percent_tie_prefers_filling_an_empty_slot(self):
         current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)

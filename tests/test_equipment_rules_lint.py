@@ -80,11 +80,11 @@ class EquipmentRulesVersionTest(unittest.TestCase):
         table = equipment_rules._rules_table()
         self.assertEqual(equipment_rules.RULES_VERSION, equipment_rules.rules_version(table))
         self.assertEqual(table["loadout_banned_flags"], [equipment_rules.TR_NO_AC])
-        self.assertEqual(table["revision"], 4)
+        self.assertEqual(table["revision"], 5)
 
     def test_changing_a_rule_changes_the_version(self):
         table = equipment_rules._rules_table()
-        for name, value in (("loadout_banned_flags", [134, 141]), ("revision", 5),
+        for name, value in (("loadout_banned_flags", [134, 141]), ("revision", 6),
                             ("unscored_launcher", [16, 50, 90.0]),
                             ("yields_to_light_crossbow_svals", [2, 12, 13])):
             with self.subTest(name):
