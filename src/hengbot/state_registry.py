@@ -86,6 +86,13 @@ REGISTRY = (
       "finished dives of the leased switch so far"),
     S("_alternate_lease", "alternate_lease", LIFE,
       "dives the over-extension switch lasts (alternate_lease)"),
+    # conquest_budget
+    S("_conquest_ledger", "conquest_budget", LIFE,
+      "conquest_budget: each conquest target's trips to its last floor and dives that met its "
+      "guardian, the targets given up for this life and the dive under way (2026-11-26, n1-c "
+      "life-222's 119 Recalls to the Mountain 50F)"),
+    S("_conquest_ledger_record", "conquest_budget", LIFE,
+      "conquest_budget: the budget last written to its restart record (write cache)"),
     # finale_teleport_tour
     S("_finale_teleport_tour_night", "finale_teleport_tour", LIFE,
       "finale_teleport_tour: the inn night between two loops of the 99F/100F Teleportation "
@@ -213,6 +220,8 @@ REGISTRY = (
     # cli
     S("_alternate_dungeon_record_path", "cli", LIFE,
       "The switch's restart record (alternate_dungeon_record);"),
+    S("_conquest_ledger_record_path", "cli", LIFE,
+      "The conquest targets' budget's restart record (conquest_budget);"),
     S("_breeder_floor_record_path", "cli", LIFE,
       "The latch's restart record (breeder_floor_record);"),
     S("_character_calibration_path", "cli", LIFE,
@@ -2374,6 +2383,12 @@ RESTART = {
     "_alternate_dive_floor": Restart(PERSISTED, "alternate_dungeon_record",
                                      "DIVE_FLOOR_FIELD; same or later game turn"),
     "_alternate_dungeon_record": Restart(MAY_BE_LOST, "alternate_dungeon_record", _CACHE),
+    # conquest_budget: the life's budget (a life has its own decision log directory).
+    "_conquest_ledger": Restart(PERSISTED, "conquest_budget", "same or later game turn"),
+    "_conquest_ledger_record": Restart(MAY_BE_LOST, "conquest_budget", _CACHE),
+    "_conquest_ledger_record_path": Restart(PERSISTED, "cli",
+                                            "configuration, not state: cli points it beside the "
+                                            "decision log again at start"),
     # warning_cell_record.
     "_warning_refused_cells": Restart(PERSISTED, "warning_cell_record",
                                       "same dungeon floor, same or later game turn"),

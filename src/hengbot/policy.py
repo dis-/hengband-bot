@@ -2223,6 +2223,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # consumable possession (a Speed potion bought/drunk/stashed) cannot flip
         # the recall destination back and forth.
         self._conquest_committed: int | None = None
+        # Each conquest target's budget, the given-up targets among them (conquest_budget,
+        # 2026-11-26); the CLI points its restart record beside the decision log.
+        self._conquest_ledger: dict | None = None
+        self._conquest_ledger_record = None
+        self._conquest_ledger_record_path = None
         # The conquest clear is a one-shot transition per target.  A standing
         # but not-yet-launchable target must not fight the low-gold router on
         # every observation.

@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot import angband_finale_battle
 from hengbot import finale_prep, return_start, search_ban
 from hengbot import angband_cap, attack_expectation, quest_optional_carry, quest_supply_gate
-from hengbot import spare_gear
+from hengbot import angband_hold, conquest_budget, spare_gear
 from hengbot.stair_destination import down_destination
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
 from hengbot.policy_opening import OpeningRouteMixin
@@ -6332,6 +6332,15 @@ class QuestMixin(OpeningRouteMixin):
         if finale_prep.forbids_hunting(self, snapshot):
             self._conquest_committed = None
             return None
+        # Supervisor 2026-11-26 (narrowing the owner's 2026-11-19 「行き先を変えるのはダンジョンの
+        # 主討伐のみ」, under the owner's leave of 2026-11-26): no conquest while the character is
+        # held at Angband 50F+ and Angband's next floor asks a depth gate it does not own
+        # (angband_hold ``depth_gated``): the hunt does not open the gate, Angband's landing is
+        # the deepest the character may level at.  n1-c life-222 hunted the Mountain's guardian
+        # for 7.4 hours (119 Recalls) while the 81F speed +25 gate held it at Angband 80F.
+        if angband_hold.depth_gated(self, snapshot):
+            self._conquest_committed = None
+            return None
         limit = self._resistance_depth_limit(snapshot)
         conquered = set(snapshot.conquered_dungeon_ids)
         committed = self._conquest_committed
@@ -6341,6 +6350,8 @@ class QuestMixin(OpeningRouteMixin):
                 not exploration_destination_allowed(committed)
                 or committed == DUNGEON_CHAMELEON_CAVE
                 or committed in conquered
+                # Its budget spent (conquest_budget, 2026-11-26).
+                or conquest_budget.given_up(self, committed)
                 or info is None
                 or info.guardian_id <= 0
                 or committed not in snapshot.entered_dungeon_ids
@@ -6351,6 +6362,9 @@ class QuestMixin(OpeningRouteMixin):
             else:
                 return committed
 
+        if conquest_budget.refuses_new(self):
+            # conquest_budget ``GIVE_UP_LIMIT``: no new hunt in this life.
+            return None
         best: DungeonInfo | None = None
         for did in snapshot.entered_dungeon_ids:
             info = self._dungeon_knowledge.get(did)
@@ -6363,6 +6377,7 @@ class QuestMixin(OpeningRouteMixin):
                 # never marks it conquered (owner 2026-11-18 「ガラスの城にはガーディアンがいない」).
                 or info.guardian_id <= 0
                 or not self._can_fight_in_dungeon(did)
+                or conquest_budget.given_up(self, did)
             ):
                 continue
             if info.max_depth <= 0 or info.max_depth > limit:

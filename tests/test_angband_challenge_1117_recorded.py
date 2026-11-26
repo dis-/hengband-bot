@@ -21,9 +21,11 @@ Recorded:
   (tests/extract_n1c_216_angband_challenge_1117_fixture.py), the 17:15:15 town-arrival checkpoint
   and its arrival board: the Glass castle (60) as the conquest target, 2,609,342 gold, Angband's
   landing 80 passing every check.  The Glass castle has no final guardian, so it is no conquest
-  target (owner 2026-11-18): the latch is dropped.  The Mountain's beatable guardian is the
-  conquest target then (「制覇できる守護者がいれば制覇が先」); with it conquered too (constructed),
-  Angband 80 is taken.
+  target (owner 2026-11-18): the latch is dropped.  The Mountain's beatable guardian was the
+  conquest target then (「制覇できる守護者がいれば制覇が先」) until 2026-11-26; since then no
+  conquest is started while Angband's 81F speed +25 gate is missing (angband_hold ``depth_gated``,
+  conquest_budget), and Angband 80 is taken; with the Mountain conquered too (constructed),
+  Angband 80 is taken as well.
 
 DECLARED CONSTRUCTED:
 * the n1-a return: the Castle switch made on the recorded town board (as
@@ -46,7 +48,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import alternate_lease, destruction_use, dive_floor, fallback_depth_floor
+from hengbot import alternate_lease, angband_hold, destruction_use, dive_floor, fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND, SV_STAFF_DESTRUCTION, TVAL_STAFF
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
@@ -196,7 +198,10 @@ class N1c216GlassCastleTest(unittest.TestCase):
         # has no final guardian (lib/edit/DungeonDefinitions.jsonc id 20), so it is no conquest
         # target and its latch is dropped.  The Mountain's guardian (468, its last floor 50) is
         # beatable on this board, so by 「制覇できる守護者がいれば制覇が先」 the Mountain is the
-        # conquest target, and Angband 80 waits until it is conquered.
+        # conquest target, and Angband 80 waited until it was conquered.
+        # Supervisor 2026-11-26 (conquest_budget, angband_hold ``depth_gated``): no conquest while
+        # Angband's next floor (81F) asks a gate the character does not own -- here the speed +25
+        # gate -- so Angband 80 is taken (n1-c life-222 hunted this guardian with 119 Recalls).
         policy, board = copy.deepcopy(self.prepared), self.board
         self.assertEqual(policy._dungeon_knowledge[GLASS_CASTLE].guardian_id, 0)
         self.assertEqual(policy._dungeon_knowledge[DUNGEON_ANGBAND].guardian_id, 0)
@@ -204,10 +209,15 @@ class N1c216GlassCastleTest(unittest.TestCase):
         self.assertEqual((mountain.guardian_id, mountain.max_depth), (468, 50))
         self.assertNotIn(MOUNTAIN, board.conquered_dungeon_ids)
         self.assertTrue(policy._guardian_fight_viable(board, mountain))
+        self.assertEqual(policy._missing_required_abilities(board, 81, owned=True),
+                         frozenset({"speed+25"}))
+        self.assertTrue(angband_hold.depth_gated(policy, board))
         decide(policy, board)
-        # Unfixed: (GLASS_CASTLE, "conquest", GLASS_CASTLE).
+        # Unfixed: (GLASS_CASTLE, "conquest", GLASS_CASTLE); before 2026-11-26 the Mountain
+        # (MOUNTAIN, "conquest", MOUNTAIN).
         self.assertEqual((policy._target_dungeon_id, policy._target_dungeon_reason,
-                          policy._conquest_committed), (MOUNTAIN, "conquest", MOUNTAIN))
+                          policy._conquest_committed),
+                         (DUNGEON_ANGBAND, "angband_recall_unlocked", None))
         self.assertIsNone(policy._alternate_dungeon)
 
     def test_control_no_beatable_guardian_left_angband_is_taken(self):
