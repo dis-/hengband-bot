@@ -252,14 +252,20 @@ def resume_magic_eater_powers(content: Mapping[str, object]) -> dict:
             "observed_at": observed_at}
 
 
+def magic_eater_stale_kinds(cache: Mapping[str, object], now: float,
+                            interval_seconds: float) -> tuple[str, ...]:
+    """A class-16 cache's kinds unread, or read longer ago than the interval."""
+    if cache.get("class_id") != PLAYER_CLASS_MAGIC_EATER:
+        return ()
+    observed = cache.get("observed_at", {})
+    return tuple(kind for kind in SPECTATE_MAGIC_EATER_KINDS
+                 if kind not in observed or now - observed[kind] >= interval_seconds)
+
+
 def magic_eater_refresh_due(cache: Mapping[str, object], now: float,
                             interval_seconds: float) -> bool:
     """A class-16 cache with a kind unread, or read longer ago than the interval."""
-    if cache.get("class_id") != PLAYER_CLASS_MAGIC_EATER:
-        return False
-    observed = cache.get("observed_at", {})
-    return any(kind not in observed or now - observed[kind] >= interval_seconds
-               for kind in SPECTATE_MAGIC_EATER_KINDS)
+    return bool(magic_eater_stale_kinds(cache, now, interval_seconds))
 
 
 def spectator_magic_eater_powers(cache: Mapping[str, object]) -> dict:
@@ -416,6 +422,9 @@ class SpectatorWriter:
 
     def magic_eater_refresh_due(self, interval_seconds: float) -> bool:
         return magic_eater_refresh_due(self.magic_eater_powers, self.clock(), interval_seconds)
+
+    def magic_eater_stale_kinds(self, interval_seconds: float) -> tuple[str, ...]:
+        return magic_eater_stale_kinds(self.magic_eater_powers, self.clock(), interval_seconds)
 
     def _resume_magic_eater_powers(self) -> dict:
         try:

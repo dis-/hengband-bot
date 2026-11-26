@@ -42,9 +42,10 @@ RESUME_RETRY_DECISIONS = 5
 RESUME_READ_ATTEMPTS = 3
 
 
-def request_refresh(policy) -> None:
-    """Latch one refresh of every kind (the CLI's wall-clock dump timer)."""
-    policy._me_power_refresh_pending = KINDS
+def request_refresh(policy, kinds=KINDS) -> None:
+    """Latch one refresh of ``kinds`` (the CLI's wall-clock timer: the kinds the spectator
+    holds no list of, or one older than the interval), in ``KINDS`` order."""
+    policy._me_power_refresh_pending = tuple(kind for kind in KINDS if kind in kinds)
 
 
 def list_pending(policy, snapshot, kind: str) -> bool:
@@ -167,7 +168,7 @@ def periodic_magic_eater_powers_key(policy, snapshot, key):
             or key in _BOOKKEEPING_KEYS
             or getattr(snapshot, "protocol_version", 2) < 3
             or player.confused or player.paralyzed
-            or policy._physical_hostiles(snapshot)
+            or policy._periodic_threat_present(snapshot)
             or any(home_page_message_body(message).startswith(WARNING_PROMPT_MESSAGE_PREFIXES)
                    for message in snapshot.messages)
             or not policy._periodic_filler_is_safe(snapshot)):

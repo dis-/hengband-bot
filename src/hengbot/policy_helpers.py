@@ -206,6 +206,15 @@ class PolicyHelpersMixin:
             )
         self._look_floor_items = records
         self._look_probe_inflight = False
+    def _periodic_threat_present(self, snapshot: Snapshot) -> bool:
+        """A hostile in sight or sensed (telepathy, detection) on this board.
+
+        The dungeon's periodic refreshes (the character dump, the spectator's Magic-Eater
+        lists, a level-up's ~f) wait while one is: they are bookkeeping, and a board with a
+        threat belongs to the fight or the walk away from it."""
+        return any(monster.hostile for monster in snapshot.visible_monsters) or any(
+            monster.hostile for monster in getattr(snapshot, "detected_monsters", ()) or ())
+
     @safety_watch.watched("policy._periodic_filler_is_safe")  # record only (owner 2026-11-15 Q9)
     def _periodic_filler_is_safe(self, snapshot: Snapshot) -> bool:
         visit = self._store_visit
