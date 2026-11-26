@@ -750,7 +750,7 @@ class PolicyHelpersMixin:
             guardian_bounced_dungeon != DUNGEON_ANGBAND
             and self._alternate_dungeon != DUNGEON_ANGBAND
             and DUNGEON_ANGBAND in self._dungeon_knowledge
-            and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
+            and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND, self)
             and self._can_fight_in_dungeon(DUNGEON_ANGBAND)
             and self._recall_destination_safe(snapshot, DUNGEON_ANGBAND)
             and (

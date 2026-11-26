@@ -74,20 +74,26 @@ def _pending_random_levels(policy, snapshot, dungeon_id: int) -> list[int]:
     return levels
 
 
-def hold_active(snapshot) -> bool:
-    """Whether Q2 still holds.  A board without quest rows (legacy) cannot tell."""
+def hold_active(snapshot, policy=None) -> bool:
+    """Whether Q2 still holds.  A board without quest rows (legacy) cannot tell.
+
+    An instance that skips Q2 (strategy_profile, ``policy.fixed_quest_skipped``) never resolves
+    it, so nothing holds for it."""
+    skipped = getattr(policy, "fixed_quest_skipped", None)  # None: a board-only caller
+    if skipped is not None and skipped(GATING_QUEST_ID):
+        return False
     return bool(snapshot.quests) and _gating_quest_open(snapshot)
 
 
-def entry_refused(snapshot, dungeon_id: int | None) -> bool:
+def entry_refused(snapshot, dungeon_id: int | None, policy=None) -> bool:
     """Whether recall or the walk may not enter ``dungeon_id`` from the surface now."""
-    return dungeon_id == DUNGEON_ANGBAND and hold_active(snapshot)
+    return dungeon_id == DUNGEON_ANGBAND and hold_active(snapshot, policy)
 
 
 def settle_target(policy, snapshot) -> None:
     """The recall target this board, for the part of it that Q2 decides."""
     held_choice = policy._target_dungeon_reason == DEEPEST_OPEN_REASON
-    if not entry_refused(snapshot, DUNGEON_ANGBAND):
+    if not entry_refused(snapshot, DUNGEON_ANGBAND, policy):
         if held_choice:  # Q2 resolved: the ordinary selection takes over from the start
             policy._target_dungeon_id = DUNGEON_YEEK_CAVE
             policy._target_dungeon_reason = "initial_yeek_cave"
@@ -109,6 +115,6 @@ def settle_target(policy, snapshot) -> None:
 
 def crossing_held(policy, snapshot, dungeon_id: int, current: int, destination: int) -> bool:
     """Whether going from ``current`` to ``destination`` enters or passes a held floor."""
-    return hold_active(snapshot) and any(
+    return hold_active(snapshot, policy) and any(
         current < level <= destination
         for level in _pending_random_levels(policy, snapshot, dungeon_id))

@@ -219,6 +219,8 @@ def applies(policy, snapshot) -> bool:
             or getattr(snapshot, "protocol_version", PROTOCOL_LEGACY) < PROTOCOL_SCREEN_PARITY
             or not getattr(snapshot, "quests", None)):
         return False
+    if policy.fixed_quest_skipped(1):  # strategy_profile: no Q1 reward to wait for
+        return True
     q1 = policy._known_fixed_quests(snapshot).get(1)
     return q1 is not None and q1.status in {QUEST_STATUS_REWARDED, QUEST_STATUS_FINISHED}
 

@@ -54,7 +54,7 @@ def held(policy, snapshot) -> bool:
     town prepares the expedition instead (finale_hold).  This read was false then, and the ordinary
     fallback took the Castle 64F (n1-b life-416 2026-11-23 21:10-21:16)."""
     return (bool(snapshot.angband_recall_unlocked)
-            and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
+            and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND, policy)
             and policy._dungeon_entry_depth(snapshot, DUNGEON_ANGBAND, via_recall=True)
             >= HOLD_DEPTH)
 

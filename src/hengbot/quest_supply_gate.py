@@ -115,14 +115,14 @@ def waiting_profile(policy: Any, snapshot: Any) -> Any:
 
     The quest ``_quest_strategy_for_errand_or_floor`` would prepare (the earliest approved one
     not held back) when nothing is taken and it is not admitted."""
-    from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_UNTAKEN
+    from hengbot.policy_constants import QUEST_STATUS_UNTAKEN
     from hengbot import quest_one_turn_kill
     known = policy._known_fixed_quests(snapshot)
     if policy._in_flight_fixed_quests(known):
         return None
     candidates = [
         quest for quest in known.values()
-        if quest.id in FIXED_QUEST_ALLOWLIST and quest.status == QUEST_STATUS_UNTAKEN
+        if policy.fixed_quest_supported(quest.id) and quest.status == QUEST_STATUS_UNTAKEN
         and policy.approved_quest_strategy(quest.id) is not None
         and not quest_one_turn_kill.holds_back(policy, snapshot, quest.id)
     ]

@@ -3,6 +3,7 @@ from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, item_need
 from hengbot import equipment_target
 from hengbot import angband_finale, me_deep_launcher
+from hengbot import strategy_profile
 from hengbot import approach_answer, fundraising_route, return_start
 from hengbot import me_power_success, safety_watch
 from hengbot import angband_cap, angband_hold, equipment_rules, item_identity
@@ -1345,6 +1346,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._los_only_terrain_ids = los_only_terrain_ids or frozenset()
         self._quest_knowledge = quest_knowledge or {}
         self._quest_strategies = quest_strategies or {}
+        # The instance's strategy profile (strategy_profile.for_run, set by cli): read-only
+        # configuration, e.g. the fixed quests this instance skips.
+        self._instance_profile = strategy_profile.policy_default()
         self._baseitem_costs = dict(baseitem_costs or {})
         self._look_floor_items: dict[Position, tuple[InventoryItem, ...]] = {}
         self._look_floor_object_counts: dict[Position, int] = {}
@@ -9722,7 +9726,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _taken_kill_quest_requires_walk_in(self, snapshot: Snapshot) -> bool:
         """Enter above a taken kill objective instead of recalling below it."""
         return any(
-            quest.id in FIXED_QUEST_ALLOWLIST
+            self.fixed_quest_supported(quest.id)
             and quest.status == QUEST_STATUS_TAKEN
             and (info := self._quest_knowledge.get(quest.id)) is not None
             and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}
@@ -13548,9 +13552,20 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
 
     def approved_quest_strategy(self, quest_id: int) -> StrategyProfile | None:
-        """Return only a user-approved, executable profile."""
+        """Return only a user-approved, executable profile; a skipped quest has none."""
+        if self.fixed_quest_skipped(quest_id):
+            return None
         profile = self._quest_strategies.get(quest_id)
         return profile if profile is not None and profile.execution_eligible else None
+
+    def fixed_quest_skipped(self, quest_id: int) -> bool:
+        """The instance skips this optional fixed quest (strategy_profile.quest_skipped)."""
+        return strategy_profile.quest_skipped(
+            self._instance_profile, quest_id, self._quest_knowledge.get(quest_id))
+
+    def fixed_quest_supported(self, quest_id: int) -> bool:
+        """A fixed quest the bot plays: allowlisted and not skipped by the instance."""
+        return quest_id in FIXED_QUEST_ALLOWLIST and not self.fixed_quest_skipped(quest_id)
 
 
     def _visible_engagement_is_immobile_ranged_less(
@@ -13808,7 +13823,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _active_fixed_quest_id(self, snapshot: Snapshot) -> int | None:
         """Return the allowlisted TAKEN fixed quest whose floor we occupy."""
         quest_id = snapshot.floor_key[2]
-        if quest_id not in FIXED_QUEST_ALLOWLIST:
+        if not self.fixed_quest_supported(quest_id):
             return None
         quest = snapshot.quests.get(quest_id)
         if quest is None or quest.status != QUEST_STATUS_TAKEN:
@@ -13980,6 +13995,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         key = (
             tuple(sorted(snapshot.quests.items())),
             id(self._quest_knowledge),
+            self._instance_profile,
         )
         known = decision_memo(
             self,
@@ -13994,10 +14010,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _build_known_fixed_quests(
         self, snapshot: Snapshot
     ) -> dict[int, QuestState]:
-        """Build the snapshot join; decision memoization wraps this pure step."""
-        known = dict(snapshot.quests)
+        """Build the snapshot join; decision memoization wraps this pure step.
+
+        A quest the instance skips (``fixed_quest_skipped``) is left out in every status: never
+        requested, travelled to or entered, and nothing in town waits or buys for it."""
+        known = {
+            quest_id: quest for quest_id, quest in snapshot.quests.items()
+            if not (quest.fixed and self.fixed_quest_skipped(quest_id))
+        }
         for quest_id in FIXED_QUEST_ALLOWLIST:
-            if quest_id in known:
+            if quest_id in known or self.fixed_quest_skipped(quest_id):
                 continue
             info = self._quest_knowledge.get(quest_id)
             if info is None or info.flags & QUEST_FLAG_SILENT:
@@ -15992,7 +16014,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         # Owner 2026-11-05: no way into Angband from the surface before Q2.
         if snapshot.dungeon_level == 0 and random_quest_hold.entry_refused(
-                snapshot, surface_dungeon(grid)):
+                snapshot, surface_dungeon(grid), self):
             return False
         destination = down_destination(snapshot.dungeon_level, grid)
         # The saved floor an escape by stairs left (fled_floor_stairs, owner 2026-10-31
@@ -16053,7 +16075,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             (
                 info
                 for quest in snapshot.quests.values()
-                if quest.id in FIXED_QUEST_ALLOWLIST
+                if self.fixed_quest_supported(quest.id)
                 and quest.status == QUEST_STATUS_UNTAKEN
                 and (info := self._quest_knowledge.get(quest.id)) is not None
                 and info.type in {QUEST_TYPE_KILL_LEVEL, QUEST_TYPE_KILL_NUMBER}

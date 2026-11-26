@@ -130,7 +130,7 @@ def angband_qualifies(policy, snapshot) -> bool:
     The deepest destination's filter (``_destination_takeable``: ``_recall_destination_safe``
     reads the cumulative depth requirements, the 50F *Destruction* means, the 81F speed gate and
     the blocked guardian floors), the fallback depth floor on the landing, and the Q2 hold."""
-    if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND):
+    if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND, policy):
         return False
     if not _destination_takeable(policy, snapshot, DUNGEON_ANGBAND):
         return False

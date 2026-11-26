@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 
+from hengbot import strategy_profile
 from hengbot.home_disposal import HOME_HISTORY_DIR_ENV
 from hengbot.runtime_paths import RUNTIME_DIR_ENV
 from hengbot.save_archive import ARCHIVE_REPOSITORY_PATH
@@ -91,6 +92,13 @@ _isolated_default(HOME_HISTORY_DIR_ENV, "hengbot-test-history-")
 # A "jsonlog" leaf keeps the flight recorder's sibling incident-captures/ inside
 # the session's own temporary directory.
 _isolated_default(RUNTIME_DIR_ENV, "hengbot-test-runtime-", "jsonlog")
+
+# The unit tests drive every fixed quest's strategy, Q18 and Q33 included, as before the
+# 2026-11-26 skipped quests (strategy_profile.DEFAULT_SKIPPED_QUESTS): a test policy plays every
+# fixed quest unless the test gives it a profile (tests/test_strategy_profile.py does).  A
+# profile named by the environment never reaches a test session.
+os.environ.pop(strategy_profile.PROFILE_ENV, None)
+strategy_profile.set_policy_default(strategy_profile.ALL_FIXED_QUESTS)
 
 
 _LEDGER_ROOT = _REPOSITORY_ROOT / "capture-ledger"
