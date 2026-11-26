@@ -27,8 +27,9 @@ character preparing the finale (``applies``), the town's departure is this modul
 
 * the preparation phase running (finale_prep): wait for it; its steps and their limits are its own,
   and once it lifts the cap the refusal ends and the ordinary departure reads the recall;
-* the Teleportation scrolls short (the only supply the town's shops sell,
-  store/articles-on-sale.cpp): the other towns' circuit and its night at the inn
+* the Teleportation scrolls or (owner 2026-11-26) the Scrolls of Recharging of a race that eats
+  device charges short (the supplies the town's shops sell, store/articles-on-sale.cpp): the
+  other towns' circuit and its night at the inn
   (finale_teleport_tour, owner 2026-11-20 「4つの街を回ってテレポートの巻物を買い足す」
   「一周する毎に宿屋で一泊する」);
 * the Restore Mana the only other row short (n1-b's 21:13 board owned 79 of the 84 and every
@@ -62,8 +63,10 @@ from hengbot.model import DUNGEON_ANGBAND
 from hengbot.policy_constants import WAIT_KEY
 
 RETURN_TRIGGER = "angband-finale:relay"
-# The supply rows the town's shops can fill (angband_finale ``SUPPLY_NAMES``).
-TOWN_SUPPLIES = frozenset({"teleport"})
+# The supply rows the town's shops can fill (angband_finale ``SUPPLY_NAMES``): the Teleportation
+# and (owner 2026-11-26 「そろうまで出発しない（他の町も回る）」) the Scrolls of Recharging, both
+# bought by the other towns' circuit (finale_teleport_tour) when this town's shelves are short.
+TOWN_SUPPLIES = frozenset({"teleport", "recharging"})
 # The rows the Black Markets' circuit fills (finale_bm_tour, owner 2026-11-23 and 2026-11-24):
 # angband_finale BLACK_MARKET_SUPPLIES, the supplies no town store sells.
 BLACK_MARKET_SUPPLIES = frozenset({"healing", "star_healing", "resistance", "restore_mana"})
@@ -218,4 +221,5 @@ def town_key(policy, snapshot) -> str | None:
     funds = getattr(policy, "_cross_town_shopping_funds", None) or {}
     why = funds.get("why") if angband_finale.memory(policy).teleport_tour_done else "not-due"
     return _stop(policy, snapshot,
-                 f"{SHORT}:{','.join(short)}:{why}:{finale_teleport_tour.shortage(policy, snapshot)}")
+                 f"{SHORT}:{','.join(short)}:{why}:{finale_teleport_tour.shortage(policy, snapshot)}"
+                 f":{finale_teleport_tour.recharging_shortage(policy, snapshot)}")

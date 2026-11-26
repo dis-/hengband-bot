@@ -3762,6 +3762,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "finale_teleport_tour.py:_category_cost": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "finale_teleport_tour.py:_end": {
     "classification": "data",
     "rows": [
@@ -3769,7 +3776,7 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "finale_teleport_tour.py:_shortage_cost": {
+  "finale_teleport_tour.py:_shortage_costs": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3797,7 +3804,21 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "finale_teleport_tour.py:recharging_shortage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "finale_teleport_tour.py:shortage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_teleport_tour.py:shortages": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -18,7 +18,9 @@ DECLARED CONSTRUCTED:
   recorded deferral set, its phase at the supplies step in town;
 * the board's monster lists emptied (the town's people: no monster knowledge is loaded);
 * ``angband_finale.restore_mana_carry`` answering the board's recorded required carry (46: the
-  absorbed rockets' plan is the capture's, not this policy's).
+  absorbed rockets' plan is the capture's, not this policy's);
+* ten Scrolls of Recharging in the pack (the Zombie's readiness row of 2026-11-26, angband_finale
+  ``RECHARGING``, which the capture predates: the phase enters only with them owned).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -33,6 +35,7 @@ from hengbot.item_identity import memory_identity_of_signature
 from hengbot.model import _parse_items, parse_snapshot
 from hengbot.policy import HengbotPolicy
 from hengbot.protocol import snapshot_protocol_version
+from test_finale_recharge_readiness_1126_recorded import with_scrolls
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1c-222-finale-supplies-1126.json.gz"
 
@@ -48,7 +51,8 @@ def stopped_board():
     items = tuple(_parse_items(census["knowledge"]["items"],
                                protocol=snapshot_protocol_version(census)))
     board_data = dict(record["board"], visible_monsters=[], detected_monsters=[])
-    board = parse_snapshot(board_data, policy._monrace_knowledge)
+    board = with_scrolls(parse_snapshot(board_data, policy._monrace_knowledge),
+                         angband_finale.RECHARGING_CARRY)
     policy._home_knowledge_items = items
     policy._home_knowledge_valid_before = len(items)
     policy._home_knowledge_current, policy._home_knowledge_invalidated = True, False

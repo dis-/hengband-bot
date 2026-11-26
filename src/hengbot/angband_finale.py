@@ -189,12 +189,11 @@ def carry_counts(snapshot) -> dict:
     for a race that eats device charges, the ``RECHARGING_CARRY`` Scrolls of Recharging (owner
     2026-11-26).  The Restore Mana's computed count is the callers' own.
 
-    The Scrolls of Recharging are no readiness row (``supply_rows``): the expedition does not
-    wait for them.  The Alchemist's regular stock is a few scrolls a restock (store.cpp
-    mass_produce), and a town's shortage of a supply only the Alchemist sells would stop the
-    town under the 96F+ recall refusal (finale_hold ``town_key``); they are bought on every visit
-    while short (policy_shop ``tail:angband-finale-recharging``), kept once found in the dungeon
-    (``carry_target``) and reported beside the rows (``readiness``'s ``recharging``)."""
+    The Scrolls of Recharging are a readiness row (``supply_rows``; owner 2026-11-26 「そろうまで
+    出発しない（他の町も回る）」): bought at the Alchemist (policy_shop
+    ``tail:angband-finale-recharging``), at the other towns' Alchemists when this one's shelf is
+    short (finale_teleport_tour, ``RECHARGING_CATEGORY``), kept once found in the dungeon
+    (``carry_target``)."""
     if recharging_wanted(snapshot):
         return {**CARRY, RECHARGING: RECHARGING_CARRY}
     return dict(CARRY)
@@ -271,7 +270,7 @@ def supply_rows(policy, snapshot, count) -> dict:
     Mud (owner 2026-11-20 Q7), each ``{measured, required, ready}``."""
     from hengbot import me_capability
     rows = {SUPPLY_NAMES[RESTORE_MANA]: _row(count(RESTORE_MANA), restore_mana_carry(policy, snapshot))}
-    for kind, target in CARRY.items():
+    for kind, target in carry_counts(snapshot).items():
         rows[SUPPLY_NAMES[kind]] = _row(count(kind), target)
     rows["stone_to_mud"] = _row(me_capability.count(policy, snapshot, *STONE_TO_MUD),
                                 STONE_TO_MUD_COUNT)
@@ -366,12 +365,7 @@ def readiness(policy, snapshot) -> dict:
             "carried": supply_rows(policy, snapshot, lambda kind: carried(snapshot, kind)),
             "equipment_owned": {"missing": owned_gear, "ready": not owned_gear,
                                 "judged": "worn" if chosen is None else "owned-search"},
-            "equipment_worn": {"missing": worn, "ready": not worn},
-            # Owner 2026-11-26 「魔力充填の巻物を10巻持っていき」: reported, never a gate
-            # (``carry_counts``); None for a race that eats no device charges.
-            "recharging": ({"owned": owned(policy, snapshot, RECHARGING),
-                            "carried": carried(snapshot, RECHARGING), "required": RECHARGING_CARRY}
-                           if recharging_wanted(snapshot) else None)}
+            "equipment_worn": {"missing": worn, "ready": not worn}}
 
 
 def ready(rows: dict) -> bool:
