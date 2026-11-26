@@ -40,7 +40,8 @@ The per-board order (``key``), the first that answers wins:
     (``teleports_out``: no scroll, no absorbed Staff of Teleportation charge; owner 2026-11-21),
     or hungry with nothing to eat (``starving_out``, owner 2026-11-21 「空腹で死ぬ前に帰還する
     ように修正」), and nowhere else; after the escapes below, a hungry character eats
-    (``_eat_key``);
+    (``_eat_key``), and a MANA race below full eats a food wand's charge ahead
+    (``_bank_food_key``: a monster's UN_POWER blow drains a pack stack, never the stomach);
  2. *Healing* below 400 HP after a hit;
  3. the Teleportation scroll (none left: the absorbed Staff of Teleportation): on a summon, below 800 HP after a hit (kept
     until the HP is back at 800, a *Healing* between included: ``Battle.hit_below``), the target within
@@ -95,6 +96,8 @@ HEAL_REASON = f"{REASON}:healing"
 ABSORBED_HEAL_REASON = f"{REASON}:absorbed-healing:absorbed-power"
 TELEPORT_REASON = f"{REASON}:teleport"
 EAT_REASON = f"{REASON}:eat"
+# The eat below full of a MANA race (``_bank_food_key``).
+BANK_FOOD_REASON = f"{REASON}:eat-ahead"
 # Owner 2026-11-21 (LOCKED) 「99F100Fでテレポートの巻物が尽きた時は取り込んだテレポートの杖を使用することを
 # 許可する」: the absorbed Staff of Teleportation once no scroll is left; the absorbed-power suffix
 # makes me_device_attacks_input own its prompt (an empty staff closes it with ESC).
@@ -827,6 +830,36 @@ def _eat_key(policy, snapshot) -> str | None:
         return None
     policy.last_reason = EAT_REASON
     return reserved_item_command(policy, snapshot, "eat", food)
+
+
+def _bank_food_key(policy, snapshot) -> str | None:
+    """A MANA race (the Zombie: a wand or staff charge is +5000 food, cmd-item/cmd-eat.cpp
+    exe_eat_charge_of_magic_device) below full eats a charge of a carried Wand of Wonder
+    (finale_prep's food wands, magic_eater_devices ``is_staple_food``) while no hostile is within
+    four cells: the food is kept in the stomach, where no monster's blow takes it.  Below full is
+    under PY_FOOD_FULL (10000), so a charge never gorges (PY_FOOD_MAX 15000,
+    player/digestion-processor.h).
+
+    n1-c life-222 (Angband 100F, 2026-11-26 10:00-10:04, turns 12320309-12325001): the three food
+    wands (24+24+23 charges) left the pack as 0 charges each to UN_POWER blows (「ザックからエネルギーが
+    吸い取られた！」: 竜殺しの始祖『ミラーク』 at turn 12320596, ワープ・デーモン at 12324020, and at
+    12324520), one meal of the 71 charges eaten; hungry at 12325001 with nothing to eat, the
+    battle recalled (``starving_out``) with the Serpent last shown almost dead.  The character
+    digested 5000 food in 4447 game turns (eaten 12320554, hungry again 12325001)."""
+    from hengbot.item_reservation import reserved_item_command
+    from hengbot.magic_eater_devices import is_staple_food
+    from hengbot.policy_constants import FOOD_TYPE_MANA
+    player = snapshot.player
+    if player.food_type != FOOD_TYPE_MANA or player.food_state != "normal":
+        return None
+    stacks = [item for item in snapshot.inventory if is_staple_food(item) and item.charges > 0]
+    if not stacks or policy._starvation_near_hostiles(policy._physical_hostiles(snapshot)):
+        return None
+    food = max(stacks, key=lambda item: item.charges)
+    key = reserved_item_command(policy, snapshot, "eat", food)
+    if key is not None:
+        policy.last_reason = BANK_FOOD_REASON
+    return key
 
 
 # -- the rocket -------------------------------------------------------------------------
@@ -2115,6 +2148,12 @@ def key(policy, snapshot) -> str | None:
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
         return eaten
+    # The eat ahead (``_bank_food_key``) after the recovery's Restore Mana and heal, which come
+    # first after a teleport (owner 2026-11-26 「満タンにしてから行動するべき」).
+    if held.phase != RECOVER:
+        banked = _bank_food_key(policy, snapshot)
+        if banked is not None:
+            return banked
     if held.phase == SWEEP:
         swept = _sweep_key(policy, snapshot, held)
         if swept is not None:
@@ -2123,6 +2162,9 @@ def key(policy, snapshot) -> str | None:
         recovered = _recover_key(policy, snapshot, held)
         if recovered is not None:
             return recovered
+        banked = _bank_food_key(policy, snapshot)
+        if banked is not None:
+            return banked
     # The full detection where the teleport landed (after the recovery's heal, which the
     # owner's 2026-11-20 line puts first) and on the last-seen cell (owner 2026-11-23).
     if held.detect_due and target is None and held.phase != SWEEP:

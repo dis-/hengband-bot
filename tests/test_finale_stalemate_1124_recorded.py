@@ -62,6 +62,10 @@ class FinaleStalemateRecordedTest(unittest.TestCase):
             raw = copy.deepcopy(raw)
             if owner:
                 raw["_completed_operation_owner"] = owner
+            if raw["player"].get("food_state") == "normal":
+                # DECLARED CONSTRUCTED: full, the boards after the battle's eat ahead of a food
+                # wand's charge (angband_finale_battle ``_bank_food_key``, 2026-11-26).
+                raw["player"]["food_state"] = "full"
             board = policy.with_known_skill_exp(parse_snapshot(raw, monrace))
             policy._me_device_lists = finale_416.device_lists(board.turn)
             angband_finale.memory(policy).restore_mana_used = 0
