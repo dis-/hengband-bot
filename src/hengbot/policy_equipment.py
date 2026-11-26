@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.class_roles import plays_as_warrior
 from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, deep_climb, equipment_target
-from hengbot import angband_finale, finale_prep
+from hengbot import angband_finale, finale_prep, realm_spells
 from hengbot import approach_answer, destination_band_floor, home_pass_charge, item_need, launcher_upgrade, spare_gear
 from hengbot import equipment_rules, equipment_visit_journal
 from hengbot.item_identity import display_signature
@@ -4260,14 +4260,19 @@ class EquipmentMixin:
         self.last_reason = (
             "identify:full-equipped" if full else "identify:normal-equipped"
         )
-        key = (
-            command
-            + source_item.slot
-            + ("" if full and not macro else "/")
-            + EQUIPMENT_SLOT_KEY[target.slot]
-            + (FULL_IDENTIFY_DISMISS_SUFFIX if full and macro else "")
-        )
-        if full:
+        if realm_spells.is_spell_means(source_item):
+            # A caster's 鑑定 / 真・鑑定 (realm_spells): '/' to the equipment, then the slot, each at
+            # its own prompt (realm_spells_input).
+            key = self._read_key(snapshot, source_item, "/" + EQUIPMENT_SLOT_KEY[target.slot])
+        else:
+            key = (
+                command
+                + source_item.slot
+                + ("" if full and not macro else "/")
+                + EQUIPMENT_SLOT_KEY[target.slot]
+                + (FULL_IDENTIFY_DISMISS_SUFFIX if full and macro else "")
+            )
+        if full and not realm_spells.is_spell_means(source_item):
             # Each answer is bound at its own observed prompt. The macro's
             # slash and ESC tail describe a route, not an atomic key posting.
             self._staged_prompt_chain = {

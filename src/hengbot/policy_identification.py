@@ -15,7 +15,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import finale_descent, search_ban
+from hengbot import finale_descent, realm_spells, search_ban
 from hengbot import full_pack_exchange, left_cells, loot_frontier, loot_walk, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot, walk_vetoes
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
@@ -715,6 +715,19 @@ class IdentificationMixin:
         else:
             self._identify_watch = watch
             self._identify_fail_streak = 0
+        if realm_spells.is_spell_means(src):
+            # A caster's 鑑定 (realm_spells): m + book + letter + the target, each question answered
+            # at its own prompt by realm_spells_input (no staged chain of a scroll's prompts).
+            key = self._read_key(snapshot, src, target.slot)
+            self.last_reason = reason
+            self._offer_execution(
+                key, producer="identification",
+                work_id=f"identify:carried:{self._item_signature(target)}",
+                next_step="identification.use-carried-source",
+                arguments=(self._item_signature(src), self._item_signature(target)),
+                expected_effect="carried-item-identified",
+            )
+            return key
         key = (
             self._read_key(snapshot, src, target.slot)
             if command == READ_KEY
@@ -1251,6 +1264,11 @@ class IdentificationMixin:
             )
             if scroll is not None:
                 return READ_KEY, scroll
+            # Owner 2026-11-26 「盗賊は魔法を使える」: a caster's 鑑定 (realm_spells), read as the
+            # scroll it stands in for (policy._read_key casts it).
+            spell = realm_spells.identify_means(self, snapshot, full=False)
+            if spell is not None:
+                return READ_KEY, spell
             return None
 
         scroll = self._first_item(
@@ -1262,6 +1280,10 @@ class IdentificationMixin:
         )
         if scroll is not None:
             return READ_KEY, scroll
+        # A caster's 真・鑑定 (realm_spells), as the *Identify* scroll.
+        spell = realm_spells.identify_means(self, snapshot, full=True)
+        if spell is not None:
+            return READ_KEY, spell
         return None
 
     def _carried_identification_source(
@@ -1469,6 +1491,10 @@ class IdentificationMixin:
             else:
                 self._identify_watch = watch
                 self._identify_fail_streak = 0
+        if realm_spells.is_spell_means(source_item):
+            # A caster's 鑑定 / 真・鑑定 (realm_spells): realm_spells_input answers the book, the
+            # spell, the item and *Identify*'s pages at their own prompts.
+            return self._read_key(snapshot, source_item, target.slot)
         key = (
             command
             + source_item.slot

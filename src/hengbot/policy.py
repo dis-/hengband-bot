@@ -11076,8 +11076,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return takeoff
         from hengbot import realm_spells
         if realm_spells.is_spell_means(item):
-            # The caster's spell in an escape scroll's place (``_escape_scroll``): cast it.
-            return realm_spells.means_cast_key(snapshot, item)
+            # The caster's spell in an escape or identification scroll's place
+            # (``_escape_scroll``, ``_find_identification_source``): cast it, the suffix answering
+            # the identification's item question.
+            return realm_spells.means_cast_key(snapshot, item, suffix)
         if not suffix and item.is_recall_scroll and snapshot.dungeon_level == 0 \
                 and not snapshot.player.recalling:
             # D22: a surface recall read asks which dungeon (choose_dungeon).

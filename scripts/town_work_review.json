@@ -25823,5 +25823,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spells.py:identify_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える」: the caster's 鑑定 / 真・鑑定 standing in for an Identify / *Identify* scroll as a pseudo item (SpellMeans) of policy_identification._find_identification_source, castable at 80% or better (in the dungeon above the escape reserve); no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

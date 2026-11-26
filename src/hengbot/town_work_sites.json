@@ -17762,6 +17762,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "realm_spells.py:identify_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "realm_spells.py:means_cast_key": {
     "classification": "data",
     "rows": [

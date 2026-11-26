@@ -9,7 +9,7 @@ from hengbot import sale_progress
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
-from hengbot import heroism_potion, torch_release, town_pack_headroom
+from hengbot import heroism_potion, realm_spell_book, torch_release, town_pack_headroom
 from hengbot import bm_destruction_fund, bm_tour, purchase_source_journal
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
@@ -3187,6 +3187,9 @@ class ShopMixin(InStoreMixin):
         add(rung("tail:torch", "torch", lambda: self._planned_depth() <= TORCH_THROW_MAX_DEPTH and self._matching_ammo(snapshot) is None and self._count_throwing_torches(snapshot) < torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET), lambda i: i.is_torch and getattr(i, "fuel", 1) > 0, current=lambda: self._count_throwing_torches(snapshot), target=lambda: torch_release.throwing_torch_target(self, snapshot, TORCH_THROW_TARGET)))
         add(rung("tail:teleport", "teleport", lambda: not self._teleport_ready(snapshot), lambda i: i.is_teleport_scroll))
         add(rung("tail:cure", "cure-critical", lambda: not self._cure_critical_ready(snapshot), lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL))
+        # Owner 2026-11-26 「盗賊は魔法を使える」: a caster's cast books (realm_spell_book), right
+        # after the departure supplies, from the gold above the full departure resupply.
+        add(rung("realm-book:buy", realm_spell_book.CATEGORY, lambda: bool(realm_spell_book.wanted_books(self, snapshot)), lambda i: realm_spell_book.purchase_units(self, snapshot, i) > 0))
         # Owner 2026-11-11 「恐怖耐性がないとき…持ち歩く数は仮に15服」: below every departure
         # supply, from the gold above the full departure resupply (owner 2026-10-08), at the
         # Temple's shelf (never the Black Market's).
@@ -4194,6 +4197,12 @@ class ShopMixin(InStoreMixin):
                 and ((destruction.tval, destruction.sval) not in excluded_classes
                      or self._identify_staff_swap_purchase(destruction))):
             return destruction
+        # Owner 2026-11-26 「盗賊は魔法を使える」 (rung realm-book:buy): a caster's missing cast
+        # book, from the gold above the full departure resupply (realm_spell_book.purchase_units).
+        book = next((it for it in items if realm_spell_book.purchase_units(self, snapshot, it) > 0
+                     and (it.tval, it.sval) not in excluded_classes), None)
+        if book is not None:
+            return book
         # Owner 2026-11-11 「持ち歩く数は仮に15服」 (rung tail:heroism): below every departure
         # supply, the ammo, the Identify staff and the *Destruction* gate, from the gold above
         # the full departure resupply only (_heroism_purchase_units).
@@ -6161,6 +6170,7 @@ class ShopMixin(InStoreMixin):
             "cure-critical", "oil", "food", "quest-throwing-items",
             "quest-ranged-kit", "quest-scrolls", "quest-carry", "quest-speed",
             "quest-healing", "light", "identify-staff", "ammo", heroism_potion.CATEGORY,
+            realm_spell_book.CATEGORY,
             angband_finale.CATEGORY,
             "throwing-torches", "remove-curse", "home-star-remove-curse-stock",
             "star-remove-curse", "launcher-enchant", "black-market",

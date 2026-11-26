@@ -20,6 +20,13 @@ me_menu.MagicEaterMenu, whose ``advance`` this reuses):
   「どの本を読みますか?」 / "Browse which book?", then the list under 「どの呪文を読みますか?」 /
   "Browse which spell?" (``*`` shows it when always_show_list is off); ESC closes it.  With no
   spell learned the game shows the list and waits on 「読める呪文がない。」: ESC.
+* an identification ``m`` + book + letter + target (鑑定 / 真・鑑定 in an identification scroll's
+  place, realm_spells.identify_means): after the spell, ident_spell / identify_fully
+  (spell-kind/spells-perception.cpp:108-175) ask 「どのアイテムを鑑定しますか?」 /
+  「どのアイテムを*鑑定*しますか?」 (choose_item with USE_EQUIP | USE_INVEN | USE_FLOOR): the target's
+  pack letter, ``-`` for the floor, or ``/`` (to the equipment) then its letter, each at the
+  observed question; *Identify*'s pages after it (screen_object) are turned with a space and
+  closed with ESC.
 """
 
 from dataclasses import dataclass
@@ -36,6 +43,10 @@ CAST_SPELL_PROMPTS = ("どの呪文を唱えますか?", "Cast which spell?")
 STUDY_SPELL_PROMPTS = ("どの呪文を学びますか?", "Study which spell?")
 BROWSE_SPELL_PROMPTS = ("どの呪文を読みますか?", "Browse which spell?")
 NOTHING_TO_BROWSE = ("読める呪文がない。", "No spells to browse.")
+IDENTIFY_PROMPTS = ("どのアイテムを鑑定しますか?", "Identify which item?",
+                    "どのアイテムを*鑑定*しますか?", "*Identify* which item?",
+                    "すべて鑑定済みです。", "All items are identified.",
+                    "すべて*鑑定*済みです。", "All items are *identified*.")
 CAST_FAILURES = ("呪文をうまく唱えられなかった！", "You failed to get the spell off!")
 CAST_REFUSALS = (
     "その呪文を唱えるのに十分なマジックポイントがない。", "You do not have enough mana to cast this spell.",
@@ -49,7 +60,8 @@ CAST_REFUSED = "failed:realm-spell-refused"
 STUDY_FAILED = "failed:realm-spell-study"
 BROWSE_FAILED = "failed:realm-spell-browse"
 
-_CAST_KEY = re.compile(r"m(?P<book>[a-w])(?P<letter>[a-h])(?P<direction>[1-9])?")
+_CAST_KEY = re.compile(r"m(?P<book>[a-w])(?P<letter>[a-h])"
+                       r"(?:(?P<direction>[1-9])|(?P<target>[a-w]|-|/[a-z]))?")
 _STUDY_KEY = re.compile(r"G(?P<book>[a-w])(?P<letter>[a-h])")
 _BROWSE_KEY = re.compile(r"b(?P<book>[a-w])")
 
@@ -59,6 +71,7 @@ class SpellStep(Continuation):
     purpose: str = "cast"           # "cast", "study" or "browse"
     book: str = "a"                 # the book's pack slot
     letter: str = "a"               # the spell's place in the book
+    target: str = ""                # an identification's item answer ("a", "-", "/b")
     stage: str = "book"
     attempts: int = 0
 
@@ -72,7 +85,8 @@ def compile_spell(key, owner):
         return "b", [SpellStep(frozenset(), "", purpose="browse", book=match["book"])]
     if (match := _CAST_KEY.fullmatch(key)) is not None:
         return "m", [SpellStep(frozenset(), match["direction"] or "", purpose="cast",
-                               book=match["book"], letter=match["letter"])]
+                               book=match["book"], letter=match["letter"],
+                               target=match["target"] or "")]
     return None
 
 
@@ -99,7 +113,7 @@ class SpellMenu(MagicEaterMenu):
     stall_text = "realm spell menu made no progress"
     unexpected_text = "unexpected prompt after a realm spell answer"
     watches_failures = False           # read at command input (``command_ends``)
-    unasked_stages = frozenset({"aim"})
+    unasked_stages = frozenset({"aim", "target"})
 
     def _book_stage(self, step, seen, operation):
         details = owned_item_prompt(seen, _BOOK_PROMPTS[step.purpose], "unowned realm book prompt")
@@ -110,7 +124,20 @@ class SpellMenu(MagicEaterMenu):
         if not _spell_prompt(step, seen) or step.attempts > 0:
             # Asked again: the game would not take the letter (「…ことはできません。」).
             raise ValueError("realm spell refused at its prompt")
-        return step.letter, ("aim" if step.keys else "done")
+        return step.letter, ("aim" if step.keys else "target" if step.target else "done")
+
+    def _target_stage(self, step, seen, operation):
+        if seen.reading.kind != "item" or not seen.prompt.endswith(IDENTIFY_PROMPTS):
+            raise ValueError("unowned realm spell item prompt")
+        if step.target.startswith("/") and step.attempts == 0:
+            return "/", "target"                    # to the equipment, the same question
+        return step.target[-1], "after"
+
+    def _after_stage(self, step, seen, operation):
+        # *Identify*'s pages (screen_object) before command input.
+        if seen.reading.kind in {"any_key", "more"} or seen.reading.source == "null":
+            return ESC, "after"
+        raise ValueError("unexpected screen after a realm spell's target")
 
     def _list_stage(self, step, seen, operation):
         if seen.reading.kind == "any_key" and seen.prompt.rstrip() in NOTHING_TO_BROWSE:
@@ -122,13 +149,14 @@ class SpellMenu(MagicEaterMenu):
         return ESC, "done"
 
     stages = {"book": _book_stage, "spell": _spell_stage, "list": _list_stage,
-              "aim": MagicEaterMenu.aim_stage}
+              "aim": MagicEaterMenu.aim_stage, "target": _target_stage, "after": _after_stage}
+    ended_stages = frozenset({"done", "after"})
 
     def command_ends(self, step, seen, operation):
         if step.purpose == "cast":
             if _shows(CAST_FAILURES, seen.lines[:2]):
                 operation.business_outcome = CAST_FAILED
-            elif _shows(CAST_REFUSALS, seen.lines[:2]) or step.stage in {"book", "spell"}:
+            elif _shows(CAST_REFUSALS, seen.lines[:2]) or step.stage in {"book", "spell", "target"}:
                 operation.business_outcome = CAST_REFUSED
             elif step.stage in self.unasked_stages:
                 operation.business_outcome = CAST_FAILED

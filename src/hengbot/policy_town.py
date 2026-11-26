@@ -8,7 +8,7 @@ from hengbot import angband_finale
 from hengbot import deep_climb, dive_floor, fled_floor_stairs, fundraising_route, return_start
 from hengbot import recall_wait_rest, recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
-from hengbot import heroism_potion, quest_optional_carry, torch_release
+from hengbot import heroism_potion, quest_optional_carry, realm_spell_book, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
 from hengbot import bm_destruction_fund, destruction_means
 from hengbot.town_pack_budget import explicit_pickup_cells_now, home_take_fits, native_travel_fits
@@ -4063,6 +4063,11 @@ class TownMixin:
             and self._heroism_errand_wanted(snapshot)
         ):
             add(STORE_TEMPLE, heroism_potion.CATEGORY)
+        # Owner 2026-11-26 「盗賊は魔法を使える」: a caster's missing cast book at the Magic shop
+        # (store/articles-on-sale.cpp), tried once a visit; never blocks the departure.
+        if (not self._shelf_stop_tried(snapshot, STORE_MAGIC, realm_spell_book.CATEGORY)
+                and realm_spell_book.errand_wanted(self, snapshot)):
+            add(STORE_MAGIC, realm_spell_book.CATEGORY)
         # Owner 2026-11-20 「テレポートの巻物を大量に持つ」: the finale's 40, optional like the
         # Heroism stock (never blocks the departure).
         finale_store = self._angband_finale_errand_store(snapshot)
@@ -4213,6 +4218,7 @@ class TownMixin:
             ("ammo-home-first", "home-first", 1, False),  # Merge-safe Home ammo precedes optional buying.
             ("ammo", "normal", 1, False),  # Ordinary ammo restocking is optional.
             ("heroism", "normal", 1, False),  # The Heroism stock (owner 2026-11-11) is optional.
+            ("realm-book", "normal", 1, False),  # A caster's cast books (realm_spell_book); optional.
             # The 99F/100F Teleportation (owner 2026-11-20), optional like the Heroism: without
             # this entry the Alchemist/General errand was never a live claim (n1-c life-217
             # 2026-11-21 02:59: four towns walked, 26 of 40 carried, the circuit never due).
@@ -4263,6 +4269,7 @@ class TownMixin:
             "ammo-home-first",
             "ammo",
             heroism_potion.CATEGORY,
+            realm_spell_book.CATEGORY,
             angband_finale.CATEGORY,
             "throwing-torches",
             "launcher-enchant",
