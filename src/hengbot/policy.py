@@ -1301,6 +1301,15 @@ def _finale_forbids_rest(policy, snapshot) -> bool:
     from hengbot import angband_finale_battle
     return angband_finale_battle.forbids_rest(policy, snapshot)
 
+def skill_exp_training_worn(snapshot: Snapshot) -> tuple[bool, bool]:
+    """(a weapon in each hand, a shield in a hand): what makes the two-weapon / shield
+    skill_exp grow (cmd-attack.cpp, MonsterAttackPlayer::gain_armor_exp)."""
+    hands = [item for item in snapshot.equipment if item.slot in ("main_hand", "sub_hand")]
+    two_weapons = len(hands) == 2 and all(
+        TVAL_DIGGING <= item.tval <= TVAL_SWORD for item in hands)
+    return two_weapons, any(item.tval == TVAL_SHIELD for item in hands)
+
+
 class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbiterMixin, ShopMixin, HomeMixin, EquipmentMixin, QuestMixin, PolicyHelpersMixin, CombatMixin, NavigationMixin, SupplyMixin, FundraisingMixin, IdentificationMixin, CalibrationMixin):
     """Goal-seeking policy: survive, gain levels, and keep descending.
 
@@ -2444,6 +2453,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # None = unknown; see _skill_exp_cache_valid for invalidation.
         self._skill_exp_cache: tuple[int, int, int, int | None] | None = None
         self._skill_exp_request_inflight = False
+        # The read's (two_weapon, shield) at the class maximum (the ~f rows' at_max), and
+        # whether a decided board since the read wore what makes each grow (two weapons in
+        # hand, a shield in hand); see _skill_exp_cache_valid.
+        self._skill_exp_at_max: tuple[bool, bool] = (False, False)
+        self._skill_exp_exposed: tuple[bool, bool] = (True, True)
         # A Home leave can briefly yield an interleaved surface page while the
         # game still owns input in the store loop.  A later turn is positive
         # evidence that an ordinary command was processed after that leave.
@@ -2864,6 +2878,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             ),
             identity=self._decision_sequence + 1,
         )
+        self._observe_skill_exp_exposure(snapshot)
         snapshot = self._with_cached_skill_exp(snapshot)
         snapshot = self._with_skill_request_board_messages(snapshot)
         # Protocol 3: before any evaluator needs the two-weapon / shield
@@ -6859,24 +6874,52 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
     def _skill_exp_cache_valid(self, snapshot: Snapshot) -> bool:
         """Whether the cached ~f values still describe this character.
 
-        skill_exp only grows through combat (two-weapon blows, shield use),
-        which never happens inside a town visit.  The cache is therefore
-        invalid when it is empty, when the character level differs from
-        the level it was read at, or when the board is in town under a
-        different town visit (a new arrival) than the one it was read in.
+        skill_exp only grows, and only through combat while wearing what trains it:
+        TWO_WEAPON on a blow with a weapon in each hand (cmd-attack.cpp,
+        PlayerSkill::gain_two_weapon_skill_exp), SHIELD on a monster's blow at a player
+        with a shield in a hand (MonsterAttackPlayer::gain_armor_exp); both stop at the
+        class maximum.  The cache is invalid when it is empty; otherwise only a value
+        that is below its maximum and was exposed (``_observe_skill_exp_exposure``) since
+        the read can be out of date, and then the cache is invalid on a level above the
+        one it was read at, or on a town board of another visit (a new arrival) than the
+        one it was read in.
+
+        n1-c life-222 (Lv50, 95F/100F, 2026-11-26): the ~f list was asked on every
+        arrival and on every level the exp drain took and gave back, though a value at
+        its maximum, or one no worn item trains, cannot change.  A level-up in the
+        dungeon under a visible or sensed hostile keeps the read values until the board
+        is quiet (``_skill_exp_refresh_deferred``).
         """
         cache = getattr(self, "_skill_exp_cache", None)
         if cache is None:
             return False
         _two_weapon, _shield, level, visit_epoch = cache
-        if level != snapshot.player.level:
-            return False
+        at_max = getattr(self, "_skill_exp_at_max", None) or (False, False)
+        exposed = getattr(self, "_skill_exp_exposed", None) or (True, True)
+        if not any(seen and not top for seen, top in zip(exposed, at_max)):
+            return True
+        if snapshot.player.level > level:
+            return self._skill_exp_refresh_deferred(snapshot)
         current_epoch = getattr(self, "_town_visit_epoch", None)
         return not (
             snapshot.in_town
             and current_epoch is not None
             and current_epoch != visit_epoch
         )
+
+    def _skill_exp_refresh_deferred(self, snapshot: Snapshot) -> bool:
+        """A dungeon board with a hostile in sight or sensed keeps the read values."""
+        return not snapshot.in_town and self._periodic_threat_present(snapshot)
+
+    def _observe_skill_exp_exposure(self, snapshot: Snapshot) -> None:
+        """Remember that a decided board wore what trains a skill_exp value since the read."""
+        if getattr(self, "_skill_exp_cache", None) is None:
+            return
+        two_weapons, shield = skill_exp_training_worn(snapshot)
+        exposed = getattr(self, "_skill_exp_exposed", None) or (True, True)
+        updated = (exposed[0] or two_weapons, exposed[1] or shield)
+        if updated != exposed:
+            self._skill_exp_exposed = updated
 
     def with_known_skill_exp(self, snapshot: Snapshot) -> Snapshot:
         """Public: the board as the policy sees it (protocol-3 ~f values filled).
@@ -6979,6 +7022,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             row.get("id"): row for row in rows if isinstance(row, Mapping)
         }
         values = []
+        at_max = []
         for skill_id in (1, 3):
             row = by_id.get(skill_id)
             exp = row.get("exp") if row is not None else None
@@ -6988,6 +7032,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     "the save must enable show_actual_value"
                 )
             values.append(exp)
+            # bot-json-output.cpp SKILL_EXP: at_max = exp >= the class's s_max.
+            at_max.append(row.get("at_max") is True)
         player = data.get("player")
         level = player.get("level") if isinstance(player, Mapping) else None
         if isinstance(level, bool) or not isinstance(level, int):
@@ -6995,6 +7041,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         self._skill_exp_cache = (
             values[0], values[1], level, getattr(self, "_town_visit_epoch", None)
         )
+        self._skill_exp_at_max = (at_max[0], at_max[1])
+        self._skill_exp_exposed = (False, False)
         self._skill_exp_request_inflight = False
 
     def request_character_dump(self) -> None:
@@ -7030,6 +7078,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             not self._periodic_dump_requested
             or key == "\x13"
             or not self._periodic_filler_is_safe(snapshot)
+            # In the dungeon the dump waits for a board with no hostile seen or sensed.
+            or (not snapshot.in_town and self._periodic_threat_present(snapshot))
         ):
             return key
         self._periodic_dump_requested = False

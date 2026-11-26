@@ -54,7 +54,8 @@ class AbsorbUnderRefreshTest(executor_pins.ProductionHarness):
     def test_refresh_boards_do_not_spend_absorb_attempts(self):
         policy, record, board, absorb = self.at_the_absorb()
         # DECLARED CONSTRUCTED: the spectator's lists are due (its wall clock).
-        spectator = SimpleNamespace(magic_eater_refresh_due=lambda _interval: True)
+        spectator = SimpleNamespace(
+            magic_eater_stale_kinds=lambda _interval: ("staff", "wand", "rod"))
         chosen = []
         latch = None
         for _ in range(3):

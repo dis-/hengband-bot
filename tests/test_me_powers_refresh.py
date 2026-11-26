@@ -273,6 +273,34 @@ class MePowersRefreshTest(unittest.TestCase):
         self.assertNotEqual(warrior.last_reason, "periodic:magic-eater-powers")
         self.assertEqual(warrior._me_power_refresh_pending, ())
 
+    def test_refresh_waits_while_a_hostile_is_only_sensed(self):
+        policy = self.policy()
+        sensed = replace(self.board(), detected_monsters=[hostile(1, 10, 30, distance=20)])
+        self.assertFalse(sensed.visible_monsters)
+        policy.prime(sensed)
+        request_refresh(policy)
+        policy.choose_key(sensed)
+        self.assertNotEqual(policy.last_reason, REASON)
+        self.assertEqual(policy._me_power_refresh_pending, ("staff", "wand", "rod"))
+
+    def test_timer_latches_only_the_kinds_older_than_its_interval(self):
+        """A list the bot showed for its own use is fresh: only the old ones are read."""
+        clock = _Clock()
+        with TemporaryDirectory() as tmp:
+            writer = SpectatorWriter(Path(tmp) / "spectate.json", clock=clock)
+            for seconds, kind in ((0, "wand"), (0, "rod"), (550, "staff")):
+                clock.now = 1_000_000.0 + seconds
+                raw = dict(raw_board(16, turn=5000 + seconds),
+                           _magic_eater_power_list={"kind": kind, "rows": []})
+                writer.observe(parse_snapshot(raw, {}), "5", "pin", 1, None,
+                               state_line=json.dumps(raw))
+                writer.last_write = None
+            clock.now = 1_000_000.0 + 600
+            policy = SimpleNamespace(_me_power_refresh_pending=())
+            next_at = _request_due_me_powers_refresh(policy, writer, clock.now, 0.0, 600)
+            self.assertEqual(policy._me_power_refresh_pending, ("wand", "rod"))
+            self.assertEqual(next_at, clock.now + 600)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -164,42 +164,93 @@ REST_STALL_GRACE = 20.0
 # dump; truly stuck work still emits a diagnostic shortly afterwards.
 DECISION_WATCHDOG_SECONDS = 90
 
-# The dump is the bot's external liveness signal.  The CLI owns wall-clock time;
-# policy only receives a deterministic request and waits for a safe filler turn.
+# The game save's period; the character dump and the Magic-Eater list refresh keep
+# their own, longer ones (below).  The CLI owns wall-clock time; policy only receives
+# a deterministic request and waits for a safe filler turn.
 DUMP_INTERVAL_SECONDS = 180
+# n1-c life-222 (Lv50, 2026-11-26): a dump every 180 s spent bookkeeping boards that no
+# reader needs that often.  Its readers are the spectator's dump link, the ended-life
+# copy (ended_lives.py) and the calibration, which asks a dump of its own when the
+# character changes (policy_calibration ``request_character_dump``); every town visit
+# writes one before the recall (``town:character-dump``).  The periodic one comes on a
+# level-up and otherwise at most every CHARACTER_DUMP_INTERVAL_SECONDS.
+CHARACTER_DUMP_INTERVAL_SECONDS = 1800
+# The spectator's absorbed-device lists (viewer only): a kind older than this is read
+# again; a list the bot opened for its own use is fresh already.
+ME_POWERS_REFRESH_SECONDS = 600
+
+
+class CharacterDumpCadence:
+    """When the periodic character dump is due beside the game-save timer.
+
+    Due at process start (a new process holds no calibration of its own session), on a
+    character level above the highest this process saw, and after ``interval_seconds``
+    since the last request."""
+
+    def __init__(self, interval_seconds: float = CHARACTER_DUMP_INTERVAL_SECONDS) -> None:
+        self.interval_seconds = interval_seconds
+        self.next_at: float | None = None
+        self.level: int | None = None
+
+    def due(self, now: float, level: int | None) -> bool:
+        levelled = (level is not None and self.level is not None and level > self.level)
+        if level is not None:
+            self.level = level if self.level is None else max(self.level, level)
+        return self.next_at is None or now >= self.next_at or levelled
+
+    def requested(self, now: float) -> None:
+        self.next_at = now + self.interval_seconds
 
 
 def _request_due_dump(
     policy, now: float, next_dump_at: float,
     dump_interval_seconds: float = DUMP_INTERVAL_SECONDS,
+    cadence: CharacterDumpCadence | None = None, level: int | None = None,
 ) -> float:
-    """Deliver one elapsed wall-clock request and return its next deadline."""
+    """Deliver one elapsed wall-clock request and return its next deadline.
+
+    The game save is requested every ``dump_interval_seconds``; the character dump with
+    it when ``cadence`` is None or says it is due (``CharacterDumpCadence``)."""
     if dump_interval_seconds == 0:
         return next_dump_at
     if now >= next_dump_at:
-        policy.request_character_dump()
+        if cadence is None or cadence.due(now, level):
+            policy.request_character_dump()
+            if cadence is not None:
+                cadence.requested(now)
         policy.request_game_save()
         return now + dump_interval_seconds
     return next_dump_at
 
 
+def _periodic_interval(dump_interval_seconds: float, floor_seconds: float) -> float:
+    """A periodic refresh's interval: 0 (off) with the dumps, else at least ``floor_seconds``."""
+    if dump_interval_seconds == 0:
+        return 0
+    return max(dump_interval_seconds, floor_seconds)
+
+
 def _request_due_me_powers_refresh(
     policy, spectator, now: float, next_refresh_at: float,
-    interval_seconds: float = DUMP_INTERVAL_SECONDS,
+    interval_seconds: float = ME_POWERS_REFRESH_SECONDS,
 ) -> float:
     """Latch one turn-free Magic-Eater list refresh for the spectator.
 
     Viewer-only, so it needs a spectator.  Its cadence is the age of the
     lists the spectator holds, which survive a bot restart (the soak runner
     restarts a stopped bot within seconds; a timer due at process start
-    refreshed on every restart).  At most one cycle per interval per process.
+    refreshed on every restart).  At most one cycle per interval per process,
+    and only of the kinds whose list is that old (a list the bot opened for its
+    own use is fresh).
     """
     if (spectator is None or interval_seconds == 0 or now < next_refresh_at
-            or getattr(policy, "_me_power_refresh_pending", ())
-            or not spectator.magic_eater_refresh_due(interval_seconds)):
+            or getattr(policy, "_me_power_refresh_pending", ())):
+        return next_refresh_at
+    stale = spectator.magic_eater_stale_kinds(interval_seconds)
+    if not stale:
         return next_refresh_at
     from hengbot.me_powers_refresh import request_refresh
-    request_refresh(policy)
+    request_refresh(policy, stale)
     return now + interval_seconds
 
 
@@ -4719,6 +4770,8 @@ def _run_follow(
         # due at once; waiting the interval left every short-lived restarted
         # process without an equipment optimization (live 2026-10-02 17:00).
         next_dump_at = time.monotonic()
+        dump_cadence = CharacterDumpCadence(_periodic_interval(
+            args.dump_interval_seconds, CHARACTER_DUMP_INTERVAL_SECONDS))
         next_me_refresh_at = next_dump_at
         poll_wait_started_at = time.perf_counter()
         barrier_board_seen = None
@@ -4993,11 +5046,13 @@ def _run_follow(
                     last_decision_line = snapshot_line
                     last_decision_at = now
                     next_dump_at = _request_due_dump(
-                        policy, now, next_dump_at, args.dump_interval_seconds
+                        policy, now, next_dump_at, args.dump_interval_seconds,
+                        dump_cadence, snapshot.player.level,
                     )
                     next_me_refresh_at = _request_due_me_powers_refresh(
                         policy, spectator, now, next_me_refresh_at,
-                        args.dump_interval_seconds,
+                        _periodic_interval(args.dump_interval_seconds,
+                                           ME_POWERS_REFRESH_SECONDS),
                     )
                     recorder.before_floor_change(policy, snapshot.floor_key)
                     store_leave_was_inflight = (

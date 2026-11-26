@@ -916,8 +916,12 @@ REGISTRY = (
       "policy: shelf evidence (no comment at its definition)"),
     S("_shelf_evidence_cache", "policy", LIFE,
       "policy: shelf evidence cache (no comment at its definition)"),
+    S("_skill_exp_at_max", "policy", LIFE,
+      "Protocol 3 only: whether the ~f read's two-weapon / shield skill_exp were at the class maximum (the rows' at_max): a value at its maximum never changes (_skill_exp_cache_valid)."),
     S("_skill_exp_cache", "policy", LIFE,
       "Protocol 3 only: the ~f skill list's two-weapon / shield skill_exp, (two_weapon, shield, level read at, town visit epoch read in)."),
+    S("_skill_exp_exposed", "policy", LIFE,
+      "Protocol 3 only: whether a decided board since the ~f read wore two weapons in hand / a shield in hand, what makes the two-weapon / shield skill_exp grow (_skill_exp_cache_valid)."),
     S("_skill_exp_request_inflight", "policy", LIFE,
       "policy: skill exp request inflight (no comment at its definition)"),
     S("_skill_request_board_messages", "policy", LIFE,
@@ -2424,6 +2428,12 @@ RESTART = {
     "_finale_recharge_food": Restart(MAY_BE_LOST, "finale_recharge_food",
                                      "a new process reads a scroll again; a refused read is noted "
                                      "again from the next board's scroll count"),
+    # policy._skill_exp_cache_valid: a new process has no ~f cache and reads the list again;
+    # these describe that read.
+    "_skill_exp_at_max": Restart(MAY_BE_LOST, "policy",
+                                 "a new process reads ~f again (no _skill_exp_cache)"),
+    "_skill_exp_exposed": Restart(MAY_BE_LOST, "policy",
+                                  "a new process reads ~f again (no _skill_exp_cache)"),
     # policy_observation._observe: a town visit's first board reads the overweight ledger.
     "_overweight_surplus_ledger": Restart(PERSISTED, "policy_observation",
                                           "read when a town visit starts (no epoch yet)"),

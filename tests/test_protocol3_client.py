@@ -280,10 +280,13 @@ class SkillListCacheTest(unittest.TestCase):
     """The ~f cache: request flow, invalidation rule and restored checkpoints.
 
     Rule: the cache (two_weapon, shield, level read at, town visit epoch read
-    in) is unknown until the first ~f response; it becomes invalid when the
-    character level differs from the level it was read at, or when a board in
-    town belongs to a different town visit (a new arrival) than the one it was
-    read in.  Dungeon boards never invalidate it by themselves.
+    in) is unknown until the first ~f response.  A value at its class maximum
+    (the rows' at_max), or one no decided board since the read wore what trains
+    (two weapons in hand, a shield in hand), cannot have changed; otherwise the
+    cache becomes invalid on a level above the one it was read at (in the
+    dungeon once no hostile is seen or sensed), or when a board in town belongs
+    to a different town visit (a new arrival) than the one it was read in.
+    Dungeon boards never invalidate it by themselves.
     """
 
     def _fresh(self, directory):
@@ -324,11 +327,19 @@ class SkillListCacheTest(unittest.TestCase):
             self.assertFalse(dungeon.in_town)
             self.assertNotEqual(policy.choose_key(dungeon), SKILL_KNOWLEDGE_MACRO)
             self.assertEqual(policy._skill_exp_cache, cache)
-            # The same row one level higher (derived) invalidates it.
+            # The same row one level higher (derived), the shield worn: the six
+            # detected monsters keep the read values (the refresh waits) ...
             row = json.loads(_last_board_line(v3[starts[599] : starts[600]]))
             row["player"]["level"] += 1
+            self.assertTrue(row["detected_monsters"])
             higher = self._feed(policy, directory, [json.dumps(row, ensure_ascii=False)])
-            self.assertEqual(policy.choose_key(higher), SKILL_KNOWLEDGE_MACRO)
+            self.assertNotEqual(policy.choose_key(higher), SKILL_KNOWLEDGE_MACRO)
+            self.assertEqual(higher.player.shield_skill, None)  # the raw board
+            self.assertEqual(policy.with_known_skill_exp(higher).player.shield_skill, 4000)
+            # ... and the same board with nothing sensed (derived) reads the list.
+            row["detected_monsters"] = []
+            quiet = self._feed(policy, directory, [json.dumps(row, ensure_ascii=False)])
+            self.assertEqual(policy.choose_key(quiet), SKILL_KNOWLEDGE_MACRO)
         with TemporaryDirectory() as raw:
             directory = Path(raw)
             policy = self._fresh(directory)
@@ -341,6 +352,73 @@ class SkillListCacheTest(unittest.TestCase):
             self.assertTrue(arrival.in_town)
             self.assertNotEqual(policy._town_visit_epoch, first_epoch)
             self.assertEqual(policy.choose_key(arrival), SKILL_KNOWLEDGE_MACRO)
+
+    def _arrival_after_a_dive(self, policy, directory, *, at_max=False, unarmed_hands=False):
+        """Read the list at decision 1, then the recorded dive (200) and the recorded
+        town arrival after it (423); return the arrival's choice.
+
+        ``at_max``: the list's rows say both values are at the class maximum
+        (derived).  ``unarmed_hands``: every board after the read wears neither the
+        shield nor a second weapon (derived: the sub_hand entry removed)."""
+        v2, v3, starts, _monrace = _Substrate.get()
+        segment = v3[starts[0] : starts[1]]
+        key = policy.choose_key(self._feed(policy, directory, segment))
+        self.assertEqual(key, SKILL_KNOWLEDGE_MACRO)
+        policy.confirm_key_posted(key)
+        response = json.loads(_skill_list_response(v2, starts, 1))
+        if at_max:
+            for entry in response["knowledge"]["skills"]:
+                entry["at_max"] = True
+        self._feed(policy, directory,
+                   [json.dumps(response, ensure_ascii=False) + "\n", _last_board_line(segment)])
+
+        def lines(sequence):
+            rows = [json.loads(line) for line in v3[starts[sequence - 1] : starts[sequence]]]
+            for row in rows:
+                if unarmed_hands and isinstance(row.get("equipment"), list):
+                    row["equipment"] = [entry for entry in row["equipment"]
+                                        if entry.get("slot") != "sub_hand"]
+            return [json.dumps(row, ensure_ascii=False) + "\n" for row in rows]
+
+        dive = self._feed(policy, directory, lines(200))
+        policy.choose_key(dive)
+        arrival = self._feed(policy, directory, lines(423))
+        self.assertTrue(arrival.in_town)
+        return policy.choose_key(arrival)
+
+    def test_arrival_reads_the_list_again_after_a_dive_with_the_shield(self):
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            self.assertEqual(self._arrival_after_a_dive(policy, directory),
+                             SKILL_KNOWLEDGE_MACRO)
+            self.assertEqual(policy._skill_exp_exposed, (False, True))
+
+    def test_values_at_the_class_maximum_are_never_read_again(self):
+        """n1-c life-222 (Lv50): the list was asked on every arrival."""
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            self.assertNotEqual(
+                self._arrival_after_a_dive(policy, directory, at_max=True),
+                SKILL_KNOWLEDGE_MACRO)
+            self.assertEqual(policy._skill_exp_at_max, (True, True))
+            # A level-up does not ask either.
+            _v2, v3, starts, _monrace = _Substrate.get()
+            row = json.loads(_last_board_line(v3[starts[599] : starts[600]]))
+            row["player"]["level"] += 5
+            row["detected_monsters"] = []
+            higher = self._feed(policy, directory, [json.dumps(row, ensure_ascii=False)])
+            self.assertNotEqual(policy.choose_key(higher), SKILL_KNOWLEDGE_MACRO)
+
+    def test_values_nothing_worn_trains_are_not_read_again(self):
+        with TemporaryDirectory() as raw:
+            directory = Path(raw)
+            policy = self._fresh(directory)
+            self.assertNotEqual(
+                self._arrival_after_a_dive(policy, directory, unarmed_hands=True),
+                SKILL_KNOWLEDGE_MACRO)
+            self.assertEqual(policy._skill_exp_exposed, (False, False))
 
     def test_telemetry_reads_the_cached_values_after_the_skill_list(self):
         from hengbot.cli import _capture_decision_facts

@@ -22,6 +22,8 @@ from hengbot.cli import (
     COMMAND_RESPONSE_GRACE,
     CHEST_MOVE_RESPONSE_SECONDS,
     DECISION_WATCHDOG_SECONDS,
+    CHARACTER_DUMP_INTERVAL_SECONDS,
+    CharacterDumpCadence,
     DUMP_INTERVAL_SECONDS,
     EXTENDED_STUCK_WINDOW,
     LOOK_BARRIER_TIMEOUT_SECONDS,
@@ -1939,6 +1941,24 @@ class PeriodicDumpTimerTest(unittest.TestCase):
                 policy = unittest.mock.Mock()
                 _configure_policy_output_paths(policy, args)
                 self.assertIs(policy._departure_dump_enabled, enabled)
+
+    def test_cadence_dumps_at_start_on_a_level_up_and_after_its_interval(self):
+        """n1-c life-222 (Lv50): a dump every 180 s; the save keeps that period."""
+        policy = unittest.mock.Mock()
+        cadence = CharacterDumpCadence()
+        dumps = []
+        deadline = 0.0
+        # (now, level): start; three save periods; a drained level and its return;
+        # a level-up; the dump interval since the last dump.
+        for now, level in ((0, 50), (180, 50), (360, 49), (540, 50), (720, 51),
+                           (900, 51), (720 + CHARACTER_DUMP_INTERVAL_SECONDS, 51)):
+            before = policy.request_character_dump.call_count
+            deadline = _request_due_dump(policy, float(now), deadline,
+                                         DUMP_INTERVAL_SECONDS, cadence, level)
+            if policy.request_character_dump.call_count > before:
+                dumps.append(now)
+        self.assertEqual(dumps, [0, 720, 720 + CHARACTER_DUMP_INTERVAL_SECONDS])
+        self.assertEqual(policy.request_game_save.call_count, 7)
 
     def test_zero_interval_disables_dump_and_its_paired_save_request(self):
         policy = unittest.mock.Mock()
