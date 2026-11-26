@@ -72,8 +72,8 @@ VISIT_MEMORIES = (
     ("_unseen_hit_pending_floor", None, "policy_observation"),
     ("_q2_breeder_last_seen_floor", None, "policy_quest"),
     ("_explored_floor_window", None, "explored_floor"),
-    # This floor visit is one of the trip's explored floors left by the stairs (finale_farm).
-    ("_finale_farm_floor", None, "finale_farm"),
+    # This floor visit is one of the trip's explored floors left by the stairs (deep_stairs).
+    ("_deep_stairs_floor", None, "deep_stairs"),
     ("_destruction_loot_memory", None, "destruction_loot"),
     ("_loot_walk_memory", None, "loot_walk"),
     ("_recall_wait_clock", None, "recall_wait_reach"),

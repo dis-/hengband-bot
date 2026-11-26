@@ -38,7 +38,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from hengbot import detected_loot, explored_floor, ladder_idle, loot_frontier, me_powers, sealed_loot
+from hengbot import deep_stairs, detected_loot, explored_floor, ladder_idle, loot_frontier, me_powers, sealed_loot
 from hengbot.baseitem_knowledge import load_baseitem_costs
 from hengbot.model import Position, game_distance, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
@@ -149,8 +149,11 @@ class DeepLootLeftover1117Test(unittest.TestCase):
 
     # -- 2. walled in on a floor with nothing left to explore --------------------------
 
-    def idle(self, lists=LISTS, *, explored_window=False):
+    def idle(self, lists=LISTS, *, explored_window=False, stairs_spent=False):
         policy, snapshot = self.replay(ANGBAND, lists)
+        if stairs_spent:
+            # DECLARED CONSTRUCTED: the trip has left its explored floors by the stairs already.
+            setattr(policy, deep_stairs.FLOORS, deep_stairs.EXTRA_FLOORS)
         self.assertTrue(snapshot.grid_at(snapshot.player.position).has_up_stairs)
         if explored_window:
             # DECLARED CONSTRUCTED: the visit's explore decisions (the record explored the floor to
@@ -174,12 +177,15 @@ class DeepLootLeftover1117Test(unittest.TestCase):
 
     def test_without_stone_to_mud_the_floor_is_left_by_recall(self):
         """Declared constructed: the absorbed Stone to Mud taken out of the wand list.  With no melt
-        the explored 80F (a dead end: 81F asks speed +25) is left by Word of Recall, not its up
-        stair (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」; until then '<'
+        the explored 80F (a dead end: 81F asks speed +25) is left by its up stair for a new level
+        (deep_stairs, owner 2026-11-26), and by Word of Recall once the trip has left its
+        EXTRA_FLOORS so (explored_floor, owner 2026-11-17 「探索が済んだら帰還する」; until then '<'
         ``stuck:ascend`` as live)."""
         lists = {kind: (turn, [row for row in rows if not (kind == "wand" and row["name"] == "岩石溶解")])
                  for kind, (turn, rows) in LISTS.items()}
         policy, _snapshot, key = self.idle(lists, explored_window=True)
+        self.assertEqual((key, policy.last_reason), ("<", deep_stairs.ASCEND_REASON))
+        policy, _snapshot, key = self.idle(lists, explored_window=True, stairs_spent=True)
         self.assertEqual(policy.last_reason, explored_floor.REASON, key)
         self.assertEqual(policy._last_return_trigger, explored_floor.TRIGGER)
 

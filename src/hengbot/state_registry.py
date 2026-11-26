@@ -380,12 +380,12 @@ REGISTRY = (
     # explored_floor
     S("_explored_floor_window", "explored_floor", FLOOR,
       "the cells the visit's map has shown and their count at its last explore decisions (the growth window)"),
-    # finale_farm
-    S("_finale_farm_floor", "finale_farm", FLOOR,
-      "this floor visit is one of the trip's explored floors left by the stairs (finale_farm)"),
-    S("_finale_farm_floors", "finale_farm", LIFE,
+    # deep_stairs
+    S("_deep_stairs_floor", "deep_stairs", FLOOR,
+      "this floor visit is one of the trip's explored floors left by the stairs (deep_stairs)"),
+    S("_deep_stairs_floors", "deep_stairs", LIFE,
       "the explored dead-end floors this trip left by the stairs; a town board clears it "
-      "(finale_farm)"),
+      "(deep_stairs)"),
     # floor_identify
     S("_floor_identify_tried", "floor_identify", FLOOR,
       "the cells a floor identify was posted on this floor visit (asked once each)"),
@@ -2440,12 +2440,12 @@ RESTART = {
                                  "a new process reads ~f again (no _skill_exp_cache)"),
     "_skill_exp_exposed": Restart(MAY_BE_LOST, "policy",
                                   "a new process reads ~f again (no _skill_exp_cache)"),
-    # finale_farm: a new process counts the trip's explored floors again from none.
-    "_finale_farm_floor": Restart(MAY_BE_LOST, "finale_farm",
+    # deep_stairs: a new process counts the trip's explored floors again from none.
+    "_deep_stairs_floor": Restart(MAY_BE_LOST, "deep_stairs",
                                   "a new process counts this floor again when it leaves it"),
-    "_finale_farm_floors": Restart(MAY_BE_LOST, "finale_farm",
+    "_deep_stairs_floors": Restart(MAY_BE_LOST, "deep_stairs",
                                    "a new process counts the trip's floors from none (at most "
-                                   "FARM_STAIR_FLOORS more before the Recall)"),
+                                   "EXTRA_FLOORS more before the Recall)"),
     # policy_observation._observe: a town visit's first board reads the overweight ledger.
     "_overweight_surplus_ledger": Restart(PERSISTED, "policy_observation",
                                           "read when a town visit starts (no epoch yet)"),

@@ -328,11 +328,11 @@ _RULE_FINALE_DESCENT = ("the finale expedition's way down to its floor, the down
                         "降りること。寄り道は不要。」, finale_descent)")
 _rows(WALK, "finale_descent", _RULE_FINALE_DESCENT, "finale-descent:seek-downstairs",
       "finale-descent:search-downstairs")
-_RULE_FINALE_FARM = ("an explored 95F floor left by its stairs for a new one while a finale supply only the "
-                     "Black Market sells is short, in the Word of Recall's place: no enemy prompted it "
-                     "(owner 2026-11-26 「勝率と時間効率改善を進める」, finale_farm)")
-_rows(EXCLUDED, "finale_farm", _RULE_FINALE_FARM, "finale-farm:ascend")
-_rows(WALK, "finale_farm", _RULE_FINALE_FARM, "finale-farm:seek-stairs")
+_RULE_DEEP_STAIRS = ("an explored 50F+ floor the dive goes no deeper from left by its stairs for a new level "
+                     "of the same depth, in the Word of Recall's place: no enemy prompted it (owner "
+                     "2026-11-26 「…以前の指示を破ることを許可する」, deep_stairs)")
+_rows(EXCLUDED, "deep_stairs", _RULE_DEEP_STAIRS, "deep-stairs:ascend")
+_rows(WALK, "deep_stairs", _RULE_DEEP_STAIRS, "deep-stairs:seek-stairs")
 _RULE_STUCK = "stuck / livelock relocations: no enemy prompted them"
 _rows(EXCLUDED, ("policy", "retreat_enclosure", "policy_navigation", "sealed_pocket"), _RULE_STUCK,
       "stuck:destroyed-circle-teleport", "stuck:destroyed-circle-recall",

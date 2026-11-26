@@ -38,7 +38,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import explored_floor, me_capability, sealed_loot
+from hengbot import deep_stairs, explored_floor, me_capability, sealed_loot
 from hengbot.model import SV_STAFF_DESTRUCTION, Position, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
@@ -90,6 +90,12 @@ class N1c217ExploreDwell1120Test(unittest.TestCase):
         cls.reached = HELM in sealed_loot.reach(policy, last)
         cls.dead_end = explored_floor.dead_end(policy, last)
         cls.key = policy.choose_key(last)
+        # DECLARED CONSTRUCTED: the same board once the trip has left its explored floors by the
+        # stairs (deep_stairs.EXTRA_FLOORS): the Recall.
+        spent, spent_board = replay(cls)
+        setattr(spent, deep_stairs.FLOORS, deep_stairs.EXTRA_FLOORS)
+        cls.spent_key = spent.choose_key(spent_board)
+        cls.spent = spent
         # The same board with a way into the helm (sealed_loot answering, as with Stone to Mud
         # or 周辺感知 carried): the explore's rung asks it before the read.
         asked, cls.asked_board = replay(cls)
@@ -120,14 +126,18 @@ class N1c217ExploreDwell1120Test(unittest.TestCase):
         self.assertEqual(self.asked.last_reason, sealed_loot.MAP_REASON, self.asked_key)
         self.assertNotEqual(self.asked._last_return_trigger, explored_floor.TRIGGER)
 
-    def test_explored_dead_end_floor_is_left_by_recall(self):
+    def test_explored_dead_end_floor_is_left_by_its_stairs_then_recall(self):
         policy, last, key = self.policy, self.last, self.key
         # Live: "explore" for ever.  Now the window has stalled (with the last explore decision)
         # and the unreachable helm holds nothing: no way in (no melt, no mapping means carried in
-        # the replay), so Word of Recall is read.
+        # the replay), so the floor is left: by the walk to its nearest known stair for a new level
+        # (deep_stairs, owner 2026-11-26), and by Word of Recall once the trip has left its
+        # EXTRA_FLOORS so.
         self.assertTrue(explored_floor.stalled(policy, last))
-        self.assertEqual(policy.last_reason, explored_floor.REASON, key)
-        self.assertEqual(policy._last_return_trigger, explored_floor.TRIGGER)
+        self.assertEqual(policy.last_reason, deep_stairs.REASON, key)
+        self.assertNotEqual(policy._last_return_trigger, explored_floor.TRIGGER)
+        self.assertEqual(self.spent.last_reason, explored_floor.REASON, self.spent_key)
+        self.assertEqual(self.spent._last_return_trigger, explored_floor.TRIGGER)
 
 
 if __name__ == "__main__":

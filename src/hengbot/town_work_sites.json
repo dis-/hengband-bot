@@ -2200,6 +2200,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "deep_stairs.py:key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "deep_teleport.py:_recall_key": {
     "classification": "producer",
     "rows": [
@@ -3596,13 +3603,6 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "finale_descent.py:key": {
-    "classification": "producer",
-    "rows": [
-      "departure"
-    ],
-    "delegation": "row-specific selected operation; shared child rows remain shadow"
-  },
-  "finale_farm.py:key": {
     "classification": "producer",
     "rows": [
       "departure"
