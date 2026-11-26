@@ -144,7 +144,7 @@ class Q34ReadinessSiteTest(unittest.TestCase):
         policy._physical_adjacent_hostiles = lambda _snapshot: []
         policy._shopping_approach_step = lambda _snapshot, router_plan_stop: "step"
         policy._shopping_approach_key = approach
-        policy._start_fundraising = lambda _snapshot: False
+        policy._start_fundraising = lambda _snapshot, _cause=None: False
         return policy
 
     def decide(self, policy):
@@ -154,9 +154,14 @@ class Q34ReadinessSiteTest(unittest.TestCase):
             policy, SimpleNamespace(player=SimpleNamespace(food_state="normal")), [],
             {"verdict": False, "reason": "light"})
 
-    def test_no_route_stops_as_before(self):
+    def test_no_route_releases_the_opening(self):
+        # n1-a life-541 (supervisor 2026-11-26): an opening requirement no route of the
+        # opening can meet hands the town on (quest_opening_readiness.RELEASED) instead of the
+        # former livelock:exhausted stop; the rungs below answer this board.
         policy = self.policy(approach_answer.answered(None))
-        self.assertEqual((self.decide(policy), policy.last_reason), ("5", "livelock:exhausted"))
+        self.assertEqual((self.decide(policy), policy.last_reason),
+                         (None, "opening-q34:released"))
+        self.assertEqual(policy._q34_opening_released, "unaffordable:light")
 
     def test_a_yield_waits_then_stops_named_after_the_holder(self):
         policy = self.policy(approach_answer.yielded(None, "town-hold:home-errand", 4))

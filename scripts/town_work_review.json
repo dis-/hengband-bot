@@ -10444,7 +10444,7 @@
       "store-approach"
     ],
     "context": "Q34 town opening readiness rejection only.",
-    "evidence": "Extracted supplier/fundraising fallback; safe HP/status recovery or existing CLI terminal when no route advances. With no fresh verdict and a monster beside the player it returns None (no key), so the town combat rungs below answer the monster (D33, n1-a life-426).",
+    "evidence": "Extracted supplier/fundraising fallback; safe HP/status recovery; a requirement no route of the opening advances releases the opening to the ordinary town (quest_opening_readiness.RELEASED, returns None; n1-a life-541) and a yielded holder still stops named after it. With no fresh verdict and a monster beside the player it returns None (no key), so the town combat rungs below answer the monster (D33, n1-a life-426).",
     "admission": "Parent _opening_q34_town_key through _town_producer_entry / town_work.validate_emit",
     "observer": "Existing supplier, fundraising and recovery observations.",
     "delegation": "The parent owns admission; selected child operations retain their existing effect observers."
@@ -25831,6 +25831,17 @@
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
     "evidence": "Owner 2026-11-26 「盗賊は魔法を使える」: the caster's 鑑定 / 真・鑑定 standing in for an Identify / *Identify* scroll as a pseudo item (SpellMeans) of policy_identification._find_identification_source, castable at 80% or better (in the dungeon above the escape reserve); no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_opening_readiness.py:unbuyable_cause": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: names the part of a Q34 readiness rejection the character has to grow into (DPS, HP, three-turn threat), the cause q34_readiness_rejection_key records when it releases the opening. No command or effect.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

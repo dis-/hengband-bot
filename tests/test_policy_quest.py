@@ -4233,7 +4233,7 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         self.assertIsNotNone(policy._next_required_store_type(opening))
         self.assertEqual(policy._fundraising_mode, "prepare")
 
-    def test_q34_unreachable_readiness_deficits_stop_visibly(self):
+    def test_q34_unreachable_readiness_deficits_release_the_opening(self):
         policy = self._policy()
         opening = replace(
             self._measured_q34_opening(),
@@ -4249,8 +4249,12 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
         with patch.object(policy, "_shopping_approach_step", return_value=None):
             key = policy._opening_q34_town_key(opening, [])
 
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "livelock:exhausted")
+        # n1-a life-541 (supervisor 2026-11-26): no longer the livelock:exhausted stop; the
+        # opening hands the town on and the rungs below answer the board.
+        self.assertIsNone(key)
+        self.assertEqual(policy.last_reason, "opening-q34:released")
+        self.assertEqual(policy._q34_opening_released, "strategy-force:dps")
+        self.assertFalse(policy._opening_q34_active(opening))
         self.assertEqual(
             policy.fixed_quest_readiness_state()["strategy_force"]["failed"],
             ["dps", "speed_potions", "heal_potions"],

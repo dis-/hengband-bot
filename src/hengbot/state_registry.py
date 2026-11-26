@@ -1921,6 +1921,10 @@ REGISTRY = (
       "q34_recharge: q34 recharge attempted (no comment at its definition)"),
     S("_q34_recharge_pending", "q34_recharge", LIFE,
       "q34_recharge: q34 recharge pending (no comment at its definition)"),
+    # quest_opening_readiness
+    S("_q34_opening_released", "quest_opening_readiness", LIFE,
+      "quest_opening_readiness: why the Q34-first opening released this character to the "
+      "ordinary town (an acceptance requirement it cannot buy); None while it owns the town"),
     # quest_sweep_record
     S("_sweep_kill_record", "quest_sweep_record", LIFE,
       "the room sweep's kills last written to the restart record"),
@@ -2482,6 +2486,10 @@ RESTART = {
                                   "the next decision's turn-free browse shows each list again"),
     "_realm_spell_resume_attempts": Restart(MAY_BE_LOST, "realm_spell_book",
                                             "per process: a new process asks again"),
+    # quest_opening_readiness: the next opening decision evaluates the same readiness again.
+    "_q34_opening_released": Restart(REBUILT, "quest_opening_readiness",
+                                     "the first opening decision of a new process rejects the "
+                                     "same readiness and releases again"),
     # strategy_profile.for_run: cli reads the instance's strategy-profile.json again at start.
     "_instance_profile": Restart(PERSISTED, "strategy_profile",
                                  "configuration, not state: the file is read again at start"),
