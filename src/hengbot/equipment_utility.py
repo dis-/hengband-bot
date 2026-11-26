@@ -16,8 +16,15 @@ existing thresholds:
 - stealth (TR_STEALTH, per point of pval): +0.5%, so +2 stealth is one band:
   a tie-break between otherwise equal loadouts, not a trade against combat.
 
-Other utility flags (see invisible, regeneration, slow digestion, warning,
-auras) are deliberately not valued: the owner did not ask for them.
+- see invisible (TR_SEE_INVIS), owner 2026-11-26 「ゾンビでない種族を扱うならば、毒耐性と地獄耐性の
+  評価をちゃんとした方が良い」「あと、透明視認も」: +5%, one material threshold, the half of full
+  telepathy (which shows most invisible monsters but not the EMPTY_MIND ones: ナイトストーカー,
+  トラッパー).  Only a character without it intrinsically: a Zombie's (race-info-table.cpp) levels
+  every loadout, so it adds nothing and the Zombie's comparison is as before.  From 26F it is a
+  depth requirement (DEPTH_ABILITY_REQUIREMENTS); the bonus ranks the sets below that.
+
+Other utility flags (regeneration, slow digestion, warning, auras) are
+deliberately not valued: the owner did not ask for them.
 
 The *Destruction* means (``destruction_means_bonus``).  Owner 2026-11-15 (n1-a
 life-525 died on ガラスの城 49F with twelve staves of *Destruction* in the Home and
@@ -41,15 +48,17 @@ from __future__ import annotations
 from typing import Iterable
 
 TR_STEALTH = 8
+TR_SEE_INVIS = 78
 TR_TELEPATHY = 79
 # TR_ESP_ANIMAL (104) .. TR_ESP_UNIQUE (115), src/object-enchant/tr-types.h.
 TR_ESP_KINDS = frozenset(range(104, 116))
-UTILITY_FLAGS = frozenset({TR_STEALTH, TR_TELEPATHY}) | TR_ESP_KINDS
+UTILITY_FLAGS = frozenset({TR_STEALTH, TR_TELEPATHY, TR_SEE_INVIS}) | TR_ESP_KINDS
 
 TELEPATHY_BONUS = 0.10
 ESP_KIND_BONUS = 0.01
 ESP_KINDS_BONUS_CAP = 0.05
 STEALTH_POINT_BONUS = 0.005
+SEE_INVISIBLE_BONUS = 0.05
 DESTRUCTION_MEANS_BONUS = TELEPATHY_BONUS
 
 
@@ -59,7 +68,8 @@ def utility_value(items: Iterable, intrinsic_flags: frozenset[int]) -> float:
     Telepathy counts once whether it is worn or intrinsic (every loadout of
     the character then carries the same bonus); stealth adds each item's
     pval, signed, as the game does (player-status/player-stealth.cpp, the
-    TR_STEALTH pval of each worn item).
+    TR_STEALTH pval of each worn item).  See invisible counts only when worn
+    by a character without it intrinsically.
     """
     items = tuple(items)
     flags = set(intrinsic_flags)
@@ -72,7 +82,9 @@ def utility_value(items: Iterable, intrinsic_flags: frozenset[int]) -> float:
         esp = TELEPATHY_BONUS
     else:
         esp = min(ESP_KINDS_BONUS_CAP, ESP_KIND_BONUS * len(flags & TR_ESP_KINDS))
-    return esp + STEALTH_POINT_BONUS * stealth
+    see_invisible = (SEE_INVISIBLE_BONUS
+                     if TR_SEE_INVIS in flags and TR_SEE_INVIS not in intrinsic_flags else 0.0)
+    return esp + see_invisible + STEALTH_POINT_BONUS * stealth
 
 
 def destruction_means_bonus(loadout, staff_gate) -> float:

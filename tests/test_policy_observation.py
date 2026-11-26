@@ -89,7 +89,7 @@ class OverExtensionDungeonSwitchTest(unittest.TestCase):
     # bands, so the Mountain (25F entry) counts as resistance-safe for these tests.
     MOUNTAIN_SAFE = frozenset(
         {"free_action", "resist_conf", "resist_fire", "resist_pois", "resist_cold",
-         "resist_elec", "resist_acid"}
+         "resist_elec", "resist_acid", "see_invisible"}
     )
 
     def _dk(self):
@@ -794,7 +794,7 @@ class GuardianBounceRoundTripBoundTest(unittest.TestCase):
     ABILITIES = frozenset(
         {"free_action", "resist_conf", "resist_fire", "resist_pois",
          "resist_cold", "resist_elec", "resist_acid", "resist_chaos",
-         "resist_neth"}
+         "resist_neth", "see_invisible"}
     )
     TERMINAL = "guardian-bounce-no-alternate"
     # A drive ceiling well past the valve's own bound; reaching it is the failure.

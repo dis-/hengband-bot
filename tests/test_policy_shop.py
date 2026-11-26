@@ -2316,7 +2316,8 @@ class ShopPurchaseSellPolicyTest(shop_fixture._TownShopFixtureBase):
             player(
                 start.y, start.x, gold=8000, class_id=PLAYER_CLASS_WARRIOR,
                 abilities=frozenset(
-                    {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
+                    {"resist_pois", "resist_cold", "resist_elec", "resist_acid",
+                     "see_invisible"}
                 ),
             ),
             {start: grid(start.y, start.x)},

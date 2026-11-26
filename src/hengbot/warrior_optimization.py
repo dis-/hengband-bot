@@ -97,6 +97,10 @@ PLAYER_ABILITY_FLAGS = {
     "resist_chaos": 62,
     "resist_disen": 63,
     "levitation": 76,
+    # The board's permanent see invisible (a Zombie's, race-info-table.cpp) reaches the
+    # intrinsic flags here too, not only through the C screen's calibration: the utility of
+    # a worn source is for a character without it (equipment_utility.SEE_INVISIBLE_BONUS).
+    "see_invisible": 78,
     "telepathy": 79,
 }
 

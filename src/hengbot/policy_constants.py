@@ -910,7 +910,14 @@ Q2_BREACH_ATTEMPT_LIMIT = 20
 DEPTH_ABILITY_REQUIREMENTS = (
     (20, frozenset({"free_action", "resist_fire"})),
     (21, frozenset({"resist_conf"})),
-    (26, frozenset({"resist_pois", "resist_cold", "resist_elec", "resist_acid"})),
+    # See invisible (2026-11-26, owner 「ゾンビでない種族を扱うならば、毒耐性と地獄耐性の評価をちゃんと
+    # した方が良い」「あと、透明視認も」): every character before was a Zombie (SEE_INVIS innate,
+    # race-info-table.cpp), so no row named it.  From 24-26F the invisible ones drain and hit
+    # (バンシー L24 EXP_20, ディスプレイサー・ビースト L26 melee 46, それ L26) and from 34F the
+    # EMPTY_MIND ones telepathy does not show (ナイトストーカー L34 speed +20, トラッパー L36
+    # paralysis); the Ring of See Invisible (BaseitemDefinitions id 155, depth 30, rarity 1) is in
+    # the Black Market's level band (store.cpp: 25 + level/4 + 0..24) and the dungeon's by then.
+    (26, frozenset({"resist_pois", "resist_cold", "resist_elec", "resist_acid", "see_invisible"})),
     (31, frozenset({"resist_chaos"})),
     (40, frozenset({"resist_neth"})),
     (50, frozenset({"telepathy"})),

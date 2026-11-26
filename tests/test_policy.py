@@ -1200,7 +1200,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
 
     def test_stair_refusal_explores_across_consecutive_decisions(self):
         snap = self._at(
-            30, {"resist_pois", "resist_cold", "resist_elec", "resist_acid"}
+            30, {"resist_pois", "resist_cold", "resist_elec", "resist_acid", "see_invisible"}
         )
         grids = {
             Position(y, x): grid(
@@ -1279,7 +1279,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
             HengbotPolicy()._missing_required_abilities(snap, 30),
             frozenset({
                 "free_action", "resist_fire", "resist_conf",
-                "resist_cold", "resist_elec", "resist_acid",
+                "resist_cold", "resist_elec", "resist_acid", "see_invisible",
             }),
         )
 
@@ -1296,7 +1296,7 @@ class ResistanceDepthGateTest(unittest.TestCase):
             HengbotPolicy()._missing_required_abilities(snap, 40),
             frozenset({
                 "free_action", "resist_fire", "resist_conf", "resist_pois",
-                "resist_cold", "resist_elec", "resist_acid",
+                "resist_cold", "resist_elec", "resist_acid", "see_invisible",
             }),
         )
         kit = deep_bands_only | set(HengbotPolicy()._missing_required_abilities(snap, 40))
