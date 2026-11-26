@@ -1,0 +1,6 @@
+Source: hengband.net ~/hengbot-soak/n1-c/life-223/state.jsonl (read-only), 2026-11-27 05:33 JST.
+Selection: the last record with "in_town":true (turn 4017601, game day 40 10:13), the Outpost
+visit before n1-c (Zombie Magic-Eater, CL41, max HP 732, speed +0, no telepathy) went back to
+Angband 47-49F. Quests: Q1/Q2/Q14/Q22/Q31/Q32/Q34 finished, Q18/Q25/Q33 never taken.
+Copied byte-for-byte (one line plus a newline) before gzip compression with the header mtime 0.
+Decompressed sha256: 1e8d41dde259dc8a95662900e2c6a5277475282484012cf3ed1e0ba2978f6b1b

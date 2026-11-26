@@ -1,7 +1,8 @@
 """The skipped fixed quests and the per-instance strategy profile (strategy_profile, 2026-11-26).
 
 Owner 2026-11-26 「2度勝利したので戦略を変える。…いずれも、ゲーム内選択に関して私の以前の指示を破ることを
-許可する。」; the supervisor's decision: every character skips Q18 and Q33, and an instance's
+許可する。」; the supervisor's decision: every character skips Q33 (Q18 too until 2026-11-27, when
+n1-c's 8 hours at 49F without Q25's telepathy put it back), and an instance's
 ``strategy-profile.json`` (beside its lives: ``~/hengbot-soak/<instance>/strategy-profile.json``)
 may skip more.  These drive the real consumers -- the fixed-quest head, the acceptance at the quest
 building, a taken skipped quest that must not serialize the next acceptance, the town's quest
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import tests  # noqa: F401 -- live runtime-file isolation, also for bare module runs
 
+import gzip
 import json
 import tempfile
 import unittest
@@ -22,14 +24,15 @@ from unittest.mock import patch
 
 from hengbot import quest_one_turn_kill, random_quest_hold, strategy_profile
 from hengbot.flight_recorder import append_session_marker
-from hengbot.model import PLAYER_CLASS_WARRIOR, Position, QuestState, Snapshot
+from hengbot.model import PLAYER_CLASS_WARRIOR, Position, QuestState, Snapshot, parse_snapshot
+from hengbot.monrace_knowledge import find_monrace_definitions, load_monrace_knowledge
 from hengbot.policy import HengbotPolicy
 from hengbot.policy_constants import (
     FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_TAKEN, QUEST_STATUS_UNTAKEN,
 )
 from hengbot.quest_knowledge import QuestInfo, find_quest_definitions, load_quest_knowledge
 from hengbot.quest_strategies import load_quest_strategies
-from hengbot.town_maps import TownMap
+from hengbot.town_maps import TownMap, find_outpost_map, parse_town_map
 from policy_fixtures import grid, player
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,13 +105,15 @@ class SkippedQuestAcceptanceTest(unittest.TestCase):
         self.assertIsNone(skipped.approved_quest_strategy(33))
         self.assertIsNotNone(played.approved_quest_strategy(33))
 
-    def test_offered_q18_is_never_requested_by_default(self):
-        board = _town_board(18, {18: _quest(18, QUEST_STATUS_UNTAKEN)})
-
-        self.assertEqual(_policy(18, strategy_profile.ALL_FIXED_QUESTS)._fixed_quest_target(board), 18)
-        skipped = _policy(18, strategy_profile.DEFAULT_PROFILE)
-        self.assertIsNone(skipped._fixed_quest_target(board))
-        self.assertIsNone(skipped._fixed_quest_key(board, []))
+    def test_offered_q18_and_q25_are_requested_by_default(self):
+        # 2026-11-27: Q25 (its reward the telepathy of the 50F gate) is offered only after Q18.
+        for quest_id in (18, 25):
+            board = _town_board(quest_id, {quest_id: _quest(quest_id, QUEST_STATUS_UNTAKEN)})
+            played = _policy(quest_id, strategy_profile.DEFAULT_PROFILE)
+            self.assertEqual(played._fixed_quest_target(board), quest_id)
+            self.assertIsNotNone(played.approved_quest_strategy(quest_id))
+            skipping = _policy(quest_id, strategy_profile.parse({"skip_quests": [18, 25]}))
+            self.assertIsNone(skipping._fixed_quest_target(board))
 
     def test_taken_skipped_quest_neither_serializes_nor_is_entered(self):
         # A taken fixed quest holds every other acceptance (_build_fixed_quest_head); a taken
@@ -165,7 +170,7 @@ class ProfileFileTest(unittest.TestCase):
     def test_no_file_is_the_default_skip_set(self):
         profile = strategy_profile.for_run(self.decision_log, environ={})
         self.assertIs(profile, strategy_profile.DEFAULT_PROFILE)
-        self.assertEqual(profile.skipped_quests, frozenset({18, 33}))
+        self.assertEqual(profile.skipped_quests, frozenset({33}))
 
     def test_instance_profile_adds_q25_and_the_castle_never_takes_it(self):
         path = self._write(json.dumps({"name": "n1-a-free", "skip_quests": [25],
@@ -174,7 +179,7 @@ class ProfileFileTest(unittest.TestCase):
         profile = strategy_profile.for_run(self.decision_log, environ={})
         self.assertEqual(profile.name, "n1-a-free")
         self.assertEqual(profile.source, str(path))
-        self.assertEqual(profile.skipped_quests, frozenset({18, 25, 33}))
+        self.assertEqual(profile.skipped_quests, frozenset({25, 33}))
         self.assertEqual(profile.warnings, ())
 
         board = _town_board(25, {25: _quest(25, QUEST_STATUS_UNTAKEN)})
@@ -209,7 +214,7 @@ class ProfileFileTest(unittest.TestCase):
 
         skipped = {quest_id for quest_id in (1, 2, 14, 18, 22, 25, 28, 31, 32, 33, 34)
                    if policy.fixed_quest_skipped(quest_id)}
-        # Q31 (level 22), Q32 (25), Q25 (48), Q28 (70), plus the defaults Q18 and Q33.
+        # Q31 (level 22), Q32 (25), Q18 (35), Q33 (45, also the default), Q25 (48), Q28 (70).
         self.assertEqual(skipped, {18, 25, 28, 31, 32, 33})
         board = _town_board(31, {31: _quest(31, QUEST_STATUS_UNTAKEN)})
         self.assertIsNone(policy._fixed_quest_target(board))
@@ -219,7 +224,7 @@ class ProfileFileTest(unittest.TestCase):
     def test_malformed_file_is_the_defaults_with_a_warning(self):
         self._write("{ not json")
         profile = strategy_profile.for_run(self.decision_log, environ={})
-        self.assertEqual(profile.skipped_quests, frozenset({18, 33}))
+        self.assertEqual(profile.skipped_quests, frozenset({33}))
         self.assertIsNone(profile.skip_from_level)
         self.assertEqual(len(profile.warnings), 1)
         self.assertIn("malformed JSON", profile.warnings[0])
@@ -230,11 +235,11 @@ class ProfileFileTest(unittest.TestCase):
                                 "skip_all_optional_fixed_quests_from_level": "20"}))
         profile = strategy_profile.for_run(self.decision_log, environ={})
         self.assertEqual((profile.name, profile.skipped_quests, profile.skip_from_level),
-                         ("default", frozenset({18, 33}), None))
+                         ("default", frozenset({33}), None))
         self.assertEqual(len(profile.warnings), 3)
         self._write(json.dumps([25]), Path(self._directory.name) / "list.json")
         listed = strategy_profile.load(Path(self._directory.name) / "list.json")
-        self.assertEqual(listed.skipped_quests, frozenset({18, 33}))
+        self.assertEqual(listed.skipped_quests, frozenset({33}))
         self.assertTrue(listed.warnings)
 
     def test_session_marker_logs_the_profile_once(self):
@@ -243,7 +248,46 @@ class ProfileFileTest(unittest.TestCase):
         append_session_marker(self.decision_log, ["hengbot"], strategy_profile=profile.summary())
         record = json.loads(self.decision_log.read_text(encoding="utf-8").splitlines()[-1])
         self.assertEqual(record["strategy_profile"]["name"], "n1-a-free")
-        self.assertEqual(record["strategy_profile"]["skipped_quests"], [18, 25, 33])
+        self.assertEqual(record["strategy_profile"]["skipped_quests"], [25, 33])
+
+
+# n1-c life-223's last Outpost visit (tests/fixtures/n1c-223-outpost-cl41-1127.provenance.txt): a
+# Zombie Magic-Eater at CL41 with no telepathy, Q18/Q25/Q33 never taken, before ~8 hours at 49F.
+N1C_FIXTURE = Path(__file__).with_name("fixtures") / "n1c-223-outpost-cl41-1127.json.gz"
+
+
+class RecordedHighLevelCharacterTakesQ18Test(unittest.TestCase):
+    """A character already past the quest window picks Q18 up again at its next Outpost visit."""
+
+    @classmethod
+    def setUpClass(cls):
+        monraces = load_monrace_knowledge(find_monrace_definitions(Path(__file__), None))
+        with gzip.open(N1C_FIXTURE, "rt", encoding="utf-8") as stream:
+            cls.board = parse_snapshot(json.loads(stream.readline()), monraces)
+        cls.outpost = parse_town_map(find_outpost_map(Path(__file__)))
+
+    def _policy(self, profile) -> HengbotPolicy:
+        policy = HengbotPolicy(self.outpost, quest_knowledge=REAL_QUESTS,
+                               quest_strategies=REAL_STRATEGIES)
+        policy._instance_profile = profile
+        return policy
+
+    def test_q18_is_the_head_and_its_supplies_are_admitted(self):
+        self.assertEqual((self.board.player.level, self.board.in_town), (41, True))
+        old = self._policy(strategy_profile.parse({"skip_quests": [18]}))
+        self.assertIsNone(old._fixed_quest_head(self.board))
+
+        policy = self._policy(strategy_profile.DEFAULT_PROFILE)
+        head = policy._fixed_quest_head(self.board)
+        self.assertEqual((head.id, head.status), (18, QUEST_STATUS_UNTAKEN))
+        self.assertTrue(policy._fixed_quest_is_offered(self.board, 18))
+        # Every condition no purchase meets holds (HP 732 / 700, damage, the six resistances);
+        # only the 17 Potions of Speed are short, so the town buys them for Q18 and the quest
+        # is taken once they are carried.  Q25 is not offered before Q18 is done.
+        self.assertFalse(policy._fixed_quest_ready(self.board, 18))
+        self.assertEqual(policy._fixed_quest_readiness["strategy_force"]["failed"], ["speed_potions"])
+        self.assertEqual(policy._quest_strategy_for_errand_or_floor(self.board).quest_id, 18)
+        self.assertFalse(policy._fixed_quest_is_offered(self.board, 25))
 
 
 class SkippedQ2ReleasesTheAngbandHoldTest(unittest.TestCase):
