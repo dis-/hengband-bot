@@ -17,7 +17,7 @@ from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_pe
 from hengbot.speed_valuation import meets_speed_gate, permanent_player_speed
 from hengbot import bm_destruction_fund, bm_tour, finale_bm_tour, home_cap, home_cash_sale, home_ledger, deep_teleport, detected_loot, launcher_upgrade, me_powerful_activation, random_quest_hold, recall_wait_reach, sealed_loot, sellable_artifacts, torch_release
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_FULL_SALE_MESSAGES, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
-from hengbot.policy_constants import FIXED_QUEST_ALLOWLIST, QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
+from hengbot.policy_constants import QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
 from hengbot.quest_strategies import StrategyProfile, class_throwing_items, lower_carries
 from hengbot.policy_types import TownVisitLedger
 from hengbot.town_visit import floor_holds, is_fresh_visit, town_holds
@@ -246,7 +246,7 @@ class ObservationMixin:
                 self._quest_regen_phase = "descend"
             self._fruitless_disengage_floor = None
             self._fruitless_disengage_decisions = 0
-            if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
+            if self.fixed_quest_supported(snapshot.floor_key[2]):
                 self._fixed_quest_speed_floor = snapshot.floor_key
                 self._fixed_quest_speed_attempted = False
             else:
@@ -445,7 +445,7 @@ class ObservationMixin:
             self._target_dungeon_reason = "initial_yeek_cave"
         pursued_target = self._target_dungeon_id
         random_quest_hold.settle_target(self, snapshot)
-        if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND):
+        if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND, self):
             self._rumor_unlock_pending = False
             if self._alternate_dungeon == DUNGEON_ANGBAND:
                 self._alternate_dungeon = None

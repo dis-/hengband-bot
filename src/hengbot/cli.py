@@ -51,6 +51,7 @@ from hengbot.home_entry_capture import HomeEntryCapture
 from hengbot import amberite_curse, approach_answer, cross_rules, deep_teleport, destruction_use, equipment_visit_journal, home_ledger, pingpong_guard, purchase_source_journal, safety_watch, quest_plan_record, map_memory_record
 from hengbot import recall_wait_reach
 from hengbot import stationary_bounds
+from hengbot import strategy_profile
 from hengbot import plan_generic_gate
 from hengbot.loop_detection import LOOP_MAX_DISTINCT, LOOP_WINDOW
 from hengbot.policy import (
@@ -4195,6 +4196,12 @@ def main(argv: list[str] | None = None) -> int:
         wait_telemetry.flush()
     args.wait_telemetry = wait_telemetry
 
+    # The instance's strategy profile (strategy_profile: strategy-profile.json beside the lives, or
+    # HENGBOT_STRATEGY_PROFILE), logged once here and handed to the policy below.
+    instance_profile = strategy_profile.for_run(args.decision_log)
+    print(f"hengbot startup strategy_profile={json.dumps(instance_profile.summary(), ensure_ascii=False)}",
+          file=sys.stderr, flush=True)
+
     if args.decision_log is not None and not args.once:
         rotate_log(
             args.decision_log,
@@ -4208,6 +4215,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_japanese=prompt_japanese,
             enforce_crossarea_fundraising=args.enforce_crossarea_fundraising,
             in_store_shop_ops=args.in_store_shop_ops,
+            strategy_profile=instance_profile.summary(),
         )
 
     if args.list_windows:
@@ -4331,6 +4339,7 @@ def main(argv: list[str] | None = None) -> int:
         exploration_ledger_path=runtime_path(EXPLORATION_LEDGER_PATH.name),
         baseitem_costs=baseitem_costs,
     )
+    policy._instance_profile = instance_profile
     policy._crossarea_fundraising_enforced = args.enforce_crossarea_fundraising
     print(f"hengbot startup enforce_crossarea_fundraising={args.enforce_crossarea_fundraising}",
           file=sys.stderr, flush=True)

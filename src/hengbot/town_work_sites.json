@@ -9628,6 +9628,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy.py:HengbotPolicy.fixed_quest_supported": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy.py:HengbotPolicy.validate_read_key": {
     "classification": "adapter",
     "rows": [
@@ -18708,6 +18715,13 @@
     "delegation": "selected child; no independent success"
   },
   "stone_to_mud_carry.py:stone_to_mud_kept": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "strategy_profile.py:_quest_numbers": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

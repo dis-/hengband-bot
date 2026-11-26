@@ -1496,6 +1496,8 @@ class SupplyMixin:
 
     def _q1_completed(self, snapshot: Snapshot) -> bool:
         """Q1 (the thieves' hideout) is completed: its torch carry has no quest left."""
+        if self.fixed_quest_skipped(1):  # strategy_profile: no Q1 to carry torches for
+            return True
         q1 = self._known_fixed_quests(snapshot).get(1)
         return q1 is not None and q1.status in Q1_DONE_STATUSES
 

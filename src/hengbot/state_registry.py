@@ -229,6 +229,8 @@ REGISTRY = (
       "The pre-dive dump is for the human;"),
     S("_home_entry_capture", "cli", LIFE,
       "cli: home entry capture (no comment at its definition)", saved=False),
+    S("_instance_profile", "strategy_profile", LIFE,
+      "The instance's strategy profile (strategy-profile.json, read-only configuration): the skipped fixed quests."),
     S("_in_store_ops_enabled", "cli", LIFE,
       "In-store shop operations and shelf evidence (SOL-DESIGN-store-reentry-20261003, policy_instore.py)."),
     S("_latch_capture_generations", "cli", LIFE,
@@ -2425,6 +2427,9 @@ RESTART = {
     # policy_observation._observe: a town visit's first board reads the overweight ledger.
     "_overweight_surplus_ledger": Restart(PERSISTED, "policy_observation",
                                           "read when a town visit starts (no epoch yet)"),
+    # strategy_profile.for_run: cli reads the instance's strategy-profile.json again at start.
+    "_instance_profile": Restart(PERSISTED, "strategy_profile",
+                                 "configuration, not state: the file is read again at start"),
 }
 
 # (record module, table): the policy attributes a record carries, read from the record's own

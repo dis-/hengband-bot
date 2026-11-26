@@ -45,7 +45,7 @@ def _openable(policy, snapshot) -> tuple[int, ...]:
 
 
 def _can_open(policy, snapshot) -> bool:
-    return (random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND)
+    return (random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND, policy)
             and bool(_openable(policy, snapshot)))
 
 

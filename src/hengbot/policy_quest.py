@@ -593,6 +593,7 @@ class QuestMixin(OpeningRouteMixin):
                 and candidate.status == QUEST_STATUS_TAKEN
                 and candidate.id != 34
                 and candidate.id not in WIN_QUEST_IDS
+                and not self.fixed_quest_skipped(candidate.id)
                 for candidate in snapshot.quests.values()
             )
         ):
@@ -4626,7 +4627,7 @@ class QuestMixin(OpeningRouteMixin):
         candidates = [
             quest for quest in (self._in_flight_fixed_quests(known)
                                 or known.values())
-            if quest.id in FIXED_QUEST_ALLOWLIST
+            if self.fixed_quest_supported(quest.id)
             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
             and self.approved_quest_strategy(quest.id) is not None
             and not (quest.status == QUEST_STATUS_UNTAKEN
@@ -4692,7 +4693,7 @@ class QuestMixin(OpeningRouteMixin):
 
             fixed_quest_candidates = [
                 quest for quest in self._known_fixed_quests(snapshot).values()
-                if quest.id in FIXED_QUEST_ALLOWLIST
+                if self.fixed_quest_supported(quest.id)
                 and quest.status in {
                     QUEST_STATUS_UNTAKEN,
                     QUEST_STATUS_TAKEN,
@@ -4936,7 +4937,7 @@ class QuestMixin(OpeningRouteMixin):
             return False
         candidates = [
             quest for quest in self._known_fixed_quests(snapshot).values()
-            if quest.id in FIXED_QUEST_ALLOWLIST
+            if self.fixed_quest_supported(quest.id)
             and quest.status in {
                 QUEST_STATUS_UNTAKEN,
                 QUEST_STATUS_TAKEN,
@@ -5260,7 +5261,7 @@ class QuestMixin(OpeningRouteMixin):
             # TODO(tower): add quests 5/6/7 to the allowlist only with
             # direction-aware QUEST_UP/QUEST_DOWN progression across all three
             # linked floors.  The final floor is not shaped like 5 and 6.
-            return quest_id in FIXED_QUEST_ALLOWLIST and not (
+            return self.fixed_quest_supported(quest_id) and not (
                 quest_id == 2
                 and (
                     snapshot.visited_town_ids is None
@@ -5316,6 +5317,7 @@ class QuestMixin(OpeningRouteMixin):
             self._fixed_quest_offers,
             id(self._quest_knowledge),
             id(self._quest_strategies),
+            self._instance_profile,
         )
         return decision_memo(
             self,
@@ -5330,7 +5332,7 @@ class QuestMixin(OpeningRouteMixin):
     ) -> QuestState | None:
         """Compute a head from the exact snapshot and immutable quest tables."""
         def supported(quest: QuestState) -> bool:
-            return quest.id in FIXED_QUEST_ALLOWLIST
+            return self.fixed_quest_supported(quest.id)
 
         # Never accept or prepare another fixed quest while real work is in
         # flight. The birth-time win quests are the only intentional exception.
