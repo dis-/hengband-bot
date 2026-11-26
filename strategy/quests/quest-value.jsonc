@@ -1,0 +1,183 @@
+// 固定クエストの価値の表（quest_value.py が読む。QUEST_*.jsonc の読み込みの対象外の名前にしてある）。
+//
+// 2026-11-27 オーナー「n1-cは長時間49Fで停滞している。これがQ25を放棄して確定入手テレパシーを諦めた代償である。
+// この結果を踏まえた上で固定クエストの取り扱いに関して作戦を立てると良い。」「Q33も高難度だが報酬は貴重な
+// 加速装備であり非常に強力である。安直に諦めることが最善とは限らない。しっかり比較検討すること。」
+//
+// 読み方（quest_value.verdict。1つの問い「このキャラは今このクエストを受けるか」に答える所）:
+//  - fills: 報酬が満たす深さの条件の名前（_missing_required_abilities の名前。speed+10・speed+25 は加速の門）。
+//    キャラがこれから向かう深さ（到達した帰還の深さ + horizon_floors）で、持ち物と自宅を数えても欠けている
+//    名前が fills にある時、そのクエストは「要る」。unlocks のクエスト（このクエストを済ませると町が出す次の
+//    クエスト）が要る時も要る。
+//  - history: 測った挑戦の数（達成・死亡・失敗）。死亡の割合が safe_death_rate 以下で挑戦が safe_min_attempts
+//    以上なら「安く安全」で、要らなくても受ける。
+//  - min_cl: 要るが安全でないクエストを受ける最低のキャラクターレベル（勝ちと死の CL から決めた。
+//    受注の条件 required_force の行は今まで通り別に確かめる）。それ未満は遅らせ、通常の流れで育つ。
+//  - 要らず安全でもないクエストは受けない（理由は判断の記録に出る）。体ごとの strategy-profile.json の
+//    skip_quests はこの表より先に効く。
+//  - 承認された作戦（strategy/approved.json）の無いクエストは今まで通り受けない（strategy: null）。
+//
+// 数字を変える時は history と一緒に理由を書き直す。挑戦の結果はこれから jsonlog/quest-attempts.jsonl
+// （quest_attempt_ledger.py）に1行ずつ残るので、それと ended の記録で数え直す。
+//
+// history の出典: サーバの ~/hengbot-soak/n1-{a,b,c}/ended/life-*.txt（606 ライフ、2026-11-27 05時に集計。
+// 達成は《達成したクエスト》の行とその CL、死亡は「クエスト「名前」で…に殺された」の行と最終 CL、失敗は
+// 《失敗したクエスト》の行）。戦士 326・魔道具術師 277・盗賊 3 ライフ。
+{
+  "version": 1,
+  "horizon_floors": 15,
+  "safe_death_rate": 0.03,
+  "safe_min_attempts": 10,
+  "quests": [
+    {
+      "quest_id": 34, "name": "もの言えぬ証人", "town": "辺境の地", "level": 5, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:706（最初から）",
+      "reward": "警告の指輪（BaseitemDefinitions id 618、WARNING）lib/edit/towns/01_Outpost_Full.jsonc:759",
+      "fills": [], "unlocks": [31],
+      "history": {"wins": 0, "deaths": 0, "fails": 0, "note": "ended の記録の達成の行に名前が出ない（数えられていない）。開始直後の序盤の流れのクエスト"},
+      "min_cl": 0, "safe": true,
+      "decision": "安く安全（序盤の流れ）。Q31・Q32・Q33 への道でもある"
+    },
+    {
+      "quest_id": 1, "name": "盗賊の隠れ家", "town": "辺境の地", "level": 5, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:127（最初から）",
+      "reward": "ロング・ソード（id 42、職業で替わる）lib/edit/towns/01_Outpost_Full.jsonc:180",
+      "fills": [], "unlocks": [14],
+      "history": {"wins": 22, "deaths": 0, "fails": 0, "win_cl": [10, 12, 24], "note": "戦士だけが名前で数えられた"},
+      "min_cl": 0, "safe": true,
+      "decision": "安く安全。Q14→Q18→Q25 への道"
+    },
+    {
+      "quest_id": 14, "name": "ワーグを殱滅せよ", "town": "辺境の地", "level": 5, "type": "KILL_LEVEL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:170（Q1 の後）",
+      "reward": "ライト・クロスボウ（id 75）lib/edit/towns/01_Outpost_Full.jsonc:422",
+      "fills": [], "unlocks": [18],
+      "history": {"wins": 350, "deaths": 0, "fails": 0, "win_cl": [12, 13, 24]},
+      "min_cl": 0, "safe": true,
+      "decision": "安く安全。Q18→Q25 への道"
+    },
+    {
+      "quest_id": 18, "name": "湖の洞窟", "town": "辺境の地", "level": 35, "type": "FIND_EXIT",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:412（Q14 の後）",
+      "reward": "経験の薬（id 244）lib/edit/towns/01_Outpost_Full.jsonc:498。経験値だけ。ただし辺境は Q18 の後でしか Q25 を出さない（lib/edit/towns/01_Outpost_Full.jsonc:488 [EQU $QUEST18 3]）",
+      "fills": [], "unlocks": [25],
+      "history": {"wins": 46, "deaths": 7, "fails": 5, "death_cl": [26, 28, 28, 30, 33, 33, 35], "win_cl": [29, 35, 41],
+                  "note": "魔道具術師は達成 27・死亡 1（n1-b 414、CL33、加速なしで隘路を出た）・失敗 4（CL49-50）。戦士は達成 19・死亡 6（CL26-35、加速不足。その後すべての行で常時加速が必須になった）"},
+      "min_cl": 37,
+      "decision": "Q25（テレパシー）が要る時だけ受ける。死亡はすべて CL35 以下なので CL37 から"
+    },
+    {
+      "quest_id": 25, "name": "幽霊屋敷", "town": "辺境の地", "level": 48, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:488（Q18 の後）",
+      "reward": "テレパシーのアミュレット（id 587、TELEPATHY）lib/edit/towns/01_Outpost_Full.jsonc:585。50F の深さの条件（policy_constants.DEPTH_ABILITY_REQUIREMENTS の 50 の行）を満たす確定の入手先",
+      "fills": ["telepathy"], "unlocks": [28],
+      "history": {"wins": 24, "deaths": 7, "fails": 9, "death_cl": [35, 36, 36, 38, 40, 41, 45], "win_cl": [33, 38, 49],
+                  "note": "魔道具術師は達成 18（CL33-49、中央 38）・死亡 3（CL35・36・36）。戦士の死亡 CL38-45 は第2段の読み違い（n1-a 536、fe2c6d82f で直した）と第2段の決まり（11-16）の前のもの。止まり7件は 11-26 の集計（Q25 の中の止まり、多くは直した不具合）"},
+      "min_cl": 40,
+      "decision": "テレパシーが欠けていて 50F に向かう時に受ける。魔道具術師の死亡は CL36 以下・勝ちの中央 38 なので CL40 から"
+    },
+    {
+      "quest_id": 28, "name": "王家の墓", "town": "辺境の地", "level": 70, "type": "KILL_LEVEL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:575（Q25 の後）",
+      "reward": "町の報酬なし（階の中は人間の骨 id 395 だけ、lib/edit/quests/028_TheRoyalCrypt.jsonc:106）",
+      "fills": [], "unlocks": [],
+      "history": {"wins": 0, "deaths": 0, "fails": 0, "note": "作戦は未承認（strategy/approved.json に無い）。挑戦の記録なし"},
+      "min_cl": 99, "strategy": null,
+      "decision": "受けない（作戦が未承認・報酬なし）"
+    },
+    {
+      "quest_id": 31, "name": "柳じじい", "town": "辺境の地", "level": 22, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:749（Q34 の後）",
+      "reward": "耐混乱の指輪（id 430、RES_CONF）lib/edit/towns/01_Outpost_Full.jsonc:846。21F の深さの条件",
+      "fills": ["resist_conf"], "unlocks": [32],
+      "history": {"wins": 163, "deaths": 1, "fails": 5, "death_cl": [23], "win_cl": [21, 25, 31]},
+      "min_cl": 0, "safe": true,
+      "decision": "安く安全（死亡 1/169）。耐混乱を満たす。Q32・Q33 への道"
+    },
+    {
+      "quest_id": 32, "name": "ダークエルフの王", "town": "辺境の地", "level": 25, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:836（Q31 の後）",
+      "reward": "★ガラドリエルの玻璃瓶（artifact 1、光源 半径3）lib/edit/towns/01_Outpost_Full.jsonc:939",
+      "fills": [], "unlocks": [33],
+      "history": {"wins": 18, "deaths": 0, "fails": 3, "win_cl": [30, 38, 50], "note": "一撃の条件（quest_one_turn_kill、non_urgent）を満たした時だけ割り込む"},
+      "min_cl": 0, "safe": true,
+      "decision": "安く安全（死亡 0/21）。Q33 への道"
+    },
+    {
+      "quest_id": 33, "name": "クローン地獄", "town": "辺境の地", "level": 45, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:926（Q32 の後）",
+      "reward": "★シヴァの化身の軟革ブーツ（artifact 63: 加速 +4・器用 +4・器用維持・耐因果混乱・麻痺知らず・浮遊、lib/edit/ArtifactDefinitions.jsonc:2283-2301、parameter_value 4 がそのまま付く src/artifact/fixed-art-generator.cpp:222）lib/edit/towns/01_Outpost_Full.jsonc:1030",
+      "fills": ["speed+10", "speed+25"], "unlocks": [],
+      "history": {"wins": 6, "deaths": 2, "fails": 1, "death_cl": [43, 44], "win_cl": [43, 46, 50],
+                  "note": "死亡 2 件はどちらも直した不具合: n1-c 220（CL43、感知だけの敵に撃たれ続けて「敵なし」と読んだ。n1c-220-q33-sensed の直し）と n1-b 418（CL44、即死でない時にテレポートの巻物15枚を読み切った。84deb5cafa）。その後の Q33 の直し 12c52ae3b〜0eede1c02（11-25・26）。達成の CL は 43・45・46・48・49・50。CL46 以上は達成 4・失敗 1（n1-b 411 は CL50 で一度失敗し後で達成）・死亡 0"},
+      "value": "勝った2体（n1-c 221・222）はどちらも最後にこのブーツを着けていた（加速 +28・+34 のうち +4）。221 はブーツが無ければ +24 で 81F の +25 の門に届かない。222 は 80F から 95F まで約 20 時間かかり、足止めは 81F の +25 の門だった。76〜80F の死亡 7 件のうち 5 件は永続の加速 +9 以下（70〜80F の +10 の門の元）。+4 だけで門を開けるのは、他の装備で +6〜+9（70F）か +21〜+24（81F）の時",
+      "risk": "CL46 以上の挑戦では死亡 0/5（小さい数なので (0+1)/(5+2) ≒ 14% を上限の見積もりとする）。CL46 のキャラを作り直す時間は約 16 時間（n1-c 221 の Lv45 が 15.8 時間）→ 失う見込みは約 2.3 時間。これに対し、門で待つ時間は 222 で約 20 時間",
+      "min_cl": 46,
+      "decision": "永続の加速が向かう深さ（帰還の深さ + 15）の門に足りない時に受ける。CL46 から（死亡は CL43・44）"
+    },
+    {
+      "quest_id": 27, "name": "古い城", "town": "辺境の地", "level": 50, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/01_Outpost_Full.jsonc:1016（Q33 の後）",
+      "reward": "職業ごとの★（魔道具術師は★帯魔力ペンダント artifact 219: 魔法道具支配・透明視認・麻痺知らず ほか、lib/edit/towns/01_Outpost_Full.jsonc:1522）",
+      "fills": [], "unlocks": [], "history": {"wins": 0, "deaths": 0, "fails": 0},
+      "min_cl": 99, "strategy": null,
+      "decision": "受けない（作戦なし）"
+    },
+    {
+      "quest_id": 2, "name": "下水道", "town": "テルモラ", "level": 15, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/02_Telmora.jsonc:97（最初から）",
+      "reward": "フェアノールのランプ（id 582）lib/edit/towns/02_Telmora.jsonc:150",
+      "fills": [], "unlocks": [],
+      "history": {"wins": 216, "deaths": 3, "fails": 8, "death_cl": [20, 25, 26], "win_cl": [16, 22, 31]},
+      "min_cl": 0, "safe": true,
+      "decision": "安く安全（死亡 3/227）。鉄獄の Q2 待ち（random_quest_hold）"
+    },
+    {
+      "quest_id": 22, "name": "オークのキャンプ", "town": "アングウィル", "level": 15, "type": "KILL_ALL",
+      "offered": "lib/edit/towns/04_Angwil.jsonc:60（最初から）",
+      "reward": "エルフのクローク（id 90）lib/edit/towns/04_Angwil.jsonc:113",
+      "fills": [], "unlocks": [],
+      "history": {"wins": 203, "deaths": 1, "fails": 2, "death_cl": [19], "win_cl": [18, 23, 31]},
+      "min_cl": 0, "safe": true,
+      "decision": "安く安全（死亡 1/206）"
+    },
+    {"quest_id": 3, "name": "ログルス使い", "town": "テルモラ", "level": 25, "type": "KILL_LEVEL", "offered": "lib/edit/towns/02_Telmora.jsonc:140（Q2 の後）",
+     "reward": "スピードの杖（id 314）lib/edit/towns/02_Telmora.jsonc:237", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null,
+     "decision": "作戦なし。報酬は加速の手段（魔道具術師なら取り込める）。作戦を作る候補"},
+    {"quest_id": 4, "name": "宝物庫", "town": "テルモラ", "level": 30, "type": "FIND_OBJECT", "offered": "lib/edit/towns/02_Telmora.jsonc:227（Q3 の後）",
+     "reward": "町の報酬なし", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 5, "name": "塔", "town": "テルモラ", "level": 40, "type": "TOWER", "offered": "lib/edit/towns/02_Telmora.jsonc:314（Q4 の後）",
+     "reward": "耐毒の指輪（id 143）lib/edit/towns/02_Telmora.jsonc:403", "fills": ["resist_pois"], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null,
+     "decision": "作戦なし（3階の塔、policy_quest の TODO(tower)）"},
+    {"quest_id": 26, "name": "激戦場", "town": "テルモラ", "level": 50, "type": "KILL_LEVEL", "offered": "lib/edit/towns/02_Telmora.jsonc:390（Q5 の後）",
+     "reward": "*破壊*の杖（id 307）lib/edit/towns/02_Telmora.jsonc:636", "fills": ["destruction"], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null,
+     "decision": "作戦なし。報酬は 50F の *破壊* の手段"},
+    {"quest_id": 16, "name": "モンサルヴァト城への侵攻", "town": "テルモラ", "level": 40, "type": "KILL_ALL", "offered": "lib/edit/towns/02_Telmora.jsonc:448（Q5 の後、死の領域のパラディンだけ）",
+     "reward": "反射のアミュレット（id 520）lib/edit/towns/02_Telmora.jsonc:546", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 15, "name": "エリックの要塞", "town": "テルモラ", "level": 70, "type": "KILL_LEVEL", "offered": "lib/edit/towns/02_Telmora.jsonc:623（Q26 の後）",
+     "reward": "増強の薬（id 418）lib/edit/towns/02_Telmora.jsonc:726", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 20, "name": "謎の障気", "town": "モリバント", "level": 25, "type": "KILL_ALL", "offered": "lib/edit/towns/03_Morivant.jsonc:120（最初から）",
+     "reward": "全感知のロッド（id 375）lib/edit/towns/03_Morivant.jsonc:173", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 24, "name": "マイクロンフトの興亡", "town": "モリバント", "level": 50, "type": "KILL_LEVEL", "offered": "lib/edit/towns/03_Morivant.jsonc:163（Q20 の後）",
+     "reward": "耐劣化の指輪（id 432）lib/edit/towns/03_Morivant.jsonc:255", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 21, "name": "破滅のクエスト２", "town": "モリバント", "level": 55, "type": "KILL_ALL", "offered": "lib/edit/towns/03_Morivant.jsonc:273（Q24 と Q19 の後）",
+     "reward": "体力回復の杖（id 329）lib/edit/towns/03_Morivant.jsonc:387", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 29, "name": "ミミックの財宝", "town": "モリバント", "level": 25, "type": "KILL_ALL", "offered": "lib/edit/towns/03_Morivant.jsonc:432（最初から）",
+     "reward": "透明物体感知の指輪（id 155）lib/edit/towns/03_Morivant.jsonc:485", "fills": ["see_invisible"], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null,
+     "decision": "作戦なし。報酬は 26F の透明視認（闇市・ダンジョンでも安く出る）"},
+    {"quest_id": 30, "name": "テングとデスソード", "town": "モリバント", "level": 25, "type": "KILL_ALL", "offered": "lib/edit/towns/03_Morivant.jsonc:475（Q29 の後）",
+     "reward": "麻痺知らずの指輪（id 144）lib/edit/towns/03_Morivant.jsonc:572", "fills": ["free_action"], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 19, "name": "破滅のクエスト１", "town": "アングウィル", "level": 15, "type": "KILL_ALL", "offered": "lib/edit/towns/04_Angwil.jsonc:103（Q22 の後）",
+     "reward": "火炎の指輪（id 146、RES_FIRE）lib/edit/towns/04_Angwil.jsonc:200", "fills": ["resist_fire"], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 23, "name": "増殖地獄", "town": "アングウィル", "level": 65, "type": "KILL_ALL", "offered": "lib/edit/towns/04_Angwil.jsonc:190（Q19 の後）",
+     "reward": "バランスドラゴン・スケイルメイル（id 411）lib/edit/towns/04_Angwil.jsonc:287", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 10, "name": "仙術エネルギー特異点", "town": "ズル", "level": 65, "type": "KILL_ALL", "offered": "lib/edit/towns/05_Zul.jsonc:88",
+     "reward": "[力の魔道書]（id 337）lib/edit/towns/05_Zul.jsonc:141", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 11, "name": "カオスの特異点", "town": "ズル", "level": 65, "type": "KILL_ALL", "offered": "lib/edit/towns/05_Zul.jsonc:186",
+     "reward": "[ハルマゲドン大全]（id 386）lib/edit/towns/05_Zul.jsonc:239", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 12, "name": "自然魔術の特異点", "town": "ズル", "level": 65, "type": "KILL_ALL", "offered": "lib/edit/towns/05_Zul.jsonc:284",
+     "reward": "[自然の脅威]（id 382）lib/edit/towns/05_Zul.jsonc:337", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"},
+    {"quest_id": 13, "name": "秘術の特異点", "town": "ズル", "level": 65, "type": "KILL_ALL", "offered": "lib/edit/towns/05_Zul.jsonc:382",
+     "reward": "[秘術大全]（id 519）lib/edit/towns/05_Zul.jsonc:435", "fills": [], "unlocks": [], "history": {}, "min_cl": 99, "strategy": null, "decision": "作戦なし"}
+  ]
+}
