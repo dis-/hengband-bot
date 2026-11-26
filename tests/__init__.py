@@ -93,8 +93,8 @@ _isolated_default(HOME_HISTORY_DIR_ENV, "hengbot-test-history-")
 # the session's own temporary directory.
 _isolated_default(RUNTIME_DIR_ENV, "hengbot-test-runtime-", "jsonlog")
 
-# The unit tests drive every fixed quest's strategy, Q18 and Q33 included, as before the
-# 2026-11-26 skipped quests (strategy_profile.DEFAULT_SKIPPED_QUESTS): a test policy plays every
+# The unit tests drive every fixed quest's strategy, Q33 included, as before the 2026-11-26
+# skipped quests (strategy_profile.DEFAULT_SKIPPED_QUESTS): a test policy plays every
 # fixed quest unless the test gives it a profile (tests/test_strategy_profile.py does).  A
 # profile named by the environment never reaches a test session.
 os.environ.pop(strategy_profile.PROFILE_ENV, None)

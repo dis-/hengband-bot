@@ -5,8 +5,16 @@ Owner 2026-11-26 「2度勝利したので戦略を変える。n1-cはこのま�
 以前の指示を破ることを許可する。」.  The supervisor's decision on it: over the last 83 Magic-Eater
 lives the optional town quests cost 14 lives and 88.6 hours (Q25 7 stuck and 1 death, Q33 2 deaths
 in its last 7 attempts, Q18 1 death, Q31 1 stuck), and none is needed to win (only the guardians of
-Angband 99F and 100F, ``WIN_QUEST_IDS``).  So every character skips Q18 and Q33
-(``DEFAULT_SKIPPED_QUESTS``), and an instance may skip more.
+Angband 99F and 100F, ``WIN_QUEST_IDS``).  So every character skipped Q18 and Q33, and an
+instance may skip more.
+
+Corrected 2026-11-27 (owner 「n1-cは長時間49Fで停滞している。これがQ25を放棄して確定入手テレパシーを
+諦めた代償である。」): the skip was decided from the losses alone.  The Outpost offers Q25 only after
+Q18 (lib/edit/towns/01_Outpost_Full.jsonc ``$QUEST18``), and Q25's reward is the telepathy the 50F
+depth gate asks for; n1-c (CL41, no telepathy) sat at Angband 49F for about 8 hours.  So Q18 and
+Q25 are played again and only Q33 stays skipped by default (``DEFAULT_SKIPPED_QUESTS``): its two
+deaths in the last 7 attempts happened with its entry requirements met, so those requirements do
+not yet defer a weak character; the reward-and-timing rule that replaces this skip is to follow.
 
 A skipped quest is never requested, never travelled to and, when it is taken anyway, ignored: it
 is never entered and no town stage waits or buys for it.  ``quest_skipped`` is the one answer;
@@ -52,7 +60,7 @@ RUNTIME_DIR_ENV = "HENGBOT_RUNTIME_DIR"
 # The policy attribute holding the instance's profile (state_registry row, set by cli).
 POLICY_ATTRIBUTE = "_instance_profile"
 
-DEFAULT_SKIPPED_QUESTS = frozenset({18, 33})
+DEFAULT_SKIPPED_QUESTS = frozenset({33})
 # The decision log's directory and its two parents: jsonlog/, life-NNN/, the instance.
 _SEARCH_DEPTH = 3
 # quest_knowledge.QUEST_TYPE_RANDOM (not imported: quest_knowledge loads the monster tables).
