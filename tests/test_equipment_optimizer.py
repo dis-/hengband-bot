@@ -294,7 +294,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
 
     def test_august_11_success_shape_still_chooses_band_30_at_full_melee(self):
         required_30 = gear(
-            "band-30-resists", 37, flags=(46, 48, 49, 50, 51, 52, 57)
+            "band-30-resists", 37, flags=(46, 48, 49, 50, 51, 52, 57, 78)
         )
         candidate = Loadout(
             (("light", self.light), (SLOT_BODY, required_30)), "empty"
@@ -384,7 +384,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         ))
 
     def test_depth_descent_retries_the_immediately_shallower_band(self):
-        cumulative_50 = (46, 48, 49, 50, 51, 52, 57, 60, 62, 79)
+        cumulative_50 = (46, 48, 49, 50, 51, 52, 57, 60, 62, 78, 79)
         deep = gear("weak-speed-gate", 32, flags=cumulative_50)
         strong = gear("strong-50-band", 23, flags=cumulative_50)
         candidates = (
@@ -458,7 +458,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertTrue(band_19.satisfying_set_existed)
 
     def test_constrained_depth_reports_classified_band_ceiling(self):
-        chaos = gear("chaos", 45, flags=(46, 48, 49, 50, 51, 52, 57, 62))
+        chaos = gear("chaos", 45, flags=(46, 48, 49, 50, 51, 52, 57, 62, 78))
         result = optimize_loadout(
             (self.light, chaos), lambda _loadout: metrics(1), depth=31,
         )
@@ -1185,7 +1185,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
         owned = [self.light, chaos, nether, telepathy]
         earlier = frozenset({
             "free_action", "resist_fire", "resist_conf", "resist_pois",
-            "resist_cold", "resist_elec", "resist_acid",
+            "resist_cold", "resist_elec", "resist_acid", "see_invisible",
         })
         blocked = optimize_loadout(
             owned, lambda loadout: metrics(10), depth=50,

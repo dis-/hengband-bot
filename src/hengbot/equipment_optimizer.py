@@ -111,6 +111,7 @@ TR_RES_POIS = 52
 TR_RES_CONF = 57
 TR_RES_NETHER = 60
 TR_RES_CHAOS = 62
+TR_SEE_INVIS = 78
 TR_TELEPATHY = 79
 TR_TELEPORT = 90
 
@@ -128,6 +129,7 @@ ABILITY_FLAG = {
     "resist_conf": TR_RES_CONF,
     "resist_neth": TR_RES_NETHER,
     "resist_chaos": TR_RES_CHAOS,
+    "see_invisible": TR_SEE_INVIS,
     "telepathy": TR_TELEPATHY,
 }
 

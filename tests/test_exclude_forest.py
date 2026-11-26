@@ -28,7 +28,7 @@ from tests import test_guardian_recall_pingpong_recorded as recorded
 FOREST = 7
 ABILITIES = frozenset({
     "free_action", "resist_conf", "resist_fire", "resist_pois",
-    "resist_cold", "resist_elec", "resist_acid", "resist_chaos",
+    "resist_cold", "resist_elec", "resist_acid", "resist_chaos", "see_invisible",
 })
 
 

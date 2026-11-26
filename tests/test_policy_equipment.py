@@ -1425,7 +1425,7 @@ class EntranceTravelTest(unittest.TestCase):
             pol.last_reason,
             # Owner decision 2026-11-04: 31F asks every band at or above its first floor.
             "depth-gate:destination-31:missing-free_action,resist_acid,resist_chaos,"
-            "resist_cold,resist_conf,resist_elec,resist_fire,resist_pois",
+            "resist_cold,resist_conf,resist_elec,resist_fire,resist_pois,see_invisible",
         )
 
     def test_incomplete_optimizer_blocks_native_entrance_travel(self):
@@ -4230,7 +4230,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
             (self._equipment(), 19, "real character"),
             (equipment_with_flags({46, 50}), 20, "free action and fire"),
             (
-                equipment_with_flags({46, 48, 49, 50, 51, 52, 57}),
+                equipment_with_flags({46, 48, 49, 50, 51, 52, 57, 78}),
                 30,
                 "cumulative requirements through four elements",
             ),
@@ -4255,7 +4255,7 @@ class ConfirmedLoadoutPublicPathPinTest(unittest.TestCase):
         elemental_mail = item(
             "u", 37, 3, name="Elemental Mail", known=True,
             fully_known=True, is_equipment=True, ac=12, to_a=8,
-            known_flags=frozenset({46, 48, 49, 50, 51, 52, 57}),
+            known_flags=frozenset({46, 48, 49, 50, 51, 52, 57, 78}),
         )
         town_sword = item(
             "main_hand", TVAL_SWORD, 4, name="Town Sword", known=True,
@@ -4485,7 +4485,7 @@ class EquipmentQuarantineInvariantTest(unittest.TestCase):
         return store_item(
             "J", TVAL_RING, 4, name=self.RING_NAME, known=True,
             fully_known=True, is_equipment=True,
-            known_flags=frozenset({46, 48, 49, 50, 51, 52, 57, 62}),
+            known_flags=frozenset({46, 48, 49, 50, 51, 52, 57, 62, 78}),
         )
 
     def _town(self):

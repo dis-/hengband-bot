@@ -9888,7 +9888,7 @@ class DungeonConquestTest(unittest.TestCase):
 
     ALL_2530 = frozenset(
         {"free_action", "resist_conf", "resist_fire", "resist_pois", "resist_cold",
-         "resist_elec", "resist_acid"}
+         "resist_elec", "resist_acid", "see_invisible"}
     )
 
     @staticmethod

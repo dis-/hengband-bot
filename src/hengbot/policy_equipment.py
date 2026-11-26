@@ -1611,6 +1611,12 @@ class EquipmentMixin:
         # The owner's equipment rules (equipment_rules.RULES_VERSION): a search memo restored from
         # before a rule change is stale.
         signature += (("equipment-rules", equipment_rules.RULES_VERSION),)
+        # The character's own abilities (the board's permanent sources, the search's
+        # ``intrinsic_abilities``): a race or class ability gained at a level (a Zombie's resist
+        # cold at CL5, race-info-table.cpp) changes every band's gates and the see-invisible
+        # utility (2026-11-26), so a memo of the search without it is stale.
+        signature += (("intrinsic-abilities", tuple(sorted(_effective_intrinsic_abilities(
+            snapshot.player, frozenset())))),)
         # The mining fundraise's lending of the hands holds the swap (``_equipment_swap_held``):
         # its end must re-plan the held target into a swap, so it is an input of the memo (the
         # visit's target itself is not decided again: equipment_target, no named event).
