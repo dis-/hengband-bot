@@ -9,6 +9,12 @@ DECLARED RECONSTRUCTED: the finale's expedition mark (finale_prep ``lifted``) an
 Magic-Eater's device lists (the snapshot files carry none; the decisions of that floor show these
 powers cast): staffs *Destruction*, Teleportation, Magic Mapping, Speed, Healing (30 each); wands
 Stone to Mud (60) and Rocket (30); rods Detection (5) and Restoration (3); all at 95%.
+
+DECLARED CONSTRUCTED: a board that recorded the food state "normal" reads "full" (the battle's
+eat ahead below full, angband_finale_battle ``_bank_food_key`` of 2026-11-26, done before the
+window: the recorded runs predate it).  With ``eat_ahead`` the recorded state is kept until the
+policy eats ahead (``BANK_FOOD_REASON``), and the later boards read "full" as the game would answer
+(+5000 food from below PY_FOOD_FULL).
 """
 from __future__ import annotations
 
@@ -54,7 +60,7 @@ def boards(name: str) -> list:
     return [row for row in rows if row.get("type") == "player_turn"]
 
 
-def drive(raw_boards, monrace, *, prepare=None) -> list:
+def drive(raw_boards, monrace, *, prepare=None, eat_ahead=False) -> list:
     """(turn, (y, x), key, reason, phase, last_seen, target cell) of each board.  ``prepare``
     (policy, snapshot) runs before each decision (a DECLARED constructed state)."""
     directory = TemporaryDirectory()
@@ -65,11 +71,13 @@ def drive(raw_boards, monrace, *, prepare=None) -> list:
         policy._skill_exp_cache = (0, 0, first.player.level, policy._town_visit_epoch)
         held = finale_prep.phase(policy)
         held.lifted, held.step = True, finale_prep.DONE
-        decided, owner = [], None
+        decided, owner, banked = [], None, not eat_ahead
         for raw in raw_boards:
             raw = copy.deepcopy(raw)
             if owner:
                 raw["_completed_operation_owner"] = owner
+            if banked and (raw.get("player") or {}).get("food_state") == "normal":
+                raw["player"]["food_state"] = "full"
             board = policy.with_known_skill_exp(parse_snapshot(raw, monrace))
             policy._me_device_lists = device_lists(board.turn)
             if prepare is not None:
@@ -83,6 +91,8 @@ def drive(raw_boards, monrace, *, prepare=None) -> list:
                             battle.last_seen if battle else None,
                             (target.position.y, target.position.x) if target else None))
             owner = policy.last_reason if key else None
+            banked = banked or (bool(key) and policy.last_reason
+                                == angband_finale_battle.BANK_FOOD_REASON)
             if key:
                 policy.confirm_key_posted(key)
         return decided

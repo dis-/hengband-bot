@@ -74,6 +74,10 @@ class AngbandFinaleBattleRecordedTest(unittest.TestCase):
         cls.scratch = TemporaryDirectory()
         cls.arrival, _, _ = load(FIXTURE, Path(cls.scratch.name))
         cls.raw = json.loads(lzma.decompress((FIXTURE / "angband-99f-board.json.xz").read_bytes()))
+        # DECLARED CONSTRUCTED: full (recorded normal), the board after the battle's eat ahead of
+        # a food wand's charge (angband_finale_battle ``_bank_food_key``, 2026-11-26), which is
+        # not this test's subject.
+        cls.raw["player"]["food_state"] = "full"
 
     @classmethod
     def tearDownClass(cls):
