@@ -23340,6 +23340,28 @@
     "context": "Dungeon only: the 99F/100F battle's eat ahead below full of a MANA race (angband_finale_battle key); None in town (the battle applies only on the finale floors).",
     "evidence": "Returns reserved_item_command's eat of a charged Wand of Wonder (finale_prep's food wands) under the battle's reason angband-finale:eat-ahead; no town command (n1-c life-222 2026-11-26 10:00-10:04, 100F: the three food wands drained to 0 by UN_POWER blows, the recall starving-out)."
   },
+  "finale_recharge_food.py:_scroll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon only: the carried Scroll of Recharging the 99F/100F battle reads on a drained food wand (finale_recharge_food key); no command of its own.",
+    "evidence": "Returns the pack's aware Scroll of Recharging (angband_finale RECHARGING) or None; owner 2026-11-26 「魔力充填の巻物を10巻持っていき、空腹かつ3本とも空の場合のみ充填して食料とする」."
+  },
+  "finale_recharge_food.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "context": "Dungeon only: the 99F/100F battle's read of a Scroll of Recharging on a drained food wand when hungry, and the eat of the recharged wand (angband_finale_battle key); None in town (the battle applies only on the finale floors, and the key needs a hungry board).",
+    "evidence": "Returns policy._read_key of the scroll with the wand's pack letter (reason angband-finale:recharge-food) or reserved_item_command's eat of the recharged wand (angband-finale:eat-recharged); no town command (n1-c life-222 2026-11-26 10:04, 100F: hungry at turn 12325001 with the three food wands drained to 0, the recall starving-out)."
+  },
   "finale_prep.py:_food_key": {
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",

@@ -412,6 +412,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "angband_finale.py:carry_counts": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "angband_finale.py:carry_target": {
     "classification": "data",
     "rows": [
@@ -427,6 +434,13 @@
     "delegation": "selected child; no independent success"
   },
   "angband_finale.py:home_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "angband_finale.py:is_recharging": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -3707,6 +3721,41 @@
     "delegation": "selected child; no independent success"
   },
   "finale_prep.py:town_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_recharge_food.py:_drained_all": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_recharge_food.py:_scroll": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_recharge_food.py:food_wands": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_recharge_food.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "finale_recharge_food.py:recharged": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

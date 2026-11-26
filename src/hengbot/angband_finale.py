@@ -45,6 +45,8 @@ Who reads what here:
   character prepares (a Magic-Eater whose Angband recall depth reached the cap): what the pack
   keeps (policy_home), takes from Home and buys (policy_supply, policy_shop).
 * ``weight_limit``: the pack's limit under answer 3 (policy_home ``_inventory_overweight``).
+* ``carry_counts``: the counted supplies of this character, the Scrolls of Recharging of a race
+  that eats device charges among them (owner 2026-11-26, ``RECHARGING``).
 * ``small_floor_key``: the gameplay option always_small_floor (option-types-table.cpp:199,
   floor-info.cpp:1116) set with the pref command ``"`` (cmd-dump.cpp do_cmd_pref,
   interpret-pref-file.cpp ``Y:<option>``: a GAMEPLAY option, no game time) before the descent.
@@ -82,8 +84,17 @@ RESTORING = (TVAL_FOOD, 19)
 RESTORING_CARRY = 99  # 「あるだけ」: every one (a stack's limit)
 # Owner 2026-11-20 answer 2.
 CARRY = {HEALING: 30, STAR_HEALING: 15, RESISTANCE: 20, TELEPORT: 40}
+# Owner 2026-11-26 (verbatim) 「魔力充填の巻物を10巻持っていき、空腹かつ3本とも空の場合のみ充填して
+# 食料とする」: a race whose food is device charges (PlayerRaceFoodType::MANA: the Golem, the
+# Skeleton, the Zombie and the Spectre, player/race-info-table.cpp) carries ten Scrolls of
+# Recharging (lib/edit/BaseitemDefinitions.jsonc id 206, sv-scroll-types.h SV_SCROLL_RECHARGING 22;
+# the Alchemist's regular stock, store/articles-on-sale.cpp store_regular_sale_table) for the
+# food wands a monster's UN_POWER blow drained (finale_recharge_food reads them, nothing else).
+RECHARGING = (TVAL_SCROLL, 22)
+RECHARGING_CARRY = 10
+RECHARGING_BASE_COST = 200  # BaseitemDefinitions.jsonc id 206 "cost"
 SUPPLY_NAMES = {HEALING: "healing", STAR_HEALING: "star_healing", RESISTANCE: "resistance",
-                TELEPORT: "teleport", RESTORE_MANA: "restore_mana"}
+                TELEPORT: "teleport", RESTORE_MANA: "restore_mana", RECHARGING: "recharging"}
 # The supplies no town store sells (store/articles-on-sale.cpp lists none of the four potions;
 # the Alchemist sells the Teleportation): the Black Markets' circuit buys them (finale_bm_tour,
 # owner 2026-11-23 for the Restore Mana, 2026-11-24 「闇市を巡回して買い足す」 for the Healing).
@@ -161,6 +172,34 @@ def _kind(item) -> tuple[int, int]:
     return item.tval, item.sval
 
 
+def is_recharging(item) -> bool:
+    """An aware Scroll of Recharging (pack, shelf or Home)."""
+    return _kind(item) == RECHARGING and bool(getattr(item, "aware", True))
+
+
+def recharging_wanted(snapshot) -> bool:
+    """The character carries the Scrolls of Recharging: its race eats device charges (finale_prep
+    ``food_wanted``, the food wands' race)."""
+    from hengbot import finale_prep  # import cycle
+    return finale_prep.food_wanted(snapshot)
+
+
+def carry_counts(snapshot) -> dict:
+    """The supplies this character buys and takes out of the Home, {kind: count}: ``CARRY`` and,
+    for a race that eats device charges, the ``RECHARGING_CARRY`` Scrolls of Recharging (owner
+    2026-11-26).  The Restore Mana's computed count is the callers' own.
+
+    The Scrolls of Recharging are no readiness row (``supply_rows``): the expedition does not
+    wait for them.  The Alchemist's regular stock is a few scrolls a restock (store.cpp
+    mass_produce), and a town's shortage of a supply only the Alchemist sells would stop the
+    town under the 96F+ recall refusal (finale_hold ``town_key``); they are bought on every visit
+    while short (policy_shop ``tail:angband-finale-recharging``), kept once found in the dungeon
+    (``carry_target``) and reported beside the rows (``readiness``'s ``recharging``)."""
+    if recharging_wanted(snapshot):
+        return {**CARRY, RECHARGING: RECHARGING_CARRY}
+    return dict(CARRY)
+
+
 def carried(snapshot, kind) -> int:
     """The aware ``kind`` the pack holds."""
     return sum(item.count for item in snapshot.inventory
@@ -192,7 +231,7 @@ def _keep_home_counts(policy) -> None:
     """Remember the current census's counts of the finale's kinds for the next arrival."""
     if _census_current(policy):
         memory(policy).home_counts = {kind: home_count(policy, kind)
-                                      for kind in (*CARRY, RESTORE_MANA)}
+                                      for kind in (*CARRY, RESTORE_MANA, RECHARGING)}
 
 
 def angband_depth(snapshot) -> int:
@@ -327,7 +366,12 @@ def readiness(policy, snapshot) -> dict:
             "carried": supply_rows(policy, snapshot, lambda kind: carried(snapshot, kind)),
             "equipment_owned": {"missing": owned_gear, "ready": not owned_gear,
                                 "judged": "worn" if chosen is None else "owned-search"},
-            "equipment_worn": {"missing": worn, "ready": not worn}}
+            "equipment_worn": {"missing": worn, "ready": not worn},
+            # Owner 2026-11-26 「魔力充填の巻物を10巻持っていき」: reported, never a gate
+            # (``carry_counts``); None for a race that eats no device charges.
+            "recharging": ({"owned": owned(policy, snapshot, RECHARGING),
+                            "carried": carried(snapshot, RECHARGING), "required": RECHARGING_CARRY}
+                           if recharging_wanted(snapshot) else None)}
 
 
 def ready(rows: dict) -> bool:
@@ -460,9 +504,16 @@ def no_ammunition(policy, snapshot) -> bool:
 def carry_target(policy, snapshot, item) -> int | None:
     """The finale's carry of ``item``'s kind once the supplies and the equipment are owned
     (owner 2026-11-20 Q9 「準備がそろってから」), else None."""
-    if not preparing(snapshot) or not carrying(policy) or not getattr(item, "aware", True):
+    if not preparing(snapshot) or not getattr(item, "aware", True):
         return None
     kind = _kind(item)
+    if kind == RECHARGING:
+        # Owner 2026-11-26 「10巻持っていき」: kept from the purchase on, not only from the phase's
+        # supplies step -- the consumable table discards the kind (「捨てる」), and no Home holds it
+        # meanwhile, so a bought scroll would be destroyed and bought again.
+        return RECHARGING_CARRY if recharging_wanted(snapshot) else None
+    if not carrying(policy):
+        return None
     if kind == RESTORE_MANA:
         return restore_mana_carry(policy, snapshot)
     from hengbot import finale_prep  # import cycle
@@ -481,7 +532,8 @@ def shortage(policy, snapshot, kind) -> int:
     the character prepares."""
     if not preparing(snapshot):
         return 0
-    target = restore_mana_carry(policy, snapshot) if kind == RESTORE_MANA else CARRY.get(kind)
+    target = (restore_mana_carry(policy, snapshot) if kind == RESTORE_MANA
+              else carry_counts(snapshot).get(kind))
     return max(0, (target or 0) - owned(policy, snapshot, kind))
 
 
