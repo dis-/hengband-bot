@@ -6768,6 +6768,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "me_powers.py:_used_row": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "me_powers.py:beam_cell": {
     "classification": "data",
     "rows": [
@@ -9154,6 +9161,13 @@
       "quest-service"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "policy.py:HengbotPolicy._spell_escape_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "policy.py:HengbotPolicy._stack_charges": {
     "classification": "data",
@@ -17650,6 +17664,125 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "realm_spell_book.py:_stale_book": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spell_book.py:browse_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spell_book.py:periodic_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spell_book.py:resume_read_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spell_book.py:retained_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spell_book.py:study_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spells.py:Spell.letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:_row_usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:_rows.names": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:_serving": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:book_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:castable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:escape_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:means_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:row_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:spell_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "recall_stockout_travel.py:fare": {
     "classification": "data",
     "rows": [
@@ -19037,6 +19170,13 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "threat_escape.py:blind_teleport_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "threat_escape.py:escape_means": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -246,11 +246,14 @@ def _abilities(item: Any) -> frozenset:
 def _unused_book(policy: Any, snapshot: Any, item: Any) -> bool:
     """A third or fourth realm book of no realm the character sheet shows (owner 2026-11-19
     「高位魔法書→自宅に溜め込まずに売る」).  Unread realms sell nothing.  A class whose realm
-    the bot never casts (class_roles.realm_books_unusable: the Rogue's Sorcery) owns no book."""
-    from hengbot.class_roles import realm_books_unusable
+    the bot never casts (class_roles.realm_books_unusable) owns no book, and neither does a
+    class that casts only its first two books' spells (class_roles.casts_realm_spells, the
+    Rogue: realm_spells casts no spell of a third or fourth book)."""
+    from hengbot.class_roles import casts_realm_spells, realm_books_unusable
 
     own = getattr(policy, "_own_book_tvals", None)
-    if own is not None and realm_books_unusable(snapshot.player.class_id):
+    class_id = snapshot.player.class_id
+    if own is not None and (realm_books_unusable(class_id) or casts_realm_spells(class_id)):
         own = frozenset()
     return bool(own is not None and policy._is_high_value_book(item) and item.tval not in own)
 

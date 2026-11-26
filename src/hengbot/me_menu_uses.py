@@ -9,9 +9,11 @@ from hengbot.magic_eater_input import ABSORBED_USE
 from hengbot.me_device_attacks_input import DEVICE_USE
 from hengbot.me_powerful_activation_input import POWERFUL_USE
 from hengbot.me_powers_refresh_input import BROWSE_USE
+from hengbot.realm_spells_input import SPELL_USE
 
 
-USES = (ABSORBED_USE, DEVICE_USE, POWERFUL_USE, BROWSE_USE)
+# SPELL_USE: a caster's cast, study and browse (realm_spells_input; the same walk of prompts).
+USES = (ABSORBED_USE, DEVICE_USE, POWERFUL_USE, BROWSE_USE, SPELL_USE)
 
 
 def compile_menu_key(key, owner):

@@ -27,8 +27,11 @@ def key(policy, snapshot, *, strategic_hostiles):
     # 4. Recover between fights: with nothing hostile in sight and HP down
     #    (and not bleeding, and not being hit by something unseen), rest until
     #    healed. This is our main way to stay survivable without healing items.
+    from hengbot import realm_spells
     if (
-        player.hp_ratio < REST_TARGET_HP_RATIO
+        (player.hp_ratio < REST_TARGET_HP_RATIO
+         # A caster's mana below its escape spell's cost (realm_spells, owner 2026-11-26).
+         or realm_spells.mana_rest_due(policy, snapshot))
         and not policy._physical_hostiles(snapshot)
         and not policy._took_damage
         and not player.poisoned

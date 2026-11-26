@@ -120,6 +120,7 @@ from functools import cached_property
 from typing import Callable
 
 from hengbot import safety_watch
+from hengbot.class_roles import casts_realm_spells
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER, power_command_refused
 from hengbot.me_device_attacks import observe_lists
 from hengbot.me_staff_sequence import (
@@ -293,6 +294,16 @@ POWERS = (
           darkness_scaled=False, against_hostile=True),
 )
 BY_KEY = {power.ident: power for power in POWERS}
+
+
+def _used_row(ident) -> Power:
+    """The row of a remembered use: a power of this table, else a caster's spell row
+    (realm_spells, kind "spell"), whose uses share the floor memory."""
+    row = BY_KEY.get(tuple(ident))
+    if row is None:
+        from hengbot import realm_spells  # import cycle (realm_spells reads this module)
+        row = realm_spells.row_of(ident)
+    return row
 
 
 @dataclass(frozen=True)
@@ -574,7 +585,7 @@ def _resists_teleport_surely(ctx, monster) -> bool:
 def _cast_radius(ctx, use) -> int:
     """The radius an earlier use detected: rod_effect's powerful detect_rad is
     DETECT_RAD_DEFAULT * 3 / 2 (cmd-item/cmd-zaprod.cpp:50)."""
-    radius = ctx.radius(BY_KEY[use.used])
+    radius = ctx.radius(_used_row(use.used))
     return radius * 3 // 2 if use.reason.endswith(POWERFUL_SUFFIX) else radius
 
 
@@ -617,7 +628,7 @@ def _quest_remaining_unseen(ctx, power):
 def _revealing_uses(ctx, flags) -> list:
     """(position, radius, turn) of every landed use that would have shown such a race."""
     return [(use.position, _cast_radius(ctx, use), use.turn) for use in ctx.memory.uses
-            if (reveals := hunt_target.REVEALS.get(BY_KEY[use.used].effect)) and reveals(flags)]
+            if (reveals := hunt_target.REVEALS.get(_used_row(use.used).effect)) and reveals(flags)]
 
 
 def revealing_radius(policy, snapshot, flags) -> int:
@@ -708,6 +719,10 @@ def stunned_success(policy, snapshot, ident) -> int | None:
     """The power's success percent under the board's current stun (me_power_success: the game's
     rate, else the displayed row less the stun it was shown under); None without a displayed
     row, which is what says the power is absorbed."""
+    if tuple(ident)[0] == "spell":
+        # A caster's spell (realm_spells): its shown fail under this board's stun.
+        from hengbot import realm_spells  # import cycle
+        return realm_spells.success(policy, snapshot, ident[1])
     row = me_capability.observed_row(policy, *ident)
     if row is None:
         return None
@@ -717,6 +732,9 @@ def stunned_success(policy, snapshot, ident) -> int | None:
 def unstunned_success(policy, snapshot, ident) -> int:
     """The power's success percent with no stun (me_power_success: the game's rate, else the
     displayed row less the stun it was shown under); 0 without a displayed row."""
+    if tuple(ident)[0] == "spell":
+        from hengbot import realm_spells  # import cycle
+        return realm_spells.success(policy, snapshot, ident[1], stunned=False) or 0
     row = me_capability.observed_row(policy, *ident)
     if row is None:
         return 0
@@ -785,7 +803,7 @@ def _deep_floor(ctx) -> bool:
 
 
 # The effects whose cast shows the monsters around it (the Detect Evil row and its preferred rod).
-MONSTER_DETECTIONS = frozenset({"detect-evil", "detect-all"})
+MONSTER_DETECTIONS = frozenset({"detect-evil", "detect-all", "detect-monsters"})
 
 
 def _deep_explore_redetect(ctx, power):
@@ -794,7 +812,7 @@ def _deep_explore_redetect(ctx, power):
     new-floor trigger's; a Recall already read ends the visit, so it does not re-detect."""
     if not _deep_floor(ctx) or ctx.snapshot.player.recalling:
         return False
-    casts = [use for use in ctx.memory.uses if BY_KEY[use.used].effect in MONSTER_DETECTIONS]
+    casts = [use for use in ctx.memory.uses if _used_row(use.used).effect in MONSTER_DETECTIONS]
     if not casts:
         return False
     latest = max(casts, key=lambda use: use.turn)
@@ -924,7 +942,7 @@ def _charges(ctx, power) -> int:
 def _gate(policy, snapshot) -> bool:
     player = snapshot.player
     return (
-        player.class_id == PLAYER_CLASS_MAGIC_EATER
+        (player.class_id == PLAYER_CLASS_MAGIC_EATER or casts_realm_spells(player.class_id))
         and getattr(snapshot, "protocol_version", PROTOCOL_LEGACY) >= PROTOCOL_SCREEN_PARITY
         and not snapshot.in_town and not snapshot.on_open_wilderness
         and snapshot.dungeon_level > 0 and snapshot.store is None
@@ -963,7 +981,9 @@ def utility_device_permitted(policy, snapshot) -> bool:
 def observe(policy, snapshot) -> None:
     """Every decision: remember the displayed lists, settle the previous use."""
     observe_lists(policy, snapshot)
-    if snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER:
+    # A caster's spells (realm_spells) share the floor memory and its settlement.
+    if (snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER
+            and not casts_realm_spells(snapshot.player.class_id)):
         setattr(policy, MEMORY, None)
         return
     memory = getattr(policy, MEMORY, None)
@@ -1017,6 +1037,10 @@ def power_key(policy, snapshot, occasion: str, target: Position | None = None, *
     if memory is None or memory.floor != snapshot.floor_key:
         return None
     ctx = Context(policy, snapshot, occasion, memory, target)
+    if casts_realm_spells(snapshot.player.class_id):
+        # A caster's spells answer the same occasions and triggers (realm_spells).
+        from hengbot import realm_spells  # import cycle
+        return realm_spells.spell_key(ctx, only=only)
     for power in sorted(POWERS, key=lambda each: each.priority):
         if not _hostiles_allow(ctx, power):
             continue
@@ -1121,13 +1145,13 @@ def mapped_areas(policy, snapshot) -> tuple:
         return ()
     ctx = Context(policy, snapshot, FLOOR, memory)
     return tuple(
-        (use.position, ctx.radius(BY_KEY[use.used], unknown_is_dark=True))
-        for use in memory.uses if BY_KEY[use.used].effect == MAP_AREA and not use.map_forgotten)
+        (use.position, ctx.radius(_used_row(use.used), unknown_is_dark=True))
+        for use in memory.uses if _used_row(use.used).effect == MAP_AREA and not use.map_forgotten)
 
 
 # The effects that run detect_doors (spells-detection.cpp: detect_feat_flag discloses every hidden
 # door in range; detect_all calls detect_doors), for door_detect_cover.
-DOOR_DETECTIONS = frozenset({"detect-doors-stairs", "detect-all"})
+DOOR_DETECTIONS = frozenset({"detect-doors-stairs", "detect-all", "detect-doors-traps"})
 
 
 def door_detections(policy, snapshot) -> tuple:
@@ -1140,7 +1164,7 @@ def door_detections(policy, snapshot) -> tuple:
     ctx = Context(policy, snapshot, FLOOR, memory)
     found = []
     for use in memory.uses:
-        power = BY_KEY[use.used]
+        power = _used_row(use.used)
         if power.effect not in DOOR_DETECTIONS:
             continue
         radius = ctx.radius(power, unknown_is_dark=True)
@@ -1151,7 +1175,7 @@ def door_detections(policy, snapshot) -> tuple:
 
 
 # The effects that run detect_traps (detect_all calls it), for door_detect_cover's trap record.
-TRAP_DETECTIONS = frozenset({"detect-traps", "detect-all"})
+TRAP_DETECTIONS = frozenset({"detect-traps", "detect-all", "detect-doors-traps"})
 
 
 def trap_detections(policy, snapshot) -> tuple:
@@ -1163,7 +1187,7 @@ def trap_detections(policy, snapshot) -> tuple:
     ctx = Context(policy, snapshot, FLOOR, memory)
     found = []
     for use in memory.uses:
-        power = BY_KEY[use.used]
+        power = _used_row(use.used)
         if power.effect not in TRAP_DETECTIONS:
             continue
         radius = ctx.radius(power, unknown_is_dark=True)
@@ -1180,7 +1204,11 @@ def map_radius(policy, snapshot) -> int:
 
 
 def map_charged(policy, snapshot) -> bool:
-    """An absorbed mapping power has a charge."""
+    """An absorbed mapping power has a charge (a caster: its Magic Mapping can be cast)."""
+    if casts_realm_spells(snapshot.player.class_id):
+        from hengbot import realm_spells  # import cycle
+        return realm_spells.castable(policy, snapshot, realm_spells.MAGIC_MAPPING,
+                                     realm_spells.RELIABLE_MIN_SUCCESS)
     return any(power.effect == MAP_AREA and me_capability.charges(policy, snapshot, *power.ident) > 0
                for power in POWERS)
 
@@ -1189,7 +1217,7 @@ def mapped_since(policy, snapshot, turn: int) -> bool:
     """A mapping landed on this floor at or after game turn ``turn``."""
     memory = getattr(policy, MEMORY, None)
     return (memory is not None and memory.floor == snapshot.floor_key
-            and any(BY_KEY[use.used].effect == MAP_AREA and use.turn >= turn for use in memory.uses))
+            and any(_used_row(use.used).effect == MAP_AREA and use.turn >= turn for use in memory.uses))
 
 
 def forget_maps(policy, snapshot, centre: Position, radius: int) -> None:
@@ -1201,7 +1229,7 @@ def forget_maps(policy, snapshot, centre: Position, radius: int) -> None:
     reach = map_radius(policy, snapshot) + radius
     memory.uses = [
         replace(use, map_forgotten=True)
-        if BY_KEY[use.used].effect == MAP_AREA and game_distance(centre, use.position) <= reach
+        if _used_row(use.used).effect == MAP_AREA and game_distance(centre, use.position) <= reach
         else use
         for use in memory.uses]
 

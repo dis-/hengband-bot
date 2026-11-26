@@ -3122,6 +3122,10 @@ class HomeMixin:
         if kept_rod := deep_detection_rod.retained_count(snapshot, item):
             # Owner 2026-11-26 「50F以降は全感知のロッドを持つ」: the carried Rod of Detection.
             return kept_rod, deep_detection_rod.RETENTION_BRANCH
+        from hengbot import realm_spell_book
+        if kept_book := realm_spell_book.retained_count(self, snapshot, item):
+            # Owner 2026-11-26 「盗賊は魔法を使える」: one copy of each book whose spells are cast.
+            return kept_book, realm_spell_book.RETENTION_BRANCH
         optional_carry = quest_optional_carry.retained(self, snapshot, item)
         if optional_carry:
             return optional_carry, quest_optional_carry.RETENTION_BRANCH

@@ -161,6 +161,7 @@ COMPOSED_APPEND_SITES: dict[tuple[str, str], tuple[int, str]] = {
     ("quest_find_exit", "_dig"): (1, "passthrough"),            # 'T'
     ("quest_plan_base", "plan_door"): (1, "observed"),          # 'c' (the plans' one door entry)
     ("quest_lure_approach", "_fire_key"): (1, "observed"),      # '*p' walk (device, (b)-5)
+    ("realm_spells", "cast_key"): (1, "observed"),              # 'm' (realm_spells_input aim stage)
     ("unseen_strike", "key"): (1, "observed"),                  # '+'
 }
 
