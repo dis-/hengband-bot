@@ -989,6 +989,10 @@ SPEED_GATE_LABEL = "speed+25"
 
 SPEED_GATE_MINIMUM = 135  # +25 over the 110 base
 
+# Every permanent speed a depth gate asks (the single-slot loadout search completes a set that
+# reaches one by several swaps, warrior_loadout_search.SpeedGate).
+SPEED_GATE_MINIMA = (SPEED_GATE_MINIMUM,)
+
 def required_depth_gates(depth: int) -> frozenset:
     """Every mandatory gate for a depth: the resistance/telepathy table plus the
     *Destruction* (50F+) and speed +25 (81F+) requirements."""

@@ -179,8 +179,9 @@ def required_abilities_for_depth(depth: int) -> frozenset:
 
 
 # Bumped when a rule's logic changes without its data changing (4: the input key's former
-# hand-bumped schema, the NO_AC ban of 2026-11-21).
-RULES_REVISION = 4
+# hand-bumped schema, the NO_AC ban of 2026-11-21; 5: the single-slot search's speed
+# completions of 2026-11-26, warrior_loadout_search.SpeedGate).
+RULES_REVISION = 5
 
 
 def _rules_table() -> dict:

@@ -15,6 +15,7 @@ from hengbot import ability_sources
 from hengbot.equipment_encounters import (
     normal_encounters, ordinary_encounters, representative_encounters,
 )
+from hengbot.policy_constants import SPEED_GATE_MINIMA
 from hengbot.speed_valuation import permanent_player_speed
 from hengbot.equipment_optimizer import (
     ABILITY_FLAG,
@@ -72,6 +73,7 @@ from hengbot.warrior_loadout_search import (
     enumerate_single_slot_variants,
     enumerate_warrior_loadouts,
     finale_exhaustive_search,
+    speed_gates,
 )
 
 
@@ -1246,7 +1248,10 @@ def prepare_warrior_optimization(
                 require_light=require_light,
                 required_flags=flags,
                 **({} if seed is None else {"seed": seed}),
-                **({"repair_flags": repair_flags, "staff_gate": staff_gate}
+                # The depth gates' speeds (SPEED_GATE_MINIMA): a set that reaches one only
+                # by two swaps or more is searched as a whole (_gate_completions).
+                **({"repair_flags": repair_flags, "staff_gate": staff_gate,
+                    "speed_gates": speed_gates(defense.base_speed, SPEED_GATE_MINIMA)}
                    if search_factory is enumerate_single_slot_variants else {}),
             )
 
