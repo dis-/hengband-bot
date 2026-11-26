@@ -54,6 +54,8 @@ ADDED_STATIONARY_REASONS = frozenset({'deep-fall-guard:wait-recall', 'fundraise:
 OLD_QUEST_COMBAT_REASON_PREFIXES = ('quest-strategy:melee', 'quest-strategy:ranged-fire',
                                     'quest-strategy:q2-fire')
 OLD_ACTION_PREFIXES = ('item:', 'ranged:', 'chest:')
+# QUEST_COMBAT rows added since: Quest 33's summon answer's blow (n1-b life-419, 2026-11-26).
+ADDED_QUEST_COMBAT_PREFIXES = ('quest-strategy:summoned-strike',)
 
 
 def old_stationary(reason: str) -> bool:
@@ -65,7 +67,7 @@ def old_stationary(reason: str) -> bool:
             for stationary in OLD_STATIONARY_REASONS | ADDED_STATIONARY_REASONS
         )
         or reason in OLD_STATIONARY_EXEMPT_REASONS | ADDED_EXEMPT_REASONS
-        or reason.startswith(OLD_QUEST_COMBAT_REASON_PREFIXES)
+        or reason.startswith(OLD_QUEST_COMBAT_REASON_PREFIXES + ADDED_QUEST_COMBAT_PREFIXES)
         or reason.startswith("item:")
         or reason.startswith("ranged:")
         or reason.startswith("chest:")
@@ -76,7 +78,7 @@ def old_stationary(reason: str) -> bool:
 def known_reasons() -> frozenset:
     """Every reason string the code knows, and its neighbours."""
     base = set(OLD_STATIONARY_REASONS | OLD_STATIONARY_EXEMPT_REASONS)
-    base |= set(OLD_QUEST_COMBAT_REASON_PREFIXES + OLD_ACTION_PREFIXES)
+    base |= set(OLD_QUEST_COMBAT_REASON_PREFIXES + ADDED_QUEST_COMBAT_PREFIXES + OLD_ACTION_PREFIXES)
     base |= {row.pattern for row in reasons.ROWS}
     base |= {row.reason for row in reasons.STATIONARY_ROWS}
     base |= set(lint.shapes())
@@ -99,7 +101,8 @@ class EquivalenceTest(unittest.TestCase):
         self.assertEqual(cli.STATIONARY_REASONS, OLD_STATIONARY_REASONS | ADDED_STATIONARY_REASONS)
         self.assertEqual(cli.STATIONARY_EXEMPT_REASONS,
                          OLD_STATIONARY_EXEMPT_REASONS | ADDED_EXEMPT_REASONS)
-        self.assertEqual(cli.QUEST_COMBAT_REASON_PREFIXES, OLD_QUEST_COMBAT_REASON_PREFIXES)
+        self.assertEqual(cli.QUEST_COMBAT_REASON_PREFIXES,
+                         OLD_QUEST_COMBAT_REASON_PREFIXES + ADDED_QUEST_COMBAT_PREFIXES)
         self.assertEqual(cli.STATIONARY_ACTION_PREFIXES, OLD_ACTION_PREFIXES)
 
     def test_every_known_reason_answers_as_before(self):

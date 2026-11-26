@@ -868,7 +868,12 @@ _RULE_QUEST_COMBAT = "a fixed-quest attack from one post: the wave or the quest 
 _stationary(QUEST_COMBAT, _RULE_QUEST_COMBAT,
             "quest-strategy:melee", "quest-strategy:ranged-fire",
             # The same ranged core labels its Q2 shots separately.
-            "quest-strategy:q2-fire")
+            "quest-strategy:q2-fire",
+            # Quest 33's summon answer's blow (quest_summon_answer._strike: the summoner, then the
+            # summoned nearest first; its shots are ranged: rows).  n1-b life-419 (2026-11-26 08:54)
+            # killed the Queen Ant beside (26,42), then about one of her fire ants a blow (63 -> 41 in
+            # view), and the window stopped it as confined.
+            "quest-strategy:summoned-strike")
 
 # ======================================== ACTION: every reason starting with it
 _stationary(ACTION, "using an item in place", "item:")
