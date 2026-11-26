@@ -1357,7 +1357,7 @@ def gather_blocked_recall(policy: Any, board: Any) -> DepartureMaterial:
         recall = policy._supply_ledger(board, depth)["recall"]
         values = {
             "food_ready": policy._food_ready(board),
-            "recall_departure_ready": policy._count_recall_scrolls(board) >= 2
+            "recall_departure_ready": policy._dungeon_recall_units(board) >= 2
                 and recall.count >= max(1, recall.required_return),
             "equipment_transfer_clear": not (expedition is not None and expedition.temporary_deposits),
             "digger_withdrawal_resolved": not policy._home_digger_withdraw_pending

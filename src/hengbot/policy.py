@@ -9497,8 +9497,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                 + int(any(item.is_recall_rod and item.count > 0 for item in items)))
 
     def _count_recall_means(self, snapshot: Snapshot) -> int:
-        """The supply ledger's recall count: the carried scrolls and rod."""
-        return self._recall_supply_units(snapshot.inventory)
+        """The supply ledger's recall count: the carried scrolls and rod, and with no rod the
+        caster's held Word of Recall as the rod's one unit (the supervisor 2026-11-27: the
+        departure's read; the scrolls of the standing target are still bought as the backup)."""
+        units = self._recall_supply_units(snapshot.inventory)
+        if not any(item.is_recall_rod and item.count > 0 for item in snapshot.inventory):
+            units += self._recall_spell_unit(snapshot)
+        return units
 
     @staticmethod
     def _carried_recall_rod(snapshot: Snapshot, *, charged: bool = False) -> InventoryItem | None:
@@ -11078,11 +11083,6 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
             return takeoff
         from hengbot import realm_spells
-        if realm_spells.is_spell_means(item):
-            # The caster's spell in an escape or identification scroll's place
-            # (``_escape_scroll``, ``_find_identification_source``): cast it, the suffix answering
-            # the identification's item question.
-            return realm_spells.means_cast_key(snapshot, item, suffix)
         if not suffix and item.is_recall_scroll and snapshot.dungeon_level == 0 \
                 and not snapshot.player.recalling:
             # D22: a surface recall read asks which dungeon (choose_dungeon).
@@ -11090,9 +11090,16 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # none the executor cancels the chooser under a named stop.
             # On the open wilderness the landing chain of the owner's
             # 2026-11-08 rule (「条件を満たす帰還先へ読む」) answers.
+            # The caster's Word of Recall asks the same question (realm_spells.recall_means).
             suffix = (self._wilderness_recall_selection(snapshot)
                       if snapshot.on_open_wilderness
                       else self._surface_recall_selection(snapshot)) or ""
+        if realm_spells.is_spell_means(item):
+            # The caster's spell in an escape, recall, Teleport Level or identification scroll's
+            # place (``_escape_scroll``, ``_find_recall_scroll``, ``_teleport_level_item``,
+            # ``_find_identification_source``): cast it, the suffix answering the identification's
+            # item question or the surface recall's dungeon question.
+            return realm_spells.means_cast_key(snapshot, item, suffix)
         composed_item = next(
             (candidate for candidate in snapshot.inventory if candidate.slot == item.slot),
             None,
@@ -14462,12 +14469,39 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # deep-teleport:recall, 09:07:45 summoner:recall, 09:14:53 esp-threat:leave-recall).
         if finale_prep.recall_closed(self, snapshot):
             return None
-        return self._first_item(snapshot, lambda it: it.is_recall_scroll)
+        # The supervisor 2026-11-27 (the caster's third book): with no scroll carried, the
+        # caster's Word of Recall in its place (``_recall_spell_means``; _read_key casts it).
+        return (self._first_item(snapshot, lambda it: it.is_recall_scroll)
+                or self._recall_spell_means(snapshot))
+
+    def _recall_spell_means(self, snapshot: Snapshot):
+        """The caster's Word of Recall castable now (realm_spells.recall_means), else None: the
+        one place a recall read finds the spell (``_find_recall_scroll``, the threat rungs'
+        recall means)."""
+        from hengbot import realm_spells
+        return realm_spells.recall_means(self, snapshot)
+
+    def _recall_spell_unit(self, snapshot: Snapshot) -> int:
+        """1 when the caster holds Word of Recall (realm_spells.recall_held: learned, its book
+        carried, reliable, within the maximum mana), else 0: one recall unit as a Rod of Recall
+        is (``_count_recall_means``, ``_dungeon_recall_units``)."""
+        from hengbot import realm_spells
+        return int(realm_spells.recall_held(self, snapshot))
+
+    def _dungeon_recall_units(self, snapshot: Snapshot) -> int:
+        """The recall reads the dungeon has to go home with: the carried scrolls and the held
+        Word of Recall (``_recall_spell_unit``).  The gates that asked for a carried scroll
+        (the entry, the shortage retreat, the walk home) read this."""
+        return self._count_recall_scrolls(snapshot) + self._recall_spell_unit(snapshot)
 
     def _town_recall_device(self, snapshot: Snapshot) -> InventoryItem | None:
-        """What the town departure reads Recall with: a charged Rod of Recall
-        before a scroll (the rod is the departure's read, _recall_supply_units)."""
-        return self._carried_recall_rod(snapshot, charged=True) or self._find_recall_scroll(snapshot)
+        """What the town departure reads Recall with: a charged Rod of Recall, then the caster's
+        Word of Recall, before a scroll (the rod and the spell are the departure's read,
+        ``_count_recall_means``; the scrolls stay for the way home)."""
+        return (self._carried_recall_rod(snapshot, charged=True)
+                or (self._recall_spell_means(snapshot)
+                    if not finale_prep.recall_closed(self, snapshot) else None)
+                or self._find_recall_scroll(snapshot))
 
     def _town_recall_device_key(
         self, snapshot: Snapshot, device: InventoryItem, selection: str

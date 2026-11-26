@@ -445,7 +445,7 @@ def _needed_stairs(ctx):
     """'up' while returning on foot, 'down' while descending, else None."""
     policy, snapshot = ctx.policy, ctx.snapshot
     if policy._returning_to_town:
-        if snapshot.player.recalling or policy._count_recall_scrolls(snapshot) > 0:
+        if snapshot.player.recalling or policy._dungeon_recall_units(snapshot) > 0:
             return None
         return "up"
     return None if policy._descent_is_blocked(snapshot) else "down"

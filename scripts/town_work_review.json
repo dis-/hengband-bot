@@ -25901,13 +25901,79 @@
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the pack stack a starving character sells to the General Store for a food slot; the sale is emitted by the existing _store_sell_key contract (n1-a life-544)."
   },
-  "realm_spells.py:map_cast_key": {
+  "realm_spells.py:map_spell": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "Owner 2026-11-27 「魔法の地図は…周辺感知の互換である」: the cast key of the caster's Magic Mapping when it can be cast at 80% or better under the mana order (escape reserve, Detect Monsters, then the map); read by area_mapping._carried_key as the first 周辺感知 means, which owns the offer; no command of its own.",
+    "evidence": "Owner 2026-11-27 (Magic Mapping as the 周辺感知) and supervisor 2026-11-27 (Clairvoyance): which map spell area_mapping._carried_key casts (Clairvoyance for a whole-floor trigger, else Magic Mapping) at 80% or better under the mana order; no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._recall_spell_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Supervisor 2026-11-27 (the caster's third book): the caster's Word of Recall castable now (realm_spells.recall_means) as a pseudo item for _find_recall_scroll, _town_recall_device and the threat rungs' recall means; no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._teleport_level_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Supervisor 2026-11-27: the Teleport Level a floor-leaving rung reads, a carried scroll else the caster's Teleport Level (realm_spells.teleport_level_means) as a pseudo item; the rungs own the offer and their gates; no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_combat.py:CombatMixin._teleport_level_read_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Supervisor 2026-11-27: composes the read of a Teleport Level scroll or the cast of the spell (policy._read_key) for the summoner and breeder rungs, which own the offer; no independent effect credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:detect_objects_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Supervisor 2026-11-27: the cast key of the caster's Detect items and Treasure at 80% or better under the mana order, read by the mining floor's first detection in place of the absorbed power or the scroll; no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:recall_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Supervisor 2026-11-27: the caster's Word of Recall standing in for a Word of Recall scroll as a pseudo item (SpellMeans) castable at 80% or better with an escape's mana; no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:teleport_level_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Supervisor 2026-11-27: the caster's Teleport Level standing in for a Teleport Level scroll as a pseudo item (SpellMeans) castable at 50% or better with an escape's mana; no command of its own.",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"

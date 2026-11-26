@@ -564,9 +564,10 @@ class NavigationMixin:
             return False
         recall = self._supply_ledger(snapshot, destination_depth)["recall"]
         # The ledger counts a carried Rod of Recall as the departure's read
-        # (_recall_supply_units); the dungeon reads scrolls, so one is carried.
+        # (_recall_supply_units); the dungeon reads scrolls, so one is carried, or the
+        # caster's held Word of Recall (_dungeon_recall_units).
         return (recall.count >= max(1, recall.required_return)
-                and self._count_recall_scrolls(snapshot) >= 1)
+                and self._dungeon_recall_units(snapshot) >= 1)
 
     def _dungeon_entry_depth(
         self, snapshot: Snapshot, dungeon_id: int, *, via_recall: bool
@@ -1029,7 +1030,7 @@ class NavigationMixin:
         )
         if (
             snapshot.in_town
-            and self._count_recall_scrolls(snapshot) == 0
+            and self._dungeon_recall_units(snapshot) == 0
             and not mining_walk_in()
         ):
             # The first-run food waiver never waives the return ticket.

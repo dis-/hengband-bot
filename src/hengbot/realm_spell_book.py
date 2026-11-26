@@ -4,8 +4,9 @@ Owner 2026-11-26 (verbatim): 「盗賊は魔法を使える。無視する戦略
 大きく助けになる。」
 
 * Books (``retained_count``, the retention authority's ``RETENTION_BRANCH``): one copy of each
-  book whose spells realm_spells casts (Sorcery [入門書] and [達人の書]) is never shelved, sold or
-  destroyed; a second copy is a spare (the Home keeps it, the retention does not hold it).
+  stack of a book whose spells realm_spells casts (the four Sorcery books, [入門書] to [力の魔道書];
+  the third and fourth since the supervisor 2026-11-27) is never shelved, sold or destroyed, so the
+  carried one and one Home spare stay; the item_fate ``unused-book`` sale does not take them.
 * Study (``study_key``): when the screen shows 「学習」 (the board's ``can_study``: new_spells above
   0, bot-json-output.cpp make_study_indicator_json), ``G`` + the book's slot + the spell's letter
   of the first spell of ``realm_spells.LEARN_ORDER`` the shown list marks unknown, at or below the
@@ -25,6 +26,7 @@ Owner 2026-11-26 (verbatim): 「盗賊は魔法を使える。無視する戦略
 from __future__ import annotations
 
 from hengbot import realm_spells
+from hengbot.model import STORE_BLACK
 
 RETENTION_BRANCH = "realm-spell-book"
 STUDY_REASON = "realm-spell:study"
@@ -41,11 +43,32 @@ def is_cast_book(item) -> bool:
             and getattr(item, "count", 0) > 0)
 
 
+# The supervisor 2026-11-27: of the third and fourth books (no store sells them; IGNORE_ACID /
+# ELEC / FIRE / COLD in BaseitemDefinitions ids 336-337, so only a thief takes one) a spare is
+# kept besides the copy cast from: two copies between the pack and the Home.  The town's sale of a
+# high-value book (policy_shop ``_find_book_sale``) and the Home's sweeps go through this retention,
+# and no rule shelves a high-value book at Home, so a found second copy stays in the pack.
+SPARE_BOOKS = (2, 3)
+SPARE_COPIES = 2
+
+
+def _home_count(policy, book: int) -> int:
+    return sum(stock.count for stock in (getattr(policy, "_home_knowledge_items", ()) or ())
+               if is_cast_book(stock) and stock.sval == book)
+
+
 def retained_count(policy, snapshot, item) -> int:
-    """One copy of each cast book is kept while the character casts (realm_spells.applies)."""
+    """One copy of each cast book is kept while the character casts (realm_spells.applies); of a
+    ``SPARE_BOOKS`` book, SPARE_COPIES between the pack and the Home."""
     if not is_cast_book(item) or not realm_spells.applies(policy, snapshot):
         return 0
-    return min(item.count, 1)
+    if item.sval not in SPARE_BOOKS:
+        return min(item.count, 1)
+    carried = any(item is stack for stack in snapshot.inventory)
+    elsewhere = (_home_count(policy, item.sval) if carried
+                 else sum(stack.count for stack in snapshot.inventory
+                          if is_cast_book(stack) and stack.sval == item.sval))
+    return min(item.count, max(1, SPARE_COPIES - elsewhere))
 
 
 def _carried_books(snapshot) -> list:
@@ -203,12 +226,28 @@ def observe(policy, snapshot) -> None:
 # its town route already knows; a shelf without the book is tried again on the next visit after
 # the restock (the need registry's ``_shelf_stop_tried``).  BaseitemDefinitions.jsonc ids 334 / 335:
 # cost 100 / 1000.
+#
+# The third and fourth books (the supervisor 2026-11-27): no store's table names them
+# (articles-on-sale.cpp: MAGIC and BOOK list SORCERY_BOOK 0 and 1 only, BLACK nothing), so only
+# the Black Market's random stock (store.cpp store_create: select_baseitem_id at 25 + day/4 +
+# 0..24, a level 50 [紋様仙術] (id 336, cost 25000, allocation depth 50 rarity 1) or a level 90
+# [力の魔道書] (id 337, cost 100000, depth 90 rarity 3), priced at 2 x 1.01^(day - 1) and more,
+# pricing.cpp) and the dungeon floor sell them.  The Black Market is visited every town visit
+# (policy_town's ``black-market`` need) and the shelf's book is bought there by this rung.
 CATEGORY = "realm-book"
 BUY_RUNG = "realm-book:buy"
 BOOK_COST = {0: 100, 1: 1000}
-# 「数レベル以内に唱えられる呪文があれば」: the second book is bought from this many levels below
-# its first spell's level (the Rogue's Magic Mapping, 13).
+# The books the Magic shop's errand goes for (the ones its tables stock).
+MAGIC_SHOP_BOOKS = (0, 1)
+# 「数レベル以内に唱えられる呪文があれば」: a later book is bought from this many levels below the
+# level of the spell it is bought for (the Rogue's Magic Mapping 13, Teleport Level 27,
+# Clairvoyance 37).
 SECOND_BOOK_LEAD_LEVELS = 3
+# The spell each later book is bought for: the first of its spells that stands in for a means
+# the rules use.  The third book's Detect items and Treasure (level 5) alone does not pay a Black
+# Market price: its Teleport Level, Word of Recall (the scrolls' backup) do.
+PURCHASE_SPELL = {1: realm_spells.MAGIC_MAPPING, 2: realm_spells.TELEPORT_LEVEL,
+                  3: realm_spells.CLAIRVOYANCE}
 
 
 def _owned(policy, snapshot, book: int) -> int:
@@ -219,21 +258,23 @@ def _owned(policy, snapshot, book: int) -> int:
     return carried + home
 
 
-def _book_level(book: int) -> int:
-    return min(realm_spells.derived(spell)[0] for spell in realm_spells.SPELLS if spell.book == book)
+def _purchase_level(book: int) -> int:
+    return realm_spells.derived(realm_spells.BY_ID[PURCHASE_SPELL[book]])[0]
 
 
 def wanted_books(policy, snapshot) -> tuple[int, ...]:
     """The cast books to buy: the first whenever none is carried or at Home (losing it loses the
-    escape spells), the second once a spell of it is within SECOND_BOOK_LEAD_LEVELS levels."""
+    escape spells), a later one once the spell it is bought for (``PURCHASE_SPELL``) is within
+    SECOND_BOOK_LEAD_LEVELS levels."""
     if not realm_spells.applies(policy, snapshot):
         return ()
     wanted = []
     if _owned(policy, snapshot, 0) == 0:
         wanted.append(0)
-    if (_owned(policy, snapshot, 1) == 0
-            and snapshot.player.level + SECOND_BOOK_LEAD_LEVELS >= _book_level(1)):
-        wanted.append(1)
+    for book in sorted(PURCHASE_SPELL):
+        if (_owned(policy, snapshot, book) == 0
+                and snapshot.player.level + SECOND_BOOK_LEAD_LEVELS >= _purchase_level(book)):
+            wanted.append(book)
     return tuple(wanted)
 
 
@@ -245,9 +286,18 @@ def is_wanted_ware(policy, snapshot, item) -> bool:
 
 def purchase_units(policy, snapshot, item) -> int:
     """1 when ``item`` is a wanted book the gold above the full departure resupply buys (the
-    optional purchases' reserve, owner 2026-10-08): bought right after the departure supplies."""
+    optional purchases' reserve, owner 2026-10-08): bought right after the departure supplies.
+    At the Black Market the shelf's *Destruction* staff waiting for its fund and the finale's
+    Black-Market-only supplies come first (policy_shop ``_black_market_optional_purchase``'s
+    own gates: bm_destruction_fund.staff_pending, finale_bm_tour.supplies_first)."""
     if not is_wanted_ware(policy, snapshot, item) or item.price <= 0:
         return 0
+    store = snapshot.store
+    if store is not None and store.store_type == STORE_BLACK:
+        from hengbot import bm_destruction_fund, finale_bm_tour  # import cycle (policy modules)
+        if (bm_destruction_fund.staff_pending(policy, snapshot)
+                or finale_bm_tour.supplies_first(policy, snapshot)):
+            return 0
     reserve = policy._full_departure_resupply_reserve(snapshot)
     if reserve is None:
         return 0
@@ -255,8 +305,9 @@ def purchase_units(policy, snapshot, item) -> int:
 
 
 def errand_wanted(policy, snapshot) -> bool:
-    """The Magic shop errand: a wanted book whose base cost the gold above the resupply pays."""
-    wanted = wanted_books(policy, snapshot)
+    """The Magic shop errand: a wanted book the Magic shop stocks (``MAGIC_SHOP_BOOKS``) whose
+    base cost the gold above the resupply pays."""
+    wanted = [book for book in wanted_books(policy, snapshot) if book in MAGIC_SHOP_BOOKS]
     if not wanted:
         return False
     reserve = policy._full_departure_resupply_reserve(snapshot)

@@ -63,7 +63,7 @@ CARRIED = {(TVAL_STAFF, SV_STAFF_MAPPING): "staff", (TVAL_ROD, SV_ROD_MAPPING): 
 FAILED = frozenset({
     "杖をうまく使えなかった。", "You failed to use the staff properly.",
     "うまくロッドを使えなかった。", "You failed to use the rod properly.",
-    # A caster's Magic Mapping (realm_spells.map_cast_key, cmd-spell.cpp:1054).
+    # A caster's map spell (realm_spells.map_spell, cmd-spell.cpp:1054).
     "呪文をうまく唱えられなかった！", "You failed to get the spell off!",
 })
 
@@ -250,10 +250,14 @@ def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
     if (memory.failed[position] >= me_powers.FAILURES_PER_PLACE
             or not device_usable_now(policy, snapshot)):
         return None
-    # The means in order: a caster's Magic Mapping (realm_spells: free, its mana returns; owner
-    # 2026-11-27 「周辺感知の互換である」), a carried staff or rod, a held scroll.
+    # The means in order: a caster's map spell (realm_spells: free, its mana returns; owner
+    # 2026-11-27 「周辺感知の互換である」; Clairvoyance for a whole-floor trigger, the supervisor
+    # 2026-11-27), a carried staff or rod, a held scroll.
     from hengbot import realm_spells  # import cycle (realm_spells reads me_powers)
-    used = realm_spells.map_cast_key(policy, snapshot)
+    spell = realm_spells.map_spell(policy, snapshot, trigger)
+    used = realm_spells.cast_key(snapshot, spell) if spell is not None else None
+    radius = (realm_spells.map_radius(spell) if spell is not None else None) \
+        or me_powers.map_radius(policy, snapshot)
     carried = _carried_device(snapshot) if used is None else None
     if used is None and carried is not None:
         used = reserved_item_command(policy, snapshot, carried[1], carried[0])
@@ -262,7 +266,7 @@ def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
     if used is None:
         return None
     policy.last_reason = f"{REASON}:{trigger}"
-    memory.pending = (snapshot.turn, position, me_powers.map_radius(policy, snapshot))
+    memory.pending = (snapshot.turn, position, radius)
     return used
 
 

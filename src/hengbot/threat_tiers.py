@@ -572,7 +572,9 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
             "teleport" if scroll.is_teleport_scroll else "phase")
         return policy._read_key(snapshot, scroll)
     if not snapshot.player.recalling and not (snapshot.player.blind or snapshot.player.confused):
-        recall = next((item for item in snapshot.inventory if item.is_recall_scroll), None)
+        # The scroll, else the caster's Word of Recall (policy._recall_spell_means).
+        recall = (next((item for item in snapshot.inventory if item.is_recall_scroll), None)
+                  or policy._recall_spell_means(snapshot))
         if recall is not None and policy._can_read_scrolls(snapshot):
             policy.last_reason = SENSED_LEAVE_PREFIX + "recall"
             return policy._read_key(snapshot, recall)

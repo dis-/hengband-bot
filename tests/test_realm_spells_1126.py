@@ -76,8 +76,9 @@ class GameNumbersTest(unittest.TestCase):
                     5: (8, 7, 41), 6: (9, 7, 36), 7: (11, 9, 81), 8: (13, 9, 81),
                     9: (15, 9, 81), 10: (16, 9, 81), 11: (19, 9, 56), 12: (25, 16, 66),
                     13: (29, 16, 66), 14: (35, 26, 76), 15: (40, 39, 81)}
+        # The third and fourth books' rows: test_realm_spells3_1127.
         self.assertEqual({spell.spell_id: realm_spells.derived(spell)
-                          for spell in realm_spells.SPELLS}, expected)
+                          for spell in realm_spells.SPELLS if spell.spell_id < 16}, expected)
 
     def test_cost_at_no_proficiency_is_the_screens(self):
         # The live list: 2 5 7 7 8 12 12 15 for the first book, nothing learned yet cast.
@@ -215,7 +216,10 @@ class BookAndStudyTest(unittest.TestCase):
         policy = caster()
         snapshot = board(inventory=[book(count=2), book("b", 2)])
         self.assertEqual(realm_spell_book.retained_count(policy, snapshot, book(count=2)), 1)
-        self.assertEqual(realm_spell_book.retained_count(policy, snapshot, book("b", 2)), 0)
+        # The third book is a cast book since the supervisor 2026-11-27 (test_realm_spells3_1127);
+        # another realm's book is not.
+        self.assertEqual(realm_spell_book.retained_count(
+            policy, snapshot, replace(book("b", 2), tval=TVAL_SORCERY_BOOK + 1)), 0)
         self.assertEqual(realm_spell_book.retained_count(
             policy, board(class_id=0), book()), 0)
         self.assertEqual(policy._retention_reservation_baseline_detail(snapshot, book(count=2)),

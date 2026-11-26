@@ -19,11 +19,10 @@ from hengbot import (
     teleport_follower,
 )
 from hengbot.item_reservation import reserved_item_command
-from hengbot.model import SV_STAFF_TELEPORTATION, TVAL_SCROLL, TVAL_STAFF
+from hengbot.model import SV_SCROLL_TELEPORT_LEVEL, SV_STAFF_TELEPORTATION, TVAL_SCROLL, TVAL_STAFF
 from hengbot.policy_constants import MONSTER_SPELL_MAX_RANGE, OPPOSITION_ABILITY
 
 
-SV_SCROLL_TELEPORT_LEVEL = 10
 # The reason suffix of a carried Staff of Teleportation used blind (blind_teleport_key).
 STAFF_REASON_SUFFIX = "-staff"
 
@@ -126,11 +125,15 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
         # the same rungs through policy._escape_scroll).
         means.append("teleport-spell")
     if (readable and not policy._teleport_blocked_by_equipment(snapshot) and not forbidden
-            and SV_SCROLL_TELEPORT_LEVEL in scrolls
+            # The scroll, else the caster's Teleport Level (policy_combat._teleport_level_item).
+            and (SV_SCROLL_TELEPORT_LEVEL in scrolls
+                 or policy._teleport_level_item(snapshot) is not None)
             # Owner 2026-11-22: never down onto 50F+ unsanctioned (deep_fall_guard).
             and not deep_fall_guard.teleport_level_refused(policy, snapshot)):
         means.append("teleport-level")
-    if readable and any(item.is_recall_scroll for item in snapshot.inventory):
+    if readable and (any(item.is_recall_scroll for item in snapshot.inventory)
+                     or policy._recall_spell_means(snapshot) is not None):
+        # The scroll, else the caster's Word of Recall (policy._recall_spell_means).
         means.append("recall")
     if not teleport_blocked and not forbidden:
         if not player.confused and any(
