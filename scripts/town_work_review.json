@@ -25900,5 +25900,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Data/selector result; no independent command or effect credit. pure helper: the pack stack a starving character sells to the General Store for a food slot; the sale is emitted by the existing _store_sell_key contract (n1-a life-544)."
+  },
+  "realm_spells.py:map_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-27 「魔法の地図は…周辺感知の互換である」: the cast key of the caster's Magic Mapping when it can be cast at 80% or better under the mana order (escape reserve, Detect Monsters, then the map); read by area_mapping._carried_key as the first 周辺感知 means, which owns the offer; no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

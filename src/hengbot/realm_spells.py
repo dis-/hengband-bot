@@ -328,6 +328,54 @@ def mana_rest_due(policy, snapshot) -> bool:
     return snapshot.player.mp < escape_reserve(policy, snapshot)
 
 
+# The mana order of the dungeon casts, in one place (owner 2026-11-27 「魔法の地図は探索効率を大幅に
+# 向上させるのでうまく使うと良いだろう」, the supervisor's order): the escape reserve (Teleport, else
+# Short Teleport: ``escape_reserve``) > Detect Monsters on arrival > Magic Mapping > the other
+# utility casts (Detect Doors and Traps, Light Area, Detection True, Identify).  A cast lower in
+# ``UTILITY_ORDER`` also keeps the mana of each one above it that has not landed on this floor
+# visit (``order_reserve``); the casts at a hostile (Teleport Away, Haste Self) keep only the escape
+# reserve.  The occasion rows' priorities (``_rows``) put the same order on one board.
+UTILITY_ORDER = (DETECT_MONSTERS, MAGIC_MAPPING)
+COMBAT_SPELLS = frozenset({TELEPORT_AWAY, HASTE_SELF})
+
+
+def landed_on_floor(policy, snapshot, spell_id: int) -> bool:
+    """A cast of ``spell_id`` landed on this floor visit (me_powers' floor memory of the uses); for
+    Magic Mapping also any live map of the player's place (mapped_area: a device, a scroll or an
+    earlier cast)."""
+    from hengbot import mapped_area, me_powers
+    from hengbot.model import game_distance
+    memory = getattr(policy, me_powers.MEMORY, None)
+    if (memory is not None and memory.floor == snapshot.floor_key
+            and any(use.used == ("spell", spell_id) for use in memory.uses)):
+        return True
+    if spell_id == MAGIC_MAPPING:
+        here = snapshot.player.position
+        return any(game_distance(here, centre) < radius
+                   for centre, radius in mapped_area.floor_discs(policy, snapshot))
+    return False
+
+
+def order_reserve(policy, snapshot, spell_id: int) -> int:
+    """The mana of the casts ahead of ``spell_id`` in ``UTILITY_ORDER`` that are learned, carried
+    and not landed on this floor visit; 0 for a cast at a hostile, an escape or the first."""
+    if spell_id in COMBAT_SPELLS or spell_id in ESCAPE_SPELLS.values():
+        return 0
+    ahead = (UTILITY_ORDER[:UTILITY_ORDER.index(spell_id)] if spell_id in UTILITY_ORDER
+             else UTILITY_ORDER)
+    return sum(cost(policy, each) or 0 for each in ahead
+               if learned(policy, each) and book_item(snapshot, BY_ID[each].book) is not None
+               and not landed_on_floor(policy, snapshot, each))
+
+
+def map_cast_key(policy, snapshot) -> str | None:
+    """Magic Mapping as a 周辺感知 of area_mapping's means (its ``_carried_key``): the cast when it
+    can be cast at RELIABLE_MIN_SUCCESS under the mana order, else None."""
+    if not castable(policy, snapshot, MAGIC_MAPPING, RELIABLE_MIN_SUCCESS):
+        return None
+    return cast_key(snapshot, MAGIC_MAPPING)
+
+
 def castable(policy, snapshot, spell_id: int, min_success: int, *, escape: bool = False) -> bool:
     """Learned, its book carried, the mana (above the escape reserve for a non-escape cast in the
     dungeon), the success at least ``min_success`` under this board's stun, nothing refusing."""
@@ -338,7 +386,8 @@ def castable(policy, snapshot, spell_id: int, min_success: int, *, escape: bool 
     if (not learned(policy, spell_id) or mana is None
             or book_item(snapshot, spell.book) is None):
         return False
-    reserve = 0 if escape or snapshot.in_town else escape_reserve(policy, snapshot)
+    reserve = 0 if escape or snapshot.in_town else (
+        escape_reserve(policy, snapshot) + order_reserve(policy, snapshot, spell_id))
     if snapshot.player.mp < mana + reserve:
         return False
     rate = success(policy, snapshot, spell_id)
@@ -444,9 +493,12 @@ def _rows():
               ("new-floor", "left-detected-trap-area", "trap-cell-unsettled",
                "before-secret-search", "deep-undetected-step"),
               beside_harmless=True),
-        Power("spell", MAGIC_MAPPING, names(MAGIC_MAPPING), me_powers.MAP_AREA, DETECT_RAD, 30,
+        # realm-sorcery.cpp:156-165 map_area(DETECT_RAD_MAP 30), the 周辺感知's own effect.  Before
+        # the other utility rows (UTILITY_ORDER); "outside-mapped-area" maps again once the player
+        # stands outside every live map (owner 2026-11-27 「探索効率を大幅に向上させる」).
+        Power("spell", MAGIC_MAPPING, names(MAGIC_MAPPING), me_powers.MAP_AREA, DETECT_RAD, 15,
               ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket",
-               "loot-unreachable", "loot-enclosure"),
+               "loot-unreachable", "loot-enclosure", "outside-mapped-area"),
               beside_harmless=True),
         Power("spell", LIGHT_AREA, names(LIGHT_AREA), "lite-area", me_powers.LITE_RADIUS, 50,
               ("light-radius-zero", "dark-room", "light-sensitive-adjacent"),
