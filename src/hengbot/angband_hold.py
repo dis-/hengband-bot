@@ -31,9 +31,19 @@ its Angband recall landing -- the save's max level, never lowered by the bot exc
   selection then takes Angband, or the conquest target.  The Castle band of the exception is kept
   while Angband's landing does not qualify (``alternate_lease.angband_qualifies``).
 
-Not changed: the conquest target (``_conquest_target``, the dungeon lord's kill: the owner's one
-reason to change the destination), the Angband 95F cap and its climb (angband_cap), the taken kill
-quests, the fundraising trips and the Zul trips (no fallback for depth).
+Not changed: the Angband 95F cap and its climb (angband_cap), the taken kill quests, the
+fundraising trips and the Zul trips (no fallback for depth).
+
+The conquest target (``_conquest_target``, the dungeon lord's kill), the owner's one reason to
+change the destination, is narrowed by the supervisor on 2026-11-26 under the owner's leave of that
+day 「…いずれも、ゲーム内選択に関して私の以前の指示を破ることを許可する。」: none while the held
+character's real blocker is a depth gate (``depth_gated``: Angband's landing may be taken but the
+floor below it asks a gate the character does not own; the hunt opens no gate, and the measured reason above -- 80F earned 1.74x
+the experience of the Castle 64F -- favours Angband's landing), and each target has a budget
+(conquest_budget).  n1-c life-222 (2026-11-25 07:40-15:05) recalled 119 times to the Mountain 50F
+for 大鷲王『ソロンドール』 while the 81F speed +25 gate held it at Angband 80F.  Nothing measured
+kept the conquest for a held character: the 11-19 rule's measurement compared Angband with the
+Castle's fallback dives, not with a lord's hunt.
 """
 
 from __future__ import annotations
@@ -57,6 +67,24 @@ def held(policy, snapshot) -> bool:
             and not random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND, policy)
             and policy._dungeon_entry_depth(snapshot, DUNGEON_ANGBAND, via_recall=True)
             >= HOLD_DEPTH)
+
+
+def depth_gated(policy, snapshot) -> bool:
+    """A held character (``held``) that may level at Angband's recall landing but whose floor
+    below it asks a depth gate (policy_constants ``required_depth_gates``: the resistances,
+    telepathy, *Destruction*, speed +25 from 81F) the character does not own, worn, carried or at
+    Home (``owned``, the town's destination reading).  Not when the landing itself is gated (the
+    survival exception's Castle band gathers the items there, 「この場合だけ城40F付近を許す」) and
+    not past the 95F cap: the cap, not a gate, ends the descent there (angband_cap; the finale's
+    preparation forbids the hunt, finale_prep)."""
+    if not held(policy, snapshot):
+        return False
+    from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
+    landing = policy._dungeon_entry_depth(snapshot, DUNGEON_ANGBAND, via_recall=True)
+    if angband_cap.capped_at(DUNGEON_ANGBAND, landing + 1, policy):
+        return False
+    return (not policy._missing_required_abilities(snapshot, landing, owned=True)
+            and bool(policy._missing_required_abilities(snapshot, landing + 1, owned=True)))
 
 
 def deep_refused(policy, snapshot) -> bool:

@@ -5,7 +5,7 @@ from hengbot import equipment_target
 from hengbot import approach_answer, deep_stairs, mining_loadout, return_start
 from hengbot import guardian_rumor, heal_offset, quest_plan_record, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
-from hengbot import alternate_dungeon_record, angband_cap, angband_hold, alternate_lease,destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
+from hengbot import alternate_dungeon_record, angband_cap, conquest_budget, angband_hold, alternate_lease,destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
 
 from hengbot.town_hold import (
@@ -146,6 +146,8 @@ class ObservationMixin:
             # A restarted process keeps the recall-target switch its previous
             # process decided (alternate_dungeon_record; n1-b life-362).
             alternate_dungeon_record.restore(self, snapshot)
+            # The same for the conquest targets' budget (conquest_budget, 2026-11-26).
+            conquest_budget.restore(self, snapshot)
         if self._breeder_fled_floor is not None and (
             snapshot.in_town
             or snapshot.floor_key[0] != self._breeder_fled_floor[0]
@@ -719,6 +721,9 @@ class ObservationMixin:
                     self._alternate_dungeon_reason or "alternate_dungeon"
                 )
 
+        # The conquest target's budget (conquest_budget, 2026-11-26): this board's trip or meeting
+        # with the guardian is counted before the selection reads it.
+        conquest_budget.observe(self, snapshot, previous_floor)
         # HIGHEST PRIORITY target: clear an unconquered dungeon whose bottom is within
         # our resistance limit, for the final guardian's gear. It normally overrides
         # Angband, but the over-extension safety valve temporarily demotes it while
@@ -1226,6 +1231,7 @@ class ObservationMixin:
         town_end_mining.carry(self, snapshot, previous_floor is None)
         # The same for the recall-target switch (restored at the start).
         alternate_dungeon_record.record(self, snapshot, force=previous_floor is None)
+        conquest_budget.record(self, snapshot, force=previous_floor is None)
         # User 2026-10-03 11:4x 「テレポートで逃げた攻撃では後退しない」:
         # an attack the player's own teleport already left behind is no reason
         # for a retreat after the landing; only a new unseen hit observed from
