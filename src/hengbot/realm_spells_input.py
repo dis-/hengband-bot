@@ -61,6 +61,9 @@ CAST_REFUSALS = (
     "その呪文を唱えるのに十分なマジックポイントがない。", "You do not have enough mana to cast this spell.",
     "その本には知っている呪文がない。", "You don't know any spells in that book.",
     "目が見えない！", "You cannot see!",
+    # io/input-key-processor.cpp:424-455: a worn anti-magic refuses ``m`` before the book question
+    # (realm_spells.anti_magic_worn keeps a known one from being cast; an unknown one lands here).
+    "反魔法バリアが魔法を邪魔した！", "An anti-magic shell disrupts your magic!",
 )
 STUDY_REFUSALS = ("新しい呪文を覚えることはできない！", "You cannot learn any new spells!",
                   "その本には学ぶべき呪文がない。", "You cannot learn any spells in that book.")

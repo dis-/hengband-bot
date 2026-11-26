@@ -308,7 +308,12 @@ def unstunned_failure(policy, player, spell_id: int) -> int | None:
 
 def success(policy, snapshot, spell_id: int, *, stunned: bool = True) -> int | None:
     """The cast's success percent on this board (its stun counted unless ``stunned`` is False),
-    else None without a shown row."""
+    else None without a shown row; 0 under a worn anti-magic (``anti_magic_worn``: the command is
+    refused, as me_power_success's REFUSED_FAILURE), so every means this module answers
+    (``known_reliable``, ``castable``, ``recall_held``, me_powers' rows) reads the spell as
+    unavailable while it is worn."""
+    if anti_magic_worn(snapshot) and _row(policy, spell_id) is not None:
+        return 0
     fail = unstunned_failure(policy, snapshot.player, spell_id)
     if fail is None:
         return None
@@ -342,9 +347,24 @@ def cast_blocked(policy, snapshot) -> bool:
             or not policy._can_read_scrolls(snapshot))
 
 
+def anti_magic_worn(snapshot) -> bool:
+    """A worn item's known NO_MAGIC (反魔法): the game refuses the cast command ``m`` before the
+    book question (io/input-key-processor.cpp:424-455 「反魔法バリアが魔法を邪魔した！」, no turn
+    passes; player-status-flags.cpp has_anti_magic reads the worn items), so no spell is a means
+    while it is worn (``success`` 0) and no mana is held for one (``escape_reserve``).  The study
+    ``G`` and the browse ``b`` are not refused (the same file's ``G`` and ``b`` cases).  The supervisor 2026-11-27: n1-a
+    life-545 wore ☆死天使アズリエルの革製ラージ・シールド {[魔} with its books carried; the loadout
+    search leaves NO_MAGIC out for this class (equipment_rules.search_banned_flags)."""
+    from hengbot.me_power_success import worn_anti_magic
+    return worn_anti_magic(snapshot)
+
+
 def escape_reserve(policy, snapshot) -> int:
     """The mana held back in the dungeon for an escape cast (Teleport, else Short Teleport, when
-    learned with its book carried); a non-escape cast may not spend into it."""
+    learned with its book carried); a non-escape cast may not spend into it.  None under a worn
+    anti-magic (``anti_magic_worn``)."""
+    if anti_magic_worn(snapshot):
+        return 0
     for spell_id in (TELEPORT, PHASE_DOOR):
         if learned(policy, spell_id) and book_item(snapshot, BY_ID[spell_id].book) is not None:
             return cost(policy, spell_id) or 0
@@ -443,7 +463,8 @@ def known_reliable(policy, snapshot, spell_id: int, min_success: int, *,
                    stunned: bool = True) -> bool:
     """The standing part of ``castable``: a Sorcery caster that learned the spell, carries its
     book, and casts it at ``min_success`` or better (under this board's stun unless ``stunned``
-    is False).  Neither the mana of the moment nor what refuses this board's cast is read."""
+    is False; 0 under a worn anti-magic, ``success``).  Neither the mana of the moment nor the
+    moment's blindness or confusion is read."""
     if not applies(policy, snapshot):
         return False
     spell = BY_ID[spell_id]
@@ -551,7 +572,8 @@ def recall_held(policy, snapshot) -> bool:
     """Word of Recall is a recall means the character holds whatever its mana now (resting gives
     it back): learned, its book carried, at RELIABLE_MIN_SUCCESS by the shown list without this
     board's stun, its cost within the maximum mana.  The departure ledger and the dungeon's
-    recall count read it as one unit, as a Rod of Recall (policy ``_recall_spell_unit``)."""
+    recall count read it as one unit, as a Rod of Recall (policy ``_recall_spell_unit``).  Not
+    under a worn anti-magic (``success`` 0): the scrolls are bought instead."""
     if not applies(policy, snapshot):
         return False
     mana = cost(policy, WORD_OF_RECALL)

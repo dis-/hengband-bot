@@ -20,7 +20,8 @@ from typing import Any
 
 from hengbot import ability_sources, item_need, item_use_route, spare_gear, town_pack_budget
 from hengbot.baseitem_knowledge import item_base_cost
-from hengbot.equipment_rules import TR_NO_AC
+from hengbot.class_roles import refused_by_anti_magic
+from hengbot.equipment_rules import ANTI_MAGIC_SEARCH_BANNED_FLAGS, TR_NO_AC
 from hengbot.item_reservation import decision_memo, item_available
 from hengbot.model import SV_STAFF_IDENTIFY, TVAL_ROD, TVAL_STAFF, TVAL_WAND
 from hengbot.store_sale import known_sale_value
@@ -294,6 +295,16 @@ def _innate_covered(snapshot: Any, item: Any) -> bool:
         for flag in abilities)
 
 
+def _anti_magic_unwearable(snapshot: Any, item: Any) -> bool:
+    """Gear with a known NO_MAGIC (反魔法) of a class whose ``m`` the bot uses: the loadout search
+    never wears it (equipment_rules.search_banned_flags: ANTI_MAGIC_SEARCH_BANNED_FLAGS), so it is worth only its sale.  The
+    supervisor 2026-11-27 (n1-a life-545's Sorcery Rogue wore ☆死天使アズリエルの革製ラージ・シールド
+    {[魔}); a class that casts nothing keeps it as any other gear."""
+    return bool(item.is_equipment and not item.is_ammo
+                and refused_by_anti_magic(snapshot.player.class_id)
+                and not ANTI_MAGIC_SEARCH_BANNED_FLAGS.isdisjoint(item.known_flags))
+
+
 # Worn slots per kind of ``SLOT_BY_TVAL`` (equipment_optimizer.hand_configurations: two
 # weapons when dual wielding; two rings).  The digging tool keeps its own rule
 # (``_surplus_digger``).
@@ -473,6 +484,8 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
     * ``innate-covered``: ``_innate_covered`` (「ゾンビなら絶対装備しないので売って良い」);
     * ``dominated``: ``_dominated`` (「耐性のアミュレットの下位互換」; every slot, artifacts too:
       「アーティファクトであっても明確な下位互換は売る」).
+    * ``anti-magic``: ``_anti_magic_unwearable`` (the supervisor 2026-11-27: gear the class's
+      loadout search never wears; artifacts too, as ``dominated``).
 
     They judge what the Home hoards: ``carried`` (a pack stack the relief probes with the Home
     slot, ``_home_full_sale_candidate``) keeps its own rules.
@@ -494,6 +507,8 @@ def clearly_useless(policy: Any, snapshot: Any, item: Any, *, carried: bool = Fa
         # Owner 2026-11-19 「アーティファクトであっても明確な下位互換は売る」.
         if _dominated(policy, snapshot, item):
             return "dominated"
+        if _anti_magic_unwearable(snapshot, item):
+            return item_need.GROUND_ANTI_MAGIC
     relief = relief_of(policy)
     if not always and (relief is None or relief.sweep):
         # Only a full Home's relief (a deposit refused or met by a full Home) makes room.
@@ -731,7 +746,8 @@ def _protected(policy: Any, snapshot: Any, item: Any, probe: Any) -> bool:
     from hengbot.model import SV_STAFF_DESTRUCTION
     return bool(item_need.needed(policy, snapshot, item)
                 or (item.is_artifact
-                 and not (_home_stock(probe) and _dominated(policy, snapshot, item))
+                 and not (_home_stock(probe) and (_dominated(policy, snapshot, item)
+                                                  or _anti_magic_unwearable(snapshot, item)))
                  and not sellable_artifacts.listed(policy, snapshot, item))
                 or (item.tval == TVAL_STAFF and item.sval == SV_STAFF_DESTRUCTION)
                 or policy._home_disposal.decision(policy._item_signature(item)) == "keep")

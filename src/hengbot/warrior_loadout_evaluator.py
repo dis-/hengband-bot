@@ -9,6 +9,7 @@ from hengbot.equipment_encounters import EncounterTarget
 from hengbot.equipment_class_profile import class_shots_bonus
 from hengbot.equipment_encounters import melee_multiplier
 from hengbot.equipment_optimizer import FinaleReading, Loadout, LoadoutMetrics, SLOT_BOW
+from hengbot.caster_mana import mana_utility
 from hengbot.equipment_utility import utility_value
 from hengbot.launcher_damage import LAUNCHER_PROPERTIES, plain_ammo_turn_damage
 from hengbot.me_loadout_offense import (
@@ -544,6 +545,9 @@ def _combine_warrior_results(
     utility = utility_value(
         (item for _, item in loadout.slots), inputs.defense.intrinsic_flags
     )
+    # A realm caster's maximum mana (caster_mana, the supervisor 2026-11-27): the gloves' and the
+    # armour weight's share of it, as a negative utility on the same ratio.
+    utility += mana_utility(loadout, inputs.combat.class_id)
     if isfinite(combat_margin):
         combat_margin *= 1.0 + utility
     complete = defense.melee_complete and ranged.ranged_complete

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
+from hengbot import caster_mana
 from hengbot.equipment_encounters import BRANDS, SLAYS
 from hengbot.equipment_optimizer import (
     FILL_REQUIRED_ARMOR_SLOTS,
@@ -133,10 +134,34 @@ def _loadout_value_signature(item: OwnedEquipment) -> tuple[object, ...]:
     )
 
 
+def _mana_parts(item: OwnedEquipment, mana_class_id) -> tuple[int, ...]:
+    """A realm caster's mana components of a piece (caster_mana), higher is better: its
+    gloves' penalty and its counted armour weight, negated; () for every other class."""
+    if caster_mana.caster_mana(mana_class_id) is None:
+        return ()
+    obj = item.item
+    counted = slot_for(obj) in caster_mana.ARMOUR_SLOTS or obj.tval == 34
+    return (-int(caster_mana.glove_penalty(obj)), -obj.weight if counted else 0)
+
+
+def _loadout_mana_parts(loadout: Loadout, mana_class_id) -> tuple[int, ...]:
+    """``_mana_parts`` summed over ``loadout``'s pieces; () for a class without them."""
+    if caster_mana.caster_mana(mana_class_id) is None:
+        return ()
+    glove = weight = 0
+    for _, item in loadout.slots:
+        parts = _mana_parts(item, mana_class_id)
+        glove += parts[0]
+        weight += parts[1]
+    return (glove, weight)
+
+
 def _item_dominance_parts(
     item: OwnedEquipment,
+    mana_class_id=None,
 ) -> tuple[tuple[object, ...], tuple[int, ...], frozenset[int]]:
-    """Split the evaluator signature into exact and monotonic components."""
+    """Split the evaluator signature into exact and monotonic components (a caster's mana
+    components too, ``_mana_parts``)."""
     signature = _loadout_value_signature(item)
     flags = _evaluator_flags(item)
     melee_weapon = item.item.tval in {21, 22, 23}
@@ -166,14 +191,15 @@ def _item_dominance_parts(
             int(signature[9]),
             int(signature[11]) if melee_weapon else 0,
             worn_light_radius((item,)),
+            *_mana_parts(item, mana_class_id),
         ),
         flags.intersection(BENEFICIAL_GEAR_FLAGS),
     )
 
 
-def _catalog_dominates(left: OwnedEquipment, right: OwnedEquipment) -> bool:
-    left_exact, left_vector, left_flags = _item_dominance_parts(left)
-    right_exact, right_vector, right_flags = _item_dominance_parts(right)
+def _catalog_dominates(left: OwnedEquipment, right: OwnedEquipment, mana_class_id=None) -> bool:
+    left_exact, left_vector, left_flags = _item_dominance_parts(left, mana_class_id)
+    right_exact, right_vector, right_flags = _item_dominance_parts(right, mana_class_id)
     return (
         left_exact == right_exact
         and left_flags.issuperset(right_flags)
@@ -189,6 +215,7 @@ def _slot_capacity(item: OwnedEquipment) -> int:
 def _prune_dominated_catalog(
     items: tuple[OwnedEquipment, ...],
     protected_ids: frozenset[str] = frozenset(),
+    mana_class_id=None,
 ) -> tuple[OwnedEquipment, ...]:
     """Remove same-slot candidates that cannot improve any Warrior metric."""
     return tuple(
@@ -196,7 +223,7 @@ def _prune_dominated_catalog(
         for item in items
         if item.id in protected_ids
         or sum(
-            other.id != item.id and _catalog_dominates(other, item)
+            other.id != item.id and _catalog_dominates(other, item, mana_class_id)
             for other in items
         ) < _slot_capacity(item)
     )
@@ -205,6 +232,7 @@ def _prune_dominated_catalog(
 def disposable_dominated_item_ids(
     items: Iterable[OwnedEquipment],
     protected_ids: frozenset[str] = frozenset(),
+    mana_class_id=None,
 ) -> frozenset[str]:
     """Return items whose R1 dominators survive capacity-aware pruning.
 
@@ -213,14 +241,14 @@ def disposable_dominated_item_ids(
     the prune.  Two-slot classes therefore need two distinct retained copies.
     """
     catalog = tuple(items)
-    retained = _prune_dominated_catalog(catalog, protected_ids)
+    retained = _prune_dominated_catalog(catalog, protected_ids, mana_class_id)
 
     return frozenset(
         item.id
         for item in catalog
         if item.id not in protected_ids
         and sum(
-            other.id != item.id and _catalog_dominates(other, item)
+            other.id != item.id and _catalog_dominates(other, item, mana_class_id)
             for other in retained
         ) >= _slot_capacity(item)
     )
@@ -312,7 +340,7 @@ def _acid_armor_count(loadout: Loadout) -> int:
     return count
 
 
-def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
+def _gear_state(loadout: Loadout, mana_class_id=None) -> tuple[tuple[object, ...], tuple[int, ...]]:
     melee = warrior_melee_signature(loadout)
     launcher = loadout.item_at(SLOT_BOW)
     launcher_item = launcher.item if launcher is not None else None
@@ -340,6 +368,9 @@ def _gear_state(loadout: Loadout) -> tuple[tuple[object, ...], tuple[int, ...]]:
             loadout.item_at(slot) is not None
             for slot in FILL_REQUIRED_ARMOR_SLOTS
         ),
+        # A realm caster's mana (caster_mana): the gloves' penalty and the counted weight, so
+        # a set with the gloves off or lighter armour is not compressed away by its AC.
+        *_loadout_mana_parts(loadout, mana_class_id),
     )
     key = (
         loadout.hand_mode,
@@ -387,11 +418,12 @@ def _compress_states(
     processed_slots: tuple[str, ...],
     current_by_slot: dict[str, str],
     current_item_ids: frozenset[str],
+    mana_class_id=None,
 ) -> tuple[tuple[Loadout, ...], bool]:
     equivalent: dict[tuple[object, ...], Loadout] = {}
     vectors: dict[tuple[object, ...], tuple[int, ...]] = {}
     for state in states:
-        key, vector = _gear_state(state)
+        key, vector = _gear_state(state, mana_class_id)
         incumbent = equivalent.get(key)
         if incumbent is None or _prefer_representative(
             state, incumbent, current_item_ids
@@ -452,7 +484,7 @@ def _compress_states(
             selected[stable_key(state)] = state
 
     vectors_by_id = {
-        stable_key(state): _gear_state(state)[1]
+        stable_key(state): _gear_state(state, mana_class_id)[1]
         for state in result
     }
     flags_by_id = {
@@ -528,6 +560,7 @@ def _gear_states(
     pinned: Mapping[str, OwnedEquipment],
     require_light: bool,
     required_flags: frozenset[int],
+    mana_class_id=None,
 ) -> tuple[tuple[Loadout, ...], bool]:
     states = (Loadout((), hand_mode),)
     processed: tuple[str, ...] = ()
@@ -580,6 +613,7 @@ def _gear_states(
             processed_slots=processed,
             current_by_slot=current_by_slot,
             current_item_ids=current_item_ids,
+            mana_class_id=mana_class_id,
         )
         truncated = truncated or stage_truncated
     return states, truncated
@@ -593,6 +627,8 @@ class WarriorLoadoutSearch:
     excluded_item_ids: frozenset[str] = frozenset()
     require_light: bool = False
     required_flags: frozenset[int] = frozenset()
+    # A realm caster's class (caster_mana): its mana components join the dominance tests.
+    mana_class_id: int | None = None
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
@@ -617,7 +653,7 @@ class WarriorLoadoutSearch:
             self.current_item_ids,
             self.pinned,
         )
-        legal = _prune_dominated_catalog(legal, protected_ids)
+        legal = _prune_dominated_catalog(legal, protected_ids, self.mana_class_id)
         legal = _deduplicate_melee_weapons(legal, protected_ids)
         current_by_slot = {
             item.equipped_slot: item.id
@@ -645,6 +681,7 @@ class WarriorLoadoutSearch:
                     pinned=self.pinned,
                     require_light=self.require_light,
                     required_flags=self.required_flags,
+                    mana_class_id=self.mana_class_id,
                 )
                 gear_by_profile[profile] = cached
             gear_states, gear_truncated = cached
@@ -670,11 +707,12 @@ def enumerate_warrior_loadouts(
     excluded_item_ids: frozenset[str] = frozenset(),
     require_light: bool = False,
     required_flags: frozenset[int] = frozenset(),
+    mana_class_id: int | None = None,
 ) -> WarriorLoadoutSearch:
     """Yield the exact nondominated Warrior loadout representatives."""
     return WarriorLoadoutSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
-        require_light, required_flags,
+        require_light, required_flags, mana_class_id,
     )
 
 
@@ -710,6 +748,8 @@ class WarriorSingleSlotSearch:
     # The depth gates' permanent speeds (SpeedGate): the speed completions below
     # build the sets that reach them.
     speed_gates: tuple = ()
+    # A realm caster's class (caster_mana): its mana components join the catalog's dominance.
+    mana_class_id: int | None = None
     truncated: bool = field(default=False, init=False)
 
     def __iter__(self) -> Iterator[Loadout]:
@@ -721,6 +761,16 @@ class WarriorSingleSlotSearch:
         current = (
             current_loadout(self.items) if self.seed is None else self.seed
         )
+        # An excluded piece (a banned one, equipment_rules.loadout_banned_item_ids) is in no
+        # yielded set, the seed's own included: the seed is taken with it off (its slot empty),
+        # unless a curse pins it there.
+        pinned_ids = frozenset(item.id for item in self.pinned.values())
+        if any(item.id in self.excluded_item_ids and item.id not in pinned_ids
+               for _, item in current.slots):
+            current = Loadout(tuple(
+                (name, item) for name, item in current.slots
+                if item.id not in self.excluded_item_ids or item.id in pinned_ids),
+                current.hand_mode)
         seed_ids = self.current_item_ids.union(current.item_ids)
         protected_ids = seed_ids.union(
             item.id for item in self.pinned.values()
@@ -739,7 +789,7 @@ class WarriorSingleSlotSearch:
             seed_ids,
             self.pinned,
         )
-        legal = _prune_dominated_catalog(legal, protected_ids)
+        legal = _prune_dominated_catalog(legal, protected_ids, self.mana_class_id)
         legal = _deduplicate_melee_weapons(legal, protected_ids)
 
         base = {name: item for name, item in current.slots}
@@ -997,6 +1047,7 @@ def enumerate_single_slot_variants(
     repair_flags: frozenset[int] = frozenset(),
     staff_gate=None,
     speed_gates: tuple = (),
+    mana_class_id: int | None = None,
 ) -> WarriorSingleSlotSearch:
     """Yield ``seed`` (the current loadout by default) plus its single-slot-swap
     neighbours, the requirement repairs of ``repair_flags``, the device-skill
@@ -1004,6 +1055,7 @@ def enumerate_single_slot_variants(
     return WarriorSingleSlotSearch(
         tuple(items), current_item_ids, pinned or {}, excluded_item_ids,
         require_light, required_flags, seed, repair_flags, staff_gate, speed_gates,
+        mana_class_id,
     )
 
 

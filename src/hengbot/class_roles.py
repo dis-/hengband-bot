@@ -21,6 +21,14 @@ capabilities those rules already have (``casts_realm_spells``, realm_spells).
   Its own realm's four books are kept and read (realm_spells, realm_spell_book; the third and
   fourth since the supervisor 2026-11-27); the other realms' cheap books stay unwanted
   (unwanted_kinds) and their third and fourth books sale loot (item_fate ``unused-book``).
+* ``refused_by_anti_magic``: the classes whose ``m`` the bot uses (the realm casters' spells,
+  the Magic-Eater's absorbed powers), so a worn NO_MAGIC (反魔法) takes a means away: the game
+  refuses ``m`` under anti-magic for every class but the Berserker and the Smith
+  (io/input-key-processor.cpp:424-455 「反魔法バリアが魔法を邪魔した！」, no turn passes; the
+  Warrior's ``m`` is refused at :410 anyway); so is the Magic-Eater's powerful activation
+  (racial/racial-switcher.cpp:208 cmd_limit_cast).  The study ``G`` (:372-383), the race powers,
+  scrolls and devices are not (equipment_rules ``search_banned_flags``, item_fate
+  ``anti-magic``, realm_spells ``anti_magic_worn``).
 * ``class_row``: a strategy's ``*_by_class`` row for the class, the Warrior's row for a
   class played as the Warrior when the file names no row of its own (strategy/quests).
 """
@@ -53,6 +61,12 @@ def realm_books_unusable(class_id: Any) -> bool:
 def casts_realm_spells(class_id: Any) -> bool:
     """The class casts its realm's book spells as the bot plays it (the Rogue)."""
     return class_id in CASTER_PLAY_CLASSES
+
+
+def refused_by_anti_magic(class_id: Any) -> bool:
+    """A worn NO_MAGIC refuses this class's ``m`` as the bot plays it (a realm caster's spells,
+    the Magic-Eater's absorbed powers)."""
+    return casts_realm_spells(class_id) or class_id == PLAYER_CLASS_MAGIC_EATER
 
 
 def class_row(rows: Mapping[str, Any] | None, class_id: Any, default: Any = None) -> Any:

@@ -19,6 +19,16 @@ The table (each row: the rule, the owner's words, who reads it):
   優先対処。」: NO_AC (宵闇のローブ, EgoDefinitions.jsonc TWILIGHT).  Readers: the loadout search
   (``loadout_banned_item_ids``, warrior_optimization), the town's departure hold and the dungeon's
   keep-it-on recall (``wears_loadout_banned``: policy_town, no_ac_recall).
+* ``search_banned_flags``: the class's own bans on top of ``LOADOUT_BANNED_FLAGS``, read by the
+  loadout search only (``loadout_banned_item_ids``).  The supervisor 2026-11-27 (owner
+  「盗賊が反魔法装備をしているが、意図通りか？」: n1-a life-545, the Sorcery Rogue, wore
+  ☆死天使アズリエルの革製ラージ・シールド {[魔} with the books 1 and 2 carried): NO_MAGIC for a class
+  whose ``m`` the bot uses (class_roles.refused_by_anti_magic: the realm casters, the
+  Magic-Eater), since the game refuses ``m`` under anti-magic (io/input-key-processor.cpp:424-455).
+  Out of the search, a worn one comes off at the next town's swap even with nothing better for
+  its slot.  Not a departure hold (``wears_loadout_banned`` stays NO_AC's, owner 2026-11-21's
+  instant death): the spells read as unavailable meanwhile (realm_spells ``anti_magic_worn``) and
+  the items stand in.
 * The Light Crossbow rule: owner 2026-07-19 (Short Bow), 2026-10-02 (Sling, 「上質以下同士の比較
   ならスリングよりライトクロスボウを優先。スリングが高級品以上なら威力評価。」), widened 2026-11-21
   (n1-b life-413) to every other kind 「ライトクロスボウを優先、ただし高級品やアーティファクトなら
@@ -64,6 +74,7 @@ from hengbot.policy_constants import (
 
 # object-enchant/tr-types.h: the flags the rules below name.
 TR_NO_TELE = 68
+TR_NO_MAGIC = 69
 TR_TY_CURSE = 71
 TR_DRAIN_EXP = 89
 TR_AGGRAVATE = 91
@@ -113,14 +124,29 @@ EXPLORATION_FORBIDDEN_FLAGS = frozenset(
 LOADOUT_BANNED_FLAGS = frozenset({TR_NO_AC})
 
 
+# A class whose ``m`` the bot uses also leaves NO_MAGIC out of its search (``search_banned_flags``).
+ANTI_MAGIC_SEARCH_BANNED_FLAGS = frozenset({TR_NO_MAGIC})
+
+
 def loadout_banned(flags: Iterable[int]) -> bool:
     """Whether a piece with these flags is banned from every loadout."""
     return not LOADOUT_BANNED_FLAGS.isdisjoint(flags)
 
 
-def loadout_banned_item_ids(items) -> frozenset[str]:
-    """The ids of the owned pieces (``OwnedEquipment``) the loadout search leaves out."""
-    return frozenset(item.id for item in items if loadout_banned(item.flags))
+def search_banned_flags(class_id) -> frozenset[int]:
+    """The flags the loadout search leaves out for ``class_id``: ``LOADOUT_BANNED_FLAGS``, and
+    NO_MAGIC for a class whose ``m`` a worn NO_MAGIC refuses (class_roles.refused_by_anti_magic)."""
+    from hengbot.class_roles import refused_by_anti_magic
+    if refused_by_anti_magic(class_id):
+        return LOADOUT_BANNED_FLAGS | ANTI_MAGIC_SEARCH_BANNED_FLAGS
+    return LOADOUT_BANNED_FLAGS
+
+
+def loadout_banned_item_ids(items, class_id=None) -> frozenset[str]:
+    """The ids of the owned pieces (``OwnedEquipment``) the loadout search leaves out for
+    ``class_id`` (``search_banned_flags``)."""
+    banned = search_banned_flags(class_id)
+    return frozenset(item.id for item in items if not banned.isdisjoint(item.flags))
 
 
 def wears_loadout_banned(snapshot) -> bool:
@@ -183,8 +209,9 @@ def required_abilities_for_depth(depth: int) -> frozenset:
 # hand-bumped schema, the NO_AC ban of 2026-11-21; 5: the single-slot search's speed
 # completions of 2026-11-26, warrior_loadout_search.SpeedGate; 6: the see-invisible utility of
 # 2026-11-26, equipment_utility.SEE_INVISIBLE_BONUS; 7: the search's depth bands of the 36F
-# nether row, equipment_optimizer.DEPTH_BANDS).
-RULES_REVISION = 7
+# nether row, equipment_optimizer.DEPTH_BANDS; 8: the caster's mana costs of 2026-11-27,
+# caster_mana: the glove and armour-weight penalties and the arms fill).
+RULES_REVISION = 8
 
 
 def _rules_table() -> dict:
@@ -192,6 +219,7 @@ def _rules_table() -> dict:
         "revision": RULES_REVISION,
         "exploration_forbidden_flags": sorted(EXPLORATION_FORBIDDEN_FLAGS),
         "loadout_banned_flags": sorted(LOADOUT_BANNED_FLAGS),
+        "anti_magic_search_banned_flags": sorted(ANTI_MAGIC_SEARCH_BANNED_FLAGS),
         "light_crossbow_sval": LIGHT_CROSSBOW_SVAL,
         "yields_to_light_crossbow_svals": sorted(YIELDS_TO_LIGHT_CROSSBOW_SVALS),
         "high_grade_pseudo_feelings": sorted(HIGH_GRADE_PSEUDO_FEELINGS),
