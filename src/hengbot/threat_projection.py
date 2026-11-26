@@ -359,7 +359,7 @@ def _charge_supplies(policy, snapshot, target) -> list:
     """(expected damage per charge, charges) of each carried attack wand and staff."""
     if not _ranged_ready(snapshot):
         return []
-    flags, level, rows = _race_flags(policy, target), snapshot.player.level, []
+    flags, rows = _race_flags(policy, target), []
     for item in snapshot.inventory:
         if item.tval == TVAL_WAND:
             kind = "wand"
@@ -372,9 +372,23 @@ def _charge_supplies(policy, snapshot, target) -> list:
         power = me_device_attacks.POWERS.get((kind, item.sval))
         if power is None or power.group_only:
             continue
-        success = attack_expectation.device_use_success(snapshot.player.device_skill, power.level)
-        rows.append((success * me_device_attacks.expected_damage(power, level, flags), item.charges))
+        rows.append((charge_damage(snapshot, power, flags, target), item.charges))
     return rows
+
+
+def charge_damage(snapshot, power, flags, target) -> float:
+    """A carried wand's or staff's charge (``power``) as the kill time reads it: its success
+    (zapwand-execution.cpp / use-execution.cpp, ``device_use_success``) paced over the
+    target's hit points like the free attacks it is weighed against (``_device_paced``).
+
+    n1-a life-539 (Angband 17F, 2026-11-26 12:24): a Zombie warrior (device skill 23) aimed the
+    level-50 Wand of Hypodynamia (one use in 93 works) at a 1-HP 絶叫おばけキノコ two cells away.
+    The charge was scored at its success times the full 105 damage (1.13) against the plain
+    bolt's 1 (its damage paced to the 1 HP), so it "out-damaged" the bolt and failed 14 times in a
+    row until the loop detector stopped the character.  Paced, it is 1/93."""
+    damage = me_device_attacks.expected_damage(power, snapshot.player.level, flags)
+    success = attack_expectation.device_use_success(snapshot.player.device_skill, power.level)
+    return _device_paced(success, damage, target)
 
 
 def free_damage(policy, snapshot, target, contact: bool = False) -> float:
