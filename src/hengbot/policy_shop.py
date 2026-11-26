@@ -1,10 +1,10 @@
 from __future__ import annotations
 from hengbot.class_roles import plays_as_warrior
 from hengbot.home_full_relief import relief_of
-from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
+from hengbot.town_pack_budget import incoming_slots, permits, room_assumed, survival_food_fits
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
 from hengbot.item_identity import same_memory
-from hengbot import angband_finale
+from hengbot import angband_finale, food_supply
 from hengbot import sale_progress
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
@@ -134,7 +134,8 @@ class ShopMixin(InStoreMixin):
                 if category == "food":
                     base_prices.extend(
                         price for (tval, sval), price in self._baseitem_costs.items()
-                        if tval == TVAL_FOOD and sval >= FOOD_MIN_SVAL and price > 0
+                        if tval == TVAL_FOOD and food_supply.FOOD_VALUE_BY_SVAL.get(sval, 0)
+                        >= food_supply.RATION_FOOD_VALUE and price > 0
                     )
                 if base_prices:
                     known = (min(base_prices), 1)
@@ -269,7 +270,8 @@ class ShopMixin(InStoreMixin):
                     )
                 return tuple(
                     kind for kind in baseitem_costs
-                    if kind[0] == TVAL_FOOD and kind[1] >= FOOD_MIN_SVAL
+                    if kind[0] == TVAL_FOOD and food_supply.FOOD_VALUE_BY_SVAL.get(kind[1], 0)
+                    >= food_supply.RATION_FOOD_VALUE
                 )
             if category == "quest-carry:launcher":
                 return tuple(kind for kind in baseitem_costs if kind[0] == TVAL_BOW)
@@ -3127,12 +3129,12 @@ class ShopMixin(InStoreMixin):
                  current=lambda: 0, target=lambda: 1))
         add(rung("legacy:lantern", "lantern", lambda: not self._owns_lantern(snapshot), lambda i: i.is_lantern))
         add(rung("legacy:oil", "oil", lambda: self._oil_below_departure_target(snapshot), lambda i: i.is_oil))
-        add(rung("legacy:ration", "food", lambda: snapshot.player.food_type == FOOD_TYPE_RATION and self._needs_food_restock(snapshot), lambda i: i.tval == TVAL_FOOD and i.sval >= FOOD_MIN_SVAL))
+        add(rung("legacy:ration", "food", lambda: snapshot.player.food_type == FOOD_TYPE_RATION and self._needs_food_restock(snapshot), lambda i: food_supply.procurement_food(i, snapshot.store.items if snapshot.store is not None else ())))
         mining = lambda: self._fundraising_mode in {"prepare", "mine", "scavenge"}
         add(rung("mining:digger", "digging-tool", lambda: mining() and (not self._has_withdrawable_digging_tool(snapshot) or self._digger_buy_fallback_available(snapshot) or self._withdrawable_digging_tool_count(snapshot) < 2), lambda i: i.is_digging_tool))
         add(rung("mining:treasure-detection", "treasure-detection", lambda: mining() and self._count_treasure_detection_scrolls(snapshot) < self._mining_detection_stock_target(snapshot), lambda i: i.is_treasure_detection_scroll, current=lambda: self._count_treasure_detection_scrolls(snapshot), target=lambda: self._mining_detection_stock_target(snapshot)))
         add(rung("mandatory:recall", "recall", lambda: ledger["recall"].count < ledger["recall"].required_departure, lambda i: i.is_recall_scroll, current=lambda: ledger["recall"].count, target=lambda: ledger["recall"].required_departure))
-        add(rung("mandatory:food", "food", lambda: snapshot.player.food_type != FOOD_TYPE_MANA and ledger["food"].count < ledger["food"].required_departure, lambda i: i.tval == TVAL_FOOD and i.sval >= FOOD_MIN_SVAL, current=lambda: ledger["food"].count, target=lambda: ledger["food"].required_departure))
+        add(rung("mandatory:food", "food", lambda: snapshot.player.food_type != FOOD_TYPE_MANA and ledger["food"].count < ledger["food"].required_departure, lambda i: food_supply.procurement_food(i, snapshot.store.items if snapshot.store is not None else ()), current=lambda: ledger["food"].count, target=lambda: ledger["food"].required_departure))
         add(rung("mandatory:teleport", "teleport", lambda: ledger["teleport"].count < ledger["teleport"].required_departure, lambda i: i.is_teleport_scroll, current=lambda: ledger["teleport"].count, target=lambda: ledger["teleport"].required_departure))
         add(rung("mandatory:cure", "cure-critical", lambda: ledger["cure"].count < ledger["cure"].required_departure, lambda i: i.tval == TVAL_POTION and i.sval == SV_POTION_CURE_CRITICAL, current=lambda: ledger["cure"].count, target=lambda: ledger["cure"].required_departure))
         # The 50F+ *Destruction* gate (user 2026-09-23 「買えるなら買って潜る」).
@@ -3728,7 +3730,7 @@ class ShopMixin(InStoreMixin):
                 budget_admits=lambda item: within("food", item))
         if snapshot.player.food_type == FOOD_TYPE_RATION:
             return next((item for item in items
-                         if item.tval == TVAL_FOOD and item.sval >= FOOD_MIN_SVAL
+                         if food_supply.procurement_food(item, items)
                          and within("food", item)), None)
         return None
 
@@ -3809,8 +3811,7 @@ class ShopMixin(InStoreMixin):
                     (
                         it
                         for it in items
-                        if it.tval == TVAL_FOOD
-                        and it.sval >= FOOD_MIN_SVAL
+                        if food_supply.procurement_food(it, items)
                         and it.price <= gold
                     ),
                     None,
@@ -3856,8 +3857,7 @@ class ShopMixin(InStoreMixin):
                         (
                             it
                             for it in items
-                            if it.tval == TVAL_FOOD
-                            and it.sval >= FOOD_MIN_SVAL
+                            if food_supply.procurement_food(it, items)
                             and it.price <= gold
                         ),
                         None,
@@ -4092,8 +4092,7 @@ class ShopMixin(InStoreMixin):
                 (
                     it
                     for it in items
-                    if it.tval == TVAL_FOOD
-                    and it.sval >= FOOD_MIN_SVAL
+                    if food_supply.procurement_food(it, items)
                     and it.price <= gold
                 ),
                 None,
@@ -4310,6 +4309,10 @@ class ShopMixin(InStoreMixin):
             needed = ledger["recall"].required_departure - ledger["recall"].count
         elif item.tval == TVAL_FOOD:
             needed = ledger["food"].required_departure - ledger["food"].count
+            if food_supply.food_value(item) > 0:
+                # The ledger counts Rations' worth (food_supply); a ware of
+                # another nutrition buys the same food in its own count.
+                needed = food_supply.items_for_rations(item, needed)
         elif (
             snapshot.player.food_type == FOOD_TYPE_MANA
             and item.tval in {TVAL_WAND, TVAL_STAFF}
@@ -4589,6 +4592,28 @@ class ShopMixin(InStoreMixin):
                 family="shop-sell", board=snapshot)
         finally:
             self._terminal_store_sale = previous
+
+    def _survival_pack_room_sale(self, snapshot: Snapshot) -> InventoryItem | None:
+        """The pack stack a starving character sells to the General Store for a
+        food slot: surplus first, then ammunition, a digging tool or anything
+        else the store takes; never food or a flask of oil."""
+        store = snapshot.store
+        if store is None or store.store_type != STORE_GENERAL:
+            return None
+        candidates = [
+            item for item in snapshot.inventory
+            if item.tval != TVAL_FOOD and not item.is_oil
+            and self._store_accepts_sale(STORE_GENERAL, item)
+            and self._item_signature(item) not in self._unsellable_items
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: (
+            self._retention_surplus(snapshot, item) <= 0,
+            not item.is_ammo,
+            not item.is_digging_tool,
+            item.slot,
+        ))
 
     @claims(ClaimOwner.SHOP_SELL)
     def _store_sell_key(
@@ -5256,15 +5281,27 @@ class ShopMixin(InStoreMixin):
                     return LEAVE_STORE_KEY
                 food_item = self._mana_food_purchase(snapshot)
             elif snapshot.player.food_type == FOOD_TYPE_RATION:
+                affordable = [
+                    it for it in store.items
+                    if it.tval == TVAL_FOOD
+                    and it.sval >= FOOD_MIN_SVAL
+                    and it.price <= snapshot.player.gold
+                ]
+                # A Ration before a Biscuit (food_supply.procurement_food).
                 food_item = next(
-                    (
-                        it for it in store.items
-                        if it.tval == TVAL_FOOD
-                        and it.sval >= FOOD_MIN_SVAL
-                        and it.price <= snapshot.player.gold
-                    ),
+                    (it for it in affordable
+                     if food_supply.procurement_food(it, affordable)),
                     None,
                 )
+                if food_item is not None and not survival_food_fits(
+                        snapshot, food_item, 1):
+                    # No pack slot even past the departure reserve: sell one
+                    # thing the General Store takes to make room (life-544's
+                    # loop was the reserve; a full pack would repeat it).
+                    room = self._survival_pack_room_sale(snapshot)
+                    if room is not None:
+                        return self._store_sell_key(
+                            snapshot, room, "survival:sell-for-food-room")
                 if food_item is not None:
                     home_gate = self._purchase_has_fresh_home_absence(
                         snapshot, food_item

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from hengbot.model import TVAL_STAFF, TVAL_WAND
 from hengbot.never_dispose import DISPOSAL_SINKS, never_disposed
-from hengbot.town_pack_budget import home_take_fits, incoming_slots, permits
+from hengbot.town_pack_budget import home_take_fits, incoming_slots, permits, survival_food_fits
 
 from contextvars import ContextVar
 from contextlib import contextmanager
@@ -553,7 +553,9 @@ def store_item_key(policy, snapshot, kind, item, owner, *, quantity, address=Non
       purchase: prompt_to_buy's ``[Y/n]`` (Return takes DEFAULT_Y); the Home
       asks nothing more.
     """
-    if kind == "buy" and not permits(snapshot, incoming_slots(snapshot, item, quantity)):
+    if kind == "buy" and not (
+            survival_food_fits(snapshot, item, quantity) if owner == "survival"
+            else permits(snapshot, incoming_slots(snapshot, item, quantity))):
         return None
     if kind == "withdraw" and not home_take_fits(snapshot, item, quantity, policy=policy):
         return None

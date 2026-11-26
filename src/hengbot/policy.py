@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, class_roles, item_need
-from hengbot import equipment_target
+from hengbot import equipment_target, food_supply
 from hengbot import angband_finale, me_deep_launcher
 from hengbot import strategy_profile
 from hengbot import approach_answer, fundraising_route, return_start
@@ -12676,11 +12676,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         return oil.count < oil.required_departure
 
     def _count_food(self, snapshot: Snapshot) -> int:
-        return sum(
-            it.count
-            for it in snapshot.inventory
-            if it.is_food and it.sval >= FOOD_MIN_SVAL
-        )
+        """Whole Rations' worth of carried nutrition (food_supply, n1-a life-544:
+        five Hard Biscuits are 2500 food, not five Rations' 25000)."""
+        return food_supply.carried_rations(snapshot.inventory)
 
     def _needs_food_restock(self, snapshot: Snapshot) -> bool:
         # MANA races restock charged devices at the Magic shop. WATER/OIL/BLOOD

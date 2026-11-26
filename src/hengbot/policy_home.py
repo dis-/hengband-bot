@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.class_roles import plays_as_warrior
 from hengbot import equipment_target
-from hengbot import angband_finale
+from hengbot import angband_finale, food_supply
 from hengbot import quest_optional_carry
 from hengbot.item_identity import (
     MemorySignatures, display_signature,
@@ -3210,6 +3210,19 @@ class HomeMixin:
                 candidate.is_food and candidate.aware and candidate.sval >= FOOD_MIN_SVAL
             )
             branch = "supply-ledger:food"
+            value = food_supply.food_value(item)
+            if value > 0 and target > 0:
+                # The target is Rations' worth (food_supply): keep the carried
+                # food, pack order first, until its nutrition covers it.
+                before_value = 0
+                for candidate in snapshot.inventory:
+                    if candidate.slot == item.slot:
+                        break
+                    if matches(candidate):
+                        before_value += food_supply.food_value(candidate) * candidate.count
+                missing = max(0, target * food_supply.RATION_FOOD_VALUE - before_value)
+                reservation = min(item.count, -(-missing // value))
+                return reservation, branch if reservation > 0 else None
         elif (item.is_lantern and self._planned_depth() >= 2
               and not self._owns_usable_permanent_light(snapshot)):
             # The ordinary departure gate still requires a lantern when an

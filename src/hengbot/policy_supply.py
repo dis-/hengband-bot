@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import angband_finale
+from hengbot import angband_finale, food_supply
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, quest_supply_gate, torch_release, town_pack_headroom
 from hengbot import deep_detection_rod, deep_teleport, destruction_means, me_deep_launcher, realm_spell_book, teleport_away_carry
@@ -637,6 +637,11 @@ class SupplyMixin:
                 required_return = required_departure = 0
             elif kind == "food" and mana_food:
                 required_return = required_departure = MANA_FOOD_CHARGE_TARGET
+            elif kind == "food":
+                # One planned trip at this character's own digestion
+                # (food_supply: regeneration triples a normal-speed eater's).
+                required_departure = max(
+                    required_departure, food_supply.departure_rations(snapshot.player))
             if kind == "food":
                 required_departure += trip_food
             statuses[kind] = SupplyStatus(

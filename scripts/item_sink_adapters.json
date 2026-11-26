@@ -435,7 +435,8 @@
     "self._shop_purchase_key(snapshot, completed_disposal_successor, source=purchase_source_journal.RUNGS) @ If:body:self._pending_disposal_item is not None / If:body:target is None and self._pending_disposal_completed(snapshot) / If:body:completed_disposal_successor is not None": 1,
     "self._store_sell_key(snapshot, target, 'equipment:sell-dominated', rejected_reason='equipment:sale-refused') @ If:body:self._pending_disposal_item is not None / If:orelse:target is None and self._pending_disposal_completed(snapshot) / If:orelse:target is None": 1,
     "self._home_deposit_key(snapshot, deposit) @ If:body:store.store_type == STORE_HOME / If:body:self._fundraising_mode in {'prepare', 'mine', 'scavenge'} / If:body:deposit is not None and self._home_entry_operation_posted": 1,
-    "self._store_sell_key(snapshot, sale, 'shop:sell-mana-race-food') @ If:body:store.store_type == STORE_GENERAL / If:body:snapshot.player.food_type == FOOD_TYPE_MANA / If:body:sale is not None": 1
+    "self._store_sell_key(snapshot, sale, 'shop:sell-mana-race-food') @ If:body:store.store_type == STORE_GENERAL / If:body:snapshot.player.food_type == FOOD_TYPE_MANA / If:body:sale is not None": 1,
+    "self._store_sell_key(snapshot, room, 'survival:sell-for-food-room') @ If:body:snapshot.player.hungry and self._find_edible(snapshot) is None / If:orelse:snapshot.player.food_type == FOOD_TYPE_MANA / If:body:snapshot.player.food_type == FOOD_TYPE_RATION / If:body:food_item is not None and (not survival_food_fits(snapshot, food_item, 1)) / If:body:room is not None": 1
   },
   "policy_shop.py:_shopping_approach_key": {
     "self._shopping_approach_answer(snapshot, step, travel_reason) @ ": 1
