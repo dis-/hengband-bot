@@ -21,8 +21,10 @@ class OpeningRoutePinsTest(unittest.TestCase):
         return harness
 
     def test_unaffordable_route_is_an_operator_visible_final_stop(self):
+        # The Magic-Eater's stop; another class is released (n1-a life-543, 2026-11-26).
         policy, raw, _ = self.harness().shopping_case(gold=0)
         raw["store"] = None
+        raw["player"]["class_id"] = 16
         board = parse_snapshot(raw, policy._monrace_knowledge)
 
         key = policy.choose_key(board)

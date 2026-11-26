@@ -20,6 +20,8 @@ from hengbot.policy_constants import QUEST_STATUS_COMPLETED, QUEST_STATUS_TAKEN
 from hengbot.quest_knowledge import QuestInfo, QuestBattlefield
 from hengbot.monrace_knowledge import MonraceKnowledge, MonsterBlow
 from hengbot.quest_strategies import load_quest_strategies
+from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
+from hengbot.policy_opening import OPENING_Q1_RELEASED
 from hengbot.cli import PostingContract, _ExecutorInputPort, _send_decision_key_with_prompt_chain
 import tests.support.recorded as executor_harness
 from tests.support.recorded import FaithfulHookGame, command_screen, prompt_screen, store_screen
@@ -174,6 +176,13 @@ class OpeningRouteRecordedTest(executor_harness.ProductionHarness):
         self.assertFalse(game.term_fifo)
         policy.confirm_key_posted(key)
 
+    def assert_released(self, policy, key, detail):
+        """The route released the character to the ordinary town (policy_opening)."""
+        self.assertNotEqual(policy.last_reason, "quest:blocked:opening-route")
+        self.assertTrue(key)
+        self.assertTrue(str(getattr(policy, OPENING_Q1_RELEASED)).startswith(detail))
+        self.assertIsNone(getattr(policy, "_opening_q1_failure", None))
+
     def shopping_case(self, *, gold=500, hp=250, carry=False):
         # DECLARED CONSTRUCTED: copied Lv10 board and General Store, with a
         # closed supplier census, controlled digging offers, detection price, and HP=250 to satisfy
@@ -320,10 +329,13 @@ class OpeningRouteRecordedTest(executor_harness.ProductionHarness):
 
     def test_no_digger_skips_the_optional_kit_and_missing_reserve_stops(self):
         # R2 scenario transfer: no tool stock no longer blocks the fixed route.
-        for reserve_owned in (True, False):
-            with self.subTest(reserve_owned=reserve_owned):
+        # A missing reserve no shelf holds releases the Warrior to the ordinary town
+        # (n1-a life-543, supervisor 2026-11-26); the Magic-Eater keeps its stop.
+        for reserve_owned, class_id in ((True, 0), (False, 0), (False, PLAYER_CLASS_MAGIC_EATER)):
+            with self.subTest(reserve_owned=reserve_owned, class_id=class_id):
                 policy, raw, _ = self.shopping_case(gold=0)
                 raw["store"] = None
+                raw["player"]["class_id"] = class_id
                 for st, page in list(policy._town_supplier_stock.items()):
                     policy._town_supplier_stock[st] = replace(page, items=[], stock_num=0)
                 if reserve_owned:
@@ -333,6 +345,8 @@ class OpeningRouteRecordedTest(executor_harness.ProductionHarness):
                 if reserve_owned:
                     self.assertEqual(policy.last_reason, "fixedquest:request:approach")
                     self.assertTrue(key)
+                elif class_id == 0:
+                    self.assert_released(policy, key, "stop:stock:quest-throwing-items")
                 else:
                     self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
                     self.assertEqual(policy._opening_q1_failure, "stop:stock:quest-throwing-items")
@@ -360,20 +374,30 @@ class OpeningRouteRecordedTest(executor_harness.ProductionHarness):
         policy._monrace_knowledge[150] = replace(policy._monrace_knowledge[150], max_melee_damage=1000,
             blows=(MonsterBlow("HIT", "HURT", 100, 10),))
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-        self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
-        self.assertIn("three-turn-threat", policy._opening_q1_failure)
-        repeated = policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
-        self.assertEqual(str(repeated), "")
+        # The Warrior is released to the ordinary town (n1-a life-543, supervisor 2026-11-26).
+        self.assert_released(policy, key, "readiness:")
+        self.assertIn("three-turn-threat", policy._opening_q1_released)
+        policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge))
+        self.assertNotEqual(policy.last_reason, "quest:blocked:opening-route")
+        self.assertFalse(policy.last_reason.startswith("fixedquest:request"), policy.last_reason)
 
     def test_missing_reserve_stops_without_a_pre_q1_income_run(self):
-        # R2 replaces the former reserve-fundraising scenario by explicit refusal.
-        policy, raw, _ = self.shopping_case(gold=0)
-        raw["store"] = None
-        key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-        self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
-        self.assertEqual(policy._opening_q1_failure, "stop:unaffordable-quest-reserve")
-        self.assertIsNone(policy._opening_q1_funding)
-        self.assertIsNone(policy._planned_mining_runs)
+        # R2 replaces the former reserve-fundraising scenario by explicit refusal; since
+        # n1-a life-543 (supervisor 2026-11-26) the refusal releases the Warrior to the
+        # ordinary town and stops only the Magic-Eater.
+        for class_id in (0, PLAYER_CLASS_MAGIC_EATER):
+            with self.subTest(class_id=class_id):
+                policy, raw, _ = self.shopping_case(gold=0)
+                raw["store"] = None
+                raw["player"]["class_id"] = class_id
+                key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
+                if class_id == 0:
+                    self.assert_released(policy, key, "stop:unaffordable-quest-reserve")
+                else:
+                    self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
+                    self.assertEqual(policy._opening_q1_failure, "stop:unaffordable-quest-reserve")
+                self.assertIsNone(policy._opening_q1_funding)
+                self.assertIsNone(policy._planned_mining_runs)
 
     def test_old_funding_checkpoint_cannot_restart_pre_q1_fundraising(self):
         policy, raw, _ = self.shopping_case(gold=0)
@@ -382,8 +406,7 @@ class OpeningRouteRecordedTest(executor_harness.ProductionHarness):
         policy._opening_q1_funding = 0
         policy._opening_q1_funding_left = True
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-        self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
-        self.assertEqual(policy._opening_q1_failure, "stop:unaffordable-quest-reserve")
+        self.assert_released(policy, key, "stop:unaffordable-quest-reserve")
         self.assertIsNone(policy._opening_q1_funding)
         self.assertFalse(policy._opening_q1_funding_left)
 
@@ -483,8 +506,10 @@ class OpeningRouteRecordedTest(executor_harness.ProductionHarness):
         policy, raw, _ = self.shopping_case(gold=10)
         raw["store"] = None
         key = str(policy.choose_key(parse_snapshot(raw, policy._monrace_knowledge)))
-        self.assertEqual((key, policy.last_reason), ("", "quest:blocked:opening-route"))
-        self.assertEqual(policy._opening_q1_failure, "stop:unaffordable-quest-reserve")
+        # The $10 detection scroll is not bought from the reserve: the route releases the
+        # Warrior first (n1-a life-543, supervisor 2026-11-26).
+        self.assert_released(policy, key, "stop:unaffordable-quest-reserve")
+        self.assertNotIn("detection", policy.last_reason)
         self.assertIsNone(policy._opening_q1_funding)
         self.assertIsNone(policy._fundraising_mode)
 

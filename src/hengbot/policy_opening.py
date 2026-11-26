@@ -2,6 +2,16 @@
 
 Shelf observations and the existing quest contract are the only price/count sources.
 The route retains its kit choice across purchases and checkpoints.
+
+A requirement of Q1 the route cannot meet with the money at hand (the force's DPS or HP, a
+carry the shelves or the purse cannot fill, another readiness rejection after the route's
+shopping is done) or another quest at the head releases a character other than the
+Magic-Eater from the route (``OPENING_Q1_RELEASED``): the ordinary town (fundraising, the
+first dungeon levels) goes on and Q1 is taken later in the ordinary fixed-quest order once its
+requirements are met.  Supervisor 2026-11-26 (owner delegation 「自由なキャラクタと戦略で勝利
+を目指すこと」), n1-a life-543/544: a CL6 Amberite Rogue after Q34 measured DPS 12.7/13.17
+against the Warrior row's 13.23 and stopped as quest:blocked:opening-route on every restart.
+The Magic-Eater keeps its designed stops (its rows are its own; its behaviour is unchanged).
 """
 from hengbot.model import (
     STORE_GENERAL, STORE_WEAPON, STORE_BLACK, STORE_ALCHEMIST, STORE_TEMPLE,
@@ -93,12 +103,27 @@ def _q1_affordable_targets(requirements, offers, gold, floor):
     return targets
 
 
+# The policy attribute: why the route released this character (None: not released).
+OPENING_Q1_RELEASED = "_opening_q1_released"
+OPENING_Q1_RELEASED_REASON = "opening-q1:released"
+# Route stop details that are a requirement (or another quest's head) rather than a
+# mechanical failure of the route's own steps; only these release (module docstring).
+_RELEASABLE_PREFIXES = ("readiness:", "stop:", "competing-quest:")
+
+
+def opening_q1_releasable(detail) -> bool:
+    """Whether a route stop's detail is an unmet requirement the ordinary town takes over."""
+    return isinstance(detail, str) and detail.startswith(_RELEASABLE_PREFIXES)
+
+
 class OpeningRouteMixin:
     def _opening_q1_active(self, snapshot):
         # The transaction needs protocol-3 stock/skill/light observations.
         # Legacy checkpoints retain their existing, independent town owners.
         if (getattr(snapshot, "protocol_version", PROTOCOL_LEGACY) < PROTOCOL_SCREEN_PARITY
                 or not getattr(snapshot, "quests", None)):
+            return False
+        if getattr(self, OPENING_Q1_RELEASED, None) is not None:
             return False
         quests = self._known_fixed_quests(snapshot)
         q34, q1 = quests.get(34), quests.get(1)
@@ -363,7 +388,16 @@ class OpeningRouteMixin:
         return None
 
     @claims(ClaimOwner.QUEST_REQUEST, census_only=True)
-    def _opening_q1_stop(self, detail):
+    def _opening_q1_stop(self, detail, snapshot=None):
+        """Stop the route as ``detail``; a releasable requirement releases instead (module
+        docstring) and returns None, so the rungs below answer this board."""
+        if (snapshot is not None and opening_q1_releasable(detail)
+                and snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER):
+            setattr(self, OPENING_Q1_RELEASED, detail)
+            self._opening_q1_failure = None
+            self._quest_carry_lowered = None
+            self.last_reason = OPENING_Q1_RELEASED_REASON
+            return None
         self._opening_q1_failure = detail
         self.last_reason = "quest:blocked:opening-route"
         # An empty envelope cannot activate a building beneath the player.
@@ -423,7 +457,7 @@ class OpeningRouteMixin:
         if not self._opening_q1_active(snapshot) or not snapshot.in_town:
             return None
         if getattr(self, "_opening_q1_failure", None):
-            return self._opening_q1_stop(self._opening_q1_failure)
+            return self._opening_q1_stop(self._opening_q1_failure, snapshot)
         if self._effective_town_id(snapshot) != 0:
             return self._opening_q1_stop("not-in-outpost")
         # Finish the reward pickup transaction (the latch rebuilt after a
@@ -439,7 +473,7 @@ class OpeningRouteMixin:
                 return self._opening_q1_stop("reward-unavailable")
         head = self._fixed_quest_head(snapshot)
         if head is not None and head.id != 1:
-            return self._opening_q1_stop("competing-quest:" + str(head.id))
+            return self._opening_q1_stop("competing-quest:" + str(head.id), snapshot)
         self._opening_q1_funding = None
         self._opening_q1_funding_left = False
         self._supply_stockout_gold_target = None
@@ -447,7 +481,7 @@ class OpeningRouteMixin:
         self._planned_mining_runs = None
         stage, store, ware, quantity, debt = self._opening_q1_plan(snapshot)
         if stage.startswith("stop:"):
-            return self._opening_q1_stop(stage)
+            return self._opening_q1_stop(stage, snapshot)
         if ware is not None and not self._store_purchase_fits_pack(snapshot, ware):
             return self._opening_q1_stop("purchase-pack-full:" + stage)
         if snapshot.player.afraid and self._physical_adjacent_hostiles(snapshot):
@@ -529,7 +563,7 @@ class OpeningRouteMixin:
         # Taken quests are checked at the entrance by the same safety gate,
         # rather than rebuilding their combat model on every town step.
         if (head is None or head.status != QUEST_STATUS_TAKEN) and not self._fixed_quest_ready(snapshot, 1):
-            return self._opening_q1_stop("readiness:" + str(self._fixed_quest_readiness))
+            return self._opening_q1_stop("readiness:" + str(self._fixed_quest_readiness), snapshot)
         key = self._fixed_quest_key(snapshot, hostiles)
         if key is not None:
             return key

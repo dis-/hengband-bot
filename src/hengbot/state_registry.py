@@ -1700,6 +1700,10 @@ REGISTRY = (
     S("_opening_q1_positions", "policy_opening", LIFE,
       "boards stood per cell since the Q1 town progress (_opening_q1_progress) last changed "
       "(_opening_q1_route_stalled, STORE_STUCK_LIMIT)"),
+    S("_opening_q1_released", "policy_opening", LIFE,
+      "policy_opening: why the Q34 -> kit -> Q1 route released this character to the ordinary "
+      "town (a Q1 requirement it cannot meet with the money at hand, or another quest at the "
+      "head; never the Magic-Eater); None while the route owns the town"),
     S("_opening_q1_progress", "policy_opening", LIFE,
       "policy_opening: opening q1 progress (no comment at its definition)"),
     S("_opening_q1_shelves", "policy_opening", LIFE,
@@ -2487,6 +2491,11 @@ RESTART = {
     "_realm_spell_resume_attempts": Restart(MAY_BE_LOST, "realm_spell_book",
                                             "per process: a new process asks again"),
     # quest_opening_readiness: the next opening decision evaluates the same readiness again.
+    # policy_opening: the latched _opening_q1_failure, else the next route decision evaluates
+    # the same requirement and releases again.
+    "_opening_q1_released": Restart(REBUILT, "policy_opening",
+                                    "a restored latched failure, or the first route decision of a "
+                                    "new process, releases again"),
     "_q34_opening_released": Restart(REBUILT, "quest_opening_readiness",
                                      "the first opening decision of a new process rejects the "
                                      "same readiness and releases again"),
