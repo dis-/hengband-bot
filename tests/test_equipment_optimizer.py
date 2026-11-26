@@ -464,7 +464,8 @@ class EquipmentOptimizerTest(unittest.TestCase):
         )
 
         self.assertIsNotNone(result.best)
-        self.assertEqual(result.chosen_depth, 39)
+        # 31-35F since the nether row moved to 36F (2026-11-26).
+        self.assertEqual(result.chosen_depth, 35)
 
     def test_zero_melee_classifies_on_abilities_alone(self):
         ring = gear("ability-only", 45, flags=(46, 50, 57))
@@ -483,7 +484,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
 
         self.assertEqual(
             [decision.band for decision in result.band_decisions],
-            [81, 80, 69, 49, 39, 30, 25, 20, 19],
+            [81, 80, 69, 49, 35, 30, 25, 20, 19],
         )
         self.assertTrue(all(
             decision.melee_free == 7 for decision in result.band_decisions

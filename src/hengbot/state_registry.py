@@ -2025,6 +2025,8 @@ REGISTRY = (
       "(floor, turn) of the last confusion cure"),
     S("_confusion_relapse_floor", "status_cure", FLOOR,
       "floor whose confusion came back after a cure"),
+    S("_poison_estimate", "status_cure", LIFE,
+      "(estimated poison timer, game turn of the estimate) while poisoned; None when not"),
     S("_short_blind_onset", "status_cure", FLOOR,
       "(floor, turn) of a light/darkness blindness"),
     # summon_response
@@ -2499,6 +2501,10 @@ RESTART = {
     "_q34_opening_released": Restart(REBUILT, "quest_opening_readiness",
                                      "the first opening decision of a new process rejects the "
                                      "same readiness and releases again"),
+    # status_cure.observe_poison (2026-11-26): a new process poisoned has no estimate until the
+    # next poisoning; meanwhile the cure waits for HP below half (poison_cure_due).
+    "_poison_estimate": Restart(MAY_BE_LOST, "status_cure",
+                                "None in a new process: only the HP line cures the poison"),
     # strategy_profile.for_run: cli reads the instance's strategy-profile.json again at start.
     "_instance_profile": Restart(PERSISTED, "strategy_profile",
                                  "configuration, not state: the file is read again at start"),

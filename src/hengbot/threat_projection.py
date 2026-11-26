@@ -259,7 +259,9 @@ def unseen_loss(policy, snapshot) -> int:
     if not attributable:
         return 0
     unseen_caster_hit = unseen_strike.hit_by_spell(policy, snapshot)
-    if not (unseen_caster_hit or not (player.poisoned or player.cut)):
+    from hengbot import status_cure
+    # A poisoned player's loss counts when an attack evidences it (2026-11-26).
+    if not (unseen_caster_hit or status_cure.loss_is_an_attack(policy, snapshot)):
         return 0
     return int(policy._last_damage_amount)
 

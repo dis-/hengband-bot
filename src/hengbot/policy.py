@@ -7575,7 +7575,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not any(m.speed >= player.speed for m in adjacent)
         ):
             return key
-        tick_only = once_quest_recall.tick_is_no_threat(self, snapshot)
+        # A poison tick with nothing in view and no attack evidenced is no threat either
+        # (status_cure.poison_tick_only, 2026-11-26: the Zombie was never poisoned).
+        tick_only = (once_quest_recall.tick_is_no_threat(self, snapshot)
+                     or status_cure.poison_tick_only(self, snapshot))
         if low:
             threatened = bool(hostiles) or bool(
                 [m for m in snapshot.detected_monsters if m.hostile]

@@ -1193,6 +1193,7 @@ class ObservationMixin:
         self._last_damage_amount = (
             hp_without_damage - hp if self._took_damage else 0
         )
+        status_cure.observe_poison(self, snapshot)
         # An unseen hit whose own decision was pre-empted (the emergency cure
         # of the blindness its darkness breath caused) must still reach the
         # unseen-attacker retreat: on the next board the cure has raised HP,
@@ -1282,8 +1283,10 @@ class ObservationMixin:
             and not snapshot.visible_monsters
             and not self._took_curse_damage
             and not self._took_trap_or_terrain_damage
-            and not snapshot.player.poisoned
-            and not snapshot.player.cut
+            # Neither cut nor a poison tick (2026-11-26: a poisoned player's loss counts when an
+            # attack message or its size shows a hit, status_cure.loss_is_an_attack; before,
+            # any poison excluded it, which the never-poisoned Zombie never met).
+            and status_cure.loss_is_an_attack(self, snapshot)
         )
         self._unexplained_damage_streak = (
             getattr(self, "_unexplained_damage_streak", 0) + 1 if unexplained else 0

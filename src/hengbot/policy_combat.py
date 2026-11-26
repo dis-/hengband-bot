@@ -2415,7 +2415,9 @@ class CombatMixin:
             and not hostiles
             and not snapshot.visible_monsters
             and not snapshot.in_town
-            and (unseen_spell_hit or not (player.poisoned or player.cut))
+            # A poisoned player's loss counts when an attack evidences it (status_cure
+            # loss_is_an_attack, 2026-11-26: the Zombie was never poisoned).
+            and (unseen_spell_hit or status_cure.loss_is_an_attack(self, snapshot))
             and (
                 self._last_damage_amount >= player.hp
                 # USER DECISION 2026-10-03 (unseen spell, nothing in view):
@@ -2472,7 +2474,7 @@ class CombatMixin:
         observed_loss_lethal = (
             attributable_loss
             and bool(hostiles)
-            and (unseen_caster_hit or not (player.poisoned or player.cut))
+            and (unseen_caster_hit or status_cure.loss_is_an_attack(self, snapshot))
             and self._last_damage_amount * 3 >= player.hp
         )
         # The next-turn evidence of the heal-vs-teleport decision, read before
@@ -3508,7 +3510,8 @@ class CombatMixin:
             observed_loss
             if (
                 self._unseen_attack_evidence is not None
-                or not (player.poisoned or player.cut)
+                # A poisoned player's loss beyond the ticks too (2026-11-26).
+                or status_cure.loss_is_an_attack(self, snapshot)
             )
             else 0
         )
