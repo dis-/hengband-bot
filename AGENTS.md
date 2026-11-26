@@ -120,3 +120,9 @@ it into a workflow, put the `claude -p ...` call in Codex's pre-commit step or
 - Symmetry: the reverse (Claude → Codex) is
   `codex exec --ignore-user-config -m gpt-5.5 -s read-only review --uncommitted`
   (the `--ignore-user-config` sidesteps the config.toml `service_tier` mismatch).
+
+## Maintainability rules (read before changing code)
+
+`MAINTAINABILITY.md` holds the rules every change must follow (decide from board facts not race/class ids,
+never stop on an unmeetable requirement, one place answers one question, named constants with evidence,
+remove superseded rules, verify by running not by reading). Record changed in-game decisions in `DECISIONS.md`.
