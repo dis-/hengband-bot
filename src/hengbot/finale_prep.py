@@ -511,9 +511,8 @@ def _short_stack(policy, snapshot):
         missing = target - angband_finale.carried(snapshot, kind)
         if missing <= 0:
             continue
-        found = [(index, item) for index, item in enumerate(policy._home_knowledge_items)
-                 if (item.tval, item.sval) == kind and getattr(item, "aware", True)
-                 and policy._item_signature(item) not in policy._deferred_home_items]
+        # Every stack of the kind, deferred or not (``_home_stacks``).
+        found = _home_stacks(policy, kind)
         addressable = [item for index, item in found
                        if index < policy._home_knowledge_valid_before]
         if addressable:
@@ -531,14 +530,28 @@ def _short_stack(policy, snapshot):
     return None
 
 
+def _home_stacks(policy, kind) -> list:
+    """[(index, stack)] of ``kind``'s aware stacks in the Home catalogue.
+
+    A stack the visit's ordinary Home takes deferred (``_deferred_home_items``) is still there:
+    the deferral is those takes' own give-up for the visit, and the supplies step takes its
+    stacks through its own errand, whose failure stops the phase by name (``release_stopped``,
+    ``supplies:withdrawal-failed``).  n1-c life-222 (2026-11-26 09:09:18-09:09:20, decisions
+    2934-2940): the Home pass's shortage queue (``home:queue-catalogue-shortage``) bound the
+    *Healing* and the Restore Mana the step was taking, gave them up for the visit when the
+    step's own takes emptied its first entry, and the step then read the 46 Restore Mana at Home
+    as none and stopped as ``supplies:not-at-home:75-40``; the town stopped under
+    ``town:blocked:finale-prep-stopped:...`` with every supply owned."""
+    return [(index, item) for index, item in enumerate(policy._home_knowledge_items)
+            if (item.tval, item.sval) == kind and getattr(item, "aware", True)]
+
+
 def _restoring_at_home(policy) -> list:
     """[(index, stack)] of the Mushrooms of Restoring in the current Home catalogue."""
     from hengbot import angband_finale
     if not policy._home_knowledge_current:
         return []
-    return [(index, item) for index, item in enumerate(policy._home_knowledge_items)
-            if (item.tval, item.sval) == angband_finale.RESTORING and getattr(item, "aware", True)
-            and policy._item_signature(item) not in policy._deferred_home_items]
+    return _home_stacks(policy, angband_finale.RESTORING)
 
 
 def _read_home_key(policy, snapshot) -> str | None:
