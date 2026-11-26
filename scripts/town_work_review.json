@@ -23831,6 +23831,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "recall_wait_rest.py:key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Every Word of Recall countdown wait (town:wait-recall, return:wait-recall, fundraise:wait-recall, wilderness:wait-recall, deep-fall-guard:wait-recall, the mining abort's): its callers offer the returned key under their own departure/fundraising work ids.",
+    "evidence": "Owner 2026-11-26 (time efficiency): REST_MACRO on a calm board (no hostile in view or sensed within 20, no hit, no damaging ailment, not on an entrance, never 99F/100F), else WAIT_KEY; it offers nothing itself.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
   "recall_wait_unknown_path.py:path": {
     "classification": "data",
     "rows": [

@@ -782,13 +782,15 @@ class FundraisingMixin:
             return UP_STAIRS_KEY
         if player.recalling:
             self.last_reason = f"{prefix}:wait-recall"
+            from hengbot import recall_wait_rest  # leaf
+            wait = recall_wait_rest.key(self, snapshot)
             self._offer_execution(
-                WAIT_KEY, producer="fundraising",
+                wait, producer="fundraising",
                 work_id="fundraise:abort:recall-wait",
                 next_step="fundraising.observe-recall-arrival",
                 expected_effect="floor-change",
             )
-            return WAIT_KEY
+            return wait
         step = self._nearest_goal_step(snapshot, self._is_upstairs_target)
         if step is not None and all(
             self._monster_cast_distance(step, monster.position)
@@ -886,13 +888,15 @@ class FundraisingMixin:
             # the walk went on alternating until the loop detector stopped the
             # bot 25 decisions later, before the countdown ended.
             self.last_reason = "fundraise:wait-recall"
+            from hengbot import recall_wait_rest  # leaf
+            wait = recall_wait_rest.key(self, snapshot)
             self._offer_execution(
-                WAIT_KEY, producer="fundraising",
+                wait, producer="fundraising",
                 work_id="fundraise:return:recall-wait",
                 next_step="fundraising.observe-recall-arrival",
                 expected_effect="floor-change",
             )
-            return WAIT_KEY
+            return wait
         if allow_recall and snapshot.dungeon_level >= RECALL_MIN_DEPTH:
             recall = self._find_recall_scroll(snapshot)
             if (
