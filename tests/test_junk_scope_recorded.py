@@ -197,9 +197,10 @@ class JunkScopeRecordedTest(unittest.TestCase):
         self.assertIsNone(policy._junk_class(mage, BOOKS[0]))
         self.assertEqual(policy._junk_class(board, BOOKS[0]), "unusable-book")
         # DECLARED CONSTRUCTED: a Rogue (class id 3) whose sheet shows the Sorcery realm.  The
-        # bot casts the Rogue's first two books' spells (class_roles.casts_realm_spells,
-        # realm_spells): its own realm's start-kit book is kept, and its third book is no
-        # realm book it reads (item_fate), so it stays sale loot.
+        # bot casts the Rogue's four books' spells (class_roles.casts_realm_spells,
+        # realm_spells; the third and fourth since the supervisor 2026-11-27): its own realm's
+        # start-kit book is kept, and its third book is a realm book it reads (item_fate), as
+        # the mage's.
         from hengbot import item_fate
         from hengbot.model import TVAL_SORCERY_BOOK
         rogue = replace(board, player=replace(board.player, class_id=3))
@@ -208,8 +209,11 @@ class JunkScopeRecordedTest(unittest.TestCase):
         policy._own_book_tvals = frozenset({TVAL_SORCERY_BOOK})
         self.assertIsNone(policy._junk_class(rogue, sorcery[0]))
         self.assertIsNone(policy._junk_class(mage, sorcery[0]))
-        self.assertTrue(item_fate._unused_book(policy, rogue, sorcery[1]))
+        self.assertFalse(item_fate._unused_book(policy, rogue, sorcery[1]))
         self.assertFalse(item_fate._unused_book(policy, mage, sorcery[1]))
+        # A Warrior (class id 0) reads no realm: the same third book is sale loot.
+        warrior = replace(board, player=replace(board.player, class_id=0))
+        self.assertTrue(item_fate._unused_book(policy, warrior, sorcery[1]))
 
     def test_unused_ammo_follows_the_worn_launcher_only(self):
         policy, board = self._dungeon()

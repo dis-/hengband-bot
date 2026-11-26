@@ -169,6 +169,7 @@ from hengbot.model import (
     SV_POTION_RESIST_COLD,
     SV_SCROLL_PHASE_DOOR,
     SV_SCROLL_TELEPORT,
+    SV_SCROLL_TELEPORT_LEVEL,
     RESTORE_POTION_SVAL_BY_STAT,
     STAT_GAIN_POTION_SVALS,
     SV_ROD_IDENTIFY,
@@ -249,7 +250,6 @@ from hengbot.model import (
 # kept fighting, and later rows reached 12-15 visible breeders.
 ITEM_DESTROYING_BREEDER_LEAVE_THRESHOLD = 4
 ITEM_DESTROYING_MELEE_EFFECTS = frozenset({"ACID", "COLD", "ELEC", "FIRE"})
-SV_SCROLL_TELEPORT_LEVEL = 10
 from hengbot.policy import ExplorationGoalIdentity, ExplorationGoalKind
 from hengbot.policy_constants import (
     BACKTRACK_PENALTY, DESCEND_MIN_HP_RATIO, DOOR_OPEN_LIMIT, EXTENDED_STUCK_WINDOW,
@@ -286,6 +286,28 @@ class SummonerExits:
 
 
 class CombatMixin:
+    def _teleport_level_item(self, snapshot: Snapshot):
+        """The Teleport Level a floor-leaving rung reads: a carried scroll, else the caster's
+        Teleport Level (realm_spells.teleport_level_means; the supervisor 2026-11-27, the third
+        book).  The rungs keep their own gates (the read, the quest, the 50F+ fall guard)."""
+        scroll = self._first_item(
+            snapshot, lambda item: item.is_scroll and item.aware
+            and item.sval == SV_SCROLL_TELEPORT_LEVEL)
+        if scroll is not None:
+            return scroll
+        from hengbot import realm_spells
+        return realm_spells.teleport_level_means(self, snapshot)
+
+    def _teleport_level_read_key(self, snapshot: Snapshot, item) -> str | None:
+        """The anti-teleport piece off first, then the scroll's read or the spell's cast
+        (policy._read_key casts a realm_spells.SpellMeans with its confirmation)."""
+        from hengbot import realm_spells
+        if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
+            return takeoff
+        if realm_spells.is_spell_means(item):
+            return self._read_key(snapshot, item)
+        return reserved_item_command(self, snapshot, "read", item)
+
     def _sleeper_not_to_wake(self, snapshot: Snapshot, monster: MonsterState) -> bool:
         """A sleeper the shot would wake into a fight the tiers cannot win: not shot.
 
@@ -484,10 +506,8 @@ class CombatMixin:
             on_stairs=not locked and here is not None and self._is_upstairs_target(here),
             route=(self._nearest_goal_route(snapshot, self._is_upstairs_target)
                    if not locked else None),
-            teleport_level=self._first_item(
-                snapshot, lambda item: item.is_scroll and item.aware
-                and item.sval == SV_SCROLL_TELEPORT_LEVEL,
-            ) if (can_read and not quest_no_teleport.forbids(self, snapshot)
+            teleport_level=self._teleport_level_item(snapshot)
+            if (can_read and not quest_no_teleport.forbids(self, snapshot)
                   and not self._relocation_refused(snapshot)
                   # Owner 2026-11-22: never down onto 50F+ unsanctioned (deep_fall_guard).
                   and not deep_fall_guard.teleport_level_refused(self, snapshot)) else None,
@@ -571,8 +591,7 @@ class CombatMixin:
             return used
         if exits.teleport_level is not None and not exits.recalling:
             self.last_reason = "summoner:teleport-level"
-            return (self._anti_teleport_takeoff_key(snapshot, exits.teleport_level)
-                    or reserved_item_command(self, snapshot, "read", exits.teleport_level))
+            return self._teleport_level_read_key(snapshot, exits.teleport_level)
         if exits.recall is not None and not exits.recalling:
             self.last_reason = "summoner:recall"
             return self._read_dungeon_recall_scroll_key(snapshot, exits.recall)
@@ -630,16 +649,11 @@ class CombatMixin:
                                   or self._relocation_refused(snapshot))
         teleport_level = (relocation_allowed
                           # Owner 2026-11-22: never down onto 50F+ unsanctioned (deep_fall_guard).
-                          and not deep_fall_guard.teleport_level_refused(self, snapshot)) and self._first_item(
-            snapshot,
-            lambda item: (
-                item.is_scroll and item.aware and item.sval == SV_SCROLL_TELEPORT_LEVEL
-            ),
-        )
+                          and not deep_fall_guard.teleport_level_refused(self, snapshot)
+                          ) and self._teleport_level_item(snapshot)
         if teleport_level:
             self.last_reason = "breeder-item-damage:teleport-level"
-            return (self._anti_teleport_takeoff_key(snapshot, teleport_level)
-                    or reserved_item_command(self, snapshot, "read", teleport_level))
+            return self._teleport_level_read_key(snapshot, teleport_level)
 
         if not snapshot.player.recalling:
             recall = self._find_recall_scroll(snapshot)

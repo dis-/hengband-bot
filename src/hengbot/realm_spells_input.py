@@ -27,12 +27,21 @@ me_menu.MagicEaterMenu, whose ``advance`` this reuses):
   pack letter, ``-`` for the floor, or ``/`` (to the equipment) then its letter, each at the
   observed question; *Identify*'s pages after it (screen_object) are turned with a space and
   closed with ESC.
+* Teleport Level ``m`` + book + letter + ``y`` (realm_spells.teleport_level_means): after the spell,
+  realm-sorcery.cpp:313-320 asks input_check 「本当に他の階にテレポートしますか？」 /
+  "Are you sure? (Teleport Level)": ``y`` at that observed question.
+* Word of Recall ``m`` + book + letter (+ a dungeon letter on the surface,
+  realm_spells.recall_means): recall_player (spell-kind/spells-world.cpp:419-460) asks, on the
+  surface, choose_dungeon 「どのダンジョンに帰還しますか:」 (the letter, only when the chooser lists
+  it, input_executor.recall_destination_listed; else ESC and a refused cast), and on a floor
+  shallower than the saved depth 「ここは最深到達階より浅い階です。この階に戻って来ますか？」, which
+  the executor answers for every operation (its recall-depth rule): the walk leaves it there.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 
-from hengbot.input_executor import Continuation
+from hengbot.input_executor import Continuation, ScreenKind, recall_destination_listed
 from hengbot.me_menu import ESC, LIST_CHOICE_KINDS, MagicEaterMenu, label_in_view, owned_item_prompt
 from hengbot.realm_spell_book import BROWSE_REASON, STUDY_REASON
 
@@ -55,13 +64,14 @@ CAST_REFUSALS = (
 )
 STUDY_REFUSALS = ("新しい呪文を覚えることはできない！", "You cannot learn any new spells!",
                   "その本には学ぶべき呪文がない。", "You cannot learn any spells in that book.")
+TELEPORT_LEVEL_PROMPTS = ("本当に他の階にテレポートしますか？", "Are you sure? (Teleport Level)")
 CAST_FAILED = "failed:realm-spell"
 CAST_REFUSED = "failed:realm-spell-refused"
 STUDY_FAILED = "failed:realm-spell-study"
 BROWSE_FAILED = "failed:realm-spell-browse"
 
 _CAST_KEY = re.compile(r"m(?P<book>[a-w])(?P<letter>[a-h])"
-                       r"(?:(?P<direction>[1-9])|(?P<target>[a-w]|-|/[a-z]))?")
+                       r"(?:(?P<direction>[1-9])|(?P<confirm>y)|(?P<target>[a-w]|-|/[a-z]))?")
 _STUDY_KEY = re.compile(r"G(?P<book>[a-w])(?P<letter>[a-h])")
 _BROWSE_KEY = re.compile(r"b(?P<book>[a-w])")
 
@@ -71,7 +81,9 @@ class SpellStep(Continuation):
     purpose: str = "cast"           # "cast", "study" or "browse"
     book: str = "a"                 # the book's pack slot
     letter: str = "a"               # the spell's place in the book
-    target: str = ""                # an identification's item answer ("a", "-", "/b")
+    target: str = ""                # an identification's item answer ("a", "-", "/b") or a
+                                    # surface recall's dungeon letter
+    confirm: bool = False           # Teleport Level's input_check, answered ``y``
     stage: str = "book"
     attempts: int = 0
 
@@ -86,7 +98,7 @@ def compile_spell(key, owner):
     if (match := _CAST_KEY.fullmatch(key)) is not None:
         return "m", [SpellStep(frozenset(), match["direction"] or "", purpose="cast",
                                book=match["book"], letter=match["letter"],
-                               target=match["target"] or "")]
+                               target=match["target"] or "", confirm=bool(match["confirm"]))]
     return None
 
 
@@ -113,7 +125,26 @@ class SpellMenu(MagicEaterMenu):
     stall_text = "realm spell menu made no progress"
     unexpected_text = "unexpected prompt after a realm spell answer"
     watches_failures = False           # read at command input (``command_ends``)
-    unasked_stages = frozenset({"aim", "target"})
+    unasked_stages = frozenset({"aim", "target", "confirm"})
+
+    def advance(self, executor, screen, match, deadline, outcome):
+        operation = executor.active
+        step = (operation.continuations[0] if operation.continuations
+                and isinstance(operation.continuations[0], SpellStep) else None)
+        if step is None:
+            return None
+        if match.kind is ScreenKind.CONFIRM and executor._is_recall_depth_confirm(match.feature):
+            # Word of Recall on a floor shallower than the saved depth: the executor's own
+            # answer for every operation (its recall-depth rule).
+            return None
+        if (match.kind is ScreenKind.DUNGEON_CHOICE and step.purpose == "cast"
+                and step.stage != "target"):
+            # A surface recall the key carried no destination for: cancel the chooser
+            # (recall_player returns false, no turn passes) and refuse the cast.
+            operation.business_outcome = CAST_REFUSED
+            return self._post_answer(executor, operation, screen,
+                                     replace(step, stage="done", attempts=0), ESC, deadline)
+        return super().advance(executor, screen, match, deadline, outcome)
 
     def _book_stage(self, step, seen, operation):
         details = owned_item_prompt(seen, _BOOK_PROMPTS[step.purpose], "unowned realm book prompt")
@@ -124,9 +155,22 @@ class SpellMenu(MagicEaterMenu):
         if not _spell_prompt(step, seen) or step.attempts > 0:
             # Asked again: the game would not take the letter (「…ことはできません。」).
             raise ValueError("realm spell refused at its prompt")
-        return step.letter, ("aim" if step.keys else "target" if step.target else "done")
+        return step.letter, ("aim" if step.keys else "confirm" if step.confirm
+                             else "target" if step.target else "done")
+
+    def _confirm_stage(self, step, seen, operation):
+        if (seen.match is None or seen.match.kind is not ScreenKind.CONFIRM
+                or not seen.match.feature.startswith(TELEPORT_LEVEL_PROMPTS)):
+            raise ValueError("unowned realm spell confirmation")
+        return "y", "done"
 
     def _target_stage(self, step, seen, operation):
+        if seen.match is not None and seen.match.kind is ScreenKind.DUNGEON_CHOICE:
+            if not recall_destination_listed(seen.lines, step.target):
+                # Never answer a destination the chooser does not list.
+                operation.business_outcome = CAST_REFUSED
+                return ESC, "done"
+            return step.target, "done"
         if seen.reading.kind != "item" or not seen.prompt.endswith(IDENTIFY_PROMPTS):
             raise ValueError("unowned realm spell item prompt")
         if step.target.startswith("/") and step.attempts == 0:
@@ -149,7 +193,8 @@ class SpellMenu(MagicEaterMenu):
         return ESC, "done"
 
     stages = {"book": _book_stage, "spell": _spell_stage, "list": _list_stage,
-              "aim": MagicEaterMenu.aim_stage, "target": _target_stage, "after": _after_stage}
+              "aim": MagicEaterMenu.aim_stage, "confirm": _confirm_stage,
+              "target": _target_stage, "after": _after_stage}
     ended_stages = frozenset({"done", "after"})
 
     def command_ends(self, step, seen, operation):

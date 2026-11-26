@@ -218,7 +218,7 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         return fundraising
 
     if (
-        policy._count_recall_scrolls(snapshot)
+        policy._dungeon_recall_units(snapshot)
         < policy._recall_shortage_retreat_threshold(snapshot.dungeon_level)
         and not policy._recall_shortage_opening_exempt(snapshot)
         and policy._fundraising_mode not in {"prepare", "mine", "scavenge"}

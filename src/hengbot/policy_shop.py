@@ -709,6 +709,9 @@ class ShopMixin(InStoreMixin):
             lambda item: self._book_sale_store_type(item) is not None
             and self._store_accepts_sale(store_type if store_type is not None else STORE_BLACK, item)
             and (store_type is None or self._book_sale_store_type(item) == store_type)
+            # A retained copy (realm_spell_book: a caster's own third and fourth books) is not
+            # for sale; the other sale finders ask the same retention.
+            and self._retention_surplus(snapshot, item) > 0
             and item_available(self, snapshot, item, "shop-sell", "sell")
             and display_signature(item) not in self._unsellable_items,
         )

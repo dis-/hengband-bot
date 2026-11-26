@@ -18,9 +18,9 @@ capabilities those rules already have (``casts_realm_spells``, realm_spells).
   (unwanted_kinds, item_fate).
 * ``casts_realm_spells``: the classes that cast their realm's book spells (the Rogue, owner
   2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」).
-  Its own realm's first and second books are kept and read (realm_spells, realm_spell_book); the
-  other realms' cheap books stay unwanted (unwanted_kinds) and its own third and fourth books stay
-  sale loot (item_fate ``unused-book``: no spell of theirs is cast).
+  Its own realm's four books are kept and read (realm_spells, realm_spell_book; the third and
+  fourth since the supervisor 2026-11-27); the other realms' cheap books stay unwanted
+  (unwanted_kinds) and their third and fourth books sale loot (item_fate ``unused-book``).
 * ``class_row``: a strategy's ``*_by_class`` row for the class, the Warrior's row for a
   class played as the Warrior when the file names no row of its own (strategy/quests).
 """

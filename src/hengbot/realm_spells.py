@@ -11,6 +11,13 @@ already chooses, under that rule's own conditions.
   and Haste Self: rows of the occasion table the Magic-Eater's absorbed powers use (me_powers: the
   floor, rest, fight, threat, sealed and trap occasions and their named triggers), asked through
   me_powers.power_key for this class (``spell_key``).
+* The third and fourth books (the supervisor 2026-11-27): Teleport Level for a Teleport Level
+  scroll (``teleport_level_means``, policy_combat ``_teleport_level_item``), Word of Recall for a
+  Word of Recall scroll (``recall_means``, policy ``_find_recall_scroll``; ``recall_held`` counts
+  it as one recall unit, as a Rod of Recall), Clairvoyance for the whole-floor maps
+  (``map_spell``, the Magic Mapping row's preferred row), Detect items and Treasure for a mining
+  floor's first detection (``detect_objects_key``).  Sense Minds and Banishment stand in for no
+  means the bot has (no temporary telepathy, no mass banish), so they are not cast.
 
 Game facts (C:/hengband):
 * The Rogue (class 3) reads Sorcery (仙術, realm 2) by INT (lib/edit/ClassMagicDefinitions.jsonc
@@ -53,14 +60,16 @@ from dataclasses import dataclass
 from hengbot.class_roles import casts_realm_spells
 from hengbot.model import (
     SV_SCROLL_IDENTIFY, SV_SCROLL_PHASE_DOOR, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_TELEPORT,
-    TVAL_SCROLL, TVAL_SORCERY_BOOK, InventoryItem,
+    SV_SCROLL_TELEPORT_LEVEL, SV_SCROLL_WORD_OF_RECALL, TVAL_SCROLL, TVAL_SORCERY_BOOK,
+    InventoryItem,
 )
 
 REALM_SORCERY = 2           # RealmType::SORCERY (realm/realm-types.h)
 BOOK_TVAL = TVAL_SORCERY_BOOK
 SPELLS_PER_BOOK = 8         # fake_spell_flags: each Sorcery book holds 8 spells
-# The books whose spells this module casts (sval 0: [入門書], sval 1: [達人の書]).
-CAST_BOOKS = (0, 1)
+# The books whose spells this module casts (sval 0: [入門書], 1: [仙人の書], 2: [紋様仙術],
+# 3: [力の魔道書]; the supervisor 2026-11-27 added the third and fourth books' high-value spells).
+CAST_BOOKS = (0, 1, 2, 3)
 
 # lib/edit/ClassMagicDefinitions.jsonc: aptitude_steps and the Rogue's Sorcery aptitude.
 LEARN_LEVEL_PERCENT, MANA_COST_PERCENT, DIFFICULTY_STEP = 30, 15, 3
@@ -116,17 +125,39 @@ SPELLS = (
     Spell(13, "Haste_Self", ("スピード", "Haste Self"), 22, 12, 60),
     Spell(14, "Detection_True", ("真・感知", "Detection True"), 28, 20, 70),
     Spell(15, "Identify_True", ("真・鑑定", "Identify True"), 33, 30, 75),
+    # [紋様仙術] (BaseitemDefinitions id 336: level 50, cost 25000; SpellDefinitions.jsonc
+    # SORCERY book 3).
+    Spell(16, "Detect_items_and_Treasure", ("物体と財宝感知", "Detect items and Treasure"), 3, 3, 25),
+    Spell(17, "Charm_Monster", ("チャーム・モンスター", "Charm Monster"), 10, 10, 80),
+    Spell(18, "Sense_Minds", ("精神感知", "Sense Minds"), 14, 10, 60),
+    Spell(19, "Teleport_to_town", ("街移動", "Teleport to town"), 18, 30, 70),
+    Spell(20, "Self_Knowledge", ("自己分析", "Self Knowledge"), 20, 18, 85),
+    Spell(21, "Teleport_Level", ("テレポート・レベル", "Teleport Level"), 20, 18, 60),
+    Spell(22, "Word_of_Recall", ("帰還の呪文", "Word of Recall"), 25, 25, 75),
+    Spell(23, "Dimension_Door", ("次元の扉", "Dimension Door"), 40, 40, 80),
+    # [力の魔道書] (id 337: level 90, cost 100000; SORCERY book 4).
+    Spell(24, "Probing", ("調査", "Probing"), 10, 10, 40),
+    Spell(25, "Explosive_Rune", ("爆発のルーン", "Explosive Rune"), 20, 20, 80),
+    Spell(26, "Telekinesis", ("念動力", "Telekinesis"), 25, 25, 75),
+    Spell(27, "Clairvoyance", ("千里眼", "Clairvoyance"), 30, 40, 80),
+    Spell(28, "Charm_Monsters", ("魅了の視線", "Charm Monsters"), 33, 35, 60),
+    Spell(29, "Alchemy", ("錬金術", "Alchemy"), 42, 50, 90),
+    Spell(30, "Banishment", ("怪物追放", "Banishment"), 43, 40, 55),
+    Spell(31, "Globe_of_Invulnerability", ("無傷の球", "Globe of Invulnerability"), 45, 70, 85),
 )
 BY_ID = {spell.spell_id: spell for spell in SPELLS}
 
 DETECT_MONSTERS, PHASE_DOOR, DETECT_DOORS_TRAPS, LIGHT_AREA = 0, 1, 2, 3
 TELEPORT, MAGIC_MAPPING, IDENTIFY = 5, 8, 9
 TELEPORT_AWAY, HASTE_SELF, DETECTION_TRUE, IDENTIFY_TRUE = 12, 13, 14, 15
+DETECT_OBJECTS, TELEPORT_LEVEL, WORD_OF_RECALL, CLAIRVOYANCE = 16, 21, 22, 27
 
 # The study order: the spells the rules use first (escape, detection, mapping, identification,
-# haste, Teleport Away), then the rest of the two books in book order.
+# haste, Teleport Away, then the third and fourth books' recall, level escape, whole-floor map and
+# treasure detection), then the rest of the four books in book order.
 LEARN_PRIORITY = (PHASE_DOOR, DETECT_MONSTERS, TELEPORT, DETECT_DOORS_TRAPS, MAGIC_MAPPING,
-                  IDENTIFY, HASTE_SELF, TELEPORT_AWAY, DETECTION_TRUE, LIGHT_AREA, IDENTIFY_TRUE)
+                  IDENTIFY, HASTE_SELF, TELEPORT_AWAY, WORD_OF_RECALL, TELEPORT_LEVEL,
+                  CLAIRVOYANCE, DETECTION_TRUE, LIGHT_AREA, IDENTIFY_TRUE, DETECT_OBJECTS)
 LEARN_ORDER = LEARN_PRIORITY + tuple(spell.spell_id for spell in SPELLS
                                      if spell.spell_id not in LEARN_PRIORITY)
 
@@ -320,12 +351,13 @@ def escape_reserve(policy, snapshot) -> int:
 
 
 def mana_rest_due(policy, snapshot) -> bool:
-    """A caster in the dungeon whose mana is below the escape reserve (its escape spell's cost):
-    the rest rung rests (REST_MACRO ``R&``: until HP and mana are full or disturbed) as it does
-    for HP."""
+    """A caster in the dungeon whose mana is below the escape reserve (its escape spell's cost),
+    or short of the Word of Recall it goes home with (``recall_rest_due``): the rest rung rests
+    (REST_MACRO ``R&``: until HP and mana are full or disturbed) as it does for HP."""
     if not applies(policy, snapshot) or snapshot.in_town:
         return False
-    return snapshot.player.mp < escape_reserve(policy, snapshot)
+    return (snapshot.player.mp < escape_reserve(policy, snapshot)
+            or recall_rest_due(policy, snapshot))
 
 
 # The mana order of the dungeon casts, in one place (owner 2026-11-27 「魔法の地図は探索効率を大幅に
@@ -337,6 +369,12 @@ def mana_rest_due(policy, snapshot) -> bool:
 # reserve.  The occasion rows' priorities (``_rows``) put the same order on one board.
 UTILITY_ORDER = (DETECT_MONSTERS, MAGIC_MAPPING)
 COMBAT_SPELLS = frozenset({TELEPORT_AWAY, HASTE_SELF})
+# The supervisor 2026-11-27 (the third and fourth books): Clairvoyance takes Magic Mapping's place
+# in the order (the same map, of the whole floor), so it keeps only what Magic Mapping keeps; the
+# floor-leaving casts (Teleport Level, Word of Recall) are escapes: they keep no utility mana and
+# may spend the escape reserve (``castable(..., escape=True)``).
+ORDER_PLACE = {CLAIRVOYANCE: MAGIC_MAPPING}
+LEAVING_SPELLS = frozenset({TELEPORT_LEVEL, WORD_OF_RECALL})
 
 
 def landed_on_floor(policy, snapshot, spell_id: int) -> bool:
@@ -359,21 +397,45 @@ def landed_on_floor(policy, snapshot, spell_id: int) -> bool:
 def order_reserve(policy, snapshot, spell_id: int) -> int:
     """The mana of the casts ahead of ``spell_id`` in ``UTILITY_ORDER`` that are learned, carried
     and not landed on this floor visit; 0 for a cast at a hostile, an escape or the first."""
-    if spell_id in COMBAT_SPELLS or spell_id in ESCAPE_SPELLS.values():
+    if (spell_id in COMBAT_SPELLS or spell_id in ESCAPE_SPELLS.values()
+            or spell_id in LEAVING_SPELLS):
         return 0
-    ahead = (UTILITY_ORDER[:UTILITY_ORDER.index(spell_id)] if spell_id in UTILITY_ORDER
+    place = ORDER_PLACE.get(spell_id, spell_id)
+    ahead = (UTILITY_ORDER[:UTILITY_ORDER.index(place)] if place in UTILITY_ORDER
              else UTILITY_ORDER)
     return sum(cost(policy, each) or 0 for each in ahead
                if learned(policy, each) and book_item(snapshot, BY_ID[each].book) is not None
                and not landed_on_floor(policy, snapshot, each))
 
 
-def map_cast_key(policy, snapshot) -> str | None:
-    """Magic Mapping as a 周辺感知 of area_mapping's means (its ``_carried_key``): the cast when it
-    can be cast at RELIABLE_MIN_SUCCESS under the mana order, else None."""
-    if not castable(policy, snapshot, MAGIC_MAPPING, RELIABLE_MIN_SUCCESS):
-        return None
-    return cast_key(snapshot, MAGIC_MAPPING)
+# realm-sorcery.cpp:388-406 Clairvoyance: wiz_lite (spell-kind/spells-floor.cpp: every grid of the
+# floor lit and remembered, every object detected) and, without telepathy, set_tim_esp(25 + 1d30).
+# Its map is the whole floor: a disc no floor (MAX_WID 198 x MAX_HGT 66) reaches out of.
+WHOLE_FLOOR_RADIUS = 255
+# The map triggers where the whole floor is worth Clairvoyance's mana (a new floor, the stairs
+# unknown: the floor's way on); the others (a *Destruction*'s circle, a sealed pocket, an
+# enclosure, the walk out of a map) are local and keep Magic Mapping.  me_powers' trigger names
+# and area_mapping's.
+WHOLE_FLOOR_TRIGGERS = frozenset({"new-floor", "stairs-needed-and-unknown", "deep-climb",
+                                  "finale-descent"})
+
+
+def map_spell(policy, snapshot, trigger: str = "") -> int | None:
+    """The map spell a 周辺感知 of area_mapping's means casts (its ``_carried_key``): Clairvoyance
+    for a whole-floor ``trigger`` when it can be cast, else Magic Mapping, each at
+    RELIABLE_MIN_SUCCESS under the mana order; else None."""
+    if trigger in WHOLE_FLOOR_TRIGGERS and castable(policy, snapshot, CLAIRVOYANCE,
+                                                     RELIABLE_MIN_SUCCESS):
+        return CLAIRVOYANCE
+    if castable(policy, snapshot, MAGIC_MAPPING, RELIABLE_MIN_SUCCESS):
+        return MAGIC_MAPPING
+    return None
+
+
+def map_radius(spell_id: int) -> int | None:
+    """The disc of a map spell's cast: the whole floor for Clairvoyance, else None (Magic
+    Mapping's is me_powers.map_radius: a DARKNESS dungeon's third)."""
+    return WHOLE_FLOOR_RADIUS if spell_id == CLAIRVOYANCE else None
 
 
 def known_reliable(policy, snapshot, spell_id: int, min_success: int, *,
@@ -434,16 +496,91 @@ def escape_means(policy, snapshot, scroll_sval: int) -> SpellMeans | None:
     spell_id = ESCAPE_SPELLS.get(scroll_sval)
     if spell_id is None or not castable(policy, snapshot, spell_id, ESCAPE_MIN_SUCCESS, escape=True):
         return None
+    return _means(spell_id, scroll_sval)
+
+
+# realm-sorcery.cpp:313-320 Teleport Level asks input_check 「本当に他の階にテレポートしますか？」
+# before teleport_level: the cast key carries its ``y`` (realm_spells_input's confirm stage).
+CONFIRM_SUFFIX = "y"
+
+
+def means_cast_key(snapshot, item: SpellMeans, target: str = "") -> str:
+    """The cast of a stand-in spell; ``target`` answers an identification's item question (a pack
+    letter, ``-`` for the floor, ``/`` + an equipment letter) or a surface recall's dungeon
+    question (its letter), realm_spells_input; Teleport Level's confirmation is its ``y``."""
+    if item.spell_id == TELEPORT_LEVEL:
+        target = CONFIRM_SUFFIX
+    return cast_key(snapshot, item.spell_id) + target
+
+
+def _means(spell_id: int, scroll_sval: int) -> SpellMeans:
     spell = BY_ID[spell_id]
     return SpellMeans(slot=f"spell:{spell_id}", name=spell.names[0] + "（呪文）", count=1,
                       tval=TVAL_SCROLL, sval=scroll_sval, aware=True, known=True,
                       spell_id=spell_id)
 
 
-def means_cast_key(snapshot, item: SpellMeans, target: str = "") -> str:
-    """The cast of a stand-in spell; ``target`` answers an identification's item question (a pack
-    letter, ``-`` for the floor, ``/`` + an equipment letter), realm_spells_input."""
-    return cast_key(snapshot, item.spell_id) + target
+# -- the floor-leaving casts (the third book; the supervisor 2026-11-27) -------------------------
+#
+# realm-sorcery.cpp:313-335: Teleport Level is teleport_level(player, 0) as the scroll's
+# (object-use/read/scroll-read-executor.cpp:149) after its confirmation; Word of Recall is
+# recall_player(15 + 1d20) as the scroll's (randint0(21) + 15, :154), so the same questions follow
+# (the surface's choose_dungeon, a shallower floor's 「ここは最深到達階より浅い階です。…」).  A scroll
+# never fails and a blind or confused character casts nothing: the scrolls stay carried as backup.
+
+
+def teleport_level_means(policy, snapshot) -> SpellMeans | None:
+    """Teleport Level in a Teleport Level scroll's place (policy_combat ``_teleport_level_item``):
+    castable at ESCAPE_MIN_SUCCESS with an escape's mana (it may spend the escape reserve)."""
+    if not castable(policy, snapshot, TELEPORT_LEVEL, ESCAPE_MIN_SUCCESS, escape=True):
+        return None
+    return _means(TELEPORT_LEVEL, SV_SCROLL_TELEPORT_LEVEL)
+
+
+def recall_means(policy, snapshot) -> SpellMeans | None:
+    """Word of Recall in a Word of Recall scroll's place (policy ``_find_recall_scroll``):
+    castable at RELIABLE_MIN_SUCCESS with an escape's mana (an emergency recall may spend the
+    escape reserve; in town any mana)."""
+    if not castable(policy, snapshot, WORD_OF_RECALL, RELIABLE_MIN_SUCCESS, escape=True):
+        return None
+    return _means(WORD_OF_RECALL, SV_SCROLL_WORD_OF_RECALL)
+
+
+def recall_held(policy, snapshot) -> bool:
+    """Word of Recall is a recall means the character holds whatever its mana now (resting gives
+    it back): learned, its book carried, at RELIABLE_MIN_SUCCESS by the shown list without this
+    board's stun, its cost within the maximum mana.  The departure ledger and the dungeon's
+    recall count read it as one unit, as a Rod of Recall (policy ``_recall_spell_unit``)."""
+    if not applies(policy, snapshot):
+        return False
+    mana = cost(policy, WORD_OF_RECALL)
+    rate = success(policy, snapshot, WORD_OF_RECALL, stunned=False)
+    return (learned(policy, WORD_OF_RECALL) and mana is not None
+            and book_item(snapshot, BY_ID[WORD_OF_RECALL].book) is not None
+            and rate is not None and rate >= RELIABLE_MIN_SUCCESS
+            and snapshot.player.max_mp >= mana)
+
+
+def recall_rest_due(policy, snapshot) -> bool:
+    """On the way back to town (policy ``_returning_to_town``) with no recall scroll, Word of
+    Recall held but its mana short now: the rest rung rests for it (``mana_rest_due``)."""
+    if not getattr(policy, "_returning_to_town", False) or snapshot.player.recalling:
+        return False
+    if any(item.is_recall_scroll for item in snapshot.inventory):
+        return False
+    mana = cost(policy, WORD_OF_RECALL)
+    return (recall_held(policy, snapshot) and mana is not None
+            and snapshot.player.mp < mana)
+
+
+def detect_objects_key(policy, snapshot) -> str | None:
+    """Detect items and Treasure (realm-sorcery.cpp:255-266: detect_objects_normal,
+    detect_treasure, detect_objects_gold in DETECT_RAD_DEFAULT 30) where a mining floor's first
+    detection reads a Treasure Detection scroll (policy_fundraising): castable at
+    RELIABLE_MIN_SUCCESS under the mana order, else None."""
+    if not castable(policy, snapshot, DETECT_OBJECTS, RELIABLE_MIN_SUCCESS):
+        return None
+    return cast_key(snapshot, DETECT_OBJECTS)
 
 
 # The identification sources a spell stands in for (cmd-spell.cpp sorcery Identify: ident_spell;
@@ -472,10 +609,7 @@ def identify_means(policy, snapshot, *, full: bool) -> SpellMeans | None:
     spell_id = IDENTIFY_SPELLS[scroll_sval]
     if not castable(policy, snapshot, spell_id, RELIABLE_MIN_SUCCESS):
         return None
-    spell = BY_ID[spell_id]
-    return SpellMeans(slot=f"spell:{spell_id}", name=spell.names[0] + "（呪文）", count=1,
-                      tval=TVAL_SCROLL, sval=scroll_sval, aware=True, known=True,
-                      spell_id=spell_id)
+    return _means(spell_id, scroll_sval)
 
 
 # -- the occasion table's rows (me_powers) -------------------------------------------------------
@@ -518,7 +652,11 @@ def _rows():
         Power("spell", MAGIC_MAPPING, names(MAGIC_MAPPING), me_powers.MAP_AREA, DETECT_RAD, 15,
               ("after-destruction", "new-floor", "stairs-needed-and-unknown", "sealed-pocket",
                "loot-unreachable", "loot-enclosure", "outside-mapped-area"),
-              beside_harmless=True),
+              beside_harmless=True, preferred=(("spell", CLAIRVOYANCE),)),
+        # Clairvoyance serves the Magic Mapping row's whole-floor triggers (``_serving``,
+        # WHOLE_FLOOR_TRIGGERS): it has no trigger of its own.
+        Power("spell", CLAIRVOYANCE, names(CLAIRVOYANCE), me_powers.MAP_AREA, WHOLE_FLOOR_RADIUS,
+              15, (), beside_harmless=True, darkness_scaled=False),
         Power("spell", LIGHT_AREA, names(LIGHT_AREA), "lite-area", me_powers.LITE_RADIUS, 50,
               ("light-radius-zero", "dark-room", "light-sensitive-adjacent"),
               requires=("not-darkness-dungeon",), darkness_scaled=False),
@@ -550,9 +688,14 @@ def _row_usable(ctx, row, trigger) -> bool:
                     ROW_MIN_SUCCESS.get(row.effect, RELIABLE_MIN_SUCCESS))
 
 
+# The preferred rows that serve only some of a row's triggers (Clairvoyance: the whole floor's).
+PREFERRED_TRIGGERS = {("spell", CLAIRVOYANCE): WHOLE_FLOOR_TRIGGERS}
+
+
 def _serving(ctx, row, trigger):
     preferred = next((row_of(ident) for ident in row.preferred
-                      if _row_usable(ctx, row_of(ident), trigger)), None)
+                      if trigger in PREFERRED_TRIGGERS.get(tuple(ident), (trigger,))
+                      and _row_usable(ctx, row_of(ident), trigger)), None)
     if preferred is not None:
         return preferred
     return row if _row_usable(ctx, row, trigger) else None

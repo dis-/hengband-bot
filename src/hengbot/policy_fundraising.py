@@ -2241,8 +2241,14 @@ class FundraisingMixin:
             from hengbot.me_staff_sequence import (
                 DETECT_REASON, SV_STAFF_DETECT_GOLD, power_key,
             )
-            # Class 16 detects with the absorbed power before any scroll.
-            power = power_key(self, snapshot, SV_STAFF_DETECT_GOLD)
+            # Class 16 detects with the absorbed power before any scroll, a caster with its
+            # Detect items and Treasure (realm_spells.detect_objects_key; the supervisor
+            # 2026-11-27, the third book).
+            power, power_reason = power_key(self, snapshot, SV_STAFF_DETECT_GOLD), DETECT_REASON
+            if power is None:
+                from hengbot import realm_spells
+                power = realm_spells.detect_objects_key(self, snapshot)
+                power_reason = "fundraise:detect-treasure"
             scroll = self._first_item(
                 snapshot, lambda it: it.is_treasure_detection_scroll
             )
@@ -2269,7 +2275,7 @@ class FundraisingMixin:
                 self._mining_mark_bumps.clear()
                 self._mining_unmarkable_grids.clear()
                 if power is not None:
-                    self.last_reason = DETECT_REASON
+                    self.last_reason = power_reason
                     return power
                 return self._detect_treasure_read_key(snapshot, scroll)
 

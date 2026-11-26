@@ -6938,7 +6938,7 @@ class TownMixin:
             if not snapshot.player.recalling:
                 if snapshot.in_town and (
                     not self._food_ready(snapshot)
-                    or self._count_recall_scrolls(snapshot) < 2
+                    or self._dungeon_recall_units(snapshot) < 2
                 ):
                     # A repetition remedy may defer optional readiness, but
                     # it cannot recall into a dungeon without carried food
