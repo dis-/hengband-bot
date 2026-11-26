@@ -148,7 +148,46 @@ def _resolve_row(policy, snapshot, force: dict) -> dict:
         resolved[ABSORBED_SHORT] = True
     else:
         resolved["speed_potions"] = cost
-    return resolved
+    return _over_matched(policy, snapshot, resolved, max_hp, damage)
+
+
+OVER_MATCH = "over_match"
+# The consumable counts an over-matched character's row may lower (each to the rule's number).
+OVER_MATCH_LOWERS = ("heal_potions",)
+# Field of the resolved force: the over-match rule lowered its consumables.
+OVER_MATCHED = "over_matched"
+
+
+def valid_over_match(force: dict) -> bool:
+    """The schema (quest_strategies reads it at load)."""
+    rule = force.get(OVER_MATCH)
+    if rule is None:
+        return True
+    numbers = ("min_hp", "min_expected_dps", *OVER_MATCH_LOWERS)
+    return isinstance(rule, dict) and all(
+        isinstance(rule.get(name, 0), (int, float)) and not isinstance(rule.get(name, 0), bool)
+        and rule.get(name, 0) >= 0 for name in numbers) and "min_hp" in rule and "min_expected_dps" in rule
+
+
+def _over_matched(policy, snapshot, resolved: dict, max_hp: int, damage: float) -> dict:
+    """``resolved`` with its consumables lowered when the character over-matches the quest.
+
+    2026-11-27 (supervisor, from the owner's 「n1-cは長時間49Fで停滞している。これがQ25を放棄して
+    確定入手テレパシーを諦めた代償である。」): a row's consumables are written for the weakest
+    character that meets its floors; one far above them (``required_force.over_match``: its maximum
+    HP at least ``min_hp`` and its damage per 10 game turns, read at the row's speed, at least
+    ``min_expected_dps``) ends the fights sooner and is asked for the rule's counts instead.  The
+    numbers and their reasons are the quest file's (QUEST_18, QUEST_25).  Every reader (acceptance,
+    purchase, carry, departure) reads the resolved force, so they lower together."""
+    rule = resolved.get(OVER_MATCH)
+    if not isinstance(rule, dict):
+        return resolved
+    if max_hp < int(rule["min_hp"]) or row_damage(
+            policy, snapshot, resolved, resolved, damage) < float(rule["min_expected_dps"]):
+        return resolved
+    lowered = {name: min(int(resolved.get(name, 0)), int(rule[name]))
+               for name in OVER_MATCH_LOWERS if name in rule}
+    return {**resolved, **lowered, OVER_MATCHED: True}
 
 
 def _without_gear_waiver(force: dict) -> dict:

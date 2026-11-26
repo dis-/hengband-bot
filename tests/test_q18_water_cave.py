@@ -1065,12 +1065,20 @@ class Q18AcceptanceTest(unittest.TestCase):
         return ready, policy._fixed_quest_readiness, force
 
     def test_condition_one(self):
-        ready, telemetry, force = self.verdict(self.town(max_hp=700), 150)
+        # 100 a hasted action is 200 per 10 game turns: above the row's 150, below the over-match.
+        ready, telemetry, force = self.verdict(self.town(max_hp=700), 100)
         self.assertTrue(ready, telemetry)
         # Owner 2026-11-12 「加速手段を十分数確保することを必須にする。」: always hasted; seventeen doses since
         # owner 2026-11-22 「加速してから入る」 (the shouted stretches, QUEST_18 rationale).
         self.assertEqual((force["min_hp"], force["speed_potions"], force["heal_potions"]), (700, 17, 2))
         self.assertTrue(force["always_hasted"])
+
+    def test_an_over_matched_character_carries_no_healing_potion(self):
+        # 2026-11-27 over_match (QUEST_18): HP 700 and 300 per 10 game turns (150 a hasted action).
+        ready, telemetry, force = self.verdict(self.town(max_hp=700, healing=0), 150)
+        self.assertTrue(ready, telemetry)
+        self.assertEqual((force["heal_potions"], force["speed_potions"]), (0, 17))
+        self.assertTrue(force[quest_force_rows.OVER_MATCHED])
 
     def test_condition_two_with_seventeen_potions(self):
         ready, telemetry, force = self.verdict(self.town(max_hp=500, speed=17), 75)
@@ -1098,7 +1106,7 @@ class Q18AcceptanceTest(unittest.TestCase):
             (self.town(max_hp=500, speed=16), 75, "speed_potions"),
             (self.town(max_hp=499), 200, "hp"),
             (self.town(max_hp=800), 74, "dps"),
-            (self.town(max_hp=800, healing=1), 200, "heal_potions"),
+            (self.town(max_hp=800, healing=1), 100, "heal_potions"),  # below the over-match
             (self.town(max_hp=800, resists=False), 200, "resists"),
         ):
             ready, telemetry, _ = self.verdict(raw, damage)
@@ -1183,9 +1191,13 @@ class Q18TownTest(unittest.TestCase):
         raw = self.town_board(0)
         raw["player"].update(max_hp=800, hp=800)
         snapshot = self.snapshot(policy, raw)
-        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=200.0):
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=100.0):
             force = policy._carry_procurement_strategy(snapshot).required_force
         self.assertEqual((force["heal_potions"], force["speed_potions"]), (2, 17))
+        # Over-matched (2026-11-27, QUEST_18 over_match), the Healing potions are not bought.
+        with patch.object(ConservativePolicy, "_strategy_measured_dps", return_value=200.0):
+            force = policy._carry_procurement_strategy(snapshot).required_force
+        self.assertEqual((force["heal_potions"], force["speed_potions"]), (0, 17))
 
     def test_a_completed_quest_is_reported_and_its_reward_cell_is_the_towns(self):
         policy = self.policy()

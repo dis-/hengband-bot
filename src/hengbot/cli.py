@@ -48,7 +48,7 @@ from hengbot.wilderness_map import find_wilderness_definition, load_wilderness_m
 from hengbot.slow_decisions import SlowDecisionRecorder
 from hengbot.wait_telemetry import WaitTelemetry
 from hengbot.home_entry_capture import HomeEntryCapture
-from hengbot import amberite_curse, approach_answer, conquest_budget, cross_rules, deep_teleport, destruction_use, equipment_visit_journal, home_ledger, pingpong_guard, purchase_source_journal, safety_watch, quest_plan_record, map_memory_record
+from hengbot import amberite_curse, approach_answer, conquest_budget, cross_rules, deep_teleport, destruction_use, equipment_visit_journal, home_ledger, pingpong_guard, purchase_source_journal, quest_attempt_ledger, safety_watch, quest_plan_record, map_memory_record
 from hengbot import recall_wait_reach
 from hengbot import stationary_bounds
 from hengbot import strategy_profile
@@ -4106,6 +4106,8 @@ def _configure_policy_output_paths(policy, args) -> HomeEntryCapture | None:
     # Which selector chose each shop purchase (purchase_source_journal, review 2026-11-23 (b)-6).
     policy._purchase_source_journal_path = args.decision_log.with_name(
         purchase_source_journal.FILE_NAME)
+    # Each fixed quest's attempts and outcomes (quest_attempt_ledger, 2026-11-27).
+    policy._quest_outcome_ledger_path = args.decision_log.with_name(quest_attempt_ledger.FILE_NAME)
     # The unseen attack this process saw, for the restarted one (Angband 30F
     # 2026-10-20 04:01: the restart walked seek-loot back onto the hit cell).
     policy._unseen_attack_path = args.decision_log.with_name("unseen-attack.json")

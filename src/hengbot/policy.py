@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, class_roles, home_take_admission, item_need
-from hengbot import equipment_target, food_supply
+from hengbot import equipment_target, food_supply, quest_value
 from hengbot import angband_finale, me_deep_launcher
 from hengbot import strategy_profile
 from hengbot import approach_answer, fundraising_route, return_start
@@ -2161,6 +2161,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # CLI points the path beside the decision log.  Read with getattr
         # defaults, so restored checkpoints without them record nothing.
         self._q25_battle_record_path = None
+        # Each fixed quest's attempts and outcomes (quest_attempt_ledger); the CLI points the
+        # path beside the decision log.
+        self._quest_outcome_ledger_path = None
         # The room sweep's kills' restart record (quest_sweep_record); the CLI points the path
         # beside the decision log.
         self._sweep_kill_record_path = None
@@ -14130,6 +14133,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
     def fixed_quest_readiness_state(self) -> dict:
         state = dict(self._fixed_quest_readiness)
+        verdicts = quest_value.facts(self)
+        if verdicts:
+            state["quest_value"] = verdicts
         failure = getattr(self, "_opening_q1_failure", None)
         if failure is not None:
             state["opening_route_failure"] = failure

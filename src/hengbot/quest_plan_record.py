@@ -80,6 +80,9 @@ CARRIED = (
 
 # The plan states a restart does not keep, with the reason.
 NOT_CARRIED = {
+    "_quest_outcome_statuses": "quest_attempt_ledger's last statuses: the first board of a process "
+                               "seeds them again (a record only)",
+    "_quest_value_verdicts": "quest_value's last verdicts, the log's view: asked again every decision",
     "_q2_reconnect_recovery_floor": "set by the first board of every process itself (a reconnection)",
     "_quest_strategy_recovery_claims": "claims of the process that made them (the town hold's register)",
     "_quest_strategy_recovery_pickup_prepared": "a pickup prepared for the process's own posted key",
