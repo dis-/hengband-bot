@@ -15,7 +15,10 @@ decided through the public ``choose_key`` and compared with the record; row 19 w
 DECLARED CONSTRUCTED: ``test_teleportation_short_shops_first`` and
 ``test_suppliers_tried_take_the_circuit`` (this town's two suppliers marked tried) raise the
 Teleportation count to 45 and lower the Restore Mana carry to the 79 owned
-(angband_finale ``restore_mana_carry``), as ``test_supplies_owned_enter_the_phase`` does.
+(angband_finale ``restore_mana_carry``), as ``test_supplies_owned_enter_the_phase`` does; those
+three also add ten Scrolls of Recharging to the board's pack (the Zombie's readiness row of
+2026-11-26, angband_finale ``RECHARGING``, which the recorded visit predates;
+tests/test_finale_recharge_readiness_1126_recorded.py tests that row on this fixture).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -30,6 +33,7 @@ from hengbot import angband_finale, angband_hold, finale_hold, finale_prep, fina
 from hengbot.model import DUNGEON_ANGBAND
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
+from test_finale_recharge_readiness_1126_recorded import with_scrolls
 
 TOWN = Path(__file__).with_name("fixtures") / "n1b-416-finale-town-1123"
 FALLBACK_ROW = 19
@@ -82,6 +86,7 @@ class FinaleTownHold1123RecordedTest(unittest.TestCase):
 
     def test_teleportation_short_shops_first(self):
         policy, board, _replayed = self.replay()
+        board = with_scrolls(board, angband_finale.RECHARGING_CARRY)  # DECLARED (docstring)
         # DECLARED CONSTRUCTED (module docstring).
         with mock.patch.object(angband_finale, "restore_mana_carry", return_value=79), \
                 mock.patch.dict(angband_finale.CARRY, {angband_finale.TELEPORT: 45}):
@@ -95,6 +100,7 @@ class FinaleTownHold1123RecordedTest(unittest.TestCase):
 
     def test_suppliers_tried_take_the_circuit(self):
         policy, board, _replayed = self.replay()
+        board = with_scrolls(board, angband_finale.RECHARGING_CARRY)  # DECLARED (docstring)
         # DECLARED CONSTRUCTED (module docstring), and this town's two suppliers tried.
         with mock.patch.object(angband_finale, "restore_mana_carry", return_value=79),                 mock.patch.dict(angband_finale.CARRY, {angband_finale.TELEPORT: 45}),                 mock.patch.object(type(policy), "_shelf_stop_tried", return_value=True):
             self.decide(policy, board)
@@ -107,6 +113,7 @@ class FinaleTownHold1123RecordedTest(unittest.TestCase):
 
     def test_supplies_owned_enter_the_phase(self):
         policy, board, _replayed = self.replay()
+        board = with_scrolls(board, angband_finale.RECHARGING_CARRY)  # DECLARED (docstring)
         # DECLARED CONSTRUCTED (module docstring).
         with mock.patch.object(angband_finale, "restore_mana_carry", return_value=79):
             key, reason = self.decide(policy, board)

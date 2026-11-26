@@ -31,6 +31,14 @@ game to the next half day, and each store restocks by the time passed when it is
 store.cpp store_maintenance); then this town's suppliers are shopped again and the next loop
 starts, until the 40 are owned.  Only the funds stop it (the expedition's rule), or an inn the
 walk cannot reach.
+
+Owner 2026-11-26 (verbatim) 「そろうまで出発しない（他の町も回る）」: the ten Scrolls of Recharging of a
+race that eats device charges (angband_finale ``RECHARGING``, a readiness row) are the circuit's
+too.  Only the Alchemist sells them (store/articles-on-sale.cpp, its regular stock of a few a
+restock), so the circuit carries a second category, ``RECHARGING_CATEGORY``, supplied by the
+Alchemist alone (policy_town ``_cross_town_supplier_types``): ``due`` when either supply is short
+after its own suppliers were tried, the expedition blocks on the short ones, and each town's own
+rungs (``tail:angband-finale``, ``tail:angband-finale-recharging``) buy there.
 """
 from __future__ import annotations
 
@@ -47,6 +55,9 @@ from hengbot.policy_types import CrossTownShoppingExpedition
 from hengbot.recall_stockout_travel import fare
 
 CATEGORY = "teleport"  # the expedition's category (policy_town _cross_town_shortages)
+RECHARGING_CATEGORY = "recharging"  # the Scrolls of Recharging's (owner 2026-11-26)
+CATEGORIES = (CATEGORY, RECHARGING_CATEGORY)
+RECHARGING_SUPPLIERS = (STORE_ALCHEMIST,)  # store/articles-on-sale.cpp: the Alchemist alone
 STATE = "_finale_teleport_tour"  # True while the expedition is this circuit's
 FALLBACK = "depart"
 SUPPLIERS = (STORE_ALCHEMIST, STORE_GENERAL)  # angband_finale's errand stores
@@ -84,7 +95,7 @@ def circuit(policy: Any) -> CrossTownShoppingExpedition | None:
     """The expedition when it travels for the finale's Teleportation."""
     expedition = getattr(policy, "_cross_town_shopping", None)
     if (expedition is None or not getattr(policy, STATE, False)
-            or CATEGORY not in expedition.blocking_categories):
+            or not set(CATEGORIES) & set(expedition.blocking_categories)):
         return None
     return expedition
 
@@ -94,9 +105,27 @@ def shortage(policy: Any, snapshot: Any) -> int:
     return angband_finale.shortage(policy, snapshot, angband_finale.TELEPORT)
 
 
+def recharging_shortage(policy: Any, snapshot: Any) -> int:
+    """The Scrolls of Recharging still to buy (ten less the pack's and the Home's; 0 for a race
+    that eats no device charges)."""
+    return angband_finale.shortage(policy, snapshot, angband_finale.RECHARGING)
+
+
+def shortages(policy: Any, snapshot: Any) -> dict:
+    """{category: still to buy} of the circuit's short supplies."""
+    found = {CATEGORY: shortage(policy, snapshot),
+             RECHARGING_CATEGORY: recharging_shortage(policy, snapshot)}
+    return {category: missing for category, missing in found.items() if missing > 0}
+
+
+def _suppliers(category: str) -> tuple:
+    return RECHARGING_SUPPLIERS if category == RECHARGING_CATEGORY else SUPPLIERS
+
+
 def due(policy: Any, snapshot: Any) -> bool:
     """Short after this town's suppliers, no other expedition under way, not ended this trip."""
-    if not snapshot.in_town or shortage(policy, snapshot) <= 0:
+    short = shortages(policy, snapshot) if snapshot.in_town else {}
+    if not short:
         return False
     if angband_finale.memory(policy).teleport_tour_done:
         return False
@@ -105,19 +134,28 @@ def due(policy: Any, snapshot: Any) -> bool:
     # Tried: entered, or its shelf seen without them since the last restock (the need
     # registry skips that stop, so it is never entered: policy_instore._shelf_stop_tried).
     return all(policy._shelf_stop_tried(snapshot, store, angband_finale.CATEGORY)
-               for store in SUPPLIERS)
+               for category in short for store in _suppliers(category))
 
 
-def _shortage_cost(policy: Any, snapshot: Any) -> int:
-    """The scrolls short at the cheapest remembered price (the expedition's funds rule)."""
-    observed = policy._observed_departure_prices.get(CATEGORY)
+def _category_cost(policy: Any, category: str, missing: int) -> int:
+    """``missing`` of a category at the cheapest remembered price, else its base price."""
+    observed = policy._observed_departure_prices.get(category)
     if observed is None:
-        base = policy._baseitem_costs.get(angband_finale.TELEPORT, 0)
+        kind = angband_finale.RECHARGING if category == RECHARGING_CATEGORY else angband_finale.TELEPORT
+        base = policy._baseitem_costs.get(kind, 0)
+        if not base and category == RECHARGING_CATEGORY:
+            base = angband_finale.RECHARGING_BASE_COST
         observed = (base, 1) if base > 0 else None
     if observed is None:
         return 0
     price, units = observed
-    return ceil(shortage(policy, snapshot) / units) * price
+    return ceil(missing / units) * price
+
+
+def _shortage_costs(policy: Any, snapshot: Any) -> dict:
+    """{category: the scrolls short at the cheapest remembered price} (the expedition's funds rule)."""
+    return {category: _category_cost(policy, category, missing)
+            for category, missing in shortages(policy, snapshot).items()}
 
 
 def _end(policy: Any, record: dict, why: str) -> bool:
@@ -134,11 +172,12 @@ def start(policy: Any, snapshot: Any) -> bool:
     current = policy._effective_town_id(snapshot)
     expedition = circuit(policy)
     if expedition is None:
-        cost = _shortage_cost(policy, snapshot)
+        costs = _shortage_costs(policy, snapshot)
+        cost = sum(costs.values())
         expedition = CrossTownShoppingExpedition(
             trigger_town_id=current,
-            blocking_categories=(CATEGORY,),
-            shortage_costs={CATEGORY: cost},
+            blocking_categories=tuple(costs) or (CATEGORY,),
+            shortage_costs=costs or {CATEGORY: 0},
             reserve=CROSS_TOWN_SHOPPING_RESERVE,
             required_gold=cost + CROSS_TOWN_SHOPPING_RESERVE,
             candidate_order=policy._cross_town_candidate_order(snapshot),
@@ -151,8 +190,9 @@ def start(policy: Any, snapshot: Any) -> bool:
     record = {
         "circuit": "angband-finale-teleport",
         "trigger_town_id": expedition.trigger_town_id,
-        "blocking_categories": [CATEGORY],
+        "blocking_categories": list(expedition.blocking_categories),
         "shortage": shortage(policy, snapshot),
+        "recharging_shortage": recharging_shortage(policy, snapshot),
         "shortage_costs": dict(expedition.shortage_costs),
         "reserve": expedition.reserve,
         "required_gold": expedition.required_gold,

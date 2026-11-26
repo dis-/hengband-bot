@@ -23197,7 +23197,7 @@
     "delegation": "selected child; no independent success",
     "evidence": "Ends the circuit: clears the expedition, the circuit's flag, marks the trip tried and records why; no key."
   },
-  "finale_teleport_tour.py:_shortage_cost": {
+  "finale_teleport_tour.py:_category_cost": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -23206,7 +23206,40 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
-    "evidence": "The scrolls short at the remembered price (the expedition's funds rule); no command."
+    "evidence": "A category's scrolls short at the remembered or base price (the expedition's funds rule); no command."
+  },
+  "finale_teleport_tour.py:_shortage_costs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "{category: cost} of the circuit's short supplies, the Teleportation and the Scrolls of Recharging (owner 2026-11-26); no command."
+  },
+  "finale_teleport_tour.py:recharging_shortage": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "The Scrolls of Recharging still to buy (angband_finale.shortage, owner 2026-11-26 「そろうまで出発しない（他の町も回る）」); no command."
+  },
+  "finale_teleport_tour.py:shortages": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "{category: still to buy} of the circuit's short supplies; no command."
   },
   "finale_teleport_tour.py:circuit": {
     "classification": "data",

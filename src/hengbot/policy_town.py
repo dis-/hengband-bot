@@ -5096,6 +5096,9 @@ class TownMixin:
             categories.append("recall")
         if item.is_teleport_scroll:
             categories.append("teleport")
+        if angband_finale.is_recharging(item):
+            # Owner 2026-11-26 「そろうまで出発しない（他の町も回る）」 (finale_teleport_tour).
+            categories.append(finale_teleport_tour.RECHARGING_CATEGORY)
         if item.tval == TVAL_POTION and item.sval == SV_POTION_CURE_CRITICAL:
             categories.append("cure-critical")
         if item.is_oil:
@@ -5146,6 +5149,7 @@ class TownMixin:
             for category in (
                 "recall",
                 "teleport",
+                finale_teleport_tour.RECHARGING_CATEGORY,
                 "cure-critical",
                 "oil",
                 "food",
@@ -5187,6 +5191,8 @@ class TownMixin:
                     for store_type in status.stores
                 )
             )
+        if category == finale_teleport_tour.RECHARGING_CATEGORY:
+            return finale_teleport_tour.RECHARGING_SUPPLIERS
         if category.startswith("identification-source:"):
             return (STORE_ALCHEMIST,)
         if category == "identify-staff":
@@ -5231,6 +5237,10 @@ class TownMixin:
             if finale > ordinary:
                 shortages = [entry for entry in shortages if entry[0] != "teleport"]
                 shortages.append(("teleport", finale))
+            # Owner 2026-11-26 「そろうまで出発しない（他の町も回る）」: the Scrolls of Recharging.
+            recharging = finale_teleport_tour.recharging_shortage(self, snapshot)
+            if recharging > 0:
+                shortages.append((finale_teleport_tour.RECHARGING_CATEGORY, recharging))
         if self._identification_need is not None:
             shortages.append(
                 (
