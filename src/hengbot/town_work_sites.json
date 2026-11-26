@@ -3595,6 +3595,13 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "finale_farm.py:key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "finale_hold.py:_black_market_key": {
     "classification": "adapter",
     "rows": [

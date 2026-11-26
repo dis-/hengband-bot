@@ -58,11 +58,16 @@ The return is the floor's normal end, not an escape: ``return:recall`` is no rel
 escape count reads (reasons ``return:*``), so the over-extension streak does not move
 (over_extension, owner 2026-11-16 Q3 「数えない（今のまま）」 for the rule-made returns), and the
 trigger is no survival one, so the recall wait collects what it reaches (recall_wait_reach).
+
+Owner 2026-11-26 (「勝率と時間効率改善を進める…以前の指示を破ることを許可する」): while the finale is
+prepared at the 95F cap with a supply only the Black Market sells still short, the explored
+Angband floor is left by its stairs instead, ``finale_farm.FARM_STAIR_FLOORS`` times a trip
+(finale_farm: n1-c life-222's one-floor trips for the Restore Mana's gold).
 """
 
 from __future__ import annotations
 
-from hengbot import dive_floor, return_start, sealed_loot
+from hengbot import dive_floor, finale_farm, return_start, sealed_loot
 from hengbot.policy_constants import DEEP_FLOOR_DEPTH
 
 TRIGGER = "explored-dead-end-floor"
@@ -187,6 +192,12 @@ def recall_key(policy, snapshot, *, exhausted: bool) -> str | None:
     # loot owner above has found no way to any of them this decision.
     if not exhausted and _reachable_loot(policy, snapshot):
         return None
+    # While a finale supply only the Black Market sells is short at the 95F cap, the floor is left
+    # by its stairs for a new one, FARM_STAIR_FLOORS times a trip (finale_farm, owner 2026-11-26:
+    # the one-floor trips were the bound of the Restore Mana's gold).
+    stairs = finale_farm.key(policy, snapshot)
+    if stairs is not None:
+        return stairs
     recall = policy._find_recall_scroll(snapshot)
     if recall is None or not policy._can_read_scrolls(snapshot):
         return None

@@ -25526,5 +25526,16 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "context": "Dungeon quest floors only: the TAKEN approved quest's profile naming engagement_plan.summoner_light (QUEST_32); off such a floor it answers nothing.",
     "evidence": "Names a never-moving race the plan walks to; sends no key and has no independent progress."
+  },
+  "finale_farm.py:key": {
+    "classification": "producer",
+    "rows": [
+      "departure"
+    ],
+    "context": "Dungeon idle layer only, asked by explored_floor.recall_key on an explored Angband floor the dive goes no deeper from (the 95F cap) while finale_farm.farming; never reached in town.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Owner 2026-11-26 「勝率と時間効率改善を進める…以前の指示を破ることを許可する」 (n1-c life-222 2026-11-26 10:05-12:58: 50 one-floor 95F trips for the Black Market's Restore Mana, 17 ended by explored-dead-end-floor): in the Word of Recall's place, '<' underfoot (finale-farm:ascend), else a step toward the nearest stair the ladder takes (finale-farm:seek-stairs), FARM_STAIR_FLOORS floors a trip; None otherwise (the Recall is read as before)."
   }
 }
