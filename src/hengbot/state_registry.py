@@ -123,6 +123,12 @@ REGISTRY = (
       "cell, the stand of the Stone to Mud line, the turn the rod list was browsed for "
       "Restoration); every floor change forgets it (floor_visit_memory: "
       "a level regenerated under the same key is a new floor)"),
+    # finale_recharge_food
+    S("_finale_recharge_food", "finale_recharge_food", LIFE,
+      "finale_recharge_food: the 99F/100F battle's last Scroll of Recharging read on a drained "
+      "food wand (owner 2026-11-26 「空腹かつ3本とも空の場合のみ充填して食料とする」): its floor, "
+      "game turn and scroll count, and whether a read on that floor was refused (its own floor "
+      "key: a new floor forgets it)"),
     # amberite_curse
     S("_amberite_curse_note", "amberite_curse", LIFE,
       "(decision sequence, record);"),
@@ -2412,6 +2418,10 @@ RESTART = {
     "_town_visit_purchase_quantities": Restart(PERSISTED, "policy_home",
                                                "same town floor, same or later game turn"),
     "_town_visit_purchase_record": Restart(MAY_BE_LOST, "policy_home", _CACHE),
+    # finale_recharge_food: a refused read is noted again on the next refused board.
+    "_finale_recharge_food": Restart(MAY_BE_LOST, "finale_recharge_food",
+                                     "a new process reads a scroll again; a refused read is noted "
+                                     "again from the next board's scroll count"),
     # policy_observation._observe: a town visit's first board reads the overweight ledger.
     "_overweight_surplus_ledger": Restart(PERSISTED, "policy_observation",
                                           "read when a town visit starts (no epoch yet)"),

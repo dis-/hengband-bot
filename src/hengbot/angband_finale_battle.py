@@ -40,8 +40,10 @@ The per-board order (``key``), the first that answers wins:
     (``teleports_out``: no scroll, no absorbed Staff of Teleportation charge; owner 2026-11-21),
     or hungry with nothing to eat (``starving_out``, owner 2026-11-21 「空腹で死ぬ前に帰還する
     ように修正」), and nowhere else; after the escapes below, a hungry character eats
-    (``_eat_key``), and a MANA race below full eats a food wand's charge ahead
-    (``_bank_food_key``: a monster's UN_POWER blow drains a pack stack, never the stomach);
+    (``_eat_key``), with every food wand drained reads a Scroll of Recharging on one and eats it
+    (finale_recharge_food, owner 2026-11-26; ``starving_out`` waits for it), and a MANA race below
+    full eats a food wand's charge ahead (``_bank_food_key``: a monster's UN_POWER blow drains a
+    pack stack, never the stomach);
  2. *Healing* below 400 HP after a hit;
  3. the Teleportation scroll (none left: the absorbed Staff of Teleportation): on a summon, below 800 HP after a hit (kept
     until the HP is back at 800, a *Healing* between included: ``Battle.hit_below``), the target within
@@ -807,8 +809,12 @@ def recall_permitted(policy, snapshot) -> bool:
 
 def starving_out(policy, snapshot) -> bool:
     """Hungry (the game's 「お腹が空いてきた」, before weak) with nothing the race can eat carried
-    (policy ``_find_edible``: food, or for a MANA race a charged wand or staff)."""
-    return snapshot.player.hungry and policy._find_edible(snapshot) is None
+    (policy ``_find_edible``: food, or for a MANA race a charged wand or staff), and no food wand
+    to recharge or eat recharged (finale_recharge_food ``relief``, owner 2026-11-26 「魔力充填の
+    巻物を10巻持っていき、空腹かつ3本とも空の場合のみ充填して食料とする」)."""
+    from hengbot import finale_recharge_food
+    return (snapshot.player.hungry and policy._find_edible(snapshot) is None
+            and not finale_recharge_food.relief(policy, snapshot))
 
 
 def _eat_key(policy, snapshot) -> str | None:
@@ -852,7 +858,10 @@ def _bank_food_key(policy, snapshot) -> str | None:
     player = snapshot.player
     if player.food_type != FOOD_TYPE_MANA or player.food_state != "normal":
         return None
-    stacks = [item for item in snapshot.inventory if is_staple_food(item) and item.charges > 0]
+    from hengbot.finale_recharge_food import recharged
+    # A wand the Scroll of Recharging refilled shows no charges (unidentified): food too.
+    stacks = ([item for item in snapshot.inventory if is_staple_food(item) and item.charges > 0]
+              or recharged(snapshot))
     if not stacks or policy._starvation_near_hostiles(policy._physical_hostiles(snapshot)):
         return None
     food = max(stacks, key=lambda item: item.charges)
@@ -2148,6 +2157,12 @@ def key(policy, snapshot) -> str | None:
     eaten = _eat_key(policy, snapshot)
     if eaten is not None:
         return eaten
+    # Owner 2026-11-26 「空腹かつ3本とも空の場合のみ充填して食料とする」: hungry with every food wand
+    # drained, a Scroll of Recharging on one of them, then the recharged wand eaten.
+    from hengbot import finale_recharge_food
+    recharge = finale_recharge_food.key(policy, snapshot)
+    if recharge is not None:
+        return recharge
     # The eat ahead (``_bank_food_key``) after the recovery's Restore Mana and heal, which come
     # first after a teleport (owner 2026-11-26 「満タンにしてから行動するべき」).
     if held.phase != RECOVER:

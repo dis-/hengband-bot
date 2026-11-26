@@ -20,7 +20,10 @@ DECLARED CONSTRUCTED:
 * the searches' time caps (warrior_optimization ``CLOSURE_TIME_CAP_SECONDS``,
   ``FINALE_SEARCH_SECONDS``) are lowered so the test runs in seconds; the verdict does not depend
   on them: the test asserts the scenario's premise (a swap planned from the worn set) on the
-  decision itself.
+  decision itself;
+* the Scrolls of Recharging (angband_finale ``RECHARGING_CARRY``, owner 2026-11-26) carried as
+  none: the recorded visit predates that carry, whose Alchemist errand would change the recorded
+  route before the check step (row 14).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -31,7 +34,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from hengbot import equipment_target, finale_prep, warrior_optimization
+from hengbot import angband_finale, equipment_target, finale_prep, warrior_optimization
 from hengbot.policy import staged_prompt_chain_matches
 from hengbot.town_arrival_checkpoint import SIDECAR_DIRECTORY
 from replay_town_arrival import adopt_calibration
@@ -51,6 +54,9 @@ class FinaleCheckStepRecordedTest(unittest.TestCase):
             patcher = mock.patch.object(warrior_optimization, name, seconds)
             patcher.start()
             self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(angband_finale, "RECHARGING_CARRY", 0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     @staticmethod
     def deliver(policy, key):

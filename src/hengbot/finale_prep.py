@@ -37,7 +37,9 @@ keys come from ``town_key`` (the objectives ladder, before the ordinary town wor
               deposit dropped is read again first, and a stack whose slot that take left
               unaddressed is filed for the errand's own read); the carry holds from here
               (angband_finale ``carry_target``: nothing deposits them again).  Done when the pack
-              holds every count (``readiness``'s ``carried``) and no swap is under way.
+              holds every count (``readiness``'s ``carried``), no Scroll of Recharging the pack
+              is short of waits at Home (a race that eats device charges, owner 2026-11-26:
+              ``_recharging_at_home``; none at Home is no shortage) and no swap is under way.
 ``loadout``   the worn loadout's search runs in the finale's rank with the supplies carried; its
               chosen set is the phase's target, fixed here (``fix_target``).
 ``swap``      the equipment transaction composes the keys toward the fixed target only (every
@@ -461,7 +463,7 @@ def observe(policy, snapshot, rows: dict | None) -> None:
             _stop(policy, held, "supplies:withdrawal-failed")
             return
         if (angband_finale.ready(rows["carried"]) and not routed(policy)
-                and not _restoring_at_home(policy)
+                and not _restoring_at_home(policy) and not _recharging_at_home(policy, snapshot)
                 and policy._equipment_transaction_session is None
                 and policy._equipment_catalog.home_scan_complete):
             _go(policy, held, FOOD if food_wanted(snapshot) and not food_done(snapshot) else LOADOUT)
@@ -505,7 +507,7 @@ def _short_stack(policy, snapshot):
     errand reads itself: n1-c life-217 2026-11-21 11:31:14, the *Healing* take at slot 4 left the
     Restore Mana at slots 6-7 unaddressed and the step stopped as if none were at Home)."""
     from hengbot import angband_finale
-    targets = {**angband_finale.CARRY,
+    targets = {**angband_finale.carry_counts(snapshot),
                angband_finale.RESTORE_MANA: angband_finale.restore_mana_carry(policy, snapshot) or 0}
     for kind, target in targets.items():
         missing = target - angband_finale.carried(snapshot, kind)
@@ -519,6 +521,10 @@ def _short_stack(policy, snapshot):
             return kind, addressable[0], missing, True
         if found:
             return kind, found[0][1], missing, False
+        if kind == angband_finale.RECHARGING:
+            # Owner 2026-11-26 「魔力充填の巻物を10巻持っていき」: no readiness row
+            # (angband_finale ``carry_counts``), so none at Home is no shortage of the step.
+            continue
         return kind, None, missing, False
     # Owner 2026-11-21 「全復活のキノコをあるだけ持っていく」: every one at Home, no count; none at
     # Home is no shortage.
@@ -544,6 +550,17 @@ def _home_stacks(policy, kind) -> list:
     ``town:blocked:finale-prep-stopped:...`` with every supply owned."""
     return [(index, item) for index, item in enumerate(policy._home_knowledge_items)
             if (item.tval, item.sval) == kind and getattr(item, "aware", True)]
+
+
+def _recharging_at_home(policy, snapshot) -> bool:
+    """The pack short of the Scrolls of Recharging (owner 2026-11-26, angband_finale
+    ``carry_counts``) with a stack of them in the current Home catalogue: the supplies step takes
+    it out before it is done (they are no readiness row, so ``carried`` does not wait for them)."""
+    from hengbot import angband_finale
+    target = angband_finale.carry_counts(snapshot).get(angband_finale.RECHARGING)
+    return bool(target and policy._home_knowledge_current
+                and angband_finale.carried(snapshot, angband_finale.RECHARGING) < target
+                and _home_stacks(policy, angband_finale.RECHARGING))
 
 
 def _restoring_at_home(policy) -> list:

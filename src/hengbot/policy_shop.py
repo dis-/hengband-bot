@@ -3193,6 +3193,9 @@ class ShopMixin(InStoreMixin):
         # Owner 2026-11-20 「テレポートの巻物を大量に持つ」 (40): below every departure supply,
         # from the gold above the full departure resupply, like the Heroism stock.
         add(rung("tail:angband-finale", angband_finale.CATEGORY, lambda: angband_finale.shortage(self, snapshot, angband_finale.TELEPORT) > 0, lambda i: i.is_teleport_scroll and self._angband_finale_purchase_units(snapshot, i) > 0, current=lambda: angband_finale.owned(self, snapshot, angband_finale.TELEPORT), target=lambda: angband_finale.CARRY[angband_finale.TELEPORT]))
+        # Owner 2026-11-26 「魔力充填の巻物を10巻持っていき」: a race that eats device charges, at the
+        # Alchemist (its regular stock), from the gold above the full departure resupply.
+        add(rung("tail:angband-finale-recharging", angband_finale.CATEGORY, lambda: angband_finale.shortage(self, snapshot, angband_finale.RECHARGING) > 0, lambda i: angband_finale.is_recharging(i) and self._angband_finale_purchase_units(snapshot, i) > 0, current=lambda: angband_finale.owned(self, snapshot, angband_finale.RECHARGING), target=lambda: angband_finale.RECHARGING_CARRY))
         launcher = self._equipped_launcher(snapshot)
         add(rung("tail:ammo", "ammo", lambda: launcher is not None and self._count_matching_ammo(snapshot) < self._ammo_procurement_target(snapshot), lambda i: launcher is not None and i.tval == launcher.ammo_tval and is_plain_store_ammo(i) and self._ammo_purchase_preserves_plan(snapshot, i), current=lambda: self._count_matching_ammo(snapshot), target=lambda: self._ammo_procurement_target(snapshot)))
         add(rung(
@@ -4202,7 +4205,8 @@ class ShopMixin(InStoreMixin):
         # 40 above the ledger's own Teleportation, like the Heroism (never the Black Market's).
         # Only the quantity of a ledger buy counted them: with the ledger's count met, every
         # Alchemist was left with 99 on its shelf (n1-c life-217 2026-11-21 03:49-03:50, 23 of 40).
-        finale = next((it for it in items if it.is_teleport_scroll
+        finale = next((it for it in items
+                       if (it.is_teleport_scroll or angband_finale.is_recharging(it))
                        and store.store_type != STORE_BLACK
                        and (it.tval, it.sval) not in excluded_classes
                        and self._angband_finale_purchase_units(snapshot, it) > 0), None)
@@ -4350,6 +4354,9 @@ class ShopMixin(InStoreMixin):
                 IDENTIFY_PURCHASE_MAX,
                 self._outstanding_identification_count(snapshot, full=full),
             )
+        elif angband_finale.is_recharging(item):
+            # Owner 2026-11-26 「魔力充填の巻物を10巻持っていき」 (rung tail:angband-finale-recharging).
+            needed = self._angband_finale_purchase_units(snapshot, item)
         elif self._is_destruction_item(item):
             # Uses, not stacks: one staff supplies its charges (user 2026-09-23,
             # the Identify-staff counting rule); a ware that adds no means by the
@@ -4431,10 +4438,14 @@ class ShopMixin(InStoreMixin):
         return price > 0 and snapshot.player.gold - reserve >= price
 
     def _angband_finale_purchase_units(self, snapshot: Snapshot, item: StoreItem) -> int:
-        """Teleportation scrolls this shelf sells toward the finale's 40 (angband_finale): the
-        shortage, bounded by the gold above the full departure resupply (owner 2026-10-08), so
-        no departure supply is short for it; 0 when the reserve's price is unknown."""
-        shortage = angband_finale.shortage(self, snapshot, angband_finale.TELEPORT)
+        """Teleportation scrolls this shelf sells toward the finale's 40 (angband_finale), or
+        Scrolls of Recharging toward the ten of a race that eats device charges (owner
+        2026-11-26): the shortage, bounded by the gold above the full departure resupply (owner
+        2026-10-08), so no departure supply is short for it; 0 when the reserve's price is
+        unknown."""
+        kind = (angband_finale.RECHARGING if angband_finale.is_recharging(item)
+                else angband_finale.TELEPORT)
+        shortage = angband_finale.shortage(self, snapshot, kind)
         if shortage <= 0 or item.price <= 0:
             return 0
         reserve = self._full_departure_resupply_reserve(snapshot)
@@ -4445,9 +4456,11 @@ class ShopMixin(InStoreMixin):
     def _angband_finale_errand_store(self, snapshot: Snapshot) -> int | None:
         """The store visited for the finale's Teleportation scrolls (the Alchemist, then the
         General Store: store/articles-on-sale.cpp), when short and the gold above the full
-        departure resupply buys one at the base price; else None."""
+        departure resupply buys one at the base price; else None.  Short of the Scrolls of
+        Recharging alone (owner 2026-11-26, a race that eats device charges), the Alchemist (the
+        only store of its regular stock)."""
         if angband_finale.shortage(self, snapshot, angband_finale.TELEPORT) <= 0:
-            return None
+            return self._angband_finale_recharging_store(snapshot)
         reserve = self._full_departure_resupply_reserve(snapshot)
         price = self._baseitem_costs.get(angband_finale.TELEPORT) or 40
         if reserve is None or snapshot.player.gold - reserve < price:
@@ -4456,6 +4469,21 @@ class ShopMixin(InStoreMixin):
         # need registry's own skip): waiting on that Alchemist kept the General Store unrouted.
         return next((store for store in (STORE_ALCHEMIST, STORE_GENERAL)
                      if not self._shelf_stop_tried(snapshot, store, angband_finale.CATEGORY)), None)
+
+    def _angband_finale_recharging_store(self, snapshot: Snapshot) -> int | None:
+        """The Alchemist for the Scrolls of Recharging (owner 2026-11-26 「魔力充填の巻物を10巻
+        持っていき」), short of them and the gold above the full departure resupply buying one at
+        the base price, once a visit (its shelf tried: ``_shelf_stop_tried``); else None."""
+        if angband_finale.shortage(self, snapshot, angband_finale.RECHARGING) <= 0:
+            return None
+        reserve = self._full_departure_resupply_reserve(snapshot)
+        price = (self._baseitem_costs.get(angband_finale.RECHARGING)
+                 or angband_finale.RECHARGING_BASE_COST)
+        if reserve is None or snapshot.player.gold - reserve < price:
+            return None
+        if self._shelf_stop_tried(snapshot, STORE_ALCHEMIST, angband_finale.CATEGORY):
+            return None
+        return STORE_ALCHEMIST
 
     def _heroism_purchase_units(self, snapshot: Snapshot, item: StoreItem) -> int:
         """Potions of Heroism this shelf sells toward the carry (owner 2026-11-11).
