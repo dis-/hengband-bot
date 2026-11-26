@@ -468,6 +468,20 @@ def _stairs_needed_and_unknown(ctx, power):
     return needed is not None and not _stairs_known(ctx, needed)
 
 
+def _outside_mapped_area(ctx, power):
+    """The player stands outside every live map of this floor visit (mapped_area.floor_discs: the
+    casts, the devices, the scroll) while the floor is still being explored: the map is cast again
+    where the last one ends (owner 2026-11-27 「魔法の地図は探索効率を大幅に向上させるので
+    うまく使うと良いだろう」).  Not while Word of Recall counts down or the explore has stalled
+    (explored_floor.stalled: the map stopped growing)."""
+    from hengbot import explored_floor, mapped_area  # import cycle
+
+    if ctx.snapshot.player.recalling or explored_floor.stalled(ctx.policy, ctx.snapshot):
+        return False
+    return not any(ctx.distance(centre) < radius
+                   for centre, radius in mapped_area.floor_discs(ctx.policy, ctx.snapshot))
+
+
 def _loot_unreachable(ctx, power):
     """Owner 2026-11-13 「経路が見つからない時に周辺感知を使う」: the loot walk found loot it saw with
     no known way to it on the last boards (loot_frontier), and no earlier use mapped here."""
@@ -880,6 +894,8 @@ TRIGGERS = {trigger.name: trigger for trigger in (
     Trigger("sealed-pocket", frozenset({SEALED}), _sealed_pocket, takes_fallback=False),
     # Owner 2026-11-18 「周辺感知があれば使用して入口を探す。」: sealed_loot asks once an enclosure.
     Trigger("loot-enclosure", frozenset({LOOT_ENCLOSURE}), _sealed_pocket, takes_fallback=False),
+    # Owner 2026-11-27 「魔法の地図は探索効率を大幅に向上させる」: a caster's Magic Mapping row only.
+    Trigger("outside-mapped-area", frozenset({FLOOR}), _outside_mapped_area, takes_fallback=False),
 )}
 
 REQUIREMENTS = {

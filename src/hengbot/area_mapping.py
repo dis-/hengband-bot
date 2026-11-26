@@ -63,6 +63,8 @@ CARRIED = {(TVAL_STAFF, SV_STAFF_MAPPING): "staff", (TVAL_ROD, SV_ROD_MAPPING): 
 FAILED = frozenset({
     "杖をうまく使えなかった。", "You failed to use the staff properly.",
     "うまくロッドを使えなかった。", "You failed to use the rod properly.",
+    # A caster's Magic Mapping (realm_spells.map_cast_key, cmd-spell.cpp:1054).
+    "呪文をうまく唱えられなかった！", "You failed to get the spell off!",
 })
 
 
@@ -209,7 +211,8 @@ def device_usable_now(policy, snapshot: Snapshot) -> bool:
 
 
 def means_held(policy, snapshot: Snapshot) -> bool:
-    """A 周辺感知 to use: an absorbed power with a charge or a ready carried device."""
+    """A 周辺感知 to use: an absorbed power with a charge, a caster's Magic Mapping
+    (me_powers.map_charged) or a ready carried device."""
     return me_powers.map_charged(policy, snapshot) or _carried_device(snapshot) is not None
 
 
@@ -247,8 +250,13 @@ def _carried_key(policy, snapshot: Snapshot, trigger: str) -> str | None:
     if (memory.failed[position] >= me_powers.FAILURES_PER_PLACE
             or not device_usable_now(policy, snapshot)):
         return None
-    carried = _carried_device(snapshot)
-    used = None if carried is None else reserved_item_command(policy, snapshot, carried[1], carried[0])
+    # The means in order: a caster's Magic Mapping (realm_spells: free, its mana returns; owner
+    # 2026-11-27 「周辺感知の互換である」), a carried staff or rod, a held scroll.
+    from hengbot import realm_spells  # import cycle (realm_spells reads me_powers)
+    used = realm_spells.map_cast_key(policy, snapshot)
+    carried = _carried_device(snapshot) if used is None else None
+    if used is None and carried is not None:
+        used = reserved_item_command(policy, snapshot, carried[1], carried[0])
     if used is None:
         used = _held_scroll_key(policy, snapshot)
     if used is None:
