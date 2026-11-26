@@ -128,6 +128,23 @@ def round_trip_fits(snapshot, item, quantity: int) -> bool:
                    reserve_used=MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
+def survival_food_fits(snapshot, item, quantity: int) -> bool:
+    """A hungry character's food purchase may use the terminal reserve.
+
+    The reserve keeps pack slots for the departure; a character starving in
+    town has no departure without food.  n1-a life-544 (2026-11-26 23:42-23:45,
+    Amberite rogue, 7310 gold, 19 of 23 pack slots used) observed the General
+    Store's 99 Rations at 4 gold, the composer refused the new stack against
+    the 4-slot reserve, and the character stepped off and on the entrance until
+    it fainted to death.  Only ordinary food (TVAL_FOOD) is admitted here: a
+    mana eater's device purchase keeps the reserve as before.
+    """
+    if item.tval != TVAL_FOOD:
+        return permits(snapshot, incoming_slots(snapshot, item, quantity))
+    return permits(snapshot, incoming_slots(snapshot, item, quantity),
+                   reserve_used=MIN_TERMINAL_FREE_PACK_SLOTS)
+
+
 def below_floor(snapshot) -> bool:
     """Distinguish an actual reserve deficit from a refused additional slot."""
     return (snapshot.in_town
