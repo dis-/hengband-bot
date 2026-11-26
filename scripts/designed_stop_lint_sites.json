@@ -1,0 +1,971 @@
+{
+  "_comment": "Reviewed stop sites (MAINTAINABILITY.md rule 2, 2026-11-27). Keys are <module>:<function>: <reason shape>. kind: mechanism | requirement | owner-halt; a requirement entry carries \"debt\" (why it cannot release yet). python scripts/designed_stop_lint.py --sites lists the sites.",
+  "sites": {
+    "approach_answer:stop_name: town:blocked:approach-yielded:*:waiting-for:*": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a store approach yielded to the holder past WAIT_LIMIT boards"
+    },
+    "cli:_handle_owner_retirement: town:blocked:owner-retired": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "the town arbiter exhausted an owner visit budget without progress"
+    },
+    "cli:_record_owner_retired_log_only: town:blocked:owner-retired": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "the town arbiter exhausted an owner visit budget without progress"
+    },
+    "deep_climb:stop_key: dungeon:blocked:deep-arrival-without-destruction": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "50F+ arrival without *Destruction* (owner 2026-11-18 feedback)",
+      "debt": "owner rule \"no 50F without *Destruction*\"; deep_climb should climb out instead of stopping"
+    },
+    "equipment_visit_journal:observe: town:blocked:equipment-slot-flipflop:*": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a slot worn A, B, A in one visit (a decision loop; owner 2026-11-22 named stop)"
+    },
+    "finale_hold:_stop: town:blocked:*:step-limit": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "finale preparation phase stalled (step limit / not entered)"
+    },
+    "finale_hold:_stop: town:blocked:*:unfinished-at-departure": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "finale preparation phase stalled (step limit / not entered)"
+    },
+    "finale_hold:_stop: town:blocked:ammo:deposit-refused": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "finale_hold:_stop: town:blocked:check:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:check:no-set": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:finale-bm-tour-closed:*": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "policy_constants: a stop for the owner (99F/100F finale supplies neither the town nor the Black Market circuit supplies)"
+    },
+    "finale_hold:_stop: town:blocked:finale-not-in-town:*": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "policy_constants: a stop for the owner (99F/100F finale supplies neither the town nor the Black Market circuit supplies)"
+    },
+    "finale_hold:_stop: town:blocked:finale-not-in-town:*:*": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "policy_constants: a stop for the owner (99F/100F finale supplies neither the town nor the Black Market circuit supplies)"
+    },
+    "finale_hold:_stop: town:blocked:finale-prep-not-entered": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "finale preparation phase stalled (step limit / not entered)"
+    },
+    "finale_hold:_stop: town:blocked:finale-prep-stopped:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "finale preparation phase stalled (step limit / not entered)"
+    },
+    "finale_hold:_stop: town:blocked:finale-supplies-short:*:*:*:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:finale-supplies-short:*:no-leg": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:finale-supplies-short:*:not-due:*:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:food:drop-refused": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "finale_hold:_stop: town:blocked:food:floor-occupied": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "finale_hold:_stop: town:blocked:food:inscribe-refused": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "finale_hold:_stop: town:blocked:food:wonder-short:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:food:wonder-uncharged": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:home:supplies-not-owned": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:loadout:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:loadout:no-set": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:supplies:not-at-home:*-*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "finale_hold:_stop: town:blocked:supplies:withdrawal-*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "unsure: finale swap / withdrawal step refused"
+    },
+    "finale_hold:_stop: town:blocked:supplies:withdrawal-failed": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "finale_hold:_stop: town:blocked:supplies:withdrawal-stopped": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "finale_hold:_stop: town:blocked:swap:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "unsure: finale swap / withdrawal step refused"
+    },
+    "finale_hold:_stop: town:blocked:swap:ammo-carried": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "unsure: finale swap / withdrawal step refused"
+    },
+    "finale_hold:_stop: town:blocked:swap:no-food": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "finale preparation: supplies / loadout short",
+      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
+    },
+    "kill_all_patrol:key: quest:blocked:quest-patrol-rounds": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "unsure: a quest plan ran out of rounds with the quest unwon",
+      "debt": "unsure; the plan should abandon the quest and leave instead of stopping"
+    },
+    "ladder_plan_approved_quest:key: quest:blocked:enter": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "quest navigator phase hold (a wait in the plan; ends at its bound or in the loop guard)"
+    },
+    "magic_eater:planned_throw_key: quest:blocked:q34-throw-point-unreachable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "me_staff_sequence:_stop: quest:blocked:me-staff": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "unsure: the Magic-Eater staff sequence failed (route failures, power list, pack full and fundraise limits mixed in the _stop details)",
+      "debt": "unsure; the details mix route failures (mechanism) with pack full and fundraise limits (requirements)"
+    },
+    "plan_generic_gate:stop_reason: quest-plan:generic-refused:*": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a generic walk the quest plan does not name (plan_generic_gate)"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an equipment transaction step failed"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:atomic-withdraw-unreachable": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "no route"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:deposit-dispatch-rejected": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:deposit-item-missing:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:deposit-reservation-refused": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:equip-dispatch-rejected": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:equip-item-missing:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:home-route-unavailable": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "no route"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:invalid-equip-action:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:invalid-home-action:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:takeoff-dispatch-rejected": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:takeoff-refused:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:takeoff-refused:unavailable": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:unknown-equipment-slot:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:withdraw-dispatch-rejected": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:withdraw-item-missing:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:withdraw-item-unobserved:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:withdraw-overweight": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "over the weight limit with no legal relief",
+      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
+    },
+    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:withdraw-reservation-refused": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._bound_escape_wait: livelock:exhausted": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "navigation / escape budget exhausted without progress (loop guard)"
+    },
+    "policy:HengbotPolicy._choose_key: equipment-transaction:home-route-repeat-terminal": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy:HengbotPolicy._choose_key: ownership:contract-conflict:fundraising:wrong-destination": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "town claim / declaration bookkeeping inconsistent"
+    },
+    "policy:HengbotPolicy._choose_key: town:blocked:home-claim-uncomposable:*:home-knowledge-invalidated": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._choose_key: town:blocked:home-claim-uncomposable:unknown-requester:home-knowledge-invalidated": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy:HengbotPolicy._silent_holder_stop: ownership:holder-silent:*": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "town claim / declaration bookkeeping inconsistent"
+    },
+    "policy:HengbotPolicy._unprofitable_unique_disengage_key: combat:avoid-unprofitable-unique-fruitless": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "the disengage did not leave the floor within its bound"
+    },
+    "policy:HengbotPolicy.choose_key: town:blocked:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "the stage-deadline stop parked as the town block (town_visit_plan.stage_deadline_stop)"
+    },
+    "policy:HengbotPolicy.choose_key: town:blocked:owner-retired": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "the town arbiter exhausted an owner visit budget without progress"
+    },
+    "policy_equipment:EquipmentMixin._abandon_blocked_equipment_transaction: equipment-transaction:home-route-repeat-terminal": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy_equipment:EquipmentMixin._abandon_blocked_equipment_transaction: equipment-transaction:restore-blocked-terminal": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy_equipment:EquipmentMixin._banned_gear_stuck_stop: town:blocked:banned-gear-stuck:*": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "owner 2026-11-22 Q7: a worn banned piece that cannot be taken off stops by name"
+    },
+    "policy_equipment:EquipmentMixin._equipment_transaction_town_owner_key: equipment-transaction:restore-blocked-terminal": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy_fundraising:FundraisingMixin._fundraising_key: ownership:contract-conflict:fundraising:missing-purpose": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "town claim / declaration bookkeeping inconsistent"
+    },
+    "policy_fundraising:FundraisingMixin._fundraising_key: town:blocked:digging-tool-lost": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "a departure kit requirement unmet",
+      "debt": "needs the depart-without-it or buy-it path"
+    },
+    "policy_helpers:PolicyHelpersMixin._refuse_no_progress_cycle: livelock:exhausted": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "navigation / escape budget exhausted without progress (loop guard)"
+    },
+    "policy_home:HomeMixin._home_full_relief_route_key: town:blocked:home-full-surplus-store-unreachable": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "no route"
+    },
+    "policy_home:HomeMixin._home_knowledge_await_key: town:blocked:owner-retired": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "the town arbiter exhausted an owner visit budget without progress"
+    },
+    "policy_home:HomeMixin._overweight_surplus_sale_key: town:blocked:overweight-home-full-no-legal-relief": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "over the weight limit with no legal relief",
+      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
+    },
+    "policy_home:HomeMixin._overweight_surplus_sale_key: town:blocked:overweight-surplus-rebuy-loop": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a repeated cycle without progress"
+    },
+    "policy_home:HomeMixin._probe_unobserved_home_withdrawal: town:blocked:home-withdraw-target-absent": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy_home:HomeMixin._record_weight_relief_retained_only: town:blocked:overweight-retained-only": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "over the weight limit with no legal relief",
+      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
+    },
+    "policy_instore:InStoreMixin._in_store_required_operation_stop: town:blocked:shop-required-operation-uncomposable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy_navigation:NavigationMixin._dark_locomotion_key: dark:locomotion-exhausted": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "movement probes and remembered routes exhausted in the dark"
+    },
+    "policy_navigation:NavigationMixin._dungeon_entry_allowed: town:blocked:destruction-means-spent-loop": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a repeated cycle without progress"
+    },
+    "policy_navigation:NavigationMixin._dungeon_entry_allowed: town:blocked:equipment-departure-incomplete": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "a departure kit requirement unmet",
+      "debt": "needs the depart-without-it or buy-it path"
+    },
+    "policy_navigation:NavigationMixin._dungeon_entry_allowed: town:blocked:home-digger-withdraw-pending": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "waits for a Home withdrawal already in progress"
+    },
+    "policy_navigation:NavigationMixin._navigation_livelock_key: livelock:exhausted": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "navigation / escape budget exhausted without progress (loop guard)"
+    },
+    "policy_observation:ObservationMixin._observe: town:blocked:guardian-bounce-no-alternate": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "every recall landing is a guardian floor the kit cannot pass",
+      "debt": "the kit requirement for the guardian floor stops; needs a fallback destination or a way to buy the kit"
+    },
+    "policy_observation:ObservationMixin._resolve_observed_uncomposable_stop: town:blocked:home-operation-uncomposable": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy_opening:OpeningRouteMixin._opening_q1_plan: stop:stock:*": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "the Q34 -> Q1 opening route stops on a short stock / an unaffordable reserve (releasable except for the Magic-Eater, policy_opening._opening_q1_stop)",
+      "debt": "the Magic-Eater still stops; the other classes release"
+    },
+    "policy_opening:OpeningRouteMixin._opening_q1_plan: stop:unaffordable-quest-reserve": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "the Q34 -> Q1 opening route stops on a short stock / an unaffordable reserve (releasable except for the Magic-Eater, policy_opening._opening_q1_stop)",
+      "debt": "the Magic-Eater still stops; the other classes release"
+    },
+    "policy_opening:OpeningRouteMixin._opening_q1_stop: quest:blocked:opening-route": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "the Q34 -> Q1 opening route stops on a short stock / an unaffordable reserve (releasable except for the Magic-Eater, policy_opening._opening_q1_stop)",
+      "debt": "the Magic-Eater still stops; the other classes release"
+    },
+    "policy_quest:QuestMixin._q2_breach_key: quest:blocked:q2-breach-attempts": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a bounded attempt made no progress"
+    },
+    "policy_quest:QuestMixin._q2_breach_key: quest:blocked:q2-breach-route": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "no route"
+    },
+    "policy_quest:QuestMixin._q2_breach_key: quest:blocked:q2-breach-tool": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "a quest tool / launcher / ammunition is missing",
+      "debt": "the quest should be abandoned (return) instead of stopping"
+    },
+    "policy_quest:QuestMixin._q2_phase_key.recover_dry_ammo: quest:blocked:q2-ammo-exhausted": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "a quest tool / launcher / ammunition is missing",
+      "debt": "the quest should be abandoned (return) instead of stopping"
+    },
+    "policy_quest:QuestMixin._q2_phase_key.recover_dry_ammo: quest:blocked:q2-launcher-missing": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "a quest tool / launcher / ammunition is missing",
+      "debt": "the quest should be abandoned (return) instead of stopping"
+    },
+    "policy_quest:QuestMixin._q2_phase_key.route_phase_placements: quest:blocked:*": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "Q2 light-phase hold (WAIT_KEY) after the light attempts"
+    },
+    "policy_quest:QuestMixin._q2_phase_key: quest:blocked:q2-blue-confirm-route": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "no route"
+    },
+    "policy_quest:QuestMixin._q2_phase_key: quest:blocked:q2-blue-recover-bolts": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "a quest tool / launcher / ammunition is missing",
+      "debt": "the quest should be abandoned (return) instead of stopping"
+    },
+    "policy_quest:QuestMixin._q2_phase_key: quest:blocked:q2-blue-recovery-blind": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a quest plan perception / position step failed"
+    },
+    "policy_quest:QuestMixin._q2_phase_key: quest:blocked:q2-blue-recovery-unidentified-pile": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a quest plan perception / position step failed"
+    },
+    "policy_quest:QuestMixin._q2_phase_key: quest:blocked:q2-residual-multiplier-vantage": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a quest plan perception / position step failed"
+    },
+    "policy_quest:QuestMixin._quest_equipment_entry_allowed: town:blocked:equipment-departure-incomplete": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "a departure kit requirement unmet",
+      "debt": "needs the depart-without-it or buy-it path"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:fixed-target-not-visible": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a quest plan perception / position step failed"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:opening-lantern-missing": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "the Q1 opening needs a fuelled lantern",
+      "debt": "needs a buy-or-skip path"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:opening-lantern-unfuelled": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "the Q1 opening needs a fuelled lantern",
+      "debt": "needs a buy-or-skip path"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:opening-lantern-unreachable": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "no route"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:placement-sweep-exhausted": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "unsure: a quest plan ran out of rounds with the quest unwon",
+      "debt": "unsure; the plan should abandon the quest and leave instead of stopping"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:placement-sweep-route": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "no route"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:q2-hunt-priority-*": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a quest plan perception / position step failed"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:q31-recovery-no-launcher-ammo": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "a quest tool / launcher / ammunition is missing",
+      "debt": "the quest should be abandoned (return) instead of stopping"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:q34-final-door-locked": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a door stayed locked after the bounded lock-pick attempts"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:q34-opening-door-locked": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a door stayed locked after the bounded lock-pick attempts"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:q34-recovery-no-progress": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a bounded attempt made no progress"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:q34-throw-point-unreachable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:throw-outside-approved-point": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a quest plan perception / position step failed"
+    },
+    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:unconfirmed-target-recovery": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a quest plan perception / position step failed"
+    },
+    "policy_quest:QuestMixin._quest_sequence_door_key: quest:blocked:q34-sequence-door-locked": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a door stayed locked after the bounded lock-pick attempts"
+    },
+    "policy_shop:ShopMixin._atomic_shop_transaction_key: ownership:declaration-stale:shop-buy": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "town claim / declaration bookkeeping inconsistent"
+    },
+    "policy_shop:ShopMixin._atomic_shop_transaction_key: ownership:declaration-stale:shop-sell": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "town claim / declaration bookkeeping inconsistent"
+    },
+    "policy_shop:ShopMixin._atomic_shop_transaction_key: town:blocked:shop-required-operation-uncomposable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "an operation that cannot be composed or was refused by the screen"
+    },
+    "policy_shop:ShopMixin._publish_purchase_home_block: town:blocked:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy_shop:ShopMixin._purchase_home_gate: town:blocked:home-withdraw-failed-stock-present": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy_shop:ShopMixin._purchase_home_gate: town:blocked:procurement-home-unavailable": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "a required item is not at Home",
+      "debt": "the procurement should fall back to the shops or give the item up"
+    },
+    "policy_shop:ShopMixin._purchase_home_gate: town:blocked:procurement-home-unroutable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "policy_shop:ShopMixin._released_restock_store_key: town:blocked:restock-store-unreachable": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "no route"
+    },
+    "policy_shop:ShopMixin._shop_core: town:blocked:survival-mana-no-charges": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "MANA survival has no device charge at Home",
+      "debt": "the mana-food survival has no other food path wired"
+    },
+    "policy_supply:SupplyMixin._mana_food_survival_override_key: town:blocked:survival-mana-no-charges": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "MANA survival has no device charge at Home",
+      "debt": "the mana-food survival has no other food path wired"
+    },
+    "policy_supply:SupplyMixin._wilderness_survival_key: wilderness:no-safe-route": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "policy_town:TownMixin._bounty_route_nonprogress_transition: town:blocked:route-nonprogress:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a repeated cycle without progress"
+    },
+    "policy_town:TownMixin._closing_equipment_weight_transition: town:blocked:overweight-home-unreachable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "policy_town:TownMixin._finale_funds_dive_key: town:blocked:finale-funds-no-dive-destination": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "owner 2026-11-25: short of finale gold with no dungeon to dive for it, stop (never 1F mining)"
+    },
+    "policy_town:TownMixin._guardian_rumor_no_inn_step_key: town:blocked:guardian-bounce-no-alternate": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "every recall landing is a guardian floor the kit cannot pass",
+      "debt": "the kit requirement for the guardian floor stops; needs a fallback destination or a way to buy the kit"
+    },
+    "policy_town:TownMixin._mining_walk_in_return_key: town:blocked:walk-in-entrance-unavailable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "policy_town:TownMixin._outpost_fare_recovery_key: town:blocked:outpost-fare-no-sale": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "no sale can fund the Outpost return fare",
+      "debt": "needs a walk-home or mining fallback"
+    },
+    "policy_town:TownMixin._outpost_fare_recovery_key: town:blocked:outpost-fare-recall-active": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "state contradiction (recall authorised then contradicted / already active)"
+    },
+    "policy_town:TownMixin._outpost_fare_recovery_key: town:blocked:outpost-fare-return-route-unavailable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "policy_town:TownMixin._report_town_stop_pass: town:blocked:home-known-empty-withdrawal": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "a required item is not at Home",
+      "debt": "the procurement should fall back to the shops or give the item up"
+    },
+    "policy_town:TownMixin._supply_stockout_mining_dispatch_key: town:blocked:departure-unsatisfiable": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "no owner can satisfy the remaining departure conjunct",
+      "debt": "a departure condition with no way to buy or find it stops instead of departing without it"
+    },
+    "policy_town:TownMixin._town_blocked_key: town:blocked:*": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "an equipment-transaction block read for owner selection"
+    },
+    "policy_town:TownMixin._town_blocked_key: town:blocked:guardian-bounce-no-alternate": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "every recall landing is a guardian floor the kit cannot pass",
+      "debt": "the kit requirement for the guardian floor stops; needs a fallback destination or a way to buy the kit"
+    },
+    "policy_town:TownMixin._town_blocked_key: town:blocked:overweight-retained-only": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "over the weight limit with no legal relief",
+      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
+    },
+    "policy_town:TownMixin._town_cancel_unsafe_recall_key: town:blocked:recall-readiness-contradiction": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "state contradiction (recall authorised then contradicted / already active)"
+    },
+    "policy_town:TownMixin._town_claims_active: town:blocked:overweight-home-unreachable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "policy_town:TownMixin._town_destroy_key: town:blocked:dominated-item-destroy-failed": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a store / Home / pack operation failed on the screen"
+    },
+    "policy_town:TownMixin._town_entrance_step_off_key: livelock:exhausted": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "navigation / escape budget exhausted without progress (loop guard)"
+    },
+    "policy_town:TownMixin._town_overflow_destroy_key: town:blocked:overflow-no-legal-disposal": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "pack overflow with nothing legally destructible",
+      "debt": "needs a rule to leave with the overflow instead of stopping"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "the recall destination depth refused by the depth requirements",
+      "debt": "needs a shallower destination instead of stopping"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:departure-no-light": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "a departure kit requirement unmet",
+      "debt": "needs the depart-without-it or buy-it path"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:departure-unsatisfiable": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "no owner can satisfy the remaining departure conjunct",
+      "debt": "a departure condition with no way to buy or find it stops instead of departing without it"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:equipment-work-home-route-exhausted": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "no route"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:guardian-bounce-no-alternate": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "every recall landing is a guardian floor the kit cannot pass",
+      "debt": "the kit requirement for the guardian floor stops; needs a fallback destination or a way to buy the kit"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:no-ac-worn": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "a departure kit requirement unmet",
+      "debt": "needs the depart-without-it or buy-it path"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:no-safe-recall-destination": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "the recall destination depth refused by the depth requirements",
+      "debt": "needs a shallower destination instead of stopping"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:recall-readiness-contradiction": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "state contradiction (recall authorised then contradicted / already active)"
+    },
+    "policy_town:TownMixin._town_special_key: town:blocked:repetition": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a repeated cycle without progress"
+    },
+    "policy_town:TownMixin._town_terminal_transitions: town:blocked:restocked-recall-unavailable": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "the recall destination depth refused by the depth requirements",
+      "debt": "needs a shallower destination instead of stopping"
+    },
+    "policy_town:TownMixin.force_visit_departure: town:blocked:repetition": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a repeated cycle without progress"
+    },
+    "q2_tower_recharge:_stop: quest:blocked:q2-tower-recharge": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "unsure: the Q2 Stone to Mud recharge trip failed (route failures, rumours, fundraise limits and pack full mixed in the _stop details)",
+      "debt": "unsure; the details mix route failures (mechanism) with fundraise limits and pack full (requirements)"
+    },
+    "quest25_battle_rooms:_sweep: quest:blocked:quest25-patrol-rounds": {
+      "kind": "requirement",
+      "halts": "blocked",
+      "note": "unsure: a quest plan ran out of rounds with the quest unwon",
+      "debt": "unsure; the plan should abandon the quest and leave instead of stopping"
+    },
+    "quest25_pocket:no_line_key: quest:blocked:quest25-sealed-pocket-no-line": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "Q25: no line of fire to the sealed cells and no melted wall",
+      "debt": "needs abandon-and-recall instead of stopping"
+    },
+    "quest_navigator:QuestFloorNavigator._exit: quest:blocked:exit": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "quest navigator phase hold (a wait in the plan; ends at its bound or in the loop guard)"
+    },
+    "quest_navigator:QuestFloorNavigator.decide: quest:blocked:execute": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "quest navigator phase hold (a wait in the plan; ends at its bound or in the loop guard)"
+    },
+    "quest_navigator:QuestFloorNavigator.decide: quest:blocked:hold": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "quest navigator phase hold (a wait in the plan; ends at its bound or in the loop guard)"
+    },
+    "quest_navigator:QuestFloorNavigator.enter_from_town: quest:blocked:enter": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "quest navigator phase hold (a wait in the plan; ends at its bound or in the loop guard)"
+    },
+    "quest_opening_readiness:q34_readiness_rejection_key: livelock:exhausted": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "navigation / escape budget exhausted without progress (loop guard)"
+    },
+    "quest_room_sweep:_advance: quest:blocked:sweep-nothing-comes": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "unsure: a quest plan ran out of rounds with the quest unwon",
+      "debt": "unsure; the plan should abandon the quest and leave instead of stopping"
+    },
+    "quest_room_sweep:_advance: quest:blocked:sweep-nothing-left": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "unsure: a quest plan ran out of rounds with the quest unwon",
+      "debt": "unsure; the plan should abandon the quest and leave instead of stopping"
+    },
+    "quest_room_sweep:_advance: quest:blocked:sweep-split": {
+      "kind": "mechanism",
+      "halts": "blocked",
+      "note": "a quest plan perception / position step failed"
+    },
+    "stationary_bounds:stop_reason: stationary:exhausted:*": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "a stationary wait held past its bound (stationary_bounds)"
+    },
+    "torch_release:light_halt: light:lamp-fuel-out-with-crossbow": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "owner 2026-11-13: stop by name with a crossbow and a torch / no lantern"
+    },
+    "torch_release:light_halt: light:no-lantern-with-crossbow": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "owner 2026-11-13: stop by name with a crossbow and a torch / no lantern"
+    },
+    "torch_release:light_halt: light:torch-worn-with-crossbow": {
+      "kind": "owner-halt",
+      "halts": "final",
+      "note": "owner 2026-11-13: stop by name with a crossbow and a torch / no lantern"
+    },
+    "town_pack_headroom:early_key: town:blocked:pack-full-no-room": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "a required purchase / quest reward refused only by the pack",
+      "debt": "needs a rule to give up the purchase or the reward instead of stopping"
+    },
+    "town_quest_reward:_no_room_key: town:blocked:pack-full-no-room": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "a required purchase / quest reward refused only by the pack",
+      "debt": "needs a rule to give up the purchase or the reward instead of stopping"
+    },
+    "town_terminal:overweight_home_key: town:blocked:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "over the weight limit with no legal relief",
+      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
+    },
+    "town_terminal:overweight_home_key: town:blocked:overweight-home-unreachable": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "no route"
+    },
+    "town_terminal:town_end_key: town:blocked:*": {
+      "kind": "requirement",
+      "halts": "town-fuse",
+      "note": "town end: town:blocked:survival:<leaf> / town:blocked:unmet:<name> (town_terminal.town_end_stop_reason)",
+      "debt": "the departure minimum (survival leaves) and the unmet departure conditions still stop the visit when the mining cycle cannot leave; needs the give-up-the-stage path of rule 2"
+    },
+    "town_terminal:town_end_key: town:blocked:departure-unsatisfiable": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "no owner can satisfy the remaining departure conjunct",
+      "debt": "a departure condition with no way to buy or find it stops instead of departing without it"
+    },
+    "town_terminal:town_end_key: town:blocked:quest-reward-first": {
+      "kind": "requirement",
+      "halts": "final",
+      "note": "unsure: a quest reward holds the town and no owner can take it",
+      "debt": "unsure; a reward nobody can take should be left, not stop the visit"
+    },
+    "town_visit_plan:stage_deadline_stop: town:blocked:stage-deadline:*": {
+      "kind": "mechanism",
+      "halts": "final",
+      "note": "the town stage spent its decision deadline"
+    },
+    "town_work:validate_emit: town:blocked:work-contract:unmapped-producer": {
+      "kind": "mechanism",
+      "halts": "town-fuse",
+      "note": "a producer emitted a town work without a mapping (contract violation)"
+    }
+  }
+}
