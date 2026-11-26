@@ -28,6 +28,7 @@ from hengbot.threat_projection import (
     _ranged_ready,
     _resistance_after,
     _scroll_reads,
+    charge_damage,
     heal_credit,
     scroll_damage_on,
 )
@@ -143,7 +144,7 @@ def _good_ammo_key(policy, snapshot, result, target):
 def _charge_key(policy, snapshot, result, target):
     if not _ranged_ready(snapshot) or snapshot.inside_arena:
         return None
-    flags, level = _race_flags(policy, target), snapshot.player.level
+    flags = _race_flags(policy, target)
     free = result.free_damage.get(target.index, 0.0)
     direction = _aim(policy, snapshot, target)
     best = None
@@ -154,8 +155,8 @@ def _charge_key(policy, snapshot, result, target):
         power = me_device_attacks.POWERS.get((kind, item.sval))
         if power is None or power.group_only or (kind == "wand" and direction is None):
             continue
-        damage = (attack_expectation.device_use_success(snapshot.player.device_skill, power.level)
-                  * me_device_attacks.expected_damage(power, level, flags))
+        # Paced over the target's HP like the free attack it must beat (n1-a life-539).
+        damage = charge_damage(snapshot, power, flags, target)
         if damage > free and (best is None or damage > best[0]):
             best = (damage, kind, item)
     if best is None:
