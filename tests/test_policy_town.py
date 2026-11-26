@@ -1036,7 +1036,7 @@ class ReturnToTownTest(unittest.TestCase):
         )
         policy = HengbotPolicy()
 
-        self.assertEqual(policy.choose_key(snap), "5")
+        self.assertEqual(policy.choose_key(snap), REST_MACRO)  # a calm countdown is rested through (recall_wait_rest, owner 2026-11-26)
         self.assertEqual(policy.last_reason, "return:wait-recall")
 
     def test_walking_return_breaks_four_cell_frontier_oscillation(self):
@@ -9381,7 +9381,7 @@ class TownRecallReturnTest(unittest.TestCase):
 
         # A fresh policy has no Home catalog yet. That startup incompleteness
         # must not cancel the engine-owned recall before prime/follow attach.
-        self.assertEqual(pol.choose_key(recalling), WAIT_KEY)
+        self.assertEqual(pol.choose_key(recalling), REST_MACRO)  # a calm countdown is rested through (recall_wait_rest, owner 2026-11-26)
         self.assertEqual(pol.last_reason, "town:wait-recall")
         self.assertTrue(pol._startup_town_recall)
 
@@ -10205,7 +10205,7 @@ class TownRecallReturnTest(unittest.TestCase):
         policy, snapshot = self._q14_floor(QUEST_STATUS_COMPLETED, 5)
         snapshot = replace(snapshot, player=replace(snapshot.player, recalling=True))
 
-        self.assertEqual(policy.choose_key(snapshot), "5")
+        self.assertEqual(policy.choose_key(snapshot), REST_MACRO)  # a calm countdown is rested through (recall_wait_rest, owner 2026-11-26)
         self.assertEqual(policy.last_reason, "return:wait-recall")
 
     @staticmethod
@@ -10324,7 +10324,7 @@ class TownRecallReturnTest(unittest.TestCase):
             recalling=True,
         )
 
-        self.assertEqual(policy._return_to_town_key(snapshot, []), WAIT_KEY)
+        self.assertEqual(policy._return_to_town_key(snapshot, []), REST_MACRO)  # a calm countdown is rested through (recall_wait_rest, owner 2026-11-26)
         self.assertEqual(policy.last_reason, "return:wait-recall")
 
     def test_taken_q14_exhausted_floor_regenerates_up_instead_of_descending(self):
@@ -11502,7 +11502,7 @@ class TownCycleDetectorTest(unittest.TestCase):
         with patch.object(
             pol, "_recall_destination_safe", return_value=True
         ), patch.object(pol, "_descent_step", return_value=None):
-            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
+            self.assertEqual(pol._town_special_key(snap), REST_MACRO)  # a calm countdown is rested through (recall_wait_rest, owner 2026-11-26)
 
         self.assertEqual(pol.last_reason, "town:wait-recall")
         self.assertFalse(

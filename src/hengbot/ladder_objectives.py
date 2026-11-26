@@ -100,13 +100,15 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
                     )
                 return key
         policy.last_reason = "town:wait-recall"
+        from hengbot import recall_wait_rest  # leaf
+        wait = recall_wait_rest.key(policy, snapshot)
         policy._offer_execution(
-            WAIT_KEY, producer="departure",
+            wait, producer="departure",
             work_id="town:recall-countdown",
             next_step="recall.observe-arrival",
             expected_effect="floor-change",
         )
-        return WAIT_KEY
+        return wait
 
     # Native travel can cross most of town without another bot decision.
     # Eat first once hunger is visible so a long shop trip cannot continue

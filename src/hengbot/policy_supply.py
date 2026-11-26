@@ -2027,7 +2027,8 @@ class SupplyMixin:
             return None
         if player.recalling:
             self.last_reason = "wilderness:wait-recall"
-            return WAIT_KEY
+            from hengbot import recall_wait_rest  # leaf
+            return recall_wait_rest.key(self, snapshot)
         here = player.position
         last = self._wilderness_edge_last_position
         if last is not None and max(abs(last.y - here.y), abs(last.x - here.x)) > 1:

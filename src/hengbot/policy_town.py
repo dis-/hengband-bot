@@ -6,7 +6,7 @@ from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_bm_tour, finale_descent, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
 from hengbot import deep_climb, dive_floor, fled_floor_stairs, fundraising_route, return_start
-from hengbot import recall_wait_unknown_path
+from hengbot import recall_wait_rest, recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
@@ -7050,13 +7050,14 @@ class TownMixin:
                 # terminal stopped the bot before the recall could fire.  A
                 # store door was already stepped off above.
                 self.last_reason = "town:wait-recall"
+                wait = recall_wait_rest.key(self, snapshot)
                 self._offer_execution(
-                    WAIT_KEY, producer="departure",
+                    wait, producer="departure",
                     work_id="town:recall-countdown",
                     next_step="recall.observe-arrival",
                     expected_effect="floor-change",
                 )
-                return WAIT_KEY
+                return wait
         return WAIT_KEY
 
     def _town_recall_destination(
@@ -7686,13 +7687,14 @@ class TownMixin:
                             )
                         return key
                 self.last_reason = "town:wait-recall"
+                wait = recall_wait_rest.key(self, snapshot)
                 self._offer_execution(
-                    WAIT_KEY, producer="departure",
+                    wait, producer="departure",
                     work_id="town:recall-countdown",
                     next_step="recall.observe-arrival",
                     expected_effect="floor-change",
                 )
-                return WAIT_KEY
+                return wait
             if (
                 not self._char_dump_done_this_visit
                 and self._departure_dump_enabled
@@ -9010,12 +9012,13 @@ class TownMixin:
             if collecting is not None:
                 return collecting
             self.last_reason = "return:wait-recall"
+            wait = recall_wait_rest.key(self, snapshot)
             self._offer_execution(
-                WAIT_KEY, producer="departure", work_id="return:recall-wait",
+                wait, producer="departure", work_id="return:recall-wait",
                 next_step="recall.observe-arrival",
                 expected_effect="floor-change",
             )
-            return WAIT_KEY
+            return wait
 
         # A previously latched return bypasses the ordinary light-upkeep block
         # later in _decide.  Refill here before trying to read Word of Recall:

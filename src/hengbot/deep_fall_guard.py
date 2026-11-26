@@ -76,7 +76,7 @@ from hengbot.model import (
 )
 from hengbot import deep_admission
 from hengbot.policy_constants import (
-    DESCEND_MIN_HP_RATIO, UP_STAIRS_KEY, WAIT_KEY,
+    DESCEND_MIN_HP_RATIO, UP_STAIRS_KEY,
 )
 
 SV_ROD_DETECT_TRAP = 0   # sv-definition/sv-rod-types.h (トラップ感知のロッド)
@@ -361,5 +361,6 @@ def key(policy, snapshot):
     if snapshot.player.recalling:
         # The Recall counts down (15-35 turns): no walk across the undetected floor meanwhile.
         policy.last_reason = WAIT_RECALL_REASON
-        return WAIT_KEY
+        from hengbot import recall_wait_rest  # leaf
+        return recall_wait_rest.key(policy, snapshot)
     return deep_teleport._recall_key(policy, snapshot, RECALL_REASON)
