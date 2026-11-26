@@ -53,6 +53,12 @@ from hengbot.policy_constants import (
 from hengbot.policy_types import ProcurementHomeGate, StoreVisitPhase
 from hengbot.town_pack_budget import room_assumed
 
+# A shelf observation's ``cause`` when its page gives no operation (``_shelf_evidence_entry``).
+SHELF_UNAFFORDABLE = "unaffordable"
+SHELF_NOT_ON_SHELF = "not-on-shelf"
+# The purse the unaffordable check gives the dry run: every shelf price is below it.
+_UNBOUNDED_GOLD = 10**9
+
 
 def shelf_item_name(name: str) -> str:
     """The emitted name without inscriptions (owner change: {売出中}, discounts)."""
@@ -1081,11 +1087,23 @@ class InStoreMixin:
         )
         cache_key = (town, store_type, record["signature"], tuple(record["trades"]),
                      pack, category)
-        absent = self._in_store_attribute("_shelf_evidence_cache").get(cache_key)
-        if absent is None:
-            absent = self._shelf_dry_run_absent(
-                snapshot, self._shelf_page_after_trades(record))
-            self._in_store_attribute("_shelf_evidence_cache")[cache_key] = absent
+        cached = self._in_store_attribute("_shelf_evidence_cache").get(cache_key)
+        if not isinstance(cached, tuple):
+            # (A checkpoint of an older build cached the bare verdict.)
+            page = self._shelf_page_after_trades(record)
+            absent = self._shelf_dry_run_absent(snapshot, page)
+            # Why the page gives no operation: the wanted ware stands on the shelf at a
+            # price the purse does not reach, or it is not there (n1-a life-541: the
+            # General Store's rations at $4 read as missing with $1 in hand).
+            cause = None
+            if absent:
+                rich = replace(snapshot, player=replace(
+                    snapshot.player, gold=max(snapshot.player.gold, _UNBOUNDED_GOLD)))
+                cause = (SHELF_UNAFFORDABLE if not self._shelf_dry_run_absent(rich, page)
+                         else SHELF_NOT_ON_SHELF)
+            cached = (absent, cause)
+            self._in_store_attribute("_shelf_evidence_cache")[cache_key] = cached
+        absent, cause = cached
         # Include cache hits and key construction, not only selector time.
         telemetry = getattr(self, "_in_store_telemetry", None)
         spent = (time.perf_counter() - started) * 1000
@@ -1102,6 +1120,7 @@ class InStoreMixin:
             "window": record["window"],
             "restock": record["restock"],
             "absent": absent,
+            "cause": cause,
         }
 
     def _shelf_evidence_skips_need(self, snapshot: Snapshot, store_type: int,

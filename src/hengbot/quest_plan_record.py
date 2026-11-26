@@ -89,6 +89,8 @@ NOT_CARRIED = {
     "_q2_tower_recharge": "a town trip, not a floor's plan",
     "_q34_recharge_attempted": "the Magic-Eater's recharge, not a floor's plan",
     "_q34_recharge_pending": "the Magic-Eater's recharge, not a floor's plan",
+    "_q34_opening_released": "the town's Q34-first opening, not a floor's plan (rebuilt: the "
+                             "next opening decision releases again)",
     "_quest_supply_admitted": "the town visit's quest admissions, not a floor's plan",
     "_q25_battle_record": "quest25_battle_record's own write cache",
     "_q25_battle_record_read": "quest25_battle_record's own once-per-process mark",

@@ -6,7 +6,7 @@ from hengbot import angband_hold, conquest_budget, spare_gear
 from hengbot.stair_destination import down_destination
 from hengbot.quest_entry_requirements import allows_overweight, allows_overweight_travel, carried_torch_entry_ready, entry_damage_ratio, entry_melee_check, force_reference_ac
 from hengbot.policy_opening import OpeningRouteMixin
-from hengbot.quest_opening_readiness import q34_readiness_rejection_key
+from hengbot.quest_opening_readiness import q34_readiness_rejection_key, released as q34_opening_released
 
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
@@ -570,9 +570,13 @@ class QuestMixin(OpeningRouteMixin):
         return PhysicalHomeVisitRequest(HomeVisitKind.RECOVERY, "home-recovery")
 
     def _opening_q34_active(self, snapshot: Snapshot) -> bool:
-        """Whether the fresh-character Q34-first contract still owns town."""
+        """Whether the fresh-character Q34-first contract still owns town.
+
+        A character the contract released (``quest_opening_readiness.RELEASED``: an
+        acceptance requirement the opening cannot buy) is in the ordinary town."""
         if (
-            not snapshot.in_town
+            q34_opening_released(self)
+            or not snapshot.in_town
             or snapshot.town_id not in {-1, 0}
             or snapshot.player.class_id < 0
         ):

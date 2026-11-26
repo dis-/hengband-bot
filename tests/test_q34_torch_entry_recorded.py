@@ -111,7 +111,7 @@ class Q34TorchEntryRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual(policy.last_reason, "town:recover")
         self.assertEqual(policy.fixed_quest_readiness_state()["reason"], "not-full-hp")
 
-    def test_light_rejection_shops_or_stops_after_supplier_routes_are_exhausted(self):
+    def test_light_rejection_shops_or_releases_after_supplier_routes_are_exhausted(self):
         for exhausted in (False, True):
             with self.subTest(exhausted=exhausted):
                 policy, raw = self.boundary()
@@ -140,7 +140,11 @@ class Q34TorchEntryRecordedTest(executor_harness.ProductionHarness):
                 self.assertEqual(details["reason"], "light-torch-only")
                 self.assertEqual(details["strategy_force"]["failed"], [])
                 if exhausted:
-                    self.assertEqual((key, policy.last_reason), ("5", "livelock:exhausted"))
+                    # n1-a life-541 (supervisor 2026-11-26): the opening is released to the
+                    # ordinary town instead of the former livelock:exhausted stop.
+                    self.assertEqual((key, policy.last_reason), (None, "opening-q34:released"))
+                    self.assertEqual(policy._q34_opening_released,
+                                     "unaffordable:light-torch-only")
                 else:
                     self.assertNotEqual(key, "5")
                     self.assertIn(policy.last_reason, ("shop:travel", "shop:approach"))
