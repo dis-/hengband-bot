@@ -55,6 +55,8 @@ from hengbot.speed_valuation import (
 from hengbot.policy_constants import (
     SPEED_GATE_DEPTH,
     SPEED_GATE_LABEL,
+    SPEED_GATES,
+    required_speed,
     speed_energy,
 )
 from hengbot.equipment_rules import (
@@ -296,7 +298,8 @@ def divable_depth(
     for name, flag in ABILITY_FLAG.items():
         if flag in loadout.flags:
             abilities.add(name)
-    bands = (*(first_floor for first_floor, _ in DEPTH_ABILITY_REQUIREMENTS), SPEED_GATE_DEPTH)
+    bands = tuple(sorted({*(first_floor for first_floor, _ in DEPTH_ABILITY_REQUIREMENTS),
+                          *(first for first, _label, _speed in SPEED_GATES)}))
     deepest = bands[0] - 1
     for depth, next_band in zip(bands, (*bands[1:], SPEED_GATE_DEPTH + 1)):
         if not required_abilities(depth).issubset(abilities):
@@ -304,7 +307,8 @@ def divable_depth(
         if not deep_admission.verdict(None, depth, "loadout", lambda: destruction_means(
                 loadout, has_destruction, staff_gate)).admitted:
             break
-        if depth >= SPEED_GATE_DEPTH and not meets_speed_gate(player_speed):
+        # The depth's speed (+10 at 70-80F, +25 at 81F+).
+        if player_speed < required_speed(depth):
             break
         deepest = next_band - 1
     return deepest
@@ -555,8 +559,9 @@ class EvaluatedLoadout:
 
 
 # The depth bands of the descent, deepest first; a band reads the depth requirements of its
-# deepest floor (81+, 50-80, 40-49, 31-39, 26-30, 21-25, 20, <=19; owner 2026-08-10).
-DEPTH_BANDS = (81, 80, 49, 39, 30, 25, 20, 19)
+# deepest floor (81+, 70-80, 50-69, 40-49, 31-39, 26-30, 21-25, 20, <=19; owner 2026-08-10, the
+# 70-80F speed +10 of 2026-11-26 split 50-80).
+DEPTH_BANDS = (81, 80, 69, 49, 39, 30, 25, 20, 19)
 
 
 @dataclass(frozen=True)
@@ -1203,8 +1208,7 @@ def _meets_requirements(
         staff_gate=staff_gate,
     ):
         return False
-    if (depth is not None and depth >= SPEED_GATE_DEPTH
-            and not meets_speed_gate(loadout_speed(metrics))):
+    if depth is not None and loadout_speed(metrics) < required_speed(depth):
         return False
     return True
 

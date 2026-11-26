@@ -58,6 +58,7 @@ from hengbot.model import (
 from hengbot.policy_constants import (
     DEEP_FLOOR_DEPTH,
     DEPTH_ABILITY_REQUIREMENTS,
+    SPEED_GATES,
     _required_abilities_for_depth,
 )
 
@@ -195,6 +196,8 @@ def _rules_table() -> dict:
         "unscored_launcher": [UNSCORED_LAUNCHER_CLASS, UNSCORED_LAUNCHER_DEPTH, SHOT_POWER_FLOOR],
         "depth_ability_requirements": [
             [first, sorted(adds)] for first, adds in DEPTH_ABILITY_REQUIREMENTS],
+        # The depth speeds (the 70-80F +10 of 2026-11-26, the 81F+ +25).
+        "speed_gates": [list(row) for row in SPEED_GATES],
     }
 
 

@@ -114,8 +114,10 @@ class ChaosHomeRecordedTest(unittest.TestCase):
 
 class DestinationBandTest(unittest.TestCase):
     def test_band_of_a_depth(self):
-        self.assertEqual([destination_band_floor.band_of(depth) for depth in (5, 20, 31, 45, 49, 50, 99)],
-                         [19, 20, 39, 49, 49, 80, 81])
+        # 50-69 and 70-80 are two bands since the 70-80F speed +10 (2026-11-26).
+        self.assertEqual([destination_band_floor.band_of(depth)
+                          for depth in (5, 20, 31, 45, 49, 50, 69, 70, 99)],
+                         [19, 20, 39, 49, 49, 69, 69, 80, 81])
 
 
 if __name__ == "__main__":

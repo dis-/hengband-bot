@@ -12,12 +12,21 @@ import tests  # noqa: F401  -- live runtime-file isolation, also for bare module
 
 import unittest
 from dataclasses import replace
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from hengbot import destruction_use
 
 from hengbot.equipment_optimizer import (
     SLOT_BODY, SLOT_FEET, SLOT_LIGHT, SLOT_MAIN_HAND, SLOT_MAIN_RING, SLOT_SUB_RING,
     LoadoutMetrics, optimize_loadout, required_abilities,
 )
-from hengbot.policy_constants import SPEED_GATE_MINIMA, SPEED_GATE_MINIMUM
+from hengbot.equipment_optimizer import ABILITY_FLAG
+from hengbot.policy_constants import (
+    DESTRUCTION_GATE_LABEL, MID_SPEED_GATE_LABEL, SPEED_GATE_LABEL, SPEED_GATE_MINIMA,
+    SPEED_GATE_MINIMUM, required_depth_gates, required_speed,
+)
+from hengbot.policy_observation import ObservationMixin
 from hengbot.warrior_defense_evaluator import TR_SPEED
 from hengbot.warrior_loadout_search import (
     SPEED_COMPLETION_LIMIT, SpeedGate, enumerate_single_slot_variants, speed_gates,
@@ -124,6 +133,45 @@ class LifeTwoTwentyTwoSpeedTest(unittest.TestCase):
             speed_gates=(SpeedGate(BASE_SPEED - 4, SPEED_GATE_MINIMUM),)))
         self.assertLessEqual(len(found) - len(base), SPEED_COMPLETION_LIMIT)
         self.assertGreater(len(found), len(base))
+
+
+class SeventyFloorSpeedGateTest(unittest.TestCase):
+    """Supervisor 2026-11-26: 70-80F ask a permanent speed of +10 (five of the seven deaths at
+    76-80F before it had +9 or less)."""
+
+    def test_the_rows(self):
+        self.assertNotIn(MID_SPEED_GATE_LABEL, required_depth_gates(69))
+        for depth in (70, 76, 80):
+            gates = required_depth_gates(depth)
+            self.assertIn(MID_SPEED_GATE_LABEL, gates)
+            self.assertNotIn(SPEED_GATE_LABEL, gates)
+            self.assertIn(DESTRUCTION_GATE_LABEL, gates)
+        self.assertIn(SPEED_GATE_LABEL, required_depth_gates(81))
+        self.assertNotIn(MID_SPEED_GATE_LABEL, required_depth_gates(81))
+        self.assertEqual([required_speed(depth) for depth in (69, 70, 80, 81)],
+                         [0, 120, 120, 135])
+        self.assertEqual(sorted(SPEED_GATE_MINIMA), [120, 135])
+
+    def test_the_gate_reads_the_permanent_speed(self):
+        # The one predicate of the stairs, the recall landing and the floor's gap.
+        def board(speed, colour=""):
+            player = SimpleNamespace(speed=speed, abilities=frozenset(ABILITY_FLAG),
+                                     speed_display=(speed - 110, "", colour, False))
+            return SimpleNamespace(player=player)
+
+        def missing(snapshot, depth):
+            return ObservationMixin._missing_required_abilities(
+                SimpleNamespace(), snapshot, depth)
+
+        with patch.object(destruction_use, "holds_means", return_value=True):
+            self.assertEqual(missing(board(119), 69), frozenset())
+            self.assertEqual(missing(board(119), 70), {MID_SPEED_GATE_LABEL})
+            self.assertEqual(missing(board(119), 80), {MID_SPEED_GATE_LABEL})
+            self.assertEqual(missing(board(120), 80), frozenset())
+            # A haste's +10 is no permanent speed.
+            self.assertEqual(missing(board(125, "yellow"), 75), {MID_SPEED_GATE_LABEL})
+            # 81F asks +25 alone (it includes +10).
+            self.assertEqual(missing(board(130), 81), {SPEED_GATE_LABEL})
 
 
 if __name__ == "__main__":

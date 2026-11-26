@@ -13,8 +13,8 @@ from hengbot.town_hold import (
     EXPLORE_GOAL_OWNERS as CLAIM_EXPLORE_GOAL_OWNERS,
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
-from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, SPEED_GATE_LABEL, required_depth_gates, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
-from hengbot.speed_valuation import meets_speed_gate, permanent_player_speed
+from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, required_depth_gates, speed_gate, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
+from hengbot.speed_valuation import permanent_player_speed
 from hengbot import bm_destruction_fund, bm_tour, finale_bm_tour, home_cap, home_cash_sale, home_ledger, deep_teleport, detected_loot, launcher_upgrade, me_powerful_activation, random_quest_hold, recall_wait_reach, sealed_loot, sellable_artifacts, torch_release
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_FULL_SALE_MESSAGES, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
@@ -1568,11 +1568,13 @@ class ObservationMixin:
         else:
             # Below 50F the label is never missing; at 50F+ the means is held.
             missing.discard(DESTRUCTION_GATE_LABEL)
-        if SPEED_GATE_LABEL in missing and meets_speed_gate(permanent_player_speed(snapshot)):
-            # The 81F speed +25 reads the one fact the optimizer reads
-            # (speed_valuation): the permanent speed, base plus gear, without a
-            # timed haste (a potion at the stairs does not carry the dive).
-            missing.discard(SPEED_GATE_LABEL)
+        speed_row = speed_gate(depth)
+        if (speed_row is not None and speed_row[0] in missing
+                and permanent_player_speed(snapshot) >= speed_row[1]):
+            # The depth's speed (+10 at 70-80F, +25 at 81F+) reads the one fact the
+            # optimizer reads (speed_valuation): the permanent speed, base plus gear,
+            # without a timed haste (a potion at the stairs does not carry the dive).
+            missing.discard(speed_row[0])
         return frozenset(missing)
 
     def _refresh_warning_avoidance(
