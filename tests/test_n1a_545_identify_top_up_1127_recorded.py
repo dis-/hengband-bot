@@ -149,11 +149,10 @@ class IdentifyTopUp545RecordedTest(unittest.TestCase):
     def test_every_minimum_leaf_has_one_class(self):
         policy, board = replayed()
         minimum, _destination, _depth = policy._visit_departure_minimum(board)
-        classes = (set(departure_leaf_classes.TOP_UP), set(departure_leaf_classes.MUST_HAVE),
-                   set(departure_leaf_classes.MECHANISM))
+        # The whole table against every gate's leaves: tests/test_departure_leaf_classes.py.
         for leaf in minimum["values"]:
-            self.assertEqual(sum(leaf in each for each in classes), 1, leaf)
-        self.assertEqual(set().union(*classes), set(minimum["values"]))
+            self.assertEqual(sum(leaf in members
+                                 for members in departure_leaf_classes.CLASSES.values()), 1, leaf)
 
 
 if __name__ == "__main__":

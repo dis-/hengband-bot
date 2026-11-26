@@ -2319,7 +2319,14 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
-  "departure_leaf_classes.py:waivable": {
+  "departure_leaf_classes.py:adequate_top_ups": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "departure_leaf_classes.py:town_end_waivable": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -9723,6 +9730,13 @@
       "plan-routing",
       "loot-exploration",
       "bookkeeping"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy.departure_block_state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
   },
@@ -20407,6 +20421,14 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
+  },
+  "town_terminal.py:waived_departure_key": {
+    "classification": "producer",
+    "rows": [
+      "store-exit",
+      "plan-routing"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_travel.py:approach_cell": {
     "classification": "data",

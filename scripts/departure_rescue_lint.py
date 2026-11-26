@@ -13,7 +13,10 @@ Reads every leaf the departure gates can return, from the source:
 and checks hengbot.departure_rescues.RESCUES: every leaf has a row, every row
 names a gate leaf, every action is a registered action, and every row has an
 action or a stop reason.  It also checks that the town terminal's leaf servers
-(``_DEPARTURE_LEAF_SERVERS``) name the same leaves.  Exit status 1 on a gap.
+(``_DEPARTURE_LEAF_SERVERS``) name the same leaves, and that every leaf is in
+exactly one class of hengbot.departure_leaf_classes (TOP_UP, OPTIONAL,
+MUST_HAVE, MECHANISM; MAINTAINABILITY.md rule 2, 2026-11-27) and every class row
+names a gate leaf.  Exit status 1 on a gap.
 """
 from __future__ import annotations
 
@@ -60,6 +63,21 @@ def gate_leaves() -> dict[str, set[str]]:
     return gates
 
 
+def class_problems(leaves: set[str]) -> list[str]:
+    """Every gate leaf in exactly one class; every class row a gate leaf."""
+    sys.path.insert(0, str(POLICY.parent))
+    from hengbot.departure_leaf_classes import CLASSES
+    problems = []
+    for leaf in sorted(leaves):
+        owners = [name for name, members in CLASSES.items() if leaf in members]
+        if len(owners) != 1:
+            problems.append(f"departure_leaf_classes: leaf {leaf!r} is in {owners or 'no class'}")
+    for name, members in CLASSES.items():
+        for leaf in sorted(members - leaves):
+            problems.append(f"departure_leaf_classes: {name} row {leaf!r} is no gate leaf")
+    return problems
+
+
 def main() -> int:
     sys.path.insert(0, str(POLICY.parent))
     from hengbot.departure_rescues import ACTIONS, RESCUES
@@ -67,7 +85,7 @@ def main() -> int:
 
     gates = gate_leaves()
     leaves = set().union(*gates.values())
-    problems = []
+    problems = class_problems(leaves)
     for gate, names in gates.items():
         if not names:
             problems.append(f"{gate}: no leaves read (the lint lost the gate's dict)")
