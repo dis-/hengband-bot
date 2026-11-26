@@ -9,12 +9,14 @@ Angband 99F and 100F, ``WIN_QUEST_IDS``).  So every character skipped Q18 and Q3
 instance may skip more.
 
 Corrected 2026-11-27 (owner 「n1-cは長時間49Fで停滞している。これがQ25を放棄して確定入手テレパシーを
-諦めた代償である。」): the skip was decided from the losses alone.  The Outpost offers Q25 only after
-Q18 (lib/edit/towns/01_Outpost_Full.jsonc ``$QUEST18``), and Q25's reward is the telepathy the 50F
-depth gate asks for; n1-c (CL41, no telepathy) sat at Angband 49F for about 8 hours.  So Q18 and
-Q25 are played again and only Q33 stays skipped by default (``DEFAULT_SKIPPED_QUESTS``): its two
-deaths in the last 7 attempts happened with its entry requirements met, so those requirements do
-not yet defer a weak character; the reward-and-timing rule that replaces this skip is to follow.
+諦めた代償である。」 and 「Q33も高難度だが報酬は貴重な加速装備であり非常に強力である。安直に諦めることが
+最善とは限らない。しっかり比較検討すること。」): the skip was decided from the losses alone.  The
+Outpost offers Q25 only after Q18 (lib/edit/towns/01_Outpost_Full.jsonc ``$QUEST18``), and Q25's
+reward is the telepathy the 50F depth gate asks for; n1-c (CL41, no telepathy) sat at Angband 49F
+for about 8 hours.  No quest is skipped by default any more (``DEFAULT_SKIPPED_QUESTS`` is empty):
+whether a quest is worth taking now is quest_value's verdict, from its reward against the
+character's missing depth-gate abilities and its measured risk (strategy/quests/quest-value.jsonc).
+This profile's ``skip_quests`` is asked first and still wins.
 
 A skipped quest is never requested, never travelled to and, when it is taken anyway, ignored: it
 is never entered and no town stage waits or buys for it.  ``quest_skipped`` is the one answer;
@@ -38,7 +40,9 @@ Keys (unknown keys are ignored, so a later feature can add its own here):
  * ``name``: a string, logged once at the start (the decision log's session marker, stderr);
  * ``skip_quests``: quest numbers skipped on top of ``DEFAULT_SKIPPED_QUESTS``;
  * ``skip_all_optional_fixed_quests_from_level``: every optional fixed (town-given) quest whose
-   quest level (``QuestInfo.level``) is this or more is skipped too.
+   quest level (``QuestInfo.level``) is this or more is skipped too;
+ * ``quest_value``: false plays every approved fixed quest the profile does not skip, without
+   quest_value's verdict (default true).
 
 No file is the defaults.  A file that cannot be read or parsed, or a key of the wrong type, is the
 defaults (for that key) and a warning in ``InstanceProfile.warnings``; it never stops the bot.
@@ -60,7 +64,7 @@ RUNTIME_DIR_ENV = "HENGBOT_RUNTIME_DIR"
 # The policy attribute holding the instance's profile (state_registry row, set by cli).
 POLICY_ATTRIBUTE = "_instance_profile"
 
-DEFAULT_SKIPPED_QUESTS = frozenset({33})
+DEFAULT_SKIPPED_QUESTS = frozenset()
 # The decision log's directory and its two parents: jsonlog/, life-NNN/, the instance.
 _SEARCH_DEPTH = 3
 # quest_knowledge.QUEST_TYPE_RANDOM (not imported: quest_knowledge loads the monster tables).
@@ -74,6 +78,7 @@ class InstanceProfile:
     name: str = "default"
     skipped_quests: frozenset = DEFAULT_SKIPPED_QUESTS
     skip_from_level: int | None = None
+    quest_value: bool = True
     source: str | None = None
     warnings: tuple[str, ...] = field(default=())
 
@@ -84,6 +89,7 @@ class InstanceProfile:
             "source": self.source,
             "skipped_quests": sorted(self.skipped_quests),
             "skip_all_optional_fixed_quests_from_level": self.skip_from_level,
+            "quest_value": self.quest_value,
         }
         if self.warnings:
             record["warnings"] = list(self.warnings)
@@ -91,9 +97,10 @@ class InstanceProfile:
 
 
 DEFAULT_PROFILE = InstanceProfile()
-# Every fixed quest played as before 2026-11-26: the unit tests' policies (tests/__init__.py), whose
-# Q18/Q33 cases drive the quest strategies themselves.
-ALL_FIXED_QUESTS = InstanceProfile(name="all-fixed-quests", skipped_quests=frozenset())
+# Every fixed quest played as before 2026-11-26, without quest_value's verdict: the unit tests'
+# policies (tests/__init__.py), whose quest cases drive the quest strategies themselves.
+ALL_FIXED_QUESTS = InstanceProfile(name="all-fixed-quests", skipped_quests=frozenset(),
+                                   quest_value=False)
 
 # What a new policy starts with before cli gives it the run's profile.
 _policy_default = DEFAULT_PROFILE
@@ -136,8 +143,12 @@ def parse(data: Any, source: str | None = None) -> InstanceProfile:
     if level is not None and (not isinstance(level, int) or isinstance(level, bool)):
         warnings.append(f"skip_all_optional_fixed_quests_from_level is not an integer: {level!r}")
         level = None
+    value = data.get("quest_value", True)
+    if not isinstance(value, bool):
+        warnings.append(f"quest_value is not a boolean: {value!r}")
+        value = True
     return InstanceProfile(name=name, skipped_quests=skipped, skip_from_level=level,
-                           source=source, warnings=tuple(warnings))
+                           quest_value=value, source=source, warnings=tuple(warnings))
 
 
 def load(path: Path) -> InstanceProfile:

@@ -193,6 +193,9 @@ def _profile(data: dict[str, Any]) -> StrategyProfile:
     if not valid_force_alternatives(force):
         raise ValueError("force_alternatives rows must give min_hp, min_expected_dps, "
                          "heal_potions and speed_potions as non-negative numbers")
+    if not quest_force_rows.valid_over_match(force):
+        raise ValueError("over_match must give min_hp and min_expected_dps and the lowered counts "
+                         "as non-negative numbers (quest_force_rows)")
     if not quest_force_rows.valid_teleport_scrolls(force):
         raise ValueError("teleport_scrolls_without_absorbed must be a non-negative integer (quest_force_rows)")
     if quest_one_turn_kill.FIELD in force and not quest_one_turn_kill.valid(force[quest_one_turn_kill.FIELD]):

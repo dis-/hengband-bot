@@ -24,6 +24,17 @@ town errand of the visit is done:
   goes on from the town the character is in (the existing departure: every town reads
   Word of Recall, as after a cross-town shopping trip).
 
+Supervisor 2026-11-27 (from the owner's 「n1-cは長時間49Fで停滞している。」): a character held at a
+depth gate by an ability a shop can sell (``GATE_WARES``: telepathy, the *Destruction* staff, the
+rows of bm_destruction_fund.PRIORITY_WARES) tours from ``GATE_BOUND_MIN_GOLD``: the next floor's gate
+misses it (quest_value.binding_gate_needs, the carried and Home pieces counted).  n1-c life-223
+(CL41, 22,623-66,444 gold) sat at Angband 49F for about 8 hours without telepathy and never toured
+(``gold-below-100000``); an ego helm of Telepathy is 15,000 over its base (EgoDefinitions
+「テレパシーの」 cost 15000) at the Black Market's 2x and up (src/store/pricing.cpp
+get_black_market_multiplier, 1.01 a level), so 30,000 already reaches a cheap one.  The other
+source of telepathy, Q25's amulet, is quest_value's; the tour and the quest do not wait for each
+other.
+
 A Black Market page seen in a town while the tour is open (``observe``) also counts the
 town as seen, so a town whose market was already looked at this return is skipped.  The
 record keeps the towns in the order seen and why the tour closed (``facts``).
@@ -36,6 +47,9 @@ from typing import Any
 from hengbot.model import STORE_BLACK
 
 MIN_GOLD = 100_000
+GATE_BOUND_MIN_GOLD = 30_000
+# The depth-gate names a shop's priority ware closes (bm_destruction_fund.PRIORITY_WARES).
+GATE_WARES = frozenset({"telepathy", "destruction"})
 FAMILY = "cross-town"  # the claim family of the inn legs (town_arbiter, town_hold)
 TRAVEL_REASON = "town:cross-town-bm-tour:travel"
 
@@ -50,6 +64,7 @@ class BmTour:
     target: int | None = None  # the town the inn leg goes to
     arrived: list[int] = field(default_factory=list)  # towns a leg of the tour reached
     closed: str | None = None  # why the tour ended
+    why: str | None = None  # why it was armed: "gold" or "gate-bound:<names>"
 
 
 def record(policy: Any) -> BmTour | None:
@@ -109,8 +124,9 @@ def town_key(policy: Any, snapshot: Any) -> str | None:
         return None
     town = policy._effective_town_id(snapshot)
     if tour.armed is None:
-        tour.armed = snapshot.player.gold >= MIN_GOLD
         tour.origin = town
+        tour.why = _arming(policy, snapshot)
+        tour.armed = tour.why is not None
         if not tour.armed:
             _close(tour, f"gold-below-{MIN_GOLD}")
             return None
@@ -129,6 +145,18 @@ def town_key(policy: Any, snapshot: Any) -> str | None:
     return key
 
 
+def _arming(policy: Any, snapshot: Any) -> str | None:
+    """Why this return tours (module docstring), or None."""
+    gold = snapshot.player.gold
+    if gold >= MIN_GOLD:
+        return "gold"
+    if gold < GATE_BOUND_MIN_GOLD:
+        return None
+    from hengbot import quest_value
+    bound = quest_value.binding_gate_needs(policy, snapshot) & GATE_WARES
+    return f"gate-bound:{','.join(sorted(bound))}" if bound else None
+
+
 def _leg_key(policy: Any, snapshot: Any, destination: int) -> str | None:
     """The inn leg to ``destination`` (the other pre-departure trips' leg, arena._leg_key)."""
     return policy._town_teleport_key(snapshot, destination, producer=FAMILY,
@@ -142,4 +170,4 @@ def facts(policy: Any) -> dict | None:
         return None
     return {"return_turn": tour.return_turn, "armed": tour.armed, "origin": tour.origin,
             "seen": list(tour.seen), "arrived": list(tour.arrived), "target": tour.target,
-            "closed": tour.closed}
+            "closed": tour.closed, "why": getattr(tour, "why", None)}

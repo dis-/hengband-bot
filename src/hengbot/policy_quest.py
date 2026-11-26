@@ -11,7 +11,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key, release
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
-from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_ranged_force, quest_room_sweep, quest_summon_answer, quest_summoner_light, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
+from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_value, quest_ranged_force, quest_room_sweep, quest_summon_answer, quest_summoner_light, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
@@ -4634,8 +4634,7 @@ class QuestMixin(OpeningRouteMixin):
             if self.fixed_quest_supported(quest.id)
             and quest.status in {QUEST_STATUS_UNTAKEN, QUEST_STATUS_TAKEN}
             and self.approved_quest_strategy(quest.id) is not None
-            and not (quest.status == QUEST_STATUS_UNTAKEN
-                     and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
+            and not self._untaken_quest_held_back(snapshot, quest)
         ]
         if not candidates:
             return None
@@ -4704,8 +4703,7 @@ class QuestMixin(OpeningRouteMixin):
                     QUEST_STATUS_COMPLETED,
                 }
                 and self.approved_quest_strategy(quest.id) is not None
-                and not (quest.status == QUEST_STATUS_UNTAKEN
-                         and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
+                and not self._untaken_quest_held_back(snapshot, quest)
             ]
             fixed_quest_head = self._fixed_quest_head(snapshot)
             travel_quest = fixed_quest_head
@@ -4948,8 +4946,7 @@ class QuestMixin(OpeningRouteMixin):
                 QUEST_STATUS_COMPLETED,
             }
             and self.approved_quest_strategy(quest.id) is not None
-            and not (quest.status == QUEST_STATUS_UNTAKEN
-                     and quest_one_turn_kill.holds_back(self, snapshot, quest.id))
+            and not self._untaken_quest_held_back(snapshot, quest)
         ]
         head = self._fixed_quest_head(snapshot)
         travel = head
@@ -5322,6 +5319,7 @@ class QuestMixin(OpeningRouteMixin):
             id(self._quest_knowledge),
             id(self._quest_strategies),
             self._instance_profile,
+            quest_value.memo_key(snapshot),
         )
         return decision_memo(
             self,
@@ -5389,9 +5387,21 @@ class QuestMixin(OpeningRouteMixin):
                 quest.id in FIXED_QUEST_ALWAYS_OFFERED
                 or self._fixed_quest_is_offered(snapshot, quest.id)
             )
-            and not quest_one_turn_kill.holds_back(self, snapshot, quest.id)
+            and not self._untaken_quest_held_back(snapshot, quest)
         ]
         return min(untaken, key=self._fixed_quest_order) if untaken else None
+
+    def _untaken_quest_held_back(self, snapshot: Snapshot, quest: QuestState) -> bool:
+        """An untaken quest the fixed-quest order, its travel and its supplies pass over now.
+
+        A ``non_urgent`` quest short of its power condition (quest_one_turn_kill, owner 2026-11-19
+        「条件を満たした時だけ割り込む」), and, 2026-11-27 (owner 「Q25を放棄して確定入手テレパシーを
+        諦めた代償」), a quest whose reward the character does not need while its measured risk is
+        not small, or a needed risky one below its level (quest_value).  The next quest is taken
+        in its place; nothing waits for it."""
+        return quest.status == QUEST_STATUS_UNTAKEN and (
+            quest_one_turn_kill.holds_back(self, snapshot, quest.id)
+            or quest_value.holds_back(self, snapshot, quest.id))
 
     def _fixed_quest_order(self, quest: QuestState) -> tuple[int, int]:
         quest_id = quest.id

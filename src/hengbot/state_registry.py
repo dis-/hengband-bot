@@ -270,6 +270,8 @@ REGISTRY = (
       "cli: owner retired progress (no comment at its definition)"),
     S("_prompt_gated_posting", "cli", LIFE,
       "cli: prompt gated posting (no comment at its definition)"),
+    S("_quest_outcome_ledger_path", "cli", LIFE,
+      "The fixed-quest attempts' jsonl beside the decision log (quest_attempt_ledger.FILE_NAME, 2026-11-27)."),
     S("_q25_battle_record_path", "cli", LIFE,
       "The Q25 phase battle's restart record (quest25_battle_record);"),
     S("_sweep_kill_record_path", "cli", LIFE,
@@ -1935,6 +1937,12 @@ REGISTRY = (
       "q34_recharge: q34 recharge attempted (no comment at its definition)"),
     S("_q34_recharge_pending", "q34_recharge", LIFE,
       "q34_recharge: q34 recharge pending (no comment at its definition)"),
+    # quest_attempt_ledger
+    S("_quest_outcome_statuses", "quest_attempt_ledger", LIFE,
+      "the fixed quests' statuses and the quest floor last seen, to write a row on each change"),
+    # quest_value
+    S("_quest_value_verdicts", "quest_value", LIFE,
+      "the last verdict of each quest asked (take, why, needs, binding), the decision log's view"),
     # quest_opening_readiness
     S("_q34_opening_released", "quest_opening_readiness", LIFE,
       "quest_opening_readiness: why the Q34-first opening released this character to the "
@@ -2447,6 +2455,15 @@ RESTART = {
     "_sweep_kill_record_read": Restart(MAY_BE_LOST, "quest_plan_record", _ONCE),
     "_sweep_kills_restored": Restart(MAY_BE_LOST, "quest_plan_record",
                                      "quest_sweep_record's own pending restore"),
+    # quest_attempt_ledger / quest_value (2026-11-27).
+    "_quest_outcome_ledger_path": Restart(PERSISTED, "cli",
+                                          "configuration, not state: cli points it beside the "
+                                          "decision log again at start"),
+    "_quest_outcome_statuses": Restart(REBUILT, "quest_attempt_ledger",
+                                       "the first board of a process seeds the statuses without "
+                                       "a row; a change during the restart is not written"),
+    "_quest_value_verdicts": Restart(REBUILT, "quest_value",
+                                     "the log's view: the next decision asks the verdicts again"),
     # town_end_mining.
     "_town_end_mining_cycle": Restart(PERSISTED, "town_end_mining",
                                       "same or later game turn"),

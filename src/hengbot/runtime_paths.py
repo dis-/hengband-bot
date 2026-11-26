@@ -42,6 +42,7 @@ POLICY_RUNTIME_PATH_ATTRIBUTES = (
     "_q25_battle_record_path",
     "_sweep_kill_record_path",
     "_purchase_source_journal_path",
+    "_quest_outcome_ledger_path",
 )
 # Policy attributes that name a file the policy reads but the game writes (the character
 # sheet ``cli`` asks the game to dump).  A checkpoint carries it (town_arrival_checkpoint

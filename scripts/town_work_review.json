@@ -26110,5 +26110,109 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "bm_tour.py:_arming": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Why a return's Black Market tour is armed (gold, or held at a depth gate by a ware a shop sells, 2026-11-27); emits no key."
+  },
+  "equipment_optimizer.py:_meets_requirements": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Whether a loadout meets the depth requirements (read by the owned-ability gate quest_value asks); emits no key."
+  },
+  "permanent_max_hp.py:timed_bonus": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The timed additions to the maximum HP (read by the quest force rows' HP floor); emits no key."
+  },
+  "policy.py:HengbotPolicy._strategy_measured_dps": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The measured damage the quest force rows and the over-match read; emits no key."
+  },
+  "quest_force_rows.py:_over_matched": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The resolved force with its consumables lowered for an over-matched character (2026-11-27); emits no key."
+  },
+  "quest_value.py:_needs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The missing depth-gate names a quest (or a quest it unlocks) fills; emits no key."
+  },
+  "quest_value.py:_strip_jsonc": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Strips the comments of the quest value table; emits no key."
+  },
+  "quest_value.py:_verdict": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Whether a fixed quest is worth taking now (reward against needs, measured risk, level); emits no key."
+  },
+  "quest_value.py:binding_gate_needs": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The depth-gate names missing one floor below the deepest recall depth; emits no key."
+  },
+  "quest_value.py:deepest_recall_depth": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The deepest recall depth over the dungeons; emits no key."
+  },
+  "quest_value.py:load": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "Reads the quest value table; emits no key."
+  },
+  "quest_value.py:table": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The cached quest value table; emits no key."
+  },
+  "quest_value.py:verdict": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success",
+    "evidence": "The memoized verdict of quest_value; emits no key."
   }
 }
