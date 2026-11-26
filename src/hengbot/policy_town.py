@@ -5,7 +5,7 @@ from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_bm_tour, finale_descent, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale
-from hengbot import deep_climb, dive_floor, fled_floor_stairs, fundraising_route, return_start
+from hengbot import deep_climb, departure_leaf_classes, dive_floor, fled_floor_stairs, fundraising_route, return_start
 from hengbot import recall_wait_rest, recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, realm_spell_book, torch_release
@@ -6594,6 +6594,12 @@ class TownMixin:
                 values[name] = None if value is None else bool(value)
             except (AttributeError, TypeError, ValueError):
                 values[name] = None
+        # MAINTAINABILITY.md rule 2 (n1-a life-545 2026-11-27): the minimum holds a top-up
+        # leaf to its adequacy, not to the target the ordinary gate and the purchases keep.
+        for name in departure_leaf_classes.waivable(
+                self, snapshot, tuple(name for name, value in values.items()
+                                      if value is not True)):
+            values[name] = True
         failed = [name for name, value in values.items() if value is not True]
         return {"values": values, "failed": failed,
                 "unknown": [name for name, value in values.items() if value is None],
@@ -6648,7 +6654,8 @@ class TownMixin:
         depth = self._dungeon_entry_depth(snapshot, dungeon, via_recall=destination is not None)
         return self._departure_minimum(snapshot, depth), destination, depth
 
-    def force_visit_departure(self, snapshot: Snapshot, cause: str) -> str | None:
+    def force_visit_departure(self, snapshot: Snapshot, cause: str, *,
+                              waive_top_ups: bool = False) -> str | None:
         """Close exhausted visit work: depart, or mine once while unmet.
 
         Owner 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件
@@ -6679,7 +6686,7 @@ class TownMixin:
         # Mark before calling existing fallback producers, which can themselves
         # resolve a terminal through _town_blocked_key.
         self._visit_departure_recorded.add(cause)
-        end = verdict_town_end(gather_town_end(self, snapshot))
+        end = verdict_town_end(gather_town_end(self, snapshot, waive_top_ups=waive_top_ups))
         if end.kind == "mine":
             key = town_end_mining.start(self, snapshot, end.conditions)
             self._town_blocked_reason = None

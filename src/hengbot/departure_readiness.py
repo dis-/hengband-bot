@@ -262,10 +262,11 @@ def readiness_table(policy: Any, board: Snapshot, *, pure: bool = False) -> Read
                 else policy._identify_staff_ready(board))
 
     def identify_items() -> list[SupplyItem]:
-        # The leaf asks for the charges unless an absorbed staff answers it,
-        # from STAFF_IDENTIFY_MIN_DEPTH or for a quest that carries the staff
-        # (_identify_staff_ready); the row is the leaf's, not a second rule.
-        if policy._identify_staff_absorbed(board):
+        # The leaf asks for the charges unless an absorbed staff or a reliable
+        # 鑑定 answers it (_identify_staff_replaced), from STAFF_IDENTIFY_MIN_DEPTH
+        # or for a quest that carries the staff (_identify_staff_ready); the row
+        # is the leaf's, not a second rule.
+        if policy._identify_staff_replaced(board):
             return []
         strategy = (policy._carry_procurement_strategy(board, cache_fixed_quest_head=False)
                     if pure else policy._carry_procurement_strategy(board))

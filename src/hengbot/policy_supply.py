@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot import angband_finale, food_supply
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, quest_supply_gate, torch_release, town_pack_headroom
-from hengbot import deep_detection_rod, deep_teleport, destruction_means, me_deep_launcher, realm_spell_book, teleport_away_carry
+from hengbot import deep_detection_rod, deep_teleport, destruction_means, me_deep_launcher, realm_spell_book, realm_spells, teleport_away_carry
 from hengbot.threat_projection import _with_adjusted_speed
 from hengbot.monster_memory import UNSEEN_GAME_TURNS
 from hengbot.policy_constants import UNSEEN_REVERSE_REASON
@@ -783,6 +783,28 @@ class SupplyMixin:
         """
         return me_capability.replaced_by_absorbed(self, snapshot, (TVAL_STAFF, SV_STAFF_IDENTIFY))
 
+    def _identify_staff_replaced(self, snapshot: Snapshot) -> bool:
+        """Whether a standing means stands in for the carried Identify staff: an absorbed staff
+        (``_identify_staff_absorbed``) or a caster's 鑑定 at the staff's reliable success
+        (realm_spells ``identify_reliable``, MAINTAINABILITY.md rule 3: one more means in the one
+        list).  The departure leaf, its procurement row and its adequacy read this one rule."""
+        return (self._identify_staff_absorbed(snapshot)
+                or realm_spells.identify_reliable(self, snapshot))
+
+    def _identify_staff_adequate(self, snapshot: Snapshot, *,
+                                 cache_fixed_quest_head=True) -> bool:
+        """Whether the carried identification is enough to leave on, short of the 20-charge target.
+
+        MAINTAINABILITY.md rule 2 (n1-a life-545 2026-11-27: 18 of 20 charges, the 21-charge
+        staff and Home's 15-charge staff both refused as overweight, the visit stopped under
+        town:blocked:survival:identify_staff_ready).  STAFF_IDENTIFY_MIN_CHARGES is the top-up
+        target the purchases and Home takes keep aiming for; the departure needs only the
+        existing least reserve, IDENTIFY_CHARGE_FLOOR (the charges a MANA eater never eats).
+        """
+        if self._identify_staff_ready(snapshot, cache_fixed_quest_head=cache_fixed_quest_head):
+            return True
+        return self._total_identify_staff_charges(snapshot) >= IDENTIFY_CHARGE_FLOOR
+
     def _identify_staff_ready(self, snapshot: Snapshot, *, cache_fixed_quest_head=True) -> bool:
         # A loot-collecting quest (its reviewed profile opts in with
         # carry_identify_staff) needs a carried Identify staff regardless of the
@@ -796,7 +818,7 @@ class SupplyMixin:
             and bool(strategy.engagement_plan.get("carry_identify_staff"))
         )
         charges = self._total_identify_staff_charges(snapshot)
-        if self._identify_staff_absorbed(snapshot):
+        if self._identify_staff_replaced(snapshot):
             return True
         if self._planned_depth() < STAFF_IDENTIFY_MIN_DEPTH:
             if not quest_requires_identify:

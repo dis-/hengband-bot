@@ -376,22 +376,29 @@ def map_cast_key(policy, snapshot) -> str | None:
     return cast_key(snapshot, MAGIC_MAPPING)
 
 
+def known_reliable(policy, snapshot, spell_id: int, min_success: int, *,
+                   stunned: bool = True) -> bool:
+    """The standing part of ``castable``: a Sorcery caster that learned the spell, carries its
+    book, and casts it at ``min_success`` or better (under this board's stun unless ``stunned``
+    is False).  Neither the mana of the moment nor what refuses this board's cast is read."""
+    if not applies(policy, snapshot):
+        return False
+    spell = BY_ID[spell_id]
+    if (not learned(policy, spell_id) or cost(policy, spell_id) is None
+            or book_item(snapshot, spell.book) is None):
+        return False
+    rate = success(policy, snapshot, spell_id, stunned=stunned)
+    return rate is not None and rate >= min_success
+
+
 def castable(policy, snapshot, spell_id: int, min_success: int, *, escape: bool = False) -> bool:
     """Learned, its book carried, the mana (above the escape reserve for a non-escape cast in the
     dungeon), the success at least ``min_success`` under this board's stun, nothing refusing."""
-    if not applies(policy, snapshot) or cast_blocked(policy, snapshot):
-        return False
-    spell = BY_ID[spell_id]
-    mana = cost(policy, spell_id)
-    if (not learned(policy, spell_id) or mana is None
-            or book_item(snapshot, spell.book) is None):
+    if cast_blocked(policy, snapshot) or not known_reliable(policy, snapshot, spell_id, min_success):
         return False
     reserve = 0 if escape or snapshot.in_town else (
         escape_reserve(policy, snapshot) + order_reserve(policy, snapshot, spell_id))
-    if snapshot.player.mp < mana + reserve:
-        return False
-    rate = success(policy, snapshot, spell_id)
-    return rate is not None and rate >= min_success
+    return snapshot.player.mp >= cost(policy, spell_id) + reserve
 
 
 def cast_key(snapshot, spell_id: int, direction: str = "") -> str:
@@ -442,6 +449,18 @@ def means_cast_key(snapshot, item: SpellMeans, target: str = "") -> str:
 # The identification sources a spell stands in for (cmd-spell.cpp sorcery Identify: ident_spell;
 # Identify True: identify_fully): its scroll's sval -> the spell.
 IDENTIFY_SPELLS = {SV_SCROLL_IDENTIFY: IDENTIFY, SV_SCROLL_STAR_IDENTIFY: IDENTIFY_TRUE}
+
+
+def identify_reliable(policy, snapshot, *, full: bool = False) -> bool:
+    """A standing 鑑定 (真・鑑定 when ``full``): learned, its book carried, a full mana bar that
+    pays one cast, and RELIABLE_MIN_SUCCESS (the Identify staff's STAFF_IDENTIFY_MIN_SUCCESS)
+    without a stun.  The carried Identify staff's departure requirement reads it as it reads an
+    absorbed staff (policy_supply ``_identify_staff_replaced``); ``identify_means`` is the cast of
+    the moment (n1-a life-545 2026-11-27: the CL21 Rogue's 鑑定 at 42% does not count)."""
+    spell_id = IDENTIFY_SPELLS[SV_SCROLL_STAR_IDENTIFY if full else SV_SCROLL_IDENTIFY]
+    mana = cost(policy, spell_id)
+    return (mana is not None and snapshot.player.max_mp >= mana
+            and known_reliable(policy, snapshot, spell_id, RELIABLE_MIN_SUCCESS, stunned=False))
 
 
 def identify_means(policy, snapshot, *, full: bool) -> SpellMeans | None:
