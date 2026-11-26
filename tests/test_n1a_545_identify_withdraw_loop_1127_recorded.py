@@ -11,7 +11,9 @@ the one decided are replayed through the public ``choose_key`` and post the reco
 
 DECLARED CONSTRUCTED: ``test_a_refused_take_waits_for_a_lighter_pack`` records a refusal of the
 5-charge staff on row 25's board and lightens that board by the carried shield (the pack the sale of
-the shield would leave).
+the shield would leave).  Every test holds the 鑑定's usable rate at RELIABLE_MIN_SUCCESS (80%, the
+rule this capture was recorded under; from the supervisor's 2026-11-27 rule the Rogue's 42% 鑑定
+replaces the staves, tests/test_rogue_identify_spell_1127_recorded.py).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -22,7 +24,9 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import home_take_admission, town_hold
+from unittest import mock
+
+from hengbot import home_take_admission, realm_spells, town_hold
 from hengbot.model import STORE_HOME, SV_STAFF_IDENTIFY, TVAL_STAFF
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
@@ -47,6 +51,13 @@ def decide(policy, board):
 
 
 class IdentifyWithdrawLoop545RecordedTest(unittest.TestCase):
+    def setUp(self):
+        # DECLARED CONSTRUCTED (module docstring): the 鑑定 counts from 80% as when recorded.
+        patcher = mock.patch.object(realm_spells, "IDENTIFY_SPELL_MIN_SUCCESS",
+                                    realm_spells.RELIABLE_MIN_SUCCESS)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def replay(self, rows):
         """(policy, journal steps) after the recorded rows before ``rows``."""
         scratch = TemporaryDirectory()

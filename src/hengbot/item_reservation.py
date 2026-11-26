@@ -56,6 +56,7 @@ ITEM_RESERVATION_SOURCES = {
     '_identification_candidate': ('selection', 'identification candidate; selection/observation intent, no additional exclusive owner'),
     '_identification_source_reservation': ('selection', 'identification source reservation; selection/observation intent, no additional exclusive owner'),
     '_identify_watch': ('selection', 'identify watch; selection/observation intent, no additional exclusive owner'),
+    '_identify_spell_watch': ('selection', 'the retried 鑑定 miss count (supervisor 2026-11-27); selection/observation intent, no additional exclusive owner'),
     '_launcher_enchant_watch': ('selection', 'launcher enchant watch; selection/observation intent, no additional exclusive owner'),
     '_look_floor_items': ('selection', 'look floor items; selection/observation intent, no additional exclusive owner'),
     '_morivant_full_identify': ('selection', 'morivant full identify; selection/observation intent, no additional exclusive owner'),

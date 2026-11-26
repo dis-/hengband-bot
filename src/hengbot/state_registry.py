@@ -510,6 +510,9 @@ REGISTRY = (
     S("_me_power_resume_attempts", "me_powers_refresh", LIFE,
       "me_powers_refresh: kind -> (reads asked, decision sequence of the last) of the restarted process's absorbed-power list reads (resume_read_key)"),
     # realm_spells / realm_spell_book (owner 2026-11-26 「盗賊は魔法を使える」)
+    S("_identify_spell_retired", "realm_spells", LIFE,
+      "the floor / town visit where the retried 鑑定 gave up after IDENTIFY_SPELL_RETRY_LIMIT "
+      "misses on one item (supervisor 2026-11-27)"),
     S("_realm_spell_lists", "realm_spells", LIFE,
       "realm_spells: book -> the last spell list the game drew of the caster's Sorcery book (the "
       "spell_list record: each spell's status, level, mana and fail, with the mana, level and "
@@ -1404,6 +1407,9 @@ REGISTRY = (
       "policy_identification: identify fail streak (no comment at its definition)"),
     S("_identify_watch", "policy_identification", VISIT,
       "policy_identification: identify watch (no comment at its definition)"),
+    S("_identify_spell_watch", "policy_identification", LIFE,
+      "the retried 鑑定's last (target, unknown count) and its consecutive misses "
+      "(_identify_spell_missed, supervisor 2026-11-27)"),
     S("_look_probe_inflight", "policy_identification", LIFE,
       "policy_identification: look probe inflight (no comment at its definition)"),
     S("_loot_defer_blocker", "policy_identification", FLOOR,
@@ -2509,6 +2515,12 @@ RESTART = {
     # next poisoning; meanwhile the cure waits for HP below half (poison_cure_due).
     "_poison_estimate": Restart(MAY_BE_LOST, "status_cure",
                                 "None in a new process: only the HP line cures the poison"),
+    # realm_spells / policy_identification: a new process retries the 鑑定 afresh (at most
+    # IDENTIFY_SPELL_RETRY_LIMIT more casts on the item before it retires again).
+    "_identify_spell_retired": Restart(MAY_BE_LOST, "realm_spells",
+                                       "None in a new process: the spell is tried again"),
+    "_identify_spell_watch": Restart(MAY_BE_LOST, "policy_identification",
+                                     "None in a new process: the count starts again"),
     # home_take_admission: a new process has no refusal; the take itself refuses again once and
     # records it (one entrance step-off more).
     "_home_take_refusals": Restart(MAY_BE_LOST, "home_take_admission",

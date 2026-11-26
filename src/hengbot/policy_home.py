@@ -131,7 +131,10 @@ class HomeMixin:
         if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
             # The release plan may call weak staves surplus while replacing
             # them. Disposal must not manufacture a shortage/rebuy instead.
-            return self._total_identify_staff_charges(probe) >= min(20, self._total_identify_staff_charges(snapshot))
+            # A staff a standing 鑑定 replaces (supervisor 2026-11-27) is a spare item.
+            return (self._identify_staff_replaced(snapshot)
+                    or self._total_identify_staff_charges(probe)
+                    >= min(20, self._total_identify_staff_charges(snapshot)))
         return True
 
     def _overweight_mining_kit_reserved(self, snapshot, item) -> bool:

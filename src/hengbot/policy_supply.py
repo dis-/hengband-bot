@@ -785,11 +785,25 @@ class SupplyMixin:
 
     def _identify_staff_replaced(self, snapshot: Snapshot) -> bool:
         """Whether a standing means stands in for the carried Identify staff: an absorbed staff
-        (``_identify_staff_absorbed``) or a caster's 鑑定 at the staff's reliable success
-        (realm_spells ``identify_reliable``, MAINTAINABILITY.md rule 3: one more means in the one
-        list).  The departure leaf, its procurement row and its adequacy read this one rule."""
+        (``_identify_staff_absorbed``) or a caster's 鑑定 retried where safe (realm_spells
+        ``identify_usable``, supervisor 2026-11-27: from 30%; MAINTAINABILITY.md rule 3: one more
+        means in the one list).  The departure leaf, its procurement row and its adequacy read
+        this one rule."""
         return (self._identify_staff_absorbed(snapshot)
-                or realm_spells.identify_reliable(self, snapshot))
+                or realm_spells.identify_usable(self, snapshot))
+
+    def _identify_staff_carry_cap(self, snapshot: Snapshot) -> int:
+        """How many Identify staves are carried (the release plan's cap).
+
+        User 2026-10-03: STAFF_IDENTIFY_MAX_COUNT.  Supervisor 2026-11-27: a caster whose 鑑定
+        replaces the staff keeps ONE staff as the backup for a board where a failed cast is not
+        safe while the spell is below RELIABLE_MIN_SUCCESS, none from it; a MANA eater's staves
+        are its food and keep the four (rule 1: the board's food type)."""
+        if (snapshot.player.food_type == FOOD_TYPE_MANA
+                or self._identify_staff_absorbed(snapshot)
+                or not realm_spells.identify_usable(self, snapshot)):
+            return STAFF_IDENTIFY_MAX_COUNT
+        return 0 if realm_spells.identify_reliable(self, snapshot) else 1
 
     def _identify_staff_adequate(self, snapshot: Snapshot, *,
                                  cache_fixed_quest_head=True) -> bool:
@@ -977,13 +991,14 @@ class SupplyMixin:
         """
         staves = self._carried_identify_staves(snapshot)
         total = sum(item.count for item in staves)
-        if not staves or total < STAFF_IDENTIFY_MAX_COUNT:
+        cap = self._identify_staff_carry_cap(snapshot)
+        if not staves or total < cap:
             return {}
-        if total == STAFF_IDENTIFY_MAX_COUNT and not snapshot.in_town:
+        if total == cap and not snapshot.in_town:
             # The swap is a town transaction against an observed shelf.
             return {}
         reserve_slot = self._device_food_reserve_slot(snapshot)
-        if total > STAFF_IDENTIFY_MAX_COUNT:
+        if total > cap:
             purchased = getattr(self, "_town_visit_purchases", set())
             # A staff bought this visit is kept first so the cap never sells
             # back what was just bought; then the fullest staves stay.
@@ -996,7 +1011,7 @@ class SupplyMixin:
                     item.slot,
                 ),
             )
-            remaining = STAFF_IDENTIFY_MAX_COUNT
+            remaining = cap
             release: dict[str, int] = {}
             for item in keep_order:
                 kept = min(item.count, remaining)
