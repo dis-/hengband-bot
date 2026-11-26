@@ -385,8 +385,6 @@ def observe(policy, snapshot) -> None:
         if held.in_town is False:
             held.owned_searched = False  # a new visit: the owned gear is searched again
         held.in_town = True
-        from hengbot import finale_farm  # import cycle
-        finale_farm.forget_trip(policy)
         held.restore_mana_used = 0
         held.restore_mana_seen = None
         if not preparing(snapshot):

@@ -16,7 +16,10 @@ explore decisions before it seeded at the board's own known-map size (no growth)
 smaller (growth past the threshold; the window counts the cells the map has shown since 1118,
 explored_floor ``note_explore``); for the cut itself, the last board's found items dropped (the
 board shows detected items on unmapped ground, which the loot memory keeps since detected_loot and
-which held the cut until n1-c life-217, 1120: no walk reaches them).
+which held the cut until n1-c life-217, 1120: no walk reaches them).  DECLARED CONSTRUCTED (1126):
+the trip has left its ``deep_stairs.EXTRA_FLOORS`` explored floors by the stairs already, so the
+cut reads Word of Recall (owner 2026-11-26: before that the floor is left by its stairs,
+tests/test_deep_stairs_1126.py).
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -27,7 +30,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from hengbot import explored_floor, me_capability, sealed_loot
+from hengbot import deep_stairs, explored_floor, me_capability, sealed_loot
 from hengbot.model import SV_STAFF_DESTRUCTION, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
@@ -56,6 +59,7 @@ class ExploredFloorRecordedTest(unittest.TestCase):
         policy._me_device_lists = {"staff": (first.turn, ({
             "name": me_capability.names("staff", SV_STAFF_DESTRUCTION)[0], "current": 22,
             "max": 22, "fail": 5, "success": 95},))}
+        setattr(policy, deep_stairs.FLOORS, deep_stairs.EXTRA_FLOORS)  # DECLARED CONSTRUCTED
         rows = {}
         for raw in self.boards:
             if raw["turn"] == LAST and no_loot:
