@@ -299,12 +299,16 @@ def _address(item) -> str:
     return item.slot if slot is None else "/" + slot
 
 
+def _uses_left(policy, effect, signature) -> bool:
+    """``signature`` has uses of ``effect`` left: a target that never lands is left behind."""
+    return _memory(policy).attempts.get((effect.name, signature), 0) < ATTEMPTS_PER_TARGET
+
+
 def _first_open(policy, effect, targets):
-    """The first target with uses left: a target that never lands is left behind."""
-    memory = _memory(policy)
+    """The first target with uses left (``_uses_left``)."""
     for target in targets:
         signature = policy._item_signature(target)
-        if memory.attempts.get((effect.name, signature), 0) < ATTEMPTS_PER_TARGET:
+        if _uses_left(policy, effect, signature):
             return effect, target, signature
     return None
 
@@ -386,12 +390,39 @@ def _use(policy, snapshot, effect, target, signature, reason: str | None = None)
     memory.pending = (effect, signature, snapshot.turn)
     memory.__dict__["pending_reason"] = reason or effect.reason
     memory.__dict__["paid_from"] = (snapshot.turn, snapshot.player.hp)
+    memory.__dict__["posting"] = (policy._decision_sequence, effect.name, signature)
     memory.rekey = ((equipment_identity(target), target.tval, target.sval)
                     if effect.name == IDENTIFY.name
                     and equipment_identity(target) in _planned_deposit_identities(policy)
                     else None)
     policy.last_reason = reason or effect.reason
     return effect.key + (_address(target) if effect.targeted else "")
+
+
+def withdraw_unposted_use(policy, decision_sequence: int) -> None:
+    """A use whose key a later rung replaced never reached the game: its attempt is withdrawn.
+
+    The periodic save, character dump and power list replace the selected key
+    (policy ``_decide``); counted, each replacement spent one of the target's
+    ``ATTEMPTS_PER_TARGET`` uses without a cast.  n1-c life-223 (2026-11-26 18:54):
+    the five bookkeeping keys of one town board used up ☆陣笠『太陽の衣』 and
+    電撃の魔法を防ぐクローク without one *Identify*; the Home takes for them
+    then went back and forth until town:blocked:stage-deadline:home (19:17).
+    """
+    memory = getattr(policy, MEMORY, None)
+    posting = memory.__dict__.get("posting") if memory is not None else None
+    if posting is None or posting[0] != decision_sequence:
+        return
+    _sequence, name, signature = posting
+    uses = memory.attempts.get((name, signature), 0) - 1
+    if uses > 0:
+        memory.attempts[(name, signature)] = uses
+    else:
+        memory.attempts.pop((name, signature), None)
+    memory.pending = None
+    memory.rekey = None
+    for name in ("paid_from", "posting", "pending_reason"):
+        memory.__dict__.pop(name, None)
 
 
 def note_attack(policy, snapshot, kind: str, sval: int, reason: str) -> None:
@@ -449,6 +480,9 @@ def _home_take_key(policy, snapshot) -> str | None:
         if (owned.origin != "home" or not spare_identify_target(item)
                 or signature in policy._deferred_home_items
                 or takes.get(signature, 0) >= ATTEMPTS_PER_TARGET
+                # The use's own bound (``_first_open``): a piece whose *Identify*
+                # uses are spent is never served, and its take went back at once.
+                or not _uses_left(policy, IDENTIFY, signature)
                 or not home_take_fits(snapshot, item, 1, policy=policy)
                 or not _take_fits_weight(policy, snapshot, item)):
             continue
@@ -556,7 +590,7 @@ def _observe_awaiting(policy, snapshot, memory) -> None:
     awaiting = frozenset(
         signature for item in _taken_pieces(policy, snapshot)
         for signature in (policy._item_signature(item),)
-        if memory.attempts.get((IDENTIFY.name, signature), 0) < ATTEMPTS_PER_TARGET)
+        if _uses_left(policy, IDENTIFY, signature))
     memory.awaiting = (awaiting if awaiting and spare_identify_ready(policy, snapshot)
                        else frozenset())
 

@@ -6597,6 +6597,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             # cannot arrive, so its expectation of this decision is withdrawn.
             self._owner_expectations.withdraw_unposted(self._decision_sequence)
             self.withdraw_unposted_chest_drop(self._decision_sequence)
+            from hengbot import me_powerful_activation
+            me_powerful_activation.withdraw_unposted_use(self, self._decision_sequence)
         if key is None:
             def fallback():
                 self.last_reason = (

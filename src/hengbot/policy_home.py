@@ -2238,6 +2238,18 @@ class HomeMixin:
                 cause="file-deferred-by-holder",
             )
             return False
+        if request.origin == "home-catalog" and spare_gear.taken_back(
+                self, snapshot, request.signature):
+            # This visit's take of it went back unprocessed: no second round trip.
+            self._offer_execution_no_step(
+                producer="home-errand", work_id=f"home-request:{filing_identity}",
+                cause="taken-back-this-visit",
+            )
+            town_end_execution_delegation(
+                self, "home-errand", filing_identity,
+                completed=False, cause="taken-back-this-visit",
+            )
+            return False
         stocked = next((item for item in self._home_knowledge_items
                         if self._item_signature(item) == request.signature), None)
         if stocked is not None and not home_take_fits(snapshot, stocked, request.quantity, policy=self):
