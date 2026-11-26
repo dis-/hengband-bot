@@ -45,7 +45,6 @@ from hengbot.policy_constants import (
     CHEST_OPEN_BUDGET,
     CHEST_OPEN_KEY,
     CHEST_OPEN_MIN_HP_RATIO,
-    CHEST_SEARCH_BUDGET,
     CHEST_SEARCH_KEY,
     FULL_IDENTIFY_DISMISS_SUFFIX,
     FUNDRAISING_GOLD_TARGET,
@@ -63,6 +62,7 @@ from hengbot.policy_constants import (
     USE_STAFF_KEY,
     WAIT_KEY,
     ZAP_ROD_KEY,
+    chest_search_presses,
 )
 
 # Game turns without a new unseen hit before retreat-side loot is eligible
@@ -77,6 +77,34 @@ CHEST_DROP_UNCONFIRMED_LIMIT = 3
 # turn a monster on the square into do_cmd_attack, which asks 「本当に攻撃しますか？」
 # of a visible non-hostile one (n1-c life-216, Castle 64F, 2026-11-17 00:41).
 CHEST_OCCUPANT_WAIT_LIMIT = 10
+# What a chest press tells of its trap (owner 2026-11-26 「探す回数を増やし、外せない罠は開け
+# ない」; src/player/player-move.cpp discover_hidden_things, src/action/open-close-execution.cpp
+# exe_disarm_chest, src/effect/effect-item.cpp KILL_TRAP).  The disarm command is the one probe
+# whose answer always names the state; the chest's phase counts keep what was read.
+CHEST_TRAP_FOUND_TEXTS = (
+    "箱に仕掛けられたトラップを発見した", "You have discovered a trap on the chest",
+)
+# The trap is gone or there never was one, the chest known: opening fires nothing.
+CHEST_TRAP_CLEAR_TEXTS = (
+    "箱に仕掛けられていたトラップを解除した", "You have disarmed the chest",
+    "箱にはトラップが仕掛けられていない", "The chest is not trapped",
+)
+# The chest is not known (no trap found yet, or none to find): 「トラップが見あたらない。」.
+CHEST_TRAP_UNSEEN_TEXTS = ("トラップが見あたらない", "I don't see any traps")
+
+
+def _chest_message_seen(snapshot: Snapshot, texts: tuple[str, ...]) -> bool:
+    return any(text in message for message in snapshot.messages for text in texts)
+
+
+def _chest_search_presses(snapshot: Snapshot) -> int:
+    """Searches of a chest from the board's skill_srh (search(): a tenth while hallucinating
+    or unlit; the pipeline does not run blind or confused)."""
+    skill = snapshot.player.search_skill
+    if skill is not None and (snapshot.player.hallucinated or snapshot.light_radius == 0):
+        skill //= 10
+    return chest_search_presses(skill)
+
 
 SOURCE_PROMPT = {
     USE_STAFF_KEY: ("どの杖を使いますか? ", "Use which staff? "),
@@ -135,11 +163,15 @@ class IdentificationMixin:
     ) -> str | None:
         """User-specified chest pipeline: drop → step beside → s ×N → D ×N → o ×N.
 
-        The trap-discovered message is invisible to snapshots, so each phase
-        spends a fixed key budget instead of observing: search() reveals an
-        adjacent trapped chest at skill_srh% per press, disarm can fail, and a
-        locked chest takes several picks. Budget exhaustion abandons the chest
-        (whatever spilled is normal loot)."""
+        search() reveals an adjacent trapped chest at skill_srh% per press, so
+        the chest is searched ``_chest_search_presses`` times (a trap found ends
+        the searching).  Owner 2026-11-26 (n1-a life-538) 「探す回数を増やし、外せない
+        罠は開けない」: the chest is opened only when a disarm press answered that
+        its trap is gone or absent, or answered that no trap is known after every
+        search found none (taken as untrapped); a found trap the disarm presses
+        did not remove, or a press whose answer was not seen, leaves the chest
+        shut.  A locked chest takes several picks.  Budget exhaustion abandons
+        the chest (whatever spilled is normal loot)."""
         # Every walker's one veto (policy _walk_veto, owner 2026-11-09 「退却・逃げ・狩り以外を揃える」).
         walk_veto = self._walk_veto(snapshot)
         player = snapshot.player
@@ -244,6 +276,16 @@ class IdentificationMixin:
             distance = player.position.distance_to(chest_pos)
             grid = snapshot.grids.get(chest_pos)
             counts = self._chest_phase_counts
+            if counts.get("open", 0) == 0:
+                # The answer of the previous search or disarm press is on this board.
+                if counts.get("search", 0) > 0 and _chest_message_seen(
+                        snapshot, CHEST_TRAP_FOUND_TEXTS):
+                    counts["trap_found"] = 1
+                if counts.get("disarm", 0) > 0:
+                    if _chest_message_seen(snapshot, CHEST_TRAP_CLEAR_TEXTS):
+                        counts["trap_clear"] = 1
+                    elif _chest_message_seen(snapshot, CHEST_TRAP_UNSEEN_TEXTS):
+                        counts["trap_unseen"] = 1
             if counts.get("open", 0) > 0:
                 # Chest::open() calls drop_near() for every generated item.
                 # Contents can therefore land anywhere within radius three,
@@ -391,7 +433,9 @@ class IdentificationMixin:
                 self.last_reason = "chest:approach"
                 self._declare_reach(path[-1] if profile is not None and navigator is not None and path else step_target)
                 return self._step_toward(snapshot, step)
-            if (counts.get("search", 0) < CHEST_SEARCH_BUDGET
+            presses = _chest_search_presses(snapshot)
+            if (not counts.get("trap_found") and not counts.get("trap_clear")
+                    and counts.get("search", 0) < presses
                     and not search_ban.banned(snapshot)):
                 counts["search"] = counts.get("search", 0) + 1
                 self.last_reason = "chest:search"
@@ -417,7 +461,13 @@ class IdentificationMixin:
                 self._chest_preopen_objects = None
                 self._processed_chest_positions.add(chest_pos)
                 return None
-            if counts.get("disarm", 0) < CHEST_DISARM_BUDGET:
+            # Owner 2026-11-26 「外せない罠は開けない」: open on a disarm press's answer only.
+            openable = bool(counts.get("trap_clear")) or (
+                bool(counts.get("trap_unseen"))
+                and not counts.get("trap_found")
+                and counts.get("search", 0) >= presses
+            )
+            if not openable and counts.get("disarm", 0) < CHEST_DISARM_BUDGET:
                 # Class 16 aims an absorbed disarming power at the chest (me_powers).
                 power = me_powers.power_key(self, snapshot, me_powers.TRAP, chest_pos)
                 if power is not None:
@@ -425,7 +475,7 @@ class IdentificationMixin:
                 counts["disarm"] = counts.get("disarm", 0) + 1
                 self.last_reason = "chest:disarm"
                 return CHEST_DISARM_KEY + direction
-            if counts.get("open", 0) < CHEST_OPEN_BUDGET:
+            if openable and counts.get("open", 0) < CHEST_OPEN_BUDGET:
                 if counts.get("open", 0) == 0:
                     self._chest_preopen_objects = {
                         candidate.position: (

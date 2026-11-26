@@ -25,7 +25,7 @@ from hengbot.model import (
     DUNGEON_ANGBAND, DUNGEON_CHAMELEON_CAVE, DUNGEON_YEEK_CAVE,
     GridState, InventoryItem, MonsterState, Position, Snapshot, StoreItem,
     SV_LITE_TORCH, SV_ROD_LITE,
-    TVAL_AMULET, TVAL_ARROW, TVAL_BOOTS, TVAL_BOLT, TVAL_BOW, TVAL_CLOAK,
+    TVAL_AMULET, TVAL_ARROW, TVAL_BOOTS, TVAL_BOLT, TVAL_BOW, TVAL_CHEST, TVAL_CLOAK,
     TVAL_CROWN, TVAL_DIGGING, TVAL_DRAG_ARMOR, TVAL_FOOD, TVAL_GLOVES,
     TVAL_HAFTED, TVAL_HARD_ARMOR, TVAL_HELM, TVAL_LITE, TVAL_POLEARM,
     TVAL_RING, TVAL_ROD, TVAL_SCROLL, TVAL_SHIELD, TVAL_SHOT, TVAL_SOFT_ARMOR,
@@ -444,6 +444,13 @@ class PolicyHelpersMixin:
         any stack of that tval, whatever its unseen quality.
         """
         if self._floor_pile_is_worthless(grid):
+            return True
+        # Owner 2026-11-26 「外せない罠は開けない」: the chests alone that the chest pipeline left
+        # on this floor (opened, or shut on a trap it could not remove) are not picked up to be
+        # worked again.
+        if (grid.position in getattr(self, "_processed_chest_positions", ())
+                and grid.object_tvals
+                and all(tval == TVAL_CHEST for tval in grid.object_tvals)):
             return True
         # Owner 2026-11-20 「捨てて帰還すること」: an artifact dropped on purpose is not picked up.
         if sellable_artifacts.dropped_here(self, snapshot, grid.position):

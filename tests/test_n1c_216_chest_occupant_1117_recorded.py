@@ -75,9 +75,11 @@ class ChestOccupantPolicyTest(unittest.TestCase):
         snapshot = parse_snapshot(copy.deepcopy(raw), policy._monrace_knowledge)
         if policy._chest_position is None:
             policy._observe(policy._with_grid_memory(snapshot))
-            # DECLARED CONSTRUCTED: the phase counts of the decision tail.
+            # DECLARED CONSTRUCTED: the phase counts of the decision tail, and the disarm
+            # press's answer that the chest is not trapped (the trap was already gone; owner
+            # 2026-11-26 「外せない罠は開けない」 opens on that answer only).
             policy._chest_position = CHEST
-            policy._chest_phase_counts = {"search": 6, "disarm": 2}
+            policy._chest_phase_counts = {"search": 6, "disarm": 2, "trap_clear": 1}
         # The capture has no checkpoint: a fresh policy's ladder would rank its own
         # recall first, so the chest producer the live ladder reached (decisions 2547-2556,
         # rung _chest_processing_key#2) is asked with the production hostile filter.

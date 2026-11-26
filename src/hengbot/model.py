@@ -514,6 +514,7 @@ class PlayerState:
     device_skill: int = 0
     stealth_skill: int = 0
     digging_skill: int | None = None  # protocol 3's skill_dig; None when not reported
+    search_skill: int | None = None  # protocol 3's skill_srh; None when not reported
     # skill_exp of two-weapon combat and shield: None under protocol 3, whose
     # board does not print them (only the ~f skill list does).
     two_weapon_skill: int | None = 0

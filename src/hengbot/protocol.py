@@ -304,6 +304,7 @@ def v3_player_skills(player_data: Mapping[str, Any], equipment: Sequence[Mapping
       saving_skill   = saving_throw.value          (skill_sav)
       device_skill   = magic_device.value          (skill_dev)
       stealth_skill  = stealth.value               (skill_stl; -1 when <= 0)
+      search_skill   = searching.value             (skill_srh)
       two_weapon_skill, shield_skill = None: only the ~f list prints them.
     """
     ratings = require(player_data, "skill_ratings", "player")
@@ -332,6 +333,7 @@ def v3_player_skills(player_data: Mapping[str, Any], equipment: Sequence[Mapping
         "device_skill": skill_rating_value(ratings, "magic_device"),
         "stealth_skill": skill_rating_value(ratings, "stealth"),
         "digging_skill": skill_rating_value(ratings, "digging"),
+        "search_skill": skill_rating_value(ratings, "searching"),
         "two_weapon_skill": None,
         "shield_skill": None,
     }
