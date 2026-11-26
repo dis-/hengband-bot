@@ -25978,17 +25978,6 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
-  "departure_leaf_classes.py:waivable": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "pure helper: waivable returns the names of the departure-minimum top-up leaves that are adequate on the board (departure_leaf_classes.TOP_UP, MAINTAINABILITY.md rule 2, n1-a life-545); read by _departure_minimum and the town end's verdict, not an independently selected game action",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success"
-  },
   "home_take_admission.py:refusal": {
     "classification": "data",
     "rows": [
@@ -26076,5 +26065,50 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "departure_leaf_classes.py:adequate_top_ups": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: adequate_top_ups returns the TOP_UP departure leaves adequate on the board (departure_leaf_classes, MAINTAINABILITY.md rule 2, n1-a life-545); read by _departure_minimum and town_end_waivable, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "departure_leaf_classes.py:town_end_waivable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: town_end_waivable returns the ordinary gate's leaves the town end may depart without (adequate TOP_UP, OPTIONAL; departure_leaf_classes, n1-a life-545 2026-11-27 04:39); read by gather_town_end and only_waivable, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy.departure_block_state": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure accessor: the departure block observed by the current decision (the decision row's departure_block); read by the decision recorder and town_terminal.waived_departure_key, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "town_terminal.py:waived_departure_key": {
+    "classification": "producer",
+    "rows": [
+      "store-exit",
+      "plan-routing"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Asked by town_end_key where it would name its stop after the rescues gave no key and every stop condition is waivable (departure_leaf_classes.only_waivable: adequate TOP_UP, OPTIONAL; MAINTAINABILITY.md rule 2, n1-a life-545 2026-11-27): releases a waived identification wait (identification_wait.release force) and returns force_visit_departure's key under top-up-adequate, recording the waived leaves in the decision row's departure_block.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

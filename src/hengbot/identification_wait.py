@@ -57,12 +57,18 @@ def visit_can_identify(policy: Any, board: Any) -> bool:
     return bool(home_identification.candidates(policy, board))
 
 
-def release(policy: Any, board: Any, unmet) -> bool:
-    """Release this visit's identification wait; True when it was released."""
+def release(policy: Any, board: Any, unmet, *, force: bool = False) -> bool:
+    """Release this visit's identification wait; True when it was released.
+
+    ``force`` is the town end's waiver (departure_leaf_classes OPTIONAL, MAINTAINABILITY.md rule
+    2): the owners had their bounded passes, so a candidate the visit could still identify waits
+    for a later visit as well (n1-a life-545 2026-11-27 04:39: four Identify scrolls carried, the
+    Home candidate doable, Home's passes used up).  A transfer in flight is still its owner's.
+    """
     if (not holds(unmet)
-            or policy._home_pending_item is not None
             or policy._home_atomic_withdraw_pending is not None
-            or visit_can_identify(policy, board)):
+            or (not force and (policy._home_pending_item is not None
+                               or visit_can_identify(policy, board)))):
         return False
     expedition = policy._morivant_full_identify
     if (expedition is not None and expedition.phase == "prepare-home"

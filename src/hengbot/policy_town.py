@@ -6599,7 +6599,7 @@ class TownMixin:
                 values[name] = None
         # MAINTAINABILITY.md rule 2 (n1-a life-545 2026-11-27): the minimum holds a top-up
         # leaf to its adequacy, not to the target the ordinary gate and the purchases keep.
-        for name in departure_leaf_classes.waivable(
+        for name in departure_leaf_classes.adequate_top_ups(
                 self, snapshot, tuple(name for name, value in values.items()
                                       if value is not True)):
             values[name] = True
