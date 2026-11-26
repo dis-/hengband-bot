@@ -1,5 +1,6 @@
 """Small dependency-free constants shared by policy and its executors."""
 
+import math
 from enum import Enum
 
 from hengbot import reasons, torch_release
@@ -222,7 +223,26 @@ CHEST_DROP_KEY = "d"
 CHEST_SEARCH_KEY = "s"
 CHEST_DISARM_KEY = "D"
 CHEST_OPEN_KEY = "o"
-CHEST_SEARCH_BUDGET = 6
+# Owner 2026-11-26 (n1-a life-538, Anti-magic cave 47F: six searches at skill_srh 16 missed a
+# large iron chest's summon trap, a 35% chance, and its opening summoned the crowd that killed
+# the warrior): 「探す回数を増やし、外せない罠は開けない」, every depth and every chest kind.
+# search() finds an adjacent chest's trap at skill_srh% a press (player-move.cpp search ->
+# discover_hidden_things), a tenth of it blind, unlit or hallucinating; the chest is searched
+# until the chance its trap is still hidden is about CHEST_SEARCH_MISS_TARGET (20 presses at 16).
+CHEST_SEARCH_MISS_TARGET = 0.03
+# The floor of the skill the presses are computed from (an unreported skill counts as this):
+# it is also what bounds the presses, CHEST_SEARCH_BUDGET.
+CHEST_SEARCH_MIN_SKILL = 5
+
+
+def chest_search_presses(search_skill: int | None) -> int:
+    """Searches that leave a chest trap hidden about CHEST_SEARCH_MISS_TARGET of the time."""
+    skill = CHEST_SEARCH_MIN_SKILL if search_skill is None else search_skill
+    chance = min(max(skill, CHEST_SEARCH_MIN_SKILL), 99) / 100
+    return max(1, round(math.log(CHEST_SEARCH_MISS_TARGET) / math.log(1 - chance)))
+
+
+CHEST_SEARCH_BUDGET = chest_search_presses(None)
 CHEST_DISARM_BUDGET = 2
 CHEST_OPEN_BUDGET = 8
 CHEST_COLLECT_BUDGET = 32

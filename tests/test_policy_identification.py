@@ -1079,15 +1079,19 @@ class ChestProcessingTest(unittest.TestCase):
         chest_grids[Position(10, 10)] = grid(10, 10, objects=1)
         beside = replace(beside, grids=chest_grids)
 
+        # No skill on this board: the most presses (CHEST_SEARCH_BUDGET) find no trap.
         for _ in range(CHEST_SEARCH_BUDGET):
             self.assertEqual(policy.choose_key(beside), "s")
             self.assertEqual(policy.last_reason, "chest:search")
-        for _ in range(CHEST_DISARM_BUDGET):
-            self.assertEqual(policy.choose_key(beside), "D4")
-            self.assertEqual(policy.last_reason, "chest:disarm")
+        self.assertEqual(policy.choose_key(beside), "D4")
+        self.assertEqual(policy.last_reason, "chest:disarm")
+        # The disarm press answers that no trap is known: after every search
+        # the chest is taken as untrapped (owner 2026-11-26).
+        unseen = replace(beside, messages=("トラップが見あたらない。",))
         for _ in range(CHEST_OPEN_BUDGET):
-            self.assertEqual(policy.choose_key(beside), "o4")
+            self.assertEqual(policy.choose_key(unseen), "o4")
             self.assertEqual(policy.last_reason, "chest:open")
+        beside = unseen
 
         # Budgets exhausted: the pipeline abandons and normal behavior resumes.
         policy.choose_key(beside)
@@ -1334,9 +1338,12 @@ class ChestProcessingTest(unittest.TestCase):
         policy = HengbotPolicy()
         policy._floor_key = before.floor_key
         policy._chest_position = chest_position
+        # The disarm press answered that the chest is not trapped (owner 2026-11-26
+        # 「外せない罠は開けない」: the chest opens on that answer only).
         policy._chest_phase_counts = {
             "search": CHEST_SEARCH_BUDGET,
             "disarm": CHEST_DISARM_BUDGET,
+            "trap_clear": 1,
         }
 
         self.assertEqual(policy.choose_key(before), "o4")

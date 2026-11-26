@@ -1055,10 +1055,10 @@ LIVELOCK_LIMIT = 4
 # Chest processing (user-specified procedure): drop the carried chest, step
 # to an adjacent tile, `s` to discover its trap (search() marks adjacent
 # trapped chests known — player-move.cpp discover_hidden_things), `D` to
-# disarm, `o` to open (repeats pick a lock). The bot cannot OBSERVE the
-# "trap discovered" message through snapshots, so each phase runs a fixed
-# budget instead: search chances are skill_srh% per press, disarm may fail,
-# a locked chest needs several picks.
+# disarm, `o` to open (repeats pick a lock). Search chances are skill_srh% per
+# press, so the presses come from the skill (chest_search_presses); the chest is
+# opened only on a disarm press's answer (owner 2026-11-26 「外せない罠は開けない」,
+# policy_identification._chest_processing_key); a locked chest needs several picks.
 UNINSCRIBE_KEY = "}"
 # BOT_PLAY is launched with -o, which forces Hengband's original command set.
 # Keep item commands aligned with that contract: use staff = u, zap rod = z,
