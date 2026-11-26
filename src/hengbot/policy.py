@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.home_full_relief import relief_of
-from hengbot import ability_sources, item_need
+from hengbot import ability_sources, class_roles, item_need
 from hengbot import equipment_target
 from hengbot import angband_finale, me_deep_launcher
 from hengbot import strategy_profile
@@ -5041,7 +5041,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if (
             snapshot.store is None
             and snapshot.in_town
-            and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            and class_roles.plays_as_warrior(snapshot.player.class_id)
             and self._active_quest_id(snapshot) is None
             and "quest-request" not in self._town_turn_arbiter._retired
             and len(snapshot.inventory) >= PACK_CAPACITY - HOME_BATCH_RESERVED_SLOTS - 1
@@ -10099,7 +10099,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         }
         state.update(self._equipment_optimization_telemetry)
         if snapshot is not None and (
-            snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+            not class_roles.plays_as_warrior(snapshot.player.class_id)
             or not snapshot.in_town
         ):
             state["search_telemetry_freshness"] = "stale-republished"
@@ -11532,7 +11532,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         nothing needs it (equipment review E6)."""
         if candidate.tval == TVAL_BOW:
             return self._is_disposable_dominated_launcher(snapshot, candidate)
-        if snapshot.player.class_id != PLAYER_CLASS_WARRIOR:
+        if not class_roles.plays_as_warrior(snapshot.player.class_id):
             return False
         if (
             item_need.needed(self, snapshot, candidate)

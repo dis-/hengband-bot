@@ -196,6 +196,19 @@ class JunkScopeRecordedTest(unittest.TestCase):
         mage = replace(board, player=replace(board.player, class_id=1))
         self.assertIsNone(policy._junk_class(mage, BOOKS[0]))
         self.assertEqual(policy._junk_class(board, BOOKS[0]), "unusable-book")
+        # DECLARED CONSTRUCTED: a Rogue (class id 3) whose sheet shows the Sorcery realm.  The
+        # bot casts no Rogue spell (class_roles.realm_books_unusable): its own realm's start-kit
+        # book is unusable too, and its third book is no realm book it reads (item_fate).
+        from hengbot import item_fate
+        from hengbot.model import TVAL_SORCERY_BOOK
+        rogue = replace(board, player=replace(board.player, class_id=3))
+        sorcery = (replace(BOOKS[0], name="魔術の魔法書 1", tval=TVAL_SORCERY_BOOK),
+                   replace(BOOKS[2], name="魔術の魔法書 3", tval=TVAL_SORCERY_BOOK))
+        policy._own_book_tvals = frozenset({TVAL_SORCERY_BOOK})
+        self.assertEqual(policy._junk_class(rogue, sorcery[0]), "unusable-book")
+        self.assertIsNone(policy._junk_class(mage, sorcery[0]))
+        self.assertTrue(item_fate._unused_book(policy, rogue, sorcery[1]))
+        self.assertFalse(item_fate._unused_book(policy, mage, sorcery[1]))
 
     def test_unused_ammo_follows_the_worn_launcher_only(self):
         policy, board = self._dungeon()

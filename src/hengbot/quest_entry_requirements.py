@@ -3,6 +3,7 @@
 Profiles without an entry_requirements contract retain the ordinary checks.
 These predicates affect readiness only; in-quest light and retreat stay shared.
 """
+from hengbot.class_roles import class_listed, class_row
 
 
 def _entry_requirements(profile) -> dict:
@@ -35,8 +36,8 @@ def allows_overweight_travel(policy, snapshot) -> bool:
 def entry_damage_ratio(profile, class_id, default) -> float:
     """Apply a reviewed class budget to the existing threat calculation."""
     plan = profile.engagement_plan if profile is not None else {}
-    return float(plan.get("max_damage_ratio_by_class", {}).get(
-        str(class_id), plan.get("max_damage_ratio", default)))
+    return float(class_row(plan.get("max_damage_ratio_by_class"), class_id,
+                           plan.get("max_damage_ratio", default)))
 
 
 def force_reference_ac(force) -> int:
@@ -57,7 +58,7 @@ def entry_melee_check(profile, class_id, telemetry, candidates, controlled):
     """
     plan = profile.engagement_plan if profile is not None else {}
     output, hp = telemetry["melee_output"], telemetry["toughest_hp"]
-    if class_id in plan.get("force_melee_against_mobile_by_class", ()):
+    if class_listed(plan.get("force_melee_against_mobile_by_class"), class_id):
         hp = max((monster.max_hp for _, race, monster in candidates
                   if race not in controlled), default=0)
         output = telemetry["strategy_force"]["dps"]["measured"]

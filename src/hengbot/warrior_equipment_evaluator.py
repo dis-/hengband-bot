@@ -312,7 +312,7 @@ def _warrior_blows(
 ) -> int:
     if ADJ_STR_HOLD[str_idx] < weapon.item.weight // 10:
         return 1
-    from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
+    from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES, class_extra_blows
 
     profile = EQUIPMENT_CLASS_PROFILES[class_id]
     strength_index = (ADJ_STR_BLOW[str_idx] * profile.strength_multiplier
@@ -322,7 +322,8 @@ def _warrior_blows(
     strength_index = min(11, strength_index)
     dexterity_index = min(11, ADJ_DEX_BLOW[dex_idx])
     blows = min(profile.max_blows, BLOWS_TABLE[strength_index][dexterity_index])
-    return max(1, blows + extra_blows + (level // 40 if profile.warrior_bonuses else 0))
+    return max(1, blows + extra_blows + class_extra_blows(
+        class_id, level=level, weapon_weight=weapon.item.weight, dex_idx=dex_idx))
 
 
 def _extra_blows(loadout: Loadout, hand_slot: str) -> int:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.class_roles import plays_as_warrior
 from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, deep_climb, equipment_target
 from hengbot import angband_finale, finale_prep
@@ -4436,7 +4437,7 @@ class EquipmentMixin:
         this spare, which nothing needs (equipment review E6)."""
         equipped = self._equipped_launcher(snapshot)
         if (
-            snapshot.player.class_id != PLAYER_CLASS_WARRIOR
+            not plays_as_warrior(snapshot.player.class_id)
             or equipped is None
             or candidate is equipped
             or any(candidate is item for item in snapshot.equipment)

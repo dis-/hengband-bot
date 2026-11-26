@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.class_roles import plays_as_warrior
 from hengbot.home_full_relief import relief_of
 from hengbot.town_pack_budget import incoming_slots, permits, room_assumed
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
@@ -5629,7 +5630,7 @@ class ShopMixin(InStoreMixin):
 
                 self._home_digger_seen_pages.clear()
                 catalog_work_pending = (
-                    snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+                    plays_as_warrior(snapshot.player.class_id)
                     and (
                         not self._equipment_catalog.home_scan_complete
                         or self._has_actionable_incomplete_home_item(snapshot)
@@ -6367,7 +6368,7 @@ class ShopMixin(InStoreMixin):
                 )
         mandatory_home_rescan = (
             store_type == STORE_HOME
-            and snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            and plays_as_warrior(snapshot.player.class_id)
             and not self._equipment_catalog.home_scan_complete
             and bool(self._equipment_catalog.items)
         )

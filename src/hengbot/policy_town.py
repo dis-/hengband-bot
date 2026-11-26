@@ -1,4 +1,5 @@
 from __future__ import annotations
+from hengbot.class_roles import plays_as_warrior
 from hengbot.home_full_relief import relief_of
 from hengbot import equipment_target
 from hengbot.item_identity import same_memory
@@ -4120,7 +4121,7 @@ class TownMixin:
         ):
             add(STORE_ALCHEMIST, "launcher-enchant")
         if (
-            snapshot.player.class_id == PLAYER_CLASS_WARRIOR
+            plays_as_warrior(snapshot.player.class_id)
             and not (
                 self._home_knowledge_current
                 and self._home_scan_item_count == 0
