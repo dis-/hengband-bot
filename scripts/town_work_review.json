@@ -25988,5 +25988,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "home_take_admission.py:refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: refusal returns why a Home take cannot happen now (refused this visit at this pack weight, an Identify staff overload, no pack slot), read by the Home take filers (admit) and policy_home._atomic_home_withdraw_key before composing; not an independently selected game action (n1-a life-545 2026-11-27)",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

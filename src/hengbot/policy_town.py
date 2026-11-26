@@ -4,7 +4,7 @@ from hengbot.home_full_relief import relief_of
 from hengbot import equipment_target
 from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_bm_tour, finale_descent, finale_hold, finale_prep, finale_teleport_tour
-from hengbot import angband_finale
+from hengbot import angband_finale, home_take_admission
 from hengbot import deep_climb, departure_leaf_classes, dive_floor, fled_floor_stairs, fundraising_route, return_start
 from hengbot import recall_wait_rest, recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
@@ -3732,8 +3732,11 @@ class TownMixin:
                     if not self._home_knowledge_current:
                         add(STORE_HOME, "fundraising-food", "home-first")
                     else:
-                        home_food = self._home_mana_food_candidate()
-                        if home_food is not None:
+                        # The eater's own food (rule 1), queued only when the take can happen
+                        # (home_take_admission; n1-a life-545 2026-11-27 03:11).
+                        home_food = self._home_food_candidate(snapshot)
+                        if (home_food is not None and self._home_pending_item is None
+                                and home_take_admission.admit(self, snapshot, home_food, 1)):
                             self._home_pending_item = self._item_signature(home_food)
                             self._home_pending_quantity = 1
                             add(STORE_HOME, "fundraising-food", "home-first")

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from hengbot import angband_finale, food_supply
+from hengbot import angband_finale, food_supply, home_take_admission
 from hengbot import combat_answer, destruction_use, goal_route, lamp_fuel, left_cells, me_capability, me_staff_sequence, random_quest_reserve, unseen_strike, wilderness_exit
 from hengbot import heroism_potion, quest_force_rows, quest_supply_gate, torch_release, town_pack_headroom
 from hengbot import deep_detection_rod, deep_teleport, destruction_means, me_deep_launcher, realm_spell_book, realm_spells, teleport_away_carry
@@ -1826,7 +1826,8 @@ class SupplyMixin:
         if home_needed and home_bearing_town and self._home_available(snapshot):
             self._home_procurement_probe = (-1, -1)
             if (home_device is not None and self._home_pending_item is None
-                    and not self._home_errand.active):
+                    and not self._home_errand.active
+                    and home_take_admission.admit(self, snapshot, home_device, 1)):
                 # Preserve the A21 queued-item contract when no other errand
                 # owns this slot. Existing work is never overwritten.
                 self._home_pending_item = self._item_signature(home_device)

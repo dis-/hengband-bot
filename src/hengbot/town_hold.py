@@ -2574,6 +2574,16 @@ def home_route_opened_for(policy: Any, family: str) -> bool:
         # equipment-transaction:restore-blocked-terminal, the battle pick
         # still to shelve behind the Olog plate's identification take).
         return True
+    if (holder is not None and holder.owner.value == "home-visit"
+            and family == "store-router"
+            and policy._home_knowledge_current
+            and getattr(policy, "_shopping_approach_store_type", None) == STORE_HOME
+            and (policy._home_pending_item is not None or policy._home_pending_batch)):
+        # The same walk for a queued Home take (home:leave-for-pending-withdraw hands it to the
+        # outside entrance, where the router's Home approach composes it).  Held out of it, the
+        # board after the entrance step-off answered policy:none-wait and only the next board
+        # walked back (n1-a life-545 2026-11-27 03:11, one idle wait every cycle).
+        return True
     return bool(holder is not None and holder.owner.value == "store-router"
                 and home_catalogue_work_holder(policy) is None
                 and visit is not None and visit.store_type == STORE_HOME

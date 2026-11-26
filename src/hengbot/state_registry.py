@@ -188,6 +188,10 @@ REGISTRY = (
       "bm_destruction_fund: bm fund planning (no comment at its definition)"),
     S("_bm_fund_probe", "bm_destruction_fund", LIFE,
       "bm_destruction_fund: bm fund probe (no comment at its definition)"),
+    # home_take_admission
+    S("_home_take_refusals", "home_take_admission", LIFE,
+      "Home takes the take itself refused this town visit, with the pack weight then: no filer "
+      "queues one again until the pack is lighter (n1-a life-545 2026-11-27)"),
     # home_cash_sale
     S("_home_cash_sale", "home_cash_sale", LIFE,
       "home_cash_sale: Home's cash wares sold before a poverty mining set (owner 2026-11-18): "
@@ -2505,6 +2509,10 @@ RESTART = {
     # next poisoning; meanwhile the cure waits for HP below half (poison_cure_due).
     "_poison_estimate": Restart(MAY_BE_LOST, "status_cure",
                                 "None in a new process: only the HP line cures the poison"),
+    # home_take_admission: a new process has no refusal; the take itself refuses again once and
+    # records it (one entrance step-off more).
+    "_home_take_refusals": Restart(MAY_BE_LOST, "home_take_admission",
+                                   "empty in a new process: the next refused take records again"),
     # strategy_profile.for_run: cli reads the instance's strategy-profile.json again at start.
     "_instance_profile": Restart(PERSISTED, "strategy_profile",
                                  "configuration, not state: the file is read again at start"),

@@ -5,7 +5,7 @@ from hengbot.town_pack_budget import incoming_slots, permits, room_assumed, surv
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
 from hengbot.item_identity import same_memory
 from hengbot import angband_finale, food_supply
-from hengbot import sale_progress
+from hengbot import home_take_admission, sale_progress
 from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
@@ -3778,7 +3778,7 @@ class ShopMixin(InStoreMixin):
                 if not self._home_knowledge_current:
                     return None
                 home_food = self._home_mana_food_candidate()
-                if home_food is not None:
+                if home_food is not None and home_take_admission.admit(self, snapshot, home_food, 1):
                     if commit_state:
                         self._home_pending_item = self._item_signature(home_food)
                         self._home_pending_quantity = 1
@@ -5276,7 +5276,7 @@ class ShopMixin(InStoreMixin):
                         self.last_reason = "survival:mana-home-scan-before-purchase"
                         return LEAVE_STORE_KEY
                 home_food = self._home_mana_food_candidate()
-                if home_food is not None:
+                if home_food is not None and home_take_admission.admit(self, snapshot, home_food, 1):
                     self._home_pending_item = self._item_signature(home_food)
                     self._home_pending_quantity = 1
                     self._home_procurement_probe = (-1, -1)
