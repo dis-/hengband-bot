@@ -19,6 +19,17 @@ once a reading decides WEAK or MEDIUM on a floor, a later WEAK or MEDIUM reading
 group, or of part of it, keeps that tier.  STRONG is never held and is always taken as read
 (its hunt has the feasibility estimate and the leave path); a monster new to the group, a new
 floor or a STRONG reading decides again.  No new number.
+
+New to the group means new on the floor's held readings: a WEAK or MEDIUM reading decided again
+keeps the members read before it (the held group grows), so a monster that only moves in and out
+of the telepathy's edge decides once.  Recorded n1-c life-222 (Angband 93F, 2026-11-26 10:15-10:16,
+loop-detected): the hunt walked SE from (13,25) toward a sensed 巨大首なし (653) and the descent
+NW back to it.  At (16,29) the telepathy reached a level-52 monster (1226) at (27,44): MEDIUM
+(0.14), held (no hunt: the descent walked); at (13,25) it lost that one and reached a level-20
+monster (339) at (12,5) far west: the group {653, 339, 30} was not within the held
+{653, 1226, 30}, WEAK was decided again and the hunt walked SE, five times, until the loop
+detector stopped the bot.  Now 1226 is still known at (13,25): MEDIUM holds and the descent
+walks on.
 """
 
 from __future__ import annotations
@@ -32,7 +43,10 @@ def held(policy, snapshot, tier: str, tiered) -> str:
     group = frozenset((monster.index, monster.race_id) for monster in tiered)
     memory = policy.__dict__.get(HOLD)
     if (tier in HELD_TIERS and memory is not None and memory[0] == snapshot.floor_key
-            and memory[1] in HELD_TIERS and group <= memory[2]):
-        return memory[1]
+            and memory[1] in HELD_TIERS):
+        if group <= memory[2]:
+            return memory[1]
+        # Decided again for the new member; the members read before stay known.
+        group |= memory[2]
     setattr(policy, HOLD, (snapshot.floor_key, tier, group))
     return tier
