@@ -25911,5 +25911,16 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "departure_leaf_classes.py:waivable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: waivable returns the names of the departure-minimum top-up leaves that are adequate on the board (departure_leaf_classes.TOP_UP, MAINTAINABILITY.md rule 2, n1-a life-545); read by _departure_minimum and the town end's verdict, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

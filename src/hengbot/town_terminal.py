@@ -40,7 +40,7 @@ from hengbot import sale_progress
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
-from hengbot import approach_answer, home_identification, identification_wait, mining_loadout, town_end_mining
+from hengbot import approach_answer, departure_leaf_classes, home_identification, identification_wait, mining_loadout, town_end_mining
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -2372,6 +2372,8 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
 #           town:blocked:survival:<leaf> for a departure-minimum leaf
 #           (policy._departure_minimum), else town:blocked:unmet:<name>.
 TOWN_END_CAUSE = "no-owner-answered"
+# The town end's departure with only adequate top-ups unmet (departure_leaf_classes).
+TOP_UP_ADEQUATE_CAUSE = "top-up-adequate"
 TOWN_END_STEP_OFF = "town:end-step-off"
 # The minimum leaves a mining preparation cannot start over (the transfer
 # gate the supply-stockout mining fallback of force_visit_departure applies).
@@ -2443,13 +2445,20 @@ def queued_home_take_key(policy: Any, board: Any) -> str | None:
     return key
 
 
-def gather_town_end(policy: Any, board: Any) -> TownEndMaterial:
+def gather_town_end(policy: Any, board: Any, *, waive_top_ups: bool = False) -> TownEndMaterial:
+    """The town end's material; ``waive_top_ups`` drops the adequate top-up leaves
+    (departure_leaf_classes) once their rescues gave no key (``town_end_key``)."""
     minimum, _destination, _depth = policy._visit_departure_minimum(board)
     # Spare gear no owner shelved is kept for the next visit, never a stop;
     # so is a *Destruction* staff no owner bought (bm_destruction_fund).
     unmet = tuple(name for name in gather_recall_departure(policy, board).failed
                   if name not in {"spare_gear_stowed", "destruction_staff_settled"})
     survival_unmet = tuple(minimum["failed"])
+    if waive_top_ups:
+        waived = set(departure_leaf_classes.waivable(
+            policy, board, tuple(dict.fromkeys((*survival_unmet, *unmet)))))
+        unmet = tuple(name for name in unmet if name not in waived)
+        survival_unmet = tuple(name for name in survival_unmet if name not in waived)
     return TownEndMaterial(
         unmet=unmet,
         survival_unmet=survival_unmet,
@@ -2643,6 +2652,13 @@ def town_end_key(policy: Any, board: Any) -> str:
         key = rescue_key(policy, board, end.conditions)
         if key is not None:
             return key
+        if departure_leaf_classes.only_adequate_top_ups(policy, board, end.conditions):
+            # MAINTAINABILITY.md rule 2 (n1-a life-545 2026-11-27): a top-up this visit cannot
+            # finish (18 of 20 Identify staff charges, every staff refused as overweight) does
+            # not stop the bot; it leaves with the adequate stock once the rescues gave no key.
+            key = policy.force_visit_departure(board, TOP_UP_ADEQUATE_CAUSE, waive_top_ups=True)
+            if key is not None:
+                return key
     policy._town_blocked_reason = (
         town_end_stop_reason(material, end) if end.kind == "stop"
         else "departure-unsatisfiable")
