@@ -42,6 +42,10 @@ from hengbot import me_powers, threat_tiers
 MEMORY = "_sent_away_t1"
 TRIGGER = "teleported-away-t1"
 THREAT_REASON = "me-power:unbeatable-in-range:teleport-away"
+# A caster's Teleport Away spell at the same trigger (realm_spells, owner 2026-11-26 「盗賊は魔法を
+# 使える」): the same beam (cmd-spell.cpp sorcery Teleport Away: teleport_monster), remembered alike.
+SPELL_THREAT_REASON = "realm-spell:unbeatable-in-range:teleport-away"
+THREAT_REASONS = frozenset({THREAT_REASON, SPELL_THREAT_REASON})
 VANISHED = ("が消え去った！", " disappears!")   # effect/effect-monster.cpp:546
 _REPEAT_RE = re.compile(r" <x[1-9]\d*>$")
 _ARTICLE_RE = re.compile(r"^the ", re.IGNORECASE)
@@ -79,7 +83,7 @@ def note(policy, snapshot) -> None:
     memory = getattr(policy, me_powers.MEMORY, None)
     pending = None if memory is None else memory.pending
     target = None if pending is None else pending.target
-    if policy.last_reason != THREAT_REASON or target is None:
+    if policy.last_reason not in THREAT_REASONS or target is None:
         return
     monster = next((each for each in snapshot.visible_monsters
                     if each.hostile and each.position == target), None)

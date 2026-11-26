@@ -29,7 +29,7 @@ from hengbot.home_full_relief import (
 from hengbot.town_pack_budget import home_take_fits, round_trip_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
-from hengbot import consumable_policy, deep_detection_rod, item_use_route, stone_to_mud_carry, teleport_away_carry
+from hengbot import consumable_policy, deep_detection_rod, item_use_route, realm_spell_book, stone_to_mud_carry, teleport_away_carry
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -6956,6 +6956,8 @@ class HomeMixin:
             or teleport_away_carry.home_missing(self, snapshot, item) > 0
             # Owner 2026-11-26 「50F以降は全感知のロッドを持つ」: the Home Rod of Detection.
             or deep_detection_rod.home_missing(self, snapshot, item) > 0
+            # Owner 2026-11-26 「盗賊は魔法を使える」: the Home copy of a cast book none carried.
+            or realm_spell_book.home_missing(self, snapshot, item) > 0
             # Owner 2026-11-15 「*破壊* の杖と技能の装備は深さに関係なく持つ」 and 2026-11-18
             # 「破壊を持っていないのに50F以降にいるのが不具合」: a Home staff that adds the means
             # (destruction_means ``supplies``) is taken out for the departure's *Destruction*

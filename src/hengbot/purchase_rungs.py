@@ -64,6 +64,8 @@ PURCHASE_RUNG_RETENTION: dict[str, str] = {
     "tail:cure": "supply-ledger:cure",
     # _carry_strategy_potion_target's heroism-carry (heroism_potion.carry_target).
     "tail:heroism": "heroism-carry",
+    # realm_spell_book.retained_count: one copy of each cast book is never sold or destroyed.
+    "realm-book:buy": "realm-spell-book",
     "tail:ammo": "ammo:carry-plan",
     "tail:identify-staff": "identify-staff-cap",
     # Worn or stored by the equipment comparison (ability_gear).
@@ -148,6 +150,8 @@ PURCHASE_RUNG_TIER: dict[str, str] = {
     "experience:restore-life-levels": TIER_OPTIONAL,
     "tail:torch": TIER_OPTIONAL,
     "tail:heroism": TIER_OPTIONAL,
+    # Owner 2026-11-26 「盗賊は魔法を使える」: the caster's books, right after the survival supplies.
+    "realm-book:buy": TIER_REQUIRED,
     "tail:angband-finale": TIER_OPTIONAL,
     "tail:ammo": TIER_OPTIONAL,
     "tail:identify-staff": TIER_OPTIONAL,

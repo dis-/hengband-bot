@@ -52,7 +52,8 @@ from dataclasses import dataclass
 
 from hengbot.class_roles import casts_realm_spells
 from hengbot.model import (
-    SV_SCROLL_PHASE_DOOR, SV_SCROLL_TELEPORT, TVAL_SCROLL, TVAL_SORCERY_BOOK, InventoryItem,
+    SV_SCROLL_IDENTIFY, SV_SCROLL_PHASE_DOOR, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_TELEPORT,
+    TVAL_SCROLL, TVAL_SORCERY_BOOK, InventoryItem,
 )
 
 REALM_SORCERY = 2           # RealmType::SORCERY (realm/realm-types.h)
@@ -383,8 +384,30 @@ def escape_means(policy, snapshot, scroll_sval: int) -> SpellMeans | None:
                       spell_id=spell_id)
 
 
-def means_cast_key(snapshot, item: SpellMeans) -> str:
-    return cast_key(snapshot, item.spell_id)
+def means_cast_key(snapshot, item: SpellMeans, target: str = "") -> str:
+    """The cast of a stand-in spell; ``target`` answers an identification's item question (a pack
+    letter, ``-`` for the floor, ``/`` + an equipment letter), realm_spells_input."""
+    return cast_key(snapshot, item.spell_id) + target
+
+
+# The identification sources a spell stands in for (cmd-spell.cpp sorcery Identify: ident_spell;
+# Identify True: identify_fully): its scroll's sval -> the spell.
+IDENTIFY_SPELLS = {SV_SCROLL_IDENTIFY: IDENTIFY, SV_SCROLL_STAR_IDENTIFY: IDENTIFY_TRUE}
+
+
+def identify_means(policy, snapshot, *, full: bool) -> SpellMeans | None:
+    """鑑定 (or 真・鑑定 when ``full``) as an identification source (policy_identification
+    ``_find_identification_source``): castable at RELIABLE_MIN_SUCCESS (as the Identify staff's
+    STAFF_IDENTIFY_MIN_SUCCESS), in the dungeon above the escape reserve, in town on any mana
+    (resting or the inn refills it).  It reads as the scroll it stands in for."""
+    scroll_sval = SV_SCROLL_STAR_IDENTIFY if full else SV_SCROLL_IDENTIFY
+    spell_id = IDENTIFY_SPELLS[scroll_sval]
+    if not castable(policy, snapshot, spell_id, RELIABLE_MIN_SUCCESS):
+        return None
+    spell = BY_ID[spell_id]
+    return SpellMeans(slot=f"spell:{spell_id}", name=spell.names[0] + "（呪文）", count=1,
+                      tval=TVAL_SCROLL, sval=scroll_sval, aware=True, known=True,
+                      spell_id=spell_id)
 
 
 # -- the occasion table's rows (me_powers) -------------------------------------------------------
