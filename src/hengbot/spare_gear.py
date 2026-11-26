@@ -188,6 +188,20 @@ def taken_from_home(policy: Any) -> frozenset:
     return frozenset(_taken_record(policy)[0])
 
 
+def taken_back(policy: Any, snapshot: Any, signature: tuple) -> bool:
+    """A Home take of this visit brought ``signature`` out and it is no longer carried.
+
+    Its work did not hold it (the name is unchanged: an *identified* piece is
+    a new name), so the same take on the same visit would only put it back
+    again.  n1-c life-223 (2026-11-26 19:16-19:17): the *Identify* takes of
+    ☆陣笠『太陽の衣』 and 電撃の魔法を防ぐクローク went out and back eleven
+    times until town:blocked:stage-deadline:home.
+    """
+    return (signature in _taken_record(policy)[0]
+            and not any(policy._item_signature(item) == signature
+                        for item in snapshot.inventory))
+
+
 def observe(policy: Any, snapshot: Any) -> None:
     """Re-arm Home once for gear a take brought out and nothing now uses.
 
