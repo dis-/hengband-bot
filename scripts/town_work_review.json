@@ -25559,5 +25559,269 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-26 「…以前の指示を破ることを許可する」 (the winning life's 625 recall trips, 49% of the no-descend floors' returns explored-dead-end-floor, one level a trip): in the Word of Recall's place, '<' underfoot (deep-stairs:ascend), else a step toward the nearest known reachable stair (deep-stairs:seek-stairs), EXTRA_FLOORS floors a trip; None otherwise (the Recall is read as before)."
+  },
+  "me_powers.py:_used_row": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The table row of a remembered use: a me_powers row, else a caster's spell row (realm_spells.row_of); returns a row, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy.py:HengbotPolicy._spell_escape_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: the caster's Teleport / Short Teleport standing in for a missing escape scroll (realm_spells.escape_means) under the finders' own refusals; returns a pseudo item for _escape_scroll, no command of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "threat_escape.py:escape_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the 4.2 list of escape means usable now (scrolls, Teleport Level, Recall, staffs, absorbed or spell teleport, *Destruction*, the walk); read by assess only, never a key",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:reliable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure predicate: an absorbed power's success at least RELIABLE_MIN_SUCCESS (the game's rate with no stun); a row requirement read by me_powers, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_powerful_activation.py:pays_safely": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure predicate: Powerful Activation's HP cost leaves the character above the low-HP rungs; read by me_powers' POWERFUL conditions, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "quest_target_search.py:_lap_left": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure selector over the RANDOM quest target search's lap (cells still to visit); dungeon only, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "threat_projection.py:Projection.affordable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Pure arithmetic of a threat projection (whether the projected damage leaves the player above the line); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spell_book.py:_stale_book": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: a carried cast book whose shown list was drawn at another character level; returns a book index, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spell_book.py:retained_count": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Read by the retention authority (policy_home._retention_reservation_baseline_detail) in town and in the dungeon alike.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: the retention authority's kept count of a cast Sorcery book (one copy of each of the first two books while the character casts); no command or independent credit.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spell_book.py:browse_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: the turn-free browse command b + the book's slot (cmd-spell.cpp do_cmd_browse) whose list the emitter writes as a spell_list record; offered under periodic:realm-spells by resume_read_key and periodic_key only.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spell_book.py:resume_read_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: at the head of a decision, the turn-free browse of a carried cast book whose spell list this process lacks (at most 3 reads a book, 5 decisions apart); in town and in the dungeon, never in a store, never blind/confused/paralyzed/hallucinating.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spell_book.py:study_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: G + book slot + spell letter (cmd-spell.cpp do_cmd_study) of the first unknown spell of realm_spells.LEARN_ORDER at or below the character level in a carried book, while the board shows 「学習」; asked only through periodic_key on a safe filler.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spell_book.py:periodic_key": {
+    "classification": "producer",
+    "rows": [
+      "bookkeeping"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: in place of a safe filler (policy._periodic_filler_is_safe, no hostile in sight or sensed, not just hit), the caster's study, else the browse of a list shown at another level; returns the key it was given otherwise.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "realm_spells.py:Spell.letter": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The spell's letter in its book (I2A(spell_id % 8), get_spell's labels); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:_row_usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "A spell row's requirements, its per-place failure latch and realm_spells.castable at the row's least success; returns a bool, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:_rows.names": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The spell's (ja, en) names for its occasion row; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:_serving": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Selects a usable preferred spell row, else the row itself; returns a row, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:book_item": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The carried Sorcery book of a book index (tval 91, sval); no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The cast key m + book slot + spell letter (+ direction) of a spell (cmd-spell.cpp do_cmd_cast); composed for spell_key and policy._read_key, no offer of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:castable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Learned, its book carried, its mana above the escape reserve for a non-escape dungeon cast, its success at least the given rate under the board's stun, nothing refusing the cast; returns a bool, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:escape_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: the spell (Teleport, Short Teleport) standing in for a missing escape scroll as a pseudo item (SpellMeans) castable at 50% or better; no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:means_cast_key": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The cast key of an escape scroll's stand-in spell, returned by policy._read_key in the read's place; no offer of its own.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:row_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "The occasion row of a ('spell', spell_id) ident; returns a row, no command.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:spell_key": {
+    "classification": "dungeon-only",
+    "rows": [
+      "quest-service"
+    ],
+    "context": "Excluded by in-town / wilderness / store predicates; see evidence.",
+    "evidence": "Owner 2026-11-26 「盗賊は魔法を使える。無視する戦略ならばそれも良いが、多少なり使うと大きく助けになる。」: me_powers.power_key for a caster (the Rogue): the first due spell row of the occasion (Detect Monsters, Detection True, Detect Doors and Traps, Magic Mapping, Light Area, Teleport Away, Haste Self) cast as m + book slot + letter (+ direction) under realm-spell:<trigger>:<effect>; me_powers._gate keeps it out of town, the wilderness and a store.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

@@ -1,0 +1,107 @@
+{
+ "_comment": "Recorded 2026-11-26 on a private headless game (the Golem Rogue template BOT_PLAY.bot_rogue-20261126-fixed raised to level 10 by the debug command, INT 15): the spell_list record the browse (b + the book) wrote after Detect Monsters, Teleport and Short Teleport were learned and Detect Monsters and Short Teleport cast, at 0 mana.  Reduced: the record's player object is cut to the keys realm_spells reads (mp, level, status.stun_rank); the spell_list is as recorded.",
+ "type": "spell_list",
+ "turn": 1569,
+ "player": {
+  "mp": 0,
+  "max_mp": 12,
+  "level": 10,
+  "class_id": 3,
+  "status": {
+   "stun_rank": 0
+  }
+ },
+ "spell_list": {
+  "realm_id": 2,
+  "spells": [
+   {
+    "fail": 13,
+    "info": "半径:30",
+    "level": 2,
+    "mana": 2,
+    "name": "モンスター感知",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 0,
+    "status": "available"
+   },
+   {
+    "fail": 29,
+    "info": "範囲:10",
+    "level": 2,
+    "mana": 5,
+    "name": "ショート・テレポート",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 1,
+    "status": "available"
+   },
+   {
+    "fail": 49,
+    "info": "未知",
+    "level": 5,
+    "mana": 7,
+    "name": "罠と扉感知",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 2,
+    "status": "unknown"
+   },
+   {
+    "fail": 54,
+    "info": "未知",
+    "level": 5,
+    "mana": 7,
+    "name": "ライト・エリア",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 3,
+    "status": "unknown"
+   },
+   {
+    "fail": 62,
+    "info": "未知",
+    "level": 6,
+    "mana": 8,
+    "name": "パニック・モンスター",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 4,
+    "status": "unknown"
+   },
+   {
+    "fail": 93,
+    "info": "未経験",
+    "level": 8,
+    "mana": 12,
+    "name": "テレポート",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 5,
+    "status": "untried"
+   },
+   {
+    "fail": 91,
+    "info": "未知",
+    "level": 9,
+    "mana": 12,
+    "name": "スリープ・モンスター",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 6,
+    "status": "unknown"
+   },
+   {
+    "fail": 95,
+    "info": "未知",
+    "level": 11,
+    "mana": 15,
+    "name": "魔力充填",
+    "proficiency": "[初]",
+    "proficiency_mark": false,
+    "spell_id": 7,
+    "status": "unknown"
+   }
+  ]
+ }
+}

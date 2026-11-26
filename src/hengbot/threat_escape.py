@@ -120,6 +120,11 @@ def escape_means(policy, snapshot, hostiles) -> tuple:
                if item.tval == TVAL_SCROLL and item.aware and item.count > 0}
     if readable and not teleport_blocked and not forbidden and scrolls & {8, 9}:
         means.append("teleport-scroll")
+    elif (readable and not teleport_blocked and not forbidden
+          and policy._escape_scroll(snapshot) is not None):
+        # The caster's Teleport or Short Teleport in the scrolls' place (realm_spells, read by
+        # the same rungs through policy._escape_scroll).
+        means.append("teleport-spell")
     if (readable and not policy._teleport_blocked_by_equipment(snapshot) and not forbidden
             and SV_SCROLL_TELEPORT_LEVEL in scrolls
             # Owner 2026-11-22: never down onto 50F+ unsanctioned (deep_fall_guard).

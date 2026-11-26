@@ -496,6 +496,14 @@ REGISTRY = (
       "me_powers_refresh: me power refresh pending (no comment at its definition)"),
     S("_me_power_resume_attempts", "me_powers_refresh", LIFE,
       "me_powers_refresh: kind -> (reads asked, decision sequence of the last) of the restarted process's absorbed-power list reads (resume_read_key)"),
+    # realm_spells / realm_spell_book (owner 2026-11-26 「盗賊は魔法を使える」)
+    S("_realm_spell_lists", "realm_spells", LIFE,
+      "realm_spells: book -> the last spell list the game drew of the caster's Sorcery book (the "
+      "spell_list record: each spell's status, level, mana and fail, with the mana, level and "
+      "stun it was drawn under); a learned spell the game announced is marked learned in it"),
+    S("_realm_spell_resume_attempts", "realm_spell_book", LIFE,
+      "realm_spell_book: book -> (reads asked, decision sequence of the last) of the turn-free "
+      "reads of a carried cast book's missing spell list (resume_read_key)"),
     # me_q1_torch
     S("_me_q1_missile_empty_turn", "me_q1_torch", LIFE,
       "me_q1_torch: me q1 missile empty turn (no comment at its definition)"),
@@ -2138,6 +2146,10 @@ RESET_BY = {
         "only the current visit's entries when it writes (no whole reset)"
     )),
     "_me_device_list_boards": Reset(("me_power_success.forget_list_boards",)),
+    "_realm_spell_resume_attempts": Reset(note=(
+        "per process; realm_spell_book.resume_read_key only adds reads, bounded by "
+        "RESUME_READ_ATTEMPTS per book, and a book whose list arrived is no longer asked"
+    )),
     "_me_power_resume_attempts": Reset(note=(
         "per process (a restarted process starts without it); me_powers_refresh.resume_read_key "
         "only adds reads, bounded by RESUME_READ_ATTEMPTS per kind, and a kind whose list arrived "
@@ -2449,6 +2461,12 @@ RESTART = {
     # policy_observation._observe: a town visit's first board reads the overweight ledger.
     "_overweight_surplus_ledger": Restart(PERSISTED, "policy_observation",
                                           "read when a town visit starts (no epoch yet)"),
+    # realm_spells: a new process without the checkpoint's lists reads each carried book's list
+    # again at the head of a decision (realm_spell_book.resume_read_key, turn-free).
+    "_realm_spell_lists": Restart(MAY_BE_LOST, "realm_spells",
+                                  "the next decision's turn-free browse shows each list again"),
+    "_realm_spell_resume_attempts": Restart(MAY_BE_LOST, "realm_spell_book",
+                                            "per process: a new process asks again"),
     # strategy_profile.for_run: cli reads the instance's strategy-profile.json again at start.
     "_instance_profile": Restart(PERSISTED, "strategy_profile",
                                  "configuration, not state: the file is read again at start"),

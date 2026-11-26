@@ -403,6 +403,8 @@ AFTER_DECIDE = (
     "_periodic_game_save_key", "_periodic_character_dump_key",
     # Owner 2026-11-20 Q8: the small-floor option before the town's recall toward 99F/100F.
     "_angband_finale_small_floor_key", "periodic_magic_eater_powers_key",
+    # Owner 2026-11-26 「盗賊は魔法を使える」: a caster's study and spell-list read (realm_spell_book).
+    "realm_spell_book.periodic_key",
     # The ping-pong guard's escalation (owner 2026-11-13 「1と2だけ」): the existing livelock leave
     # in place of a key that is not a survival rung's, on the escalation board only.
     "pingpong_guard.after_ladder",

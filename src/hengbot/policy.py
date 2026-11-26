@@ -2760,6 +2760,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # Class 16: the displayed absorbed-device lists and the last power use.
         haste_read.observe(self, snapshot)
         me_powers.observe(self, snapshot)
+        # A caster's learned spells the game announced (realm_spell_book, owner 2026-11-26).
+        from hengbot import realm_spell_book
+        realm_spell_book.observe(self, snapshot)
         # The door detections that landed on this floor visit (door_detect_cover, owner 2026-11-25).
         door_detect_cover.observe(self, snapshot)
         # The Rod of Detection's last zap on 50F+ (deep_detection_rod, owner 2026-11-26).
@@ -4985,6 +4988,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         resumed = resume_read_key(self, snapshot)
         if resumed is not None:
             return resumed
+        # A caster's spell list this process lacks, as the absorbed-power lists (turn-free).
+        from hengbot import realm_spell_book
+        resumed = realm_spell_book.resume_read_key(self, snapshot)
+        if resumed is not None:
+            return resumed
         if dungeon_shop.page_open(snapshot):
             return dungeon_shop.leave_key(self, snapshot)
         if snapshot.store is not None and snapshot.player.recalling:
@@ -6592,6 +6600,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         key = self._angband_finale_small_floor_key(snapshot, key)
         from hengbot.me_powers_refresh import periodic_magic_eater_powers_key
         key = periodic_magic_eater_powers_key(self, snapshot, key)
+        # A caster's study and the read of a list shown at another level (realm_spell_book).
+        from hengbot import realm_spell_book
+        key = realm_spell_book.periodic_key(self, snapshot, key)
         if key is not selected:
             # The replaced key is never posted: what its owner waits for
             # cannot arrive, so its expectation of this decision is withdrawn.
@@ -11057,6 +11068,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             cross_rules.produce(self, cross_rules.DEEP_TELEPORT)  # record only
         if (takeoff := self._anti_teleport_takeoff_key(snapshot, item)) is not None:
             return takeoff
+        from hengbot import realm_spells
+        if realm_spells.is_spell_means(item):
+            # The caster's spell in an escape scroll's place (``_escape_scroll``): cast it.
+            return realm_spells.means_cast_key(snapshot, item)
         if not suffix and item.is_recall_scroll and snapshot.dungeon_level == 0 \
                 and not snapshot.player.recalling:
             # D22: a surface recall read asks which dungeon (choose_dungeon).
@@ -14991,9 +15006,28 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         if not beside_followers and teleport_follower.followed(self, snapshot):
             return None
         teleport = self._find_teleport_scroll(snapshot)
+        if teleport is None:
+            # Owner 2026-11-26 「盗賊は魔法を使える」: with no Teleportation scroll carried, the
+            # caster's Teleport stands in for it, then Short Teleport for a missing Phase Door
+            # (realm_spells; a scroll never fails, so a carried one is read first).
+            teleport = self._spell_escape_means(snapshot, SV_SCROLL_TELEPORT)
         if teleport is not None or teleport_only:
             return teleport
-        return self._find_phase_scroll(snapshot)
+        return (self._find_phase_scroll(snapshot)
+                or self._spell_escape_means(snapshot, SV_SCROLL_PHASE_DOOR))
+
+    def _spell_escape_means(self, snapshot: Snapshot, scroll_sval: int):
+        """The caster's spell standing in for an escape scroll of ``scroll_sval`` (the finders'
+        own refusals hold for it: a quest that forbids teleport, a refused relocation, the 50F+
+        rule's no means), else None."""
+        from hengbot.class_roles import casts_realm_spells
+        if not casts_realm_spells(snapshot.player.class_id):
+            return None
+        if (quest_no_teleport.forbids(self, snapshot) or self._relocation_refused(snapshot)
+                or deep_teleport.no_means(self, snapshot)):
+            return None
+        from hengbot import realm_spells
+        return realm_spells.escape_means(self, snapshot, scroll_sval)
 
 
     def _consumable_fight_target(

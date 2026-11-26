@@ -85,6 +85,8 @@ HUNTED_QUEST_TYPES = frozenset({QUEST_TYPE_RANDOM, QUEST_TYPE_KILL_LEVEL})
 REVEALS = {
     "detect-evil": lambda flags: "EVIL" in flags,
     "detect-all": lambda flags: True,
+    # A caster's Detect Monsters (realm_spells): detect_monsters_normal shows no invisible race.
+    "detect-monsters": lambda flags: "INVISIBLE" not in flags,
 }
 
 

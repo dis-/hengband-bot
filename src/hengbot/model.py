@@ -533,6 +533,9 @@ class PlayerState:
     stun_rank: int | None = None
     # (value, text, color, riding) of the speed field.
     speed_display: tuple[int, str, str, bool] | None = None
+    # The screen's 「学習」 indicator (bot-json-output.cpp make_study_indicator_json: new_spells
+    # above 0 for a book reader); None from an emitter without the key.
+    can_study: bool | None = None
 
     @property
     def printed_stat_cur_key(self) -> tuple[int, ...]:
@@ -1523,6 +1526,11 @@ def parse_snapshot(
             )
             if isinstance(raw_speed_display, Mapping)
             else None
+        ),
+        can_study=(
+            None if "study" not in player_data
+            else isinstance(player_data["study"], Mapping)
+            and player_data["study"].get("kind") == "study"
         ),
     )
 

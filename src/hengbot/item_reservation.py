@@ -520,6 +520,10 @@ def reserved_item_command(policy, snapshot, kind, item, owner=None, *, address=N
     # Identification selects a source using the game's observed command key.
     # Normalize it here so all item commands share the same checked serializer.
     kind = {'r': 'read', 'u': 'staff', 'z': 'rod', 'a': 'wand'}.get(kind, kind)
+    if getattr(item, "is_spell_means", False):
+        # A caster's spell standing in for an escape scroll (realm_spells.SpellMeans) is no
+        # pack stack: policy._read_key casts it; no item command reads it.
+        return None
     if (kind == "staff" and item.tval == TVAL_STAFF and item.count > 1
             and not permits(snapshot, 1)):
         return None

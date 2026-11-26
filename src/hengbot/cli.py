@@ -6156,6 +6156,10 @@ def _dispatch_response_lines(
                 policy.observe_character_snapshot(character, envelope=data)
         elif response_type == "look" and getattr(policy, "_look_probe_inflight", False):
             policy.consume_look(data)
+        elif response_type == "spell_list" and isinstance(data, Mapping):
+            # The list a cast, study or browse drew (realm_spells, owner 2026-11-26).
+            from hengbot import realm_spells
+            realm_spells.observe_list(policy, dict(data))
         if is_home9 and outstanding_at_arrival:
             settle = getattr(policy, "settle_home_knowledge_request", None)
             if settle is not None:
