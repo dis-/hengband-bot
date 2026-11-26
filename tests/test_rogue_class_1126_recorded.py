@@ -184,12 +184,13 @@ class RogueTownVisitReplayTest(unittest.TestCase):
         self.assertEqual(self.rogue_board.player.class_id, ROGUE)
         # The search ran on the Rogue's own board (the calibration accepts class 3).
         self.assertEqual(self.rogue._rogue_test_calibration.class_id, ROGUE)
-        # The Warrior's town work up to the equipment withdrawal, then the Rogue's own target
-        # (5 blows, no bow shots): another Home piece is withdrawn.
+        # The Warrior's town work up to the Home's junk sweep: the Rogue's sweep takes the
+        # Warrior's 反魔法のアミュレット out to sell (item_fate ``anti-magic``, 2026-11-27: a worn
+        # NO_MAGIC refuses the Rogue's ``m``), and its own target follows (5 blows, no bow shots).
         first = next(row for row in self.rogue_rows if not row[1])
-        self.assertEqual(first[0], 13)
-        self.assertEqual(first[3], "equipment-transaction:withdraw")
-        self.assertTrue(all(matched for _row, matched, _key, _reason in self.rogue_rows[:13]))
+        self.assertEqual(first[0], 4)
+        self.assertEqual(first[3], "home:junk-sweep-withdraw")
+        self.assertTrue(all(matched for _row, matched, _key, _reason in self.rogue_rows[:4]))
         rogue = self.rogue._rogue_test_target.best.loadout
         warrior = self.warrior._rogue_test_target.best.loadout
         self.assertNotEqual(

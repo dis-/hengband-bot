@@ -43,11 +43,12 @@ LEVELS = (CARRY, KEEP, ROOM, SPARE)
 # keeps the piece): the old definitions of 「要らない」.
 GROUND_DOMINATED = "dominated"                    # item_fate._dominated (Home stock)
 GROUND_INNATE = "innate-covered"                  # item_fate._innate_covered (Home stock)
+GROUND_ANTI_MAGIC = "anti-magic"                  # item_fate._anti_magic_unwearable (2026-11-27)
 GROUND_PLAIN_GEAR = "plain-gear"                  # policy._plain_gear_surplus (junk class)
 GROUND_DOMINATED_ARMOUR = "dominated-armour"      # policy._is_disposable_dominated_armour
 GROUND_DOMINATED_LAUNCHER = "dominated-launcher"  # policy._is_disposable_dominated_launcher
 GROUND_INFERIOR_WEAPON = "inferior-weapon"        # policy._find_weapon_sale's comparison
-GROUNDS = (GROUND_DOMINATED, GROUND_INNATE, GROUND_PLAIN_GEAR, GROUND_DOMINATED_ARMOUR,
+GROUNDS = (GROUND_DOMINATED, GROUND_INNATE, GROUND_ANTI_MAGIC, GROUND_PLAIN_GEAR, GROUND_DOMINATED_ARMOUR,
            GROUND_DOMINATED_LAUNCHER, GROUND_INFERIOR_WEAPON)
 
 
@@ -171,6 +172,8 @@ def _ground(policy: Any, snapshot: Any, item: Any) -> str | None:
         return GROUND_DOMINATED
     if item_fate._innate_covered(snapshot, item):
         return GROUND_INNATE
+    if item_fate._anti_magic_unwearable(snapshot, item):
+        return GROUND_ANTI_MAGIC
     if policy._is_plain_gear(item) and policy._plain_gear_surplus(snapshot, item):
         return GROUND_PLAIN_GEAR
     if policy._is_disposable_dominated_armour(snapshot, item):

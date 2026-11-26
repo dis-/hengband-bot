@@ -18,7 +18,7 @@ from math import isfinite
 from time import monotonic
 from typing import Callable, Iterable, Iterator, Mapping
 
-from hengbot import deep_admission, me_power_success, torch_release
+from hengbot import caster_mana, deep_admission, me_power_success, torch_release
 from hengbot.item_identity import without_player_inscription
 from hengbot.model import (
     ARMOUR_TVALS,
@@ -1218,12 +1218,15 @@ def _meets_requirements(
 def owned_armor_fill_slots(
     items: Iterable[OwnedEquipment],
     excluded_item_ids: frozenset[str] = frozenset(),
+    class_id: int | None = None,
 ) -> frozenset[str]:
     """Return the non-body armour slots an owned, usable piece can fill.
 
     Mirrors the body rule's candidate test (``exploration_legal``: known,
     uncursed, unbroken, no forbidden flag).  The catalogue holds only owned
-    items (equipped, pack, Home), never store stock.
+    items (equipped, pack, Home), never store stock.  For ``class_id`` a
+    caster's mana-penalising gloves fill nothing (caster_mana.fills_arms): they
+    compete on their mana cost, so the arms slot may stay empty.
     """
     return frozenset(
         slot
@@ -1231,6 +1234,7 @@ def owned_armor_fill_slots(
         if item.id not in excluded_item_ids
         and item.exploration_legal
         and (slot := slot_for(item.item)) in FILL_REQUIRED_ARMOR_SLOTS
+        and caster_mana.fills_arms(item.item, class_id)
     )
 
 

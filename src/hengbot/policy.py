@@ -11608,7 +11608,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # also invalidate the result (including direct helper callers).
         cached = getattr(self, "_disposable_armour_cache", None)
         if cached is None or cached[:2] != (catalog, protected):
-            disposable = disposable_dominated_item_ids(catalog, protected)
+            disposable = disposable_dominated_item_ids(
+                catalog, protected, snapshot.player.class_id)
             identities = frozenset(
                 equipment_identity(owned.item)
                 for owned in catalog

@@ -17,7 +17,9 @@ board onto the dungeon entrance (the walk the departure's travel key starts);
 the top-up class to show the stop the fix removes.  Every test holds the 鑑定's usable rate at
 RELIABLE_MIN_SUCCESS (80%, the rule this capture was recorded under): from the supervisor's
 2026-11-27 rule the Rogue's 42% 鑑定 replaces the staff (tests/test_rogue_identify_spell_1127_recorded.py)
-and the recorded visit is no longer the one these tests replay.
+and the recorded visit is no longer the one these tests replay.  The module also runs under the
+equipment rules the visit was recorded with (tests/support/pre_caster_rules.py: row 23 learns the worn shield's NO_MAGIC, and the
+caster rules of 2026-11-27 would take it off from row 24 on).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -34,6 +36,7 @@ from hengbot import departure_leaf_classes, realm_spells
 from hengbot.latch_onset_capture import checkpoint_bytes, restore_checkpoint_bytes
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
 from hengbot.policy_constants import IDENTIFY_CHARGE_FLOOR, STAFF_IDENTIFY_MIN_CHARGES
+from support import pre_caster_rules
 from support.town_arrival_fixture import load
 
 FIXTURE = Path(__file__).with_name("fixtures") / "n1a-545-identify-top-up-1127"
@@ -58,6 +61,8 @@ def setUpModule():
                                 realm_spells.RELIABLE_MIN_SUCCESS)
     patcher.start()
     unittest.addModuleCleanup(patcher.stop)
+    # The equipment and spell rules before the caster rules (module docstring).
+    unittest.addModuleCleanup(pre_caster_rules.patches().close)
 
 
 def replayed():

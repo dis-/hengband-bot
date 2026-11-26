@@ -245,7 +245,7 @@ def finale_seed_loadouts(
         items, figures, current_item_ids=current.item_ids, pinned=pinned,
         excluded_item_ids=excluded_item_ids, require_light=require_light,
         require_body=require_body,
-        fill_slots=owned_armor_fill_slots(items, excluded_item_ids),
+        fill_slots=owned_armor_fill_slots(items, excluded_item_ids, inputs.combat.class_id),
         required_flags=required_flags | band_flags,
         valid=lambda loadout: _meets_static_requirements(
             loadout, depth=band, intrinsic_abilities=intrinsic_abilities,
@@ -1044,8 +1044,10 @@ def prepare_warrior_optimization(
     # The banned pieces (equipment_rules.LOADOUT_BANNED_FLAGS: owner 2026-11-21 「99F 100Fでも
     # 宵闇のローブは禁止」) are in no loadout, ordinary or the finale's, at any depth; out of the
     # search, a worn one is taken off by the next town's swap (n1-b life-411 2026-11-21 wore one
-    # on 95F).
-    search_excluded_item_ids = search_excluded_item_ids | equipment_rules.loadout_banned_item_ids(items)
+    # on 95F).  A class whose ``m`` the bot uses also leaves NO_MAGIC out (search_banned_flags,
+    # the supervisor 2026-11-27: n1-a life-545's Sorcery Rogue wore an anti-magic shield).
+    search_excluded_item_ids = search_excluded_item_ids | equipment_rules.loadout_banned_item_ids(
+        items, player.class_id)
     if blockers:
         return WarriorOptimizationPreparation(current, None, None, blockers)
 
@@ -1226,7 +1228,7 @@ def prepare_warrior_optimization(
                 require_light=require_light,
                 require_body=require_body,
                 require_armor_slots=owned_armor_fill_slots(
-                    items, search_excluded_item_ids
+                    items, search_excluded_item_ids, player.class_id
                 ),
                 identification_exempt_item_ids=identification_exempt_item_ids,
                 finale=finale,
@@ -1251,6 +1253,8 @@ def prepare_warrior_optimization(
                 excluded_item_ids=search_excluded_item_ids,
                 require_light=require_light,
                 required_flags=flags,
+                # A realm caster's mana components in the dominance tests (caster_mana).
+                mana_class_id=player.class_id,
                 **({} if seed is None else {"seed": seed}),
                 # The depth gates' speeds (SPEED_GATE_MINIMA): a set that reaches one only
                 # by two swaps or more is searched as a whole (_gate_completions).
