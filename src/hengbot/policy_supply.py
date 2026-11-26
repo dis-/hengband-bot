@@ -2266,7 +2266,10 @@ class SupplyMixin:
                 )
             )
             and not snapshot.visible_monsters
-            and not player.poisoned
+            # Not poisoned was asked here too while every character was a Zombie (resist poison,
+            # race-info-table.cpp) and never poisoned; the hit is an attack message's
+            # (``_unseen_attack_evidence``), which no poison tick prints (hp-mp-processor.cpp
+            # take_hit 「毒」), so a poisoned player hit by 何か retreats too (2026-11-26).
             and not player.cut
         )
         active = self._unseen_retreat_floor == snapshot.floor_key

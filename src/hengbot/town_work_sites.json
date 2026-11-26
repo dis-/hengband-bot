@@ -69,6 +69,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ability_sources.py:lasting_abilities": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ability_sources.py:missing_abilities": {
     "classification": "data",
     "rows": [
@@ -18831,6 +18838,20 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:poison_cure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:poison_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "status_cure.py:short_blind_key": {
     "classification": "producer",

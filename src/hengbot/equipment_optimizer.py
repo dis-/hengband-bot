@@ -561,9 +561,9 @@ class EvaluatedLoadout:
 
 
 # The depth bands of the descent, deepest first; a band reads the depth requirements of its
-# deepest floor (81+, 70-80, 50-69, 40-49, 31-39, 26-30, 21-25, 20, <=19; owner 2026-08-10, the
-# 70-80F speed +10 of 2026-11-26 split 50-80).
-DEPTH_BANDS = (81, 80, 69, 49, 39, 30, 25, 20, 19)
+# deepest floor (81+, 70-80, 50-69, 36-49, 31-35, 26-30, 21-25, 20, <=19; owner 2026-08-10, the
+# 70-80F speed +10 of 2026-11-26 split 50-80; the nether row moved from 40F to 36F on 2026-11-26).
+DEPTH_BANDS = (81, 80, 69, 49, 35, 30, 25, 20, 19)
 
 
 @dataclass(frozen=True)

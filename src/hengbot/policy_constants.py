@@ -919,7 +919,10 @@ DEPTH_ABILITY_REQUIREMENTS = (
     # the Black Market's level band (store.cpp: 25 + level/4 + 0..24) and the dungeon's by then.
     (26, frozenset({"resist_pois", "resist_cold", "resist_elec", "resist_acid", "see_invisible"})),
     (31, frozenset({"resist_chaos"})),
-    (40, frozenset({"resist_neth"})),
+    # Nether from 36F (supervisor 2026-11-26, from 40F): the first nether bolts are 34F
+    # (マスター・ヴァンパイア L34 BO_NETH, 1_IN_6) and the first nether breather 37F (ボーン・ドラゴン
+    # L37, 120d10 HP), MonraceDefinitions.jsonc.
+    (36, frozenset({"resist_neth"})),
     (50, frozenset({"telepathy"})),
 )
 

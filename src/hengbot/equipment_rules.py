@@ -182,8 +182,9 @@ def required_abilities_for_depth(depth: int) -> frozenset:
 # Bumped when a rule's logic changes without its data changing (4: the input key's former
 # hand-bumped schema, the NO_AC ban of 2026-11-21; 5: the single-slot search's speed
 # completions of 2026-11-26, warrior_loadout_search.SpeedGate; 6: the see-invisible utility of
-# 2026-11-26, equipment_utility.SEE_INVISIBLE_BONUS).
-RULES_REVISION = 6
+# 2026-11-26, equipment_utility.SEE_INVISIBLE_BONUS; 7: the search's depth bands of the 36F
+# nether row, equipment_optimizer.DEPTH_BANDS).
+RULES_REVISION = 7
 
 
 def _rules_table() -> dict:

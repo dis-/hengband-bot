@@ -77,7 +77,7 @@ from hengbot.game_messages import KILL_LINE_DESTROYED, KILL_LINE_KILLED, KILL_LI
 from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import power_command_refused
 from hengbot.model import (
-    SV_POTION_CURE_CRITICAL, SV_ROD_HEALING, SV_STAFF_HEALING, TVAL_FOOD,
+    SV_POTION_CURE_CRITICAL, SV_POTION_HEALING, SV_ROD_HEALING, SV_STAFF_HEALING, TVAL_FOOD,
 )
 from hengbot.policy_constants import HEAL_ORDER, REST_MACRO, REST_TARGET_HP_RATIO, WAIT_KEY
 
@@ -144,6 +144,41 @@ CURE_MUSHROOMS = {
 }
 CURE_MUSHROOM_REASON = "item:cure-mushroom"
 EMERGENCY_CURE_MUSHROOM_REASON = "emergency:cure-mushroom"
+
+# --- poison (2026-11-26) ----------------------------------------------------------------------
+# Supervisor 2026-11-26 on the non-Zombie characters (owner 「ゾンビでない種族を扱うならば、毒耐性と
+# 地獄耐性の評価をちゃんとした方が良い」): every character before was a Zombie, which resists poison
+# (race-info-table.cpp) and is never poisoned (an unresisted poison effect or a POISON blow alone
+# sets the timer), so nothing here treated it.  The game:
+# - hp-mp-processor.cpp process_player_hp_mp: each game tick (10 game turns) a poisoned player
+#   takes 1 HP (take_hit 「毒」, no message) and regenerates nothing (regen_amount 0);
+# - magic-effects-timeout-reducer.cpp: the timer drops adj_con_fix[CON] + 1 a tick (at least 1);
+# - player-damage.cpp take_hit disturbs, which ends a rest (disturbance.cpp), so a rest while
+#   poisoned lasts one tick and heals nothing: the rest gates keep refusing it and the player
+#   acts on (explores, fights) while the poison runs out;
+# - the cures: Cure Critical Wounds, Healing, *Healing* (cure_critical_wounds set_poison(0),
+#   spells-status.cpp), the Potion of Cure Poison (quaff-effects.cpp, dungeon only) and the
+#   Mushroom of Cure Poison (cmd-eat.cpp); Cure Light and Cure Serious Wounds do not cure it.
+#   The Temple always stocks Cure Critical Wounds (articles-on-sale.cpp), which the supply ledger
+#   already carries from 1F ("cure", policy.SUPPLY_THRESHOLDS);
+# - the timer a hit sets: a POISON blow randint1(rlev) + 5 (monster-attack-switcher.cpp), an
+#   unresisted poison bolt, ball or breath 10 + randint1(dam) (effect-player-switcher.cpp).
+# The board shows only that the player is poisoned, so the timer is estimated as 10 + the HP the
+# poisoning board took (the bolt's bound; a blow's is lower) and run down one per tick (the CON
+# reduction left out: an overestimate).  The cure is drunk when that estimate is more than
+# ``POISON_CURE_SHARE`` of max HP, or when HP is below ``POISON_CURE_HP_RATIO``; else the poison is
+# left to run out.
+POISON_CURE_SHARE = 0.15
+POISON_CURE_HP_RATIO = 0.5
+# The most a board's poison ticks take without an attack (one player action is a tick at normal
+# speed, two at -10): a larger loss is a hit.
+POISON_TICK_LOSS_MAX = 5
+POISON_ONSET = frozenset({"毒に侵されてしまった！", "You are poisoned!"})  # bad-status-setter.cpp
+_POISON_ESTIMATE = "_poison_estimate"  # (estimated timer, game turn of the estimate)
+SV_POTION_CURE_POISON = 27   # sv-potion-types.h
+SV_FOOD_CURE_POISON = 12     # sv-food-types.h
+POISON_CURE_REASON = "item:cure-poison"
+GAME_TURNS_PER_TICK = 10
 
 
 def _observe_attacker(policy, snapshot) -> None:
@@ -353,6 +388,98 @@ def fight_through_key(policy, snapshot) -> str | None:
             or unseen_strike.key(policy, snapshot, policy._physical_hostiles(snapshot),
                                  FIGHT_THROUGH_REASON,
                                  blow_landed=unseen_strike.blow_on_board(snapshot)))
+
+
+def observe_poison(policy, snapshot) -> None:
+    """Keep the estimate of the poison timer (see ``POISON_CURE_SHARE``); called once a board,
+    after the observation's damage (``_last_damage_amount``)."""
+    player = snapshot.player
+    if not player.poisoned:
+        setattr(policy, _POISON_ESTIMATE, None)
+        return
+    loss = int(getattr(policy, "_last_damage_amount", 0) or 0)
+    onset = any(unseen_strike.message_text(message) in POISON_ONSET
+                for message in snapshot.messages)
+    remaining = poison_remaining(policy, snapshot)
+    if onset or (remaining is not None and loss > POISON_TICK_LOSS_MAX):
+        setattr(policy, _POISON_ESTIMATE, ((remaining or 0) + 10 + loss, snapshot.turn))
+
+
+def poison_remaining(policy, snapshot) -> int | None:
+    """The estimated HP the running poison still takes; None when not known (no onset seen by
+    this process: a restart while poisoned)."""
+    estimate = getattr(policy, _POISON_ESTIMATE, None)
+    if not snapshot.player.poisoned or estimate is None:
+        return None
+    timer, turn = estimate
+    return max(0, timer - max(0, snapshot.turn - turn) // GAME_TURNS_PER_TICK)
+
+
+def poison_cure_due(policy, snapshot) -> bool:
+    """Poisoned, and the poison is worth a cure: HP below half (or below the low-HP line,
+    ``_low_hp_walk_threshold``, where no rest is taken while poisoned), or the estimated rest of it
+    more than ``POISON_CURE_SHARE`` of max HP (supervisor 2026-11-26)."""
+    player = snapshot.player
+    if not player.poisoned or player.max_hp <= 0:
+        return False
+    if player.hp < max(player.max_hp * POISON_CURE_HP_RATIO,
+                       policy._low_hp_walk_threshold(player.max_hp)):
+        return True
+    remaining = poison_remaining(policy, snapshot)
+    return remaining is not None and remaining > player.max_hp * POISON_CURE_SHARE
+
+
+def loss_is_an_attack(policy, snapshot) -> bool:
+    """The board's observed loss may be a hit's, not only a tick's: not cut (bleeding keeps its
+    rule), and not poisoned unless an attack message evidences it or it is more than the poison
+    ticks take (``POISON_TICK_LOSS_MAX``).  Before 2026-11-26 any poison excluded the loss (the
+    Zombie was never poisoned, so it never mattered)."""
+    player = snapshot.player
+    if player.cut:
+        return False
+    return (not player.poisoned
+            or getattr(policy, "_unseen_attack_evidence", None) is not None
+            or getattr(policy, "_last_damage_amount", 0) > POISON_TICK_LOSS_MAX)
+
+
+def poison_tick_only(policy, snapshot) -> bool:
+    """The board's loss is the poison's tick alone: nothing in view, no attack evidenced."""
+    return bool(snapshot.player.poisoned and not snapshot.player.cut
+                and getattr(policy, "_took_damage", False)
+                and not loss_is_an_attack(policy, snapshot)
+                and not snapshot.visible_monsters
+                and not policy._physical_hostiles(snapshot))
+
+
+def poison_cure(policy, snapshot):
+    """The cheapest carried cure of the poison: a Potion of Cure Poison, Cure Critical Wounds,
+    Healing, else a Mushroom of Cure Poison; None without one."""
+    for sval in (SV_POTION_CURE_POISON, SV_POTION_CURE_CRITICAL, SV_POTION_HEALING):
+        if (potion := policy._find_exact_potion(snapshot, sval)) is not None:
+            return potion
+    return next((item for item in snapshot.inventory
+                 if item.tval == TVAL_FOOD and item.sval == SV_FOOD_CURE_POISON
+                 and item.aware and item.count > 0), None)
+
+
+def poison_cure_key(policy, snapshot) -> str | None:
+    """Drink (or eat) ``poison_cure`` while ``poison_cure_due``, else None.
+
+    Not while a fight is on (a hostile in view, or this board's loss an attack's,
+    ``loss_is_an_attack``): the survival rungs (escape, the HP recovery potion) answer that board,
+    and the poison is cured on the next quiet one."""
+    if not poison_cure_due(policy, snapshot) or policy._physical_hostiles(snapshot):
+        return None
+    if getattr(policy, "_took_damage", False) and loss_is_an_attack(policy, snapshot):
+        return None
+    cure = poison_cure(policy, snapshot)
+    if cure is None:
+        return None
+    key = reserved_item_command(policy, snapshot, "eat" if cure.tval == TVAL_FOOD else "quaff",
+                                cure)
+    if key is not None:
+        policy.last_reason = POISON_CURE_REASON
+    return key
 
 
 def treats(policy, snapshot, *, blind_only: bool = False) -> bool:
@@ -592,7 +719,8 @@ def status_cure_key(policy, snapshot, *, blind_only: bool = False) -> str | None
     """Quaff the status cure for the player's blindness (or any treated status),
     after the Speed dose a heavy unseen spell asks for."""
     if not treats(policy, snapshot, blind_only=blind_only):
-        return None
+        # Poison alone: its own cure, when worth one (``poison_cure_due``).
+        return None if blind_only else poison_cure_key(policy, snapshot)
     if (speed := speed_first_key(policy, snapshot)) is not None:
         return speed
     if (cast := absorbed_cure_key(policy, snapshot, ABSORBED_CURE_REASON)) is not None:

@@ -54,6 +54,18 @@ def held_abilities(player) -> frozenset[str]:
     return player.abilities
 
 
+def lasting_abilities(player) -> frozenset[str]:
+    """The abilities the character has now from a lasting source: those whose only source on the
+    board is ``temporary`` left out (a Potion of See Invisible's tim_invis, a resistance potion's
+    opposition: bot-json-output.cpp ``temporary``), as the depth's speed reads the permanent speed
+    without a timed haste (policy_observation ``_missing_required_abilities``).  2026-11-26: the
+    see-invisible row (26F) is not met by the potion's 24-48 turns.  A flat board (no sources)
+    keeps every ability."""
+    sources = ability_source_map(player)
+    return frozenset(ability for ability in held_abilities(player)
+                     if not sources.get(ability) or set(sources[ability]) != {"temporary"})
+
+
 def has_ability(player, ability: str) -> bool:
     """The character has ``ability`` now."""
     return ability in player.abilities
@@ -151,7 +163,7 @@ def missing_abilities(policy: Any, snapshot, required: Iterable[str], *,
     decision, so the worn kit after the transaction answers it.
     """
     required = frozenset(required)
-    missing = set(required - held_abilities(snapshot.player))
+    missing = set(required - lasting_abilities(snapshot.player))
     if sources == WORN_ONLY or not missing:
         return missing
     return missing - target_abilities(policy, snapshot)

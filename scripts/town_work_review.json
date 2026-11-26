@@ -24183,6 +24183,28 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
   },
+  "status_cure.py:poison_cure": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "Data/selector result; no independent command or effect credit. pure helper: the cheapest carried cure of the poison (Potion of Cure Poison, Cure Critical Wounds, Healing: quaff-effects.cpp, spells-status.cpp cure_critical_wounds set_poison(0); else a Mushroom of Cure Poison, cmd-eat.cpp), 2026-11-26 non-Zombie characters.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "status_cure.py:poison_cure_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "2026-11-26 (supervisor, non-Zombie characters): poisoned with nothing in view and no attack on the board, HP below half (or the low-HP line) or the estimated rest of the poison above 15% of max HP: the quaff or eat key of status_cure.poison_cure via reserved_item_command (item:cure-poison). Called from status_cure_key when no other status is treated; dungeon survival only; no independent progress.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
   "status_cure.py:cure_mushroom_key": {
     "classification": "producer",
     "rows": [
