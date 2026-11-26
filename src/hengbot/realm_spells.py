@@ -58,6 +58,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from hengbot.class_roles import casts_realm_spells
+from hengbot.policy_constants import IDENTIFY_FAIL_LIMIT
 from hengbot.model import (
     SV_SCROLL_IDENTIFY, SV_SCROLL_PHASE_DOOR, SV_SCROLL_STAR_IDENTIFY, SV_SCROLL_TELEPORT,
     SV_SCROLL_TELEPORT_LEVEL, SV_SCROLL_WORD_OF_RECALL, TVAL_SCROLL, TVAL_SORCERY_BOOK,
@@ -588,16 +589,83 @@ def detect_objects_key(policy, snapshot) -> str | None:
 IDENTIFY_SPELLS = {SV_SCROLL_IDENTIFY: IDENTIFY, SV_SCROLL_STAR_IDENTIFY: IDENTIFY_TRUE}
 
 
+# Supervisor 2026-11-27 (the owner's 「仙術を選んだのに鑑定の杖をまだ持ってる理由は？」): a failed 鑑定
+# costs only its mana and a turn (do_cmd_cast: 「呪文をうまく唱えられなかった！」, the item question is
+# never asked), so a safe cast is retried down to IDENTIFY_SPELL_MIN_SUCCESS instead of the staff's
+# RELIABLE_MIN_SUCCESS.  IDENTIFY_SPELL_RETRY_LIMIT consecutive failures on one item retire the
+# spell for the floor or the town visit (policy_identification), and a carried staff or scroll
+# answers instead.  The limit is the town arbiter's identification budget (town_arbiter:
+# IDENTIFY_FAIL_LIMIT decisions without a known-item delta): a fourth miss retired the owner
+# itself and detoured to the Magic shop before the staff (n1-a life-545 replay, 2026-11-27).
+# Three tries land with 1 - 0.58^3 = 80% at the Rogue's 42%, 1 - 0.7^3 = 66% at 30%.
+IDENTIFY_SPELL_MIN_SUCCESS = 30
+IDENTIFY_SPELL_RETRY_LIMIT = IDENTIFY_FAIL_LIMIT
+# Where the retired 鑑定 is kept: the scope (floor key, town visit epoch) it was retired in.
+IDENTIFY_SPELL_RETIRED = "_identify_spell_retired"
+
+
 def identify_reliable(policy, snapshot, *, full: bool = False) -> bool:
-    """A standing 鑑定 (真・鑑定 when ``full``): learned, its book carried, a full mana bar that
-    pays one cast, and RELIABLE_MIN_SUCCESS (the Identify staff's STAFF_IDENTIFY_MIN_SUCCESS)
-    without a stun.  The carried Identify staff's departure requirement reads it as it reads an
-    absorbed staff (policy_supply ``_identify_staff_replaced``); ``identify_means`` is the cast of
-    the moment (n1-a life-545 2026-11-27: the CL21 Rogue's 鑑定 at 42% does not count)."""
+    """A standing 鑑定 (真・鑑定 when ``full``) at RELIABLE_MIN_SUCCESS without a stun: learned, its
+    book carried, a full mana bar that pays one cast.  At this rate no backup Identify staff is
+    carried (policy_supply ``_identify_staff_carry_cap``)."""
+    return _identify_standing(policy, snapshot, full, RELIABLE_MIN_SUCCESS)
+
+
+def identify_usable(policy, snapshot) -> bool:
+    """A standing 鑑定 at IDENTIFY_SPELL_MIN_SUCCESS without a stun: the carried Identify staff's
+    departure requirement and its purchases read it as they read an absorbed staff (policy_supply
+    ``_identify_staff_replaced``; n1-a life-545 2026-11-27, the CL23 Rogue's 鑑定 at 42%)."""
+    return _identify_standing(policy, snapshot, False, IDENTIFY_SPELL_MIN_SUCCESS)
+
+
+def _identify_standing(policy, snapshot, full: bool, min_success: int) -> bool:
     spell_id = IDENTIFY_SPELLS[SV_SCROLL_STAR_IDENTIFY if full else SV_SCROLL_IDENTIFY]
     mana = cost(policy, spell_id)
     return (mana is not None and snapshot.player.max_mp >= mana
-            and known_reliable(policy, snapshot, spell_id, RELIABLE_MIN_SUCCESS, stunned=False))
+            and known_reliable(policy, snapshot, spell_id, min_success, stunned=False))
+
+
+def _scope(snapshot) -> tuple:
+    return (snapshot.floor_key, snapshot.in_town)
+
+
+def identify_spell_retired(policy, snapshot) -> bool:
+    """The safe retried 鑑定 gave up on this floor (or this town visit) after
+    IDENTIFY_SPELL_RETRY_LIMIT consecutive failures on one item."""
+    retired = getattr(policy, IDENTIFY_SPELL_RETIRED, None)
+    return retired is not None and retired == (_scope(snapshot),
+                                               getattr(policy, "_town_visit_epoch", None))
+
+
+def retire_identify_spell(policy, snapshot) -> None:
+    setattr(policy, IDENTIFY_SPELL_RETIRED,
+            (_scope(snapshot), getattr(policy, "_town_visit_epoch", None)))
+
+
+def identify_cast_safe(snapshot) -> bool:
+    """A board on which a failed 鑑定 only costs its mana and a turn: the town, or a floor with no
+    hostile in view and none sensed (the mana above the escape reserve is ``castable``'s)."""
+    if snapshot.in_town:
+        return True
+    return not any(not getattr(monster, "pet", False)
+                   for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters))
+
+
+def identify_retry_means(policy, snapshot) -> SpellMeans | None:
+    """鑑定 as the first identification source where its failure is safe: castable at
+    IDENTIFY_SPELL_MIN_SUCCESS on a safe board, not retired on this floor or town visit."""
+    if not identify_cast_safe(snapshot) or identify_spell_retired(policy, snapshot):
+        return None
+    if not castable(policy, snapshot, IDENTIFY, IDENTIFY_SPELL_MIN_SUCCESS):
+        return None
+    return _means(IDENTIFY, SV_SCROLL_IDENTIFY)
+
+
+def _means(spell_id: int, scroll_sval: int) -> SpellMeans:
+    spell = BY_ID[spell_id]
+    return SpellMeans(slot=f"spell:{spell_id}", name=spell.names[0] + "（呪文）", count=1,
+                      tval=TVAL_SCROLL, sval=scroll_sval, aware=True, known=True,
+                      spell_id=spell_id)
 
 
 def identify_means(policy, snapshot, *, full: bool) -> SpellMeans | None:

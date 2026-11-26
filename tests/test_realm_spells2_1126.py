@@ -107,10 +107,16 @@ class IdentifySpellTest(unittest.TestCase):
         command, source = policy._find_identification_source(snapshot, full=False)
         self.assertEqual((command, source.spell_id), (READ_KEY, realm_spells.IDENTIFY))
         self.assertEqual(policy._read_key(snapshot, source, "c"), "mbbc")
-        # A carried scroll is read first.
+        # Supervisor 2026-11-27: where a failed cast is safe (no hostile in view or sensed) the
+        # spell comes before a carried scroll; with a hostile in view the scroll is read.
         scroll = item("d", TVAL_SCROLL, SV_SCROLL_IDENTIFY, name="鑑定の巻物")
         with_scroll = replace(snapshot, inventory=[*snapshot.inventory, scroll])
-        self.assertIs(policy._find_identification_source(with_scroll, full=False)[1], scroll)
+        self.assertEqual(policy._find_identification_source(with_scroll, full=False)[1].spell_id,
+                         realm_spells.IDENTIFY)
+        here = with_scroll.player.position
+        threatened = replace(with_scroll, visible_monsters=[
+            hostile(1, here.y, here.x + 3, distance=3)])
+        self.assertIs(policy._find_identification_source(threatened, full=False)[1], scroll)
 
     def test_dungeon_identify_keeps_the_escape_mana_town_does_not(self):
         policy = self.identifier()

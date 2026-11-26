@@ -22,7 +22,7 @@ from hengbot.town_hold import claim_family_of as town_claim_family_of
 from hengbot.town_hold import open_execution_delegation as town_open_execution_delegation
 from hengbot.town_hold import terminal_goal as claim_terminal
 from hengbot.ammo_carry import is_plain_store_ammo
-from hengbot import home_identification, home_pass_charge, me_deep_launcher, sale_progress
+from hengbot import home_identification, home_pass_charge, home_take_admission, me_deep_launcher, sale_progress
 from hengbot.home_full_relief import (
     DESTROY_FIELDS, SALE_DESTROY_FIELDS, SKIP_FIELDS, HomeFullRelief, ReliefAttribute, relief_of,
 )
@@ -131,7 +131,10 @@ class HomeMixin:
         if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY:
             # The release plan may call weak staves surplus while replacing
             # them. Disposal must not manufacture a shortage/rebuy instead.
-            return self._total_identify_staff_charges(probe) >= min(20, self._total_identify_staff_charges(snapshot))
+            # A staff a standing 鑑定 replaces (supervisor 2026-11-27) is a spare item.
+            return (self._identify_staff_replaced(snapshot)
+                    or self._total_identify_staff_charges(probe)
+                    >= min(20, self._total_identify_staff_charges(snapshot)))
         return True
 
     def _overweight_mining_kit_reserved(self, snapshot, item) -> bool:
@@ -4783,21 +4786,27 @@ class HomeMixin:
             )
         if (
             selecting_branch == "home-pending-item"
-            and self._identify_staff_take_overloads(snapshot, item, take_quantity)
+            and (refused := home_take_admission.refusal(
+                self, snapshot, item, take_quantity)) is not None
         ):
             # The Identify staff reserve was queued while the pack was already
             # over the limit (its take could not add an overload then); the
             # overweight sales since then left too little room for it.  n1-a
             # life-492 2026-11-07 12:30:39 took the 鑑定の杖 (+50) anyway and
             # the overweight producer stopped on the arrows it had partly sold.
-            # Release the queue; the reserve owner queues it again once it fits.
+            # Release the queue; no filer queues it again this visit until the
+            # pack is lighter (home_take_admission; n1-a life-545 2026-11-27
+            # 03:11, the same take re-queued 34 times).
+            home_take_admission.record(self, snapshot, signature)
             self._home_pending_item = None
             self._home_pending_slot = None
             self._home_pending_quantity = None
             self._home_pending_quantities.pop(signature, None)
             self._home_withdrawal_queued = False
             return self._town_entrance_step_off_key(
-                snapshot, "home:atomic-withdraw-identify-staff-overweight"
+                snapshot, "home:atomic-withdraw-no-pack-slot"
+                if refused == home_take_admission.NO_PACK_SLOT
+                else "home:atomic-withdraw-identify-staff-overweight"
             )
         observed_address = self._home_observed_addresses.get(signature)
         self._home_withdraw_page_probe = None
@@ -7265,6 +7274,22 @@ class HomeMixin:
             return " "
         self._home_quest_launcher_seen_pages.clear()
         return None
+
+    def _home_food_candidate(self, snapshot: Snapshot) -> InventoryItem | None:
+        """Home's food for this eater (MAINTAINABILITY.md rule 1: the board's food type).
+
+        A MANA eater eats a device's charges (``_home_mana_food_candidate``); everyone else eats
+        food: the largest aware stack of a ration-class food (FOOD_MIN_SVAL, as
+        policy_fundraising ``_fundraising_facts`` counts Home food).  n1-a life-545 2026-11-27:
+        the Rogue's fundraising food need queued Home's Identify staff as food.
+        """
+        if snapshot.player.food_type == FOOD_TYPE_MANA:
+            return self._home_mana_food_candidate()
+        if not self._home_knowledge_current:
+            return None
+        foods = [item for item in self._home_knowledge_items
+                 if item.tval == TVAL_FOOD and item.aware and item.sval >= FOOD_MIN_SVAL]
+        return max(foods, key=lambda item: (item.count, self._item_signature(item)), default=None)
 
     def _home_mana_food_candidate(self) -> InventoryItem | None:
         """Cheapest edible Home device, including unidentified devices."""

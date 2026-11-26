@@ -687,21 +687,32 @@ class IdentificationMixin:
             snapshot,
             lambda item: item.slot != src.slot and target_predicate(item),
         )
+        if (target is not None and realm_spells.is_spell_means(src)
+                and self._identify_spell_missed(snapshot, target)):
+            # The retried 鑑定 retired on this floor or town visit: a carried staff or scroll.
+            source = self._find_identification_source(snapshot, full=False)
+            command, src = source if source is not None else (None, None)
+            target = None if src is None else self._first_item(
+                snapshot,
+                lambda item: item.slot != src.slot and target_predicate(item),
+            )
         if target is None:
             self._offer_execution_no_step(
                 producer="identification", work_id="identify:carried",
-                cause="target-unavailable",
+                cause="target-unavailable" if src is not None else "source-unavailable",
             )
             return None
         # Verify the previous attempt landed: if the pack's unknown count is
         # unchanged when the same target comes up again, the device use did not
         # take (a stalled prompt), so after a few tries abandon this target rather
-        # than looping on it forever.
+        # than looping on it forever.  A 鑑定 keeps its own count (``_identify_spell_missed``).
         unknown_count = sum(
             1 for it in snapshot.inventory if not it.known and not it.is_food
         )
         watch = (self._item_signature(target), unknown_count)
-        if watch == self._identify_watch:
+        if realm_spells.is_spell_means(src):
+            pass
+        elif watch == self._identify_watch:
             self._identify_fail_streak += 1
             if self._identify_fail_streak >= IDENTIFY_FAIL_LIMIT:
                 self._unidentifiable_sigs.add(self._item_signature(target))
@@ -1232,6 +1243,12 @@ class IdentificationMixin:
             return self._identification_source_units(item) > 1
 
         if not full:
+            # Supervisor 2026-11-27: a caster's 鑑定 is tried first where a failure only costs its
+            # mana and a turn (realm_spells.identify_retry_means: the town, or no hostile in view
+            # or sensed), down to IDENTIFY_SPELL_MIN_SUCCESS; a carried staff is its backup.
+            spell = realm_spells.identify_retry_means(self, snapshot)
+            if spell is not None:
+                return READ_KEY, spell
             if not reliable_only:
                 staff = self._first_item(
                     snapshot,
@@ -1360,6 +1377,32 @@ class IdentificationMixin:
         }
         reservation["state"] = "acquired"
 
+    def _identify_spell_missed(self, snapshot: Snapshot, target: InventoryItem) -> bool:
+        """Count a retried 鑑定 that did not land on ``target``; True once it is retired.
+
+        The same target coming up again with the pack's unknown count unchanged is a cast that
+        failed (「呪文をうまく唱えられなかった！」).  Supervisor 2026-11-27: after
+        IDENTIFY_SPELL_RETRY_LIMIT such casts in a row the spell is retired on this floor or town
+        visit (realm_spells ``retire_identify_spell``) and a carried staff or scroll answers; the
+        target is not given up as the device watch gives it up (IDENTIFY_FAIL_LIMIT).
+        """
+        if realm_spells.identify_spell_retired(self, snapshot):
+            return True
+        unknown_count = sum(1 for it in snapshot.inventory if not it.known and not it.is_food)
+        watch = (self._item_signature(target), unknown_count)
+        sequence = self._decision_sequence
+        previous, streak, counted = getattr(self, "_identify_spell_watch", None) or (None, 0, None)
+        if counted == sequence and previous == watch:
+            # Asked again within one decision (a predicate composes the same command): one count.
+            return False
+        streak = streak + 1 if previous == watch else 0
+        if streak >= realm_spells.IDENTIFY_SPELL_RETRY_LIMIT:
+            realm_spells.retire_identify_spell(self, snapshot)
+            self._identify_spell_watch = None
+            return True
+        self._identify_spell_watch = (watch, streak, sequence)
+        return False
+
     def _identification_requires_reliable_source(self, snapshot: Snapshot) -> bool:
         """Whether the pending target is worn and therefore needs a scroll.
 
@@ -1476,6 +1519,14 @@ class IdentificationMixin:
         if source is None:
             return None
         command, source_item = source
+        if realm_spells.is_spell_means(source_item) and self._identify_spell_missed(snapshot, target):
+            # The retried 鑑定 retired on this floor or town visit: a carried staff or scroll.
+            source = self._carried_identification_source(
+                snapshot, full=full, reservation_target=reservation_target,
+            )
+            if source is None:
+                return None
+            command, source_item = source
         if command in (USE_STAFF_KEY, ZAP_ROD_KEY):
             unknown_count = sum(
                 1 for it in snapshot.inventory if not it.known and not it.is_food

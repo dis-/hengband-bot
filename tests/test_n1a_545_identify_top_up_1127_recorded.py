@@ -14,7 +14,10 @@ DECLARED CONSTRUCTED: ``test_entrance_board_enters_the_dungeon`` moves the playe
 board onto the dungeon entrance (the walk the departure's travel key starts);
 ``test_reliable_identify_spell_replaces_the_staff`` lowers the recorded 鑑定 row's fail from 58% to
 5% (the Rogue's spell list); ``test_without_the_top_up_class_the_recorded_stop_returns`` empties
-the top-up class to show the stop the fix removes.
+the top-up class to show the stop the fix removes.  Every test holds the 鑑定's usable rate at
+RELIABLE_MIN_SUCCESS (80%, the rule this capture was recorded under): from the supervisor's
+2026-11-27 rule the Rogue's 42% 鑑定 replaces the staff (tests/test_rogue_identify_spell_1127_recorded.py)
+and the recorded visit is no longer the one these tests replay.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -47,6 +50,14 @@ def post(policy, key):
 
 
 _REPLAYED: dict = {}
+
+
+def setUpModule():
+    # DECLARED CONSTRUCTED (module docstring): the 鑑定 counts from 80% as when recorded.
+    patcher = mock.patch.object(realm_spells, "IDENTIFY_SPELL_MIN_SUCCESS",
+                                realm_spells.RELIABLE_MIN_SUCCESS)
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
 
 
 def replayed():

@@ -302,11 +302,7 @@ class FundraisingMixin:
                       else STORE_GENERAL)
         home_known = (not self._home_available_for_probe(snapshot)
                       or self._home_knowledge_current)
-        home_edible = (self._home_mana_food_candidate() is not None
-                       if snapshot.player.food_type == FOOD_TYPE_MANA
-                       else any(item.tval == TVAL_FOOD and item.aware
-                                and item.sval >= FOOD_MIN_SVAL
-                                for item in self._home_knowledge_items))
+        home_edible = self._home_food_candidate(snapshot) is not None
         store = snapshot.store
         shop_affordable = (getattr(
             self, "_fundraising_affordable_food_seen", False

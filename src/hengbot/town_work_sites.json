@@ -4305,6 +4305,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "home_take_admission.py:refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "home_visit.py:HomeVisitExecutor._composes_equipment_withdrawal": {
     "classification": "data",
     "rows": [
@@ -6232,6 +6239,13 @@
     "delegation": "selected child; no independent success"
   },
   "me_capability.py:reliable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:replaced_by_absorbed": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -13448,6 +13462,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_supply.py:SupplyMixin._identify_staff_absorbed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_supply.py:SupplyMixin._identify_staff_acquisition_worthwhile": {
     "classification": "data",
     "rows": [
@@ -13470,6 +13491,13 @@
     "delegation": "selected child; no independent success"
   },
   "policy_supply.py:SupplyMixin._identify_staff_release_plan": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._identify_staff_replaced": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -17811,6 +17839,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "realm_spells.py:_identify_standing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "realm_spells.py:_means": {
     "classification": "data",
     "rows": [
@@ -17875,6 +17910,27 @@
     "delegation": "selected child; no independent success"
   },
   "realm_spells.py:identify_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:identify_retry_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:identify_usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:known_reliable": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -25988,5 +25988,93 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success"
+  },
+  "home_take_admission.py:refusal": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: refusal returns why a Home take cannot happen now (refused this visit at this pack weight, an Identify staff overload, no pack slot), read by the Home take filers (admit) and policy_home._atomic_home_withdraw_key before composing; not an independently selected game action (n1-a life-545 2026-11-27)",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "me_capability.py:replaced_by_absorbed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: whether a Magic-Eater's absorbed power stands in for a carried item kind; read by the Identify staff carry cap and requirement (policy_supply), not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._identify_staff_absorbed": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: whether an absorbed staff stands in for the carried Identify staff (me_capability.replaced_by_absorbed); read by the requirement and the carry cap, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "policy_supply.py:SupplyMixin._identify_staff_replaced": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: whether an absorbed staff or a usable 鑑定 replaces the carried Identify staff (supervisor 2026-11-27); read by the departure leaf, the procurement row and the carry cap, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:_identify_standing": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: whether 鑑定 is learned, its book carried, payable from a full mana bar and at the given success; read by identify_usable / identify_reliable, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:identify_retry_means": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: the 鑑定 stand-in item (SpellMeans) when its failure is safe and the spell is not retired (supervisor 2026-11-27); read by _find_identification_source, whose caller composes the cast; not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:identify_usable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: whether a standing 鑑定 reaches IDENTIFY_SPELL_MIN_SUCCESS (supervisor 2026-11-27); read by the Identify staff requirement and carry cap, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "realm_spells.py:known_reliable": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: the standing part of castable (learned, book carried, success at least the given rate); not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

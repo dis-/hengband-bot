@@ -1,6 +1,6 @@
 from __future__ import annotations
 from hengbot.home_full_relief import relief_of
-from hengbot import ability_sources, class_roles, item_need
+from hengbot import ability_sources, class_roles, home_take_admission, item_need
 from hengbot import equipment_target, food_supply
 from hengbot import angband_finale, me_deep_launcher
 from hengbot import strategy_profile
@@ -6306,7 +6306,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
                     expected_effect="outside-store",
                 )
             elif (
-                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) and not self._identify_staff_take_overloads(snapshot, item)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None)
+                self._home_atomic_deposit_pending is None and self._equipment_transaction_session is None and (not self._identify_staff_ready(snapshot)) and (self._home_pending_item is None) and (not self._home_pending_batch) and (self._home_atomic_withdraw_pending is None) and (PACK_CAPACITY - len(snapshot.inventory) > max(HOME_BATCH_RESERVED_SLOTS, MIN_FREE_PACK_SLOTS)) and ((identify_staff := max(((catalogue_index, item) for catalogue_index, item in enumerate(self._home_knowledge_items if self._home_knowledge_current else snapshot.store.items) if item.tval == TVAL_STAFF and item.sval == SV_STAFF_IDENTIFY and (item.charges > 0) and self._identify_staff_acquisition_worthwhile(snapshot, item.charges) and (self._item_signature(item) not in self._deferred_home_items) and home_take_admission.admit(self, snapshot, item, 1)), key=lambda indexed_item: (indexed_item[1].charges, indexed_item[0]), default=None)) is not None)
             ):
                 # The Home entry owner, unlike _shop(), is on the live path.
                 # The take must fit the weight limit: n1-a life-492 2026-11-07
