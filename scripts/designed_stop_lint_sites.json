@@ -919,7 +919,7 @@
       "kind": "requirement",
       "halts": "town-fuse",
       "note": "over the weight limit with no legal relief",
-      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
+      "debt": "Home's spent route stops only when the weight's answer (overweight_departure.relief_spent_key, 2026-11-28) leaves it to another owner: a deposit, Home's relief or an owner still taking items (the routes it does not settle)"
     },
     "town_terminal:overweight_home_key: town:blocked:overweight-home-unreachable": {
       "kind": "mechanism",
@@ -930,7 +930,7 @@
       "kind": "requirement",
       "halts": "town-fuse",
       "note": "town end: town:blocked:survival:<leaf> / town:blocked:unmet:<name> (town_terminal.town_end_stop_reason)",
-      "debt": "the departure minimum (survival leaves) and the unmet departure conditions still stop the visit when the mining cycle cannot leave; needs the give-up-the-stage path of rule 2. Released so far (departure_leaf_classes): every OPTIONAL leaf, and the TOP_UP leaves identify_staff_ready (5 charges) and food_ready (one planned trip's food, 2026-11-28) once adequate; food_ready below one trip still holds after its rescues (another supplier, another town, 1F mining), with the food purchase admitted into the pack reserve"
+      "debt": "only a MECHANISM leaf (departure_leaf_classes: an observation or a transfer in flight) or a 1F mining cycle that cannot start stops here: a mining set already open whose own departure failed, this visit's cycle closed in town, the opening Q34 holding fundraising. Every requirement leaf departs with its waiver at its adequacy line (TOP_UP: food, Identify staff, Recall, Teleportation, Cure Critical Wounds, light, Remove Curse, HP, mana, temporary status, the minimum's free slot) or starts the 1F mining cycle (SAFER_FALLBACK, 2026-11-28); the weight is settled by overweight_departure.relief_spent_key"
     },
     "town_terminal:town_end_key: town:blocked:departure-unsatisfiable": {
       "kind": "requirement",

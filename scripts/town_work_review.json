@@ -12203,7 +12203,7 @@
       "fundraising"
     ],
     "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "evidence": "owner decision 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。」: opens one one-run mining set (_open_one_mining_run) and offers WAIT under fundraise:town-end-mining; reached only from force_visit_departure when a departure condition is unmet.",
+    "evidence": "owner decision 2026-11-02 「満たせなければ採掘を1サイクル行い再度トライ。条件未達の出発は拒否する。」: opens one one-run mining set (_open_one_mining_run) and offers WAIT under fundraise:town-end-mining; reached from force_visit_departure when a departure condition is unmet, and from town_terminal.safer_fallback_key when a requirement's rescues are spent (coordinator 2026-11-28).",
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
@@ -26232,5 +26232,38 @@
     ],
     "delegation": "selected child; no independent success",
     "evidence": "The memoized verdict of quest_value; emits no key."
+  },
+  "departure_leaf_classes.py:class_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: class_of names a departure leaf's class (TOP_UP, OPTIONAL, MUST_HAVE, MECHANISM; departure_leaf_classes, MAINTAINABILITY.md rule 2); read by safer_fallback and the lints, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
+  },
+  "overweight_departure.py:relief_spent_key": {
+    "classification": "producer",
+    "rows": [
+      "shop-sell"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "coordinator 2026-11-28 (MAINTAINABILITY.md rule 2, n1-a life-545 05:06): the weight's answer once Home and the purchase deposit gave nothing -- a sellable surplus goes to the relief's sale (_overweight_surplus_sale_key through _town_producer_entry), a retained-only or home-unreachable load gives way at no speed lost (give_way) or sheds through the same sale; asked by the town end's last rescue of inventory_weight_ready (departure_rescues overweight-give-way) and by overweight_home_key before Home's spent route names its stop.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "town_terminal.py:safer_fallback_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "coordinator 2026-11-28 (MAINTAINABILITY.md rule 2): asked by town_end_key where it would name its stop after the rescues gave no key, the waivable departure did not apply and every stop condition is a requirement or optional work (departure_leaf_classes.safer_fallback): starts the town end's 1F mining cycle (town_end_mining.start, WAIT under town:end-mining-cycle) and records it as the forced departure records its own cycle.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   }
 }

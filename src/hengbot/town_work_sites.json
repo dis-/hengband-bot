@@ -2326,6 +2326,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "departure_leaf_classes.py:class_of": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "departure_leaf_classes.py:town_end_waivable": {
     "classification": "data",
     "rows": [
@@ -7862,6 +7869,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "selected child; no independent success"
+  },
+  "overweight_departure.py:relief_spent_key": {
+    "classification": "producer",
+    "rows": [
+      "shop-sell"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "paralyzer_contact.py:paralyses_by_spell": {
     "classification": "data",
@@ -20442,6 +20456,13 @@
       "data/no-independent-credit"
     ],
     "delegation": "no independent success"
+  },
+  "town_terminal.py:safer_fallback_key": {
+    "classification": "producer",
+    "rows": [
+      "fundraising"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
   "town_terminal.py:shopping_intended_terminal": {
     "classification": "data",
