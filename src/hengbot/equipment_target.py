@@ -172,7 +172,9 @@ class VisitTarget:
     """The target this town visit decided, and what it was decided on."""
     epoch: object               # policy._town_visit_epoch of the visit
     candidates: tuple           # ``candidate_counts`` when it was decided
-    context: tuple              # ``(finale, destination floor, rules version, means)``
+    # ``(finale, destination floor, gate floor, rules version, means)``; a target held (or
+    # checkpointed) before 2026-11-28 carries the four without the gate floor (``_context_fields``).
+    context: tuple
                                 # (policy_equipment; ``means``: ``destruction_means_key``)
     result: object              # the search's OptimizationResult (``best.loadout`` is the target)
     # ``candidate_pieces`` when it was decided: each candidate key's physical identity and

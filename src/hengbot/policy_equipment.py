@@ -1218,7 +1218,15 @@ class EquipmentMixin:
             if best is not None and isinstance(
                 getattr(best, "loadout", None), Loadout
             ):
-                result = replace(result, best=replace(best, loadout=live_current))
+                # The worn set's own figures when the prior search evaluated it (its chosen
+                # band's sets, its top candidates); else the searched best's, as before.
+                worn = next((entry for entry in (*getattr(result, "chosen_band_entries", ()),
+                                                 *getattr(result, "top_candidates", ()))
+                             if getattr(getattr(entry, "loadout", None), "item_ids", None)
+                             == live_current.item_ids), None)
+                result = replace(result, best=replace(
+                    best, loadout=live_current,
+                    metrics=best.metrics if worn is None else worn.metrics))
                 preparation = WarriorOptimizationPreparation(
                     live_current,
                     result,
