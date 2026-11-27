@@ -87,7 +87,25 @@ def pile_value(policy, snapshot, position) -> int | None:
     return policy._baseitem_costs.get((row[3], sval))
 
 
-def key(policy, snapshot, hostiles) -> str | None:
+def single(snapshot, position) -> bool:
+    """The found pile on ``position`` is one item: one freed slot takes it."""
+    row = next((row for row in snapshot.found_items or ()
+                if (row[0], row[1]) == (position.y, position.x)), None)
+    return row is not None and row[2] == 1
+
+
+def key(policy, snapshot, hostiles, *, only=None) -> str | None:
+    """The walk to (or, standing on it, the room for) the nearest pile the exchange takes, else
+    None; ``only``: the piles asked about (destruction_loot's fetch, the hunt sweep).
+
+    Supervisor 2026-11-28 (rule 4, hunt_items): a hunt pile of one item is taken for the cheapest
+    spare whatever the two kinds' costs (an unaware ring has none), and before every other pile;
+    while the character is held at the speed ceiling (hunt_items ``speed_held``) only hunt piles are
+    (n1-b life-419 2026-11-28 02:19: the pack-full Recall's wait exchanged spares for an Ice Ball
+    rod, a dragon scale mail and a Lucerne hammer 1-3 cells off and left the Rings of Speed 12-17
+    and 66-70 off).  This replaces the 2026-11-13 exchange for a dearer item in that state only."""
+    from hengbot import hunt_items  # import cycle (hunt_items -> angband_cap)
+
     if snapshot.in_town or len(snapshot.inventory) < PACK_CAPACITY:
         return None
     if policy._loot_block_reason(snapshot, hostiles, ignore_pack=True) is not None:
@@ -96,11 +114,16 @@ def key(policy, snapshot, hostiles) -> str | None:
     if carried is None:
         return None
     carried_cost = policy._baseitem_costs.get((carried.tval, carried.sval))
-    if carried_cost is None:
-        return None
-    worth = {position for position in policy._loot_candidates(snapshot)
-             if (value := pile_value(policy, snapshot, position)) is not None
-             and value > carried_cost}
+    candidates = policy._loot_candidates(snapshot)
+    if only is not None:
+        candidates = candidates & set(only)
+    hunted = hunt_items.hunt_piles(policy, snapshot)
+    worth = {position for position in candidates
+             if position in hunted and single(snapshot, position)}
+    if not worth and carried_cost is not None and not hunt_items.speed_held(policy, snapshot):
+        worth = {position for position in candidates
+                 if (value := pile_value(policy, snapshot, position)) is not None
+                 and value > carried_cost}
     if not worth:
         return None
     if snapshot.player.position in worth:

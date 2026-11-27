@@ -68,11 +68,14 @@ def _note_bump(policy, snapshot) -> None:
         policy._blocked_unknown.add(cell)
 
 
-def path(policy, snapshot, hostiles, max_path_distance) -> list[Position]:
-    """[first step, ..., the item]: the shortest walk within ``max_path_distance`` to a loot
-    candidate with the unknown cells as floor, or []."""
-    candidates = policy._loot_candidates(snapshot)
-    if not candidates or max_path_distance <= 0:
+def path(policy, snapshot, hostiles, max_path_distance, candidates=None, *,
+         unknown=True) -> list[Position]:
+    """[first step, ..., the item]: the shortest walk within ``max_path_distance`` (None: no
+    bound) to a loot candidate (``candidates``: those alone; hunt_items' walk) with the unknown
+    cells as floor (``unknown`` False: the known floor alone), or []."""
+    if candidates is None:
+        candidates = policy._loot_candidates(snapshot)
+    if not candidates or (max_path_distance is not None and max_path_distance <= 0):
         return []
     veto = walk_vetoes.route_left(policy, snapshot)
     through = policy._loot_route_hostile_cells(hostiles)
@@ -89,10 +92,10 @@ def path(policy, snapshot, hostiles, max_path_distance) -> list[Position]:
                 route.append(cell)
                 cell = parent[cell]
             return list(reversed(route))
-        if distance >= max_path_distance:
+        if max_path_distance is not None and distance >= max_path_distance:
             continue
         neighbors = list(policy._walkable_neighbors(snapshot, position, through=through))
-        for dy, dx in NEIGHBOR_OFFSETS:
+        for dy, dx in NEIGHBOR_OFFSETS if unknown else ():
             key = (position.y + dy, position.x + dx)
             if _unknown(policy, snapshot, key):
                 neighbors.append(Position(*key))
@@ -112,7 +115,17 @@ def key(policy, snapshot, hostiles) -> str | None:
         return None
     if policy._loot_block_reason(snapshot, hostiles) is not None:
         return None
-    route = path(policy, snapshot, hostiles, recall_wait_reach.max_path_distance(policy, snapshot))
+    return walk(policy, snapshot, hostiles, recall_wait_reach.max_path_distance(policy, snapshot),
+                REASON)
+
+
+def walk(policy, snapshot, hostiles, max_path_distance, reason, *, candidates=None,
+         unknown=True) -> str | None:
+    """The first step of the walk ``path`` plans (its arguments) under ``reason``, its unknown
+    cell remembered for the bump (``MEMORY``); None for no walk.  hunt_items' walk takes its
+    steps here too."""
+    _note_bump(policy, snapshot)
+    route = path(policy, snapshot, hostiles, max_path_distance, candidates, unknown=unknown)
     if not route:
         return None
     step = route[0]
@@ -122,6 +135,6 @@ def key(policy, snapshot, hostiles) -> str | None:
                                  snapshot.player.position, (step.y, step.x)))
     policy._loot_target = target
     policy._loot_walked_target = target
-    policy.last_reason = REASON
+    policy.last_reason = reason
     policy._declare_reach(target)
     return policy._step_toward(snapshot, step)

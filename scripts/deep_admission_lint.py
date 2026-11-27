@@ -57,6 +57,9 @@ ALLOWED: dict[tuple[str, str], tuple[int, str]] = {
                                               "light, not the admission"),
     ("recall_wait_unknown_path", "key"): (1, "owner 2026-11-23 「見ていないマスも通って向かう」: the "
                                              "50F+ recall wait's walk, not the admission"),
+    ("hunt_items", "walk_key"): (1, "supervisor 2026-11-28: the hunt piles' walk over unknown cells "
+                                    "on 50F+ as the recall wait's (owner 2026-11-23), not the "
+                                    "admission"),
 }
 
 

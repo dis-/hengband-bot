@@ -132,14 +132,20 @@ def leave_key(policy, snapshot) -> str | None:
 
 
 def loot_filter(policy, snapshot, candidates: set) -> set:
-    """The loot owner's ``candidates`` on a finished hunt floor: the pile stood on and the piles
-    holding a ring; every candidate elsewhere."""
+    """The loot owner's ``candidates`` on a finished hunt floor: the pile stood on, the piles
+    holding a ring and the hunt piles (hunt_items ``hunt_piles``: known rings and amulets, which
+    the feeling does not rule out; supervisor 2026-11-28, fetched before the floor is left);
+    every candidate elsewhere."""
+    from hengbot import hunt_items  # import cycle (hunt_items -> angband_cap)
+
     if not candidates or not finished(policy, snapshot):
         return candidates
     here = snapshot.player.position
+    hunted = hunt_items.hunt_piles(policy, snapshot)
     kept = set()
     for position in candidates:
         grid = snapshot.grid_at(position)
-        if position == here or (grid is not None and TVAL_RING in grid.object_tvals):
+        if (position == here or position in hunted
+                or (grid is not None and TVAL_RING in grid.object_tvals)):
             kept.add(position)
     return kept

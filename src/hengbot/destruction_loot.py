@@ -48,9 +48,10 @@ east toward the staff, potion and ring at (8,110)-(10,111); at (8,109) the T1 wa
 (monster-update.cpp: telepathy within MAX_PLAYER_SIGHT 20), no longer shown, the commitment was
 not asked and the remembered approach stepped back west, until the loop detector (40 decisions).
 
-A hostile in view ends the fetch for the scene (``MEMORY`` "withheld", until the flash): the
-owner's words pick up first only 「見える敵がいなければ」, so once one is seen the use goes first
-and a later board out of its sight does not start the fetch again.  n1-c life-216 (Angband 80F,
+A hostile in view the walk does not survive (``survivable``; until 2026-11-28 any hostile in
+view) ends the fetch for the scene (``MEMORY`` "withheld", until the flash): the owner's words
+pick up first only 「見える敵がいなければ」, so once one is seen the use goes first and a later
+board out of its sight does not start the fetch again.  n1-c life-216 (Angband 80F,
 2026-11-18 03:11-03:12, loop-detected): at (26,74) the use was due and the fetch walked toward
 the potion at (39,80) by (27,75), (26,76), (25,77); at (25,77) a sleeping hostile (race 423) at
 (5,76) came into view, the fetch dropped, and the approach stepped back out of its sight to
@@ -67,11 +68,32 @@ leaves to be shown or remembered, only no life danger (loot_walk ``life_danger``
 gates and the bound above; the ordinary loot walk asked meanwhile continues it
 (loot_walk ``normal_yield_key``).  The one entry of the non-urgent uses is
 destruction_use ``loot_then_use`` (the maintainability review 1118 (a)-6).
+
+Supervisor 2026-11-28 (the hunt items, hunt_items ``hunt_pile``; its numbers are there): of the
+356 uses n1-b life-419 made on Angband 80F in the decision log's window (42 floors, 2026-11-28
+01:29-05:11), 201 had no hostile in view: 194 were the sensed T1 rule's (threat_tiers
+``sensed_t1_destruction_key`` 144, ``remembered_approach_key`` 50: a T1 asleep or out of the
+player's sight, known by telepathy or detection, owner 2026-11-10 「積極的に*破壊*で消しにいく」),
+no emergency.  The uses that deleted what the bot knew of had declined the fetch for the scene's
+bound (``DECISIONS_MAX``: the 02:17:48 use deleted a 破壊のアミュレット 13 off), for a hostile in
+view (``withheld``: on 02:18:35 a sleeping ドラウグル・ウォーカー 16 off withheld the fetch, and the
+use deleted a Ring of Speed 13 off with 21 other items) or were asked with ``loot`` False (the
+11-08 leave).  So, unless the board is 即死 (threat_tiers ``instant_death``, ``urgent``):
+
+* the hunt piles in the circle are fetched first, nearest first, under their own bound
+  (``HUNT_DECISIONS_MAX``, which the ordinary fetch's walks do not spend), for the 11-08 leave's
+  use too (``key``'s ``hunt_only``);
+* a hostile in view withholds a fetch only when the walk is not survivable (``survivable``: the
+  awake shown hostiles' predicted damage over the steps to the pile, plus the plan's reserve,
+  threat_projection ``plan_reserve``, reaches the HP); this replaces the 2026-11-18 reading that
+  any hostile in view withholds it (n1-c life-216), the ``withheld`` latch kept;
+* a hunt pile no way reaches holds the use (``holds``): the caller's answers that erase nothing
+  (the stairs, a teleport, the walk; threat_tiers) come first, the use only past the hunt bound.
 """
 
 from __future__ import annotations
 
-from hengbot import destruction_use, loot_frontier
+from hengbot import destruction_use, full_pack_exchange, hunt_items, loot_frontier
 from hengbot.unwanted_kinds import UNWANTED_TVALS
 from hengbot.model import (
     Position, TVAL_AMULET, TVAL_POTION, TVAL_RING, TVAL_ROD, TVAL_SCROLL, TVAL_STAFF, TVAL_WAND,
@@ -94,12 +116,19 @@ JUNK_TVALS = UNWANTED_TVALS | {1, 3, 10}
 PLACE_MAX_DISTANCE = 8
 # This module's decisions on a floor between two flashes before the use goes ahead regardless.
 DECISIONS_MAX = 40
+# The hunt piles' own decisions between two flashes (their fetches and the holds of the use): the
+# scene's 40, counted apart so the ordinary fetch's walks do not spend them (supervisor
+# 2026-11-28: the 02:17:48 use deleted a 破壊のアミュレット past the spent scene bound).
+HUNT_DECISIONS_MAX = DECISIONS_MAX
+HELD_CAUSE = "hunt-held"
 # {"floor": floor_key, "place": Position | None, "fetch": Position | None (the cell the fetch
 #  began on, where the use was due), "withheld": bool (a hostile was in view: no fetch until the
 #  flash), "decisions": int, "tried": set of Position, "radius": int (the worst radius of the use
 #  due, destruction_use ``worst_radius``), "frontier": Position | None (the frontier the fetch walks
 #  to, ``_frontier_step``), "frontiers": set of Position (the ones reached or given up),
-#  "declined": (game turn, cause) record only (``declined``)}
+#  "declined": (game turn, cause) record only (``declined``), "hunt_decisions": int (the hunt
+#  piles' decisions, ``HUNT_DECISIONS_MAX``), "held": the game turn the use was held for a hunt
+#  pile no way reaches (``holds``), or None}
 MEMORY = "_destruction_loot_memory"
 
 
@@ -108,7 +137,8 @@ def _memory(policy, snapshot) -> dict:
     if memory is None or memory.get("floor") != snapshot.floor_key:
         memory = {"floor": snapshot.floor_key, "place": None, "fetch": None, "withheld": False,
                   "decisions": 0, "tried": set(), "radius": destruction_use.WORST_RADIUS,
-                  "frontier": None, "frontiers": set(), "declined": (None, None)}
+                  "frontier": None, "frontiers": set(), "declined": (None, None),
+                  "hunt_decisions": 0, "held": None}
         setattr(policy, MEMORY, memory)
     return memory
 
@@ -121,6 +151,7 @@ def observe(policy, snapshot) -> None:
         memory["fetch"] = None
         memory["withheld"] = False
         memory["decisions"] = 0
+        memory["hunt_decisions"] = 0
         memory["frontier"] = None
 
 
@@ -169,16 +200,79 @@ def _in_view(snapshot, *, awake_only: bool) -> bool:
                for monster in snapshot.visible_monsters)
 
 
-def key(policy, snapshot, leaving) -> str | None:
-    """A step or a pickup before the use that leaves ``leaving``, else None (the use is made).
-    Asked through destruction_use ``loot_then_use``.  None on the finale expedition's way down
-    (owner 2026-11-24 「寄り道は不要。」, finale_descent): the use is made."""
+def urgent(policy, snapshot) -> bool:
+    """The board is 即死 (threat_tiers ``instant_death``: the one-action projection reaches the
+    HP): no hunt pile holds or delays a use."""
+    from hengbot import threat_tiers  # import cycle
+    return threat_tiers.instant_death(policy, snapshot).holds
+
+
+def survivable(policy, snapshot, pile) -> bool:
+    """The walk to ``pile`` survives the awake hostiles shown (seen or sensed): their predicted
+    damage over the steps to it (game distance, at least one; policy ``_predicted_damage``) and
+    the plan's reserve (threat_projection ``plan_reserve``: a tenth of the maximum HP or the next
+    action's damage) stay below the HP.  No awake hostile shown: survivable."""
+    from hengbot.threat_projection import plan_reserve  # import cycle
+    awake = [monster for monster in (*snapshot.visible_monsters, *snapshot.detected_monsters)
+             if monster.hostile and not monster.asleep]
+    if not awake:
+        return True
+    steps = max(1, game_distance(snapshot.player.position, pile))
+    player = snapshot.player
+    reserve = plan_reserve(player.max_hp, policy._predicted_damage(snapshot, awake, turns=1))
+    return policy._predicted_damage(snapshot, awake, turns=steps) + reserve < player.hp
+
+
+def holds(policy, snapshot) -> bool:
+    """``key`` held the use on this board for a hunt pile no way reaches: the caller answers
+    without it (destruction_use ``loot_then_use``)."""
+    memory = getattr(policy, MEMORY, None)
+    return (memory is not None and memory.get("floor") == snapshot.floor_key
+            and memory.get("held") == snapshot.turn)
+
+
+def _hunt_exposed(policy, snapshot, memory) -> set:
+    """The untried hunt piles (hunt_items ``hunt_piles``) the use due may delete."""
+    hunted = hunt_items.hunt_piles(policy, snapshot)
+    return {position for position in exposed(policy, snapshot)
+            if position in hunted and position not in memory["tried"]}
+
+
+def _hunt_key(policy, snapshot, memory, leaving, *, hunt_only) -> str | None:
+    """The hunt piles first (supervisor 2026-11-28, the module docstring): their fetch, else --
+    none reachable -- a clean place (``_new_place``, not for ``hunt_only``), else the use held
+    (``holds``); within ``HUNT_DECISIONS_MAX``.  None: no hunt pile asks (the 即死 board, none
+    exposed, the bound spent, or the walk not survivable: the use or the ordinary fetch as
+    before)."""
+    if urgent(policy, snapshot) or memory["hunt_decisions"] >= HUNT_DECISIONS_MAX:
+        return None
+    if not _hunt_exposed(policy, snapshot, memory):
+        return None
+    answer = _fetch(policy, snapshot, begin=True, hunt_only=True)
+    if answer is None and memory["withheld"]:
+        # A hostile in view the walk does not survive: the use as before (``survivable``).
+        return None
+    if answer is None and not hunt_only:
+        answer = _new_place(policy, snapshot, leaving)
+    memory["hunt_decisions"] += 1
+    if answer is None:
+        memory["held"] = snapshot.turn
+        _decline(memory, snapshot, HELD_CAUSE)
+    return answer
+
+
+def key(policy, snapshot, leaving, *, hunt_only=False) -> str | None:
+    """A step or a pickup before the use that leaves ``leaving``, else None (the use is made, or
+    -- ``holds`` -- held for an unreachable hunt pile).  Asked through destruction_use
+    ``loot_then_use``.  ``hunt_only``: the hunt piles alone (the use the 11-08 leave makes, whose
+    ordinary items stay as they were).  None on the finale expedition's way down (owner
+    2026-11-24 「寄り道は不要。」, finale_descent): the use is made."""
     from hengbot import finale_descent  # import cycle
     if finale_descent.applies(policy, snapshot):
         return None
     leaving = list(leaving or ())
     if not leaving or not destruction_use.usable(policy, snapshot, leaving=leaving):
-        return _committed(policy, snapshot, leaving)
+        return None if hunt_only else _committed(policy, snapshot, leaving)
     # The real circle of the use due (the powered one reaches 22, owner 2026-11-23 loot yield).
     memory = _memory(policy, snapshot)
     memory["radius"] = destruction_use.worst_radius(policy, snapshot, leaving)
@@ -187,6 +281,9 @@ def key(policy, snapshot, leaving) -> str | None:
         memory["place"] = None
         _decline(memory, snapshot, "nothing-exposed")
         return None
+    hunted = _hunt_key(policy, snapshot, memory, leaving, hunt_only=hunt_only)
+    if hunted is not None or holds(policy, snapshot) or hunt_only:
+        return hunted
     if memory["decisions"] >= DECISIONS_MAX:
         _decline(memory, snapshot, "bound")
         return None
@@ -323,12 +420,14 @@ def _yield_to_walk(policy, snapshot) -> str | None:
     return loot_walk.fetch_yield_key(policy, snapshot)
 
 
-def _fetch(policy, snapshot, centre=None, *, begin=False) -> str | None:
+def _fetch(policy, snapshot, centre=None, *, begin=False, hunt_only=False) -> str | None:
     """The step toward (or the pickup of) the nearest untried valuable pile a use at ``centre``
-    (the player's cell by default, where the use is due) may delete; ``centre`` is committed
-    (``MEMORY`` "fetch") while such a pile is left, else dropped and None.  A hostile in view
-    withholds the fetch until the flash (``MEMORY`` "withheld", n1-c life-216 1118).  A fetch
-    to ``begin`` continues the ordinary loot walk in progress instead (loot_walk
+    (the player's cell by default, where the use is due) may delete, the hunt piles (hunt_items
+    ``hunt_piles``) before the others and, with ``hunt_only``, alone (supervisor 2026-11-28; not
+    on the 即死 board, ``urgent``); ``centre`` is committed (``MEMORY`` "fetch") while such a
+    pile is left, else dropped and None.  A hostile in view the walk does not survive
+    (``survivable``) withholds the fetch until the flash (``MEMORY`` "withheld", n1-c life-216
+    1118).  A fetch to ``begin`` continues the ordinary loot walk in progress instead (loot_walk
     ``fetch_yield_key``, owner 2026-11-18 Q3)."""
     memory = _memory(policy, snapshot)
     here = snapshot.player.position
@@ -337,12 +436,17 @@ def _fetch(policy, snapshot, centre=None, *, begin=False) -> str | None:
     if memory.get("withheld"):
         _decline(memory, snapshot, "withheld")
         return None
-    if _in_view(snapshot, awake_only=False):
+    untried = {position for position in exposed(policy, snapshot, centre)
+               if position not in memory["tried"]}
+    hunted = frozenset() if urgent(policy, snapshot) else hunt_items.hunt_piles(policy, snapshot)
+    piles = untried & hunted
+    if not piles and not hunt_only:
+        piles = {position for position in untried if _valuable(snapshot, position)}
+    if piles and _in_view(snapshot, awake_only=False) and not survivable(
+            policy, snapshot, min(piles, key=lambda position: game_distance(here, position))):
         memory["withheld"] = True
         _decline(memory, snapshot, "withheld")
         return None
-    piles = {position for position in exposed(policy, snapshot, centre)
-             if position not in memory["tried"] and _valuable(snapshot, position)}
     if not piles:
         _decline(memory, snapshot, "no-valuable")
         return None
@@ -351,6 +455,14 @@ def _fetch(policy, snapshot, centre=None, *, begin=False) -> str | None:
             held = _yield_to_walk(policy, snapshot)
             if held is not None:
                 return held
+        # A full pack makes room for a hunt pile by its cheapest spare (full_pack_exchange,
+        # supervisor 2026-11-28 rule 4); the pickup follows on the next board.
+        pickup = (full_pack_exchange.key(policy, snapshot, policy._strategic_hostiles(snapshot),
+                                         only=frozenset({here}))
+                  if here in hunted else None)
+        if pickup is not None:
+            memory["fetch"] = centre
+            return pickup
         pickup = policy._current_floor_item_key(
             snapshot, pickup_reason=PICKUP_REASON, trigger_reason=TRIGGER_REASON)
         if pickup is None or policy.last_reason == PICKUP_REASON:

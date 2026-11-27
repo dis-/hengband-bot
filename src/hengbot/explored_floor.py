@@ -198,6 +198,13 @@ def recall_key(policy, snapshot, *, exhausted: bool) -> str | None:
         return None
     # At 50F and deeper the floor is left by its stairs for a new level of the same depth,
     # EXTRA_FLOORS times a trip (deep_stairs, owner 2026-11-26: the one-floor recall trips).
+    # Supervisor 2026-11-28 (rule 3): the hunt piles before the floor is left by its stairs or
+    # Recall, at any distance (hunt_items); on a finished Ring of Speed hunt floor too
+    # (ring_hunt ``leave_key`` asks here): fetch, then leave.
+    from hengbot import hunt_items  # import cycle
+    hunt = hunt_items.walk_key(policy, snapshot, policy._strategic_hostiles(snapshot))
+    if hunt is not None:
+        return hunt
     stairs = deep_stairs.key(policy, snapshot)
     if stairs is not None:
         return stairs

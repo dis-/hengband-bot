@@ -1,4 +1,4 @@
-"""A hostile in view withholds the fetch before a *Destruction* until the flash (n1-c life-216, 1118).
+"""A sleeper in view no longer withholds a survivable fetch before a *Destruction* (1118, 1128).
 
 Recorded (tests/fixtures/n1c-216-dloot-inview-1118.jsonl.gz: the life's state.jsonl
 ~/hengbot-soak/n1-c/life-216/state.jsonl, turns 6228591-6228734, beside the capture
@@ -9,9 +9,13 @@ at (26,74) the use was due and destruction_loot fetched toward the potion at (39
 (26,76), (25,77); at (25,77) a sleeping hostile (index 106, race 423) at (5,76) came into view,
 the fetch dropped (owner 2026-11-17: pick up first only 「見える敵がいなければ」), and the approach
 stepped back out of its sight by (26,76), (27,75) to (26,74), where the use was due again and the
-fetch began afresh: until the loop detector (03:12:30).  Now the sighting withholds the fetch
-until the flash, and on (26,74) the use is made.  DECLARED RECONSTRUCTED: the absorbed
-*Destruction* list row (22 charges at 95%; the life's power_list records are skipped).
+fetch began afresh: until the loop detector (03:12:30).  From 2026-11-18 the sighting withheld the
+fetch until the flash.  Supervisor 2026-11-28 (destruction_loot ``survivable``): a hostile in view
+withholds it only when the awake hostiles' predicted damage over the walk is not survivable; the
+sleeper withholds nothing, so the fetch goes on past (25,77) and the approach never takes the
+board back (no loop).  The latch for a walk that is not survivable is tested in
+tests/test_loot_before_destruction_1128_recorded.py (``test_b``).  DECLARED RECONSTRUCTED: the
+absorbed *Destruction* list row (22 charges at 95%; the life's power_list records are skipped).
 """
 import tests  # noqa: F401 -- isolate live runtime files
 
@@ -66,20 +70,19 @@ class DestructionLootInViewWithheldRecordedTest(unittest.TestCase):
         self.assertEqual(board.player.position, Position(26, 74))
         self.assertEqual((key, reason), ("3", "destruction-loot:fetch"))
 
-    def test_the_sleeper_in_view_ends_the_fetch(self):
+    def test_the_sleeper_in_view_does_not_end_the_fetch(self):
         board, key, reason = self.answers[SIGHTED]
         self.assertEqual(board.player.position, Position(25, 77))
         self.assertIn(SLEEPER, {monster.index for monster in board.visible_monsters})
-        self.assertEqual((key, reason), ("1", "sensed-t1:approach-destruction"))
+        # Recorded: ('1', 'sensed-t1:approach-destruction'): the fetch dropped, the loop.
+        self.assertEqual(reason, "destruction-loot:fetch")
 
-    def test_out_of_its_sight_the_fetch_does_not_begin_again(self):
+    def test_out_of_its_sight_the_fetch_goes_on(self):
         board, key, reason = self.answers[DUE_AGAIN]
         self.assertEqual(board.player.position, Position(26, 74))
         self.assertNotIn(SLEEPER, {monster.index for monster in board.visible_monsters})
-        # Recorded: destruction-loot:fetch '3', the fetch afresh (the loop).
-        self.assertNotEqual(reason, "destruction-loot:fetch")
-        self.assertTrue(reason.startswith("emergency:destruction"), (key, reason))
-
+        # The fetch that never dropped goes on (no withheld latch: the walk was survivable).
+        self.assertEqual(reason, "destruction-loot:fetch")
 
 if __name__ == "__main__":
     unittest.main()

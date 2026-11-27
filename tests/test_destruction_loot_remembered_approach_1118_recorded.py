@@ -95,8 +95,10 @@ class DestructionLootRememberedApproachRecordedTest(unittest.TestCase):
     def test_the_fetch_goes_on_while_the_remembered_approach_goes_on(self):
         board, key, reason = self.replay()[STEPPED_BACK]
         self.assertEqual(board.player.position, Position(8, 109))
-        # East, onto the staff at (8,110); recorded: sensed-t1:approach-destruction '4'.
-        self.assertEqual((key, reason), ("6", "destruction-loot:fetch"))
+        # Toward the 追加射撃の指輪 at (10,111), the hunt pile first (supervisor 2026-11-28,
+        # destruction_loot ``_fetch``; until then east onto the staff at (8,110));
+        # recorded: sensed-t1:approach-destruction '4'.
+        self.assertEqual((key, reason), ("3", "destruction-loot:fetch"))
 
     def test_with_no_valuable_left_the_remembered_approach_goes_on(self):
         board, key, reason = self.replay(_no_valuables)[STEPPED_BACK]

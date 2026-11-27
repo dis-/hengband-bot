@@ -980,9 +980,12 @@ def loot_then_use(policy, snapshot, leaving, *, loot=True, use=True, suffix="") 
 
     The callers: threat_tiers' sensed T1 leave on a T1 it does not leave, its emergency-layer
     *Destruction*, the approach and the remembered approach; retreat_enclosure's sealers of a
-    route veto; the sight triggers (``sight_trigger_key``, 2026-11-23).  ``loot`` False skips the items (the T1 the 11-08 rule leaves: a leave, not a
-    use that waits); ``use`` False asks the items alone (the remembered approach with no target
-    shown).  The answer says which it was, for the callers' own bookkeeping after a use."""
+    route veto; the sight triggers (``sight_trigger_key``, 2026-11-23).  ``loot`` False skips the
+    ordinary items (the T1 the 11-08 rule leaves: a leave, not a use that waits), but not the hunt
+    piles (destruction_loot ``key``'s ``hunt_only``, supervisor 2026-11-28); ``use`` False asks the
+    items alone (the remembered approach with no target shown).  A hunt pile no way reaches holds
+    the use (destruction_loot ``holds``): neither key, and the caller answers without the use.
+    The answer says which it was, for the callers' own bookkeeping after a use."""
     from hengbot import destruction_loot  # import cycle
 
     # Owner 2026-11-23 「見える敵がいなければ拾いを先に」: the wait of deep_teleport's Recall picks
@@ -990,8 +993,10 @@ def loot_then_use(policy, snapshot, leaving, *, loot=True, use=True, suffix="") 
     # (deep_recall_loot).  No use: the callers' bookkeeping reads it as a walk.
     if (wait_loot := deep_recall_loot.key(policy, snapshot)) is not None:
         return LootThenUse(wait_loot, False)
-    if loot and (kept := destruction_loot.key(policy, snapshot, leaving)) is not None:
+    if (kept := destruction_loot.key(policy, snapshot, leaving, hunt_only=not loot)) is not None:
         return LootThenUse(kept, False)
+    if destruction_loot.holds(policy, snapshot):
+        return LootThenUse(None, False)
     if use and (used := key(policy, snapshot, leaving=leaving, suffix=suffix)) is not None:
         record = use_report(policy)
         if record is not None:
