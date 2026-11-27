@@ -391,13 +391,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "angband_cap.py:deep_recall_refused": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "angband_finale.py:_kind": {
     "classification": "data",
     "rows": [

@@ -2811,6 +2811,16 @@ def _cap_lifted(policy) -> bool:
     return angband_finale.lifted(policy)
 
 
+def _angband_cap(policy):
+    """Angband's cap read with the policy (angband_cap ``cap``: the speed ceiling included,
+    supervisor 2026-11-27): the executor answers the reset-recall-depth question y on it."""
+    if policy is None:
+        return None
+    from hengbot import angband_cap
+    from hengbot.model import DUNGEON_ANGBAND
+    return angband_cap.cap(DUNGEON_ANGBAND, policy)
+
+
 def _climb_reset(policy):
     """The held climb switch's band (dive_floor ``RECALL_RESET``): the executor answers the
     reset-recall-depth question y on its floors (owner 2026-11-22 「城は45Fまでにする」)."""
@@ -2882,6 +2892,7 @@ class _ExecutorInputPort:
                        else Transport.WM),
             work_record=work,
             cap_lifted=_cap_lifted(self.policy),
+            angband_cap=_angband_cap(self.policy),
             climb_reset=_climb_reset(self.policy),
         )
         from hengbot.observed_input import compile_observed_input

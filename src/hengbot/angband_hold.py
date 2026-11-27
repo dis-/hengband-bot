@@ -81,7 +81,13 @@ def depth_gated(policy, snapshot) -> bool:
         return False
     from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
     landing = policy._dungeon_entry_depth(snapshot, DUNGEON_ANGBAND, via_recall=True)
-    if angband_cap.capped_at(DUNGEON_ANGBAND, landing + 1, policy):
+    # The speed ceiling (angband_cap ``speed_ceiling``, 2026-11-27) is a gate's cap: the floor
+    # levelled at is the ceiling, the gated one below it (n1-b life-419 hunted the Castle's and the
+    # Dark cave's guardians with its landing 81 one floor past the ceiling 80).
+    ceiling = getattr(policy, angband_cap.CEILING, None)
+    if ceiling is not None and angband_cap.cap(DUNGEON_ANGBAND, policy) == ceiling:
+        landing = min(landing, ceiling)
+    elif angband_cap.capped_at(DUNGEON_ANGBAND, landing + 1, policy):
         return False
     return (not policy._missing_required_abilities(snapshot, landing, owned=True)
             and bool(policy._missing_required_abilities(snapshot, landing + 1, owned=True)))

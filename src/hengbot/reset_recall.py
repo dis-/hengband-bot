@@ -28,8 +28,19 @@ def is_reset_recall(item) -> bool:
 
 
 def wanted(policy, snapshot) -> bool:
-    """Angband's recall depth refused outside the expedition (angband_cap ``deep_recall_refused``)."""
-    return angband_cap.deep_recall_refused(snapshot, DUNGEON_ANGBAND, policy)
+    """Angband's recall depth refused outside the expedition (angband_cap ``deep_recall_refused``),
+    or saved more than one floor past the speed ceiling (supervisor 2026-11-27: a landing
+    angband_cap ``landing_gaps`` does not admit; the scroll sets it to the ceiling, ``key``)."""
+    if angband_cap.deep_recall_refused(snapshot, DUNGEON_ANGBAND, policy):
+        return True
+    ceiling = angband_cap.cap(DUNGEON_ANGBAND, policy)
+    if ceiling is None or ceiling != getattr(policy, angband_cap.CEILING, None):
+        return False
+    depths = getattr(snapshot, "dungeon_recall_depths", None) or {}
+    try:
+        return int(depths.get(DUNGEON_ANGBAND, 0) or 0) > ceiling + 1
+    except (TypeError, ValueError):
+        return False
 
 
 def carried(snapshot):
@@ -38,7 +49,8 @@ def carried(snapshot):
 
 
 def key(policy, snapshot) -> str | None:
-    """In town: read a carried Scroll of Reset Recall to set Angband to the 95F cap."""
+    """In town: read a carried Scroll of Reset Recall to set Angband to its cap (the 95F cap, or
+    the speed ceiling: angband_cap ``cap``)."""
     from hengbot.item_reservation import reserved_item_command
     from hengbot.policy_constants import LEAVE_STORE_KEY
     if not snapshot.in_town or snapshot.player.recalling or not wanted(policy, snapshot):
@@ -54,9 +66,10 @@ def key(policy, snapshot) -> str | None:
         return LEAVE_STORE_KEY
     selection = policy._recall_selection_key(snapshot, DUNGEON_ANGBAND)
     prefix = reserved_item_command(policy, snapshot, "read", scroll, "reset-recall")
-    if selection is None or prefix is None:
+    depth = angband_cap.cap(DUNGEON_ANGBAND, policy)
+    if selection is None or prefix is None or depth is None:
         return None
-    read = prefix + selection + f"{angband_cap.ANGBAND_DEPTH_CAP}\r"
+    read = prefix + selection + f"{depth}\r"
     policy.last_reason = REASON
     policy._offer_execution(
         read, producer="departure", work_id="reset-recall:read",

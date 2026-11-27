@@ -2792,6 +2792,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         area_mapping.observe(self, snapshot)
         quest_target_search.observe(self, snapshot)
         destruction_use.observe(self, snapshot)
+        # Supervisor 2026-11-27: Angband's speed ceiling (the floor above the unmet speed row).
+        angband_cap.observe(self, snapshot)
         # Owner 2026-11-22 「城は45Fまでにする」: the climb switch's band for the reset-recall answer.
         dive_floor.observe_recall_reset(self, snapshot)
         # The landing of the last 50F+ Teleportation (owner 2026-11-14 「前の着地が射線内なら次は *破壊*」).
@@ -9562,7 +9564,11 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
 
         A destination gate: in town a carried or Home piece the visit's target wears counts
         (``owned``, equipment review E4, owner Q3)."""
-        missing = self._missing_required_abilities(snapshot, destination_depth, owned=True)
+        # Angband's recall landing one floor past the speed ceiling is climbed from (angband_cap;
+        # in town only, a stair down keeps its gaps).
+        missing = angband_cap.landing_gaps(
+            self, snapshot, self._target_dungeon_id, destination_depth,
+            self._missing_required_abilities(snapshot, destination_depth, owned=True))
         if not missing:
             return True
         # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」: the held Castle's 50F landing,
@@ -9760,7 +9766,10 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             return False
         depth = self._dungeon_entry_depth(snapshot, dungeon_id, via_recall=True)
         # A destination gate (equipment review E4, owner Q3): the target's Home piece counts.
-        missing = self._missing_required_abilities(snapshot, depth, owned=True)
+        # Angband's landing one floor past the speed ceiling is climbed from (angband_cap).
+        missing = angband_cap.landing_gaps(
+            self, snapshot, dungeon_id, depth,
+            self._missing_required_abilities(snapshot, depth, owned=True))
         # Owner 2026-11-22 「城の50Fに帰還してすぐ38〜42Fへ登る」 (deep_climb).
         if missing and not deep_admission.verdict(
                 dungeon_id, depth, "recall",
