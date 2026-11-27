@@ -118,12 +118,6 @@
       "note": "finale preparation: supplies / loadout short",
       "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
     },
-    "finale_hold:_stop: town:blocked:food:wonder-uncharged": {
-      "kind": "requirement",
-      "halts": "town-fuse",
-      "note": "finale preparation: supplies / loadout short",
-      "debt": "the finale preparation holds the town on short supplies; the owner rules want the circuit / the dive instead (partly done)"
-    },
     "finale_hold:_stop: town:blocked:home:supplies-not-owned": {
       "kind": "requirement",
       "halts": "town-fuse",

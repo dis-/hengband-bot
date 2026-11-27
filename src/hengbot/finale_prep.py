@@ -585,12 +585,26 @@ def food_stacks(snapshot) -> list:
 
 
 def food_done(snapshot) -> bool:
-    """FOOD_WANDS stacks of the Wand of Wonder, each inscribed, the inscriptions distinct, each
-    with charges."""
+    """FOOD_WANDS stacks of the Wand of Wonder, each inscribed, the inscriptions distinct, and the
+    charges the departure's food (magic_eater_devices ``staple_needs_recharge``: the fullest stack
+    at MANA_FOOD_CHARGE_TARGET or more).
+
+    A drained stack among them is no reason to stay (owner 2026-11-26 「魔力充填の巻物を10巻持って
+    いき、空腹かつ3本とも空の場合のみ充填して食料とする」): the battle refills it from the ten Scrolls of
+    Recharging the supplies step carried (finale_recharge_food), and no scroll is read in town.
+    n1-b life-419 (2026-11-28 07:24, Zombie Magic-Eater CL50, speed +26 on the stop board, slow
+    digestion) held 謎の魔法棒 {@E1} 19, {@E2} 0 and {@E3} 19 and stopped here as
+    ``food:wonder-uncharged`` with every supply owned: 38 charges are 190000 food (5000 a charge,
+    cmd-item/cmd-eat.cpp exe_eat_charge_of_magic_device), at 36 - 5 = 31 every 50 game turns
+    (core/speed-table.cpp, player/digestion-processor.cpp:38-58) about 300000 game turns, where
+    n1-c life-223's whole Serpent expedition (recall to 99F at 21:17 to the win at 22:27, its
+    playrecord) took about 4900 game turns (one game day is TURNS_PER_TICK * TOWN_DAWN = 100000,
+    system/gamevalue.h:12-13)."""
+    from hengbot.magic_eater_devices import staple_needs_recharge
     stacks = food_stacks(snapshot)
     labels = [item.inscription for item in stacks]
     return (len(stacks) >= FOOD_WANDS and all(labels) and len(set(labels)) == len(labels)
-            and all(item.charges > 0 for item in stacks))
+            and not staple_needs_recharge(snapshot))
 
 
 def _free_label(taken) -> str | None:
@@ -645,10 +659,10 @@ def _food_key(policy, snapshot, held: Phase) -> str | None:
     for item in stacks:
         if not item.inscription:
             return _inscribe(policy, snapshot, held, item, labels)
-    if any(item.charges <= 0 for item in stacks):
-        _stop(policy, held, "food:wonder-uncharged")
-        return None
     if len(stacks) >= FOOD_WANDS:
+        # The stacks are split and inscribed, and their charges fall short of the departure's food
+        # (``food_done``): the ordinary town supply refills them (me_staff_sequence's Tower trip,
+        # 「減ったら塔でチャージする」, owner 2026-10-30), bounded by this step's limit.
         return None
     splittable = next((item for item in stacks if item.count >= 2), None)
     if splittable is not None:
