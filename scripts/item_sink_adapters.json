@@ -473,7 +473,7 @@
     "self._explore_step(snapshot) @ ": 1
   },
   "policy_town.py:_recall_wait_collect_key": {
-    "self._normal_loot_key(snapshot, hostiles, max_path_distance=recall_wait_reach.max_path_distance(self, snapshot), seek_reason='return:seek-loot') @ ": 1
+    "self._normal_loot_key(snapshot, hostiles, max_path_distance=recall_wait_reach.max_path_distance(self, snapshot), seek_reason='return:seek-loot') @ If:body:collecting is None": 1
   },
   "policy_town.py:_town_blocked_key": {
     "self._town_kill_mob_key(snapshot) @ If:body:self._town_blocked_reason == 'repetition'": 1,

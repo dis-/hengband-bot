@@ -6,7 +6,7 @@ from hengbot.item_identity import same_memory
 from hengbot import equipment_rules, finale_bm_tour, finale_descent, finale_hold, finale_prep, finale_teleport_tour
 from hengbot import angband_finale, home_take_admission
 from hengbot import deep_climb, departure_leaf_classes, dive_floor, fled_floor_stairs, fundraising_route, return_start
-from hengbot import recall_wait_rest, recall_wait_unknown_path
+from hengbot import hunt_items, recall_wait_rest, recall_wait_unknown_path
 from hengbot import arena, bm_tour, recall_stockout_travel, zul_trip
 from hengbot import heroism_potion, quest_optional_carry, realm_spell_book, torch_release
 from hengbot import item_fate, launcher_upgrade, mining_oil_sale, spare_gear
@@ -8920,12 +8920,18 @@ class TownMixin:
             return None
         self._rearm_navigation_ledger_loot()
         hostiles = self._strategic_hostiles(snapshot)
-        collecting = self._normal_loot_key(
-            snapshot,
-            hostiles,
-            max_path_distance=recall_wait_reach.max_path_distance(self, snapshot),
-            seek_reason="return:seek-loot",
-        )
+        # Supervisor 2026-11-28 (rule 3): the hunt piles first, nearest first, within the same
+        # reach (hunt_items ``walk_key``; replaces the 2026-11-17 Q3 order for them only).
+        collecting = hunt_items.walk_key(
+            self, snapshot, hostiles,
+            max_path_distance=recall_wait_reach.max_path_distance(self, snapshot))
+        if collecting is None:
+            collecting = self._normal_loot_key(
+                snapshot,
+                hostiles,
+                max_path_distance=recall_wait_reach.max_path_distance(self, snapshot),
+                seek_reason="return:seek-loot",
+            )
         if collecting is None:
             collecting = recall_wait_unknown_path.key(self, snapshot, hostiles)
         if collecting is not None:

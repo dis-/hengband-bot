@@ -560,7 +560,10 @@ def sensed_t1_leave_key(policy, snapshot) -> str | None:
         return stairs
     # Owner 2026-11-09 B 「射線が通っていないなど即死ではない場合は破壊による排除を優先する」: the
     # strong monster need not be awake in view for *Destruction* (destruction_use.key leaving).
-    used = destruction_use.key(policy, snapshot, leaving=strong)
+    # Supervisor 2026-11-28: off the 即死 board the hunt piles in its circle are fetched first,
+    # and one no way reaches holds it for the answers below that erase nothing (the scrolls,
+    # Recall, the walk; destruction_loot ``holds``).
+    used = destruction_use.loot_then_use(policy, snapshot, strong, loot=False).key
     if used is not None:
         return used
     # Blind: the teleport no scroll can give (blind_teleport_key), in the scroll's place.

@@ -345,6 +345,9 @@ REGISTRY = (
     # destruction_loot
     S("_destruction_loot_memory", "destruction_loot", FLOOR,
       "the clean place or the pile walked to, the fetch withheld by a hostile in view, the scene's decisions and the piles tried before a use"),
+    # hunt_items
+    S("_hunt_walk_memory", "hunt_items", FLOOR,
+      "the floor visit's walk to the hunt piles before and during a Recall: its decisions (WALK_DECISIONS_MAX) and the piles stood on and not taken (supervisor 2026-11-28)."),
     # destruction_means
     S("_destruction_home_staves", "destruction_means", LIFE,
       "the last complete Home catalogue's charged staves"),
@@ -2487,6 +2490,9 @@ RESTART = {
                                         "after the haste ends"),
     "_angband_speed_ceiling": Restart(REBUILT, "angband_cap",
                                       "observe reads it from every board's permanent speed"),
+    "_hunt_walk_memory": Restart(MAY_BE_LOST, "hunt_items",
+                                 "a new process walks to the piles again within a fresh "
+                                 "WALK_DECISIONS_MAX"),
     "_quest_value_verdicts": Restart(REBUILT, "quest_value",
                                      "the log's view: the next decision asks the verdicts again"),
     # town_end_mining.

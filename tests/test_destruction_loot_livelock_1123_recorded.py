@@ -14,7 +14,9 @@ destruction-loot:place / destruction-loot:fetch (owner 2026-11-17 「価値の�
   and explore stepped '4' straight back; four rounds, then the livelock's Recall (4405279).
 - n1-b life-416 (Angband 95F, 15:13): the same with the fetch, '3' from (10,63) toward the pile
   at (13,66), and explore's '7' back from (11,64) (the ordinary loot walk, which would continue a
-  committed fetch, was blocked there by a summoner); the livelock's Recall at 4074861.
+  committed fetch, was blocked there by a summoner); the livelock's Recall at 4074861.  Since
+  2026-11-28 the pile (耐性のアミュレット, a hunt pile) is picked up on 4074716, where live cast
+  the *Destruction* standing on it, and the alternation over it does not arise.
 
 Now destruction_loot's answer for the approach is remembered as the approach's walk is
 (threat_tiers ``_remember_loot_step``), so on the next board the remembered approach asks the
@@ -91,16 +93,15 @@ class DestructionLootLivelockRecordedTest(unittest.TestCase):
             self.assertEqual(position, Position(11, 97))
             self.assertEqual((key, reason), ("6", destruction_loot.PLACE_REASON), turn)
 
-    def test_n1b_the_fetch_holds_on_both_cells(self):
-        # Recorded: destruction-loot:fetch '3' at (10,63), explore '7' at (11,64), alternating.
-        for turn in (4074842, 4074847, 4074852, 4074857):
-            _, position, key, reason = self.at("n1b", turn)
-            self.assertEqual(position, Position(10, 63))
-            self.assertEqual((key, reason), ("3", destruction_loot.FETCH_REASON), turn)
-        for turn in (4074844, 4074849, 4074855, 4074858):
-            _, position, key, reason = self.at("n1b", turn)
-            self.assertEqual(position, Position(11, 64))
-            self.assertEqual((key, reason), ("3", destruction_loot.FETCH_REASON), turn)
+    def test_n1b_the_hunt_pile_is_taken_before_the_use(self):
+        # Supervisor 2026-11-28 (destruction_loot ``_hunt_key``): the 耐性のアミュレット at (13,66)
+        # is a hunt pile, fetched first and picked up where live cast the *Destruction* standing
+        # on it (the flash on 4074717).  The fetch's alternation of 4074842-4074858 above it
+        # was over this pile; once tried it asks no more, and the recorded boards after the
+        # pickup no longer follow the replay (live never took it).
+        _, position, key, reason = self.at("n1b", 4074716)
+        self.assertEqual(position, Position(13, 66))
+        self.assertEqual((key, reason), ("g", destruction_loot.PICKUP_REASON))
 
     def test_no_livelock_recall(self):
         for name in ("n1c", "n1b"):

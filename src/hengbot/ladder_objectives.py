@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from hengbot import deep_climb, deep_detection_rod, deep_fall_guard, finale_prep, reset_recall
 from hengbot import approach_answer, fundraising_route, return_start
-from hengbot import full_pack_exchange, hunt_target, sellable_artifacts
+from hengbot import full_pack_exchange, hunt_items, hunt_target, sellable_artifacts
 from hengbot.dungeon_ladder import PASS
 from hengbot.home_visit import HomeVisitKind
 from hengbot.item_reservation import reserved_item_command
@@ -29,11 +29,16 @@ from hengbot.town_hold import LOOT_OWNERS as CLAIM_LOOT_OWNERS, standing_claim a
 from hengbot.town_terminal import NOT_APPLICABLE, gather_identify_device, identification_ready_in_pack, rung_terminal, terminal_admission
 
 # An ordinary supply return may make a short detour for realised value. Critical
-# returns (food/light/pack/emergency) never wait for loot (policy.py imports these).
+# returns (food/light/emergency) never wait for loot (policy.py imports these); a full pack
+# waits only for the hunt piles (HUNT_BEFORE_RECALL_TRIGGERS, supervisor 2026-11-28).
 RETURN_LOOT_SWEEP_MAX_DISTANCE = 12
 RETURN_LOOT_SWEEP_TRIGGERS = frozenset(
     {"recall-low", "teleport-low", "cure-low", "next-depth-kit"}
 )
+# Supervisor 2026-11-28 (rule 3, hunt_items): the returns no emergency starts walk to the hunt
+# piles before the Recall is read, at any distance -- the supply returns above, the full pack and
+# the explored dead end (explored_floor ``TRIGGER``, read in that module's own rung).
+HUNT_BEFORE_RECALL_TRIGGERS = RETURN_LOOT_SWEEP_TRIGGERS | {"pack-full"}
 
 
 def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adjacent):
@@ -249,6 +254,18 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         if exchange is not None:
             return exchange
 
+    # Supervisor 2026-11-28 (rule 3): a return no emergency starts walks to the hunt piles before
+    # its Recall is read, at any distance (hunt_items ``walk_key``; a full pack makes room by its
+    # cheapest spare, rule 4).
+    if (not snapshot.in_town and not player.recalling and not policy._emergency_return_active
+            and (policy._returning_to_town or policy._should_start_town_return(snapshot))
+            and policy._last_return_trigger in HUNT_BEFORE_RECALL_TRIGGERS
+            and not deep_climb.climb_floor(policy, snapshot)):
+        hunt = policy._town_producer_entry("hunt_items.walk_key", lambda: hunt_items.walk_key(
+            policy, snapshot, strategic_hostiles))
+        if hunt is not None:
+            return hunt
+
     # Process a carried chest while things are calm — BEFORE committing to
     # a supply return: the pipeline takes a couple dozen decisions and the
     # contents may themselves be the supplies (drop → step beside → s ×N →
@@ -259,9 +276,11 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, physical_adj
         return chest
 
     # A routine supply return can afford a short sweep for already-seen safe
-    # loot. Hunger, darkness, a full pack, and emergency returns never detour.
+    # loot. Hunger, darkness, a full pack, and emergency returns never detour (a full pack's
+    # walk to the hunt piles is above, supervisor 2026-11-28).
     # loot-before-recall (user 2026-09-23) deliberately does NOT widen this
-    # gate: nothing may delay reading the scroll.  The collection it asks
+    # gate: nothing may delay reading the scroll (but the hunt piles' walk above,
+    # supervisor 2026-11-28).  The collection it asks
     # for happens afterwards, inside the recall countdown, where the return
     # owner would otherwise stand still (_return_to_town_key).
     return_starting = (

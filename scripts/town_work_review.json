@@ -18821,7 +18821,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "Owner 2026-11-13 「価値の低い品を捨てて拾う」: with 23 of 23 slots and no other loot blocker, walk to a single-item floor pile whose aware base cost exceeds the cheapest whole-stack spare (no necessity, ego, artifact or unknown item), then destroy that spare on the pile (_verified_destroy_key); the ordinary pickup follows."
+    "evidence": "Owner 2026-11-13 「価値の低い品を捨てて拾う」: with 23 of 23 slots and no other loot blocker, walk to a single-item floor pile -- a hunt pile first, whatever its cost (supervisor 2026-11-28), and, unless the permanent speed misses a depth row, one whose aware base cost exceeds the cheapest whole-stack spare (no necessity, ego, artifact or unknown item) -- then destroy that spare on the pile (_verified_destroy_key); the ordinary pickup follows."
   },
   "full_pack_exchange.py:spare": {
     "classification": "data",
@@ -20488,7 +20488,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "Owner 2026-11-17 (50F+ efficiency study 2nd) 「価値の高い品は先に拾ってから撃つ」: before a non-urgent *Destruction*, a step to a cell with no remembered floor item within the worst radius 17 (destruction-loot:place), else the pickup of the potions, scrolls, devices, rings and amulets inside it while no hostile is in view (destruction-loot:fetch / :pickup); None and the use goes ahead."
+    "evidence": "Owner 2026-11-17 (50F+ efficiency study 2nd) 「価値の高い品は先に拾ってから撃つ」: before a non-urgent *Destruction*, the hunt piles of the circle first (supervisor 2026-11-28, _hunt_key: fetched, else a clean place, else the use held), then a step to a cell with no remembered floor item within the worst radius 17 (destruction-loot:place), else the pickup of the potions, scrolls, devices, rings and amulets inside it unless a hostile in view makes the walk not survivable (destruction-loot:fetch / :pickup); None and the use goes ahead (or is held, holds)."
   },
   "destruction_loot.py:_committed": {
     "classification": "producer",
@@ -20524,7 +20524,7 @@
     "admission": "_town_producer_entry / town_work.validate_emit",
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
-    "evidence": "With no hostile in view, the nearest valuable pile inside the worst radius: walked to (destruction-loot:fetch) and picked up underfoot through _current_floor_item_key (destruction-loot:pickup)."
+    "evidence": "The nearest valuable pile inside the worst radius, the hunt piles first (supervisor 2026-11-28), withheld only by a hostile in view whose predicted damage over the walk is not survivable: walked to (destruction-loot:fetch) and picked up underfoot through _current_floor_item_key (destruction-loot:pickup), a full pack making room for a hunt pile by full_pack_exchange.key."
   },
   "explored_floor.py:recall_key": {
     "classification": "producer",
@@ -26364,5 +26364,106 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Supervisor 2026-11-28 (n1-b life-419: 32 of 58 Angband 80F floors read feeling 8-10, 71% of the decisions, 58% after the feeling was known; floor-events.cpp:210 a Ring of Speed rates boost(250), feeling 7 or lower): returns explored_floor.recall_key's answer (deep-stairs:ascend / deep-stairs:seek-stairs, else return:recall) on such a floor, else None."
+  },
+  "hunt_items.py:_kind_flags": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure reader: hunt_items._kind_flags reads the base kinds' flags from lib/edit/BaseitemDefinitions.jsonc once; no key, no send seam, no store or town action (supervisor 2026-11-28)."
+  },
+  "hunt_items.py:_closes_gap": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: hunt_items._closes_gap says whether a kind's base flags (or the Staff of *Destruction*) give an ability the next floor's depth rows ask and the character misses; no key, no send seam (supervisor 2026-11-28)."
+  },
+  "hunt_items.py:_jewellery_kept": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: hunt_items._jewellery_kept says whether a ring or amulet kind is kept by the junk valuation (unaware, or base cost above 0 and _junk_class None); no key, no send seam (supervisor 2026-11-28)."
+  },
+  "hunt_items.py:hunt_kind": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: hunt_items.hunt_kind, the one definition of a hunt item's kind; no key, no send seam (supervisor 2026-11-28)."
+  },
+  "hunt_items.py:hunt_pile": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure predicate: hunt_items.hunt_pile says whether a found pile holds a hunt kind; no key, no send seam (supervisor 2026-11-28)."
+  },
+  "hunt_items.py:hunt_piles": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Data/selector result; no independent command or effect credit. pure reader: hunt_items.hunt_piles lists the board's found piles holding a hunt kind; no key, no send seam (supervisor 2026-11-28)."
+  },
+  "hunt_items.py:walk_key": {
+    "classification": "producer",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "rows": [
+      "departure",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by ladder_objectives before a Recall no emergency reads, by explored_floor.recall_key before its read and by policy _recall_wait_collect_key in the countdown; town returns None.",
+    "evidence": "Supervisor 2026-11-28 (rules 3 and 4): the pickup of, the room for (full_pack_exchange.key on the pile) or the step toward the nearest hunt pile the loot owner may take, over the known floor and on 50F+ over unknown cells (recall_wait_unknown_path.walk), within the reach given and WALK_DECISIONS_MAX; None otherwise."
+  },
+  "recall_wait_unknown_path.py:walk": {
+    "classification": "producer",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "rows": [
+      "departure"
+    ],
+    "context": "Dungeon only: the step of recall_wait_unknown_path.key (the 50F+ recall wait) and of hunt_items.walk_key; it plans with path and returns None without a route.",
+    "evidence": "Owner 2026-11-23 「見ていないマスも通って向かう」: the first step of the shortest walk path plans, its unknown cell remembered for the bump; None for no route."
+  },
+  "destruction_loot.py:_hunt_key": {
+    "classification": "producer",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "rows": [
+      "destruction",
+      "loot-exploration"
+    ],
+    "context": "Dungeon only: asked by destruction_loot.key right before destruction_use.key (through destruction_use.loot_then_use), never in town.",
+    "evidence": "Supervisor 2026-11-28 (rules 1 and 2): off the 即死 board, the hunt piles in the circle first: their fetch (_fetch hunt_only), else a clean place, else the use held (holds) within HUNT_DECISIONS_MAX; None when no hunt pile asks."
   }
 }
