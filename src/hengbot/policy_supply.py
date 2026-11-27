@@ -1132,6 +1132,24 @@ class SupplyMixin:
             ),
         )
 
+    def _identify_staff_release_breaks_reserve(self, snapshot: Snapshot, item: InventoryItem) -> bool:
+        """Whether selling the released part of the Identify staff ``item`` breaks a met reserve.
+
+        2026-10-06 #35 / 10-07: a sale must not drop carried charges that meet
+        STAFF_IDENTIFY_MIN_CHARGES below it (below the reserve the user 10-03 swap still sells).
+        The reserve is the identification of a character whose staff IS the means; where a
+        standing means replaces the staff (``_identify_staff_replaced``: a caster's 鑑定 or an
+        absorbed staff) the release plan keeps one staff or none and no 20-charge reserve binds
+        (supervisor 2026-11-27).  n1-a life-545 2026-11-27 12:54: the caster's cap released the
+        15-charge staff of 16+15, the outside pass walked it to the Magic shop, and the in-store
+        sale refused it under this reserve, so the visit re-entered the shop until the buy-stage
+        deadline.  The pack-headroom pass and the in-store sale both ask this one rule."""
+        if self._identify_staff_replaced(snapshot):
+            return False
+        total = self._total_identify_staff_charges(snapshot)
+        remaining = total - max(0, item.charges) * self._retention_surplus(snapshot, item)
+        return total >= STAFF_IDENTIFY_MIN_CHARGES and remaining < STAFF_IDENTIFY_MIN_CHARGES
+
     def _find_capped_identify_staff_release(
         self,
         snapshot: Snapshot,

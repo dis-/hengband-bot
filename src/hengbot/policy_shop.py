@@ -727,21 +727,9 @@ class ShopMixin(InStoreMixin):
                 return surplus
             return None
         surplus_identify_staff = self._find_surplus_identify_staff(snapshot)
-        if surplus_identify_staff is not None:
-            released = self._retention_surplus(
-                snapshot, surplus_identify_staff
-            )
-            total_identify_charges = self._total_identify_staff_charges(snapshot)
-            remaining_identify_charges = (
-                total_identify_charges
-                - max(0, surplus_identify_staff.charges) * released
-            )
-            if (total_identify_charges >= STAFF_IDENTIFY_MIN_CHARGES
-                    and remaining_identify_charges < STAFF_IDENTIFY_MIN_CHARGES):
-                # A sale must not break a mandatory reserve that is currently
-                # met (2026-10-06 #35). Below the reserve, the user 10-03 rule
-                # still releases the fewest-charge staves to buy fuller ones.
-                surplus_identify_staff = None
+        if (surplus_identify_staff is not None
+                and self._identify_staff_release_breaks_reserve(snapshot, surplus_identify_staff)):
+            surplus_identify_staff = None
         surplus_slot = (
             surplus_identify_staff.slot
             if surplus_identify_staff is not None
@@ -2866,6 +2854,7 @@ class ShopMixin(InStoreMixin):
             "home_deposit_batch_refusal_sequence"
         )
         settlement = self._shop_selector_diagnostics.get("observed_stop_settlement")
+        unavailable = self._shop_selector_diagnostics.get("observed_unavailable")
         self._shop_selector_diagnostics = {
             "winning_rung": self.last_reason,
             "gold": snapshot.player.gold,
@@ -2876,6 +2865,9 @@ class ShopMixin(InStoreMixin):
         if (settlement is not None
                 and settlement["decision_sequence"] == self._decision_sequence):
             self._shop_selector_diagnostics["observed_stop_settlement"] = settlement
+        if (unavailable is not None
+                and unavailable["decision_sequence"] == self._decision_sequence):
+            self._shop_selector_diagnostics["observed_unavailable"] = unavailable
         if (
             composition_refusal is not None
             and composition_refusal_sequence == self._decision_sequence
@@ -6257,6 +6249,31 @@ class ShopMixin(InStoreMixin):
         families = self._router_plan_stop_families(store_type)
         return next(iter(families)) if len(families) == 1 else None
 
+    def _store_observed_unavailable(self, store_type: int, requester: str | None,
+                                    router_plan_stop: bool) -> bool:
+        """Whether this visit already settled ``store_type``'s shelf as offering nothing.
+
+        MAINTAINABILITY.md rule 2.  ``_resolve_observed_uncomposable_stop`` records a shop whose
+        observed page composed no operation (``nonhome_attempted_without_effect``) and releases
+        it once the game shows a different state (``_refresh_nonhome_effect_refusals``) or a
+        restock pops it.  The town plan's router already skips such a shop; a producer naming
+        its own shop must too, or the next outside board walks back in and the in-store step
+        leaves again (n1-a life-545 2026-11-27 12:54: the pack-headroom pass re-entered the
+        Magic shop 17 times for a staff sale the shop page refused, until
+        town:blocked:stage-deadline:buy).  The claim is settled for this visit, recorded here,
+        and retried on a changed board or a later visit.
+        """
+        if (router_plan_stop or store_type == STORE_HOME
+                or store_type not in self._town_visit_ledger.nonhome_attempted_without_effect):
+            return False
+        self._shop_selector_diagnostics["observed_unavailable"] = {
+            "store_type": store_type,
+            "requester": requester,
+            "reason": "observed-operation-uncomposable",
+            "decision_sequence": self._decision_sequence,
+        }
+        return True
+
     def _shopping_approach_step(
         self, snapshot: Snapshot, store_type: int | None = None,
         *, requester: str | None = None, router_plan_stop: bool = False,
@@ -6291,6 +6308,8 @@ class ShopMixin(InStoreMixin):
         if store_type is None:
             store_type = self._next_required_store_type(snapshot)
         if store_type is None:
+            return None
+        if self._store_observed_unavailable(store_type, requester, router_plan_stop):
             return None
         plan = self._town_errand_plan
         home_categories = (

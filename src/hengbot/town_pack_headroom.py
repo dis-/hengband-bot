@@ -91,8 +91,9 @@ def key(policy, snapshot):
     if result is not None:
         return result
     # The approved four-staff cap sells its weakest release before shelving.
+    # The sale is walked to only when the in-store sale (_find_device_sale) would sell it.
     release = policy._find_surplus_identify_staff(snapshot)
-    if release is not None:
+    if release is not None and not policy._identify_staff_release_breaks_reserve(snapshot, release):
         outlet = policy._town_organization_sale_store(snapshot, release)
         if outlet is not None:
             result = _relief_route(policy, snapshot, outlet, release)
