@@ -26,6 +26,13 @@ and when it has nothing legal left:
   tolerated weight (``shed_candidates``); what cannot be shed departs too (``give_way`` with
   ``force``): the excess is worn gear, which the equipment optimiser owns.
 
+The same answer admits an equipment swap before it begins (``swap_departs``, read by
+``equipment_swap_weight``): a swap whose load departs under this rule goes on, and one that would
+not is dropped for the visit before anything is taken off.  n1-a life-545 2026-11-27 16:59: the
+Home withdrawal of a 30.0 lb lance in place of a 25.0 lb axe was refused at 168.1 lb of a 165.0 lb
+limit (no speed lost) after the axe was already deposited, and the visit re-entered Home for it
+until livelock:exhausted.
+
 The waiver holds for the rest of this town visit while the load stays within what it allowed;
 ``_inventory_overweight`` reads it (``limit``), so every town owner and the departure leaf
 ``inventory_weight_ready`` see one answer.  Every waiver is written to the overweight record
@@ -107,7 +114,7 @@ def give_way(policy: Any, snapshot: Any, cause: str, *, force: bool = False) -> 
     return True
 
 
-def shed_candidates(policy: Any, snapshot: Any, chosen: list) -> list:
+def shed_candidates(policy: Any, snapshot: Any, chosen: list, *, extra: int = 0) -> list:
     """Reserved quantities to shed after ``chosen`` (the relief's surplus rows), cheapest first.
 
     Rows in the relief's shape (value, signature, item, count, stores).  Kept out: artifacts,
@@ -115,6 +122,7 @@ def shed_candidates(policy: Any, snapshot: Any, chosen: list) -> list:
     (``realm_spell_book.retained_count``), and any count whose removal leaves a departure supply
     short (``_carried_disposal_preserves_departure``, the relief's own test).  The order is the sale
     value per tenth of a pound, cheapest first; the counts stop at the tolerated weight.
+    ``extra`` is weight a planned change adds to the board's load (``swap_departs``).
     """
     from hengbot import realm_spell_book
     from hengbot.baseitem_knowledge import item_base_cost
@@ -124,7 +132,7 @@ def shed_candidates(policy: Any, snapshot: Any, chosen: list) -> list:
     raw = policy._inventory_weight_limit(snapshot)
     if raw is None:
         return []
-    need = (policy._inventory_weight(snapshot) - tolerated_weight(raw)
+    need = (policy._inventory_weight(snapshot) + extra - tolerated_weight(raw)
             - sum(entry[2].weight * entry[3] for entry in chosen))
     taken = {entry[2].slot for entry in chosen}
     rows = []
@@ -149,3 +157,22 @@ def shed_candidates(policy: Any, snapshot: Any, chosen: list) -> list:
         shed.append((value * count, policy._item_signature(item), item, count, stores))
         need -= item.weight * count
     return shed
+
+
+def swap_departs(policy: Any, snapshot: Any, load: int, chosen: list) -> bool:
+    """Whether ``load`` (this board's load after a planned change, ``chosen`` shed) departs.
+
+    ``chosen`` holds the rows the change already leaves behind (the relief's shape); ``load`` is
+    the board's weight less them plus what the change adds.  The load departs when it is within
+    the tolerated weight once ``shed_candidates`` sheds what it may: the relief sheds exactly that
+    after the change, and gives way at the tolerated weight (``give_way``).
+    """
+    raw = policy._inventory_weight_limit(snapshot)
+    if raw is None:
+        return True
+    if load <= tolerated_weight(raw):
+        return True
+    remaining = policy._inventory_weight(snapshot) - sum(
+        entry[2].weight * entry[3] for entry in chosen)
+    shed = shed_candidates(policy, snapshot, chosen, extra=load - remaining)
+    return load - sum(entry[2].weight * entry[3] for entry in shed) <= tolerated_weight(raw)
