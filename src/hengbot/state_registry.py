@@ -325,6 +325,8 @@ REGISTRY = (
     S("_deep_climb_arrival", "deep_climb", LIFE,
       "(floor_key of the last board, the 50F+ floor entered by a descent without the *Destruction* means or None): the named stop's record (owner 2026-11-22)."),
     # dive_floor
+    S("_haste_sustain_last_dose", "haste_sustain", FLOOR,
+      "(floor, turn) of the upkeep's last Speed dose: a recast waits out its shortest haste (supervisor 2026-11-27)."),
     S("_angband_speed_ceiling", "angband_cap", DECISION,
       "The floor above the unmet depth speed row of the board's permanent speed, or None (angband_cap: Angband's cap, supervisor 2026-11-27)."),
     S("_climb_recall_reset", "dive_floor", DECISION,
@@ -2471,6 +2473,9 @@ RESTART = {
     "_quest_outcome_statuses": Restart(REBUILT, "quest_attempt_ledger",
                                        "the first board of a process seeds the statuses without "
                                        "a row; a change during the restart is not written"),
+    "_haste_sustain_last_dose": Restart(MAY_BE_LOST, "haste_sustain",
+                                        "a new process recasts at once on a hasted board only "
+                                        "after the haste ends"),
     "_angband_speed_ceiling": Restart(REBUILT, "angband_cap",
                                       "observe reads it from every board's permanent speed"),
     "_quest_value_verdicts": Restart(REBUILT, "quest_value",

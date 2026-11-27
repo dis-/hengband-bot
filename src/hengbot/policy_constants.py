@@ -1004,6 +1004,9 @@ SPEED_GATE_MINIMUM = 135  # +25 over the 110 base
 # ask a permanent speed of +10.  Of the seven deaths at 76-80F before it, five had +9 or less
 # (CL 36-47).  It replaces the 2026-11-22 answer 「50〜80FにCLとHPの下限を足さない」 only by
 # this speed floor (no CL or HP floor).  81F+ keeps its own +25, which includes it.
+# Supervisor 2026-11-27 (owner 「70Fより上で加速+10を得るのはそれなりに困難である。」): the row is
+# also met by Speed doses sustained for the dive, the upkeep keeping the haste up on those floors
+# (haste_sustain ``row_met``, the one reader with policy_observation and angband_cap).
 MID_SPEED_GATE_DEPTH = 70
 
 MID_SPEED_GATE_LABEL = "speed+10"

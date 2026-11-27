@@ -2,7 +2,7 @@ from __future__ import annotations
 from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, class_roles, home_take_admission, item_need
 from hengbot import equipment_target, food_supply, quest_value
-from hengbot import angband_finale, me_deep_launcher
+from hengbot import angband_finale, haste_sustain, me_deep_launcher
 from hengbot import strategy_profile
 from hengbot import approach_answer, fundraising_route, return_start
 from hengbot import me_power_success, safety_watch
@@ -6592,6 +6592,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # USER DECISION 2026-10-03 06:2x: Speed at a strong fight's start, in
         # place of the fighting action only.
         key = self._strong_fight_speed_filter(snapshot, key)
+        # Supervisor 2026-11-27: on 70-80F a character admitted by sustained doses keeps the
+        # haste up while an awake hostile is in view or sensed (haste_sustain).
+        key = haste_sustain.after_ladder(self, snapshot, key)
         # Owner 2026-11-11 「恐怖の呪文を持つ強い相手と戦い始める時に先に飲む」: the Potion of
         # Heroism in place of an attack on a T2-or-worse fear caster (heroism_potion).
         key = heroism_potion.fight_filter(self, snapshot, key)

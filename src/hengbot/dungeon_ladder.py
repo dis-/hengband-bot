@@ -395,8 +395,10 @@ LAYER_MODULES = {
 # After the ladder has answered, _choose_key passes its key through these, in order; each may
 # put another in its place, so a rung's return is not always what is posted.
 AFTER_DECIDE = (
-    "_flee_sustain_key", "_strong_fight_speed_filter", "heroism_potion.fight_filter",
-    "me_powers.fight_key",
+    "_flee_sustain_key", "_strong_fight_speed_filter",
+    # Supervisor 2026-11-27: the 70-80F haste upkeep of a character admitted by sustained doses.
+    "haste_sustain.after_ladder",
+    "heroism_potion.fight_filter", "me_powers.fight_key",
     # Owner 2026-11-17 「魔法防御上昇の装備がないときは破壊で消す。倒すときは…加速して耐性の薬を使用
     # して倒す。」: the one gate of a strike that can kill an Amberite (amberite_curse).
     "amberite_curse.after_ladder",

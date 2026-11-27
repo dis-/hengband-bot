@@ -160,5 +160,11 @@ def spare(policy, snapshot, potion_reserve: int = 0) -> int:
     return max(potions, int(_cast_key(policy, snapshot, potion_reserve) is not None))
 
 
+def cast_available(policy, snapshot) -> bool:
+    """The absorbed power would be cast now (``key``'s first choice): haste_sustain recasts it
+    before the haste lapses, a potion drunk while hasted adding only 5 ticks."""
+    return _cast_key(policy, snapshot) is not None
+
+
 def available(policy, snapshot) -> bool:
     return spare(policy, snapshot) > 0
