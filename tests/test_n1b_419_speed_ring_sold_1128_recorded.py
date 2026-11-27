@@ -38,7 +38,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import depth_gap_gear, equipment_target, item_fate, item_need
+from hengbot import depth_gap_gear, equipment_target, equipment_visit_journal, item_fate, item_need
 from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import checkpoint_bytes, restore_checkpoint_bytes
 from hengbot.model import parse_snapshot
@@ -182,6 +182,33 @@ class SpeedRingSold419RecordedTest(unittest.TestCase):
         self.assertEqual(result.chosen_depth, SPEED_GATE_DEPTH)
         self.assertEqual(worn_names(result.best.loadout), [RING, RING])
         self.assertGreaterEqual(loadout_speed(result.best.metrics), SPEED_GATE_MINIMUM)
+
+    def test_the_departure_check_reads_a_held_target_of_either_shape(self):
+        """Coordinator 2026-11-28: 478b571d14 crashed every town's departure check (the visit
+        context gained the gate floor; equipment_target.redecide_events unpacked four).  The
+        recorded board decides the visit's target (row 73), then the departure check
+        (``_town_departure_ready`` -> ``_equipment_departure_ready`` ->
+        ``_prepare_equipment_optimization`` -> ``_equipment_visit_redecision``) reads it again:
+        held as written now (five fields) and as a checkpoint from before 11-28 holds it (four)."""
+        board = self.decided_board()
+        decide(self.policy, board)
+        policy = self.policy
+        held = equipment_target.visit_target(policy, policy._town_visit_epoch)
+        self.assertIsNotNone(held)
+        self.assertEqual(len(held.context), 5)
+        finale, floor, _gate, rules, means = held.context
+        for context in (held.context, (finale, floor, rules, means)):
+            # The running session would answer first (``in-flight-session``): the check is read
+            # as at the visit's next departure, with the target held and no session.
+            policy._set_equipment_transaction_session(None)
+            equipment_target.invalidate_loadout_search(policy)
+            setattr(policy, equipment_target.VISIT_TARGET_STATE,
+                    dataclasses.replace(held, context=context))
+            with contextlib.redirect_stdout(io.StringIO()):
+                ready = policy._town_departure_ready(board)
+            self.assertIsInstance(ready, bool)
+            self.assertIn("search", [row["kind"] for row in
+                                     equipment_visit_journal.journal(policy)["rows"]])
 
     def test_the_eight_is_worn_and_kept(self):
         board = self.decided_board()
@@ -367,6 +394,42 @@ class WrittenDumpTest(unittest.TestCase):
             # The configured file, when written, is read as before.
             configured.write_bytes(sheet)
             self.assertEqual(written_character_dump(configured, started), configured)
+
+
+class RetiredWornMetricsTest(unittest.TestCase):
+    """CONSTRUCTED: a retired session's worn set reads its own figures, not the searched best's
+    (the other implementer's report 2026-11-28: the display showed the searched set's metrics)."""
+
+    def test_the_worn_set_keeps_its_metrics(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from hengbot.equipment_optimizer import (EvaluatedLoadout, Loadout, LoadoutMetrics,
+                                                 OptimizationResult)
+        from hengbot.policy_equipment import EquipmentMixin
+
+        def metrics(value):
+            return LoadoutMetrics(expected_dps=value, survival_turns=value, combat_margin=1.0)
+
+        worn_set = Loadout((("main_ring", _equipped("worn", 45, "main_ring")),), "empty")
+        searched = Loadout((("main_ring", _equipped("searched", 45, "main_ring")),), "empty")
+        best = EvaluatedLoadout(searched, metrics(2.0))
+        result = OptimizationResult(
+            best=best, alternatives=(), pareto_frontier=(), dominated_item_ids=frozenset(),
+            combinations_considered=2, combinations_evaluated=2, invalid_combinations=0,
+            elapsed_seconds=0.0, timed_out=False, incomplete_item_ids=frozenset(),
+            chosen_band_entries=(best, EvaluatedLoadout(worn_set, metrics(1.0))))
+        held = []
+        policy = SimpleNamespace(
+            _equipment_retired_worn_item_ids=worn_set.item_ids,
+            _set_equipment_transaction_session=lambda session: None,
+            _offer_optimizer_result=lambda preparation, source: None)
+        with patch.object(equipment_target, "loadout_target",
+                          return_value=SimpleNamespace(result=result)), \
+                patch.object(equipment_target, "set_unsearched_loadout_target",
+                             lambda _policy, preparation: held.append(preparation)):
+            preparation = EquipmentMixin._retired_worn_loadout_preparation(policy, worn_set)
+        self.assertEqual(preparation.result.best.loadout, worn_set)
+        self.assertEqual(preparation.result.best.metrics.survival_turns, 1.0)
 
 
 if __name__ == "__main__":

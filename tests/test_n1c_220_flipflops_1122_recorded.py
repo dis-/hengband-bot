@@ -239,7 +239,16 @@ class FeetIdentifyDecidesEverySlotTest(unittest.TestCase):
         result = self.decided[135][1]
         self.assertEqual(_slots(result)["feet"], HARD_BOOTS)
         self.assertEqual(_slots(result)["arms"], "革グローブ [1,+2]")
-        self.assertEqual(result.best.metrics.survival_turns, 35.46982214841637)
+        # The town search has no fixed depth, so the depth-band descent chooses.  Since
+        # 2026-11-28 (DECISIONS.md, speed_valuation.offense_per_action) the half-attack limit
+        # reads the larger of the blows and the absorbed attack: band 20's only fire resistance,
+        # the dual-wielded 焼棄のヌンチャク, drops the blows from 36.8 to 5.8 per action, but this
+        # Lv21 Magic-Eater's absorbed attack is 23.4 (ratio 0.64), so band 20 (free action and
+        # fire resistance) is taken where the melee-only limit refused it (0.157) for band 19
+        # (survival 35.46982214841637).
+        self.assertEqual(result.chosen_depth, 20)
+        self.assertEqual(_slots(result)["sub_hand"], "焼棄のヌンチャク (2d3) (+1,+6) {r火;明|焼}")
+        self.assertEqual(result.best.metrics.survival_turns, 36.90633140348191)
 
 
 class SubRingTieTest(unittest.TestCase):
