@@ -3072,6 +3072,11 @@ class EquipmentMixin:
             self.last_reason = "equipment-transaction:await-home-barrier"
             self._offer_execution(None, producer='equipment-txn', work_id=f'equipment:home:pending:{session.target_loadout_id}', next_step='equipment.observe-home-barrier', arguments=(session.posted_command_id,), expected_effect='equipment-action-confirmed', continuation='equipment.next-action')
             return None
+        if equipment_swap_weight.close_unfit_swap(self, snapshot, session):
+            # The swap's load would not depart: dropped for this visit before its first action.
+            return self._equipment_home_outcome(
+                LEAVE_STORE_KEY, label=equipment_swap_weight.REFUSAL,
+            )
 
         action = session.current_action
         store = snapshot.store
@@ -3322,16 +3327,6 @@ class EquipmentMixin:
                 if matches_withdrawal(item)
             ), None)
             if selected is not None and session.physical_context == "home":
-                if equipment_swap_weight.withdraw_overload(
-                        self, snapshot, session) is not None:
-                    # The kept pack cannot carry the swap (equipment_swap_weight):
-                    # the abandonment keeps the item at Home for this visit.
-                    self._block_equipment_transaction(equipment_swap_weight.REFUSAL)
-                    self.last_reason = (
-                        f"equipment-transaction:{equipment_swap_weight.REFUSAL}")
-                    return self._equipment_home_outcome(
-                        LEAVE_STORE_KEY, label=equipment_swap_weight.REFUSAL,
-                    )
                 index, target = selected
                 letter = self._home_page_letter(index)
                 quantity = "1\r" if target.count > 1 else ""
@@ -3531,6 +3526,11 @@ class EquipmentMixin:
             if operation_ref is not None:
                 self._offer_execution(WAIT_KEY, producer='equipment-txn', work_id=f'equipment:town:pending:{session.target_loadout_id}', next_step='equipment.action.observe', arguments=(operation_ref,), expected_effect='equipment-action-confirmed', continuation='equipment.next-action', post_on_emit=False)
             return WAIT_KEY
+        if equipment_swap_weight.close_unfit_swap(self, snapshot, session):
+            # The swap's load would not depart: dropped for this visit before the walk to Home.
+            return self._equipment_town_outcome(
+                WAIT_KEY, label=equipment_swap_weight.REFUSAL,
+            )
         if session.required_context == "home":
             if (
                 self._store_visit is not None

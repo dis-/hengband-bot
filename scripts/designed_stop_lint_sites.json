@@ -291,12 +291,6 @@
       "halts": "town-fuse",
       "note": "an operation that cannot be composed or was refused by the screen"
     },
-    "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:withdraw-overweight": {
-      "kind": "requirement",
-      "halts": "town-fuse",
-      "note": "over the weight limit with no legal relief",
-      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
-    },
     "policy:HengbotPolicy._block_equipment_transaction: town:blocked:equipment-transaction:withdraw-reservation-refused": {
       "kind": "mechanism",
       "halts": "town-fuse",
