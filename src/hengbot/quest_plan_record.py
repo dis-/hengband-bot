@@ -76,6 +76,8 @@ CARRIED = (
     # The quest floor's own judgements and reads.
     "_quest_sweep_engage_commit", "_quest_hold_threats", "_fixed_quest_speed_floor", "_quest_light_areas_read",
     "_quest_light_attempted", "_unviable_quest_floor", "_quest_regen_exhausted_floor",
+    # The supplies the quest floor was entered with (quest_entry_supply, 2026-11-27).
+    "_quest_entry_supplies",
 )
 
 # The plan states a restart does not keep, with the reason.
