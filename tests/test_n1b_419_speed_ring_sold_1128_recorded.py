@@ -43,7 +43,7 @@ from hengbot.cli import _consume_response_sequence
 from hengbot.latch_onset_capture import checkpoint_bytes, restore_checkpoint_bytes
 from hengbot.model import parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
-from hengbot.policy_constants import SPEED_GATE_LABEL, SPEED_GATE_MINIMUM
+from hengbot.policy_constants import SPEED_GATE_DEPTH, SPEED_GATE_LABEL, SPEED_GATE_MINIMUM
 from hengbot.speed_valuation import loadout_speed
 from support.town_arrival_fixture import load
 
@@ -179,7 +179,7 @@ class SpeedRingSold419RecordedTest(unittest.TestCase):
         self.assertIsNotNone(self.policy._character_calibration)
         self.assertEqual(self.policy._character_calibration.level, 50)
         result = equipment_target.loadout_target(self.policy).result
-        self.assertEqual(result.chosen_depth, 81)
+        self.assertEqual(result.chosen_depth, SPEED_GATE_DEPTH)
         self.assertEqual(worn_names(result.best.loadout), [RING, RING])
         self.assertGreaterEqual(loadout_speed(result.best.metrics), SPEED_GATE_MINIMUM)
 
@@ -196,7 +196,7 @@ class SpeedRingSold419RecordedTest(unittest.TestCase):
         key, reason = decide(self.policy, board)
         self.assertEqual(reason, "equipment-transaction:travel-home")
         result = equipment_target.loadout_target(self.policy).result
-        self.assertEqual(result.chosen_depth, 81)
+        self.assertEqual(result.chosen_depth, SPEED_GATE_DEPTH)
         self.assertEqual(worn_names(result.best.loadout), sorted([RING, eight.name]))
         self.assertGreaterEqual(loadout_speed(result.best.metrics), SPEED_GATE_MINIMUM)
 
@@ -303,17 +303,17 @@ class GateBandTest(unittest.TestCase):
 
         def run(**kw):
             return optimize_loadout(
-                items, evaluate, depth=None, intrinsic_abilities=required_abilities(81),
+                items, evaluate, depth=None, intrinsic_abilities=required_abilities(SPEED_GATE_DEPTH),
                 has_destruction=True, current_item_ids=current, require_light=True,
                 require_body=True, candidate_loadouts=list(enumerate_single_slot_variants(
                     items, current_item_ids=current, require_light=True,
                     speed_gates=speed_gates(110, SPEED_GATE_MINIMA))), **kw)
 
-        without = run(destination_floor=80)
+        without = run(destination_floor=SPEED_GATE_DEPTH - 1)
         self.assertEqual(without.band_decisions[0].refusal_reason, "melee-ratio")
-        self.assertEqual(without.chosen_depth, 80)
-        gated = run(destination_floor=80, gate_floor=81)
-        self.assertEqual(gated.chosen_depth, 81)
+        self.assertEqual(without.chosen_depth, SPEED_GATE_DEPTH - 1)
+        gated = run(destination_floor=SPEED_GATE_DEPTH - 1, gate_floor=SPEED_GATE_DEPTH)
+        self.assertEqual(gated.chosen_depth, SPEED_GATE_DEPTH)
         self.assertTrue(gated.chosen_decision.destination_floor)
         self.assertIn("speed-dagger", gated.best.loadout.item_ids)
 
