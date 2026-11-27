@@ -46,6 +46,12 @@ BASELINE = {
     "angband_finale_battle.py:shunned.compute: reading.tier in threat_tiers.STRONG_ON_THE_WAY": (
         1, "the 99F/100F walks' strong non-targets (owner 2026-11-24 「射線を通さないように近づく」): "
            "strong alone from contact, T1 or T2, as _sensed_strong's group members are read"),
+    "drop_hunt.py:kill_reading: reading.tier == threat_tiers.T3": (
+        1, "the hunt target's kill read from its own winning reading alone from contact "
+           "(supervisor 2026-11-28): T3's free attacks give the actions and the incoming damage"),
+    "drop_hunt.py:kill_reading: reading.tier == threat_tiers.T2": (
+        1, "the hunt target's kill read from its own winning reading alone from contact "
+           "(supervisor 2026-11-28): T2's winning supply plan gives the turns and the incoming damage"),
     "guardian_landing.py:t1_landing: guardian_tier(policy, snapshot, info) == threat_tiers.T1": (
         1, "the dungeon guardian's own tier from contact (memoised per guardian, decision_memo) "
            "on its unconquered last floor; cannot_win would add the cost-capped reading"),

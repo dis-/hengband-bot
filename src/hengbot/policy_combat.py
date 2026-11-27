@@ -4,7 +4,7 @@ from hengbot.item_reservation import reserved_item_command
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.policy_constants import ESP_THREAT_HEAL_REASON, ESP_THREAT_LEAVE_PREFIX, ITEM_DESTROYING_BREEDER_STAIR_DISTANCE
 from hengbot.summoner_wait import wait_expired
-from hengbot import deep_fall_guard, escape_count, finale_prep, fled_floor_stairs, return_start
+from hengbot import deep_fall_guard, drop_hunt, escape_count, finale_prep, fled_floor_stairs, return_start
 from hengbot import anaguma, attack_expectation, quest_summoner_light, me_ranged_first, blind_strike, damaging_ground, esp_tier_hold, glass_reach, breeder_area_attack, combat_answer, breeder_floor_record, destruction_use, breeder_quest, breeder_stalemate, deep_teleport, haste_read, immobile_ranged_kill, immobile_threat_memory, line_of_fire, mining_loadout, once_quest_recall, paralyzer_contact, quest25_battle, quest_find_exit, quest_no_teleport, quest_room_sweep, quest_summon_answer, return_yield, sleeper_reach_memory, speed_dose, status_breeder_avoid, status_cure, summoner_loot, survival_preemption, teleport_follower, threat_projection, threat_tiers, town_last_stand, unseen_strike, worsens_kill
 from collections import Counter, deque
 from dataclasses import dataclass, replace
@@ -2564,6 +2564,10 @@ class CombatMixin:
             # Design 4.4 / 2.3 (plan step 11): above the low-HP line a summoner that dies
             # 被害無く is killed (worsens_kill), not escaped from (OQ-10).
             and not worsens_kill.kill_first(self, snapshot, summoners)
+            # Supervisor 2026-11-28: the summoners due are all hunt targets (drop_hunt).
+            and not drop_hunt.covers(self, snapshot, [
+                monster for monster in summoners
+                if self._summoner_may_summon_next_turn(snapshot, monster)])
         )
         guardian_reposition = (
             summoner_open
