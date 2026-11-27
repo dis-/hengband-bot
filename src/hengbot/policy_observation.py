@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot import ability_sources
+from hengbot import ability_sources, loot_memory
 from hengbot import equipment_target
 from hengbot import approach_answer, deep_stairs, mining_loadout, return_start
 from hengbot import guardian_rumor, heal_offset, quest_attempt_ledger, quest_entry_supply, quest_plan_record, warning_cell_record
@@ -1046,19 +1046,10 @@ class ObservationMixin:
             self._chest_collecting = False
             self._chest_preopen_objects = None
             self._processed_chest_positions.clear()
-            self._known_loot.clear()
-            self._release_claim_goal("loot-floor-changed", self._loot_target, owners=CLAIM_LOOT_OWNERS)
-            self._loot_target = None
-            self._deferred_loot.clear()
-            self._safety_deferred_loot.clear()
-            self._nav_ledger_deferred_loot.clear()
-            self._loot_ledger_rearmed.clear()
-            self._loot_safety_rearmed.clear()
-            self._loot_defer_blocker = None
+            loot_memory.forget(self, "loot-floor-changed")
             self._remembered_paralyzers.clear()
             # A new level reuses the floor key and the monster indices.
             self._status_threat_latch = None
-            self._pending_loot_pickup = None
             self._multiplier_target = None
             self._multiplier_target_grace = 0
             if (
