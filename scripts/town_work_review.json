@@ -26465,5 +26465,115 @@
     ],
     "context": "Dungeon only: asked by destruction_loot.key right before destruction_use.key (through destruction_use.loot_then_use), never in town.",
     "evidence": "Supervisor 2026-11-28 (rules 1 and 2): off the 即死 board, the hunt piles in the circle first: their fetch (_fetch hunt_only), else a clean place, else the use held (holds) within HUNT_DECISIONS_MAX; None when no hunt pile asks."
+  },
+  "drop_hunt.py:active": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: the speed row is unmet (depth_gap_gear.speed_row) and the tiers decide leaving here (bool); no key, no command (2026-11-28)."
+  },
+  "drop_hunt.py:target": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: whether a monster is a hunt target on this board (bool, decision-memoised; notes the floor visit's hunted/dropped sets); no key, no command (2026-11-28)."
+  },
+  "drop_hunt.py:target.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: the memoised body of drop_hunt.target (bool); no key, no command (2026-11-28)."
+  },
+  "threat_tiers.py:leave_decided_here": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: whether the threat tiers decide leaving on this floor (bool; acts_here and no locked quest exit); no key, no command. Reached from town since drop_hunt.active reads it (2026-11-28)."
+  },
+  "loot_frontier.py:frontier_path": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: the planned walk (a list of cells) to the reachable remembered frontier nearest the candidates; no key, no command. Reached through drop_hunt's call sites (2026-11-28)."
+  },
+  "policy.py:HengbotPolicy._passage_hides_ground": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: whether a closed door or rubble may hide new ground (bool, mapped_area.covers); no key, no command. Reached through drop_hunt's call sites (2026-11-28)."
+  },
+  "quest25_geometry.py:_sight_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: the standable cells with a line of sight to a target (frozenset); no key, no command. Reached through drop_hunt's call sites (2026-11-28)."
+  },
+  "quest25_geometry.py:los": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: the game's line of sight (floor/line-of-sight.cpp los port, bool); no key, no command. Reached through drop_hunt's call sites (2026-11-28)."
+  },
+  "quest25_geometry.py:sight_cells": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: the standable cells within a radius that see a target (frozenset); no key, no command. Reached through drop_hunt's call sites (2026-11-28)."
+  },
+  "walkout_dig.py:_frontier": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success",
+    "evidence": "Pure helper: the exploration frontier plus the diggable walls bordering unexplored ground (a set of cells); no key, no command. Reached through drop_hunt's call sites (2026-11-28)."
   }
 }

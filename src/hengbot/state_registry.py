@@ -345,6 +345,9 @@ REGISTRY = (
     # destruction_loot
     S("_destruction_loot_memory", "destruction_loot", FLOOR,
       "the clean place or the pile walked to, the fetch withheld by a hostile in view, the scene's decisions and the piles tried before a use"),
+    # drop_hunt
+    S("_drop_hunt_memory", "drop_hunt", FLOOR,
+      "the floor visit's hunt targets: the ones read a target, the ones dropped after failing a test while shown, and the decisions a use of *Destruction* was held for one (HOLD_DECISIONS_MAX; supervisor 2026-11-28)."),
     # hunt_items
     S("_hunt_walk_memory", "hunt_items", FLOOR,
       "the floor visit's walk to the hunt piles before and during a Recall: its decisions (WALK_DECISIONS_MAX) and the piles stood on and not taken (supervisor 2026-11-28)."),
@@ -2490,6 +2493,9 @@ RESTART = {
                                         "after the haste ends"),
     "_angband_speed_ceiling": Restart(REBUILT, "angband_cap",
                                       "observe reads it from every board's permanent speed"),
+    "_drop_hunt_memory": Restart(MAY_BE_LOST, "drop_hunt",
+                                 "a new process reads the targets again from the board; a dropped "
+                                 "one may be hunted again and the hold bound starts afresh"),
     "_hunt_walk_memory": Restart(MAY_BE_LOST, "hunt_items",
                                  "a new process walks to the piles again within a fresh "
                                  "WALK_DECISIONS_MAX"),

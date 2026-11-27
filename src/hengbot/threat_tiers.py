@@ -51,6 +51,7 @@ from __future__ import annotations
 from hengbot import (
     destruction_use,
     disenchant_avoid,
+    drop_hunt,
     hunt_target,
     left_cells,
     line_of_fire,
@@ -1173,6 +1174,7 @@ def _worsens_leave(policy, snapshot, hostiles, raw, entries) -> set:
 
     # Owner 2026-11-23 (``kill_before_leave``): the lone T2 good-drop unique and the prepared
     # Amberite are killed, not left; a hold of an earlier board does not keep them left either.
+    # So are the hunt targets (drop_hunt, supervisor 2026-11-28).
     kept = kill_before_leave(policy, snapshot, hostiles, raw)
 
     # The more specific owner rules keep their monsters (4.4 step 1): a paralyser is left by
@@ -1266,7 +1268,10 @@ def kill_before_leave(policy, snapshot, hostiles, raw: Assessment | None = None)
       kill's conditions hold, hasted and covered by Resistance (amberite_curse ``prepared``).  n1-b
       life-416 (Angband 95F, turns 4077036-4077044): after the absorbed Speed and a Potion of
       Resistance against 陰謀家『ケイン』, the worsening leave held him left and the emergency
-      ladder's *Destruction* erased him."""
+      ladder's *Destruction* erased him.
+    - Supervisor 2026-11-28 (drop_hunt): a hunt target (a good dropper whose drop can be the Ring
+      of Speed while the speed row is unmet, killed within drop_hunt.KILL_ACTIONS_MAX actions with
+      the reserve kept), unique or not; this narrows the 2026-11-09 leave for them."""
     if not hostiles or not leave_decided_here(policy, snapshot):
         return frozenset()
     if raw is None:
@@ -1278,7 +1283,7 @@ def kill_before_leave(policy, snapshot, hostiles, raw: Assessment | None = None)
     kept = {monster.index for monster in hostiles if amberite_curse.prepared(policy, snapshot, monster)}
     if (target := lone_good_drop_t2(policy, snapshot, hostiles, raw)) is not None:
         kept.add(target.index)
-    return frozenset(kept)
+    return frozenset(kept | drop_hunt.targets(policy, snapshot, hostiles))
 
 
 def tier_of(policy, snapshot, hostiles) -> str | None:

@@ -67,7 +67,7 @@ from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
 
-from hengbot import deep_admission, deep_climb, deep_fall_guard, deep_recall_loot, means_spent_loop, return_start
+from hengbot import deep_admission, deep_climb, deep_fall_guard, deep_recall_loot, drop_hunt, means_spent_loop, return_start
 from hengbot import (
     area_mapping, disenchant_avoid, escape_count, hunt_target, immobile_threat_memory, left_cells, me_capability, me_powers, monster_memory,
     pingpong_guard, summoner_wait,
@@ -996,6 +996,9 @@ def loot_then_use(policy, snapshot, leaving, *, loot=True, use=True, suffix="") 
     if (kept := destruction_loot.key(policy, snapshot, leaving, hunt_only=not loot)) is not None:
         return LootThenUse(kept, False)
     if destruction_loot.holds(policy, snapshot):
+        return LootThenUse(None, False)
+    # Supervisor 2026-11-28 (drop_hunt): a hunt target in view in the circle holds the use.
+    if use and drop_hunt.holds_use(policy, snapshot, leaving, loot=loot):
         return LootThenUse(None, False)
     if use and (used := key(policy, snapshot, leaving=leaving, suffix=suffix)) is not None:
         record = use_report(policy)
