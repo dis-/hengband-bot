@@ -9673,6 +9673,23 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         status = self._supply_ledger(snapshot, self._planned_depth())["food"]
         return status.count >= status.required_departure
 
+    def _food_adequate(self, snapshot: Snapshot) -> bool:
+        """The departure may leave without the food top-up: the carried nutrition covers one
+        planned trip at this character's digestion (food_supply ``below_trip``, the Zul trip's
+        extra included).  departure_leaf_classes TOP_UP reads it; ``_food_ready`` stays the
+        purchase target.  A mana eater's device charges keep the target."""
+        from hengbot import zul_trip
+        return (snapshot.player.food_type != FOOD_TYPE_MANA
+                and not food_supply.below_trip(snapshot.player, snapshot.inventory,
+                                               zul_trip.extra_food_items(self, snapshot)))
+
+    def _food_waived_for_departure(self, snapshot: Snapshot) -> bool:
+        """A departure the town end committed (``_visit_departure_committed``) leaves with one
+        trip's food (``_food_adequate``): its walk-in and its recall read this, not the target.
+        n1-a life-545 2026-11-28: the town end waived the margin Ration and the repetition
+        departure then waited on ``_food_ready`` with the recall scroll in the pack."""
+        return bool(self._visit_departure_committed) and self._food_adequate(snapshot)
+
 
 
 

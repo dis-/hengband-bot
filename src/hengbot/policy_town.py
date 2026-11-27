@@ -6940,7 +6940,8 @@ class TownMixin:
                     return walk
             if not snapshot.player.recalling:
                 if snapshot.in_town and (
-                    not self._food_ready(snapshot)
+                    (not self._food_ready(snapshot)
+                     and not self._food_waived_for_departure(snapshot))
                     or self._dungeon_recall_units(snapshot) < 2
                 ):
                     # A repetition remedy may defer optional readiness, but

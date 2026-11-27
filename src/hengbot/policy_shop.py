@@ -1,7 +1,7 @@
 from __future__ import annotations
 from hengbot.class_roles import plays_as_warrior
 from hengbot.home_full_relief import relief_of
-from hengbot.town_pack_budget import incoming_slots, permits, room_assumed, survival_food_fits
+from hengbot.town_pack_budget import incoming_slots, purchase_fits, room_assumed, survival_food_fits
 from hengbot.item_identity import display_signature, sale_identity, sale_identity_of_signature
 from hengbot.item_identity import same_memory
 from hengbot import angband_finale, food_supply
@@ -2712,7 +2712,8 @@ class ShopMixin(InStoreMixin):
             return True
         quantity = min(item.count, max(1, self._purchase_quantity(snapshot, item)))
         slots = incoming_slots(snapshot, item, quantity)
-        return permits(snapshot, slots) and (len(snapshot.inventory) < PACK_CAPACITY or slots == 0)
+        return purchase_fits(snapshot, item, quantity) and (
+            len(snapshot.inventory) < PACK_CAPACITY or slots == 0)
 
     @staticmethod
     def _purchase_diagnostic_category(item: StoreItem) -> str:

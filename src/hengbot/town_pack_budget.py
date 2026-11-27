@@ -145,6 +145,32 @@ def survival_food_fits(snapshot, item, quantity: int) -> bool:
                    reserve_used=MIN_TERMINAL_FREE_PACK_SLOTS)
 
 
+# The reserve slots a food purchase below one trip's food may fill: all but the one the forced
+# departure's minimum keeps (free_pack_slots_ready, policy_town ``_departure_minimum``).
+BELOW_TRIP_FOOD_RESERVE_USE = MIN_TERMINAL_FREE_PACK_SLOTS - 1
+
+
+def purchase_reserve_use(snapshot, item) -> int:
+    """The reserve slots a store purchase of ``item`` may fill (0 for every other purchase).
+
+    The reserve keeps slots for the dive's loot; food short of one planned trip
+    (food_supply ``below_trip``) is the dive itself.  Owner 2026-11-26 let a hungry character
+    use the reserve (``survival_food_fits``); since 2026-11-28 a character below one trip's food
+    may use it too, so food short of the trip is bought wherever a shelf sells it and the gold
+    pays (n1-a life-545: 19 of 23 slots used; a Ration stack needs a new slot).
+    """
+    from hengbot import food_supply
+    if item.tval != TVAL_FOOD or not food_supply.below_trip(snapshot.player, snapshot.inventory):
+        return 0
+    return BELOW_TRIP_FOOD_RESERVE_USE
+
+
+def purchase_fits(snapshot, item, quantity: int) -> bool:
+    """The pack admission of a store purchase: the reserve, less ``purchase_reserve_use``."""
+    return permits(snapshot, incoming_slots(snapshot, item, quantity),
+                   reserve_used=purchase_reserve_use(snapshot, item))
+
+
 def below_floor(snapshot) -> bool:
     """Distinguish an actual reserve deficit from a refused additional slot."""
     return (snapshot.in_town
@@ -279,22 +305,34 @@ def incoming_slots(snapshot, item, quantity: int) -> int:
     if not item.known or not item.aware or (
             item.tval == TVAL_WAND and quantity < item.count):
         return 1
-    fields = (
-        "tval", "sval", "aware", "known", "fully_known", "pval", "fuel",
-        "is_ego", "is_artifact", "is_cursed", "is_broken",
-        "to_h", "to_d", "to_a", "ac", "damage_dice_num", "damage_dice_sides",
-        "known_flags", "inscription",
-    )
+    consumable = item.tval in CONSUMABLE_TVALS
+    fields = _CONSUMABLE_SIMILARITY_FIELDS if consumable else _SIMILARITY_FIELDS
     return int(not any(
         carried.count + quantity <= 99
         # Consumables have no recharge state. Home protocol-2 catalogues
         # export 0 where protocol-3 pack observations omit it (None).
-        and (item.tval in {TVAL_FOOD, TVAL_POTION, TVAL_SCROLL}
-             or carried.timeout == item.timeout)
+        and (consumable or carried.timeout == item.timeout)
         and all(getattr(carried, field, 0) == getattr(item, field, 0)
                 for field in fields)
         for carried in snapshot.inventory
     ))
+
+
+# Food, potions and scrolls stack whatever their identification
+# (src/system/item/item-entity.cpp:1042-1045 ItemEntity::is_similar_part: no is_known check for
+# them; only the base item, art/curse flags, BROKEN, inscription and discount at 1134-1156).
+CONSUMABLE_TVALS = frozenset({TVAL_FOOD, TVAL_POTION, TVAL_SCROLL})
+_SIMILARITY_FIELDS = (
+    "tval", "sval", "aware", "known", "fully_known", "pval", "fuel",
+    "is_ego", "is_artifact", "is_cursed", "is_broken",
+    "to_h", "to_d", "to_a", "ac", "damage_dice_num", "damage_dice_sides",
+    "known_flags", "inscription",
+)
+# n1-a life-545 (2026-11-28 04:01, Amberite rogue): the store's Elvish Waybread (*identified*, as
+# every store ware) would join the carried, uninspected four, but fully_known differed, so the
+# one-slot estimate refused it against the four-slot reserve and the visit stopped on food 8 of 9.
+_CONSUMABLE_SIMILARITY_FIELDS = tuple(
+    field for field in _SIMILARITY_FIELDS if field != "fully_known")
 
 
 def pressure_deposit(policy, snapshot, item) -> bool:
