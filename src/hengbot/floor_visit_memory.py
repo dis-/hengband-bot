@@ -97,6 +97,7 @@ KEPT = {
     "_breeder_breakthrough_floor": "the floor change forgets it",
     "_fruitless_disengage_floor": "the floor change forgets it",
     "_fixed_quest_speed_floor": "the floor change sets it for a fixed quest's floor",
+    "_haste_sustain_last_dose": "haste_sustain reads it only on the floor it names",
     "_recent_since_teleport": "the floor change forgets it",
     "_mining_viability_pending_floor": "the floor change forgets it",
     "_unseen_retreat_floor": "the floor change forgets it (_clear_unseen_retreat)",

@@ -21,7 +21,8 @@ speed requirements.
 | 26-30F | Poison, cold, electricity and acid resistance | Maximize offense and defense after satisfying it. |
 | 31-39F | Chaos resistance | Add no further mandatory resistance. |
 | 40-49F | Nether resistance | Nether resistance is required from 40F onward. |
-| 50-80F | Telepathy and a usable `*Destruction*` method | There is no equipment-speed requirement before 81F. Exploration of 80F is allowed. |
+| 50-69F | Telepathy and a usable `*Destruction*` method | No speed requirement. |
+| 70-80F | Speed `+10`, permanent or sustained for the dive (`haste_sustain`: 20 Speed doses -- the Magic-Eater's reliable absorbed Speed charges plus carried Potions of Speed -- at departure, 2 on the floor, the haste kept up while an awake hostile is in view or sensed) | Exploration of 80F (the Ring of Speed's generation level) is allowed. Short of it the character works the deepest admitted floor (`angband_cap` speed ceiling). |
 | 81F+ | Speed `+25`, and as many resistances as reasonably possible | Do not descend from 80F until this strict gate is satisfied. |
 
 The requirement at a depth is the union of its band and every shallower band

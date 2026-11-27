@@ -60,21 +60,21 @@ RING_OF_SPEED_DEPTH = 80
 CEILING = "_angband_speed_ceiling"
 
 
-def speed_ceiling(snapshot) -> int | None:
-    """The deepest floor the board's permanent speed admits: the floor above the shallowest depth
-    speed row it does not meet (policy_constants ``SPEED_GATES``), or None when it meets them all.
-    The permanent speed is the fact the depth gates read (speed_valuation; a timed haste is not
-    counted, policy_observation ``_missing_required_abilities``)."""
-    from hengbot.policy_constants import SPEED_GATES  # import cycle (policy_constants -> angband_finale)
-    from hengbot.speed_valuation import permanent_player_speed
-    speed = permanent_player_speed(snapshot)
-    unmet = [first for first, _label, need in SPEED_GATES if speed < need]
+def speed_ceiling(policy, snapshot) -> int | None:
+    """The deepest floor the board admits: the floor above the shallowest depth speed row it does
+    not meet (policy_constants ``SPEED_GATES``), or None when it meets them all.  A row is met as
+    the depth gates read it (haste_sustain ``row_met``: the permanent speed, or for 70-80F the
+    doses sustained for the dive)."""
+    from hengbot import haste_sustain  # import cycle (policy_constants -> angband_finale)
+    from hengbot.policy_constants import SPEED_GATES
+    unmet = [first for first, label, need in SPEED_GATES
+             if not haste_sustain.row_met(policy, snapshot, (label, need))]
     return min(unmet) - 1 if unmet else None
 
 
 def observe(policy, snapshot) -> None:
-    """Every board: hold the speed ceiling of the board's permanent speed."""
-    setattr(policy, CEILING, speed_ceiling(snapshot))
+    """Every board: hold the speed ceiling of the board."""
+    setattr(policy, CEILING, speed_ceiling(policy, snapshot))
 
 
 def cap(dungeon_id: int, policy=None) -> int | None:

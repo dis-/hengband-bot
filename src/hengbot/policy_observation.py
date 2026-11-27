@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hengbot import ability_sources, loot_memory
+from hengbot import ability_sources, haste_sustain, loot_memory
 from hengbot import equipment_target
 from hengbot import approach_answer, deep_stairs, mining_loadout, return_start
 from hengbot import guardian_rumor, heal_offset, quest_attempt_ledger, quest_entry_supply, quest_plan_record, warning_cell_record
@@ -14,7 +14,6 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.policy_constants import DESTRUCTION_GATE_LABEL, destruction_dive_permitted, required_depth_gates, speed_gate, EMERGENCY_ESCAPE_REASONS, EMERGENCY_RETURN_COUNT, RELOCATING_ESCAPE_REASONS, EMPTY_DIVE_LIMIT, ExplorationPathOutcome, HOME_PLAN_OWNED_PROCESSING_REASONS, NO_DEPTH_PROGRESS_DIVE_LIMIT, STORE_RETRY_TURNS, STUCK_FAMILY_REASONS, STUCK_NEUTRAL_REASONS, TOWN_CYCLE_IGNORED_REASONS, TOWN_NO_PROGRESS_LIMIT, TOWN_WANDER_LIMIT, TOWN_WANDER_REASONS
-from hengbot.speed_valuation import permanent_player_speed
 from hengbot import bm_destruction_fund, bm_tour, finale_bm_tour, home_cap, home_cash_sale, home_ledger, deep_teleport, detected_loot, launcher_upgrade, me_powerful_activation, random_quest_hold, recall_wait_reach, sealed_loot, sellable_artifacts, torch_release
 from hengbot.model import DUNGEON_ANGBAND, DUNGEON_YEEK_CAVE, STORE_FULL_SALE_MESSAGES, STORE_HOME, SV_SCROLL_TELEPORT, TVAL_SCROLL, Snapshot
 from hengbot.policy_constants import QUEST_STATUS_FINISHED, QUEST_STATUS_REWARDED
@@ -1572,10 +1571,11 @@ class ObservationMixin:
             missing.discard(DESTRUCTION_GATE_LABEL)
         speed_row = speed_gate(depth)
         if (speed_row is not None and speed_row[0] in missing
-                and permanent_player_speed(snapshot) >= speed_row[1]):
-            # The depth's speed (+10 at 70-80F, +25 at 81F+) reads the one fact the
-            # optimizer reads (speed_valuation): the permanent speed, base plus gear,
-            # without a timed haste (a potion at the stairs does not carry the dive).
+                and haste_sustain.row_met(self, snapshot, speed_row)):
+            # The depth's speed (+25 at 81F+) reads the one fact the optimizer reads
+            # (speed_valuation): the permanent speed, base plus gear, without a timed haste.
+            # The 70-80F +10 is also met by the doses sustained for the dive (haste_sustain,
+            # supervisor 2026-11-27).
             missing.discard(speed_row[0])
         return frozenset(missing)
 

@@ -15,7 +15,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hengbot import destruction_use
+from hengbot import destruction_use, haste_sustain
 
 from hengbot.equipment_optimizer import (
     SLOT_BODY, SLOT_FEET, SLOT_LIGHT, SLOT_MAIN_HAND, SLOT_MAIN_RING, SLOT_SUB_RING,
@@ -136,8 +136,8 @@ class LifeTwoTwentyTwoSpeedTest(unittest.TestCase):
 
 
 class SeventyFloorSpeedGateTest(unittest.TestCase):
-    """Supervisor 2026-11-26: 70-80F ask a permanent speed of +10 (five of the seven deaths at
-    76-80F before it had +9 or less)."""
+    """Supervisor 2026-11-26: 70-80F ask a speed of +10 (five of the seven deaths at 76-80F before it
+    had +9 or less); since 2026-11-27 permanent, or sustained by Speed doses (haste_sustain)."""
 
     def test_the_rows(self):
         self.assertNotIn(MID_SPEED_GATE_LABEL, required_depth_gates(69))
@@ -163,7 +163,7 @@ class SeventyFloorSpeedGateTest(unittest.TestCase):
             return ObservationMixin._missing_required_abilities(
                 SimpleNamespace(), snapshot, depth)
 
-        with patch.object(destruction_use, "holds_means", return_value=True):
+        with patch.object(destruction_use, "holds_means", return_value=True),                 patch.object(haste_sustain, "uses", return_value=0):
             self.assertEqual(missing(board(119), 69), frozenset())
             self.assertEqual(missing(board(119), 70), {MID_SPEED_GATE_LABEL})
             self.assertEqual(missing(board(119), 80), {MID_SPEED_GATE_LABEL})
@@ -171,6 +171,10 @@ class SeventyFloorSpeedGateTest(unittest.TestCase):
             # A haste's +10 is no permanent speed.
             self.assertEqual(missing(board(125, "yellow"), 75), {MID_SPEED_GATE_LABEL})
             # 81F asks +25 alone (it includes +10).
+            self.assertEqual(missing(board(130), 81), {SPEED_GATE_LABEL})
+        # Supervisor 2026-11-27: doses sustained for the dive meet the 70-80F row, never 81F's.
+        with patch.object(destruction_use, "holds_means", return_value=True),                 patch.object(haste_sustain, "uses", return_value=haste_sustain.RETURN_RESERVE_USES):
+            self.assertEqual(missing(board(113), 75), frozenset())
             self.assertEqual(missing(board(130), 81), {SPEED_GATE_LABEL})
 
 

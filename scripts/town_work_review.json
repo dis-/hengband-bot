@@ -17817,6 +17817,16 @@
     "delegation": "row-specific selected operation; shared child rows remain shadow",
     "evidence": "Owner 2026-11-11 「恐怖になって殴れなくなった時に飲む」: the drink in place of the blow fear refuses; asked only by combat_answer.adjacent_attack."
   },
+  "haste_sustain.py:after_ladder": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon only: _relies_on_doses refuses the town (snapshot.in_town) and a dungeon level of 0 before any dose, so in town it returns the key it was given.",
+    "evidence": "Supervisor 2026-11-27 (owner: speed +10 above 70F is hard to get): the after-ladder filter (dungeon_ladder.AFTER_DECIDE) beside _strong_fight_speed_filter that puts the Speed dose (speed_dose.key, haste-sustain:dose) in place of a decided ordinary action on a 70-80F floor while an awake hostile is in view or sensed; every other key is returned as given.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)"
+  },
   "heroism_potion.py:fight_filter": {
     "classification": "producer",
     "rows": [
