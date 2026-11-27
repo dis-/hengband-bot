@@ -393,11 +393,10 @@
       "halts": "final",
       "note": "the town arbiter exhausted an owner visit budget without progress"
     },
-    "policy_home:HomeMixin._overweight_surplus_sale_key: town:blocked:overweight-home-full-no-legal-relief": {
-      "kind": "requirement",
+    "policy_home:HomeMixin._overweight_surplus_sale_key: town:blocked:overweight-surplus-destroy-unobserved": {
+      "kind": "mechanism",
       "halts": "final",
-      "note": "over the weight limit with no legal relief",
-      "debt": "needs a rule to depart overweight (or drop the least valued retained item) instead of stopping"
+      "note": "a posted destruction that the board never shows (the screen did not advance)"
     },
     "policy_home:HomeMixin._overweight_surplus_sale_key: town:blocked:overweight-surplus-rebuy-loop": {
       "kind": "mechanism",
