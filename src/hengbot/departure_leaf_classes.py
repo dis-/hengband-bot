@@ -6,7 +6,8 @@ The one classification table of the departure gates' leaves.  Every leaf the gat
 which fails on a leaf in no class or in two) is in exactly one class:
 
 ``TOP_UP``     a target the visit keeps aiming for, adequate short of it (n1-a life-545 02:09: 18
-               of 20 Identify staff charges, every staff refused as overweight).
+               of 20 Identify staff charges, every staff refused as overweight; 2026-11-28 04:01:
+               food 8 of 9 Rations' worth, one trip eats 8).
 ``OPTIONAL``   work worth finishing this visit that leaving without loses nothing but time: a Home
                candidate to identify or compare, the identification backlog, Home's queued takes
                and its batch review, the Home list, the pack's tidy-up and free slots beyond the
@@ -38,6 +39,13 @@ TOP_UP: dict[str, Callable[[Any, Any], bool]] = {
     # least reserve (policy_supply ``_identify_staff_adequate``).
     "identify_staff_ready": lambda policy, board: policy._identify_staff_adequate(
         board, cache_fixed_quest_head=False),
+    # The departure target (food_supply.departure_rations) is one planned trip at the character's
+    # digestion plus MARGIN_RATIONS, at least FOOD_STOCK_TARGET; one trip's worth is adequate
+    # (policy ``_food_adequate``).  Below it the leaf holds like a MUST_HAVE: its rescues (another
+    # supplier, another town, a 1F mining run) answer, and the food purchase may use the pack's
+    # reserve (town_pack_budget ``purchase_reserve_use``).  n1-a life-545 2026-11-28 04:01: 8 of
+    # 9 Rations' worth (a trip eats 8) stopped town:blocked:survival:food_ready.
+    "food_ready": lambda policy, board: policy._food_adequate(board),
 }
 
 # leaf -> what stays for a later visit when it is waived.
@@ -65,7 +73,6 @@ OPTIONAL: dict[str, str] = {
 # leaf -> why it holds the departure, and its alternative action.
 MUST_HAVE: dict[str, str] = {
     "recall_departure_ready": "no way home; supplier, other town, 1F mining (0 needed while mining)",
-    "food_ready": "starvation (n1-a 544); supplier, other town, 1F mining",
     "light_ready": "no light in the dungeon; supplier, other town, 1F mining",
     "teleport_ready": "the escape; supplier, other town, 1F mining",
     "cure_critical_ready": "the heal; supplier, other town, 1F mining",

@@ -119,10 +119,24 @@ def trip_rations(player, game_turns: int = TRIP_GAME_TURNS) -> int:
 
 
 def departure_rations(player) -> int:
-    """The ordinary eater's departure reserve, in Rations."""
+    """The ordinary eater's departure reserve, in Rations: the purchase target."""
     if player.food_type == FOOD_TYPE_MANA:
         raise ValueError("a mana eater's food is device charges")
     return max(FOOD_STOCK_TARGET, trip_rations(player) + MARGIN_RATIONS)
+
+
+def below_trip(player, items, extra: int = 0) -> bool:
+    """An ordinary eater carries less than one planned trip eats (``trip_rations``, plus
+    ``extra`` Rations a longer planned trip adds: zul_trip ``extra_food_items``).
+
+    The departure's floor (MAINTAINABILITY.md rules 2-4, n1-a life-545 2026-11-28): the
+    target's MARGIN_RATIONS and FOOD_STOCK_TARGET are a top-up the visit buys when it can;
+    a trip's worth is what the departure may leave with.  Below it a food purchase may use
+    the pack's departure reserve (town_pack_budget ``purchase_reserve_use``).  A mana eater's
+    food is device charges and never below this floor here.
+    """
+    return (player.food_type != FOOD_TYPE_MANA
+            and carried_rations(items) < trip_rations(player) + extra)
 
 
 def items_for_rations(item, rations: int) -> int:

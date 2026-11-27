@@ -1055,7 +1055,8 @@ class NavigationMixin:
             self._descent_refusal_reason = "next-depth-supply-shortage"
             return True
         if snapshot.in_town:
-            if not self._departure_food_ready(snapshot):
+            if (not self._departure_food_ready(snapshot)
+                    and not self._food_waived_for_departure(snapshot)):
                 self._descent_refusal_reason = "food-departure-shortage"
                 return True
             if self._fundraising_mode in {"mine", "scavenge"}:

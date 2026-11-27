@@ -930,7 +930,7 @@
       "kind": "requirement",
       "halts": "town-fuse",
       "note": "town end: town:blocked:survival:<leaf> / town:blocked:unmet:<name> (town_terminal.town_end_stop_reason)",
-      "debt": "the departure minimum (survival leaves) and the unmet departure conditions still stop the visit when the mining cycle cannot leave; needs the give-up-the-stage path of rule 2"
+      "debt": "the departure minimum (survival leaves) and the unmet departure conditions still stop the visit when the mining cycle cannot leave; needs the give-up-the-stage path of rule 2. Released so far (departure_leaf_classes): every OPTIONAL leaf, and the TOP_UP leaves identify_staff_ready (5 charges) and food_ready (one planned trip's food, 2026-11-28) once adequate; food_ready below one trip still holds after its rescues (another supplier, another town, 1F mining), with the food purchase admitted into the pack reserve"
     },
     "town_terminal:town_end_key: town:blocked:departure-unsatisfiable": {
       "kind": "requirement",
