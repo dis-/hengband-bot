@@ -1940,6 +1940,10 @@ REGISTRY = (
     # quest_attempt_ledger
     S("_quest_outcome_statuses", "quest_attempt_ledger", LIFE,
       "the fixed quests' statuses and the quest floor last seen, to write a row on each change"),
+    # quest_entry_supply
+    S("_quest_entry_supplies", "quest_entry_supply", LIFE,
+      "(floor key, {supply: count}) of the fixed quest floor's first board: the counts it was "
+      "entered with, so an in-quest supply floor counts only what the quest spent (2026-11-27)"),
     # quest_value
     S("_quest_value_verdicts", "quest_value", LIFE,
       "the last verdict of each quest asked (take, why, needs, binding), the decision log's view"),

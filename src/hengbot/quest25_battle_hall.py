@@ -12,7 +12,8 @@ Split from quest25_battle.py (maintainability review 2026-11-23 (a)-8, behaviour
 from __future__ import annotations
 
 from hengbot import (
-    once_quest_recall, quest25_geometry as geo, quest_exposure, quest_plan_base, quest_room_light,
+    once_quest_recall, quest25_geometry as geo, quest_entry_supply, quest_exposure, quest_plan_base,
+    quest_room_light,
 )
 from hengbot.item_reservation import reserved_item_command
 from hengbot.model import Position
@@ -256,15 +257,26 @@ def _choke_step_back(ctx: _Ctx, chokes) -> str | None:
 # look-outs in a row summoned on and back to the choke with no shot at the pen, or the Healing
 # potions (Healing and stronger, quest_plan_base ``healing_potion_count``) down to two, and Word
 # of Recall is read to restock -- the quest fails; survival first (owner 2026-11-09).
+# 2026-11-27 (supervisor, n1-c life-223): the potions count only when this quest spent them down
+# to the floor (quest_entry_supply ``spent_to_floor``): the row asks as few as two
+# (``required_force.over_match``), and a character entering with exactly two read Recall on phase
+# 2's first board at full HP, none drunk.
 LOOKOUT_LIMIT = 3
 HEALING_FLOOR = 2
+
+
+def healing_spent(policy, snapshot) -> bool:
+    """The restock's potion arm: this quest drank its Healing potions down to ``HEALING_FLOOR``."""
+    return quest_entry_supply.spent_to_floor(
+        policy, snapshot, quest_entry_supply.HEALING,
+        quest_plan_base.healing_potion_count(policy, snapshot), HEALING_FLOOR)
 
 
 def _restock_recall(policy, snapshot) -> str | None:
     """Phase 2's leave to restock (``LOOKOUT_LIMIT`` / ``HEALING_FLOOR``): Word of Recall, read past
     the ONCE floor's hold (once_quest_recall ``read_key`` ``deliberate``); then, Recall active,
     the plan's own wait (``_recall_wait``: the start stair, else out of the casters' fire).  None
-    off phase 2, within both counts, or with Recall already active."""
+    off phase 2, within both counts (``healing_spent``), or with Recall already active."""
     from hengbot import quest25_battle  # its phase table (``PHASES``) imports this module
 
     ctx = _ctx(policy, snapshot)
@@ -273,8 +285,7 @@ def _restock_recall(policy, snapshot) -> str | None:
     phase = quest25_battle.current_phase(ctx)
     if phase is None or phase.name != "ipsissimus":
         return None
-    if (ctx.battle.lookouts < LOOKOUT_LIMIT
-            and quest_plan_base.healing_potion_count(policy, snapshot) > HEALING_FLOOR):
+    if ctx.battle.lookouts < LOOKOUT_LIMIT and not healing_spent(policy, snapshot):
         return None
     return once_quest_recall.read_key(policy, snapshot, RESTOCK_RECALL_REASON, deliberate=True)
 

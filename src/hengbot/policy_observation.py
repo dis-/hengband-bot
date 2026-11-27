@@ -3,7 +3,7 @@ from __future__ import annotations
 from hengbot import ability_sources
 from hengbot import equipment_target
 from hengbot import approach_answer, deep_stairs, mining_loadout, return_start
-from hengbot import guardian_rumor, heal_offset, quest_attempt_ledger, quest_plan_record, warning_cell_record
+from hengbot import guardian_rumor, heal_offset, quest_attempt_ledger, quest_entry_supply, quest_plan_record, warning_cell_record
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot import alternate_dungeon_record, angband_cap, conquest_budget, angband_hold, alternate_lease,destruction_loot, destruction_use, dive_floor, dive_haul, escape_count, disenchant_avoid, fallback_depth_floor, fled_floor_stairs, floor_visit_memory, q2_kill_credit, quest_force_rows, blind_strike, breeder_floor_record, breeder_stalemate, dark_recall, hunt_target, immobile_threat_memory, lamp_fuel, left_cells, line_of_fire, oneshot_breath, over_extension, retreat_enclosure, retreat_veto_life, sleeper_loot_block, sleeper_reach_memory, status_cure, summon_response, summoner_wait, threat_tiers, town_end_mining
 import json
@@ -141,6 +141,7 @@ class ObservationMixin:
         bm_tour.observe(self, snapshot)
         finale_bm_tour.observe(self, snapshot)
         quest_attempt_ledger.observe(self, snapshot)   # record only (quest_value, 2026-11-27)
+        quest_entry_supply.observe(self, snapshot)   # the counts a quest floor was entered with
         self._retire_vanished_pending_withdrawals(snapshot)
         previous_floor = self._floor_key
         if previous_floor is None:
