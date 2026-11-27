@@ -27,7 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # Files that are allow-lists or recorded baselines as a whole.
 ALLOWLIST_FILES = (
     'scripts/attack_time_lint_baseline.json',
+    'scripts/class_literal_lint_baseline.json',
     'scripts/cross_rule_baseline.json',
+    'scripts/designed_stop_lint_sites.json',
     'scripts/item_intent_baseline.json',
     'scripts/item_sink_adapters.json',
     'scripts/item_sink_lint_baseline.json',
@@ -37,6 +39,7 @@ ALLOWLIST_FILES = (
     'scripts/state_registry_restart_baseline.json',
     'scripts/test_fakery_lint_baseline.json',
     'scripts/town_structure_lint_baseline.json',
+    'tests/KNOWN_FAILURES.txt',
 )
 # Allow-lists written as a module-level constant inside a lint.
 ALLOWLIST_CONSTANTS = (
