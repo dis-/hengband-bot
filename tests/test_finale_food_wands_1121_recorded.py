@@ -85,10 +85,17 @@ class FinaleFoodWandsRecordedTest(unittest.TestCase):
         board = self.board_with([("m", 6, 111, "")])
         self.assertEqual(self.key(board), ("{m@E1\r", f"{finale_prep.FOOD_REASON}:inscribe"))
 
-    def test_a_drained_stack_stops_by_name(self):
+    def test_a_drained_stack_is_split_and_waits_for_the_charges_without_a_stop(self):
+        # MAINTAINABILITY.md 2 (n1-b life-419 2026-11-28, tests/test_n1b_419_finale_food_1128_recorded.py):
+        # a drained stack is split as a charged one; three drained stacks wait for the ordinary
+        # town supply's refill (staple_needs_recharge) under the step's own limit, never a stop.
         board = self.board_with([("m", 6, 0, "@3")])
-        self.assertIsNone(finale_prep.town_key(self.policy, board))
-        self.assertEqual(self.held.stopped, "food:wonder-uncharged")
+        self.assertEqual(self.key(board), ("dm1\r", f"{finale_prep.FOOD_REASON}:drop"))
+        drained = self.board_with([("m", 4, 0, "@E2"), ("n", 1, 0, "@3"), ("o", 1, 0, "@E1")])
+        self.assertFalse(finale_prep.food_done(drained))
+        self.assertIsNone(finale_prep.town_key(self.policy, drained))
+        self.assertEqual(self.held.step, finale_prep.FOOD)
+        self.assertIsNone(self.held.stopped)
 
 
 if __name__ == "__main__":
