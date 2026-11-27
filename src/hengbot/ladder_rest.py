@@ -16,6 +16,40 @@ from hengbot.policy_constants import REST_MACRO, REST_TARGET_HP_RATIO
 
 REST_CAP = 25  # bound consecutive rest commands as a safety valve (policy.py imports it)
 
+# A rest the game ends at once gives the board back (the supervisor 2026-11-27, n1-a life-545):
+# REST_MACRO ``R&`` rests "as needed", and the game ends it at the next player turn when nothing it
+# recovers is short (core/player-processor.cpp:163-166, is_fully_healthy
+# system/player-type-definition.cpp:75-91).  Such a rest leaves HP, mana and the cell as they were,
+# so a rest asked on the same (floor, cell, HP, max HP, mana, max mana) FUTILE_REST_LIMIT times is
+# not asked again until one of them changes: the board goes on to the descent and exploration.  A
+# rest that recovers changes HP or mana, and one a monster interrupts closes the gate on the next
+# board (a hostile in sight).  Evidence: n1-a life-545 rested 155 times in 220 decisions on
+# 766/766 HP and 0/0 MP (turns 4960613-4963142), each about one player turn (9-14 game turns),
+# until the loop detector stopped it; three tries leave room for a rest disturbed before its first
+# regeneration tick.
+FUTILE_REST_LIMIT = 3
+FUTILE_REST = "_futile_rest"  # (rest signature, rests asked on it)
+
+
+def _rest_signature(snapshot) -> tuple:
+    player = snapshot.player
+    return (snapshot.floor_key, player.position.y, player.position.x,
+            player.hp, player.max_hp, player.mp, player.max_mp)
+
+
+def rest_futile(policy, snapshot) -> bool:
+    """The rest was asked FUTILE_REST_LIMIT times on this board's unchanged signature."""
+    memory = getattr(policy, FUTILE_REST, None)
+    return (memory is not None and memory[0] == _rest_signature(snapshot)
+            and memory[1] >= FUTILE_REST_LIMIT)
+
+
+def _note_rest(policy, snapshot) -> None:
+    signature = _rest_signature(snapshot)
+    memory = getattr(policy, FUTILE_REST, None)
+    count = memory[1] + 1 if memory is not None and memory[0] == signature else 1
+    setattr(policy, FUTILE_REST, (signature, count))
+
 
 def key(policy, snapshot, *, strategic_hostiles):
     """The rest layer's answer, or PASS when none of its rungs acts."""
@@ -39,6 +73,7 @@ def key(policy, snapshot, *, strategic_hostiles):
         and not player.confused
         and player.food_state in {"normal", "full", "gorged"}
         and policy._rest_count < REST_CAP
+        and not rest_futile(policy, snapshot)
     ):
         # Awake monsters known only by telepathy/detection interrupt every
         # rest (live Angband 41F loop, 2026-09-21): the user-confirmed
@@ -65,6 +100,7 @@ def key(policy, snapshot, *, strategic_hostiles):
             # so we don't starve — bot-test died of starvation partly from
             # over-resting.
             policy._rest_count += 1
+            _note_rest(policy, snapshot)
             policy.last_reason = "rest"
             policy._offer_execution(
                 REST_MACRO, producer="survival", work_id="rest",
