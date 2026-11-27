@@ -348,6 +348,14 @@ def fix_visit_target(policy, epoch, candidates: tuple, context: tuple, result,
     setattr(policy, VISIT_TARGET_STATE, VisitTarget(epoch, candidates, context, result, pieces))
 
 
+def _context_fields(context: tuple) -> tuple:
+    """(finale, destination floor, gate floor, rules, means) of a visit context of either shape."""
+    if len(context) == 5:
+        return tuple(context)
+    finale, floor, rules, means = context
+    return finale, floor, None, rules, means
+
+
 def redecide_events(held: VisitTarget, candidates: tuple, context: tuple,
                     pieces: tuple = ()) -> tuple[str, ...]:
     """The named events since ``held`` was decided, from the board's candidates and context."""
@@ -357,12 +365,19 @@ def redecide_events(held: VisitTarget, candidates: tuple, context: tuple,
         events.append(EVENT_CANDIDATE_GAINED)
     elif identified:
         events.append(EVENT_CANDIDATE_IDENTIFIED)
-    finale, floor, rules, means = context
-    held_finale, held_floor, held_rules, held_means = held.context
+    # The context is (finale, destination floor, unmet speed row's floor, rules, means)
+    # (policy_equipment ``_equipment_visit_redecision``).  A target held from before the
+    # gate floor joined the context carries four; its gate floor reads as none.
+    finale, floor, gate, rules, means = _context_fields(context)
+    held_finale, held_floor, held_gate, held_rules, held_means = _context_fields(held.context)
     if finale != held_finale:
         events.append(EVENT_FINALE_PHASE)
+    # The unmet speed row's band appeared or moved: the held target was not searched for it.
+    if gate is not None and gate != held_gate:
+        events.append(EVENT_DESTINATION_FLOOR)
     # The destination's band moved (stage E4); leaving the town (no floor) decides nothing.
-    if floor is not None and floor != held_floor:
+    if (floor is not None and floor != held_floor
+            and EVENT_DESTINATION_FLOOR not in events):
         events.append(EVENT_DESTINATION_FLOOR)
     if rules != held_rules:
         events.append(EVENT_RULES)
