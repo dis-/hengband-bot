@@ -374,10 +374,20 @@ def escape_reserve(policy, snapshot) -> int:
 def mana_rest_due(policy, snapshot) -> bool:
     """A caster in the dungeon whose mana is below the escape reserve (its escape spell's cost),
     or short of the Word of Recall it goes home with (``recall_rest_due``): the rest rung rests
-    (REST_MACRO ``R&``: until HP and mana are full or disturbed) as it does for HP."""
+    (REST_MACRO ``R&``: until HP and mana are full or disturbed) as it does for HP.
+
+    A rest gives mana back only up to the maximum mana (hpmp/hp-mp-regenerator.cpp:64 regenmana), and the
+    game ends a rest "as needed" at the next player turn once ``csp >= msp``
+    (system/player-type-definition.cpp:75-91 is_fully_healthy, core/player-processor.cpp:163-166), so
+    the reserve is asked only up to the maximum mana.  n1-a life-545 (2026-11-27, Sorcery Rogue
+    CL33 at 42F): the Big Beholder's gazes drained INT from 18/64 to 7 (adj_mag_mana 0,
+    player-status-table.cpp:62-63), the maximum mana fell 111 -> 0 (turn 4958466 -> 4960481), and
+    ``0 < reserve`` rested 155 times in 220 decisions, each ended by the game within one player
+    turn, until the loop detector stopped the bot (turn 4963142)."""
     if not applies(policy, snapshot) or snapshot.in_town:
         return False
-    return (snapshot.player.mp < escape_reserve(policy, snapshot)
+    player = snapshot.player
+    return (player.mp < min(escape_reserve(policy, snapshot), player.max_mp)
             or recall_rest_due(policy, snapshot))
 
 

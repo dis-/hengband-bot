@@ -437,6 +437,9 @@ REGISTRY = (
     # ladder_objectives
     S("_unknown_lantern_departure_refilled", "ladder_objectives", LIFE,
       "An unidentified lantern hides its fuel."),
+    # ladder_rest
+    S("_futile_rest", "ladder_rest", LIFE,
+      "(floor, cell, HP, max HP, MP, max MP) of the last rest and how many rests were asked on it: FUTILE_REST_LIMIT ends the rest the game ends at once (supervisor 2026-11-27, n1-a life-545)."),
     # lamp_fuel
     S("_lamp_full_memory", "lamp_fuel", LIFE,
       "lamp_fuel: lamp full memory (no comment at its definition)"),
@@ -2473,6 +2476,9 @@ RESTART = {
     "_quest_outcome_statuses": Restart(REBUILT, "quest_attempt_ledger",
                                        "the first board of a process seeds the statuses without "
                                        "a row; a change during the restart is not written"),
+    "_futile_rest": Restart(MAY_BE_LOST, "ladder_rest",
+                            "a new process asks the futile rest FUTILE_REST_LIMIT times again "
+                            "before it gives the board back"),
     "_haste_sustain_last_dose": Restart(MAY_BE_LOST, "haste_sustain",
                                         "a new process recasts at once on a hasted board only "
                                         "after the haste ends"),
