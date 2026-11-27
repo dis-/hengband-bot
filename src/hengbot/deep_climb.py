@@ -116,7 +116,12 @@ def departure_gaps(policy, snapshot, depth: int) -> frozenset:
     life-531 2026-11-22 08:25: the Mountain's 50F switch, every other gate admitting it, stopped
     the town end as town:blocked:survival:depth_abilities) and the equipment departure's
     worn-loadout checks."""
-    missing = frozenset(policy._missing_required_abilities(snapshot, depth))
+    from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
+
+    # Angband's landing one floor past the speed ceiling is climbed from (angband_cap).
+    missing = angband_cap.landing_gaps(
+        policy, snapshot, policy._target_dungeon_id, depth,
+        policy._missing_required_abilities(snapshot, depth))
     # The worn kit's gaps already read the means: the climb alone is asked (deep_admission).
     if missing and deep_admission.verdict(
             policy._target_dungeon_id, depth, "recall",
@@ -143,8 +148,11 @@ def on_floor(policy, snapshot) -> bool:
 
 
 def floor_gaps(policy, snapshot, gaps) -> frozenset:
-    """``gaps`` of the floor stood on, the 50F row taken out on a climb floor."""
-    gaps = frozenset(gaps)
+    """``gaps`` of the floor stood on, the 50F row taken out on a climb floor, the speed rows on an
+    Angband floor past the speed ceiling (angband_cap ``climb_gaps``)."""
+    from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
+
+    gaps = angband_cap.climb_gaps(policy, snapshot, gaps)
     return gaps - ROW_GAPS if on_floor(policy, snapshot) else gaps
 
 

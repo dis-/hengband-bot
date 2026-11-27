@@ -538,6 +538,10 @@ class Operation:
     # was submitted: recall_player's reset-recall-depth question is refused then
     # (angband_cap.reset_recall_depth).
     cap_lifted: bool = False
+    # Angband's cap read with the policy when the operation was submitted (angband_cap ``cap``: the
+    # speed ceiling included, supervisor 2026-11-27): the reset-recall-depth question is answered y
+    # on that floor too (angband_cap.reset_recall_depth ``deepest``).  None: the 95F cap alone.
+    angband_cap: int | None = None
     # The held climb switch's (dungeon, band shallowest, band deepest) when the operation was
     # submitted (dive_floor ``RECALL_RESET``, owner 2026-11-22 「城は45Fまでにする」): the
     # reset-recall-depth question is answered y on a band floor or a climb floor below it
@@ -1717,7 +1721,8 @@ class OperationExecutor:
             from hengbot import angband_cap, dive_floor
 
             answer = "y" if (angband_cap.reset_recall_depth(
-                self.active.observation, lifted=self.active.cap_lifted)
+                self.active.observation, lifted=self.active.cap_lifted,
+                deepest=self.active.angband_cap)
                 or dive_floor.reset_recall_depth(
                     self.active.observation, self.active.climb_reset)) else "n"
             return self._post_and_barrier(answer, deadline, role="answer")
