@@ -761,12 +761,6 @@
       "halts": "final",
       "note": "navigation / escape budget exhausted without progress (loop guard)"
     },
-    "policy_town:TownMixin._town_overflow_destroy_key: town:blocked:overflow-no-legal-disposal": {
-      "kind": "requirement",
-      "halts": "final",
-      "note": "pack overflow with nothing legally destructible",
-      "debt": "needs a rule to leave with the overflow instead of stopping"
-    },
     "policy_town:TownMixin._town_special_key: town:blocked:*": {
       "kind": "requirement",
       "halts": "town-fuse",

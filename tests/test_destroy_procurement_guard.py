@@ -9,7 +9,6 @@ from hengbot.model import (
     TVAL_SCROLL,
 )
 from hengbot.policy import HengbotPolicy, WAIT_KEY
-from hengbot.cli import POLICY_FINAL_STOP_REASONS, _policy_final_stop_banner
 from policy_fixtures import grid, item, player
 from recorded_junk_scope import pre_junk_scope_replay
 from tests.test_destroy_superior_item_guard import captured_rows, snapshot_at
@@ -116,7 +115,7 @@ class DestroyProcurementGuardTest(unittest.TestCase):
     # declared wall: pre-2026-10-20 junk scope (subject: overflow destroy, not junk)
     @pre_junk_scope_replay
     def test_p3c_public_choose_key_protected_overflow_and_controls(self):
-        """PUBLIC constructed response-free producer: free=3 stops; free=4 certifies; legal item destroys."""
+        """PUBLIC constructed response-free producer: free=3 gives way (2026-11-28); free=4 certifies; legal item destroys."""
         policy = HengbotPolicy()
         snapshot = self._public_overflow_snapshot()
         provenance = {
@@ -132,8 +131,9 @@ class DestroyProcurementGuardTest(unittest.TestCase):
         ))
         claims_before = policy._town_claims_active(snapshot)
         key = policy.choose_key(snapshot)
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(policy.last_reason, "town:blocked:overflow-no-legal-disposal")
+        # Nothing legal to dispose of: the overflow owner gives way (MAINTAINABILITY.md 2).
+        self.assertFalse(policy.last_reason.startswith("town:blocked"), policy.last_reason)
+        self.assertNotEqual(policy.last_reason, "town:destroy-overflow")
         self.assertNotIn("k", key)
         self.assertIsInstance(claims_before, bool)
 
@@ -151,14 +151,6 @@ class DestroyProcurementGuardTest(unittest.TestCase):
         )
         self.assertIn("k", legal_key)
         self.assertEqual(legal.last_reason, "town:destroy-overflow")
-
-    def test_p3c_overflow_terminal_is_registered_with_exact_banner(self):
-        reason = "town:blocked:overflow-no-legal-disposal"
-        self.assertIn(reason, POLICY_FINAL_STOP_REASONS)
-        self.assertIn(
-            "overflow disposal is required but no legally destructible item exists",
-            _policy_final_stop_banner(reason),
-        )
 
 
 if __name__ == "__main__":

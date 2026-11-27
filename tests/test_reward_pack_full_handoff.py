@@ -95,9 +95,10 @@ class RewardPackFullHandoffTest(unittest.TestCase):
         self.assertIsNone(policy._find_low_level_sale(snapshot))
         self.assertIsNone(policy._find_book_sale(snapshot))
         self.assertIsNone(policy._find_device_sale(snapshot))
-        key = policy._town_overflow_destroy_key(snapshot)
-        self.assertEqual(key, "5")
-        self.assertEqual(policy.last_reason, "town:blocked:overflow-no-legal-disposal")
+        # Nothing legal to dispose of: the overflow owner gives way (2026-11-28,
+        # MAINTAINABILITY.md 2) and the protected items stay carried.
+        self.assertIsNone(policy._town_overflow_destroy_key(snapshot))
+        self.assertIsNone(policy._town_blocked_reason)
 
 
 if __name__ == "__main__":

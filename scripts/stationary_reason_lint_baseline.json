@@ -153,7 +153,6 @@
     "policy_town.py:TownMixin._town_destroy_key: unregistered wait 'town:blocked:dominated-item-destroy-failed'": 1,
     "policy_town.py:TownMixin._town_entrance_step_off_key: unregistered wait 'livelock:exhausted'": 1,
     "policy_town.py:TownMixin._town_item_processing_dispatch_key: unregistered wait 'home:process-next-batch-item'": 1,
-    "policy_town.py:TownMixin._town_overflow_destroy_key: unregistered wait 'town:blocked:overflow-no-legal-disposal'": 1,
     "policy_town.py:TownMixin._town_special_key: unregistered rest 'town:recover'": 1,
     "policy_town.py:TownMixin._town_special_key: unregistered wait 'fundraise:departure-blocked'": 1,
     "policy_town.py:TownMixin._town_special_key: unregistered wait 'fundraise:fallback-exhausted-plan'": 1,

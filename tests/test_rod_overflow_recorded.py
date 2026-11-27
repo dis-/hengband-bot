@@ -137,8 +137,9 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual((rod.tval, rod.sval), (66, 6))
         self.assertTrue(policy._has_town_economic_path(rod))
         self.assertIsNone(policy._overflow_disposal_item(board))
+        # With nothing legal to dispose of the visit goes on to its town end (2026-11-28).
         self.assertEqual((policy.choose_key(board), policy.last_reason),
-                         ("1", "town:blocked:overflow-no-legal-disposal"))
+                         ("1", "town:entrance-step-off:town:end-step-off"))
 
     def test_recorded_remove_curse_scroll_is_never_terminal_overflow_victim(self):
         policy, board, _ = self.attached(93, refused=True)
@@ -146,8 +147,9 @@ class RodOverflowRecordedTest(executor_harness.ProductionHarness):
         self.assertEqual((scroll.tval, scroll.sval), (70, 14))
         self.assertTrue(policy._has_town_economic_path(scroll))
         self.assertIsNone(policy._overflow_disposal_item(board))
+        # With nothing legal to dispose of the visit goes on to its town end (2026-11-28).
         self.assertEqual((policy.choose_key(board), policy.last_reason),
-                         ("1", "town:blocked:overflow-no-legal-disposal"))
+                         ("1", "town:entrance-step-off:town:end-step-off"))
 
     def test_actual_sale_refusal_still_closes_outlet(self):
         policy, board, _ = self.attached()

@@ -145,10 +145,9 @@ class OverflowTorchesRecordedTest(unittest.TestCase):
             torch = next(item for item in board.inventory if item.slot == slot)
             self.assertEqual(policy._retention_reservation(board, torch), 1)
         self.assertIsNone(policy._overflow_disposal_item(board))
-        policy._town_overflow_destroy_key(board)
-        self.assertEqual(
-            policy.last_reason, "town:blocked:overflow-no-legal-disposal"
-        )
+        # Nothing legal to dispose of: the overflow owner gives way (2026-11-28).
+        self.assertIsNone(policy._town_overflow_destroy_key(board))
+        self.assertIsNone(policy._town_blocked_reason)
 
 
 if __name__ == "__main__":
