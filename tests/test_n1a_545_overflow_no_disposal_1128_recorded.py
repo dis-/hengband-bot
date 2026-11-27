@@ -13,7 +13,7 @@ four foods, six potions, Teleportation and Word of Recall, three rods, Stone to 
 shot); the 21st, a Mushroom of Restoring, is reserved by nothing but no Home deposit, sale or
 destruction rule takes it.  So no legal disposal could reach the floor: the overflow owner's
 answer was the stop.  The fix gives way: nothing is returned, the visit goes on to its town end,
-which waives the OPTIONAL free-slot leaf.
+which waives the free-slot leaf (a TOP_UP since 2026-11-28, adequate at one free slot).
 
 Every row before the stop is replayed through the public ``choose_key`` and compared with the
 record (full state: the town-arrival checkpoint, its journal and sidecars).

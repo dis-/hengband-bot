@@ -33,6 +33,14 @@ Home withdrawal of a 30.0 lb lance in place of a 25.0 lb axe was refused at 168.
 limit (no speed lost) after the axe was already deposited, and the visit re-entered Home for it
 until livelock:exhausted.
 
+The town end asks the same answer when the relief never opened (``relief_spent_key``, the last
+rescue of the departure leaf ``inventory_weight_ready`` in departure_rescues).  n1-a life-545
+2026-11-28 05:06: a Home withdrawal of four empty *Destruction* staffs (20.0 lb) took the pack to
+181.4 lb of a 160.0 lb limit (no speed lost, the tolerated weight is 191.9 lb).  Every carried stack
+was retained (the relief's route ``retained-only``), so no relief state was filed and ``give_way``
+was never asked; the purchase deposit found no item held only by this visit's purchase, and the
+visit stopped under town:blocked:survival:inventory_weight_ready.
+
 The waiver holds for the rest of this town visit while the load stays within what it allowed;
 ``_inventory_overweight`` reads it (``limit``), so every town owner and the departure leaf
 ``inventory_weight_ready`` see one answer.  Every waiver is written to the overweight record
@@ -108,10 +116,46 @@ def give_way(policy: Any, snapshot: Any, cause: str, *, force: bool = False) -> 
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf8") as stream:
         stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+    print(f"<overweight-departure-waived> cause={cause} weight={weight} limit={raw} "
+          f"allowed={allowed} forced={force}", flush=True)
     policy._overweight_surplus_disposal = None
     if policy._town_blocked_reason == HOME_ROUTE_TERMINAL:
         policy._town_blocked_reason = None
     return True
+
+
+# The relief routes (policy_home ``_weight_relief_selection``) with nothing legal left for the
+# weight: every carried item retained, or Home's deposits unreachable and the surplus short.
+SPENT_ROUTES = frozenset({"retained-only", "home-unreachable"})
+# The routes the relief's sale answers itself (it gives way inside when nothing legal is left).
+SALE_ROUTES = frozenset({"sell-or-destroy"})
+
+
+def relief_spent_key(policy: Any, snapshot: Any, cause: str = "town-end-relief-spent") -> str | None:
+    """The weight's answer once Home and the purchase deposit gave the town nothing: the town
+    end's last rescue of ``inventory_weight_ready`` (departure_rescues ``overweight-give-way``)
+    and Home's spent route (town_terminal ``overweight_home_key``).
+
+    A sellable surplus is the relief's sale (``_overweight_surplus_sale_key``, its state filed
+    here when no owner filed one).  A route with nothing legal left (``SPENT_ROUTES``) gives way
+    at once when the load is tolerated (``give_way``); a heavier load goes to the same sale, which
+    sheds reserved quantities (``shed_candidates``) or, with nothing to shed, gives way with
+    ``force``.  Another route (a deposit, Home's relief, an owner still taking items) is that
+    owner's: None.  None also when the load is within the limit or the waiver was given (the
+    caller reads the leaf again); else the relief's key.
+    """
+    if not snapshot.in_town or not policy._inventory_overweight(snapshot):
+        return None
+    route = policy._weight_relief_selection(snapshot).route
+    if route not in SALE_ROUTES | SPENT_ROUTES:
+        return None
+    if route in SPENT_ROUTES and give_way(policy, snapshot, cause):
+        return None
+    if policy._overweight_surplus_disposal is None:
+        policy._overweight_surplus_disposal = {"town": policy._effective_town_id(snapshot)}
+    return policy._town_producer_entry(
+        "_overweight_surplus_sale_key", lambda: policy._overweight_surplus_sale_key(snapshot),
+        family="shop-sell")
 
 
 def shed_candidates(policy: Any, snapshot: Any, chosen: list, *, extra: int = 0) -> list:

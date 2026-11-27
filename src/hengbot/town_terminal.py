@@ -40,7 +40,7 @@ from hengbot import sale_progress
 from hengbot.home_visit import HomeVisitKind
 from hengbot.town_pack_budget import permits
 from hengbot.town_quest_reward import holds_town, report_waits_for_room
-from hengbot import approach_answer, departure_leaf_classes, home_identification, identification_wait, mining_loadout, town_end_mining
+from hengbot import approach_answer, departure_leaf_classes, home_identification, identification_wait, mining_loadout, overweight_departure, town_end_mining
 from hengbot.item_reservation import decision_memo, item_available, reservation_verdict, reserved_item_command
 from hengbot.model import STORE_ALCHEMIST, STORE_HOME
 from hengbot.policy_types import TownNeed
@@ -1354,11 +1354,9 @@ def gather_blocked_recall(policy: Any, board: Any) -> DepartureMaterial:
         # and _dungeon_entry_allowed, not the optional supply/loadout leaves
         # of the normal town-recall dispatcher. Preserve that exact boundary.
         expedition = policy._morivant_full_identify
-        recall = policy._supply_ledger(board, depth)["recall"]
         values = {
             "food_ready": policy._food_ready(board),
-            "recall_departure_ready": policy._dungeon_recall_units(board) >= 2
-                and recall.count >= max(1, recall.required_return),
+            "recall_departure_ready": policy._recall_adequate(board, depth),
             "equipment_transfer_clear": not (expedition is not None and expedition.temporary_deposits),
             "digger_withdrawal_resolved": not policy._home_digger_withdraw_pending
                 or policy._digger_fallback_bought_this_visit,
@@ -2364,17 +2362,24 @@ def may_take_board(policy: Any, rung_name: str, family: str, board: Any,
 #   mine    every unmet condition is a purchase gap: one mining cycle through
 #           the fundraising owners (town_end_mining), then the conditions are
 #           retried;
-#   stop    a condition other than a purchase gap is unmet (an owner's defect
-#           to fix; it names the stop even beside a purchase gap), or the
-#           mining cycle cannot leave (a mining set is already open and no
-#           owner answered, this visit's cycle was closed in town, the opening
-#           Q34 holds fundraising, or a transfer is still in flight):
+#   stop    a condition other than a purchase gap is unmet: its rescues
+#           (departure_rescues) answer first; then (MAINTAINABILITY.md rule 2,
+#           2026-11-27/28, departure_leaf_classes) adequate TOP_UP and
+#           OPTIONAL leaves depart with the waiver recorded, and any other
+#           requirement starts the same mining cycle (``safer_fallback_key``).
+#           The named stop is left for a MECHANISM leaf or a mining cycle that
+#           cannot leave (a mining set is already open and no owner answered,
+#           this visit's cycle was closed in town, the opening Q34 holds
+#           fundraising, or a transfer is still in flight):
 #           town:blocked:survival:<leaf> for a departure-minimum leaf
 #           (policy._departure_minimum), else town:blocked:unmet:<name>.
 TOWN_END_CAUSE = "no-owner-answered"
 # The town end's departure with only waivable leaves unmet (departure_leaf_classes: adequate
 # TOP_UP, OPTIONAL).
 TOP_UP_ADEQUATE_CAUSE = "top-up-adequate"
+# The town end's 1F mining cycle for requirements whose rescues are spent
+# (departure_leaf_classes ``SAFER_FALLBACK``).
+SAFER_CAUSE = "requirement-rescues-spent"
 TOWN_END_STEP_OFF = "town:end-step-off"
 # The minimum leaves a mining preparation cannot start over (the transfer
 # gate the supply-stockout mining fallback of force_visit_departure applies).
@@ -2551,6 +2556,15 @@ def overweight_home_key(policy: Any, board: Any) -> str | None:
                                               approach_answer.since(policy, before))
         if verdict == approach_answer.WAIT:
             return None
+        if verdict is None:
+            # Home cannot take the weight: the weight's one answer (overweight_departure) sells,
+            # sheds or departs at no speed lost before Home's route names its stop
+            # (MAINTAINABILITY.md rule 2, coordinator 2026-11-28).
+            key = overweight_departure.relief_spent_key(policy, board, "home-route-spent")
+            if key is not None:
+                return key
+            if not policy._inventory_overweight(board):
+                return None
         policy._town_blocked_reason = (
             OVERWEIGHT_HOME_UNREACHABLE if verdict is None
             else verdict[len("town:blocked:"):])
@@ -2576,6 +2590,21 @@ def waived_departure_key(policy: Any, board: Any, leaves: tuple[str, ...]) -> st
         policy._departure_block = block
         policy._departure_block_sequence = policy._decision_sequence
         print(f"<town-end-waived> {','.join(leaves)}", flush=True)
+    return key
+
+
+def safer_fallback_key(policy: Any, board: Any, conditions: tuple[str, ...]) -> str:
+    """Start the town end's 1F mining cycle for requirements no rescue answered
+    (departure_leaf_classes ``SAFER_FALLBACK``), and record it as the forced departure records
+    its own cycle."""
+    minimum, _destination, depth = policy._visit_departure_minimum(board)
+    closed_work = {"reason": policy.last_reason, "blocked_reason": policy._town_blocked_reason,
+                   "unmet": list(conditions)}
+    key = town_end_mining.start(policy, board, conditions)
+    policy._town_blocked_reason = None
+    policy._record_visit_departure(board, SAFER_CAUSE, minimum, "mining_cycle", "yeek-income",
+                                   depth, closed_work)
+    print(f"<town-end-safer> {','.join(conditions)}", flush=True)
     return key
 
 
@@ -2670,6 +2699,18 @@ def town_end_key(policy: Any, board: Any) -> str:
         key = rescue_key(policy, board, end.conditions)
         if key is not None:
             return key
+        # A rescue may settle its leaf without a key (the weight's give-way, overweight_departure
+        # ``relief_spent_key``): the end is read again.  n1-a life-545 2026-11-28 05:06.
+        material = gather_town_end(policy, board)
+        end = verdict_town_end(material)
+        if end.kind != "stop":
+            if holds_town(policy, board):
+                policy._town_blocked_reason = QUEST_REWARD_FIRST
+                return policy._town_blocked_key(board)
+            key = policy.force_visit_departure(board, TOWN_END_CAUSE)
+            if key is not None:
+                return key
+    if end.kind == "stop" and not policy._visit_departure_committed:
         if departure_leaf_classes.only_waivable(
                 policy, board, end.conditions, material.survival_unmet):
             # MAINTAINABILITY.md rule 2 (n1-a life-545 2026-11-27): a top-up this visit cannot
@@ -2680,6 +2721,12 @@ def town_end_key(policy: Any, board: Any) -> str:
             key = waived_departure_key(policy, board, end.conditions)
             if key is not None:
                 return key
+        if (departure_leaf_classes.safer_fallback(end.conditions)
+                and material.mining_startable and not material.mining_set_open):
+            # MAINTAINABILITY.md rule 2 (coordinator 2026-11-28): a requirement whose rescues
+            # are spent -- a TOP_UP below its line, a MUST_HAVE floor of the planned dive --
+            # goes to the Yeek cave 1F, which asks none of them, and is retried on the return.
+            return safer_fallback_key(policy, board, end.conditions)
     policy._town_blocked_reason = (
         town_end_stop_reason(material, end) if end.kind == "stop"
         else "departure-unsatisfiable")

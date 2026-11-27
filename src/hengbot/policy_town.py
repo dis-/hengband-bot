@@ -2834,10 +2834,10 @@ class TownMixin:
         key, and ``_overflow_disposal_item`` names nothing) the pack below the
         ``MIN_TERMINAL_FREE_PACK_SLOTS`` floor gives way (MAINTAINABILITY.md rule 2, coordinator
         decision 2026-11-28): nothing is returned and the visit goes on with the pack as it is.  A
-        fuller pack only picks up less; the free-slot floor is the departure's OPTIONAL leaf
+        fuller pack only picks up less; the free-slot floor is the departure's TOP_UP leaf
         ``free_pack_slots_ready`` (departure_leaf_classes), which the town end waives and records
-        (``departure_block.town_end_waived``), and the forced departure's minimum still asks one
-        free slot.  n1-a life-545 2026-11-28 03:01 stopped here as
+        (``departure_block.town_end_waived``) at one free slot, or at none with no legal disposal
+        left (coordinator 2026-11-28).  n1-a life-545 2026-11-28 03:01 stopped here as
         town:blocked:overflow-no-legal-disposal at 21 of 23 slots: twenty stacks were the
         retention reservations' kit and the 21st (a Mushroom of Restoring) no Home deposit, sale
         or destruction rule takes, so no disposal could reach the four-slot floor.

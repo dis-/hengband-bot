@@ -9755,6 +9755,17 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
         return status.count >= status.required_departure
 
+    def _recall_adequate(self, snapshot: Snapshot, depth: int | None = None) -> bool:
+        """The recall a departure may leave with short of its target: two reads the dungeon can go
+        home with (``_dungeon_recall_units``) and the ledger at its return line, at least one.  The
+        repetition departure's ordinary branch (town_terminal ``gather_blocked_recall``) and the
+        town end's waiver (departure_leaf_classes TOP_UP) read it; ``depth`` defaults to the
+        planned depth."""
+        recall = self._supply_ledger(
+            snapshot, self._planned_depth() if depth is None else depth)["recall"]
+        return (self._dungeon_recall_units(snapshot) >= 2
+                and recall.count >= max(1, recall.required_return))
+
     def _recall_departure_shortage(self, snapshot: Snapshot) -> bool:
         status = self._supply_ledger(snapshot, self._planned_depth())["recall"]
         return status.count < status.required_departure

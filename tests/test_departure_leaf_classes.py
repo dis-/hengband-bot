@@ -8,6 +8,7 @@ import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 import importlib.util
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from hengbot import departure_leaf_classes
 
@@ -37,15 +38,26 @@ class DepartureLeafClassesTest(unittest.TestCase):
                          ["departure_leaf_classes: leaf 'new_leaf_ready' is in no class"])
 
     def test_the_minimum_is_never_waived(self):
-        # free_pack_slots_ready is OPTIONAL for the ordinary gate (four or five slots) but the
-        # forced departure's minimum (one slot) holds it.
-        self.assertFalse(departure_leaf_classes.only_waivable(
-            None, None, ("free_pack_slots_ready",), survival=("free_pack_slots_ready",)))
-        self.assertTrue(departure_leaf_classes.only_waivable(
-            None, None, ("free_pack_slots_ready", "home_candidate_resolved")))
+        # free_pack_slots_ready is a TOP_UP of both gates (the ordinary gate's four or five
+        # slots, the minimum's one); a leaf the minimum still fails is never waived.
+        adequate = {"free_pack_slots_ready": lambda *_: True}
+        with mock.patch.dict(departure_leaf_classes.TOP_UP, adequate):
+            self.assertFalse(departure_leaf_classes.only_waivable(
+                None, None, ("free_pack_slots_ready",), survival=("free_pack_slots_ready",)))
+            self.assertTrue(departure_leaf_classes.only_waivable(
+                None, None, ("free_pack_slots_ready", "home_candidate_resolved")))
         self.assertFalse(departure_leaf_classes.only_waivable(
             None, None, ("home_candidate_resolved", "food_ready")))
 
+    def test_requirements_go_to_the_mining_cycle_and_mechanisms_stop(self):
+        # Coordinator 2026-11-28: a requirement whose rescues are spent is answered by the 1F
+        # mining cycle; a MECHANISM leaf (or an unknown one) keeps its named stop.
+        self.assertTrue(departure_leaf_classes.safer_fallback(
+            ("teleport_ready", "combat_weapon_ready", "home_candidate_resolved")))
+        self.assertFalse(departure_leaf_classes.safer_fallback(
+            ("teleport_ready", "store_transfer_clear")))
+        self.assertFalse(departure_leaf_classes.safer_fallback(("new_leaf_ready",)))
+        self.assertFalse(departure_leaf_classes.safer_fallback(()))
 
 if __name__ == "__main__":
     unittest.main()

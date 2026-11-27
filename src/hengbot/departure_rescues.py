@@ -31,6 +31,10 @@ The rescues are the owner rules' remedies, each an existing owner's own key:
                      over the limit, release just enough of this visit's
                      purchases for Home's weight deposit and walk to Home
                      (owner 2026-11-15 「今回買った品を要る分だけ預ける」);
+``overweight-give-way`` the weight's last answer (overweight_departure
+                     ``relief_spent_key``): a load that costs no speed departs, a
+                     heavier one sheds reserved quantities, cheapest per weight
+                     first (coordinator 2026-11-27, 2026-11-28);
 ``home-settle``      walk back to Home to settle a pending Home transfer;
 ``rest``             rest off HP, mana and a temporary status.
 
@@ -76,8 +80,9 @@ RESCUES: dict[str, Rescue] = {
     "remove_curse_ready": _SUPPLY,
     "identify_staff_ready": Rescue(("supplier-visit", "cross-town")),
     # Weight: Home's deposit answers first (overweight_home_key); then the sale.
-    # Owner 2026-11-15: with nothing left to sell, this visit's purchases.
-    "inventory_weight_ready": Rescue(("overweight-sale", "purchase-deposit")),
+    # Owner 2026-11-15: with nothing left to sell, this visit's purchases.  Then the weight's
+    # one answer (overweight_departure): depart at no speed lost, else shed (2026-11-28).
+    "inventory_weight_ready": Rescue(("overweight-sale", "purchase-deposit", "overweight-give-way")),
     # A pending Home withdrawal: walk back to Home while Home was not tried
     # this visit (its executor settles it there).
     "home_atomic_withdraw_clear": _HOME_SETTLE,
@@ -310,6 +315,11 @@ def _purchase_deposit(policy: Any, board: Any, leaf: str) -> str | None:
     return key
 
 
+def _overweight_give_way(policy: Any, board: Any, leaf: str) -> str | None:
+    from hengbot import overweight_departure
+    return overweight_departure.relief_spent_key(policy, board)
+
+
 def _home_settle(policy: Any, board: Any, leaf: str) -> str | None:
     if not policy._home_available(board) or STORE_HOME in policy._town_store_attempted:
         return None
@@ -334,6 +344,7 @@ ACTIONS: dict[str, Callable[[Any, Any, str], str | None]] = {
     "stockout-mining": _stockout_mining,
     "overweight-sale": _overweight_sale,
     "purchase-deposit": _purchase_deposit,
+    "overweight-give-way": _overweight_give_way,
     "home-settle": _home_settle,
     "rest": _rest,
 }
