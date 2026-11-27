@@ -239,6 +239,45 @@ def sole_depth_source(policy: Any, snapshot, item) -> bool:
     return policy._item_signature(item) in sole_depth_sources(policy, snapshot)
 
 
+def gap_sources(policy: Any, snapshot) -> frozenset:
+    """The signatures of the carried and Home pieces giving a depth-table ability the character
+    lacks: no worn piece and no permanent source gives it (depth_gap_gear, supervisor 2026-11-28).
+
+    The sole source (:func:`sole_depth_sources`) keeps one piece of an ability the character
+    owns once; with two unworn sources and none worn, neither was the only one and both could be
+    sold while the row stayed unmet.  Every unworn source of a missing ability is kept here until
+    a worn piece gives it."""
+    from hengbot.item_reservation import decision_memo
+
+    def compute():
+        sources = ability_source_map(snapshot.player)
+        flags = object_ability_flags()
+        worn_flags = frozenset(flag for item in snapshot.equipment for flag in item.known_flags)
+        owned = [item for item in (*snapshot.inventory,
+                                   *getattr(policy, "_home_knowledge_items", ()))
+                 if _usable_source(item)]
+        kept = set()
+        for ability in _depth_abilities():
+            # A temporary source (a potion) is no source of the row; an unidentified worn one
+            # (the board's ``equipment`` source without a known flag) is.
+            held = sources.get(ability, ())
+            if ("permanent" in held or "equipment" in held or flags[ability] in worn_flags
+                    or (not sources and has_ability(snapshot.player, ability))):
+                continue
+            kept |= {policy._item_signature(item) for item in owned
+                     if flags[ability] in item.known_flags}
+        return frozenset(kept)
+
+    return decision_memo(policy, "depth-gap-sources", snapshot, None, compute)
+
+
+def gap_source(policy: Any, snapshot, item) -> bool:
+    """``item`` gives a depth-table ability the character lacks (:func:`gap_sources`)."""
+    if snapshot is None or not getattr(item, "is_equipment", False) or getattr(item, "is_ammo", False):
+        return False
+    return policy._item_signature(item) in gap_sources(policy, snapshot)
+
+
 def owned_unworn_sources(policy: Any, ability: str) -> list:
     """The carried and Home pieces of the catalog the loadout search may wear that give
     ``ability`` (owner Q5: what is owned is withdrawn and worn, not bought again)."""

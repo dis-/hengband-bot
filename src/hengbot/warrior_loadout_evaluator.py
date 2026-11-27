@@ -523,6 +523,14 @@ def _combine_warrior_results(
     # bounds it: over the whole survival horizon an average drain above the
     # (mix-averaged) incoming damage would read as immortality.
     kill_turns = melee.expected_kill_turns
+    # The attack the bot uses is the larger of the blows and the best absorbed power
+    # (speed_valuation.offense_per_action, supervisor 2026-11-28): where the power out-damages
+    # the blows, the kill takes the blows' turns scaled by the two figures' ratio, so a blow more
+    # no longer shortens a kill the power makes.  0 device damage (every other class) changes
+    # nothing.
+    melee_per_action = melee.expected_dps_ac100
+    if (device_dps > melee_per_action > 0 and isfinite(kill_turns)):
+        kill_turns *= melee_per_action / device_dps
     if vampiric_heal > 0 and incoming > 0 and isfinite(kill_turns):
         survival_turns += kill_turns * min(vampiric_heal, incoming) / incoming
     # Class 16 (me_loadout_offense.survival_factor, owner 2026-11-08): the
