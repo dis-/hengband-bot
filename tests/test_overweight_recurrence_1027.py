@@ -201,7 +201,7 @@ class OverweightRecurrenceTest(executor_harness.ProductionHarness):
         policy._overweight_surplus_disposal = {
             "town": policy._effective_town_id(snapshot), "pending": pending}
         key = policy.choose_key(snapshot)
-        self.assertEqual(policy.last_reason, "town:blocked:overweight-home-full-no-legal-relief")
+        self.assertEqual(policy.last_reason, "town:blocked:overweight-surplus-destroy-unobserved")
         self.assertIs(policy._overweight_surplus_disposal["pending"], pending)
         self.assertEqual(pending["waits"], STORE_STUCK_LIMIT)
         self.post(policy, snapshot, key)

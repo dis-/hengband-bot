@@ -6739,13 +6739,10 @@ class TownMixin:
         Other blocked reasons remain visible terminal waits.
         """
         if (self._town_blocked_reason in {
-                "departure-unsatisfiable", "overweight-home-unreachable",
-                "overweight-home-full-no-legal-relief"}
+                "departure-unsatisfiable", "overweight-home-unreachable"}
                 and self._inventory_overweight(snapshot)):
             relief = self._weight_relief_selection(snapshot)
-            if (relief.route == "sell-or-destroy"
-                    and (self._overweight_surplus_disposal is None
-                         or self._town_blocked_reason != "overweight-home-full-no-legal-relief")):
+            if relief.route == "sell-or-destroy":
                 # Home's exhausted route does not exhaust legal carried
                 # surplus. Hand it to the same producer the need router uses.
                 self._town_blocked_reason = None

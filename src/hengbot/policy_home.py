@@ -29,7 +29,7 @@ from hengbot.home_full_relief import (
 from hengbot.town_pack_budget import home_take_fits, round_trip_fits
 from hengbot.town_pack_headroom import find_deposit, make_room_for_home_take
 from hengbot.policy_constants import ADJ_STR_WEIGHT_LIMIT, AMMO_CARRY_TARGET, HOME_VISIT_LIMIT, TOWN_IDS_WITH_HOME, ZUL_TOWN_ID, SUPPLY_STORES, BUY_KEY, DESTROY_COMMAND, FOOD_MIN_SVAL, FOOD_TYPE_MANA, HOME_BATCH_RESERVED_SLOTS, MANA_FOOD_DEVICE_TARGET, LEAVE_STORE_KEY, MIN_FREE_PACK_SLOTS, MIN_TERMINAL_FREE_PACK_SLOTS, PACK_CAPACITY, PLAYER_CLASS_BERSERKER, READ_KEY, SELL_KEY, STORE_STUCK_LIMIT, TORCH_THROW_TARGET, UNUSED_DIVE_LIMIT, WAIT_KEY
-from hengbot import consumable_policy, deep_detection_rod, item_use_route, realm_spell_book, stone_to_mud_carry, teleport_away_carry
+from hengbot import consumable_policy, deep_detection_rod, item_use_route, overweight_departure, realm_spell_book, stone_to_mud_carry, teleport_away_carry
 from hengbot.home_disposal import HomeDisposalCandidate
 from hengbot.home_errand import HomeErrandRequest, HomeErrandState
 from hengbot.model import SV_POTION_EXPERIENCE, SV_POTION_RESTORE_EXP
@@ -271,8 +271,10 @@ class HomeMixin:
             self._overweight_surplus_disposal = None
             return None
         if state["town"] != self._effective_town_id(snapshot):
-            self._town_blocked_reason = "overweight-home-full-no-legal-relief"
-            return self._town_blocked_key(snapshot)
+            # A relief begun in another town starts again here (its pending ware was that
+            # town's store).
+            state = {"town": self._effective_town_id(snapshot)}
+            self._overweight_surplus_disposal = state
         candidates = list(self._weight_relief_selection(snapshot).surplus)
         limit = self._inventory_weight_limit(snapshot)
         if (sum(i.weight*n for _, _, i, n, _ in candidates)
@@ -315,13 +317,18 @@ class HomeMixin:
                 # 2026-11-13 18:07 stopped here, its restart took the relief).
                 self._overweight_surplus_disposal = None
                 return None
-            self._town_blocked_reason = "overweight-home-full-no-legal-relief"
-            return self._town_blocked_key(snapshot)
+            # Nothing legal is left (MAINTAINABILITY.md 2, coordinator 2026-11-27): a load that
+            # costs no speed departs; a heavier one sheds reserved quantities, cheapest per
+            # weight first, and departs with what cannot be shed (overweight_departure).
+            if overweight_departure.give_way(self, snapshot, "no-legal-relief"):
+                return None
+            candidates += overweight_departure.shed_candidates(self, snapshot, candidates)
         pending = state.get("pending")
         if pending and pending.get("posted") and pending["mode"] == "destroy":
             pending["waits"] = pending.get("waits", 0) + 1
             if pending["waits"] >= STORE_STUCK_LIMIT:
-                self._town_blocked_reason = "overweight-home-full-no-legal-relief"
+                # The posted destruction never showed on the board: a broken mechanism.
+                self._town_blocked_reason = "overweight-surplus-destroy-unobserved"
                 return self._town_blocked_key(snapshot)
             self.last_reason = "town:overweight-surplus-await-effect"
             self._offer_execution(WAIT_KEY, producer="shop-sell", work_id="overweight-surplus-destroy",
@@ -340,8 +347,9 @@ class HomeMixin:
         else:
             chosen = candidates[0] if candidates else None
         if chosen is None:
-            self._town_blocked_reason = "overweight-home-full-no-legal-relief"
-            return self._town_blocked_key(snapshot)
+            # Nothing can be shed (the excess is worn gear): depart with it.
+            overweight_departure.give_way(self, snapshot, "nothing-to-shed", force=True)
+            return None
         _, signature, item, count, stores = chosen
         if pending is None:
             if self._overweight_surplus_rebought(snapshot, item):
@@ -356,16 +364,25 @@ class HomeMixin:
                             else self._home_capacity_observation[0] if self._home_capacity_observation
                             else len(self._home_knowledge_items) if self._home_knowledge_current else None))
             state["pending"] = pending
-        if stores:
-            target = snapshot.store.store_type if snapshot.store and snapshot.store.store_type in stores else stores[0]
-            if snapshot.store is None:
-                self._rearm_town_store_for_new_work(target)
-                step = self._shopping_approach_step(snapshot, target, requester="shop-sell")
-                if step is None:
-                    self._town_blocked_reason = "overweight-home-full-no-legal-relief"
-                    return self._town_blocked_key(snapshot)
+        if stores and snapshot.store is None:
+            target = stores[0]
+            # The Home route's own terminal (Home's passes spent) never refuses the sale that
+            # answers after it (departure_rescues: overweight-sale).  n1-a life-545 2026-11-27
+            # 10:28:49: the need router's overweight-home-unreachable refused the walk to the
+            # Weapon Smith with 10 unreserved iron shots to sell, and the visit stopped.
+            if self._town_blocked_reason == overweight_departure.HOME_ROUTE_TERMINAL:
+                self._town_blocked_reason = None
+            self._rearm_town_store_for_new_work(target)
+            step = self._shopping_approach_step(snapshot, target, requester="shop-sell")
+            if step is not None:
                 return self._town_producer_entry("_shopping_approach_key",
                     lambda: self._shopping_approach_key(snapshot, step, "shop:travel"), family="shop-sell")
+            if overweight_departure.give_way(self, snapshot, "sale-store-unreachable"):
+                return None
+            # No walk to a buyer: the ware is destroyed instead.
+            stores = ()
+        if stores:
+            target = snapshot.store.store_type if snapshot.store.store_type in stores else stores[0]
             if snapshot.store.store_type == target:
                 key = self._town_producer_entry("_store_sell_key", lambda: self._store_sell_key(
                     snapshot, item, "town:overweight-surplus-sold:home-full"), family="shop-sell")
@@ -3596,6 +3613,8 @@ class HomeMixin:
     def _inventory_overweight(self, snapshot: Snapshot) -> bool:
         # Owner 2026-11-20 「減速後加速+25を超えていれば重量過多を許可する」 (angband_finale).
         limit = angband_finale.weight_limit(self, snapshot, self._inventory_weight_limit(snapshot))
+        # This visit's waiver when the relief had nothing legal left (overweight_departure).
+        limit = overweight_departure.limit(self, snapshot, limit)
         return limit is not None and self._inventory_weight(snapshot) > limit
 
     def _ammo_procurement_target(

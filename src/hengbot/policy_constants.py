@@ -424,7 +424,7 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:pack-full-no-room',
         'town:blocked:quest-reward-first',
         'town:blocked:overweight-home-unreachable',
-        'town:blocked:overweight-home-full-no-legal-relief',
+        'town:blocked:overweight-surplus-destroy-unobserved',
         'town:blocked:overweight-retained-only',
         'town:blocked:overweight-surplus-rebuy-loop',
         'town:blocked:owner-retired',

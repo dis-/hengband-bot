@@ -49,11 +49,12 @@ class HomeFullIdentificationProcurementRecordedTest(unittest.TestCase):
         self.assertTrue(policy._home_full_relief["withdrawn"])
 
     def test_no_legal_relief_defers_home_and_advances_the_recorded_plan(self):
-        # DECLARED CONSTRUCTED boundary for 1.5b F1b / the 2026-10-10
-        # overload decision: this recorded board weighs 1932 against an
-        # 1800 limit. Its first required deposit is therefore departure
-        # blocking, so failure to shed it stops immediately instead of using
-        # the optional no-relief deferral.
+        # DECLARED CONSTRUCTED boundary for 1.5b F1b: this recorded board
+        # weighs 1932 against an 1800 limit and nothing legal is left to shed.
+        # MAINTAINABILITY.md 2 (coordinator 2026-11-27, replacing the
+        # 2026-10-10 stop): 132 over is no speed (a step is 360,
+        # player-speed.cpp:43-51), so the visit waives the weight and departs
+        # (overweight_departure) instead of stopping.
         board = self.recorded_board()
         policy = HengbotPolicy(monrace_knowledge={})
         policy.prime(board)
@@ -74,9 +75,10 @@ class HomeFullIdentificationProcurementRecordedTest(unittest.TestCase):
 
         key = policy._home_full_relief_key(board)
 
-        self.assertEqual(key, "9")
-        self.assertEqual(policy.last_reason,
-                         "town:blocked:overweight-home-full-no-legal-relief")
+        self.assertIsNone(key)
+        self.assertNotIn("blocked", policy.last_reason or "")
+        self.assertEqual(policy._overweight_departure_waiver["allowed"], 2159)
+        self.assertFalse(policy._inventory_overweight(board))
         self.assertIsNone(policy._home_full_relief)
         self.assertIsNone(policy._home_full_retry_deposits)
         self.assertEqual(policy._town_errand_plan.index, 0)

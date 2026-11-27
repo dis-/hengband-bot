@@ -1374,6 +1374,9 @@ REGISTRY = (
       "policy_home: overweight surplus disposal (no comment at its definition)"),
     S("_overweight_surplus_ledger", "policy_home", LIFE,
       "policy_home: overweight surplus ledger (no comment at its definition)"),
+    S("_overweight_departure_waiver", "overweight_departure", LIFE,
+      "overweight_departure: this town visit's waiver of the weight limit once the relief had "
+      "nothing legal left (epoch, weight, allowed weight, limit, cause)"),
     S("_pending_home_visit_report", "policy_home", LIFE,
       "policy_home: pending home visit report (no comment at its definition)"),
     S("_processed_home_items", "policy_home", LIFE,
@@ -2514,6 +2517,10 @@ RESTART = {
     "_deep_stairs_floors": Restart(MAY_BE_LOST, "deep_stairs",
                                    "a new process counts the trip's floors from none (at most "
                                    "EXTRA_FLOORS more before the Recall)"),
+    # overweight_departure.give_way: a new process's relief reads the same board and waives again.
+    "_overweight_departure_waiver": Restart(MAY_BE_LOST, "overweight_departure",
+                                            "the relief finds nothing legal on the next board "
+                                            "and waives again (written to the overweight record)"),
     # policy_observation._observe: a town visit's first board reads the overweight ledger.
     "_overweight_surplus_ledger": Restart(PERSISTED, "policy_observation",
                                           "read when a town visit starts (no epoch yet)"),

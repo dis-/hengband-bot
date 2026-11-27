@@ -308,7 +308,7 @@ print(json.dumps({'epoch':p._town_visit_epoch,'sold':getattr(p,'_overweight_surp
         self.assertEqual(restored['reason'], 'town:blocked:overweight-surplus-rebuy-loop')
         self.assertEqual(restored['sold'], [list(policy._sale_item_identity(home.inventory[0]))])
 
-    def test_pin7_insufficient_surplus_stops_immediately(self):
+    def test_pin7_insufficient_surplus_departs_without_a_stop(self):
         home = parse_snapshot(self.raw('20261008-175411', home=True), self.monrace)
         # DECLARED CONSTRUCTED unsheddable equipment weight; no item counts or
         # departure targets change, surplus cannot cover this physical excess.
@@ -317,7 +317,8 @@ print(json.dumps({'epoch':p._town_visit_epoch,'sold':getattr(p,'_overweight_surp
         self.stock(policy, '20261008-175411')
         self.relief(policy, home)
         policy._home_full_relief_key(home)
-        self.assertEqual(policy.last_reason, 'town:blocked:overweight-home-full-no-legal-relief')
+        # MAINTAINABILITY.md 2 (2026-11-27): no stop; what cannot be shed departs (overweight_departure).
+        self.assertNotIn('blocked', policy.last_reason or '')
 
     def test_pin8_partial_destroy_sink_retains_counts_and_files_are_isolated(self):
         policy, home = self.speed_only()
