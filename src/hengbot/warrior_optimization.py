@@ -562,6 +562,7 @@ def warrior_optimizer_input_key(
     finale: bool = False,
     cap_lifted: bool = False,
     destination_floor: int | None = None,
+    gate_floor: int | None = None,
 ) -> str:
     """Digest every semantic input consumed by preparation and planning."""
     player = snapshot.player
@@ -608,6 +609,9 @@ def warrior_optimizer_input_key(
     if destination_floor is not None:
         # Only present when set (destination_band_floor), as the pin above.
         inputs["destination_floor"] = destination_floor
+    if gate_floor is not None:
+        # Only present when set (depth_gap_gear.gate_floor), as the pin above.
+        inputs["gate_floor"] = gate_floor
     if magic_eater_powers and player.class_id == 16:
         # Class 16 scores its held powers (me_loadout_offense); only
         # present then, so every other key stays as it was.
@@ -1011,11 +1015,13 @@ def prepare_warrior_optimization(
     finale: bool = False,
     cap_lifted: bool = False,
     destination_floor: int | None = None,
+    gate_floor: int | None = None,
 ) -> WarriorOptimizationPreparation:
     """Evaluate and plan without emitting any game command.
 
     ``destination_floor`` (destination_band_floor): the depth-band descent's floor, passed to
-    ``optimize_loadout``.
+    ``optimize_loadout``; so is ``gate_floor`` (depth_gap_gear.gate_floor: the first floor of the
+    unmet speed row, whose band is taken whenever one of its sets is owned).
 
     ``staff_gate`` (device_skill.StaffGate): an owned *Destruction* staff that is
     the 50F+ means of a loadout whose device skill makes it reliable; the search
@@ -1243,6 +1249,7 @@ def prepare_warrior_optimization(
                 launcher_power_unscored=lambda band: equipment_rules.launcher_power_unscored(
                     player.class_id, band),
                 destination_floor=destination_floor,
+                gate_floor=gate_floor,
             )
 
         def search(seed=None, flags=flags):

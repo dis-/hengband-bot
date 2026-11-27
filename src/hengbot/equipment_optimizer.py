@@ -49,6 +49,7 @@ from hengbot.speed_valuation import (
     meets_speed_gate,
     time_device,
     time_melee,
+    time_offense,
     time_ranged,
     weighted_margin,
 )
@@ -1750,7 +1751,7 @@ def _within_half_melee(
         return list(entries)
     return [
         entry for entry in entries
-        if time_melee(entry.metrics) * 2 >= reference_melee
+        if time_offense(entry.metrics) * 2 >= reference_melee
     ]
 
 
@@ -1847,7 +1848,7 @@ def _stable_operational_best(
     # damage-ring set of n1-b life-411 under it (32.4 turns -> 28.2) and chose
     # an AC ring at 306 instead of 356 damage per time.
     pool = _within_half_melee(
-        pool, max(time_melee(entry.metrics) for entry in pool)
+        pool, max(time_offense(entry.metrics) for entry in pool)
     )
     speed_field = field_strong_speed_energy(entry.metrics for entry in pool)
 
@@ -1873,12 +1874,14 @@ def _stable_operational_best(
             if entry.metrics.survival_turns == max_survival
         ]
 
-    max_dps = max(time_melee(entry.metrics) for entry in pool)
+    # The attack per game time (speed_valuation.time_offense): melee, or the absorbed power
+    # where it out-damages the blows (supervisor 2026-11-28).
+    max_dps = max(time_offense(entry.metrics) for entry in pool)
     if max_dps > 0:
         pool = [
             entry
             for entry in pool
-            if time_melee(entry.metrics) >= max_dps * 0.95
+            if time_offense(entry.metrics) >= max_dps * 0.95
         ]
 
     # combat_margin is the ratio survival / kill turns (user decision
@@ -1959,8 +1962,15 @@ def optimize_loadout(
     launcher_power_unscored: Callable[[int | None], bool] | None = None,
     finale: bool = False,
     destination_floor: int | None = None,
+    gate_floor: int | None = None,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out.
+
+    ``gate_floor`` (depth_gap_gear ``gate_floor``, supervisor 2026-11-28): the first floor of the
+    unmet speed row the character is held by.  Its band is taken as the destination's band is:
+    whenever one of its sets is owned, without the half-melee limit (the limit then only chooses
+    among its sets), so a set meeting the row wins over a better-scoring set leaving it unmet.
+    The deeper bands keep the limit; with no set of the gate's band the descent goes on as before.
 
     ``destination_floor`` (destination_band_floor, the town's destination band; owner Q4 of the
     equipment review 2026-11-22): the depth-band descent takes the band of this depth without the
@@ -2143,10 +2153,11 @@ def optimize_loadout(
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
         # Damage per game time (speed_valuation), as _within_half_melee.
-        melee_free = max(time_melee(entry.metrics) for entry in evaluated)
-        floor_band = (None if destination_floor is None
-                      else min((band for band in DEPTH_BANDS if band >= destination_floor),
-                               default=DEPTH_BANDS[0]))
+        # The attack per game time (speed_valuation.time_offense, supervisor 2026-11-28).
+        melee_free = max(time_offense(entry.metrics) for entry in evaluated)
+        floor_bands = frozenset(
+            min((band for band in DEPTH_BANDS if band >= floor), default=DEPTH_BANDS[0])
+            for floor in (destination_floor, gate_floor) if floor is not None)
         for band in DEPTH_BANDS:
             satisfying = [
                 entry
@@ -2169,11 +2180,11 @@ def optimize_loadout(
             # The finale asks nothing of melee (owner 2026-11-20 「ACや近接攻撃力は求めない」).
             within_melee_limit = (list(satisfying) if finale
                                   else _within_half_melee(satisfying, melee_free))
-            floor_adopted = not within_melee_limit and band == floor_band
+            floor_adopted = not within_melee_limit and band in floor_bands
             if floor_adopted:
                 within_melee_limit = list(satisfying)
             if not within_melee_limit:
-                melee = max(time_melee(entry.metrics) for entry in satisfying)
+                melee = max(time_offense(entry.metrics) for entry in satisfying)
                 band_decisions.append(BandDecision(
                     band, True, melee, melee_free, "melee-ratio",
                     melee / melee_free,
@@ -2185,7 +2196,7 @@ def optimize_loadout(
                     band, False, None, melee_free, "no-set", None,
                 ))
                 continue
-            melee = time_melee(band_best.metrics)
+            melee = time_offense(band_best.metrics)
             ratio = None if melee_free == 0 else melee / melee_free
             chosen_decision = BandDecision(
                 band, True, melee, melee_free, None, ratio, floor_adopted,

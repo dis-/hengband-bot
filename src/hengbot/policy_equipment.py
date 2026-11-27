@@ -3,7 +3,7 @@ from hengbot.class_roles import plays_as_warrior
 from hengbot.home_full_relief import relief_of
 from hengbot import ability_sources, deep_climb, equipment_target
 from hengbot import angband_finale, finale_prep, realm_spells
-from hengbot import approach_answer, destination_band_floor, home_pass_charge, item_need, launcher_upgrade, spare_gear
+from hengbot import approach_answer, depth_gap_gear, destination_band_floor, home_pass_charge, item_need, launcher_upgrade, spare_gear
 from hengbot import equipment_rules, equipment_visit_journal
 from hengbot.item_identity import display_signature
 from hengbot.equipment_class_profile import EQUIPMENT_CLASS_PROFILES
@@ -510,6 +510,8 @@ class EquipmentSearchCandidates:
     required_launcher_ammo: object
     required_launcher_available: bool
     destination_floor: int | None
+    # The first floor of the unmet speed row (depth_gap_gear.gate_floor); None for a fixed depth.
+    gate_floor: int | None
     preserve: frozenset
     search_excluded: frozenset
     identification_exempt: frozenset
@@ -1273,6 +1275,10 @@ class EquipmentMixin:
         # (destination_band_floor; equipment review E4, owner Q4).
         destination_floor = (destination_band_floor.floor(self, snapshot)
                              if optimization_depth is None else None)
+        # The unmet speed row's band is taken like the destination's (depth_gap_gear,
+        # supervisor 2026-11-28: n1-b life-419 held at 80F with a second Ring of Speed at Home).
+        gate_floor = (depth_gap_gear.gate_floor(self, snapshot)
+                      if optimization_depth is None else None)
         preserve = self._equipment_preserved_ids(snapshot, catalog)
         search_excluded = self._equipment_search_excluded_ids(
             snapshot, catalog, optimization_depth, required_launcher_ammo,
@@ -1315,6 +1321,7 @@ class EquipmentMixin:
             required_launcher_ammo=required_launcher_ammo,
             required_launcher_available=required_launcher_available,
             destination_floor=destination_floor,
+            gate_floor=gate_floor,
             preserve=preserve,
             search_excluded=search_excluded,
             identification_exempt=identification_exempt,
@@ -1607,7 +1614,10 @@ class EquipmentMixin:
             if finale_key is not None else ()) + (
             # The descent's floor, the destination's band (destination_band_floor).
             (("destination-floor", destination_floor),)
-            if destination_floor is not None else ())
+            if destination_floor is not None else ()) + (
+            # The unmet speed row's floor (depth_gap_gear.gate_floor).
+            (("gate-floor", candidates.gate_floor),)
+            if candidates.gate_floor is not None else ())
         # The owner's equipment rules (equipment_rules.RULES_VERSION): a search memo restored from
         # before a rule change is stale.
         signature += (("equipment-rules", equipment_rules.RULES_VERSION),)
@@ -1647,6 +1657,7 @@ class EquipmentMixin:
             curse_pinned_item_ids=candidates.curse_pinned,
             magic_eater_powers=candidates.me_powers,
             destination_floor=candidates.destination_floor,
+            gate_floor=candidates.gate_floor,
         )
 
     def _record_equipment_optimizer_input_key(
@@ -1675,6 +1686,7 @@ class EquipmentMixin:
             finale=self._angband_finale_order(),
             cap_lifted=angband_finale.lifted(self),
             destination_floor=candidates.destination_floor,
+            gate_floor=candidates.gate_floor,
         )
 
     def _equipment_search_memo_return(
@@ -1830,7 +1842,7 @@ class EquipmentMixin:
         census is (candidates, pieces, context) for ``fix_visit_target``."""
         search_catalog = candidates.search_catalog
         visit_candidates, visit_pieces = self._visit_candidate_census(search_catalog)
-        visit_context = (candidates.finale_key, candidates.destination_floor,
+        visit_context = (candidates.finale_key, candidates.destination_floor, candidates.gate_floor,
                          equipment_rules.RULES_VERSION,
                          equipment_target.destruction_means_key(
                              candidates.has_destruction, candidates.staff_gate))

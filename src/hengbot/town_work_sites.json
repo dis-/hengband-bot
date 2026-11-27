@@ -48,6 +48,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "ability_sources.py:gap_sources.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "ability_sources.py:has_ability": {
     "classification": "data",
     "rows": [
@@ -385,6 +392,13 @@
     "delegation": "selected child; no independent success"
   },
   "angband_cap.py:cap": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "angband_cap.py:speed_ceiling": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"
@@ -2413,6 +2427,41 @@
       "survival"
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "depth_gap_gear.py:_slots": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "depth_gap_gear.py:gate_floor": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "depth_gap_gear.py:keep_reason": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "depth_gap_gear.py:speed_row": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "depth_gap_gear.py:speed_row.compute": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
   },
   "destination_band_floor.py:band_of": {
     "classification": "data",
@@ -18986,6 +19035,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "speed_valuation.py:offense_per_action": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "speed_valuation.py:per_10_game_turns_at": {
     "classification": "data",
     "rows": [
@@ -19029,6 +19085,13 @@
     "delegation": "selected child; no independent success"
   },
   "speed_valuation.py:time_melee": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
+  "speed_valuation.py:time_offense": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

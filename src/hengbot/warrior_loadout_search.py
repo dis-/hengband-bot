@@ -319,9 +319,12 @@ def _deduplicate_slot_copies(
                 order[item.id],
             )
         )
-        slot = slot_for(copies[0].item)
-        capacity = 2 if slot in {SLOT_MAIN_HAND, SLOT_MAIN_RING} else 1
-        kept.extend(copies[:capacity])
+        # The slots of the kind a loadout fills (``_slot_capacity``: two rings, two weapons).
+        # ``slot_for`` names neither a ring nor a weapon, so the old ``slot in {main_hand,
+        # main_ring}`` kept one copy of each: n1-b life-419 (2026-11-27 04:3x to 11-28) could
+        # never wear its Home's second スピードの指輪 (+9) beside the worn identical one
+        # (supervisor 2026-11-28).
+        kept.extend(copies[:_slot_capacity(copies[0])])
     return tuple(kept)
 
 

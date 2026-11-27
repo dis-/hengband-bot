@@ -19,7 +19,8 @@ This module owns the part every one of them must share: why a piece is needed.
 * :func:`keep_reason` -- the piece never leaves the character's ownership (no sale, no destroy,
   no Black Market fund): every carry reason but the re-arm, the equipment transaction owns it, it is the only
   owned source of a depth-table ability (owner Q3 「深さの条件を満たす唯一の品は全ての深さで
-  優先して残し（売らない・闇市の資金にしない）」, ability_sources ``sole_depth_source``), a bounty,
+  優先して残し（売らない・闇市の資金にしない）」, ability_sources ``sole_depth_source``), a piece that
+  closes or narrows the unmet depth row the character is held by (depth_gap_gear, 2026-11-28), a bounty,
   or a quest's tagged piece (Q34).  A kept piece may still wait at Home (Q3 「自宅・荷物に
   あれば持っている物として数え」).
 * :func:`need` -- the whole verdict: ``CARRY`` / ``KEEP`` with the reason, else the owner's
@@ -141,7 +142,7 @@ def keep_reason(policy: Any, snapshot: Any, item: Any) -> str | None:
 
 
 def _keep_reason(policy: Any, snapshot: Any, item: Any) -> str | None:
-    from hengbot import ability_sources
+    from hengbot import ability_sources, depth_gap_gear
     from hengbot.equipment_optimizer import q34_item_tagged
 
     if getattr(item, "is_bounty", False):
@@ -150,6 +151,12 @@ def _keep_reason(policy: Any, snapshot: Any, item: Any) -> str | None:
         return None
     if ability_sources.sole_depth_source(policy, snapshot, item):
         return "sole-depth-source"
+    # A piece closing or narrowing the unmet depth row the character is held by (the speed
+    # ceiling's row, a missing depth ability): supervisor 2026-11-28, n1-b life-419's sold
+    # スピードの指輪 (+8) (depth_gap_gear).
+    gap = depth_gap_gear.keep_reason(policy, snapshot, item)
+    if gap is not None:
+        return gap
     if q34_item_tagged(item):
         return "quest-tagged"
     if policy._equipment_transaction_owns_item(item):

@@ -40,6 +40,41 @@ def same_calibration_constants(previous: CharacterCalibration | None,
     return replace(previous, **blank) == replace(current, **blank)
 
 
+def written_character_dump(configured: Path, started_ns: int) -> Path:
+    """The dump file the game wrote for the posted ``C`` ``f``: ``configured``, or the sheet the
+    game wrote beside it when ``configured`` was not written (supervisor 2026-11-28).
+
+    The macro accepts the game's default file name, ``<base_name>.txt`` (cmd-draw.cpp:99), so the
+    configured path is right only while it names the character.  n1-b life-419 (the zombie
+    bot_play3 character) was continued from 2026-11-26 19:52 with ``--character-dump-file
+    .../bot_klackon.txt`` (the slot's class override for its next character): the game wrote
+    bot_play3.txt, every dump read ``dump-unreadable:FileNotFoundError``, the equipment search
+    answered ``calibration-required`` for 34 hours, and a second スピードの指輪 (+9) stayed at Home.
+
+    When ``configured`` is missing, the newest ``*.txt`` of its directory written since the dump
+    was posted (``started_ns`` less the clock tolerance) that reads as a character sheet is the
+    dump; the caller validates it as it validates ``configured`` (the sheet's character, the
+    sequence).  Without one, ``configured`` (the reader then fails as before)."""
+    if configured.exists():
+        return configured
+    from hengbot.character_sheet import CharacterSheetUnavailable, parse_character_sheet
+    floor = started_ns - DUMP_MTIME_TOLERANCE_NS
+    try:
+        written = sorted(
+            (path for path in configured.parent.glob("*.txt")
+             if path.is_file() and path.stat().st_mtime_ns >= floor),
+            key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    except OSError:
+        return configured
+    for path in written:
+        try:
+            parse_character_sheet(path.read_bytes())
+        except (OSError, ValueError, KeyError, TypeError, CharacterSheetUnavailable):
+            continue
+        return path
+    return configured
+
+
 class LegacyCalibrationDebtError(RuntimeError):
     """Manual recovery is required before attaching an old stripped session."""
 
@@ -134,10 +169,11 @@ class CalibrationMixin:
         try:
             if pending.get("started_ns") is None:
                 raise CharacterSheetUnavailable("unprepared-character-dump")
-            before = self._character_dump_path.stat().st_mtime_ns
-            raw = self._character_dump_path.read_bytes()
+            dump = written_character_dump(Path(self._character_dump_path), pending["started_ns"])
+            before = dump.stat().st_mtime_ns
+            raw = dump.read_bytes()
             sheet = parse_character_sheet(raw)
-            current = (self._character_dump_path.stat().st_mtime_ns, sheet.content_hash)
+            current = (dump.stat().st_mtime_ns, sheet.content_hash)
             if before != current[0]:
                 raise CharacterSheetUnavailable("dump-file-changing")
             # A file system timestamp can trail the clock read at preparation
