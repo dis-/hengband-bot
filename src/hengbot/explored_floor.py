@@ -67,7 +67,7 @@ of the no-descend floors' returns were this one, one level a recall round trip).
 
 from __future__ import annotations
 
-from hengbot import deep_stairs, dive_floor, return_start, sealed_loot
+from hengbot import deep_stairs, dive_floor, return_start, ring_hunt, sealed_loot
 from hengbot.policy_constants import DEEP_FLOOR_DEPTH
 
 TRIGGER = "explored-dead-end-floor"
@@ -140,6 +140,10 @@ def explored(policy, snapshot, *, exhausted: bool) -> bool:
     open and a summoner sensed; n1-c Angband 80F (03:09:32) after 101 (1,337 to 3,395), right
     after a Stone to Mud walk to sealed loot.  Such a floor is the ladder's below as before (the
     secret walls, the stairs, the stuck escape)."""
+    # Supervisor 2026-11-28: a Ring of Speed hunt floor whose feeling rules the ring out is done
+    # with at once (ring_hunt; the loot it would hold the floor for is the ring piles only).
+    if ring_hunt.finished(policy, snapshot):
+        return True
     memory = getattr(policy, MEMORY, None)
     if memory is None or memory.get("floor") != snapshot.floor_key or len(memory["counts"]) <= WINDOW:
         return False

@@ -74,6 +74,8 @@ VISIT_MEMORIES = (
     ("_explored_floor_window", None, "explored_floor"),
     # This floor visit is one of the trip's explored floors left by the stairs (deep_stairs).
     ("_deep_stairs_floor", None, "deep_stairs"),
+    # This hunt floor's feeling ruled the Ring of Speed out (ring_hunt).
+    ("_ring_hunt_floor_done", None, "ring_hunt"),
     ("_destruction_loot_memory", None, "destruction_loot"),
     ("_loot_walk_memory", None, "loot_walk"),
     ("_recall_wait_clock", None, "recall_wait_reach"),

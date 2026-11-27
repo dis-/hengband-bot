@@ -105,7 +105,10 @@ class N1c222ConquestBudgetTest(unittest.TestCase):
         self.assertNotIn(MOUNTAIN_ID, board.conquered_dungeon_ids)
         self.assertTrue(angband_hold.held(policy, board))
         self.assertEqual(policy._dungeon_entry_depth(board, DUNGEON_ANGBAND, via_recall=True), 80)
-        self.assertEqual(policy._missing_required_abilities(board, 81, owned=True),
+        # Since owner 2026-11-28 the +25 row starts at 91F: 81F asks nothing the character lacks,
+        # and the speed ceiling (90F) holding it keeps it depth-gated (supervisor 2026-11-28).
+        self.assertFalse(policy._missing_required_abilities(board, 81, owned=True))
+        self.assertEqual(policy._missing_required_abilities(board, 91, owned=True),
                          frozenset({"speed+25"}))
         self.assertTrue(angband_hold.depth_gated(policy, board))
         self.assertIn(THORONDOR, {monster.race_id for monster in

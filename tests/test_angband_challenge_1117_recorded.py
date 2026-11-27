@@ -24,7 +24,7 @@ Recorded:
   target (owner 2026-11-18): the latch is dropped.  The Mountain's beatable guardian was the
   conquest target then (「制覇できる守護者がいれば制覇が先」) until 2026-11-26; since then no
   conquest is started while Angband's 81F speed +25 gate is missing (angband_hold ``depth_gated``,
-  conquest_budget), and Angband 80 is taken; with the Mountain conquered too (constructed),
+  conquest_budget; since 2026-11-28 while the speed ceiling holds it), and Angband 80 is taken; with the Mountain conquered too (constructed),
   Angband 80 is taken as well.
 
 DECLARED CONSTRUCTED:
@@ -48,7 +48,7 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hengbot import alternate_lease, angband_hold, destruction_use, dive_floor, fallback_depth_floor
+from hengbot import alternate_lease, angband_cap, angband_hold, destruction_use, dive_floor, fallback_depth_floor
 from hengbot.model import DUNGEON_ANGBAND, SV_STAFF_DESTRUCTION, TVAL_STAFF
 from hengbot.policy import staged_prompt_chain_matches
 from support.town_arrival_fixture import load
@@ -209,8 +209,15 @@ class N1c216GlassCastleTest(unittest.TestCase):
         self.assertEqual((mountain.guardian_id, mountain.max_depth), (468, 50))
         self.assertNotIn(MOUNTAIN, board.conquered_dungeon_ids)
         self.assertTrue(policy._guardian_fight_viable(board, mountain))
-        self.assertEqual(policy._missing_required_abilities(board, 81, owned=True),
-                         frozenset({"speed+25"}))
+        # Owner 2026-11-28 (「80Fから90Fまでは危険度に大きな変化はない。」): the +25 row starts at
+        # 91F, so 81F asks no gate the character lacks; the character is still held by the speed
+        # ceiling (90F, the +25 row unmet), which keeps it depth-gated for the conquest
+        # (supervisor 2026-11-28: the Ring of Speed hunt is its job), so Angband 80 is taken.
+        self.assertFalse(policy._missing_required_abilities(board, 81, owned=True))
+        self.assertIn("speed+25", policy._missing_required_abilities(board, 91, owned=True))
+        # The ceiling is held from the board (angband_cap.observe, every board's observation).
+        angband_cap.observe(policy, board)
+        self.assertEqual(getattr(policy, angband_cap.CEILING), 90)
         self.assertTrue(angband_hold.depth_gated(policy, board))
         decide(policy, board)
         # Unfixed: (GLASS_CASTLE, "conquest", GLASS_CASTLE); before 2026-11-26 the Mountain

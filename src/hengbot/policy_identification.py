@@ -15,7 +15,7 @@ from hengbot.town_hold import (
     LOOT_OWNERS as CLAIM_LOOT_OWNERS,
 )
 from hengbot.town_arbiter import ClaimOwner, claims
-from hengbot import finale_descent, realm_spells, search_ban
+from hengbot import finale_descent, realm_spells, ring_hunt, search_ban
 from hengbot import full_pack_exchange, left_cells, loot_frontier, loot_walk, me_powers, sleeper_loot_block, sleeper_reach_memory, summoner_far_loot, walk_vetoes
 from hengbot.baseitem_knowledge import item_base_cost
 from hengbot.model import (
@@ -1714,7 +1714,9 @@ class IdentificationMixin:
             and (not include_unsafe or (grid := snapshot.grid_at(position)) is None
                  or not self._floor_pile_is_junk(snapshot, grid))
         }
-        return candidates
+        # Supervisor 2026-11-28: a Ring of Speed hunt floor whose feeling rules the ring out
+        # fetches no ordinary loot (ring_hunt).
+        return ring_hunt.loot_filter(self, snapshot, candidates)
 
     def _loot_step(
         self,

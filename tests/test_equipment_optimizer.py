@@ -395,7 +395,8 @@ class EquipmentOptimizerTest(unittest.TestCase):
         def evaluate(loadout):
             if "weak-speed-gate" in loadout.item_ids:
                 return metrics(10, dps=10, speed=25)
-            # +10: the 70-80F speed (2026-11-26) keeps the strong set in the 80 band.
+            # +10: the 70F speed row (2026-11-26; 70-90F since 2026-11-28) keeps the strong set in
+            # the 90 band.
             return metrics(100, dps=100, speed=10)
 
         result = optimize_loadout(
@@ -407,7 +408,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
             require_armor_slots=frozenset(),
         )
 
-        self.assertEqual(result.chosen_depth, 80)
+        self.assertEqual(result.chosen_depth, 90)
         self.assertEqual(result.band_decisions[0].refusal_reason, "melee-ratio")
         self.assertIsNone(result.band_decisions[1].refusal_reason)
 
@@ -484,7 +485,7 @@ class EquipmentOptimizerTest(unittest.TestCase):
 
         self.assertEqual(
             [decision.band for decision in result.band_decisions],
-            [81, 80, 69, 49, 35, 30, 25, 20, 19],
+            [91, 90, 80, 69, 49, 35, 30, 25, 20, 19],
         )
         self.assertTrue(all(
             decision.melee_free == 7 for decision in result.band_decisions
@@ -1199,19 +1200,20 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNone(blocked.best)
         self.assertIsNotNone(ready.best)
 
-    def test_speed_plus_twenty_five_is_required_only_after_eighty(self):
+    def test_speed_plus_twenty_five_is_required_only_after_ninety(self):
+        # Owner 2026-11-28: the +25 row starts at 91F (81F before).
         requirements = required_abilities(80)
         at_eighty = optimize_loadout(
             [self.light],
             lambda loadout: metrics(10, speed=10),
-            depth=80,
+            depth=90,
             intrinsic_abilities=requirements,
             has_destruction=True,
         )
         at_eighty_one = optimize_loadout(
             [self.light],
             lambda loadout: metrics(10, speed=24),
-            depth=81,
+            depth=91,
             intrinsic_abilities=requirements,
             has_destruction=True,
         )
@@ -1219,7 +1221,8 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertIsNone(at_eighty_one.best)
 
     def test_speed_plus_ten_is_required_from_seventy(self):
-        # Supervisor 2026-11-26: 70-80F ask a permanent +10; 69F asks no speed.
+        # Supervisor 2026-11-26: 70-80F ask a permanent +10 (70-90F since owner 2026-11-28); 69F
+        # asks no speed.
         requirements = required_abilities(80)
 
         def chosen(depth, speed):
@@ -1235,13 +1238,13 @@ class EquipmentOptimizerTest(unittest.TestCase):
         self.assertEqual(divable_depth(empty, intrinsic_abilities=requirements,
                                        has_destruction=True, player_speed=119), 69)
         self.assertEqual(divable_depth(empty, intrinsic_abilities=requirements,
-                                       has_destruction=True, player_speed=120), 80)
+                                       has_destruction=True, player_speed=120), 90)
         unbanded = optimize_loadout(
             [self.light], lambda loadout: metrics(10, speed=9), depth=None,
             intrinsic_abilities=requirements, has_destruction=True)
         self.assertEqual(unbanded.chosen_depth, 69)
         self.assertEqual([(d.band, d.refusal_reason) for d in unbanded.band_decisions[:2]],
-                         [(81, "no-set"), (80, "no-set")])
+                         [(91, "no-set"), (90, "no-set")])
 
     def test_one_percent_tie_prefers_filling_an_empty_slot(self):
         current = gear("current", 23, equipped_slot=SLOT_MAIN_HAND)

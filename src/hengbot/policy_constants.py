@@ -992,7 +992,10 @@ def required_destruction_uses(depth: int) -> int:
     steps = (depth - DEEP_FLOOR_DEPTH) // DESTRUCTION_USES_STEP_DEPTH
     return DESTRUCTION_USES_PER_STEP * (1 + steps)
 
-SPEED_GATE_DEPTH = 81
+# Owner 2026-11-28 (verbatim) 「80Fから90Fまでは危険度に大きな変化はない。80Fで足りなければもう少し深く
+# 潜っても良い。」: the permanent +25 row starts at 91F (81F before).  80-90F take the 70F row's +10
+# (permanent or sustained, haste_sustain); a character short of +25 is held at 90F (angband_cap).
+SPEED_GATE_DEPTH = 91
 
 SPEED_GATE_LABEL = "speed+25"
 
@@ -1002,7 +1005,7 @@ SPEED_GATE_MINIMUM = 135  # +25 over the 110 base
 # 改善を進める。…いずれも、ゲーム内選択に関して私の以前の指示を破ることを許可する。」): 70F-80F
 # ask a permanent speed of +10.  Of the seven deaths at 76-80F before it, five had +9 or less
 # (CL 36-47).  It replaces the 2026-11-22 answer 「50〜80FにCLとHPの下限を足さない」 only by
-# this speed floor (no CL or HP floor).  81F+ keeps its own +25, which includes it.
+# this speed floor (no CL or HP floor).  91F+ keeps its own +25, which includes it.
 # Supervisor 2026-11-27 (owner 「70Fより上で加速+10を得るのはそれなりに困難である。」): the row is
 # also met by Speed doses sustained for the dive, the upkeep keeping the haste up on those floors
 # (haste_sustain ``row_met``, the one reader with policy_observation and angband_cap).
@@ -1041,7 +1044,7 @@ def required_speed(depth: int) -> int:
 
 def required_depth_gates(depth: int) -> frozenset:
     """Every mandatory gate for a depth: the resistance/telepathy table plus the
-    *Destruction* (50F+) and the speed (+10 at 70-80F, +25 at 81F+) requirements."""
+    *Destruction* (50F+) and the speed (+10 at 70-90F, +25 at 91F+) requirements."""
     gates = set(_required_abilities_for_depth(depth))
     if depth >= DEEP_FLOOR_DEPTH:
         gates.add(DESTRUCTION_GATE_LABEL)

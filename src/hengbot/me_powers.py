@@ -442,11 +442,17 @@ def _new_floor(ctx, power):
 
 
 def _needed_stairs(ctx):
-    """'up' while returning on foot, 'down' while descending, else None."""
+    """'up' while returning on foot, 'down' while descending, else None.  A Ring of Speed hunt
+    floor done with by its feeling, left by its stairs (ring_hunt, deep_stairs ``due``: the
+    ceiling floor, whose stair down is refused), needs 'up' (supervisor 2026-11-28)."""
+    from hengbot import deep_stairs, ring_hunt  # import cycle (policy modules)
+
     policy, snapshot = ctx.policy, ctx.snapshot
     if policy._returning_to_town:
         if snapshot.player.recalling or policy._dungeon_recall_units(snapshot) > 0:
             return None
+        return "up"
+    if ring_hunt.finished(policy, snapshot) and deep_stairs.due(policy, snapshot):
         return "up"
     return None if policy._descent_is_blocked(snapshot) else "down"
 

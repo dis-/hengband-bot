@@ -3,7 +3,7 @@
 Owner 2026-11-26 (verbatim): 「…いずれも、ゲーム内選択に関して私の以前の指示を破ることを許可する。」.
 The rules this changes: owner 2026-11-17 (the 50F+ efficiency study's 第1位) 「適当な閾値を決めて、
 探索が済んだら帰還する。」 and owner 2026-11-22 Q1 「今のまま帰還」 -- an explored floor the dive goes
-no deeper from (explored_floor ``dead_end``: the 95F cap, a depth gate such as 80F while 81F asks
+no deeper from (explored_floor ``dead_end``: the 95F cap, a depth gate such as 90F while 91F asks
 a speed the character lacks, the floor above a guardian the kit cannot pass, a dungeon's last
 floor) was left by Word of Recall (explored_floor ``recall_key``), so each such trip explored
 exactly one level.

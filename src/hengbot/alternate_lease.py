@@ -26,7 +26,7 @@ Angband became a landing the character may take again (castle-climb-1117: n1-a's
 ``challenge`` is that check, on the town board a dive ends on, before this board's valves: when
 Angband at its recall depth passes every landing check (``angband_qualifies``: the same filter as
 the deepest destination of C5 -- the cumulative depth requirements with the *Destruction* means and
-telepathy from 50F and the 81F speed gate, the guardian floor and P3's T1 bottom floor, the fallback
+telepathy from 50F and the 91F speed gate, the guardian floor and P3's T1 bottom floor, the fallback
 depth floor -- and the Q2 hold), the held alternate dungeon is dropped (its dives, the
 Castle/Mountain dive or climb) and the ordinary selection takes Angband.  Owner 2026-11-18: not
 while an over-extension switch's lease runs (「潜りすぎの期限の間は鉄獄に挑まない」; after it ends,
@@ -128,7 +128,7 @@ def angband_qualifies(policy, snapshot) -> bool:
     """Angband at its recall depth is a landing this character may take now (owner 2026-11-17).
 
     The deepest destination's filter (``_destination_takeable``: ``_recall_destination_safe``
-    reads the cumulative depth requirements, the 50F *Destruction* means, the 81F speed gate and
+    reads the cumulative depth requirements, the 50F *Destruction* means, the 91F speed gate and
     the blocked guardian floors), the fallback depth floor on the landing, and the Q2 hold."""
     if random_quest_hold.entry_refused(snapshot, DUNGEON_ANGBAND, policy):
         return False

@@ -95,7 +95,9 @@ class RecordedLoadoutTest(unittest.TestCase):
         recorded = RecordedBoard(bot)
         self.addCleanup(recorded.close)
         result = recorded.optimize()
-        self.assertEqual(result.chosen_depth, 80)
+        # The 81-90F band (owner 2026-11-28: the +25 row starts at 91F) is the deepest the
+        # recorded +14..+18 speed reaches (80 before).
+        self.assertEqual(result.chosen_depth, 90)
         bow = result.best.loadout.item_at(SLOT_BOW)
         self.assertNotEqual(bow.item.name, WORN_CROSSBOW)
         self.assertTrue(bow.item.name.startswith(expected), bow.item.name)
