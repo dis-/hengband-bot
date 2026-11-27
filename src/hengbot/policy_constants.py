@@ -420,7 +420,6 @@ POLICY_FINAL_STOP_REASONS = EQUIPMENT_TRANSACTION_FINAL_STOP_REASONS | frozenset
         'town:blocked:guardian-bounce-no-alternate',
         'town:blocked:home-known-empty-withdrawal',
         'town:blocked:home-withdraw-failed-stock-present',
-        'town:blocked:overflow-no-legal-disposal',
         'town:blocked:pack-full-no-room',
         'town:blocked:quest-reward-first',
         'town:blocked:overweight-home-unreachable',

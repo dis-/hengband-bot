@@ -14,7 +14,7 @@ from hengbot.model import (
     Position, Snapshot, SV_SCROLL_WORD_OF_RECALL, TVAL_SCROLL, parse_snapshot,
 )
 from hengbot.item_reservation import reservation_verdict
-from hengbot.policy import HengbotPolicy, WAIT_KEY
+from hengbot.policy import HengbotPolicy
 from hengbot.town_hold import offered_steps
 from policy_fixtures import grid, item, player
 
@@ -108,7 +108,7 @@ class TownOverflowDisposalRecordedTest(unittest.TestCase):
         )
         self.assertIsNone(unknown_policy._overflow_disposal_item(unknown_board))
 
-    def test_all_reserved_full_pack_still_stops_visibly(self):
+    def test_all_reserved_full_pack_gives_way(self):
         # CONSTRUCTED frame: the owner reservation predicate holds every stack.
         position = Position(10, 10)
         inventory = [
@@ -132,10 +132,11 @@ class TownOverflowDisposalRecordedTest(unittest.TestCase):
             ))
             key = policy.choose_key(board)
 
-        self.assertEqual(key, WAIT_KEY)
-        self.assertEqual(
-            policy.last_reason, "town:blocked:overflow-no-legal-disposal",
-        )
+        # Nothing legal to dispose of: the overflow owner gives way and nothing is
+        # destroyed (2026-11-28, MAINTAINABILITY.md 2).
+        self.assertNotIn("k", key)
+        self.assertNotEqual(policy.last_reason, "town:destroy-overflow")
+        self.assertFalse(policy.last_reason.startswith("town:blocked"), policy.last_reason)
 
 
 if __name__ == "__main__":

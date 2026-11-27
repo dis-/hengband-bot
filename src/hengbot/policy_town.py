@@ -2828,23 +2828,26 @@ class TownMixin:
 
     @claims(ClaimOwner.TOWN_PLAN)
     def _town_overflow_destroy_key(self, snapshot: Snapshot, *, try_relief: bool = False) -> str | None:
-        """Keep the destroy primitive; the town dispatcher first requests relief."""
+        """Keep the destroy primitive; the town dispatcher first requests relief.
+
+        With no legal disposal left (the relief's Home deposit, sale and junk destruction gave no
+        key, and ``_overflow_disposal_item`` names nothing) the pack below the
+        ``MIN_TERMINAL_FREE_PACK_SLOTS`` floor gives way (MAINTAINABILITY.md rule 2, coordinator
+        decision 2026-11-28): nothing is returned and the visit goes on with the pack as it is.  A
+        fuller pack only picks up less; the free-slot floor is the departure's OPTIONAL leaf
+        ``free_pack_slots_ready`` (departure_leaf_classes), which the town end waives and records
+        (``departure_block.town_end_waived``), and the forced departure's minimum still asks one
+        free slot.  n1-a life-545 2026-11-28 03:01 stopped here as
+        town:blocked:overflow-no-legal-disposal at 21 of 23 slots: twenty stacks were the
+        retention reservations' kit and the 21st (a Mushroom of Restoring) no Home deposit, sale
+        or destruction rule takes, so no disposal could reach the four-slot floor.
+        """
         from hengbot.town_pack_budget import relief_key
         key = relief_key(self, snapshot) if try_relief else None
         if key is not None:
             return key
-        key = self._verified_destroy_key(
+        return self._verified_destroy_key(
             snapshot, self._overflow_disposal_item, "town:destroy-overflow")
-        if key is not None:
-            return key
-        if (
-            PACK_CAPACITY - len(snapshot.inventory) < MIN_TERMINAL_FREE_PACK_SLOTS
-            and self._overflow_disposal_item(snapshot) is None
-        ):
-            self._town_blocked_reason = "overflow-no-legal-disposal"
-            self.last_reason = "town:blocked:overflow-no-legal-disposal"
-            return WAIT_KEY
-        return None
 
     @claims(ClaimOwner.IDENTIFICATION)
     def _town_device_processing_key(self, snapshot: Snapshot) -> str | None:

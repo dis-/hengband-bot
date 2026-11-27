@@ -1923,12 +1923,10 @@ _RUNGS: tuple[Rung, ...] = (
     _decide("_home_full_knowledge_key", "home-scan"),  # posted named-take prerequisite
     _decide("_shopping_approach_key", "store-router",
             ordinary=True),                                            # 6923
-    # Its own site writes ``town:blocked:overflow-no-legal-disposal``, which
-    # ranks here, not at town-plan's rewrite rung; the shop-sell
-    # ``town:destroy-overflow`` it passes to ``_verified_destroy_key`` ranks
-    # at shop-sell's town rung below.
-    _decide("_town_overflow_destroy_key", "town-plan",
-            "town:blocked:overflow-no-legal-disposal"),                # 6940
+    # The shop-sell ``town:destroy-overflow`` it passes to
+    # ``_verified_destroy_key`` ranks at shop-sell's town rung below; with no
+    # legal disposal it answers nothing (2026-11-28, no stop of its own).
+    _decide("_town_overflow_destroy_key", "town-plan"),                # 6940
     _decide("_fundraising_key", "fundraising", "town:",
             town=True),                                                # 6980
     _decide("_released_restock_store_key", "store-router"),            # 6993

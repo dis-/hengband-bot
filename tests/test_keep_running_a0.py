@@ -241,7 +241,7 @@ class DepartureTest(unittest.TestCase):
                 policy._town_blocked_reason = cause
                 self.assertEqual(policy._town_blocked_key(board), "rha")
                 self.assertEqual(len(self.records(root)), 1)
-        for cause in ("overweight-home-unreachable", "overflow-no-legal-disposal", "survival-mana-no-charges"):
+        for cause in ("overweight-home-unreachable", "survival-mana-no-charges"):
             with self.subTest(cause=cause), TemporaryDirectory() as root, patch.dict(os.environ, HENGBOT_RUNTIME_DIR=root):
                 policy, board, _ = ready_board()
                 policy._town_blocked_reason = cause
