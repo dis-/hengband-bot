@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from heapq import heappop, heappush
 from itertools import count
-from hengbot import deep_fall_guard, destruction_means, finale_descent, means_spent_loop, mining_loadout, return_start
+from hengbot import deep_fall_guard, destruction_means, loot_memory, finale_descent, means_spent_loop, mining_loadout, return_start
 from hengbot import area_mapping, cross_rules, dive_floor, door_detect_cover, walk_vetoes, dungeon_shop, combat_answer, dark_recall, deep_teleport, fled_floor_stairs, immobile_threat_memory, left_cells, locked_doors, loot_frontier, mapped_area, me_powers, quest_find_exit, sealed_pocket, trap_warning, unseen_strike
 from hengbot.town_hold import (
     ENTRANCE_OWNERS as CLAIM_ENTRANCE_OWNERS,
@@ -1133,7 +1133,7 @@ class NavigationMixin:
 
         Arriving in a different known town -- by an Inn teleport, over the
         wilderness, or past boards whose town id is unknown -- forgets the
-        terrain of the town left behind: a floor-key change resets it in
+        terrain of the town left behind, and its loot memory (loot_memory): a floor-key change resets them in
         _observe, a change of town under the same floor key does not.  Boards
         with no known town (the wilderness, flickering metadata) neither
         clear nor re-key it, so re-entering the same town keeps its memory.
@@ -1144,6 +1144,8 @@ class NavigationMixin:
         learned_in = getattr(self, "_terrain_town_id", None)
         if learned_in is not None and learned_in != snapshot.town_id:
             self._forget_left_town_terrain()
+            # The left town's piles are not on this map either (loot_memory, n1-b life-419).
+            loot_memory.forget(self, "loot-town-changed")
         self._terrain_town_id = snapshot.town_id
 
     def _forget_left_town_terrain(self) -> None:
