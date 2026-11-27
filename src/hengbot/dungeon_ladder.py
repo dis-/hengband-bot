@@ -313,6 +313,9 @@ LADDER = (
         *I("eat"),
         *E("_hunt_step#3"),
         *I("hunt"),
+        # Supervisor 2026-11-28: a Ring of Speed hunt floor whose feeling rules the ring out
+        # (ring_hunt): the explored floor's way out, before the searches and the explore.
+        *D("ring_hunt.leave_key"),
         *D("_stuck_escape_key", "sealed_pocket.after_destruction_key"),
         *E("oscillating-probe"),
         *I("probe"),
@@ -396,7 +399,7 @@ LAYER_MODULES = {
 # put another in its place, so a rung's return is not always what is posted.
 AFTER_DECIDE = (
     "_flee_sustain_key", "_strong_fight_speed_filter",
-    # Supervisor 2026-11-27: the 70-80F haste upkeep of a character admitted by sustained doses.
+    # Supervisor 2026-11-27: the 70-90F haste upkeep of a character admitted by sustained doses.
     "haste_sustain.after_ladder",
     "heroism_potion.fight_filter", "me_powers.fight_key",
     # Owner 2026-11-17 「魔法防御上昇の装備がないときは破壊で消す。倒すときは…加速して耐性の薬を使用

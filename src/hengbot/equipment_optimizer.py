@@ -310,7 +310,7 @@ def divable_depth(
         if not deep_admission.verdict(None, depth, "loadout", lambda: destruction_means(
                 loadout, has_destruction, staff_gate)).admitted:
             break
-        # The depth's speed (+10 at 70-80F, +25 at 81F+).
+        # The depth's speed (+10 at 70-90F, +25 at 91F+).
         if player_speed < required_speed(depth):
             break
         deepest = next_band - 1
@@ -562,9 +562,10 @@ class EvaluatedLoadout:
 
 
 # The depth bands of the descent, deepest first; a band reads the depth requirements of its
-# deepest floor (81+, 70-80, 50-69, 36-49, 31-35, 26-30, 21-25, 20, <=19; owner 2026-08-10, the
-# 70-80F speed +10 of 2026-11-26 split 50-80; the nether row moved from 40F to 36F on 2026-11-26).
-DEPTH_BANDS = (81, 80, 69, 49, 35, 30, 25, 20, 19)
+# deepest floor (91+, 81-90, 70-80, 50-69, 36-49, 31-35, 26-30, 21-25, 20, <=19; owner 2026-08-10,
+# the 70-80F speed +10 of 2026-11-26 split 50-80; the nether row moved from 40F to 36F on
+# 2026-11-26; owner 2026-11-28 moved the +25 row from 81F to 91F, its 81-90F band asks the +10).
+DEPTH_BANDS = (91, 90, 80, 69, 49, 35, 30, 25, 20, 19)
 
 
 @dataclass(frozen=True)

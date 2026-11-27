@@ -126,7 +126,8 @@ class VerdictTest(unittest.TestCase):
 
     def test_q33_is_needed_for_the_speed_gates_from_its_level(self):
         board = _board()
-        deep = dataclasses.replace(board, dungeon_recall_depths={**board.dungeon_recall_depths, 1: 66})
+        # The recall depth + 15 reaches the +25 row (91F since owner 2026-11-28, 81F before).
+        deep = dataclasses.replace(board, dungeon_recall_depths={**board.dungeon_recall_depths, 1: 76})
         policy = _policy()
         found = quest_value.verdict(policy, deep, 33)
         self.assertIn("speed+25", found.needs)

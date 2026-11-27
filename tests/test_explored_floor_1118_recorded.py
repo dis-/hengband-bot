@@ -49,7 +49,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 
-from hengbot import destruction_use, explored_floor, ladder_idle, me_capability, me_powers
+from hengbot import destruction_use, explored_floor, ladder_idle, me_capability, me_powers, ring_hunt
 from hengbot.model import SV_STAFF_DESTRUCTION, parse_snapshot
 from hengbot.monrace_knowledge import load_monrace_knowledge
 from tests.support.recorded import EDIT, _policy
@@ -107,14 +107,18 @@ class ExploredFloor1118Test(unittest.TestCase):
                 here=snapshot.grid_at(snapshot.player.position))
         return policy, snapshot, key
 
-    def assert_not_read(self, role):
+    def assert_not_read(self, role, *, dead_end=True):
         policy, snapshot, key = self.exhausted_at_the_read(role)
-        self.assertTrue(explored_floor.dead_end(policy, snapshot))
+        self.assertEqual(explored_floor.dead_end(policy, snapshot), dead_end)
         self.assertTrue(policy._find_recall_scroll(snapshot) is not None)
         self.assertNotEqual(policy.last_reason, explored_floor.REASON, key)
         self.assertNotEqual(policy._last_return_trigger, explored_floor.TRIGGER, key)
         self.assertLessEqual(len(counts(policy)), explored_floor.WINDOW)
-        self.assertFalse(explored_floor.explored(policy, snapshot, exhausted=True))
+        # A Ring of Speed hunt floor whose feeling ruled the ring out counts as explored at once
+        # (ring_hunt, 2026-11-28); the window decides every other floor.
+        self.assertEqual(explored_floor.explored(policy, snapshot, exhausted=True),
+                         ring_hunt.finished(policy, snapshot))
+        return policy, snapshot
 
     # -- 1. the "nothing left" end on a floor barely explored ---------------------------------
 
@@ -122,7 +126,12 @@ class ExploredFloor1118Test(unittest.TestCase):
         self.assert_not_read("n1c-0256")
 
     def test_n1b_angband_80f_after_143_explore_decisions_is_not_explored(self):
-        self.assert_not_read("n1b-0347")
+        # Since owner 2026-11-28 the +25 row starts at 91F: Angband 80F is no dead end any more
+        # (the dive goes on down to the 90F ceiling), so nothing reads the Recall there either.
+        policy, snapshot = self.assert_not_read("n1b-0347", dead_end=False)
+        # Its known feeling (snapshot.feeling) is in the no-ring band of the hunt floor 80F.
+        self.assertIn(snapshot.feeling, ring_hunt.no_ring_feelings(80))
+        self.assertTrue(ring_hunt.finished(policy, snapshot))
 
     # -- 2. the growth end on the Glass castle --------------------------------------------------
 

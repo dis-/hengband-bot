@@ -405,6 +405,9 @@ REGISTRY = (
     S("_deep_stairs_floors", "deep_stairs", LIFE,
       "the explored dead-end floors this trip left by the stairs; a town board clears it "
       "(deep_stairs)"),
+    # ring_hunt
+    S("_ring_hunt_floor_done", "ring_hunt", FLOOR,
+      "this Ring of Speed hunt floor's feeling ruled the ring out on this visit (ring_hunt)"),
     # floor_identify
     S("_floor_identify_tried", "floor_identify", FLOOR,
       "the cells a floor identify was posted on this floor visit (asked once each)"),
@@ -2532,6 +2535,10 @@ RESTART = {
     "_deep_stairs_floors": Restart(MAY_BE_LOST, "deep_stairs",
                                    "a new process counts the trip's floors from none (at most "
                                    "EXTRA_FLOORS more before the Recall)"),
+    # ring_hunt: the board's floor.feeling is read again (the game keeps it known on the floor).
+    "_ring_hunt_floor_done": Restart(REBUILT, "ring_hunt",
+                                     "the next board's known feeling is read again; a feeling "
+                                     "raised since by a monster is read as it now stands"),
     # overweight_departure.give_way: a new process's relief reads the same board and waives again.
     "_overweight_departure_waiver": Restart(MAY_BE_LOST, "overweight_departure",
                                             "the relief finds nothing legal on the next board "

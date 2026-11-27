@@ -27,10 +27,13 @@ is every character's: the tactics are missing for all of them.
 
 The speed ceiling (supervisor 2026-11-27, owner 「大きく加速を得るためにはスピードの指輪が一番簡単だが、
 これの生成階層は80Fである。私の指定でリスクを取って80Fに行かせていたのはこのためである。」): a character
-whose permanent speed does not meet a depth speed row (policy_constants ``SPEED_GATES``: +25 from 81F,
+whose permanent speed does not meet a depth speed row (policy_constants ``SPEED_GATES``: +25 from 91F,
 +10 from 70F) has the cap lowered to the floor above that row (``speed_ceiling``, held every board
-by ``observe``), for the 81F row's +25 the Ring of Speed's allocation depth 80F
-(``RING_OF_SPEED_DEPTH``).  The cap's answers then hold at the ceiling as they hold at 95F: no
+by ``observe``), for the 91F row's +25 the floor 90F.  Owner 2026-11-28 (verbatim)
+「80Fから90Fまでは危険度に大きな変化はない。80Fで足りなければもう少し深く潜っても良い。」 moved the row
+from 81F to 91F: the ceiling was the Ring of Speed's allocation depth 80F (``RING_OF_SPEED_DEPTH``)
+and is now 90F, so the ring is hunted on 80-90F (``ring_hunt_floor``, ring_hunt).  The floor
+numbers in the record below are of the 81F row of 2026-11-27.  The cap's answers then hold at the ceiling as they hold at 95F: no
 stair passes it, a deeper floor is climbed (on the floor one past it the speed gap starts no
 return: ``climb_gaps``), and Word of Recall read on the ceiling floor answers the reset-recall question y (the operation's
 ``angband_cap``).  The recall landing one floor past the ceiling, whose only gap is the speed row,
@@ -53,8 +56,9 @@ ANGBAND_DEPTH_CAP: int | None = 95
 # The Ring of Speed's allocation depth: lib/edit/BaseitemDefinitions.jsonc id 136 (ring 「スピード」,
 # tval 45 sval 31) "level": 80, "allocations": [{"depth": 80, "rarity": 1}]; its pval is
 # randint1(5) + m_bonus(5, level), plus one per one_in_(2) (object-enchant/others/
-# apply-magic-ring.cpp SV_RING_SPEED).  The 81F speed row's ceiling (81 - 1) is this floor
-# (tests/test_angband_speed_ceiling_1127.py holds the two equal).
+# apply-magic-ring.cpp SV_RING_SPEED).  The first floor of the hunt (ring_hunt): the +25 row's
+# ceiling (policy_constants SPEED_GATE_DEPTH - 1 = 90 since owner 2026-11-28) is at or below it
+# (tests/test_n1b_419_speed_ceiling_1127_recorded.py holds the order).
 RING_OF_SPEED_DEPTH = 80
 # The speed ceiling read on the last board (``observe``; None: every speed row met).
 CEILING = "_angband_speed_ceiling"
@@ -63,7 +67,7 @@ CEILING = "_angband_speed_ceiling"
 def speed_ceiling(policy, snapshot) -> int | None:
     """The deepest floor the board admits: the floor above the shallowest depth speed row it does
     not meet (policy_constants ``SPEED_GATES``), or None when it meets them all.  A row is met as
-    the depth gates read it (haste_sustain ``row_met``: the permanent speed, or for 70-80F the
+    the depth gates read it (haste_sustain ``row_met``: the permanent speed, or for 70-90F the
     doses sustained for the dive)."""
     from hengbot import haste_sustain  # import cycle (policy_constants -> angband_finale)
     from hengbot.policy_constants import SPEED_GATES
@@ -93,6 +97,17 @@ def cap(dungeon_id: int, policy=None) -> int | None:
     return ANGBAND_DEPTH_CAP
 
 
+def ceiling_caps(dungeon_id: int, ceiling: int, policy) -> bool:
+    """A speed ceiling ``ceiling`` is ``dungeon_id``'s cap for ``policy`` (``cap`` with it): Angband,
+    the cap not lifted for the finale, the ceiling at or above the 95F cap's floor."""
+    if dungeon_id != DUNGEON_ANGBAND:
+        return False
+    from hengbot import angband_finale  # import cycle (restore_mana_target)
+    if angband_finale.lifted(policy):
+        return False
+    return ANGBAND_DEPTH_CAP is None or ceiling <= ANGBAND_DEPTH_CAP
+
+
 def _speed_capped(dungeon_id: int, policy) -> int | None:
     """The speed ceiling when it is ``dungeon_id``'s cap for ``policy`` (Angband, the ceiling
     shallower than the 95F cap), else None."""
@@ -100,6 +115,20 @@ def _speed_capped(dungeon_id: int, policy) -> int | None:
     if ceiling is None or cap(dungeon_id, policy) != ceiling:
         return None
     return ceiling
+
+
+def ring_hunt_floor(policy, snapshot) -> bool:
+    """An Angband floor (no quest) of the Ring of Speed hunt: the character is held under the
+    speed ceiling because the permanent +25 row is unmet (the ceiling is that row's: a character
+    short of the 70F row is held shallower, where no ring is made), and the floor lies from the
+    ring's allocation depth (RING_OF_SPEED_DEPTH) down to the ceiling."""
+    from hengbot.policy_constants import SPEED_GATE_DEPTH  # import cycle
+    floor_key = getattr(snapshot, "floor_key", None)
+    if getattr(snapshot, "in_town", True) or not floor_key or floor_key[2]:
+        return False
+    ceiling = _speed_capped(floor_key[0], policy)
+    return (ceiling == SPEED_GATE_DEPTH - 1
+            and RING_OF_SPEED_DEPTH <= floor_key[1] <= ceiling)
 
 
 def _without_speed(gaps) -> frozenset:

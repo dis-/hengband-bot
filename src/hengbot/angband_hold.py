@@ -72,8 +72,9 @@ def held(policy, snapshot) -> bool:
 def depth_gated(policy, snapshot) -> bool:
     """A held character (``held``) that may level at Angband's recall landing but whose floor
     below it asks a depth gate (policy_constants ``required_depth_gates``: the resistances,
-    telepathy, *Destruction*, speed +25 from 81F) the character does not own, worn, carried or at
-    Home (``owned``, the town's destination reading).  Not when the landing itself is gated (the
+    telepathy, *Destruction*, speed +25 from 91F) the character does not own, worn, carried or at
+    Home (``owned``, the town's destination reading), or any landing the speed ceiling holds the
+    character under (angband_cap).  Not when the landing itself is gated (the
     survival exception's Castle band gathers the items there, 「この場合だけ城40F付近を許す」) and
     not past the 95F cap: the cap, not a gate, ends the descent there (angband_cap; the finale's
     preparation forbids the hunt, finale_prep)."""
@@ -81,11 +82,21 @@ def depth_gated(policy, snapshot) -> bool:
         return False
     from hengbot import angband_cap  # import cycle (angband_cap reads angband_finale)
     landing = policy._dungeon_entry_depth(snapshot, DUNGEON_ANGBAND, via_recall=True)
-    # The speed ceiling (angband_cap ``speed_ceiling``, 2026-11-27) is a gate's cap: the floor
-    # levelled at is the ceiling, the gated one below it (n1-b life-419 hunted the Castle's and the
-    # Dark cave's guardians with its landing 81 one floor past the ceiling 80).
-    ceiling = getattr(policy, angband_cap.CEILING, None)
-    if ceiling is not None and angband_cap.cap(DUNGEON_ANGBAND, policy) == ceiling:
+    # The speed ceiling (angband_cap ``speed_ceiling``, 2026-11-27) is a gate's cap: a character it
+    # holds is gated wherever its landing lies under the ceiling (supervisor 2026-11-28: with the
+    # +25 row at 91F a landing of 80-89F is no longer the floor right above the gate, and the
+    # 11-18 「制覇できる守護者がいれば制覇が先」 came back for it; n1-b life-419 hunted the Castle's
+    # and the Dark cave's guardians for 13-20 h on 11-26 while its job was the Ring of Speed).
+    # Read from this board (``speed_ceiling``), not the ceiling held by the last observation, so the
+    # answer does not depend on which board was observed before the query.
+    # The +25 row's ceiling (the Ring of Speed hunt, angband_cap.ring_hunt_floor) gates every
+    # landing under it; a shallower row's ceiling (+10 at 70F) gates the landing at the ceiling.
+    from hengbot.policy_constants import SPEED_GATE_DEPTH  # import cycle
+    ceiling = angband_cap.speed_ceiling(policy, snapshot)
+    if ceiling is not None and angband_cap.ceiling_caps(DUNGEON_ANGBAND, ceiling, policy):
+        if ceiling == SPEED_GATE_DEPTH - 1:
+            return not policy._missing_required_abilities(
+                snapshot, min(landing, ceiling), owned=True)
         landing = min(landing, ceiling)
     elif angband_cap.capped_at(DUNGEON_ANGBAND, landing + 1, policy):
         return False

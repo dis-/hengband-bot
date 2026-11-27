@@ -1375,8 +1375,8 @@ class ResistanceDepthGateTest(unittest.TestCase):
                 frozenset({"destruction"}),
             )
 
-    def test_81f_also_requires_speed_plus_25(self):
-        """CHANGED 2026-09-23 by the same 50F+ ban: 81F is below the cap too,
+    def test_91f_also_requires_speed_plus_25(self):
+        """CHANGED 2026-09-23 by the same 50F+ ban: 91F (81F before owner 2026-11-28) is below the cap too,
         so ``destruction`` is missing there as well while the flag is False.
         The speed+25 rule itself is untouched and is still asserted on both
         sides, here and under the flipped flag."""
@@ -1386,11 +1386,11 @@ class ResistanceDepthGateTest(unittest.TestCase):
         fast = self._at(80, abilities, inventory=kit, speed=135)
 
         self.assertEqual(
-            HengbotPolicy()._missing_required_abilities(slow, 81),
+            HengbotPolicy()._missing_required_abilities(slow, 91),
             frozenset({"speed+25", "destruction"}),
         )
         self.assertEqual(
-            HengbotPolicy()._missing_required_abilities(fast, 81),
+            HengbotPolicy()._missing_required_abilities(fast, 91),
             frozenset({"destruction"}),
         )
 
@@ -1398,11 +1398,11 @@ class ResistanceDepthGateTest(unittest.TestCase):
             "hengbot.destruction_use.holds_means", lambda *_: True
         ):
             self.assertEqual(
-                HengbotPolicy()._missing_required_abilities(slow, 81),
+                HengbotPolicy()._missing_required_abilities(slow, 91),
                 frozenset({"speed+25"}),
             )
             self.assertEqual(
-                HengbotPolicy()._missing_required_abilities(fast, 81),
+                HengbotPolicy()._missing_required_abilities(fast, 91),
                 frozenset(),
             )
 

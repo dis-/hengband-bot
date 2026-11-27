@@ -6,7 +6,7 @@ from hengbot import angband_finale, haste_sustain, me_deep_launcher
 from hengbot import strategy_profile
 from hengbot import approach_answer, fundraising_route, return_start
 from hengbot import me_power_success, safety_watch
-from hengbot import angband_cap, angband_hold, equipment_rules, item_identity
+from hengbot import angband_cap, angband_hold, equipment_rules, item_identity, ring_hunt
 from hengbot.item_identity import MemorySignatureList, MemorySignatures, same_memory
 from hengbot.item_reservation import reserved_item_command, reservation_verdict
 from hengbot.item_reservation import reservation_decision, item_available
@@ -981,7 +981,7 @@ ESCAPE_BUDGETED_WAIT_LIMITS = {
 # requirements"). Each (min_depth, max_depth, required abilities) band lists the
 # mandatory resistances/abilities to survive that depth; the bot never descends into
 # a band whose abilities the character lacks. Keys match the emitter's player.abilities.
-# "*Destruction*" and the 81F speed gate are handled outside this resistance table.
+# "*Destruction*" and the 91F speed gate are handled outside this resistance table.
 
 # tr_type flag index (object-enchant/tr-types.h) that grants each ability. An item's
 # known_flags carries these indices, so an item confers ability X exactly when
@@ -996,7 +996,7 @@ TR_NO_TELE = 68
 
 
 # AGENTS.md's two mandatory gates that are NOT player.abilities flags: from 50F a
-# usable *Destruction* method (scroll or charged staff in the pack), and from 81F
+# usable *Destruction* method (scroll or charged staff in the pack), and from 91F
 # speed +25. They join the resistance table in every depth-requirement check.
 
 
@@ -2794,6 +2794,8 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         destruction_use.observe(self, snapshot)
         # Supervisor 2026-11-27: Angband's speed ceiling (the floor above the unmet speed row).
         angband_cap.observe(self, snapshot)
+        # Supervisor 2026-11-28: a hunt floor's no-ring feeling (ring_hunt).
+        ring_hunt.observe(self, snapshot)
         # Owner 2026-11-22 「城は45Fまでにする」: the climb switch's band for the reset-recall answer.
         dive_floor.observe_recall_reset(self, snapshot)
         # The landing of the last 50F+ Teleportation (owner 2026-11-14 「前の着地が射線内なら次は *破壊*」).
@@ -6592,7 +6594,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         # USER DECISION 2026-10-03 06:2x: Speed at a strong fight's start, in
         # place of the fighting action only.
         key = self._strong_fight_speed_filter(snapshot, key)
-        # Supervisor 2026-11-27: on 70-80F a character admitted by sustained doses keeps the
+        # Supervisor 2026-11-27: on 70-90F a character admitted by sustained doses keeps the
         # haste up while an awake hostile is in view or sensed (haste_sustain).
         key = haste_sustain.after_ladder(self, snapshot, key)
         # Owner 2026-11-11 「恐怖の呪文を持つ強い相手と戦い始める時に先に飲む」: the Potion of

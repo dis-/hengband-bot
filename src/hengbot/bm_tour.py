@@ -49,7 +49,7 @@ from hengbot.model import STORE_BLACK
 MIN_GOLD = 100_000
 GATE_BOUND_MIN_GOLD = 30_000
 # The depth-gate names a shop's priority ware closes (bm_destruction_fund.PRIORITY_WARES), and the
-# 70-80F speed row the Black Market's Potions of Speed sustain (haste_sustain, supervisor
+# 70-90F speed row the Black Market's Potions of Speed sustain (haste_sustain, supervisor
 # 2026-11-27: the optional purchase empties their stack, policy_shop).
 GATE_WARES = frozenset({"telepathy", "destruction", "speed+10"})
 FAMILY = "cross-town"  # the claim family of the inn legs (town_arbiter, town_hold)

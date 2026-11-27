@@ -14,7 +14,7 @@ in unchanged, by name.
 """
 from __future__ import annotations
 
-from hengbot import damaging_ground, door_detect_cover, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, sealed_loot, sealed_pocket, search_ban
+from hengbot import damaging_ground, door_detect_cover, engagement_avoid_seal, explored_floor, goal_route, immobile_ranged_kill, me_powers, quest_target_search, retreat_enclosure, ring_hunt, sealed_loot, sealed_pocket, search_ban
 from hengbot.item_reservation import reserved_item_command
 from hengbot.policy_constants import NEIGHBOR_OFFSETS, SEARCH_KEY, SEARCH_LIMIT, STUCK_ESCAPE_LIMIT, UP_STAIRS_KEY
 from hengbot.town_terminal import town_end_key
@@ -36,6 +36,12 @@ def key(policy, snapshot, *, strategic_hostiles, physical_hostiles, here):
         policy.last_reason = "hunt"
         policy._declare_monster(getattr(policy, "_hunt_step_target", None))
         return policy._town_producer_entry("_step_toward:hunt", lambda: policy._step_toward(snapshot, step), family="hunt")
+
+    # Supervisor 2026-11-28: a Ring of Speed hunt floor whose feeling rules the ring out is left
+    # by the explored floor's way out before the searches and the explore below (ring_hunt).
+    finished_hunt = ring_hunt.leave_key(policy, snapshot)
+    if finished_hunt is not None:
+        return finished_hunt
 
     # 7b. Escape a walled-off floor. If we have spent STUCK_ESCAPE_LIMIT turns
     #     running only searching / breaking out / wandering here (no combat, no

@@ -1,4 +1,4 @@
-"""70-80F's speed +10: held permanently, or sustained for the dive (supervisor 2026-11-27).
+"""70-90F's speed +10: held permanently, or sustained for the dive (supervisor 2026-11-27).
 
 Owner 2026-11-27 (verbatim): 「70Fより上で加速+10を得るのはそれなりに困難である。もしもそれに拘るのであれば
 どうやって加速+10を得るのか明確にする必要がある。」 and 「大きく加速を得るためにはスピードの指輪が一番簡単だが、
@@ -15,7 +15,7 @@ permanent speed meets it, or the character holds enough Speed doses for the dive
 Magic-Eater's absorbed Speed while reliable, me_capability; and the carried Potions of Speed -- the
 two the one dose, speed_dose, takes).  The town departs with ``DIVE_HASTE_USES``; on the floor the row
 holds down to ``RETURN_RESERVE_USES``, below which the floor's gap starts the ordinary resist-gap town
-return (policy_town).  81F+ keeps its permanent +25 (angband_cap's ceiling at 80F).
+return (policy_town).  91F+ keeps its permanent +25 (angband_cap's ceiling at 90F; the row covers 80-90F since owner 2026-11-28 「80Fから90Fまでは危険度に大きな変化はない。」).
 
 The doses (cmd-usestaff.cpp:240 / cmd-zaprod.cpp:147 set_acceleration(randint1(30) + 15) for the staff
 the Magic-Eater casts, quaff-effects.cpp:382 set_acceleration(randint1(25) + 15) for the potion, one
@@ -71,7 +71,7 @@ def sustained(policy, snapshot) -> bool:
 
 def row_met(policy, snapshot, row) -> bool:
     """A depth speed row (policy_constants ``SPEED_GATES``: (label, permanent speed)) is met: the
-    permanent speed reaches it, or, for the 70-80F row, the haste is sustained (``sustained``)."""
+    permanent speed reaches it, or, for the 70-90F row, the haste is sustained (``sustained``)."""
     from hengbot.policy_constants import MID_SPEED_GATE_LABEL  # import cycle
     from hengbot.speed_valuation import permanent_player_speed
 
@@ -82,7 +82,7 @@ def row_met(policy, snapshot, row) -> bool:
 
 
 def _relies_on_doses(policy, snapshot) -> bool:
-    """On a floor of the 70-80F row whose permanent speed the row does not meet."""
+    """On a floor of the 70-90F row whose permanent speed the row does not meet."""
     from hengbot.policy_constants import MID_SPEED_GATE_LABEL, speed_gate
     from hengbot.speed_valuation import permanent_player_speed
 

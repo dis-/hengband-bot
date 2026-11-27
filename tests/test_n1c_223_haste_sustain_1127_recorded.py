@@ -7,8 +7,8 @@ from 70F) Angband's speed ceiling was 69F, where the Ring of Speed (level 80) is
 character's Angband recall depth was 69.  Rows 0-74 replay the recorded keys through the public
 ``choose_key`` (full state); row 75 diverges with or without this change (the calibration reads a
 character dump the live game wrote that the journal does not carry: stale-dump-file), so the gates
-are read on row 75's board: they admit 70-80F (haste_sustain ``row_met``: 99 doses of the 20 a p90
-dive takes) and the ceiling is 80F.  The recorded visit went on to read Word of Recall to Angband.
+are read on row 75's board: they admit 70-90F (haste_sustain ``row_met``: 99 doses of the 20 a p90
+dive takes) and the ceiling is 90F (80F before owner 2026-11-28 moved the +25 row to 91F).  The recorded visit went on to read Word of Recall to Angband.
 
 DECLARED CONSTRUCTED: the upkeep (``after_ladder``) on the last board moved onto Angband 75F (the
 floor, the town flag, an awake hostile in view, the haste shown or not); the dose counts lowered
@@ -70,10 +70,11 @@ class HasteSustain223RecordedTest(unittest.TestCase):
     def test_sustained_doses_admit_70_to_80f(self):
         policy, board = self.policy, self.board
         self.assertEqual(haste_sustain.uses(policy, board), 99)
-        for depth in (70, 75, 80):
+        for depth in (70, 75, 80, 85, 90):
             self.assertNotIn(MID_SPEED_GATE_LABEL,
                              policy._missing_required_abilities(board, depth, owned=True), depth)
-        self.assertEqual(angband_cap.speed_ceiling(policy, board), 80)
+        # Owner 2026-11-28: the +25 row starts at 91F, the ceiling is 90F.
+        self.assertEqual(angband_cap.speed_ceiling(policy, board), 90)
 
     def test_too_few_doses_keep_the_ceiling_at_69f(self):
         policy, board = self.policy, self.board

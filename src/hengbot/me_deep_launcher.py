@@ -12,7 +12,7 @@ Two rules (their data in equipment_rules), each with its one reader here:
   ordinary-Sling-yields-to-Light-Crossbow grade rule).  The bow slot then counts only through what
   every other slot counts through: the abilities and resistances (the depth requirements, the
   survival side, telepathy, speed, ...).  The depth is the band the selection chooses the loadout
-  for (the descent's 80F and 81F+ bands, or the depth the caller gave).
+  for (the descent's 80F, 81-90F and 91F+ bands, or the depth the caller gave).
 * ``ammo_unneeded``: such a Magic-Eater whose shooting power is below ``SHOT_POWER_FLOOR`` (100
   damage per player turn) carries no ammunition: the carry target (policy_home.
   _ammo_procurement_target, which every purchase, Home withdrawal, supply count and retention of

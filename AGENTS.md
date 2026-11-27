@@ -22,8 +22,8 @@ speed requirements.
 | 31-39F | Chaos resistance | Add no further mandatory resistance. |
 | 40-49F | Nether resistance | Nether resistance is required from 40F onward. |
 | 50-69F | Telepathy and a usable `*Destruction*` method | No speed requirement. |
-| 70-80F | Speed `+10`, permanent or sustained for the dive (`haste_sustain`: 20 Speed doses -- the Magic-Eater's reliable absorbed Speed charges plus carried Potions of Speed -- at departure, 2 on the floor, the haste kept up while an awake hostile is in view or sensed) | Exploration of 80F (the Ring of Speed's generation level) is allowed. Short of it the character works the deepest admitted floor (`angband_cap` speed ceiling). |
-| 81F+ | Speed `+25`, and as many resistances as reasonably possible | Do not descend from 80F until this strict gate is satisfied. |
+| 70-90F | Speed `+10`, permanent or sustained for the dive (`haste_sustain`: 20 Speed doses -- the Magic-Eater's reliable absorbed Speed charges plus carried Potions of Speed -- at departure, 2 on the floor, the haste kept up while an awake hostile is in view or sensed) | Exploration of 80-90F (80F is the Ring of Speed's generation level; owner 2026-11-28 「80Fから90Fまでは危険度に大きな変化はない。80Fで足りなければもう少し深く潜っても良い。」) is allowed. Short of it the character works the deepest admitted floor (`angband_cap` speed ceiling). A hunt floor (80-90F, +25 unmet) whose level feeling rules the ring out is left (`ring_hunt`). |
+| 91F+ | Speed `+25`, and as many resistances as reasonably possible | Do not descend from 90F until this strict gate is satisfied. |
 
 The requirement at a depth is the union of its band and every shallower band
 (owner 2026-11-04 「要求は深くなるごとにAND条件で厳しくする想定」): a deeper band

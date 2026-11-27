@@ -210,8 +210,9 @@ def required_abilities_for_depth(depth: int) -> frozenset:
 # completions of 2026-11-26, warrior_loadout_search.SpeedGate; 6: the see-invisible utility of
 # 2026-11-26, equipment_utility.SEE_INVISIBLE_BONUS; 7: the search's depth bands of the 36F
 # nether row, equipment_optimizer.DEPTH_BANDS; 8: the caster's mana costs of 2026-11-27,
-# caster_mana: the glove and armour-weight penalties and the arms fill).
-RULES_REVISION = 8
+# caster_mana: the glove and armour-weight penalties and the arms fill; 9: the 81-90F band of
+# owner 2026-11-28, equipment_optimizer.DEPTH_BANDS).
+RULES_REVISION = 9
 
 
 def _rules_table() -> dict:
@@ -226,7 +227,7 @@ def _rules_table() -> dict:
         "unscored_launcher": [UNSCORED_LAUNCHER_CLASS, UNSCORED_LAUNCHER_DEPTH, SHOT_POWER_FLOOR],
         "depth_ability_requirements": [
             [first, sorted(adds)] for first, adds in DEPTH_ABILITY_REQUIREMENTS],
-        # The depth speeds (the 70-80F +10 of 2026-11-26, the 81F+ +25).
+        # The depth speeds (the 70F+ +10 of 2026-11-26, the 91F+ +25 of 2026-11-28).
         "speed_gates": [list(row) for row in SPEED_GATES],
     }
 

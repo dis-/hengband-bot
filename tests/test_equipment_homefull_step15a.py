@@ -532,24 +532,25 @@ class EquipmentHomeFullStep15aTest(unittest.TestCase):
 
     def test_pin8_deeper_missing_abilities_blocks_departure(self):
         policy, board = self.closed_policy()
-        # DECLARED CONSTRUCTED actual recall landing at 81F, without +25 speed.
-        board = replace(board, recall_depth=81,
-                        dungeon_recall_depths={k:81 for k in board.dungeon_recall_depths})
+        # DECLARED CONSTRUCTED actual recall landing at 91F (81F before the +25 row moved to 91F
+        # on 2026-11-28), without +25 speed.
+        board = replace(board, recall_depth=91,
+                        dungeon_recall_depths={k:91 for k in board.dungeon_recall_depths})
         preparation = self.failure_preparation(policy, board)
-        self.assertTrue(policy._missing_required_abilities(board, 81))
-        self.assertFalse(policy._safe_optional_equipment_failure_departure(board, preparation, destination_depth=81))
+        self.assertTrue(policy._missing_required_abilities(board, 91))
+        self.assertFalse(policy._safe_optional_equipment_failure_departure(board, preparation, destination_depth=91))
         policy._rearm_town_store_for_new_work(STORE_HOME, release_visit_bound=True)
         self.assertTrue(policy._equipment_home_full_refused_this_visit())
-        self.assertEqual(policy._equipment_departure_destination_depth(board), 81)
+        self.assertEqual(policy._equipment_departure_destination_depth(board), 91)
         self.assertTrue(policy._retire_actionless_equipment_failure(board))
         # DECLARED CONSTRUCTED pending recall command targeting the observed
-        # 81F landing; final confirmation must still refuse its missing kit.
+        # 91F landing; final confirmation must still refuse its missing kit.
         policy._read_binding = (TVAL_SCROLL, SV_SCROLL_WORD_OF_RECALL, 'declared recall')
         policy._pending_recall_dungeon_id = board.recall_dungeon_id
         policy._confirm_optional_equipment_failure_departure(board, 'rh')
         self.assertIsNone(policy._equipment_optional_failure_departure)
-        self.assertFalse(policy._dungeon_entry_allowed(board, via_recall=True, destination_depth=81))
-        self.assertEqual(policy.last_reason, 'depth-gate:destination-81:missing-destruction,speed+25,telepathy')
+        self.assertFalse(policy._dungeon_entry_allowed(board, via_recall=True, destination_depth=91))
+        self.assertEqual(policy.last_reason, 'depth-gate:destination-91:missing-destruction,speed+25,telepathy')
 
     def test_pin3_recorded_s9_s10_does_not_repost_or_approach(self):
         rows = CAPTURES['20261007-044510']['bot-decisions']['rows']

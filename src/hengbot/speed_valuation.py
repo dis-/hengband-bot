@@ -31,7 +31,7 @@ Two rules, both here:
   weight on that absolute floor let one slow-damage fast set push a good set
   under it (equipment_optimizer._stable_operational_best).
 
-The 81F speed +25 requirement reads the same fact (``meets_speed_gate``): the
+The 91F speed +25 requirement reads the same fact (``meets_speed_gate``): the
 permanent speed, base plus gear, without a temporary haste or slowness.
 """
 
@@ -134,7 +134,7 @@ def weighted_margin(metrics, field_energy: int) -> float:
 
 
 def meets_speed_gate(speed: int) -> bool:
-    """The 81F requirement 「speed+25」 on a permanent speed."""
+    """The 91F requirement 「speed+25」 on a permanent speed."""
     return speed >= SPEED_GATE_MINIMUM
 
 

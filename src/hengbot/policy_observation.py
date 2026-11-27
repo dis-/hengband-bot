@@ -1572,9 +1572,9 @@ class ObservationMixin:
         speed_row = speed_gate(depth)
         if (speed_row is not None and speed_row[0] in missing
                 and haste_sustain.row_met(self, snapshot, speed_row)):
-            # The depth's speed (+25 at 81F+) reads the one fact the optimizer reads
+            # The depth's speed (+25 at 91F+) reads the one fact the optimizer reads
             # (speed_valuation): the permanent speed, base plus gear, without a timed haste.
-            # The 70-80F +10 is also met by the doses sustained for the dive (haste_sustain,
+            # The 70-90F +10 is also met by the doses sustained for the dive (haste_sustain,
             # supervisor 2026-11-27).
             missing.discard(speed_row[0])
         return frozenset(missing)
