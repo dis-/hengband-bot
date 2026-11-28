@@ -160,7 +160,7 @@ def worn_anti_magic(snapshot) -> bool:
     return TR_NO_MAGIC in worn_flags(snapshot)
 
 
-def _int_index(player) -> int | None:
+def int_index(player) -> int | None:
     """The current INT's stat_index, None when the board does not carry it."""
     if len(player.stat_index) <= INT or len(player.stat_use) <= INT or player.stat_use[INT] <= 0:
         return None
@@ -171,7 +171,7 @@ def _inputs(snapshot) -> tuple:
     """What a displayed rate depends on besides the stun: the INT index, the level and the
     worn items (their flags, and a curse the board does not export)."""
     player = snapshot.player
-    return (_int_index(player), player.level,
+    return (int_index(player), player.level,
             tuple(sorted((item.slot, item.name) for item in snapshot.equipment)))
 
 
@@ -242,7 +242,7 @@ def fail_percent(policy, snapshot, kind: str, base_level: int | None, *,
     board = (getattr(policy, "_me_device_list_boards", None) or {}).get(kind)
     if board is not None and board[1] == _inputs(snapshot) and _displayed_fail(row) is not None:
         return _shown_rate(policy, kind, row, rank, board[0])
-    index = _int_index(player)
+    index = int_index(player)
     if index is not None and base_level is not None:
         return fail_percent_at_index(
             kind, base_level, player.level, index,

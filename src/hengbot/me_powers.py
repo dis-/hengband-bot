@@ -82,7 +82,9 @@ powerful=false, cmd-item/cmd-magiceat.cpp:577):
    4.9 the Speed row is also cast on the floor rung once per floor visit while not hasted
    (``deep-arrival-unhasted``).
  - 50F+ (owner 2026-11-26 「50F以降は全感知のロッドを持つ」, deep_detection_rod): the absorbed rod is
-   also cast before every step out of the trap-detected area (``deep-undetected-step``).
+   also cast before every step out of the trap-detected area (``deep-undetected-step``); with no use
+   of it the Detect Traps staff is (its detect_traps clears CAVE_UNSAFE as the rod's does: n1-c
+   life-224 rested 1360 game turns for the rod on 95F with 44 Detect Traps charges, 2026-11-28).
 Every detection and mapping radius is a third in a DARKNESS dungeon.  A failed
 cast (「呪文をうまく唱えられなかった！」) takes a turn and keeps the charge.
 
@@ -248,7 +250,8 @@ POWERS = (
                                          "deep-undetected-step"), powerful="when-safe"),
     # Owner 2026-11-22 「害の無い敵の横でも唱える」 (as the mapping's 「脅威でなければ感知する」).
     Power("staff", SV_STAFF_DETECT_TRAP, POWER_NAMES[SV_STAFF_DETECT_TRAP],
-          "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled"),
+          "detect-traps", DETECT_RAD, 20, ("new-floor", "left-detected-trap-area", "trap-cell-unsettled",
+                                           "deep-undetected-step"),
           beside_harmless=True),
     Power("staff", SV_STAFF_MAPPING, POWER_NAMES[SV_STAFF_MAPPING],
           MAP_AREA, DETECT_RAD, 30,

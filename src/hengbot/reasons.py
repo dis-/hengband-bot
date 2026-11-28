@@ -801,8 +801,8 @@ _stationary(EXEMPT, "HUNT_REDETECT_GAME_TURNS from the latest cast",
             "quest-search:wait-redetect")
 # Resting in place on 50F+ while the Rod of Detection recharges before a step out of the
 # trap-detected area (deep_detection_rod, owner 2026-11-26 「50F以降は全感知のロッドを持つ」):
-# bounded by the rod's recharge, then the rod is zapped.
-_stationary(EXEMPT, "stationary_bounds.DETECTION_ROD_RECHARGE_MAX_GAME_TURNS (the rod's recharge, pval 99)",
+# bounded by the rod's real recharge (rod_recharge), then the rod is zapped or the cell given up.
+_stationary(EXEMPT, "stationary_bounds.DETECTION_ROD_RECHARGE_MAX_GAME_TURNS (deep_detection_rod gives the cell up first)",
             "deep-detection-rod:wait-recharge")
 _stationary(EXEMPT, "the plan's dig_attempt_limit", "quest-strategy:exit-dig")
 # Bounded per warned cell by SEARCH_LIMIT (trap_warning): a corridor of traps walked one search at
