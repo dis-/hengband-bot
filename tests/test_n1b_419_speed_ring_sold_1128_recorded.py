@@ -346,28 +346,24 @@ class GateBandTest(unittest.TestCase):
 
 
 class OffenseTest(unittest.TestCase):
-    """CONSTRUCTED: metrics of sets whose absorbed power out-damages (or not) their blows."""
+    """CONSTRUCTED: metrics of sets whose absorbed power out-damages their blows.
 
-    def test_a_blow_more_counts_only_where_the_blows_are_the_attack(self):
+    The selection's attack cuts read melee per game time whatever the absorbed powers do
+    (supervisor 2026-11-28, n1-b life-421: the larger of the two let a 9.1-melee dual-wield set
+    win for its absorbed 64.2, and quest 31's melee missed nearly every blow)."""
+
+    def test_melee_cuts_the_set_losing_blows_even_beside_a_stronger_power(self):
         from hengbot.equipment_optimizer import EvaluatedLoadout, Loadout, LoadoutMetrics
         from hengbot.equipment_optimizer import _stable_operational_best
-        from hengbot.speed_valuation import offense_per_action
 
         def entry(name, melee, device, margin):
             return EvaluatedLoadout(Loadout((), name), LoadoutMetrics(
                 expected_dps=melee, survival_turns=100.0, combat_margin=margin,
                 device_dps=device, evaluation_complete=True))
 
-        blows = entry("extra-attack", 120.0, 300.0, 0.90)
-        resist = entry("resist-ring", 100.0, 300.0, 1.00)
-        self.assertEqual(offense_per_action(blows.metrics), 300.0)
-        self.assertIs(_stable_operational_best([blows, resist], frozenset()), resist)
-        # Where the blows out-damage the power (n1-b life-419: 478 against 185 per action), a
-        # blow more still cuts the set losing it, as before.
-        melee_blows = entry("extra-attack", 478.0, 185.0, 0.90)
-        melee_resist = entry("resist-ring", 400.0, 185.0, 1.00)
-        self.assertIs(_stable_operational_best([melee_blows, melee_resist], frozenset()),
-                      melee_blows)
+        main_only = entry("main-hand", 77.8, 56.4, 0.90)
+        stat_stick = entry("dual-wield", 9.1, 64.2, 1.00)
+        self.assertIs(_stable_operational_best([main_only, stat_stick], frozenset()), main_only)
 
 
 class WrittenDumpTest(unittest.TestCase):

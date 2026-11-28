@@ -19191,13 +19191,6 @@
     ],
     "delegation": "selected child; no independent success"
   },
-  "speed_valuation.py:offense_per_action": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "speed_valuation.py:per_10_game_turns_at": {
     "classification": "data",
     "rows": [
@@ -19241,13 +19234,6 @@
     "delegation": "selected child; no independent success"
   },
   "speed_valuation.py:time_melee": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
-  "speed_valuation.py:time_offense": {
     "classification": "data",
     "rows": [
       "data/no-independent-credit"

@@ -26343,17 +26343,6 @@
     "delegation": "selected child; no independent success",
     "evidence": "The memo's computation of speed_row: angband_cap.speed_ceiling and policy_constants.speed_gate; no key, no command."
   },
-  "speed_valuation.py:offense_per_action": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "context": "Possible town/store context: retained conservatively; no module exclusion.",
-    "admission": "_town_producer_entry / town_work.validate_emit",
-    "observer": "shadow-v1 (effect observers pending later slices)",
-    "delegation": "selected child; no independent success",
-    "evidence": "Pure helper: the larger of a loadout's melee and absorbed attack per action (a number); no key, no command (2026-11-28)."
-  },
   "ring_hunt.py:loot_filter": {
     "classification": "data",
     "rows": [
