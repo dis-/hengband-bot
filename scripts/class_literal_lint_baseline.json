@@ -70,7 +70,7 @@
     "stone_to_mud_carry.py:stone_to_mud_cap_applies: class-constant: snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER": 1,
     "teleport_away_carry.py:applies: class-constant: snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER": 1,
     "threat_projection.py:free_attack: class-constant: snapshot.player.class_id != PLAYER_CLASS_MAGIC_EATER": 1,
-    "wand_tower_recharge.py:applies: class-constant: snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER": 1,
+    "wand_tower_recharge.py:_trip_possible: class-constant: snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER": 1,
     "warrior_optimization.py:warrior_optimizer_input_key: class-literal: player.class_id == 16": 1,
     "zul_trip.py:<module>: constant-definition: PERSONALITY_LUCKY = 9": 1,
     "zul_trip.py:curable_mutations: personality-constant: getattr(snapshot.player, 'personality_id', -1) == PERSONALITY_LUCKY": 1

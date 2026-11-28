@@ -161,11 +161,14 @@ def rocket_wanted(policy: Any, snapshot: Any) -> bool:
 
 def staff_wanted(policy: Any, snapshot: Any) -> bool:
     """The staff's priority purchase applies: not a Magic-Eater past ``ME_STAFF_COUNT_LIMIT``
-    (me_capability.count is 0 for every other class)."""
+    (me_capability.count is 0 for every other class), and not while this stay's Tower recharge
+    of the owned staves fills the shortage (owner 2026-11-28 「盗賊が破壊の杖をチャージして使い
+    回せるようにして」, destruction_means ``recharge_covers``: buying is the recharge's fallback)."""
     from hengbot import destruction_means, me_capability
 
     return (me_capability.count(policy, snapshot, *destruction_means.POWER)
-            <= ME_STAFF_COUNT_LIMIT)
+            <= ME_STAFF_COUNT_LIMIT
+            and not destruction_means.Means(policy, snapshot).recharge_covers())
 
 
 PRIORITY_WARES = (

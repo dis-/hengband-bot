@@ -1093,7 +1093,7 @@ def observe(policy, snapshot) -> None:
     deep_climb.observe(policy, snapshot)
     deep_fall_guard.observe(policy, snapshot)
     if snapshot.in_town and getattr(policy, "_home_knowledge_current", False):
-        setattr(policy, HOME_STAFF, destruction_means.charged_staves(getattr(policy, "_home_knowledge_items", ())))
+        setattr(policy, HOME_STAFF, destruction_means.known_staves(getattr(policy, "_home_knowledge_items", ())))
     if deep_admission.verdict(snapshot.floor_key[0], snapshot.dungeon_level, "stand",
                               lambda: holds_means(policy, snapshot)).by == deep_admission.MEANS:
         _memory(policy).entitled_floor = snapshot.floor_key

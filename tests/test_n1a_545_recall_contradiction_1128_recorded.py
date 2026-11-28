@@ -24,6 +24,11 @@ replay does not cancel by itself; the stop board is read with the live verdict
 in the journal's driver latches; row 5 still does not reproduce (``UNREPRODUCED``).  After row 21 the drive goes on on constructed boards: the row-21
 board later in the countdown, then the arrival board (the last recorded dungeon board of this life
 with the floor set to the recall's landing, the pack and kit of row 21).
+
+DECLARED: the *Destruction* staff rules of 2026-11-28 (the Tower recharge of the 17 empty staves
+carried, the empty staff no means and kept only for that recharge: destruction_means) are held to
+the recording's, so the recorded read on row 17 replays; test_n1a_545_destruction_recharge_1128
+drives this arrival under them (row 17 goes to the Tower of Sorcery first).
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -37,6 +42,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+from hengbot import destruction_means
 from hengbot.latch_onset_capture import checkpoint_bytes, restore_checkpoint_bytes
 from hengbot.model import DUNGEON_ANGBAND, parse_snapshot
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
@@ -67,6 +73,16 @@ def decide(policy, board):
     return key, policy.last_reason, out.getvalue()
 
 
+def recorded_staff_rules():
+    """The *Destruction* staff rules of the recording (module docstring)."""
+    return (
+        mock.patch.object(destruction_means.Means, "recharge_planned", property(lambda self: False)),
+        mock.patch.object(destruction_means.Means, "retains", lambda self, item, gate_open: gate_open),
+        mock.patch.object(destruction_means.Means, "supplies", lambda self, item: (
+            destruction_means.is_staff(item) and self.staff_reliable and not self.town_absorbs(item))),
+    )
+
+
 def live_loadout_verdict():
     return mock.patch.object(HengbotPolicy, "_equipment_departure_ready",
                              lambda self, *_a, **_k: False)
@@ -75,6 +91,9 @@ def live_loadout_verdict():
 class RecallContradiction545RecordedTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.staff_rules = recorded_staff_rules()
+        for patch in cls.staff_rules:
+            patch.start()
         cls.scratch = TemporaryDirectory()
         policy, journal, steps = load(FIXTURE, Path(cls.scratch.name))
         cls.recorded = {row: (journal[row]["key"], journal[row]["reason"]) for row in range(len(journal))}
@@ -93,6 +112,8 @@ class RecallContradiction545RecordedTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.scratch.cleanup()
+        for patch in cls.staff_rules:
+            patch.stop()
 
     def restored(self):
         return restore_checkpoint_bytes(HengbotPolicy, self.cancel_checkpoint)

@@ -10,7 +10,7 @@ from hengbot.shop_purchase_dispatch import next_purchase_key
 from hengbot.equipment_route_handoff import equipment_route_key, refuses_route
 from hengbot.town_pack_headroom import acquisition_waits
 from hengbot import heroism_potion, realm_spell_book, torch_release, town_pack_headroom
-from hengbot import bm_destruction_fund, bm_tour, purchase_source_journal
+from hengbot import bm_destruction_fund, bm_tour, destruction_means, purchase_source_journal
 from hengbot.item_reservation import (
     item_available, reserved_item_command, store_item_key, outpost_fare_sale_quantity,
 )
@@ -3168,7 +3168,10 @@ class ShopMixin(InStoreMixin):
         add(rung(
             "mandatory:destruction",
             "destruction",
-            lambda: self._missing_destruction_uses(snapshot) > 0,
+            # Owner 2026-11-28: the stay's Tower recharge of the owned staves comes first
+            # (destruction_means ``recharge_covers``); buying is its fallback.
+            lambda: (self._missing_destruction_uses(snapshot) > 0
+                     and not destruction_means.Means(self, snapshot).recharge_covers()),
             lambda i: self._supplies_destruction(snapshot, i) and destruction_affordable(i),
             current=lambda: self._total_destruction_uses(snapshot),
             target=lambda: self._required_destruction_uses(snapshot),

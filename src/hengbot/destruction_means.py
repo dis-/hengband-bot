@@ -33,6 +33,16 @@ breaks it (none is expected; the tests assert none).  scripts/destruction_means_
 when a module outside this one reads SV_STAFF_DESTRUCTION or the ``_is_destruction_*``
 predicates at a site not on its list.
 
+The recharge (owner 2026-11-28 「盗賊が破壊の杖をチャージして使い回せるようにして」, n1-a life-545):
+a staff counts by its known charges, so an empty staff is no means and no stock (``supplies``,
+``charged_staves``).  ``recharge_planned`` answers "does this stay's Tower trip recharge the
+staves" (wand_tower_recharge, the Stone to Mud wands' trip): the uses wanted (``wanted_uses``, the
+depth table's at the depth the means would open) are short of the owned charged staves, a carried
+or Home staff takes a charge, and the trip is possible and spare.  Its readers: the Home take of
+the empty staves (``home_recharge_take``), the pack's retention (``retains``), the trip's list
+(wand_tower_recharge.short) and the purchases' fallback (``recharge_covers``: the Black Market's
+staff row and the departure's *Destruction* rung buy nothing while it fills the shortage).
+
 Every fact is computed on first read and only for the ``Means`` it belongs to (one ask, one
 board): nothing is kept between asks.
 """
@@ -50,7 +60,7 @@ SCROLL = (TVAL_SCROLL, SV_SCROLL_STAR_DESTRUCTION)
 STAFF = (TVAL_STAFF, SV_STAFF_DESTRUCTION)
 POWER = ("staff", SV_STAFF_DESTRUCTION)
 STAFF_LEVEL = 50             # BaseitemDefinitions.jsonc id 307
-HOME_STAFF = "_destruction_home_staves"  # the last complete Home catalogue's charged staves
+HOME_STAFF = "_destruction_home_staves"  # the last complete Home catalogue's known staves
 
 
 # -- the kinds --------------------------------------------------------------------
@@ -73,9 +83,15 @@ def stack_charges(item) -> int:
     return max(0, item.charges) * max(1, item.count)
 
 
+def known_staves(items) -> tuple:
+    """The staves whose charges are known (sval is sent for AWARE items, charges for KNOWN ones)."""
+    return tuple(item for item in items if is_staff(item) and item.known)
+
+
 def charged_staves(items) -> tuple:
-    """The known staves with a charge (sval is sent for AWARE items, charges for KNOWN ones)."""
-    return tuple(item for item in items if is_staff(item) and item.known and item.charges > 0)
+    """The known staves with a charge.  An empty staff, or one whose charges are not known, is no
+    use: no means and no stock (owner 2026-11-28, n1-a life-545)."""
+    return tuple(item for item in known_staves(items) if item.charges > 0)
 
 
 def staff_units(item, uses: int) -> int:
@@ -85,14 +101,46 @@ def staff_units(item, uses: int) -> int:
     return max(0, min(item.count, -(-uses // per_staff)))
 
 
-def staff_home_items(policy, snapshot) -> tuple:
-    """The Home's charged staves, in town only: the page knowledge, else the last complete
+def staff_home_known(policy, snapshot) -> tuple:
+    """The Home's known staves, in town only: the page knowledge, else the last complete
     catalogue's (``HOME_STAFF``, destruction_use.observe)."""
     if not snapshot.in_town:
         return ()
     if getattr(policy, "_home_knowledge_current", False):
-        return charged_staves(getattr(policy, "_home_knowledge_items", ()))
+        return known_staves(getattr(policy, "_home_knowledge_items", ()))
     return tuple(getattr(policy, HOME_STAFF, ()) or ())
+
+
+def staff_home_items(policy, snapshot) -> tuple:
+    """The Home's charged staves, in town only (``staff_home_known``)."""
+    return charged_staves(staff_home_known(policy, snapshot))
+
+
+# -- the recharge (owner 2026-11-28 「盗賊が破壊の杖をチャージして使い回せるようにして」) ----------
+#
+# market/building-recharger.cpp building_recharge_all (Morivant's Tower of Sorcery 'a', the trip
+# of wand_tower_recharge) never fails and fills a staff to its kind's pval: 5 for this staff
+# (lib/edit/BaseitemDefinitions.jsonc id 307, line 10967), at (cost 7500 / 10) * number gold a
+# charge (building-recharger.cpp:173-176): 750 a charge, 3750 an empty staff.  A Scroll of
+# Recharging (recharge(130), magic-item-recharger.cpp:79-91,177-179) blows the staff up at one in
+# (180 - 8 * charges) / 15 reads (1 in 12 empty) for 1-3 charges: the scroll is not used.
+
+def refill_uses(item) -> int:
+    """The uses the Tower's recharge adds to ``item``'s stack (morivant_tower's fill; a staff's
+    pval is per staff, use-execution.cpp:118-127)."""
+    from hengbot import morivant_tower
+
+    return max(0, morivant_tower.charges_after_recharge(item) - item.charges) * max(1, item.count)
+
+
+def recharge_take_units(item, uses: int) -> int:
+    """The staves of ``item``'s Home stack whose recharge adds ``uses`` (at most the stack)."""
+    from hengbot import morivant_tower
+
+    per_staff = morivant_tower.charges_after_recharge(item) - item.charges
+    if per_staff <= 0 or uses <= 0:
+        return 0
+    return min(item.count, -(-uses // per_staff))
 
 
 # -- the staff's success ------------------------------------------------------------
@@ -216,10 +264,108 @@ class Means:
         return self.staff_reliable and self.staff_owned
 
     def supplies(self, item) -> bool:
-        """``item`` adds a *Destruction* means by the definition: a staff the worn loadout makes
-        reliable and the town does not absorb (``town_absorbs``).  A scroll never does (owner
-        2026-11-04)."""
-        return is_staff(item) and self.staff_reliable and not self.town_absorbs(item)
+        """``item`` adds a *Destruction* means by the definition: a known charged staff
+        (``charged_staves``) the worn loadout makes reliable and the town does not absorb
+        (``town_absorbs``).  A scroll never does (owner 2026-11-04), nor an empty staff: n1-a
+        life-545 (2026-11-28 15:13) took 11 empty staves from the Home for an 11-use shortage."""
+        return (bool(charged_staves((item,))) and self.staff_reliable
+                and not self.town_absorbs(item))
+
+    # -- the recharge (owner 2026-11-28) --
+
+    def rechargeable(self, item) -> bool:
+        """A known staff the Tower's recharge adds a use to, kept as the item (not absorbed)."""
+        return (bool(known_staves((item,))) and not self.town_absorbs(item)
+                and refill_uses(item) > 0)
+
+    @cached_property
+    def wanted_uses(self) -> int:
+        """The uses the character wants owned: the depth table's at the depth it would dive to
+        holding the means (policy._means_held_dive_depth); short of 50F the staff it carries
+        whatever the depth (``carry_uses``' DESTRUCTION_USES_PER_STEP, owner 2026-11-15)."""
+        from hengbot.policy_constants import required_destruction_uses
+
+        return (required_destruction_uses(self.policy._means_held_dive_depth(self.snapshot))
+                or DESTRUCTION_USES_PER_STEP)
+
+    @cached_property
+    def recharge_short(self) -> int:
+        """The wanted uses the owned charged staves (carried and Home) leave missing, in town,
+        when the worn loadout makes the staff reliable (else a recharge adds no means)."""
+        if not self.snapshot.in_town or not self.staff_reliable:
+            return 0
+        return max(0, self.wanted_uses - self.owned_staff_charges)
+
+    @cached_property
+    def carried_refill(self) -> int:
+        return sum(refill_uses(item) for item in self.snapshot.inventory
+                   if self.rechargeable(item))
+
+    @cached_property
+    def home_recharge_stack(self):
+        """The Home stack a recharge takes from: the emptiest (the fewest staves to carry for the
+        uses; the gold per use is the same), then the largest; None without one."""
+        stacks = [item for item in staff_home_known(self.policy, self.snapshot)
+                  if self.rechargeable(item) and item.count > 0]
+        return min(stacks, key=lambda item: (item.charges, -item.count, item.name), default=None)
+
+    @cached_property
+    def home_take_uses(self) -> int:
+        """The uses the Home's rechargeable staves would be taken out for: the shortage the
+        carried rechargeable staves do not fill."""
+        return max(0, self.recharge_short - self.carried_refill)
+
+    @cached_property
+    def home_take_units(self) -> int:
+        stack = self.home_recharge_stack
+        return recharge_take_units(stack, self.home_take_uses) if stack is not None else 0
+
+    @cached_property
+    def recharge_planned(self) -> bool:
+        """This stay's Tower trip recharges the staves: a recharge adds a wanted use (carried, or
+        Home staves to take), the trip can run this stay (wand_tower_recharge.staff_trip_open)
+        and its gold is spare with the Home staves' price (staff_trip_spare).  Nothing is taken
+        out of the Home or kept in the pack for a trip that cannot be paid."""
+        if self.recharge_short <= 0 or (self.carried_refill <= 0 and self.home_take_units <= 0):
+            return False
+        from hengbot import morivant_tower, wand_tower_recharge
+
+        if not wand_tower_recharge.staff_trip_open(self.policy, self.snapshot):
+            return False
+        stack, take = self.home_recharge_stack, self.home_take_units
+        extra = (morivant_tower.recharge_all_price(stack, morivant_tower.device_definitions())
+                 // max(1, stack.count) * take if take else 0)
+        return wand_tower_recharge.staff_trip_spare(self.policy, self.snapshot, extra)
+
+    def home_recharge_take(self, item) -> int:
+        """The staves of the Home stack ``item`` taken out to be recharged this stay (0 for any
+        other stack, or without the planned trip)."""
+        stack = self.home_recharge_stack
+        if stack is None or (item.name, item.count, item.charges) != (
+                stack.name, stack.count, stack.charges) or not self.recharge_planned:
+            return 0
+        return self.home_take_units
+
+    def retained_for_recharge(self, item) -> bool:
+        """A carried rechargeable staff waits in the pack for the stay's planned recharge."""
+        return self.rechargeable(item) and self.recharge_planned
+
+    def retains(self, item, gate_open: bool) -> bool:
+        """A carried *Destruction* item (policy_home's retention) stays in the pack: while the
+        departure wants uses (``gate_open``) a scroll, a staff of unknown charges and a charged
+        staff; an empty staff only for the stay's planned recharge (``retained_for_recharge``)."""
+        if self.retained_for_recharge(item):
+            return True
+        return gate_open and (not known_staves((item,)) or bool(charged_staves((item,))))
+
+    def recharge_covers(self) -> bool:
+        """The stay's planned recharge fills the whole shortage: no staff is bought for it
+        (buying is the recharge's fallback)."""
+        if not self.recharge_planned:
+            return False
+        stack = self.home_recharge_stack
+        per_staff = refill_uses(stack) // max(1, stack.count) if stack is not None else 0
+        return self.carried_refill + per_staff * self.home_take_units >= self.recharge_short
 
     # -- the readers (owner 2026-11-16 「深さの条件の定義に揃える」) --
 
