@@ -9818,7 +9818,8 @@ class ApprovedQuestStrategyExecutionTest(unittest.TestCase):
                        floor_key=(0, 5, 14))
         policy = self._policy()
         self.assertEqual(policy._approved_quest_strategy_key(q14, [], []), "<")
-        self.assertEqual(policy.last_reason, "quest-strategy:abort")
+        # The stair names the quest loss: it owns the leave question (reasons.QUEST_LEAVE_STAIR_SUFFIX).
+        self.assertEqual(policy.last_reason, "quest-strategy:abort:stairs-quest-fail")
         for quest_id in (1, 34):
             with self.subTest(quest_id=quest_id):
                 snap = replace(q14, floor_key=(0, 1, quest_id))

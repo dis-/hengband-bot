@@ -135,6 +135,9 @@ _rows(RELOCATING, ("threat_tiers", "threat_escape"), _RULE_ALL,
 _rows(RELOCATING, ("policy", "policy_combat"), _RULE_ALL + "; owner 2026-11-09 「ダンジョンの分だけ数える」",
       "summoner:stairs")
 _rows(RELOCATING, "policy", _RULE_ALL, "summoner:stairs-quest-fail")
+# the quest plan's HP-line withdrawal (policy_quest _quest_execute_key, abort_conditions.hp_ratio):
+# the up stair or the quest exit underfoot, the quest given up
+_rows(RELOCATING, "policy_quest", _RULE_ALL, "quest-strategy:abort:stairs-quest-fail")
 # the Anaguma pocket's escape read (anaguma._escape_key): walking out of the pocket is never the
 # escape, the read is (owner 2026-11-10 「今の基準のまま」)
 _rows(RELOCATING, "anaguma", _RULE_ALL, "anaguma:escape-scroll")
@@ -546,6 +549,22 @@ for _row in ROWS:
     else:
         _EXACT.setdefault(_row.pattern, _row)
 _PATTERNS.sort(key=lambda row: -len(row.pattern))   # stable: equal lengths keep the table's order
+
+
+# The stair leave of an incomplete quest floor that names the quest loss it accepts: every
+# registered reason ending in ``QUEST_LEAVE_STAIR_SUFFIX`` (the emergency ladder, the flee and
+# summoner rungs, the starving leave, the quest plans' own abort and give-up).  One rule answers the
+# game's 「本当にこの階を去りますか？」 for all of them (policy_quest quest_leave_confirmation_owned):
+# a producer that leaves a quest floor by the stairs on purpose names its reason with the suffix
+# and registers it here, and the reason registry lint refuses a stair reason left unregistered.
+# n1-b life-421 (2026-11-28 18:13:47, Q31): ``quest-strategy:abort``'s '<' was in no hand list and
+# stopped on the unowned question at HP 135/568.
+QUEST_LEAVE_STAIR_SUFFIX = ":stairs-quest-fail"
+
+
+def quest_leave_stair_reasons() -> frozenset:
+    """The registered reasons whose stair key owns the quest-floor leave question."""
+    return frozenset(row.pattern for row in ROWS if row.pattern.endswith(QUEST_LEAVE_STAIR_SUFFIX))
 
 
 def lookup(reason: str | None) -> Reason | None:

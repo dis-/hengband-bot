@@ -1,5 +1,6 @@
 from __future__ import annotations
 from hengbot import angband_finale_battle
+from hengbot import reasons as reasons_registry
 from hengbot import finale_prep, return_start, search_ban
 from hengbot import angband_cap, attack_expectation, quest_optional_carry, quest_supply_gate
 from hengbot import angband_hold, conquest_budget, spare_gear
@@ -443,21 +444,16 @@ from hengbot.model import (
 )
 
 
-# The up-stair escapes that name the quest loss they accept (``_quest_exit_would_fail``):
-# emergency (policy_combat), flee and summoner (policy), starving (policy_supply).  Each is
-# posted only once the quest exit lock released, so the stair owns the leave question.
 # The birth route's first quest (Q34, owner 2026-10-26 「Q34攻略→可能な限り採掘キットを買う→Q1攻略」),
 # first among the quests of its level in the fixed-quest order (_fixed_quest_order).
 BIRTH_ROUTE_FIRST_QUEST_ID = 34
 
-QUEST_FAIL_STAIR_REASONS = frozenset({
-    "emergency:stairs-quest-fail",
-    "flee:stairs-quest-fail",
-    "summoner:stairs-quest-fail",
-    "survival:stairs-quest-fail",
-    # quest_opening_light.STAIRS_REASON: the opening light cannot be met, the floor is given up.
-    "quest-strategy:opening-light:stairs-quest-fail",
-})
+# The up-stair leaves that name the quest loss they accept (``_quest_exit_would_fail``), read from
+# the reason registry (reasons.quest_leave_stair_reasons): each is posted only once the quest exit
+# lock released, so the stair owns the leave question.
+QUEST_FAIL_STAIR_REASONS = reasons_registry.quest_leave_stair_reasons()
+# The quest plan's withdrawal by the stairs (abort_conditions.hp_ratio).
+QUEST_ABORT_STAIRS_REASON = "quest-strategy:abort" + reasons_registry.QUEST_LEAVE_STAIR_SUFFIX
 
 
 # The throwing stand's own torches taken back when none is carried
@@ -3377,16 +3373,18 @@ class QuestMixin(OpeningRouteMixin):
         ):
             here = snapshot.grid_at(snapshot.player.position)
             if here is not None and here.has_up_stairs:
-                self.last_reason = "quest-strategy:abort"
+                self.last_reason = QUEST_ABORT_STAIRS_REASON
                 return UP_STAIRS_KEY
             escape = self._escape_by_stairs(snapshot)
             if escape is not None:
-                self.last_reason = "quest-strategy:abort"
+                self.last_reason = QUEST_ABORT_STAIRS_REASON
                 return escape
             if snapshot.floor_key[2] in FIXED_QUEST_ALLOWLIST:
                 exit_key = self._fixed_quest_exit_key(snapshot, snapshot.floor_key[2])
                 if exit_key is not None:
-                    self.last_reason = "quest-strategy:abort"
+                    # The stair on the exit names the quest loss; a step toward it does not.
+                    self.last_reason = (QUEST_ABORT_STAIRS_REASON if exit_key == UP_STAIRS_KEY
+                                        else "quest-strategy:abort")
                     return exit_key
 
         if profile.quest_id == 2:
@@ -3999,6 +3997,15 @@ class QuestMixin(OpeningRouteMixin):
             aided = me_q1_torch.attack_key(self, snapshot, profile, ranked[0])
             if aided is not None:
                 return aided
+            # The stronger answer at the monster beside the player: the adjacent chooser weighs the
+            # absorbed attack powers (and the carried devices off the reviewed quest rules) against
+            # the blows per action (me_ranged_first.attack_key, D21; owner 2026-11-01 「見込みの
+            # 大きい方を使う」), None is the blow.  n1-b life-421 (2026-11-28 18:13, Q31, a Klackon
+            # Magic-Eater dual-wielding at to-hit -54) swung at the Sasquatch for about 9 per action,
+            # missing five blows a turn, until its six Healing potions were gone.
+            answer = me_ranged_first.attack_key(self, snapshot, ranked[0])
+            if answer is not None:
+                return answer
             self.last_reason = "quest-strategy:melee"
             return self._direction_key(snapshot.player.position, ranked[0].position)
 
