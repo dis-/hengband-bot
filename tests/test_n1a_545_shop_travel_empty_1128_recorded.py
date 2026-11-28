@@ -44,6 +44,9 @@ TRAVEL_ROW, STOP_ROW = 198, 199
 TRAVEL = ("\x1b`n!.", "shop:travel")
 STOP = ("", "shop:travel")
 GENERAL_STORE = 0
+# The recall read, or (since 2026-11-28, wand_tower_recharge) the Tower trip the recall read starts
+# first: this arrival (at Morivant) carries empty Staves of *Destruction* the stay recharges.
+DEPARTURES = ("town:recall-to", "town:wand-recharge:")
 
 
 def post(policy, key):
@@ -125,9 +128,9 @@ class ShopTravelEmpty545RecordedTest(unittest.TestCase):
             self.assertTrue(key, reason)
             reasons.append(reason)
             post(policy, key)
-            if reason.startswith("town:recall-to"):
+            if reason.startswith(DEPARTURES):
                 break
-        self.assertTrue(reasons[-1].startswith("town:recall-to"), reasons)
+        self.assertTrue(reasons[-1].startswith(DEPARTURES), reasons)
         self.assertFalse(any("blocked" in reason for reason in reasons), reasons)
 
     def test_revert_the_uncomposable_sale_returns_the_empty_key(self):
