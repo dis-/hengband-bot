@@ -13583,6 +13583,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_shop.py:_ration_food_ware": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_supply.py:LightJudgment.one_shot_quest_entry_reject_reason": {
     "classification": "data",
     "rows": [

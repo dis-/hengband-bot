@@ -60,6 +60,8 @@ DETECTION_SETTLERS = {
     ("policy_town", "_town_terminal_transitions"): "an open set's detection in town",
     ("policy_town", "_break_town_cycle"): "the cycle break; may open from none (GATED_SETTLERS)",
     ("town_terminal", "_commit_fundraising_run"): "an open set's committed run",
+    ("policy_fundraising", "_settle_diggerless_scavenge"):
+        "an open set (prepare or mine) no digger can be had for scavenges 1F (n1-b life-420)",
 }
 # The settlers that may open a set from none: they must ask the gate.
 GATED_SETTLERS = {("policy_town", "_break_town_cycle")}
