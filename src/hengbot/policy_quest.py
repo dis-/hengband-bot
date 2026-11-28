@@ -11,6 +11,7 @@ from hengbot.quest_opening_readiness import q34_readiness_rejection_key, release
 from hengbot.dungeon_knowledge import exploration_destination_allowed
 from hengbot.item_reservation import reserved_item_command, decision_memo
 from hengbot.magic_eater import absorb_key, planned_throw_key
+from hengbot import quest_opening_light
 from hengbot import breeder_area_attack, breeder_quest, locked_doors, me_q1_torch, me_ranged_first, once_quest_recall, quest25_battle, quest_early_sweep, quest_find_exit, quest_firing_cells, quest_force_rows, quest_light_areas, quest_one_turn_kill, quest_opening_away, quest_value, quest_ranged_force, quest_room_sweep, quest_summon_answer, quest_summoner_light, quest_sweep_target, quest_target_search, random_quest_reserve, speed_dose, threat_tiers, town_travel, tunnel_feasibility
 from hengbot.me_absorbed_substitutes import CAST_SUFFIX as ABSORBED_CAST_SUFFIX, carry_cast_key
 from hengbot.me_capability import Carry, replaced_by_absorbed, replacing_charges
@@ -445,11 +446,17 @@ from hengbot.model import (
 # The up-stair escapes that name the quest loss they accept (``_quest_exit_would_fail``):
 # emergency (policy_combat), flee and summoner (policy), starving (policy_supply).  Each is
 # posted only once the quest exit lock released, so the stair owns the leave question.
+# The birth route's first quest (Q34, owner 2026-10-26 「Q34攻略→可能な限り採掘キットを買う→Q1攻略」),
+# first among the quests of its level in the fixed-quest order (_fixed_quest_order).
+BIRTH_ROUTE_FIRST_QUEST_ID = 34
+
 QUEST_FAIL_STAIR_REASONS = frozenset({
     "emergency:stairs-quest-fail",
     "flee:stairs-quest-fail",
     "summoner:stairs-quest-fail",
     "survival:stairs-quest-fail",
+    # quest_opening_light.STAIRS_REASON: the opening light cannot be met, the floor is given up.
+    "quest-strategy:opening-light:stairs-quest-fail",
 })
 
 
@@ -3396,7 +3403,9 @@ class QuestMixin(OpeningRouteMixin):
         # passing it, then pick up and equip the lantern before any door,
         # combat, or fixed-target phase.
         opening_light = profile.engagement_plan.get("opening_light")
-        if isinstance(opening_light, dict):
+        # The contract is the light's radius (quest_opening_light.met): a character whose own
+        # light already sheds it has no lantern errand (n1-b life-421, 2026-11-28).
+        if isinstance(opening_light, dict) and not quest_opening_light.met(snapshot, opening_light):
             fuel_position = opening_light.get("fuel_position")
             if fuel_position is not None and not any(
                 item.is_oil and item.fuel > 0 for item in snapshot.inventory
@@ -3437,10 +3446,9 @@ class QuestMixin(OpeningRouteMixin):
                             for item in snapshot.inventory
                         )
                     ):
-                        self.last_reason = (
-                            "quest:blocked:opening-lantern-unfuelled"
-                        )
-                        return WAIT_KEY
+                        # A dry lantern with no oil cannot meet the contract: the floor is
+                        # given up instead of held (quest_opening_light.give_up_key).
+                        return quest_opening_light.give_up_key(self, snapshot)
                     self.last_reason = "quest-strategy:equip-opening-lantern"
                     return self._equipment_wield(
                         snapshot, "quest-launcher", carried_lantern, "light",
@@ -3453,8 +3461,9 @@ class QuestMixin(OpeningRouteMixin):
                     if here is not None and here.object_count > 0:
                         self.last_reason = "quest-strategy:pickup-opening-lantern"
                         return PICKUP_KEY
-                    self.last_reason = "quest:blocked:opening-lantern-missing"
-                    return WAIT_KEY
+                    # The lantern is gone from its cell (the auto-pick file destroyed it, n1-b
+                    # life-421): the floor is given up instead of held.
+                    return quest_opening_light.give_up_key(self, snapshot)
 
                 step = self._quest_strategy_route_step(
                     snapshot, profile, light_position
@@ -5368,10 +5377,9 @@ class QuestMixin(OpeningRouteMixin):
         if failed:
             return min(failed, key=self._fixed_quest_order)
 
-        # Q1 and Q34 are both level-five quests, so the generic (level, id)
-        # ordering otherwise selects Q1 immediately after Q34's torches become
-        # ready.  The reviewed birth route is explicitly Q34-first; retain that
-        # transaction head from procurement through acceptance.
+        # The reviewed birth route is explicitly Q34-first; retain that transaction
+        # head from procurement through acceptance (the order below puts Q34 first
+        # among the level-five quests too, _fixed_quest_order).
         if self._opening_q34_active(snapshot):
             opening_q34 = known_quests.get(34)
             if opening_q34 is not None and supported(opening_q34):
@@ -5403,11 +5411,20 @@ class QuestMixin(OpeningRouteMixin):
             quest_one_turn_kill.holds_back(self, snapshot, quest.id)
             or quest_value.holds_back(self, snapshot, quest.id))
 
-    def _fixed_quest_order(self, quest: QuestState) -> tuple[int, int]:
+    def _fixed_quest_order(self, quest: QuestState) -> tuple[int, int, int]:
+        """The fixed-quest order: by level, the first quest of the birth route (Q34) before the
+        others of its level, then by id.
+
+        Owner 2026-11-28 「Q34は開始直後に固定で受けるようにしていたものである。基本的には受ける方が
+        圧倒的に得である。」: a character the CL1 opening released (an unbuyable row,
+        quest_opening_readiness) or one past CL1 keeps Q34 ahead of Q1 and Q14 (the same level 5)
+        and takes it as soon as its rows are met.  n1-b life-421, a Klackon Magic-Eater whose
+        melee 2.88 missed the 3.5 row at CL1, was released, took Q1 (CL9) and Q14 (CL16) by the
+        (level, id) order, and Q34 only at CL31."""
         quest_id = quest.id
         info = self._quest_knowledge.get(quest_id)
         level = info.level if info is not None else quest.level
-        return level, quest_id
+        return level, int(quest_id != BIRTH_ROUTE_FIRST_QUEST_ID), quest_id
 
     @staticmethod
     def _quest_abort_hp_ratio(profile) -> float | None:

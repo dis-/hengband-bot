@@ -19,6 +19,10 @@ attempts (``history``), and the character level from which a needed but risky qu
   Zombie's innate see-invisible counts, an Amberite has none;
 - safe: the measured death rate is at most ``safe_death_rate`` over at least
   ``safe_min_attempts`` attempts (the cheap openers, Q31, Q32);
+- always: the row's ``always_take`` (QUEST_34, owner 2026-11-28 「Q34は開始直後に固定で受けるように
+  していたものである。基本的には受ける方が圧倒的に得である。」): its history is not counted (the
+  ended records do not name it), so the measured rule above read 0 attempts as not safe and passed
+  it over as no-need (n1-b life-421 took it at CL31 instead of after birth);
 - a needed quest is taken from ``min_cl`` (below it, deferred: the character keeps levelling in
   the ordinary flow); a safe one whenever its acceptance rows are met; a quest neither needed nor
   safe is passed over.  "Binding" (the need is missing one floor below the deepest recall depth:
@@ -58,6 +62,7 @@ class QuestValue:
     deaths: int
     fails: int
     min_cl: int
+    always: bool = False   # the row's ``always_take`` (an owner decision): taken whatever it fills
 
 
 @dataclass(frozen=True)
@@ -76,7 +81,7 @@ class Table:
 class Verdict:
     quest_id: int
     take: bool
-    why: str          # needed / safe / deferred / no-need / no-row
+    why: str          # always / needed / safe / deferred / no-need / no-row
     needs: frozenset  # the missing names the quest (or a quest it unlocks) fills
     binding: bool     # a need is missing one floor below the deepest recall depth
     min_cl: int
@@ -99,7 +104,8 @@ def parse(data: Any) -> Table:
             quest_id=int(entry["quest_id"]), fills=frozenset(entry.get("fills", ())),
             unlocks=tuple(int(quest) for quest in entry.get("unlocks", ())),
             wins=int(history.get("wins", 0)), deaths=int(history.get("deaths", 0)),
-            fails=int(history.get("fails", 0)), min_cl=int(entry.get("min_cl", 0)))
+            fails=int(history.get("fails", 0)), min_cl=int(entry.get("min_cl", 0)),
+            always=entry.get("always_take", False) is True)
     return Table(horizon_floors=int(data["horizon_floors"]),
                  safe_death_rate=float(data["safe_death_rate"]),
                  safe_min_attempts=int(data["safe_min_attempts"]), quests=rows)
@@ -159,6 +165,8 @@ def _verdict(policy, snapshot, quest_id: int) -> Verdict:
         snapshot, reached + values.horizon_floors, owned=True))
     needs = _needs(policy, snapshot, values, quest_id, missing, frozenset())
     binding = bool(needs & binding_gate_needs(policy, snapshot))
+    if row.always:
+        return Verdict(quest_id, True, "always", needs, binding, 0)
     if values.safe(row):
         return Verdict(quest_id, True, "safe", needs, binding, 0)
     if not needs:

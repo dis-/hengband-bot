@@ -527,18 +527,6 @@
       "halts": "final",
       "note": "a quest plan perception / position step failed"
     },
-    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:opening-lantern-missing": {
-      "kind": "requirement",
-      "halts": "blocked",
-      "note": "the Q1 opening needs a fuelled lantern",
-      "debt": "needs a buy-or-skip path"
-    },
-    "policy_quest:QuestMixin._quest_execute_key: quest:blocked:opening-lantern-unfuelled": {
-      "kind": "requirement",
-      "halts": "blocked",
-      "note": "the Q1 opening needs a fuelled lantern",
-      "debt": "needs a buy-or-skip path"
-    },
     "policy_quest:QuestMixin._quest_execute_key: quest:blocked:opening-lantern-unreachable": {
       "kind": "mechanism",
       "halts": "blocked",
