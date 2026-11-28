@@ -6119,10 +6119,9 @@ class TownMixin:
             return None
         if not destination_changed and not blocks_teleport and not unready_blockers:
             return None
-        if not destination_changed and not blocks_teleport and all(
-            self._recall_town_departure_conjuncts(
-                self._recall_departure_board(snapshot)
-            ).values()
+        if not destination_changed and not blocks_teleport and not self._departure_refusals(
+            self._recall_departure_board(snapshot),
+            snapshot.dungeon_recall_depths.get(pending_destination, 0),
         ):
             # A recall still authorised by every departure leaf cannot safely
             # be cancelled for a contradictory duplicate readiness predicate.
@@ -6646,12 +6645,33 @@ class TownMixin:
         if not (snapshot.in_town and self._visit_departure_committed
                 and not snapshot.player.recalling):
             return False
-        if self._visit_departure_minimum(snapshot)[0]["holds"]:
+        _minimum, _destination, depth = self._visit_departure_minimum(snapshot)
+        if not self._departure_refusals(snapshot, depth):
             return False
         self._visit_departure_committed = None
         if self._town_blocked_reason == "repetition":
             self._town_blocked_reason = None
         return True
+
+    def _departure_refusals(self, snapshot: Snapshot, depth: int) -> tuple[str, ...]:
+        """The leaves that refuse this board's departure: the one answer every reader of "may this
+        character depart / is this recall still good" reads (MAINTAINABILITY.md rule 3).
+
+        A departure the town end committed (``_visit_departure_committed``: the forced departure,
+        the waivable departure of departure_leaf_classes) is held to what it was committed on, the
+        departure minimum at ``depth`` (``_departure_minimum``: TOP_UP leaves at their adequacy
+        line, the weight's waiver from overweight_departure); the leaves it waived
+        (``departure_block.town_end_waived``, the OPTIONAL ones such as the better loadout) are not
+        asked again.  Any other departure is the read point's full conjunct map
+        (``_recall_town_departure_conjuncts``).  n1-a life-545 2026-11-28 09:34: the recall the
+        forced departure read was cancelled as unready because the canceller asked the full map
+        (the better loadout waiting on a pack slot), and the read point then stopped under
+        town:blocked:recall-readiness-contradiction.
+        """
+        if self._visit_departure_committed:
+            return tuple(self._departure_minimum(snapshot, depth)["failed"])
+        return tuple(name for name, value in
+                     self._recall_town_departure_conjuncts(snapshot).items() if not value)
 
     def _visit_departure_minimum(self, snapshot: Snapshot) -> tuple[dict, str | None, int]:
         """The departure minimum at the visit's own landing, its destination and depth."""
@@ -6890,9 +6910,9 @@ class TownMixin:
                 here is not None
                 and self._is_active_dungeon_entrance(here)
                 and not self._descent_is_blocked(snapshot)
-                and (not self._visit_departure_committed or self._departure_minimum(
+                and (not self._visit_departure_committed or not self._departure_refusals(
                     snapshot, self._dungeon_entry_depth(snapshot,
-                    self._active_dungeon_target(), via_recall=False))["holds"])
+                    self._active_dungeon_target(), via_recall=False)))
                 and self._dungeon_entry_allowed(
                     snapshot,
                     via_recall=False,
@@ -6973,11 +6993,8 @@ class TownMixin:
                             if gated_dest is None:
                                 return WAIT_KEY
                             strict_departure_gate = not bool(self._visit_departure_committed)
-                            if not (self._departure_minimum(snapshot,
-                                    self._dungeon_entry_depth(snapshot, gated_dungeon,
-                                                              via_recall=True))["holds"]
-                                    if self._visit_departure_committed else all(
-                                        self._recall_town_departure_conjuncts(snapshot).values())):
+                            if self._departure_refusals(snapshot, self._dungeon_entry_depth(
+                                    snapshot, gated_dungeon, via_recall=True)):
                                 # The same departure gate as the ordinary
                                 # read point: a pending withdrawal or purchase
                                 # (e.g. the Speed potion that makes the
@@ -7020,9 +7037,9 @@ class TownMixin:
                             )
                             if recall_dest is None:
                                 return WAIT_KEY
-                        if self._visit_departure_committed and not self._departure_minimum(
+                        if self._visit_departure_committed and self._departure_refusals(
                                 snapshot, self._dungeon_entry_depth(snapshot,
-                                recall_dungeon_id, via_recall=True))["holds"]:
+                                recall_dungeon_id, via_recall=True)):
                             return WAIT_KEY
                         if not self._dungeon_entry_allowed(
                             snapshot,
@@ -7883,6 +7900,7 @@ class TownMixin:
                         # The departure stage's own record of the pack the
                         # read was authorised with (town rebuild stage 3-3b).
                         self._town_recall_read_pack_slots = len(snapshot.inventory)
+                        self._town_recall_read_worn = self._recall_worn_identity(snapshot)
                         self.last_reason = f"town:recall-to-{recall_dest}"
                         key = self._town_recall_device_key(snapshot, recall, selection)
                         self._offer_execution(

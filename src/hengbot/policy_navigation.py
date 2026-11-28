@@ -1084,9 +1084,9 @@ class NavigationMixin:
                 ):
                     self._descent_refusal_reason = "fundraising-light-shortage"
                     return True
-                if self._visit_departure_committed and not self._departure_minimum(
+                if self._visit_departure_committed and self._departure_refusals(
                         snapshot, self._dungeon_entry_depth(snapshot,
-                            self._active_dungeon_target(), via_recall=False))["holds"]:
+                            self._active_dungeon_target(), via_recall=False)):
                     self._descent_refusal_reason = "town-departure-not-ready"
                     return True
                 if not self._town_restock_suppressed and not self._visit_departure_committed:

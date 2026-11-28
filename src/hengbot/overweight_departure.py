@@ -72,6 +72,22 @@ def tolerated_weight(limit: int) -> int:
     return limit + (TOLERATED_SLOWDOWN + 1) * (limit // 5) - 1
 
 
+# How much more slowdown than at the waiver the waived load may reach before the waiver lapses:
+# none.  The waiver is a fact about the speed lost, so it holds while the load costs no more
+# speed than when it was given (a ration eaten or one potion bought changes nothing the game
+# counts) and lapses once it costs more (player-speed.cpp:43-51: one speed per fifth of the
+# limit).  n1-a life-545 2026-11-28 09:34: the forced waiver at 198.4 lb (slowdown 1) allowed
+# exactly 198.4 lb, so any later purchase would have voided it.
+WAIVER_EXTRA_SLOWDOWN = 0
+
+
+def waiver_weight(limit: int, weight: int) -> int:
+    """The heaviest load the waiver given at ``weight`` keeps: the top of its slowdown step plus
+    ``WAIVER_EXTRA_SLOWDOWN``, at least the tolerated weight."""
+    step = max(TOLERATED_SLOWDOWN, slowdown(weight, limit)) + WAIVER_EXTRA_SLOWDOWN
+    return limit + (step + 1) * (limit // 5) - 1
+
+
 def tolerated(policy: Any, snapshot: Any) -> bool:
     """Whether the board's load costs at most ``TOLERATED_SLOWDOWN`` speed."""
     limit = policy._inventory_weight_limit(snapshot)
@@ -105,7 +121,7 @@ def give_way(policy: Any, snapshot: Any, cause: str, *, force: bool = False) -> 
     if raw is None or not snapshot.in_town or not (force or tolerated(policy, snapshot)):
         return False
     weight = policy._inventory_weight(snapshot)
-    allowed = max(tolerated_weight(raw), weight)
+    allowed = max(waiver_weight(raw, weight), weight)
     record = dict(time=datetime.now(timezone.utc).isoformat(),
                   reason="town:overweight-departure-waived", cause=cause, forced=force,
                   weight=weight, limit=raw, allowed=allowed,

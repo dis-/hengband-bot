@@ -26586,5 +26586,16 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "selected child; no independent success",
     "evidence": "Pure helper: the exploration frontier plus the diggable walls bordering unexplored ground (a set of cells); no key, no command. Reached through drop_hunt's call sites (2026-11-28)."
+  },
+  "policy_town.py:TownMixin._departure_refusals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "context": "Possible town/store context: retained conservatively; no module exclusion.",
+    "evidence": "pure helper: the one departure answer (MAINTAINABILITY.md rule 3, n1-a life-545 2026-11-28 09:34): the leaves refusing this board's departure, the departure minimum for a committed visit departure, else the read point's conjunct map; read by the repetition remedy, the descent gate, the lost-commit release and the recall canceller, not an independently selected game action",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "selected child; no independent success"
   }
 }

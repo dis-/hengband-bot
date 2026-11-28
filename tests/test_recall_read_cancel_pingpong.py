@@ -126,11 +126,11 @@ class RecallReadCancelClassTest(unittest.TestCase):
         policy._town_store_attempted[STORE_HOME] = board.turn
         return policy
 
-    def _visit(self, leaf, *, filler=0, certify=False, fuller=0):
+    def _visit(self, leaf, *, filler=0, certify=False, fuller=0, kit_changed=False):
         """Drive A -> B -> C; return the reasons and keys in order.
 
         ``fuller``: items board B carries beyond board A (the pack filled
-        after the read)."""
+        after the read).  ``kit_changed``: board B's worn kit differs from the read's."""
         board_a = self._board(recall=RECALL_STOCK, recalling=False, turn=READ_TURN, filler=filler)
         board_b = self._board(recall=RECALL_STOCK - 1, recalling=True, turn=READ_TURN + 10,
                               filler=filler + fuller)
@@ -157,6 +157,8 @@ class RecallReadCancelClassTest(unittest.TestCase):
             policy, "_equipment_departure_ready", return_value=True
         ):
             key = policy._town_special_key(board_a)
+            if kit_changed:
+                policy._town_recall_read_worn = ("constructed: another kit",)
             emitted.append((key, policy.last_reason))
             unmet["leaf"] = leaf
             key = policy._town_cancel_unsafe_recall_key(board_b)
@@ -203,7 +205,7 @@ class RecallReadCancelClassTest(unittest.TestCase):
                 emitted = self._visit(leaf)
                 self.assertEqual(emitted[0], ("rra", "town:recall-to-angband"))
                 self._assert_no_read_cancel_read(emitted)
-                if leaf in CANCEL_LEAVES and leaf != "free_pack_slots_ready":
+                if leaf == "combat_weapon_ready":
                     # The leaf changed after the read: one cancel, then the
                     # visit stops visibly instead of reading again.
                     self.assertEqual(
@@ -217,12 +219,23 @@ class RecallReadCancelClassTest(unittest.TestCase):
                     # leaf alone, with no slot taken since the read, is no
                     # regression (town rebuild stage 3-3b, n1-c life-205
                     # 2026-11-13 06:31: an absorbed wand's charges voided the
-                    # certificate); test_r2_a_fuller_pack_still_cancels below.
+                    # certificate); test_r2_a_fuller_pack_still_cancels below.  The loadout
+                    # leaf alone, with the same kit worn as at the read, is none either
+                    # (n1-a life-545 2026-11-28 09:34: a ration eaten during the countdown);
+                    # test_r2_a_changed_kit_still_cancels below.
                     self.assertEqual(emitted[1], (None, None))
 
     def test_r2_a_fuller_pack_still_cancels(self):
         """The pack leaf cancels when the pack holds more slots than at the read."""
         emitted = self._visit("free_pack_slots_ready", fuller=1)
+        self.assertEqual(emitted[0], ("rra", "town:recall-to-angband"))
+        self._assert_no_read_cancel_read(emitted)
+        self.assertEqual(emitted[1][1], "town:cancel-unready-recall")
+        self.assertEqual(emitted[2][1], CONTRADICTION)
+
+    def test_r2_a_changed_kit_still_cancels(self):
+        """The loadout leaf cancels when the worn kit differs from the read's."""
+        emitted = self._visit("equipment_departure_ready", kit_changed=True)
         self.assertEqual(emitted[0], ("rra", "town:recall-to-angband"))
         self._assert_no_read_cancel_read(emitted)
         self.assertEqual(emitted[1][1], "town:cancel-unready-recall")

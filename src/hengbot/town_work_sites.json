@@ -14064,6 +14064,13 @@
     ],
     "delegation": "selected child; no independent success"
   },
+  "policy_town.py:TownMixin._departure_refusals": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "policy_town.py:TownMixin._departure_supplier_counterfactual": {
     "classification": "data",
     "rows": [
