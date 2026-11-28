@@ -239,14 +239,11 @@ class FeetIdentifyDecidesEverySlotTest(unittest.TestCase):
         result = self.decided[135][1]
         self.assertEqual(_slots(result)["feet"], HARD_BOOTS)
         self.assertEqual(_slots(result)["arms"], "革グローブ [1,+2]")
-        # The town search has no fixed depth, so the depth-band descent chooses.  The half-attack
-        # limit reads the larger of the blows and the absorbed attack (speed_valuation
-        # .offense_per_action, 2026-11-28), the absorbed attack the share its uses sustain
-        # (me_loadout_offense.sustained_share, 2026-11-28, n1-b life-421): this Lv21 Magic-Eater's
-        # 21 attack uses of 50 read its 23.4 as 9.8.  Band 20's only fire resistance, the
-        # dual-wielded 焼棄のヌンチャク, drops the blows from 36.8 to 5.8 (ratio 0.27), so band 20 is
-        # refused and band 19 keeps the トライデント (as before the 11-28 offense, survival
-        # 35.46982214841637; 36.90633140348191 while the uses were not counted).
+        # The town search has no fixed depth, so the depth-band descent chooses with the melee
+        # half-limit (restored 2026-11-28 after n1-b life-421; the larger of the blows and the
+        # absorbed attack had taken band 20 here, 36.90633140348191): band 20's only fire
+        # resistance, the dual-wielded 焼棄のヌンチャク, drops the blows from 36.8 to 5.8 (0.157),
+        # so band 19 keeps the トライデント.
         self.assertEqual(result.chosen_depth, 19)
         self.assertNotIn("sub_hand", _slots(result))
         self.assertEqual(result.best.metrics.survival_turns, 35.46982214841637)

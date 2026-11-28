@@ -49,7 +49,6 @@ from hengbot.speed_valuation import (
     meets_speed_gate,
     time_device,
     time_melee,
-    time_offense,
     time_ranged,
     weighted_margin,
 )
@@ -1774,7 +1773,7 @@ def _within_half_melee(
         return list(entries)
     return [
         entry for entry in entries
-        if time_offense(entry.metrics) * 2 >= reference_melee
+        if time_melee(entry.metrics) * 2 >= reference_melee
     ]
 
 
@@ -1871,7 +1870,7 @@ def _stable_operational_best(
     # damage-ring set of n1-b life-411 under it (32.4 turns -> 28.2) and chose
     # an AC ring at 306 instead of 356 damage per time.
     pool = _within_half_melee(
-        pool, max(time_offense(entry.metrics) for entry in pool)
+        pool, max(time_melee(entry.metrics) for entry in pool)
     )
     speed_field = field_strong_speed_energy(entry.metrics for entry in pool)
 
@@ -1897,14 +1896,17 @@ def _stable_operational_best(
             if entry.metrics.survival_turns == max_survival
         ]
 
-    # The attack per game time (speed_valuation.time_offense): melee, or the absorbed power
-    # where it out-damages the blows (supervisor 2026-11-28).
-    max_dps = max(time_offense(entry.metrics) for entry in pool)
+    # Melee per game time, whatever the absorbed powers do: the bot melees where they are not
+    # used (fixed quests keep their reviewed melee strategies, me_ranged_first; a power that
+    # fails or is spent), and the quest readiness measures this melee (supervisor 2026-11-28:
+    # n1-b life-421 wore a stat-stick sub-hand weapon at 9.1 melee a turn for its absorbed 64.2
+    # and missed nearly every blow in quest 31).
+    max_dps = max(time_melee(entry.metrics) for entry in pool)
     if max_dps > 0:
         pool = [
             entry
             for entry in pool
-            if time_offense(entry.metrics) >= max_dps * 0.95
+            if time_melee(entry.metrics) >= max_dps * 0.95
         ]
 
     # combat_margin is the ratio survival / kill turns (user decision
@@ -2184,8 +2186,7 @@ def optimize_loadout(
         if free_best is None:
             raise RuntimeError("evaluated loadouts have no operational best")
         # Damage per game time (speed_valuation), as _within_half_melee.
-        # The attack per game time (speed_valuation.time_offense, supervisor 2026-11-28).
-        melee_free = max(time_offense(entry.metrics) for entry in evaluated)
+        melee_free = max(time_melee(entry.metrics) for entry in evaluated)
         floor_bands = frozenset(
             min((band for band in DEPTH_BANDS if band >= floor), default=DEPTH_BANDS[0])
             for floor in (destination_floor, gate_floor) if floor is not None)
@@ -2215,7 +2216,7 @@ def optimize_loadout(
             if floor_adopted:
                 within_melee_limit = list(satisfying)
             if not within_melee_limit:
-                melee = max(time_offense(entry.metrics) for entry in satisfying)
+                melee = max(time_melee(entry.metrics) for entry in satisfying)
                 band_decisions.append(BandDecision(
                     band, True, melee, melee_free, "melee-ratio",
                     melee / melee_free,
@@ -2227,7 +2228,7 @@ def optimize_loadout(
                     band, False, None, melee_free, "no-set", None,
                 ))
                 continue
-            melee = time_offense(band_best.metrics)
+            melee = time_melee(band_best.metrics)
             ratio = None if melee_free == 0 else melee / melee_free
             chosen_decision = BandDecision(
                 band, True, melee, melee_free, None, ratio, floor_adopted,

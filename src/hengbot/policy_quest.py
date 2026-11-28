@@ -4908,6 +4908,15 @@ class QuestMixin(OpeningRouteMixin):
             from hengbot import town_quest_reward
             return town_quest_reward.claim_key(self, snapshot, quest_id)
         if quest.status == QUEST_STATUS_TAKEN:
+            # The entry asks the acceptance's own force question of the loadout worn now
+            # (``_approved_strategy_force_ready``; supervisor 2026-11-28: n1-b life-421 accepted
+            # quest 31 at 173.88 melee, the visit's equipment transaction then wore a stat-stick
+            # sub-hand weapon, and it entered at 5.85 against the 55 asked).  Not ready: the
+            # ordinary flow goes on (the next visit's search) and the next board asks again.
+            entry_profile = self.approved_quest_strategy(quest_id)
+            if (entry_profile is not None
+                    and not self._approved_strategy_force_ready(snapshot, entry_profile)):
+                return None
             info = self._quest_knowledge.get(quest_id)
             if self.approved_quest_strategy(quest_id) is not None and info is not None and info.battlefield is not None:
                 navigator = self._quest_navigators.setdefault(

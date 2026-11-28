@@ -7,9 +7,9 @@ turn, absorbed attack 25.0), the town's combat-weapon leaf (policy ``_combat_wea
 weapon in the main hand) wielded the ロング・ソード (2d5) (+6,+2) again ('wka'), the transaction took
 it off for the shovel ('ta', 'wl'), and the flip-flop guard stopped the visit.
 
-Since 478b571d14 the search's attack cut reads the larger of the blows and the absorbed attack
-(speed_valuation.offense_per_action), and the absorbed attack was read as if every use were always
-there: 25.0 a turn from 17 マジック・ミサイル charges and two bolt rods, more than every weapon's blows
+From 478b571d14 to the dual-wield fix of 2026-11-28 the search's attack cut read the larger of the
+blows and the absorbed attack (since removed: the cuts read melee again), and the absorbed attack
+was read as if every use were always there: 25.0 a turn from 17 マジック・ミサイル charges and two bolt rods, more than every weapon's blows
 (the long sword 12.4), so every set tied on the attack and the worn shovels stayed by the worn-in-
 place tie-break.  The fix: the absorbed attack counts the share its held uses sustain (19 of the 50
 the owner names enough: me_loadout_offense ``SUSTAINED_ATTACK_USES``, 25.0 -> 9.5), and the search

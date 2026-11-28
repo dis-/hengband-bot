@@ -97,23 +97,6 @@ def time_device(metrics) -> float:
     return per_game_time(metrics.device_dps, metrics)
 
 
-def offense_per_action(metrics) -> float:
-    """The loadout's attack per player action: the larger of its melee and its best absorbed
-    attack power (supervisor 2026-11-28).
-
-    The bot's own damage model weighs the two beside a target and uses the larger
-    (me_ranged_first, owner 2026-11-01 「見込みの大きい方を使う」), and at range only the power
-    fires.  So a character whose absorbed power out-damages its blows gains nothing from a blow
-    more, and the selection's melee cuts read this instead of melee alone.  ``device_dps`` is 0
-    for every class without absorbed powers: there the value is the melee, as before."""
-    return max(metrics.expected_dps, getattr(metrics, "device_dps", 0.0) or 0.0)
-
-
-def time_offense(metrics) -> float:
-    """``offense_per_action`` per game time (``per_game_time``)."""
-    return per_game_time(offense_per_action(metrics), metrics)
-
-
 def strong_speed_energy(metrics) -> int:
     """The energy of the loadout's speed capped at +20."""
     return speed_energy(min(loadout_speed(metrics), STRONG_SPEED_CAP))
