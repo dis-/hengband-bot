@@ -720,6 +720,7 @@ class ShopMixin(InStoreMixin):
             # for sale; the other sale finders ask the same retention.
             and self._retention_surplus(snapshot, item) > 0
             and item_available(self, snapshot, item, "shop-sell", "sell")
+            and self._sale_tag_bindable(item)
             and display_signature(item) not in self._unsellable_items,
         )
 
@@ -4760,7 +4761,8 @@ class ShopMixin(InStoreMixin):
                     and item.known
                     and not self._disposal_protected_by_identification(item)
                     and self._retention_reservation(snapshot, item) == 0
-                    and item_available(self, snapshot, item, "shop-sell", "sell")]
+                    and item_available(self, snapshot, item, "shop-sell", "sell")
+                    and self._sale_tag_bindable(item)]
         remaining = list(snapshot.inventory)
         result: list[InventoryItem] = []
         while remaining:
@@ -4803,7 +4805,8 @@ class ShopMixin(InStoreMixin):
                     result.append(organization)
         return [item for item in result
                 if self._store_accepts_sale(store.store_type, item)
-                and item_available(self, snapshot, item, "shop-sell", "sell")]
+                and item_available(self, snapshot, item, "shop-sell", "sell")
+                and self._sale_tag_bindable(item)]
 
     @claims(ClaimOwner.SHOP_SELL)
     def _drop_batch_sale_off_store_page(self, snapshot: Snapshot) -> None:
@@ -4962,11 +4965,7 @@ class ShopMixin(InStoreMixin):
             has_exact_tag = self._item_has_sale_tag(item, digit)
             # Other @ inscriptions may be command bindings owned outside sale
             # policy.  Never overwrite them merely to make a batch possible.
-            has_numeric_tag = any(
-                self._item_has_sale_tag(item, value)
-                for value in "0123456789"
-            )
-            if "@" in item.inscription and not has_exact_tag and not has_numeric_tag:
+            if not self._sale_tag_bindable(item):
                 continue
             if not has_exact_tag:
                 prefix = reserved_item_command(self, snapshot, "inscribe", item, "shop-sell")
@@ -5043,6 +5042,20 @@ class ShopMixin(InStoreMixin):
             else random_teleport_is_suppressed(item)
         )
         return f"@{tag}." if suppressed else f"@{tag}"
+
+    @classmethod
+    def _sale_tag_bindable(cls, item) -> bool:
+        """The sale can bind its ``@digit`` tag to ``item`` (the batch sale selects by it): no
+        ``@`` in the inscription, or a numeric sale tag already there.  Another ``@`` is a command
+        binding owned outside the sale (realm_spell_book's ``@mc!k`` on a cast book) and is never
+        overwritten.  The one answer the sale finders (``_find_book_sale``,
+        ``_current_store_sale_candidates``: what routes the town to a store to sell) and the
+        composer (``_batch_sell_key``) read: n1-a life-545 2026-11-28 16:59-17:00 walked into the
+        Magic shop and out 25 times for the spare Lv3 Sorcery book inscribed ``@mc!k``, which the
+        finders offered and the composer skipped (town:blocked:stage-deadline:buy)."""
+        if "@" not in getattr(item, "inscription", ""):
+            return True
+        return any(cls._item_has_sale_tag(item, value) for value in "0123456789")
 
     @classmethod
     def _item_has_sale_tag(cls, item: InventoryItem, tag: str) -> bool:
