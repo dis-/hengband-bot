@@ -144,7 +144,6 @@
   "_destroy_pending": "policy|life|0|1|1339af47af84",
   "_destroy_watch": "town_visit|visit|0|1|1e6d24accd15",
   "_destroyed_circle_teleport": "sealed_pocket|floor|0|1|3ab6b3279e0e",
-  "_destruction_home_staves": "destruction_means|life|0|1|b973d94a5aa6",
   "_destruction_loot_memory": "destruction_loot|floor|0|1|a99eb3ee9f17",
   "_destruction_use_memory": "destruction_use|life|0|1|a0b7b95a8afb",
   "_detected_hold_outwaited": "summoner_wait|floor|1|1|d5e0756ec689",

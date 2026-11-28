@@ -10,8 +10,20 @@ identified Stone to Mud wand that the Tower's recharge-all would fill (``short``
 morivant_tower.charges_after_recharge above the shown charges), or carrying as its one Teleport
 Other device an empty Wand of Teleport Other (teleport_away_carry.recharge_due, owner 2026-11-14
 「1本持ち歩く」 and 2026-11-16 「実際の成功率が高い方」: n1-a life-531's thirteen empty wands, 91%
-once recharged against its rod's 26%).  The Q2 Tower trip
+once recharged against its rod's 26%), or carrying a Staff of *Destruction* the recharge adds
+uses to while the owned charged staves are short of the uses wanted (owner 2026-11-28
+「盗賊が破壊の杖をチャージして使い回せるようにして」, destruction_means ``recharge_short``: a
+character using the staff as the item; the Magic-Eater absorbs it).  The Q2 Tower trip
 (q2_tower_recharge) keeps its own errand while it applies.
+
+The staves: the Home's empty ones are taken out for this stay's trip (policy_home's catalogue
+take, destruction_means ``home_recharge_take``), the carried ones are kept in the pack for it
+(``retained_for_recharge``), and while the trip covers the shortage no staff is bought for it
+(``recharge_covers``: the Black Market's staff row and the departure's *Destruction* rung).  The
+Tower's 'a' never fails (building-recharger.cpp building_recharge_all) and costs 750 gold a charge
+(3750 an empty staff, against 70272-77196 for a 3-4 charge staff at n1-a life-545's Black Market);
+a Scroll of Recharging would blow an empty staff up one read in 12 (magic-item-recharger.cpp), so
+none is carried.
 
 「資金に余裕」: after the trip -- the inn's fares to Morivant and back and the Tower's
 whole-pack price (morivant_tower.expedition_cost) -- the gold still covers the same reserve
@@ -74,33 +86,66 @@ def observe(policy, snapshot) -> None:
         policy._wand_recharge_stay = None
 
 
-def short(snapshot) -> list:
-    """The identified Stone to Mud wands the Tower's recharge-all would fill, and the carried
-    Teleport Other wand with no charge (teleport_away_carry.recharge_due)."""
+def short(snapshot, policy=None) -> list:
+    """The identified Stone to Mud wands the Tower's recharge-all would fill, the carried
+    Teleport Other wand with no charge (teleport_away_carry.recharge_due) and, with ``policy``,
+    the carried *Destruction* staves a recharge adds wanted uses to (destruction_means
+    ``retained_for_recharge``)."""
     wands = [item for item in snapshot.inventory
              if item.tval == TVAL_WAND and item.sval == SV_WAND_STONE_TO_MUD and item.aware
              and item.known and morivant_tower.charges_after_recharge(item) > item.charges]
     away = teleport_away_carry.recharge_due(snapshot)
-    return wands + [away] if away is not None else wands
+    if away is not None:
+        wands.append(away)
+    if policy is not None:
+        from hengbot import destruction_means
+        means = destruction_means.Means(policy, snapshot)
+        wands.extend(item for item in snapshot.inventory if means.retained_for_recharge(item))
+    return wands
 
 
-def applies(policy, snapshot) -> bool:
+def _trip_possible(policy, snapshot) -> bool:
     if (snapshot.player.class_id == PLAYER_CLASS_MAGIC_EATER
             or getattr(snapshot, "protocol_version", PROTOCOL_LEGACY) < PROTOCOL_SCREEN_PARITY
-            or not morivant_tower.morivant_unlocked(snapshot) or not short(snapshot)):
+            or not morivant_tower.morivant_unlocked(snapshot)):
         return False
     from hengbot import q2_tower_recharge
     return not q2_tower_recharge.applies(policy, snapshot)
 
 
-def spare(policy, snapshot, fares: int) -> bool:
-    """「資金に余裕」: the trip leaves the optional-spending reserve in hand."""
+def applies(policy, snapshot) -> bool:
+    return bool(short(snapshot, policy)) and _trip_possible(policy, snapshot)
+
+
+def staff_trip_open(policy, snapshot) -> bool:
+    """The stay's trip can still recharge a *Destruction* staff: in town, the trip possible and
+    not yet run or closed this stay (destruction_means ``recharge_open``)."""
+    if not snapshot.in_town or not _trip_possible(policy, snapshot):
+        return False
+    record = state(policy)
+    return not record.closed and not record.recharged and (
+        not record.travelled or record.origin is not None)
+
+
+def _fares(policy, snapshot) -> int:
+    """The inn's fares of the trip from here (none at Morivant itself)."""
+    return 0 if policy._effective_town_id(snapshot) == MORIVANT_TOWN_ID else 2
+
+
+def spare(policy, snapshot, fares: int, extra: int = 0) -> bool:
+    """「資金に余裕」: the trip leaves the optional-spending reserve in hand.  ``extra``: the
+    price of what is still to be taken to the Tower (the Home's *Destruction* staves)."""
     reserve = policy._full_departure_resupply_reserve(snapshot)
     if reserve is None:
         return False
     target = getattr(policy, "_supply_stockout_gold_target", None) or 0
-    cost = morivant_tower.recharge_cost(snapshot) + fares * TOWN_TELEPORT_COST
+    cost = morivant_tower.recharge_cost(snapshot) + fares * TOWN_TELEPORT_COST + extra
     return snapshot.player.gold - cost >= max(reserve, target)
+
+
+def staff_trip_spare(policy, snapshot, extra: int) -> bool:
+    """``spare`` of the trip from here with ``extra`` gold of Home staves still to take."""
+    return spare(policy, snapshot, _fares(policy, snapshot), extra)
 
 
 def _close(record) -> None:
@@ -116,7 +161,7 @@ def _leg_key(policy, snapshot, record, destination: int, reason: str) -> str | N
 
 
 def _recharge_key(policy, snapshot, record) -> str | None:
-    if not short(snapshot):
+    if not short(snapshot, policy):
         record.recharged = True
         return None
     if record.attempts >= ATTEMPT_LIMIT or armor_smith.no_progress(record, snapshot):

@@ -353,7 +353,7 @@ REGISTRY = (
       "the floor visit's walk to the hunt piles before and during a Recall: its decisions (WALK_DECISIONS_MAX) and the piles stood on and not taken (supervisor 2026-11-28)."),
     # destruction_means
     S("_destruction_home_staves", "destruction_means", LIFE,
-      "the last complete Home catalogue's charged staves"),
+      "the last complete Home catalogue's known *Destruction* staves (charged and empty)"),
     # destruction_use
     S("_destruction_use_memory", "destruction_use", LIFE,
       "destruction_use: destruction use memory (no comment at its definition)"),
@@ -2591,6 +2591,11 @@ RESTART = {
     # records it (one entrance step-off more).
     "_home_take_refusals": Restart(MAY_BE_LOST, "home_take_admission",
                                    "empty in a new process: the next refused take records again"),
+    # destruction_means HOME_STAFF (2026-11-28: the known staves, empty ones too): a new process
+    # without it reads the Home page knowledge, and destruction_use.observe writes it again from the
+    # next complete catalogue; an older checkpoint's charged list still reads (staff_home_items).
+    "_destruction_home_staves": Restart(REBUILT, "destruction_means",
+                                        "the next complete Home catalogue writes it again"),
     # strategy_profile.for_run: cli reads the instance's strategy-profile.json again at start.
     "_instance_profile": Restart(PERSISTED, "strategy_profile",
                                  "configuration, not state: the file is read again at start"),

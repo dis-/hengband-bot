@@ -23,8 +23,9 @@ from hengbot.equipment_optimizer import (
 )
 from hengbot.equipment_optimizer import ABILITY_FLAG
 from hengbot.policy_constants import (
-    DESTRUCTION_GATE_LABEL, MID_SPEED_GATE_LABEL, SPEED_GATE_LABEL, SPEED_GATE_MINIMA,
-    SPEED_GATE_MINIMUM, required_depth_gates, required_speed,
+    DESTRUCTION_GATE_LABEL, MID_SPEED_GATE_DEPTH, MID_SPEED_GATE_LABEL, MID_SPEED_GATE_MINIMUM,
+    SPEED_GATE_DEPTH, SPEED_GATE_LABEL, SPEED_GATE_MINIMA, SPEED_GATE_MINIMUM,
+    required_depth_gates, required_speed,
 )
 from hengbot.policy_observation import ObservationMixin
 from hengbot.warrior_defense_evaluator import TR_SPEED
@@ -34,6 +35,11 @@ from hengbot.warrior_loadout_search import (
 from test_warrior_loadout_search import owned
 
 BASE_SPEED = 110
+# The depth table's speed rows (policy_constants; owner 2026-11-28 moved the +25 row from 81F to
+# SPEED_GATE_DEPTH, 91F): the last floor before each row, and a floor inside the +10 row.
+BEFORE_MID = MID_SPEED_GATE_DEPTH - 1
+LAST_MID = SPEED_GATE_DEPTH - 1
+INSIDE_MID = (MID_SPEED_GATE_DEPTH + SPEED_GATE_DEPTH) // 2
 
 
 def equipped(item_id, tval, slot, **kw):
@@ -94,21 +100,21 @@ class LifeTwoTwentyTwoSpeedTest(unittest.TestCase):
             self.assertTrue(gate.opens(found[ids]))
         self.assertTrue(plain <= set(found))
 
-    def test_the_eighty_one_band_takes_the_completed_set(self):
-        intrinsic = required_abilities(81)
+    def test_the_plus_twenty_five_band_takes_the_completed_set(self):
+        intrinsic = required_abilities(SPEED_GATE_DEPTH)
         without = optimize_loadout(
             self.items, self.evaluate, depth=None, intrinsic_abilities=intrinsic,
             has_destruction=True, current_item_ids=self.current,
             candidate_loadouts=self.search(), require_light=True, require_body=True)
-        self.assertEqual(without.band_decisions[0].band, 81)
+        self.assertEqual(without.band_decisions[0].band, SPEED_GATE_DEPTH)
         self.assertEqual(without.band_decisions[0].refusal_reason, "no-set")
-        self.assertLess(without.chosen_depth, 81)
+        self.assertLess(without.chosen_depth, SPEED_GATE_DEPTH)
         result = optimize_loadout(
             self.items, self.evaluate, depth=None, intrinsic_abilities=intrinsic,
             has_destruction=True, current_item_ids=self.current,
             candidate_loadouts=self.search(speed_gates(BASE_SPEED, SPEED_GATE_MINIMA)),
             require_light=True, require_body=True)
-        self.assertEqual(result.chosen_depth, 81)
+        self.assertEqual(result.chosen_depth, SPEED_GATE_DEPTH)
         best = result.best.loadout
         self.assertTrue({"hagen-spear", "hayabusa"} <= best.item_ids)
         self.assertEqual(best.item_at(SLOT_MAIN_HAND).id, "hagen-spear")
@@ -137,20 +143,22 @@ class LifeTwoTwentyTwoSpeedTest(unittest.TestCase):
 
 class SeventyFloorSpeedGateTest(unittest.TestCase):
     """Supervisor 2026-11-26: 70-80F ask a speed of +10 (five of the seven deaths at 76-80F before it
-    had +9 or less); since 2026-11-27 permanent, or sustained by Speed doses (haste_sustain)."""
+    had +9 or less); since 2026-11-27 permanent, or sustained by Speed doses (haste_sustain); since
+    2026-11-28 the row runs to SPEED_GATE_DEPTH - 1 (90F), the +25 row from SPEED_GATE_DEPTH."""
 
     def test_the_rows(self):
-        self.assertNotIn(MID_SPEED_GATE_LABEL, required_depth_gates(69))
-        for depth in (70, 76, 80):
+        self.assertNotIn(MID_SPEED_GATE_LABEL, required_depth_gates(BEFORE_MID))
+        for depth in (MID_SPEED_GATE_DEPTH, INSIDE_MID, LAST_MID):
             gates = required_depth_gates(depth)
             self.assertIn(MID_SPEED_GATE_LABEL, gates)
             self.assertNotIn(SPEED_GATE_LABEL, gates)
             self.assertIn(DESTRUCTION_GATE_LABEL, gates)
-        self.assertIn(SPEED_GATE_LABEL, required_depth_gates(81))
-        self.assertNotIn(MID_SPEED_GATE_LABEL, required_depth_gates(81))
-        self.assertEqual([required_speed(depth) for depth in (69, 70, 80, 81)],
-                         [0, 120, 120, 135])
-        self.assertEqual(sorted(SPEED_GATE_MINIMA), [120, 135])
+        self.assertIn(SPEED_GATE_LABEL, required_depth_gates(SPEED_GATE_DEPTH))
+        self.assertNotIn(MID_SPEED_GATE_LABEL, required_depth_gates(SPEED_GATE_DEPTH))
+        self.assertEqual([required_speed(depth) for depth in (
+            BEFORE_MID, MID_SPEED_GATE_DEPTH, LAST_MID, SPEED_GATE_DEPTH)],
+            [0, MID_SPEED_GATE_MINIMUM, MID_SPEED_GATE_MINIMUM, SPEED_GATE_MINIMUM])
+        self.assertEqual(sorted(SPEED_GATE_MINIMA), [MID_SPEED_GATE_MINIMUM, SPEED_GATE_MINIMUM])
 
     def test_the_gate_reads_the_permanent_speed(self):
         # The one predicate of the stairs, the recall landing and the floor's gap.
@@ -164,18 +172,18 @@ class SeventyFloorSpeedGateTest(unittest.TestCase):
                 SimpleNamespace(), snapshot, depth)
 
         with patch.object(destruction_use, "holds_means", return_value=True),                 patch.object(haste_sustain, "uses", return_value=0):
-            self.assertEqual(missing(board(119), 69), frozenset())
-            self.assertEqual(missing(board(119), 70), {MID_SPEED_GATE_LABEL})
-            self.assertEqual(missing(board(119), 80), {MID_SPEED_GATE_LABEL})
-            self.assertEqual(missing(board(120), 80), frozenset())
+            self.assertEqual(missing(board(119), BEFORE_MID), frozenset())
+            self.assertEqual(missing(board(119), MID_SPEED_GATE_DEPTH), {MID_SPEED_GATE_LABEL})
+            self.assertEqual(missing(board(119), LAST_MID), {MID_SPEED_GATE_LABEL})
+            self.assertEqual(missing(board(120), LAST_MID), frozenset())
             # A haste's +10 is no permanent speed.
-            self.assertEqual(missing(board(125, "yellow"), 75), {MID_SPEED_GATE_LABEL})
-            # 81F asks +25 alone (it includes +10).
-            self.assertEqual(missing(board(130), 81), {SPEED_GATE_LABEL})
-        # Supervisor 2026-11-27: doses sustained for the dive meet the 70-80F row, never 81F's.
+            self.assertEqual(missing(board(125, "yellow"), INSIDE_MID), {MID_SPEED_GATE_LABEL})
+            # The +25 row asks +25 alone (it includes +10).
+            self.assertEqual(missing(board(130), SPEED_GATE_DEPTH), {SPEED_GATE_LABEL})
+        # Supervisor 2026-11-27: doses sustained for the dive meet the +10 row, never the +25 row's.
         with patch.object(destruction_use, "holds_means", return_value=True),                 patch.object(haste_sustain, "uses", return_value=haste_sustain.RETURN_RESERVE_USES):
-            self.assertEqual(missing(board(113), 75), frozenset())
-            self.assertEqual(missing(board(130), 81), {SPEED_GATE_LABEL})
+            self.assertEqual(missing(board(113), INSIDE_MID), frozenset())
+            self.assertEqual(missing(board(130), SPEED_GATE_DEPTH), {SPEED_GATE_LABEL})
 
 
 if __name__ == "__main__":

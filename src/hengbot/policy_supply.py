@@ -868,12 +868,19 @@ class SupplyMixin:
         and all of them come back for a character holding the means.
         """
         holds_means = lambda: destruction_use.holds_means(self, snapshot)
+        return permitted_dive_depth(self._unclamped_dive_depth(snapshot), holds_means)
+
+    def _unclamped_dive_depth(self, snapshot: Snapshot) -> int:
+        """``_intended_dive_depth`` before the 50F+ *Destruction* clamp."""
         target = self._target_dungeon_id
         if target is None:
-            return permitted_dive_depth(self._planned_depth(), holds_means)
-        return permitted_dive_depth(
-            self._dungeon_entry_depth(snapshot, target, via_recall=True), holds_means
-        )
+            return self._planned_depth()
+        return self._dungeon_entry_depth(snapshot, target, via_recall=True)
+
+    def _means_held_dive_depth(self, snapshot: Snapshot) -> int:
+        """``_intended_dive_depth`` of a character holding the *Destruction* means: the depth a
+        recharge of its staves opens (destruction_means ``wanted_uses``, owner 2026-11-28)."""
+        return permitted_dive_depth(self._unclamped_dive_depth(snapshot), lambda: True)
 
     def _required_destruction_uses(self, snapshot: Snapshot) -> int:
         """The depth table's uses from 50F; short of it the owned staff the worn loadout
@@ -1355,8 +1362,13 @@ class SupplyMixin:
             # requirement publishes.  Only an item that adds the means by the depth
             # condition's definition is taken (owner 2026-11-16 「深さの条件の定義に
             # 揃える」: a scroll or an unreliable staff counts no use).
-            return (self._missing_destruction_uses(snapshot)
-                    if self._supplies_destruction(snapshot, item) else 0)
+            if self._supplies_destruction(snapshot, item):
+                return self._missing_destruction_uses(snapshot)
+            # Owner 2026-11-28 「盗賊が破壊の杖をチャージして使い回せるようにして」: an empty
+            # staff is taken only for this stay's recharge (destruction_means
+            # ``home_recharge_take``), its amount the uses the recharge adds.
+            means = destruction_means.Means(self, snapshot)
+            return means.home_take_uses if means.home_recharge_take(item) > 0 else 0
         strategy = self._carry_procurement_strategy(snapshot)
         if item_class == (TVAL_LITE, SV_LITE_TORCH):
             target, carried = self._torch_carry_requirement(snapshot, item, strategy)

@@ -3164,13 +3164,14 @@ class HomeMixin:
         if item.tval == TVAL_POTION and item.aware and item.sval == SV_POTION_RESISTANCE:
             # resist_potion drinks from the pack: the other bought potions' carry cap.
             return min(item.count, EMERGENCY_POTION_CARRY_TARGET), "resistance-potion"
-        if self._is_destruction_item(item) and self._required_destruction_uses(
-            snapshot
+        if self._is_destruction_item(item) and destruction_means.Means(self, snapshot).retains(
+            item, bool(self._required_destruction_uses(snapshot))
         ):
             # User 2026-09-23: while the intended target is 50F or deeper the
             # *Destruction* method is departure equipment, never surplus.  The
             # whole stack is reserved, so no sale, deposit or destruction
-            # selector can pick it.
+            # selector can pick it.  An empty staff is no method (owner 2026-11-28):
+            # it is kept only for this stay's Tower recharge (destruction_means ``retains``).
             return item.count, "destruction-gate"
         if (
             item.known
@@ -6982,6 +6983,10 @@ class HomeMixin:
         (destruction_means.staff_units); any other ware's shortage counts units."""
         if self._supplies_destruction(snapshot, item):
             return destruction_means.staff_units(item, missing)
+        recharge = destruction_means.Means(self, snapshot).home_recharge_take(item)
+        if recharge > 0:
+            # Owner 2026-11-28: the empty staves this stay's recharge fills (``missing`` uses).
+            return min(recharge, destruction_means.recharge_take_units(item, missing))
         return min(item.count, missing)
 
     def _home_procurement_batch_member(
@@ -7017,6 +7022,9 @@ class HomeMixin:
             # uses.  n1-a life-530 (2026-11-18 10:29-12:50) left 17 staves (63 charges) at Home
             # on ~250 round trips: the town's 50F+ gate counted them, nothing took them out.
             or self._supplies_destruction(snapshot, item)
+            # Owner 2026-11-28 「盗賊が破壊の杖をチャージして使い回せるようにして」: the empty
+            # staves this stay's Tower recharge fills (wand_tower_recharge).
+            or destruction_means.Means(self, snapshot).home_recharge_take(item) > 0
         )
 
     def _queue_home_catalogue_shortages(
@@ -7067,6 +7075,8 @@ class HomeMixin:
                 or item.is_digging_tool
                 # The departure leaf ``destruction_carried`` (policy_town) waits for it.
                 or self._supplies_destruction(snapshot, item)
+                # The recall read's Tower trip recharges it (wand_tower_recharge).
+                or destruction_means.Means(self, snapshot).home_recharge_take(item) > 0
                 or any(
                     self._store_item_is_supply(item, kind)
                     for kind in SUPPLY_STORES
