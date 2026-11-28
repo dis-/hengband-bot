@@ -274,6 +274,10 @@ _rows(NOT_ESCAPE, "quest_summon_answer", "QUEST_33's chase of a summoner: a step
 # Owner 2026-11-23 「加速して向かい、強引に邪悪側を排除する。」: the step toward the EVIL side once mixed.
 _rows(NOT_ESCAPE, "quest_mixed_assault", "QUEST_33's assault on the EVIL side once the sides are mixed: a step "
       "toward it", "quest-strategy:mixed-assault-walk")
+_rows(EXCLUDED, "quest_opening_light",
+      "Q34's opening light unmet and its floor lantern gone or dry (n1-b life-421, 2026-11-28): the plan "
+      "gives the floor up, reads Recall or takes the quest's exit stair; a plan's leave, no enemy prompted it",
+      "quest-strategy:opening-light-recall", "quest-strategy:opening-light:stairs-quest-fail")
 _rows(EXCLUDED, "quest25_battle", _RULE_PLAN, "quest25:teleport")
 _rows(EXCLUDED, "breeder_quest", _RULE_PLAN + " (Q2's breeder breakthrough)", "breeder-breakthrough:teleport")
 _RULE_FINALE = ("the 99F/100F battle's own leaves (owner 2026-11-20, verbatim: 「召喚または攻撃を受けてHPが800を"

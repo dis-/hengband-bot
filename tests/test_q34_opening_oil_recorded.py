@@ -161,9 +161,14 @@ class Q34OpeningOilRecordedTest(unittest.TestCase):
         policy._build_grid_index(next_board)
         key = policy.choose_key(next_board)
         self.assertNotEqual(key, "wd")
-        self.assertEqual(key, "5")
-        self.assertEqual(policy.last_reason,
-                         "quest:blocked:opening-lantern-unfuelled")
+        # The dry lantern with no oil cannot meet the radius-2 contract: the floor is given up,
+        # not held (quest_opening_light.give_up_key, n1-b life-421 2026-11-28).
+        # This captured board carries no Recall and its remembered map gives no walk to the start
+        # stair, so the latched return's rungs answer it (a walk, not the held '5').
+        self.assertNotEqual(key, "5")
+        self.assertNotEqual(policy.last_reason, "quest:blocked:opening-lantern-unfuelled")
+        self.assertEqual(policy._unviable_quest_floor, next_board.floor_key)
+        self.assertTrue(policy._returning_to_town)
 
     def test_fueled_lantern_is_not_refilled_and_town_keeps_working_light(self):
         policy = self.policy()

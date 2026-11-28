@@ -16865,6 +16865,20 @@
     ],
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_opening_light.py:give_up_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "delegation": "row-specific selected operation; shared child rows remain shadow"
+  },
+  "quest_opening_light.py:met": {
+    "classification": "data",
+    "rows": [
+      "data/no-independent-credit"
+    ],
+    "delegation": "selected child; no independent success"
+  },
   "quest_opening_readiness.py:q34_readiness_rejection_key": {
     "classification": "adapter",
     "rows": [

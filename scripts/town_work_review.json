@@ -19818,6 +19818,17 @@
     "observer": "shadow-v1 (effect observers pending later slices)",
     "delegation": "row-specific selected operation; shared child rows remain shadow"
   },
+  "quest_opening_light.py:give_up_key": {
+    "classification": "producer",
+    "rows": [
+      "survival"
+    ],
+    "context": "Dungeon quest floors only: called from QuestMixin._quest_execute_key on an approved quest floor whose opening light (engagement_plan.opening_light) is unmet.",
+    "admission": "_town_producer_entry / town_work.validate_emit",
+    "observer": "shadow-v1 (effect observers pending later slices)",
+    "delegation": "row-specific selected operation; shared child rows remain shadow",
+    "evidence": "Q34's opening light unmet with its floor lantern gone or dry (n1-b life-421, 2026-11-28): latches the unviable floor and the return, then the Recall read, or the walk to the floor's up stair (or quest exit) and the stair; no independent progress."
+  },
   "quest25_pocket.py:key": {
     "classification": "producer",
     "rows": [

@@ -110,8 +110,6 @@
     "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest-strategy:survey-target-cleared'": 1,
     "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest-strategy:throw-point-unreachable'": 1,
     "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest:blocked:fixed-target-not-visible'": 1,
-    "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest:blocked:opening-lantern-missing'": 1,
-    "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest:blocked:opening-lantern-unfuelled'": 1,
     "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest:blocked:opening-lantern-unreachable'": 1,
     "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest:blocked:placement-sweep-exhausted'": 1,
     "policy_quest.py:QuestMixin._quest_execute_key: unregistered wait 'quest:blocked:placement-sweep-route'": 1,
