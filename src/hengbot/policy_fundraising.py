@@ -466,6 +466,26 @@ class FundraisingMixin:
             return None
         return self._shelf_page_after_trades(record)
 
+    def _settle_diggerless_scavenge(self, snapshot: Snapshot) -> bool:
+        """Turn a mining set that cannot have a digger into the 1F scavenge (one answer).
+
+        Owner 2026-10-23 (``_diggerless_scavenge_allowed``): with no digger to be had, the carried
+        Treasure Detection walks 1F instead.  The question "can a digger be had" is that
+        predicate's alone: the mining departure's own fallback (Home and General attempted in
+        this set) never came for a General shelf seen before the set opened, which the town plan
+        then skipped on its shelf evidence.  n1-b life-420 (2026-11-28 08:31, Klackon Magic-Eater
+        Lv1): Q34 bought 16 torches and released the character (strategy-force:dps), the poverty
+        set bought 3 Treasure Detection with 52 gold, the General page (Pick 155) had no digger
+        for it, and ``mine`` waited for the General store's attempt until the town end stopped
+        as town:blocked:unmet:food_ready, three times in 35 seconds.
+        """
+        if (self._fundraising_mode not in {"prepare", "mine"}
+                or self._has_digging_tool(snapshot)
+                or not self._diggerless_scavenge_allowed(snapshot)):
+            return False
+        self._settle_fundraising_detection(snapshot)
+        return self._fundraising_mode == "scavenge"
+
     def _scavenge_allowed(self, snapshot: Snapshot) -> bool:
         """The fundraising poverty exceptions that walk 1F instead of mining."""
         return (self._detectionless_scavenge_allowed(snapshot)

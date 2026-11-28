@@ -68,6 +68,13 @@ from hengbot.purchase_rungs import (
 )
 
 
+
+def _ration_food_ware(items, gold: int):
+    """The page's ordinary food the departure buys within ``gold`` (food_supply.procurement_food:
+    a Ration or Waybread before a Biscuit), or None.  The one choice of every ordinary-food row."""
+    return next((it for it in items
+                 if food_supply.procurement_food(it, items) and it.price <= gold), None)
+
 class _ShoppingApproachEmission(str):
     """A direction carrying the identity of the producer that emitted it."""
 
@@ -2698,6 +2705,11 @@ class ShopMixin(InStoreMixin):
             # 100g mining-kit budget here made a 100g birth character visit the
             # correct store, reject every torch, and fall back to Home.
             return item
+        if (food_supply.below_trip(snapshot.player, snapshot.inventory)
+                and food_supply.food_value(item) > 0):
+            # One trip's food comes before the mining kit's reserve: the kit is what a trip
+            # earns gold with, the food is what the trip lives on (n1-b life-420, 2026-11-28).
+            return item
         reserve = self._fundraising_kit_reserve(snapshot)
         if reserve == 0:
             return item
@@ -3421,6 +3433,20 @@ class ShopMixin(InStoreMixin):
         store = snapshot.store
         if store is None:
             return None
+        if food_supply.below_trip(snapshot.player, snapshot.inventory):
+            # Survival order: an ordinary eater short of one trip's food (food_supply.below_trip,
+            # read from the board's food type and digestion) buys it before the quest carries
+            # and the other departure supplies (MAINTAINABILITY.md rule 2).  n1-b life-420
+            # (2026-11-28 08:31, Klackon Magic-Eater Lv1, 100 gold): Q34's throwing torches were
+            # this order's first row; with 34 gold and no food the same row spends 33 on 11
+            # torches and leaves nothing for a Ration (4 gold).
+            food = _ration_food_ware(tuple(
+                item for item in store.items
+                if item.count > 0
+                and ((item.tval, item.sval) not in excluded_classes
+                     or self._identify_staff_swap_purchase(item))), snapshot.player.gold)
+            if food is not None:
+                return food
         strategy = self._carry_procurement_strategy(snapshot)
         if strategy is not None:
             carry = self._quest_carry_purchase(snapshot, strategy)
@@ -3803,15 +3829,7 @@ class ShopMixin(InStoreMixin):
                 snapshot.player.food_type == FOOD_TYPE_RATION
                 and self._needs_food_restock(snapshot)
             ):
-                food = next(
-                    (
-                        it
-                        for it in items
-                        if food_supply.procurement_food(it, items)
-                        and it.price <= gold
-                    ),
-                    None,
-                )
+                food = _ration_food_ware(items, gold)
                 if food is not None:
                     return food
             return None
@@ -3849,15 +3867,7 @@ class ShopMixin(InStoreMixin):
                 if snapshot.player.food_type == FOOD_TYPE_MANA:
                     food = self._mana_food_purchase(snapshot, excluded_classes=excluded_classes)
                 elif snapshot.player.food_type == FOOD_TYPE_RATION:
-                    food = next(
-                        (
-                            it
-                            for it in items
-                            if food_supply.procurement_food(it, items)
-                            and it.price <= gold
-                        ),
-                        None,
-                    )
+                    food = _ration_food_ware(items, gold)
                 if food is not None:
                     return food
             scrolls_needed = self._mining_detection_stock_target(snapshot)
@@ -4084,15 +4094,7 @@ class ShopMixin(InStoreMixin):
             snapshot.player.food_type == FOOD_TYPE_RATION
             and self._needs_food_restock(snapshot)
         ):
-            food = next(
-                (
-                    it
-                    for it in items
-                    if food_supply.procurement_food(it, items)
-                    and it.price <= gold
-                ),
-                None,
-            )
+            food = _ration_food_ware(items, gold)
             if food is not None:
                 return food
         if not self._owns_lantern(snapshot):

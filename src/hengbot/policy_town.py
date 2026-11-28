@@ -7341,6 +7341,9 @@ class TownMixin:
         if restock is not None:
             return restock
 
+        if self._fundraising_mode == "mine":
+            # A mining set no digger can be had for scavenges 1F instead (one answer).
+            self._settle_diggerless_scavenge(snapshot)
         if self._fundraising_mode in {"mine", "scavenge"}:
             if not self._fundraising_departure_ready(snapshot):
                 # Do not let this early fundraising wait starve the ordinary
