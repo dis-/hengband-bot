@@ -4,8 +4,11 @@
 raise, 「時間あたりの打撃＋+20までを強く」.  Every damage the selection compares is per
 game time (``speed_energy`` of the loadout's permanent speed) and the survival /
 kill ratio is weighted by the speed up to +20; the depth requirements, the half
-melee floor and the 81F speed +25 requirement stay hard, the last read as one fact
-(the permanent speed) by the optimizer and the arrival check alike.
+melee floor and the speed +25 requirement (SPEED_GATE_DEPTH: 81F when written, 91F since the
+owner's 2026-11-28 「80Fから90Fまでは危険度に大きな変化はない」) stay hard, the last read as one fact
+(the permanent speed) by the optimizer and the arrival check alike.  The recorded bands of 80 were
+the deepest band short of the +25 row then; the same loadouts now reach the band below the moved
+row (SPEED_GATE_DEPTH - 1, equipment_optimizer.DEPTH_BANDS 90).
 
 Recorded: the optimizer inputs of the three viewing bots at their 2026-11-17 town
 arrivals (tests/extract_speed_valuation_1117_fixtures.py; n1-c's calibration and
@@ -35,7 +38,7 @@ from hengbot.equipment_optimizer import (
     optimize_loadout,
 )
 from hengbot.model import InventoryItem
-from hengbot.policy_constants import SPEED_GATE_LABEL, speed_energy
+from hengbot.policy_constants import SPEED_GATE_DEPTH, SPEED_GATE_LABEL, speed_energy
 from hengbot.policy_observation import ObservationMixin
 from hengbot.speed_valuation import (
     loadout_speed,
@@ -46,6 +49,7 @@ from hengbot.speed_valuation import (
 from hengbot.warrior_optimization import prepare_warrior_optimization
 
 FIXTURE = Path(__file__).with_name("fixtures") / "speed-valuation-1117"
+BELOW_SPEED_GATE = SPEED_GATE_DEPTH - 1   # the deepest band without the +25 row
 RECORDED = json.loads((FIXTURE / "recorded.json").read_text(encoding="utf-8"))
 SPEED_RING_7 = "スピードの指輪 (+7) {+速}"
 VITALITY_SPEED_RING = "活力のスピードの指輪 (+6) {+速;活}"
@@ -93,7 +97,7 @@ class RecordedSpeedChoicesTest(unittest.TestCase):
         # Fewer blows per action, far more per game time.
         self.assertLess(best.expected_dps, before["melee_output"])
         self.assertGreater(time_melee(best), before["melee_output"] * speed_energy(112) / 10)
-        self.assertEqual(preparation.result.chosen_depth, before["chosen_band"])
+        self.assertEqual(preparation.result.chosen_depth, BELOW_SPEED_GATE)
 
     def test_n1b_reaches_plus_ten_and_keeps_the_damage_ring(self):
         before = RECORDED["n1-b"]
@@ -103,7 +107,7 @@ class RecordedSpeedChoicesTest(unittest.TestCase):
         self.assertEqual(preparation.result.best.metrics.speed_bonus, 10)
         self.assertEqual(after["main_ring"], "ダメージの指輪 (+11)")
         self.assertEqual(after["sub_ring"], SPEED_RING_7)
-        self.assertEqual(preparation.result.chosen_depth, before["chosen_band"])
+        self.assertEqual(preparation.result.chosen_depth, BELOW_SPEED_GATE)
 
     def test_n1b_arrival_leaves_the_iron_geta(self):
         """The arrival board chose the ★炎の鉄ゲタ (-1) and 腕力の指輪 over the speed ring
@@ -193,7 +197,7 @@ class HardRequirementTest(unittest.TestCase):
         )
         self.assertEqual(result.best.loadout.slots[0][1].id, "ring of fire resistance")
 
-    def test_the_81f_gate_reads_the_permanent_speed(self):
+    def test_the_speed_gate_reads_the_permanent_speed(self):
         # Gear +25 on a slowed (overweight) base 108 is 133: refused; gear +20 on a
         # base 115 (an intrinsic +5) is 135: met.
         self.assertFalse(meets_speed_gate(108 + 25))
@@ -201,12 +205,12 @@ class HardRequirementTest(unittest.TestCase):
         empty = Loadout((), "empty")
         abilities = frozenset(ABILITY_FLAG)
         self.assertEqual(divable_depth(empty, intrinsic_abilities=abilities,
-                                       has_destruction=True, player_speed=133), 80)
+                                       has_destruction=True, player_speed=133), BELOW_SPEED_GATE)
         self.assertEqual(divable_depth(empty, intrinsic_abilities=abilities,
-                                       has_destruction=True, player_speed=135), 81)
+                                       has_destruction=True, player_speed=135), SPEED_GATE_DEPTH)
         self.assertEqual(loadout_speed(LoadoutMetrics(1, 1, 1, speed_bonus=25)), 135)
 
-    def test_a_haste_does_not_open_81f(self):
+    def test_a_haste_does_not_open_the_speed_gate(self):
         def board(speed, colour):
             player = SimpleNamespace(speed=speed, abilities=frozenset(ABILITY_FLAG),
                                      speed_display=(speed - 110, "", colour, False))
@@ -219,9 +223,9 @@ class HardRequirementTest(unittest.TestCase):
         self.assertEqual(permanent_player_speed(board(135, "")), 135)
         with patch.object(destruction_use, "holds_means", return_value=True):
             self.assertIn(SPEED_GATE_LABEL, ObservationMixin._missing_required_abilities(
-                SimpleNamespace(), hasted, 81))
+                SimpleNamespace(), hasted, SPEED_GATE_DEPTH))
             self.assertNotIn(SPEED_GATE_LABEL, ObservationMixin._missing_required_abilities(
-                SimpleNamespace(), slowed, 81))
+                SimpleNamespace(), slowed, SPEED_GATE_DEPTH))
 
 
 if __name__ == "__main__":
