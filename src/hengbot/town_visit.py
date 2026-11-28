@@ -460,6 +460,9 @@ class FloorHolds(_Holds):
     # The occupied pack slots the armed read was authorised with (stage 3-3b):
     # the canceller's pack leaf is a regression only when the pack is fuller.
     recall_read_pack_slots: int | None = None
+    # The worn kit (equipment identities) the armed read was authorised with: the canceller's
+    # loadout leaf is a regression only when what is worn changed (n1-a life-545 2026-11-28).
+    recall_read_worn: tuple | None = None
     # This visit already cancelled a recall as unready (the read point never
     # reads again in the same visit, the read/cancel class bound).  The town
     # change forgets it too, by name.
@@ -500,6 +503,7 @@ FLOOR_HOLD_LEGACY_NAMES = {
     "_pending_recall_dungeon_id": "pending_recall_dungeon_id",
     "_town_recall_issue_watch": "recall_issue_watch",
     "_town_recall_read_pack_slots": "recall_read_pack_slots",
+    "_town_recall_read_worn": "recall_read_worn",
     "_town_visit_unready_recall_cancelled": "unready_recall_cancelled",
     "_town_visit_purchases": "purchases",
     "_town_visit_purchase_quantities": "purchase_quantities",

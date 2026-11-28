@@ -2435,6 +2435,10 @@ _ONCE = "the record's own once-per-process mark: a new process reads its record 
 _CACHE = "the record's own write cache: a new process writes its first record"
 
 RESTART = {
+    # town_visit.FloorHolds: the worn kit the armed recall read was authorised with.  A new process
+    # has none, and the canceller then keeps its loadout leaf (``_recall_worn_changed_since_read``).
+    "_town_recall_read_worn": Restart(MAY_BE_LOST, "town_visit",
+                                      "lost: the loadout leaf is read as before the record"),
     # breeder_floor_record: the breakthrough latch and the engagement window's floor (the
     # window's own fields are its _ENGAGEMENT_FIELDS, RESTART_RECORD_TABLES).
     "_breeder_breakthrough_floor": Restart(PERSISTED, "breeder_floor_record",

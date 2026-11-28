@@ -12925,9 +12925,13 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
         on.  A recall the read point authorised therefore has no blocker until
         some leaf genuinely changes; the read's own consumption is not one.
         """
-        leaves = self._recall_town_departure_conjuncts(
-            self._recall_departure_board(snapshot)
-        )
+        landing_depth = snapshot.dungeon_recall_depths.get(destination, 0)
+        # The one departure answer (``_departure_refusals``): a committed departure is held to
+        # its minimum, never to the leaves it waived (n1-a life-545 2026-11-28 09:34).
+        refused = set(self._departure_refusals(
+            self._recall_departure_board(snapshot), landing_depth))
+        leaves = {name: name not in refused for name in (
+            "free_pack_slots_ready", "combat_weapon_ready", "equipment_departure_ready")}
         blockers: list[str] = []
         # Food gates a new town departure. An already armed recall belongs
         # to Hengband; the carried-only decision does not authorise cancelling
@@ -12939,10 +12943,32 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             and not leaves["combat_weapon_ready"]
         ):
             blockers.append("weapon-not-ready")
-        landing_depth = snapshot.dungeon_recall_depths.get(destination, 0)
-        if landing_depth > 20 and not leaves["equipment_departure_ready"]:
+        if (landing_depth > 20 and not leaves["equipment_departure_ready"]
+                and self._recall_worn_changed_since_read(snapshot)):
             blockers.append("deep-loadout-unconfirmed")
         return blockers
+
+    @staticmethod
+    def _recall_worn_identity(snapshot: Snapshot) -> tuple:
+        """The worn kit as the read records it: each worn item's identity, by slot."""
+        from hengbot.equipment_optimizer import equipment_identity
+        return tuple(sorted((item.slot, repr(equipment_identity(item)))
+                            for item in snapshot.equipment))
+
+    def _recall_worn_changed_since_read(self, snapshot: Snapshot) -> bool:
+        """Whether the worn kit differs from the one the armed read was authorised with.
+
+        The loadout leaf is the equipment search's verdict, which a countdown step re-reads on a
+        changed pack: n1-a life-545 2026-11-28 09:34 ate a Hard Biscuit during the countdown
+        (``town:eat-before-travel``), the search's pack-space relief for its better loadout
+        (``pack-space-unrelieved-current-loadout``) was read again, the leaf failed with the same
+        kit worn, the canceller undid the recall, and the read point stopped under
+        town:blocked:recall-readiness-contradiction.  A loadout the character already wears is the
+        one the read authorised; only a changed kit is a regression.  A read this policy did not
+        record keeps the leaf.
+        """
+        read_worn = getattr(self, "_town_recall_read_worn", None)
+        return read_worn is None or self._recall_worn_identity(snapshot) != read_worn
 
 
 

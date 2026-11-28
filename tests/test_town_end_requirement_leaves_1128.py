@@ -12,6 +12,11 @@ patched predicate or an edited player, and every rescue made to answer nothing
 * a TOP_UP leaf below its line and a MUST_HAVE leaf start the 1F mining cycle
   (town:end-mining-cycle, ``SAFER_FALLBACK``);
 * a MECHANISM leaf keeps its named stop.
+
+DECLARED HELD OFF (2026-11-28): the speed row's depth-gap gear (depth_gap_gear ``gate_floor`` and
+``speed_row``, 478b571d14 and 523c009eb2) is held off for the whole module.  The recorded visit
+predates it; with it the bot first takes the Ring of Speed gear from Home at row 4 (an equipment
+transaction) and the recorded visit never happens.  Without it every recorded row reproduces.
 """
 import tests  # noqa: F401 -- isolate runtime files for a bare-module run
 
@@ -23,7 +28,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
-from hengbot import departure_leaf_classes, departure_rescues, deep_climb, overweight_departure
+from hengbot import departure_leaf_classes, departure_rescues, deep_climb, depth_gap_gear
+from hengbot import overweight_departure
 from hengbot import town_terminal
 from hengbot.latch_onset_capture import checkpoint_bytes, restore_checkpoint_bytes
 from hengbot.policy import HengbotPolicy, staged_prompt_chain_matches
@@ -45,6 +51,15 @@ FAILED_BY_METHOD = {
     "combat_weapon_ready": ("_combat_weapon_ready", False),
     "teleport_items_safe": ("_teleport_blocked_by_equipment", True),
 }
+
+
+
+def setUpModule():
+    # DECLARED HELD OFF: the depth-gap gear the recorded visit predates (module docstring).
+    for name in ("gate_floor", "speed_row"):
+        patcher = mock.patch.object(depth_gap_gear, name, lambda *_a, **_k: None)
+        patcher.start()
+        unittest.addModuleCleanup(patcher.stop)
 
 
 def post(policy, key):
