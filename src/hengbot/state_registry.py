@@ -336,7 +336,7 @@ REGISTRY = (
       "The floor's trap detections (owner 2026-11-22): the pending use (turn, place), the failed uses per place, the places detected from."),
     # deep_detection_rod
     S("_deep_detection_rod", "deep_detection_rod", FLOOR,
-      "The floor's Rod of Detection zaps on 50F+ (owner 2026-11-26 「50F以降は全感知のロッドを持つ」): the pending zap (turn, place) and the failed zaps per place."),
+      "The floor's Rod of Detection zaps on 50F+ (owner 2026-11-26 「50F以降は全感知のロッドを持つ」): the pending zap (turn, place), the failed zaps per place, the running wait (first rest, cell, last rest) and whether the wait was given up until a detection is ready again."),
     # departure_rescues
     S("_departure_rescue_attempts", "departure_rescues", LIFE,
       "departure_rescues: departure rescue attempts (no comment at its definition)"),

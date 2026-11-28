@@ -33,16 +33,30 @@ stands on, is 50F or deeper):
   trap detections of door_detect_cover), so on arriving at a floor and before every step out of
   the area the last detection covered.  A charged carried rod is zapped; a Magic-Eater's absorbed
   one is cast by me_powers (the rod row's "deep-undetected-step" trigger, the floor occasion of the
-  safe-now layer; its new-floor cast is the Detect Evil row's preferred rod, as before).  While
-  the rod held recharges, the player rests in place until it is charged (``WAIT_REASON``): a step
-  out of the detected area is exactly what the owner's rule is for.
+  safe-now layer; its new-floor cast is the Detect Evil row's preferred rod, as before).  An
+  absorbed Detect Traps staff serves the same trigger when the rod has no use (its row in me_powers
+  after the rod's): its detect_traps clears CAVE_UNSAFE as the rod's does.
+* wait only for the real recharge (n1-c life-224, 2026-11-28 16:45, Angband 95F: the absorbed rod
+  read from a list shown at or before the last cast, turn 7557556, stayed "4 of 4 charging" for
+  the bot while the game had it ready, and it rested 1360 game turns until the stationary bound
+  stopped it, its 44 absorbed Detect Traps charges unused).  With no trap detection to use now
+  the player rests in place (``WAIT_REASON``) from the first rest on the cell at most the rod's
+  real recharge (``wait_deadline``, rod_recharge: a carried rod's ``pval`` ticks, an absorbed
+  rod's full recharge at the unrested rate from its count, the INT and the food state), never more
+  than ``MAX_WAIT_TICKS``.  An absorbed rod's list is shown again (me_device_attacks
+  ``mark_stale``: me_powers_refresh browses it turn-free) once the rested rate from the list last
+  shown says it is ready, so a use back is read from the game, not from the old list.  Past the bound, or with no bound
+  (a fainting character, nothing shed), the cell is given up: the step goes on undetected (the
+  last resort, ``GIVE_UP_EVENT`` on stderr).
 
 Nothing refuses 50F+ without the rod (not decided: the owner was not asked).
 """
 
 from __future__ import annotations
 
-from hengbot import door_detect_cover, fundraising_route, me_capability
+import sys
+
+from hengbot import door_detect_cover, fundraising_route, me_capability, rod_recharge
 from hengbot.deep_admission import DEEP_FLOOR_DEPTH
 from hengbot.magic_eater_devices import PLAYER_CLASS_MAGIC_EATER
 from hengbot.model import SV_ROD_DETECTION, TVAL_ROD
@@ -57,6 +71,14 @@ FAILURES_PER_PLACE = 3
 DEPTH = DEEP_FLOOR_DEPTH
 # One rest per decision while the rod recharges: player turns (the rod's 99 at most).
 WAIT_PLAYER_TURNS = 10
+# The longest wait on one cell: a carried rod's full recharge (rod_recharge.DETECTION_ROD_PVAL
+# ticks, 990 game turns), the wait the 2026-11-26 rule was made with.  An absorbed rod of n1-c
+# life-224 (4 rods, INT index 16: adj_mag_mana 11) sheds 19 a tick unrested, 38 resting, of the
+# 1584 a cast adds: 84 and 42 ticks.
+MAX_WAIT_TICKS = rod_recharge.DETECTION_ROD_PVAL
+GIVE_UP_EVENT = f"{REASON}:wait-given-up"
+# me_powers' trigger of the trap detections cast before a step out of the detected area.
+TRIGGER = "deep-undetected-step"
 FAILED = frozenset({"うまくロッドを使えなかった。", "You failed to use the rod properly."})
 
 
@@ -145,6 +167,10 @@ def _memory(policy, snapshot) -> dict:
     if memory is None or memory.get("floor") != snapshot.floor_key:
         memory = {"floor": snapshot.floor_key, "pending": None, "failed": {}}
         setattr(policy, MEMORY, memory)
+    # The running wait (first rest's turn, cell, last decision sequence) and the given-up cells
+    # (a record pickled before 2026-11-28 lacks them).
+    memory.setdefault("wait", None)
+    memory.setdefault("given_up", set())
     return memory
 
 
@@ -166,10 +192,72 @@ def _deep_floor(snapshot) -> bool:
             and snapshot.store is None and not getattr(snapshot, "inside_arena", False))
 
 
-def key(policy, snapshot) -> str | None:
-    """On 50F+, before a step out of the trap-detected area: zap the carried rod, else wait for
-    the rod held (carried or absorbed) to recharge."""
+def _trap_detection_ready(policy, snapshot) -> bool:
+    """An absorbed power of me_powers' ``TRIGGER`` rows with a use: the Rod of Detection, else the
+    Detect Traps staff (me_powers casts the first by its priority on the floor occasion)."""
     from hengbot import me_powers
+    return any(TRIGGER in power.triggers and me_capability.charges(policy, snapshot, *power.ident) > 0
+               for power in me_powers.POWERS)
+
+
+def _absorbed_recharge(policy, snapshot):
+    """(the most ticks a wait for the absorbed rod can take: a full recharge from a cast, the turn
+    its list should show a use again at the rested rate), from the list last shown and the board
+    (rod_recharge); None when the board does not give them."""
+    from hengbot.me_power_success import int_index
+    entry = (getattr(policy, "_me_device_lists", None) or {}).get("rod")
+    row = me_capability.observed_row(policy, "rod", SV_ROD_DETECTION)
+    index = int_index(snapshot.player)
+    unrested = rod_recharge.regen_amount(snapshot.player.food_state, resting=False)
+    rested = rod_recharge.regen_amount(snapshot.player.food_state, resting=True)
+    if entry is None or row is None or index is None or unrested is None:
+        return None
+    count, charging = row.get("max"), row.get("charging")
+    if not isinstance(count, int) or not isinstance(charging, int):
+        return None
+    longest = rod_recharge.absorbed_ready_ticks(count, count, index, unrested)
+    soonest = rod_recharge.absorbed_ready_ticks(count, charging, index, rested)
+    if longest is None or soonest is None:
+        return None
+    return longest, entry[0] + rod_recharge.game_turns(soonest)
+
+
+def wait_deadline(policy, snapshot, memory, rod, recharge):
+    """The last turn the wait on this cell may rest to, or None when the recharge cannot be
+    bounded (no wait); ``recharge`` is the absorbed rod's ``_absorbed_recharge``.
+
+    The wait lasts at most the real recharge of the rod held from the first rest on the cell: a
+    carried rod's pval ticks, an absorbed rod's full recharge at the unrested rate; with both, the
+    sooner; never more than ``MAX_WAIT_TICKS``."""
+    if rod_recharge.regen_amount(snapshot.player.food_state, resting=False) is None:
+        return None  # fainting: the regeneration may be 0 (starving), nothing recharges
+    here = snapshot.player.position
+    wait = memory["wait"]
+    longest = rod_recharge.game_turns(MAX_WAIT_TICKS)
+    if wait is None or wait[1] != here or snapshot.turn - wait[2] > longest:
+        wait = (snapshot.turn, here, snapshot.turn)
+    memory["wait"] = (wait[0], here, snapshot.turn)
+    ticks = [MAX_WAIT_TICKS]
+    if rod is not None:
+        ticks.append(rod_recharge.carried_ready_ticks())
+    if recharge is not None:
+        ticks.append(recharge[0])
+    return wait[0] + rod_recharge.game_turns(min(ticks))
+
+
+def _give_up(memory, snapshot, deadline) -> None:
+    memory["given_up"] = True
+    memory["wait"] = None
+    position = snapshot.player.position
+    print(f"<{GIVE_UP_EVENT}> turn {snapshot.turn} at ({position.y},{position.x}): the rod held "
+          f"was not ready by turn {deadline}; stepping on undetected", file=sys.stderr)
+
+
+def key(policy, snapshot) -> str | None:
+    """On 50F+, before a step out of the trap-detected area: zap the carried rod, else leave an
+    absorbed trap detection with a use to me_powers, else wait for the rod held (carried or
+    absorbed) to recharge, at most its real recharge (``wait_deadline``)."""
+    from hengbot import me_device_attacks, me_powers
     from hengbot.item_reservation import reserved_item_command
 
     if not _deep_floor(snapshot):
@@ -193,13 +281,24 @@ def key(policy, snapshot) -> str | None:
         zap = reserved_item_command(policy, snapshot, "rod", rod)
         if zap is not None:
             memory["pending"] = (snapshot.turn, here)
+            memory["wait"], memory["given_up"] = None, False
             policy.last_reason = ZAP_REASON
             return zap
-    if eaten and me_capability.charges(policy, snapshot, "rod", SV_ROD_DETECTION) > 0:
-        # The absorbed rod is cast by me_powers' floor occasion (safe-now layer); declined there
-        # (its hostile rule, its failures), it is not waited for either.
+    if _trap_detection_ready(policy, snapshot):
+        # Cast by me_powers' floor occasion (safe-now layer); declined there (its hostile rule,
+        # its failures), it is not waited for either.
+        memory["wait"], memory["given_up"] = None, False
         return None
-    if player.recalling or policy._physical_hostiles(snapshot):
+    recharge = _absorbed_recharge(policy, snapshot) if eaten else None
+    if recharge is not None and snapshot.turn >= recharge[1]:
+        # The rested rate has the absorbed rod ready: the game shows its list again before the
+        # next decision (me_powers_refresh.resume_read_key, no game time).
+        me_device_attacks.mark_stale(policy, {"rod"})
+    if player.recalling or policy._physical_hostiles(snapshot) or memory["given_up"]:
+        return None
+    deadline = wait_deadline(policy, snapshot, memory, rod, recharge)
+    if deadline is None or snapshot.turn > deadline:
+        _give_up(memory, snapshot, deadline)
         return None
     # The rod recharges: rest in place (a monster coming into view cuts the rest short, and the
     # ladder above answers it).

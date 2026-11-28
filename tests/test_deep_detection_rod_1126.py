@@ -123,6 +123,25 @@ class RuleTest(unittest.TestCase):
         with mock.patch.object(me_powers, "utility_device_permitted", return_value=True):
             self.assertIsNone(deep_detection_rod.key(policy, _board(1, (20, 20), [rod], depth=49)))
 
+    def test_a_charging_carried_rod_is_waited_for_its_recharge_then_given_up(self):
+        # n1-c life-224 (2026-11-28): the wait ends by itself at the rod's real recharge
+        # (rod_recharge: pval 99 ticks, 990 game turns from the first rest on the cell).
+        from hengbot import rod_recharge
+        policy = _policy()
+        policy._physical_hostiles = lambda snapshot: []
+        policy._recent = []
+        rod = _item(TVAL_ROD, SV_ROD_DETECTION, charging=True, charging_count=1)
+        unsafe = tuple(tuple(True for _ in range(40)) for _ in range(40))
+        longest = rod_recharge.game_turns(rod_recharge.carried_ready_ticks())
+        keys = []
+        with mock.patch.object(me_powers, "utility_device_permitted", return_value=True):
+            for turn in range(1000, 1000 + longest + 200, 100):
+                board = _board(turn, (20, 20), [rod], unsafe=unsafe)
+                board.player.food_state = "normal"
+                keys.append((turn, deep_detection_rod.key(policy, board)))
+        self.assertTrue(all(key == "R10\r" for turn, key in keys if turn <= 1000 + longest), keys)
+        self.assertTrue(all(key is None for turn, key in keys if turn > 1000 + longest), keys)
+
 
 if __name__ == "__main__":
     unittest.main()

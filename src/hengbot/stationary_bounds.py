@@ -53,16 +53,20 @@ where the producer already counts its holds in decisions.  The values and why:
   companion, so they continue the episode.
 * ``deep-detection-rod:wait-recharge`` (deep_detection_rod.key, the rest ``R10`` on 50F+ while the
   Rod of Detection held recharges before a step out of the trap-detected area, owner 2026-11-26
-  「50F以降は全感知のロッドを持つ」): ``DETECTION_ROD_RECHARGE_MAX_GAME_TURNS`` -- the rod's recharge,
-  BaseitemDefinitions.jsonc id 375 pval 99 (the timeout a zap adds, cmd-zaprod.cpp), counted down
-  one a world tick for a single rod, plus one rest of slack.
+  「50F以降は全感知のロッドを持つ」): ``DETECTION_ROD_RECHARGE_MAX_GAME_TURNS``.  The wait ends by
+  itself: deep_detection_rod gives the cell up (the step goes on undetected) past the rod's real
+  recharge (rod_recharge: a carried rod's pval 99 ticks, an absorbed one from its last list), at
+  most ``deep_detection_rod.MAX_WAIT_TICKS`` from the first rest on the cell, and reads an absorbed
+  rod's list again once it should be ready (n1-c life-224 2026-11-28: a list left stale since the
+  last cast held the wait 1360 game turns, to this bound).  The bound, that longest wait plus one
+  rest of slack, is reached only when that mechanism breaks.
 """
 
 from __future__ import annotations
 
 from typing import NamedTuple
 
-from hengbot import recall_wait_reach
+from hengbot import recall_wait_reach, rod_recharge
 from hengbot.policy_constants import (
     DETECTED_THREAT_HOLD_MAX_GAME_TURNS,
     FRUITLESS_DISENGAGE_LIMIT,
@@ -92,8 +96,9 @@ QUEST_HOLD_UNREACHABLE_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 QUEST_BLOCKED_HOLD_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 IDLE_WAIT_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
 NONE_WAIT_MAX_GAME_TURNS = NO_END_HOLD_MAX_GAME_TURNS
-# BaseitemDefinitions.jsonc Rod of Detection (id 375) pval 99, and one R10 rest of slack.
-DETECTION_ROD_RECHARGE_TICKS = 99
+# deep_detection_rod.MAX_WAIT_TICKS (the carried rod's pval 99, rod_recharge; not imported: that
+# module sits above this one), and one R10 rest of slack.
+DETECTION_ROD_RECHARGE_TICKS = rod_recharge.DETECTION_ROD_PVAL
 DETECTION_ROD_RECHARGE_MAX_GAME_TURNS = (DETECTION_ROD_RECHARGE_TICKS + 10) * recall_wait_reach.TURNS_PER_TICK
 # quest25_battle_board.RECHARGE_REST_LIMIT (not imported: this module sits under the battle's).
 SUMMONED_RECHARGE_REST_MAX_DECISIONS = 30
