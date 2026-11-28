@@ -43,7 +43,7 @@ MEMORY = "_sent_away_t1"
 TRIGGER = "teleported-away-t1"
 THREAT_REASON = "me-power:unbeatable-in-range:teleport-away"
 # A caster's Teleport Away spell at the same trigger (realm_spells, owner 2026-11-26 「盗賊は魔法を
-# 使える」): the same beam (cmd-spell.cpp sorcery Teleport Away: teleport_monster), remembered alike.
+# 使える」): the same AWAY_ALL beam (realm-sorcery.cpp:205-219 fire_beam), remembered alike.
 SPELL_THREAT_REASON = "realm-spell:unbeatable-in-range:teleport-away"
 THREAT_REASONS = frozenset({THREAT_REASON, SPELL_THREAT_REASON})
 VANISHED = ("が消え去った！", " disappears!")   # effect/effect-monster.cpp:546
