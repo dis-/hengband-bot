@@ -9428,13 +9428,17 @@ class TownRecallReturnTest(unittest.TestCase):
         conjuncts["light_ready"] = False
         pol._recall_town_departure_conjuncts = lambda _snapshot, **_kwargs: dict(conjuncts)
 
+        # Coordinator 2026-11-28 (departure_leaf_classes TOP_UP, e870d5e3c9): the worn lantern is
+        # an adequate light, so the town end departs without the leaf and records it; the block
+        # telemetry still names the failed gate, leaf and values.
         with patch.object(pol, "_town_claims_active", return_value=False):
-            self.assertEqual(pol._town_special_key(snap), WAIT_KEY)
-        self.assertEqual(pol.last_reason, "town:blocked:unmet:light_ready")
+            self.assertEqual(pol._town_special_key(snap), "rra")
+        self.assertEqual(pol.last_reason, "town:repetition-depart:recall")
         self.assertEqual(pol._town_wander_streak, 0)
         block = pol.departure_block_state()
         self.assertEqual(block["gate"], "town_departure_ready")
         self.assertEqual(block["failed"], ["light_ready"])
+        self.assertEqual(block["town_end_waived"], ["light_ready"])
         self.assertFalse(block["values"]["light_ready"])
         self.assertEqual(
             block["diagnostics"]["free_pack_slots"], PACK_CAPACITY - len(snap.inventory)
