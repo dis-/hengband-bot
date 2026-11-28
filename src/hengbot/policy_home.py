@@ -386,6 +386,18 @@ class HomeMixin:
             if snapshot.store.store_type == target:
                 key = self._town_producer_entry("_store_sell_key", lambda: self._store_sell_key(
                     snapshot, item, "town:overweight-surplus-sold:home-full"), family="shop-sell")
+                if overweight_departure.sale_uncomposed(key):
+                    # No sale was composed (the reservation refuses the reserved quantity the
+                    # shed chose; n1-a life-545 2026-11-28 08:43: 3 of 8 Hard Biscuits at the
+                    # General Store, _batch_sell_key returned "" and the empty key halted the
+                    # bot).  What cannot be shed departs (overweight_departure.give_way force),
+                    # and the page is left.
+                    overweight_departure.give_way(self, snapshot, "shed-sale-uncomposable", force=True)
+                    self.last_reason = "shop:leave-overweight-surplus"
+                    self._offer_execution(LEAVE_STORE_KEY, producer="shop-sell",
+                        work_id="overweight-surplus-leave", next_step="store.leave.send",
+                        expected_effect="outside-store", budget_ref="SELL_ATTEMPT_LIMIT")
+                    return LEAVE_STORE_KEY
                 if (key and key.startswith((SELL_KEY, "{")) and self._in_store_ops_active()
                         and self._store_visit is not None):
                     key = self._in_store_commit_operation(snapshot, key)

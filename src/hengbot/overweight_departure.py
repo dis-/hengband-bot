@@ -158,6 +158,13 @@ def relief_spent_key(policy: Any, snapshot: Any, cause: str = "town-end-relief-s
         family="shop-sell")
 
 
+def sale_uncomposed(key: str | None) -> bool:
+    """Whether the relief's in-store sale composed no key (None or the empty ``""`` of
+    ``_batch_sell_key``): the relief then gives way with ``force`` and leaves the page, so no
+    empty key reaches the driver (n1-a life-545 2026-11-28 08:43, no-key-exhausted)."""
+    return not key
+
+
 def shed_candidates(policy: Any, snapshot: Any, chosen: list, *, extra: int = 0) -> list:
     """Reserved quantities to shed after ``chosen`` (the relief's surplus rows), cheapest first.
 
