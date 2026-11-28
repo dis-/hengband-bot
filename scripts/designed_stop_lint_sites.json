@@ -22,11 +22,6 @@
       "note": "50F+ arrival without *Destruction* (owner 2026-11-18 feedback)",
       "debt": "owner rule \"no 50F without *Destruction*\"; deep_climb should climb out instead of stopping"
     },
-    "equipment_visit_journal:observe: town:blocked:equipment-slot-flipflop:*": {
-      "kind": "mechanism",
-      "halts": "final",
-      "note": "a slot worn A, B, A in one visit (a decision loop; owner 2026-11-22 named stop)"
-    },
     "finale_hold:_stop: town:blocked:*:step-limit": {
       "kind": "mechanism",
       "halts": "town-fuse",

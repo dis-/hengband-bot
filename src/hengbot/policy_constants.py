@@ -6,7 +6,6 @@ from enum import Enum
 from hengbot import reasons, torch_release
 from hengbot.town_visit_plan import CYCLE_BREAK_REASON, STAGE_DEADLINE_STOP_PREFIX
 from hengbot.approach_answer import WAIT_STOP_PREFIX as APPROACH_WAIT_STOP_PREFIX
-from hengbot.equipment_visit_journal import STOP_PREFIX as EQUIPMENT_FLIPFLOP_STOP_PREFIX
 from hengbot.equipment_visit_journal import BANNED_STUCK_PREFIX as BANNED_GEAR_STUCK_STOP_PREFIX
 from hengbot.model import (
     Position, SV_SCROLL_TELEPORT, TVAL_ARROW, TVAL_BOLT, TVAL_SHOT,
@@ -482,11 +481,9 @@ FINALE_NOT_IN_TOWN_STOP_PREFIX = 'town:blocked:finale-not-in-town:'
 # for its 96F+ depth, no other dungeon's landing fits the dive for it (owner 2026-11-25, policy_town
 # ``_finale_funds_dive_key``; never a 1F mining run).  A stop for the owner, not a wait.
 FINALE_FUNDS_NO_DIVE_STOP = 'town:blocked:finale-funds-no-dive-destination'
-# EQUIPMENT_FLIPFLOP_STOP_PREFIX: a slot worn A, B, A in one town visit (owner 2026-11-22,
-# equipment_visit_journal), named after the slot.
 POLICY_FINAL_STOP_PREFIXES = (TOWN_END_SURVIVAL_STOP_PREFIX, TOWN_END_UNMET_STOP_PREFIX,
                               OWNER_RETIRED_BURST_AFTER_PREFIX, STAGE_DEADLINE_STOP_PREFIX,
-                              APPROACH_WAIT_STOP_PREFIX, EQUIPMENT_FLIPFLOP_STOP_PREFIX,
+                              APPROACH_WAIT_STOP_PREFIX,
                               BANNED_GEAR_STUCK_STOP_PREFIX, STATIONARY_EXHAUSTED_STOP_PREFIX,
                               PLAN_GENERIC_REFUSED_STOP_PREFIX, FINALE_BM_CLOSED_STOP_PREFIX,
                               FINALE_NOT_IN_TOWN_STOP_PREFIX, FINALE_FUNDS_NO_DIVE_STOP)

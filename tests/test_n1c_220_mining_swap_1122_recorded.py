@@ -161,7 +161,7 @@ class HandTrailRecordsTheRoundTripTest(_Visit):
                          [True, False, True])
         for board in boards:
             equipment_visit_journal.observe(policy, board)
-            self.assertIsNone(equipment_visit_journal.held_stop(policy, board))
+            self.assertIsNone(equipment_visit_journal.journal(policy).get("settle"))
         rows = [row for row in equipment_visit_journal.journal(policy)["rows"]
                 if row["kind"].startswith(equipment_visit_journal.HAND_ROUNDTRIP_EVENT)]
         self.assertEqual([row["kind"] for row in rows],
