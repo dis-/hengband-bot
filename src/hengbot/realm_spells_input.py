@@ -9,7 +9,16 @@ me_menu.MagicEaterMenu, whose ``advance`` this reuses):
   spell's get_aim_dir.  The command ends at command input; a failure (「呪文をうまく唱えられなかった！」)
   or too little mana (「その呪文を唱えるのに十分なマジックポイントがない。」, over_exert off) is
   read there and named in the operation's outcome (``failed:realm-spell``, which me_powers' floor
-  memory counts as a failed use).  The key is the caster's whatever its reason (an escape read's
+  memory counts as a failed use).
+* a cast aimed at a cell ``m`` + book + letter + ``@y,x`` (the SENSED_THREAT Teleport Away,
+  me_powers ``Context.aim``: a hostile known only by detection is not target_able,
+  target/target-preparation.cpp:34-59, so the beam is aimed at a grid whose line passes it):
+  get_aim_dir (target/target-getter.cpp:69-100) is answered ``*`` (target_set), then the target
+  prompt from its published cursor: ``p`` to the free mode at the player
+  (target/target-setter.cpp:323-334), a direction key per grid and ``t`` at the cell, which the free
+  mode makes a grid target whatever stands there (:476-490; a grid target is always okay,
+  target/target.cpp:32-35).  The answers are the Magic-Eater device walk's
+  (me_device_attacks_input ``aim_or_target`` / ``walk_to_goal``), one walk for both menus.  The key is the caster's whatever its reason (an escape read's
   stand-in keeps the ladder's reason, realm_spells.SpellMeans): no other owner composes ``m`` +
   two lowercase letters (the Magic-Eater's keys name the kind in uppercase).
 * study ``G`` + book slot + spell letter under realm_spell_book.STUDY_REASON: do_cmd_study (:716)
@@ -42,6 +51,7 @@ from dataclasses import dataclass, replace
 import re
 
 from hengbot.input_executor import Continuation, ScreenKind, recall_destination_listed
+from hengbot.me_device_attacks_input import aim_or_target, walk_to_goal
 from hengbot.me_menu import ESC, LIST_CHOICE_KINDS, MagicEaterMenu, label_in_view, owned_item_prompt
 from hengbot.realm_spell_book import BROWSE_REASON, STUDY_REASON
 
@@ -74,7 +84,8 @@ STUDY_FAILED = "failed:realm-spell-study"
 BROWSE_FAILED = "failed:realm-spell-browse"
 
 _CAST_KEY = re.compile(r"m(?P<book>[a-w])(?P<letter>[a-h])"
-                       r"(?:(?P<direction>[1-9])|(?P<confirm>y)|(?P<target>[a-w]|-|/[a-z]))?")
+                       r"(?:(?P<direction>[1-9])|@(?P<y>\d+),(?P<x>\d+)|(?P<confirm>y)"
+                       r"|(?P<target>[a-w]|-|/[a-z]))?")
 _STUDY_KEY = re.compile(r"G(?P<book>[a-w])(?P<letter>[a-h])")
 _BROWSE_KEY = re.compile(r"b(?P<book>[a-w])")
 
@@ -87,6 +98,7 @@ class SpellStep(Continuation):
     target: str = ""                # an identification's item answer ("a", "-", "/b") or a
                                     # surface recall's dungeon letter
     confirm: bool = False           # Teleport Level's input_check, answered ``y``
+    goal: tuple[int, int] | None = None   # the cell (y, x) an aimed cast's target cursor walks to
     stage: str = "book"
     attempts: int = 0
 
@@ -101,7 +113,9 @@ def compile_spell(key, owner):
     if (match := _CAST_KEY.fullmatch(key)) is not None:
         return "m", [SpellStep(frozenset(), match["direction"] or "", purpose="cast",
                                book=match["book"], letter=match["letter"],
-                               target=match["target"] or "", confirm=bool(match["confirm"]))]
+                               target=match["target"] or "", confirm=bool(match["confirm"]),
+                               goal=(int(match["y"]), int(match["x"]))
+                               if match["y"] is not None else None)]
     return None
 
 
@@ -128,7 +142,13 @@ class SpellMenu(MagicEaterMenu):
     stall_text = "realm spell menu made no progress"
     unexpected_text = "unexpected prompt after a realm spell answer"
     watches_failures = False           # read at command input (``command_ends``)
-    unasked_stages = frozenset({"aim", "target", "confirm"})
+    unasked_stages = frozenset({"aim", "target", "confirm", "cell"})
+    # The cursor walk to an aimed cell takes a key per grid: the device walk's bound
+    # (MagicEaterMenu.stall_limit), not the re-asked spell question's.
+    walk_stall_limit = MagicEaterMenu.stall_limit
+
+    def stall_bound(self, step):
+        return self.walk_stall_limit if step.stage == "cell" else self.stall_limit
 
     def advance(self, executor, screen, match, deadline, outcome):
         operation = executor.active
@@ -158,7 +178,7 @@ class SpellMenu(MagicEaterMenu):
         if not _spell_prompt(step, seen) or step.attempts > 0:
             # Asked again: the game would not take the letter (「…ことはできません。」).
             raise ValueError("realm spell refused at its prompt")
-        return step.letter, ("aim" if step.keys else "confirm" if step.confirm
+        return step.letter, ("aim" if step.keys or step.goal else "confirm" if step.confirm
                              else "target" if step.target else "done")
 
     def _confirm_stage(self, step, seen, operation):
@@ -166,6 +186,12 @@ class SpellMenu(MagicEaterMenu):
                 or not seen.match.feature.startswith(TELEPORT_LEVEL_PROMPTS)):
             raise ValueError("unowned realm spell confirmation")
         return "y", "done"
+
+    def _aim_stage(self, step, seen, operation):
+        return aim_or_target(self, step, seen, operation, "cell")
+
+    def _cell_stage(self, step, seen, operation):
+        return walk_to_goal(step, seen, "cell")
 
     def _target_stage(self, step, seen, operation):
         if seen.match is not None and seen.match.kind is ScreenKind.DUNGEON_CHOICE:
@@ -196,7 +222,7 @@ class SpellMenu(MagicEaterMenu):
         return ESC, "done"
 
     stages = {"book": _book_stage, "spell": _spell_stage, "list": _list_stage,
-              "aim": MagicEaterMenu.aim_stage, "confirm": _confirm_stage,
+              "aim": _aim_stage, "cell": _cell_stage, "confirm": _confirm_stage,
               "target": _target_stage, "after": _after_stage}
     ended_stages = frozenset({"done", "after"})
 

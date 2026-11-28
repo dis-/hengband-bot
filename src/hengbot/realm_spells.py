@@ -496,8 +496,9 @@ def castable(policy, snapshot, spell_id: int, min_success: int, *, escape: bool 
 
 
 def cast_key(snapshot, spell_id: int, direction: str = "") -> str:
-    """``m`` + the book's slot + the spell's letter (+ a direction): realm_spells_input answers each
-    question at its own prompt."""
+    """``m`` + the book's slot + the spell's letter (+ a direction, or ``@y,x`` for a cell the
+    target cursor walks to: me_powers ``Context.aim``): realm_spells_input answers each question
+    at its own prompt."""
     spell = BY_ID[spell_id]
     book = book_item(snapshot, spell.book)
     return "m" + book.slot + spell.letter + direction

@@ -232,7 +232,7 @@ class MagicEaterMenu:
             operation.continuations.pop(0)
             return None
         try:
-            if step.attempts >= self.stall_limit:
+            if step.attempts >= self.stall_bound(step):
                 raise ValueError(self.stall_text)
             answer, stage = self.answer(step, seen, operation)
             self.before_post(executor, step, operation, deadline)
@@ -252,6 +252,10 @@ class MagicEaterMenu:
         executor._bound_screen_value = screen
         operation.continuations[0] = after
         return executor._post_and_barrier(answer, deadline, role="answer")
+
+    def stall_bound(self, step):
+        """The answers one stage may give before the walk is a stall."""
+        return self.stall_limit
 
     def answer(self, step, seen, operation):
         stage = self.stages.get(step.stage)
