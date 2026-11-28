@@ -406,6 +406,9 @@ class EquipmentOptimizerTest(unittest.TestCase):
             # hand-built candidate list has no helmet+weapon set, so the
             # empty-armour-slot fill rule is switched off for this pin.
             require_armor_slots=frozenset(),
+            # The weaponless speed set is a flag carrier too: the combat-weapon requirement
+            # (holds_combat_weapon, 2026-11-28) is switched off for this pin.
+            require_weapon=False,
         )
 
         self.assertEqual(result.chosen_depth, 90)

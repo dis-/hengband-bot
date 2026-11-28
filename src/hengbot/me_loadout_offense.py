@@ -66,6 +66,19 @@ class MagicEaterOffenseInputs:
     powers: tuple[tuple[str, int], ...] = ()
     # (kind, sval) of every held SURVIVAL_POWERS power.
     survival_powers: tuple[tuple[str, int], ...] = ()
+    # The held attack powers' uses (``held_attack_uses``); None reads as enough (a test fake).
+    attack_uses: int | None = None
+
+
+# The uses of absorbed attack powers that sustain them as the character's attack: owner
+# 2026-11-22 「魔道具術師はロケットの魔法棒を最優先で買う（売ってでも・取り込み50回まで）」, the owner's
+# count of one attack power that is enough.  Fewer uses count that share of the attack (supervisor
+# 2026-11-28: n1-b life-421, Lv20 with 17 Magic Missiles and two bolt rods, read an absorbed attack
+# of 25 a turn against its long sword's 12.4 and wore two shovels, the town's combat-weapon leaf
+# putting the sword back until town:blocked:equipment-slot-flipflop:main_hand).
+SUSTAINED_ATTACK_USES = 50
+# The entry of ``held_magic_eater_powers`` carrying ``held_attack_uses`` (a key no power has).
+ATTACK_USES_KEY = "attack-uses"
 
 
 # The absorbed powers the bot casts to survive (owner 2026-11-08 「魔法成功率は生存に
@@ -167,7 +180,8 @@ def magic_eater_device_dps(
     flags: frozenset[int],
     encounters: Iterable,
 ) -> float:
-    """Encounter-weighted best absorbed attack per player turn under this loadout's INT."""
+    """Encounter-weighted best absorbed attack per player turn under this loadout's INT, times
+    the share its held uses sustain (``sustained_share``)."""
     if inputs is None or not inputs.powers:
         return 0.0
     intelligence = loadout_intelligence(inputs, int_pval)
@@ -191,7 +205,7 @@ def magic_eater_device_dps(
         )
         total += encounter.weight * best
         weight += encounter.weight
-    return total / weight if weight > 0 else 0.0
+    return (total / weight if weight > 0 else 0.0) * sustained_share(inputs)
 
 
 def held_survival_powers(device_lists) -> tuple[tuple[str, int], ...]:
@@ -205,10 +219,33 @@ def held_survival_powers(device_lists) -> tuple[tuple[str, int], ...]:
     return tuple(sorted(held))
 
 
+def held_attack_uses(device_lists) -> int:
+    """The uses the held attack powers hold when charged: each listed attack row's ``max`` (a
+    wand's or staff's charges, a rod's count; cmd-magiceat.cpp's list)."""
+    uses = 0
+    for kind, (_turn, rows) in (device_lists or {}).items():
+        for row in rows:
+            power = me_device_attacks._BY_NAME.get((kind, row.get("name")))
+            if power is not None and not power.group_only:
+                uses += max(0, int(row.get("max") or 0))
+    return uses
+
+
 def held_magic_eater_powers(device_lists) -> tuple[tuple[str, int], ...]:
-    """The held attack and survival powers the loadout evaluator reads (sorted)."""
-    return tuple(sorted(set(held_attack_powers(device_lists))
-                        | set(held_survival_powers(device_lists))))
+    """The held attack and survival powers the loadout evaluator reads (sorted), and the attack
+    powers' uses as one ``(ATTACK_USES_KEY, uses)`` entry when an attack power is held."""
+    attack = set(held_attack_powers(device_lists))
+    entries = attack | set(held_survival_powers(device_lists))
+    if attack:
+        entries.add((ATTACK_USES_KEY, held_attack_uses(device_lists)))
+    return tuple(sorted(entries))
+
+
+def sustained_share(inputs: MagicEaterOffenseInputs) -> float:
+    """The share of the absorbed attack the held uses sustain (``SUSTAINED_ATTACK_USES``)."""
+    if inputs.attack_uses is None:
+        return 1.0
+    return min(1.0, inputs.attack_uses / SUSTAINED_ATTACK_USES)
 
 
 def _success(inputs: MagicEaterOffenseInputs, kind: str, level: int,
@@ -325,7 +362,8 @@ def offense_inputs(class_id: int, level: int, natural_int: int, intrinsic_int: i
     if class_id != PLAYER_CLASS_MAGIC_EATER:
         return None
     powers = tuple(powers)
-    return MagicEaterOffenseInputs(
+    uses = next((entry[1] for entry in powers if entry[0] == ATTACK_USES_KEY), None)
+    return MagicEaterOffenseInputs(attack_uses=uses,
         level=level, natural_int=natural_int, intrinsic_int=intrinsic_int,
         personality_id=personality_id,
         powers=tuple(key for key in powers if key in me_device_attacks.POWERS),

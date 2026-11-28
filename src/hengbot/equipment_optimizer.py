@@ -1091,6 +1091,28 @@ def _is_weapon(item: EquipmentItem) -> bool:
     return item.tval in {21, 22, 23}
 
 
+def holds_combat_weapon(loadout: "Loadout") -> bool:
+    """A melee weapon (``_is_weapon``: no digging tool) in the main hand: the one answer the
+    loadout search and the town's combat-weapon leaf (policy ``_combat_weapon_ready``) read."""
+    main = loadout.item_at(SLOT_MAIN_HAND)
+    return main is not None and _is_weapon(main.item)
+
+
+def combat_weapon_required(items: Iterable[OwnedEquipment],
+                           current_item_ids: frozenset[str] = frozenset()) -> bool:
+    """A loadout must hold a combat weapon (``holds_combat_weapon``) when one is owned to wear,
+    unless a cursed worn piece that is no weapon is pinned in the main hand.
+
+    Supervisor 2026-11-28: n1-b life-421 (Lv20 Magic-Eater) chose two worn shovels over its long
+    sword (the absorbed attack outweighed both), the town's combat-weapon leaf took the sword
+    out again, and the two undid each other to town:blocked:equipment-slot-flipflop:main_hand."""
+    items = tuple(items)
+    if any(item.id in current_item_ids and item.equipped_slot == SLOT_MAIN_HAND
+           and item.item.is_cursed and not _is_weapon(item.item) for item in items):
+        return False
+    return any(_is_weapon(item.item) and item.exploration_legal for item in items)
+
+
 def _is_shield(item: EquipmentItem) -> bool:
     return item.tval == 34
 
@@ -1964,6 +1986,7 @@ def optimize_loadout(
     finale: bool = False,
     destination_floor: int | None = None,
     gate_floor: int | None = None,
+    require_weapon: bool | None = None,
 ) -> OptimizationResult:
     """Find the best complete loadout, failing closed if exact search times out.
 
@@ -2019,6 +2042,8 @@ def optimize_loadout(
         )
     if require_armor_slots is None:
         require_armor_slots = owned_armor_fill_slots(catalog)
+    if require_weapon is None:
+        require_weapon = combat_weapon_required(catalog, current_item_ids)
     incomplete = frozenset(
         item.id
         for item in catalog
@@ -2119,6 +2144,11 @@ def optimize_loadout(
         # Body armour is mandatory only when a body-filled candidate passes
         # the same static depth gates.  Defer bodyless candidates until that
         # fact is known, without paying for their combat evaluation if it is.
+        # The town's combat-weapon leaf (policy ``_combat_weapon_ready``) asks the same: a
+        # melee weapon in the main hand (supervisor 2026-11-28, n1-b life-421).
+        if require_weapon and not holds_combat_weapon(loadout):
+            invalid += 1
+            continue
         if require_body and loadout.item_at(SLOT_BODY) is None:
             deferred_bodyless.append(loadout)
             continue
