@@ -3567,13 +3567,6 @@
     ],
     "delegation": "no independent success"
   },
-  "equipment_visit_journal.py:held_stop": {
-    "classification": "data",
-    "rows": [
-      "data/no-independent-credit"
-    ],
-    "delegation": "selected child; no independent success"
-  },
   "equipment_visit_journal.py:signature_changes": {
     "classification": "data",
     "rows": [

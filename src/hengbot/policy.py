@@ -3004,7 +3004,7 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             if key is None and self._warning_prompt_stops_decision:
                 key = None
                 break
-            # The slot round trip's named stop (equipment_visit_journal) sends nothing; no
+            # The stuck banned piece's named stop (equipment_visit_journal) sends nothing; no
             # rewrite below may turn it into a key or read the missing key.
             if key is None and equipment_visit_journal.is_stop(self.last_reason):
                 break
@@ -4978,12 +4978,9 @@ class HengbotPolicy(TownVisitAttributes, ObservationMixin, TownMixin, TownArbite
             self._pending_mutation_report = released or discarded
         self._escape_state.begin_decision(snapshot, self._decision_sequence)
         self._observe_town_equipment_work(snapshot)
-        # A slot worn A, B, A in this town visit is a final stop by name; nothing is sent
-        # (equipment_visit_journal; owner 2026-11-22 「往復が起きたら停止して直す」).
-        flipflop = equipment_visit_journal.held_stop(self, snapshot)
-        if flipflop is not None:
-            self.last_reason = flipflop
-            return None
+        # A slot's second round trip in this town visit closes the visit's equipment
+        # transaction and keeps the worn kit (equipment_visit_journal ``settle``).
+        equipment_visit_journal.settle(self, snapshot)
         # A worn banned piece that cannot come off while the search cannot run: a final stop by
         # name (owner 2026-11-22 Q7 「外せない時は名指しで止める」, policy_equipment).
         banned_stuck = self._banned_gear_stuck_stop(snapshot)

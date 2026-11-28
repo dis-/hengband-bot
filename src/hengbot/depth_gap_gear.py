@@ -67,12 +67,31 @@ def speed_row(policy: Any, snapshot: Any) -> tuple[str, int] | None:
 
 
 def gate_floor(policy: Any, snapshot: Any) -> int | None:
-    """The first floor of the unmet speed row (the band the descent should reach), or None."""
-    if speed_row(policy, snapshot) is None:
+    """The first floor of the speed row the town's loadout search works toward, or None.
+
+    The one answer the search reads (policy_equipment's candidates, its memo signature and the
+    visit's re-decide event), and it does not turn on the choice the search makes: the
+    shallowest speed row the worn kit does not meet (angband_cap ``speed_ceiling`` + 1), and
+    when the worn kit meets every row, the deepest row it meets only through its worn speed
+    pieces (``piece_speed``; without them the row is unmet, haste_sustain ``row_met``).
+
+    Supervisor 2026-11-28: n1-c life-224 (Zombie Magic-Eater CL44, +16 worn) read 91 and the
+    search took ★ハーゲンのスピア (+3) and スピードの指輪 (+6) for +25 under the 91F band; worn,
+    the row was met, the gate read None, the search's 90F band took ★フーリン王のビークド・アックス
+    and 『炎の鉄ゲタ』 (-1) for their blows (+19), and the gate read 91 again: the spear and the
+    axe took turns in the main hand until town:blocked:equipment-slot-flipflop:main_hand."""
+    if snapshot is None or getattr(snapshot, "player", None) is None:
         return None
-    from hengbot import angband_cap
+    from hengbot import angband_cap, haste_sustain
+    from hengbot.policy_constants import SPEED_GATES
+    from hengbot.speed_valuation import permanent_player_speed
     ceiling = angband_cap.speed_ceiling(policy, snapshot)
-    return None if ceiling is None else ceiling + 1
+    if ceiling is not None:
+        return ceiling + 1
+    bare = permanent_player_speed(snapshot) - sum(piece_speed(piece) for piece in snapshot.equipment)
+    held = [first for first, label, need in SPEED_GATES
+            if not haste_sustain.row_met(policy, snapshot, (label, need), speed=bare)]
+    return max(held) if held else None
 
 
 def piece_speed(item: Any) -> int:

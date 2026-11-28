@@ -69,14 +69,17 @@ def sustained(policy, snapshot) -> bool:
     return uses(policy, snapshot) >= need
 
 
-def row_met(policy, snapshot, row) -> bool:
+def row_met(policy, snapshot, row, speed: int | None = None) -> bool:
     """A depth speed row (policy_constants ``SPEED_GATES``: (label, permanent speed)) is met: the
-    permanent speed reaches it, or, for the 70-90F row, the haste is sustained (``sustained``)."""
+    permanent speed reaches it, or, for the 70-90F row, the haste is sustained (``sustained``).
+
+    ``speed`` reads the row for another permanent speed than the board's (depth_gap_gear
+    ``gate_floor``: the speed without the worn speed pieces)."""
     from hengbot.policy_constants import MID_SPEED_GATE_LABEL  # import cycle
     from hengbot.speed_valuation import permanent_player_speed
 
     label, need = row
-    if permanent_player_speed(snapshot) >= need:
+    if (permanent_player_speed(snapshot) if speed is None else speed) >= need:
         return True
     return label == MID_SPEED_GATE_LABEL and policy is not None and sustained(policy, snapshot)
 

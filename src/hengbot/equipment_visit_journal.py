@@ -25,14 +25,19 @@ What it records (one small rotation-bounded jsonl beside the decision log,
   and empty boards collapsed, end A, B, A (A != B).  An empty slot between does not count
   (the calibration strip takes everything off and puts the same gear back: A, -, A is no round
   trip).  The row counts the slot's round trips in the visit (``round_trip``); only the
-  ``STOP_ROUND_TRIPS``-th stops (owner 2026-11-22 「1往復で決定するなら止める必要はない」).
+  ``STOP_ROUND_TRIPS``-th settles (owner 2026-11-22 「1往復で決定するなら止める必要はない」).
 
-The stop.  ``observe`` (every public decision, ``choose_key``) reads the board into the trails;
-``held_stop`` (at the head of ``_choose_key``) returns ``STOP_PREFIX + slot`` while the round
-trip's worn state stands in the same visit, when ``FLIPFLOP_STOPS`` is on; the
-decision then sends nothing under that reason (a policy final stop, ``policy_constants
-POLICY_FINAL_STOP_PREFIXES``) and the incident capture carries this journal.  The round trip is
-the observed one: the third wear has been posted and seen.  Out of town the visit's trail is not
+The settlement.  ``observe`` (every public decision, ``choose_key``) reads the board into the
+trails; the ``STOP_ROUND_TRIPS``-th round trip of a slot marks the visit (``state["settle"]``,
+named ``ROUND_TRIP_PREFIX + slot``), and ``settle`` (at the head of ``_choose_key``) closes the visit's
+equipment transaction once no session is in flight (policy ``_equipment_transaction_visit_closure``,
+reason ``SETTLED_CLOSURE``): no plan is made again this visit, the worn kit stays (the last
+decider's answer), the departure reads the closed visit as the failed optional change
+(``_closed_visit_failure_preparation``), and a ``FLIPFLOP_SETTLED_EVENT`` row and a stderr line
+name the slot.  Nothing stops (supervisor 2026-11-28: n1-c life-224, Lv44, stopped in town by the
+spear and the axe taking turns; MAINTAINABILITY 2: a stop is for a broken mechanism, and two
+deciders disagreeing leave a loadout that each of them accepted).  The round trip is the observed
+one: the third wear has been posted and seen.  Out of town the visit's trail is not
 kept (the digger swap's weapon -> digger -> weapon is the mining set's own fight rule); the combat
 hands alone are read on every board, across the visits, into a record-only trail
 (``observe_hands``, ``equipment-hand-roundtrip:<slot>``: a temporary swap's round trip over the
@@ -56,25 +61,28 @@ FILE_NAME = "equipment-visit.jsonl"
 ROTATE_BYTES = 16 * 1024 ** 2
 GENERATIONS = 3
 VISIT_ROWS = 160          # rows of the visit kept in memory for the stop capture (the newest)
-STOP_PREFIX = "town:blocked:equipment-slot-flipflop:"
 # Owner Q7 2026-11-22 「外せない時は名指しで止める」 (stage E3): a worn banned piece (equipment_rules,
 # the twilight robe) that cannot come off while the loadout search cannot run (policy_equipment
-# ``_banned_gear_stuck_stop``).  A policy final stop like the round trip's.
+# ``_banned_gear_stuck_stop``).  A policy final stop (policy_constants POLICY_FINAL_STOP_PREFIXES).
 BANNED_STUCK_PREFIX = "town:blocked:banned-gear-stuck:"
 FLIPFLOP_EVENT = "equipment-slot-flipflop"
+# The name of a slot's second round trip (``state["settle"]``, the settlement's stderr line); until
+# supervisor 2026-11-28 the stop ``town:blocked:equipment-slot-flipflop:<slot>``.
+ROUND_TRIP_PREFIX = FLIPFLOP_EVENT + ":"
 REWEAR_EVENT = "equipment-rewear"
 # The combat hands' trail across town visits and the dungeon (``observe_hands``, record only:
 # a row of state_registry, owner equipment_visit_journal).
 HAND_TRAIL_STATE = "_equipment_hand_trail"
 HAND_TRAIL_LENGTH = 6
 HAND_ROUNDTRIP_EVENT = "equipment-hand-roundtrip"
-# Owner 2026-11-22 「往復が起きたら停止して直す」: the round trip is a named stop.  False turns it
-# back into a record only (the event row stays).
-FLIPFLOP_STOPS = True
 # Owner 2026-11-22 (verbatim) 「1往復で決定するなら止める必要はない」: one round trip A, B, A
 # that settles is recorded (``stops`` false); the slot's second round trip in the visit (A, B,
-# A, B or A, B, A, C, A: it keeps going back and forth) is the stop.
+# A, B or A, B, A, C, A: it keeps going back and forth) settles the visit (``settle``; owner
+# 2026-11-22 「往復が起きたら停止して直す」 stopped there until supervisor 2026-11-28).
 STOP_ROUND_TRIPS = 2
+# The visit closure's reason (policy ``_equipment_transaction_visit_closure``) and the row kind.
+SETTLED_CLOSURE = "slot-flipflop"
+FLIPFLOP_SETTLED_EVENT = "equipment-slot-flipflop-settled"
 _AMMUNITION = frozenset({TVAL_SHOT, TVAL_ARROW, TVAL_BOLT})
 # policy_equipment's search signature: its leading positional fields, then tagged pairs.
 SIGNATURE_FIELDS = ("owned-catalog", "identification-exempt", "home-scan-complete", "worn",
@@ -95,7 +103,7 @@ def _matches(left: tuple | None, right: tuple | None) -> bool:
 
 def _new(epoch) -> dict:
     return {"epoch": epoch, "worn": None, "trail": {}, "taken_off": [], "rows": [],
-            "prepared": None, "stop": None, "searches": 0, "posts": 0, "round_trips": {}}
+            "prepared": None, "settle": None, "searches": 0, "posts": 0, "round_trips": {}}
 
 
 def journal(policy: Any) -> dict:
@@ -328,45 +336,46 @@ def observe(policy: Any, snapshot: Any) -> None:
         if len(trail) >= 3 and _matches(trail[-3], new) and not _matches(trail[-2], new):
             trips = state.setdefault("round_trips", {})
             trips[slot] = trips.get(slot, 0) + 1
-            stops = FLIPFLOP_STOPS and trips[slot] >= STOP_ROUND_TRIPS
+            stops = trips[slot] >= STOP_ROUND_TRIPS
             name = f"{FLIPFLOP_EVENT}:{slot}"
             _journal_row(policy, snapshot, name, slot=slot, trail=trail[-3:],
                     item=_item(worn[slot]), stops=stops, round_trip=trips[slot])
-            if stops and state.get("stop") is None:
-                state["stop"] = {"reason": STOP_PREFIX + slot, "worn": now}
+            if stops and state.get("settle") is None:
+                state["settle"] = {"name": ROUND_TRIP_PREFIX + slot, "slot": slot, "worn": now}
     state["worn"] = now
 
 
-def held_stop(policy: Any, snapshot: Any) -> str | None:
-    """The round trip's named stop while its worn state stands in the same visit, else None."""
+def settle(policy: Any, snapshot: Any) -> bool:
+    """Close this visit's equipment transaction after a slot's second round trip (module
+    docstring); True when it closed it now.  A session in flight finishes first (its takeoffs
+    and wears are one plan; an abandoned one restores the gear it took off)."""
     state = getattr(policy, STATE, None)
-    if (not isinstance(state, dict) or state.get("epoch") is None
-            or state.get("epoch") != getattr(policy, "_town_visit_epoch", None)):
-        return None
-    now = {slot: stable_identity(item) for slot, item in _worn_by_slot(snapshot).items()}
-    stop = state.get("stop")
-    if not stop:
-        return None
-    held = stop.get("worn") or {}
-    if set(held) == set(now) and all(_matches(held[slot], now[slot]) for slot in now):
-        return stop["reason"]
-    return None
+    if (not isinstance(state, dict) or not state.get("settle") or state.get("settled")
+            or state.get("epoch") is None
+            or state.get("epoch") != getattr(policy, "_town_visit_epoch", None)
+            or getattr(policy, "_equipment_transaction_session", None) is not None):
+        return False
+    name, slot = state["settle"]["name"], state["settle"]["slot"]
+    state["settled"] = True
+    policy._equipment_transaction_visit_closure = {
+        "epoch": state["epoch"], "reason": SETTLED_CLOSURE, "slot": slot,
+        "turn": getattr(snapshot, "turn", None),
+    }
+    _journal_row(policy, snapshot, FLIPFLOP_SETTLED_EVENT, slot=slot,
+                 item=_item(_worn_by_slot(snapshot).get(slot)))
+    print(f"<{name}> the slot {slot} made its second round trip in one town visit; the "
+          "visit's equipment transaction is closed and the worn kit kept (equipment-visit.jsonl "
+          f"{FLIPFLOP_SETTLED_EVENT})", file=sys.stderr)
+    return True
 
 
 def is_stop(reason: str | None) -> bool:
-    """The equipment's named final stops: the slot round trip and the stuck banned piece."""
-    return bool(reason) and reason.startswith((STOP_PREFIX, BANNED_STUCK_PREFIX))
+    """The equipment's named final stop: the stuck banned piece (the round trip settles)."""
+    return bool(reason) and reason.startswith(BANNED_STUCK_PREFIX)
 
 
 def stop_message(reason: str) -> str:
-    if reason.startswith(BANNED_STUCK_PREFIX):
-        return (f"<{reason}> a worn banned piece (equipment_rules, the twilight robe) in the slot "
-                f"{reason[len(BANNED_STUCK_PREFIX):]} cannot be taken off (cursed) while the "
-                "loadout search cannot run (no calibration; owner 2026-11-22 Q7 「外せない時は"
-                "名指しで止める」); stopping the bot for investigation")
-    return (f"<{reason}> the slot {reason[len(STOP_PREFIX):]} made its second round trip in one "
-            "town visit (A, B, A, then back again: A, B, A, B or A, B, A, C, A; owner 2026-11-22 "
-            "「往復が起きたら停止して直す」, "
-            "「1往復で決定するなら止める必要はない」); the visit's searches and wears "
-            "are in equipment-visit.jsonl and the capture's _equipment_visit_journal; "
-            "stopping the bot for investigation")
+    return (f"<{reason}> a worn banned piece (equipment_rules, the twilight robe) in the slot "
+            f"{reason[len(BANNED_STUCK_PREFIX):]} cannot be taken off (cursed) while the "
+            "loadout search cannot run (no calibration; owner 2026-11-22 Q7 「外せない時は"
+            "名指しで止める」); stopping the bot for investigation")
